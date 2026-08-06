@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-833
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Bootstrap durable ACP command-result delivery onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T01:52:43.621658Z'
+updated_at: '2026-08-06T02:01:41.262939Z'
 work_branch: OOMPAH-833
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/727
@@ -159,6 +159,45 @@ oompah.review_number: '727'
 oompah.work_branch: OOMPAH-833
 oompah.target_branch: main
 oompah.review_head: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3ef17a87895f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-833
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6fe4f370885f73f29d404c268d27208fe600e43712eab92a23ded20d7a4d1134
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-06T02:01:28.702889+00:00'
+  - version: 1
+    audit_id: audit-56a0e0d0e1da
+    project_id: proj-14849f1b
+    task_id: OOMPAH-833
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6fe4f370885f73f29d404c268d27208fe600e43712eab92a23ded20d7a4d1134
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-06T02:01:28.702889+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -299,5 +338,15 @@ author: oompah
 created: 2026-08-06 01:51
 ---
 Branch quality gate passed for `c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1` using `make test` in 660.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-06 02:01
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-06 02:01
+---
+YOLO: merged PR #727.
 ---
 <!-- COMMENTS:END -->
