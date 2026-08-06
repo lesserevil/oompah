@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:28:34.295275Z'
+updated_at: '2026-08-06T23:28:44.222057Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,6 +36,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 1196b283-a90e-4dfc-bd55-42c7100b0e35
 ---
 ## Summary
 
@@ -49,3 +50,16 @@ Live reproduction on 2026-08-06: dedicated GitHub Actions run 31129704050 launch
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 23:28
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 23:28
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
