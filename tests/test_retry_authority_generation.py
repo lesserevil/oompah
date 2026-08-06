@@ -171,11 +171,147 @@ def test_revoked_running_submission_is_quarantined_without_retry(tmp_path):
             if issue.id not in orch.state.running:
                 break
 
+        await orch._drain_scheduled_terminations()
         assert entry.authority_revoked is True
         assert issue.id not in orch.state.running
         assert issue.id not in orch.state.claimed
         assert issue.id not in orch.state.claimed_issues
         assert worker.done()
+        assert orch._scheduled_termination_tasks == {}
+        assert not any(
+            task.get_name() == f"quarantine-worker-{issue.id}"
+            for task in asyncio.all_tasks()
+            if task is not asyncio.current_task()
+        )
+
+    asyncio.run(scenario())
+
+
+def test_stop_fences_cross_thread_termination_scheduling_and_drains_owner_task(
+    tmp_path,
+):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        worker = asyncio.create_task(asyncio.sleep(60))
+        entry = RunningEntry(
+            worker_task=worker,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            assignment_id="assignment-1",
+            authority_generation="generation-running",
+        )
+        orch.state.running[issue.id] = entry
+        orch._dispatch_loop = asyncio.get_running_loop()
+        termination_started = asyncio.Event()
+        allow_termination = asyncio.Event()
+
+        async def terminate(issue_id, cleanup_workspace=False):
+            assert issue_id == issue.id
+            assert cleanup_workspace is False
+            termination_started.set()
+            await allow_termination.wait()
+            orch.state.running.pop(issue_id, None)
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+            return True
+
+        orch._terminate_running = AsyncMock(side_effect=terminate)
+
+        # Exercise the production call_soon_threadsafe path.  The retirement
+        # remains in flight so stop() must observe and drain it.
+        await asyncio.to_thread(
+            orch._schedule_running_termination,
+            issue.id,
+            task_name_prefix="quarantine-worker",
+        )
+        await termination_started.wait()
+        stop_task = asyncio.create_task(orch.stop())
+        await asyncio.sleep(0)
+        assert not stop_task.done()
+
+        allow_termination.set()
+        await stop_task
+        assert orch._terminate_running.await_count == 1
+        assert orch._scheduled_termination_tasks == {}
+        assert not any(
+            task.get_name() == f"quarantine-worker-{issue.id}"
+            for task in asyncio.all_tasks()
+            if task is not asyncio.current_task()
+        )
+
+        # A foreign callback arriving after the shutdown admission gate closes
+        # must not create a new untracked task during loop teardown.
+        orch.state.running[issue.id] = entry
+        await asyncio.to_thread(
+            orch._schedule_running_termination,
+            issue.id,
+            task_name_prefix="late-quarantine-worker",
+        )
+        await asyncio.sleep(0)
+        assert orch._terminate_running.await_count == 1
+        assert orch._scheduled_termination_tasks == {}
+        orch.state.running.pop(issue.id, None)
+
+    asyncio.run(scenario())
+
+
+def test_stop_rejects_callback_queued_before_empty_termination_drain(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        worker = asyncio.create_task(asyncio.sleep(60))
+        entry = RunningEntry(
+            worker_task=worker,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            assignment_id="assignment-1",
+            authority_generation="generation-running",
+        )
+        orch.state.running[issue.id] = entry
+        queued_callbacks = []
+
+        def hold_callback(callback, *args):
+            queued_callbacks.append((callback, args))
+
+        owner_loop = MagicMock()
+        owner_loop.is_running.return_value = True
+        owner_loop.call_soon_threadsafe.side_effect = hold_callback
+        orch._dispatch_loop = owner_loop
+        orch._terminate_running = AsyncMock(return_value=True)
+
+        # Hold the foreign-thread callback until stop() has closed admission
+        # and drained the still-empty scheduled-task map.
+        await asyncio.to_thread(
+            orch._schedule_running_termination,
+            issue.id,
+            task_name_prefix="quarantine-worker",
+        )
+        assert len(queued_callbacks) == 1
+        held_termination_callback, held_termination_args = queued_callbacks[0]
+        assert orch._scheduled_termination_tasks == {}
+
+        await orch.stop()
+        assert orch._terminate_running.await_count == 1
+        held_termination_callback(*held_termination_args)
+        await asyncio.sleep(0)
+
+        assert orch._terminate_running.await_count == 1
+        assert orch._scheduled_termination_tasks == {}
+        assert not any(
+            task.get_name() == f"quarantine-worker-{issue.id}"
+            for task in asyncio.all_tasks()
+            if task is not asyncio.current_task()
+        )
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+        orch.state.running.pop(issue.id, None)
 
     asyncio.run(scenario())
 

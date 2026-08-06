@@ -1104,6 +1104,7 @@ class TestGracefulRestartShutdownEvent:
         "superseding_state",
         ["Merged", "Archived", "In Validation", "Needs Human"],
     )
+    @pytest.mark.timeout(20)
     def test_restart_recovery_preserves_superseding_state(
         self, tmp_path, event_loop, superseding_state
     ):
