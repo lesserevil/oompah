@@ -333,7 +333,7 @@ from oompah.projects import (
 )
 from oompah.providers import ProviderStore
 from oompah.roles import CandidateSelector, RoleStore
-from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
+from oompah.scm import SCMProvider, ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     ADAPTER_REGISTRY,
@@ -4668,14 +4668,25 @@ class Orchestrator:
         scoped_project_id = str(
             project_id or getattr(issue, "project_id", None) or "legacy"
         ).strip()
+        # Tracker adapters may return a project-scoped issue without copying
+        # the project id onto the model.  TaskTransitionService normalizes that
+        # field on its authoritative re-read, so build the intent from the same
+        # normalized projection.  Otherwise the service mutates a shared Issue
+        # instance from ``project_id=None`` to the scoped id and immediately
+        # rejects its own transition as a stale authority version.
+        authority_issue = (
+            issue
+            if getattr(issue, "project_id", None)
+            else replace(issue, project_id=scoped_project_id)
+        )
         assignment_generation = str(
-            getattr(issue, "assignment_id", None) or ""
+            getattr(authority_issue, "assignment_id", None) or ""
         ).strip() or None
         intent = TransitionIntent(
             project_id=scoped_project_id,
-            task_id=str(issue.identifier),
-            expected_status=issue.state,
-            expected_version=issue_authority_version(issue),
+            task_id=str(authority_issue.identifier),
+            expected_status=authority_issue.state,
+            expected_version=issue_authority_version(authority_issue),
             requested_status=requested_status,
             actor=actor,
             authority=authority,
@@ -4683,7 +4694,7 @@ class Orchestrator:
             idempotency_key=idempotency_key,
             originating_job=originating_job,
             evidence_generation=assignment_generation,
-            exact_head=issue_exact_head(issue),
+            exact_head=issue_exact_head(authority_issue),
         )
         service = TaskTransitionService(
             project_id=scoped_project_id,

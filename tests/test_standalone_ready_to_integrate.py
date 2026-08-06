@@ -122,6 +122,16 @@ class _MemoryTracker:
 
     def set_metadata_field(self, identifier: str, key: str, value: Any) -> None:
         self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
+        projected_fields = {
+            "oompah.review_url": "review_url",
+            "oompah.review_number": "review_number",
+            "oompah.work_branch": "work_branch",
+            "oompah.target_branch": "target_branch",
+            "oompah.review_head": "review_head",
+        }
+        attribute = projected_fields.get(key)
+        if attribute is not None:
+            setattr(self.issue, attribute, copy.deepcopy(value))
 
     def update_issue(self, identifier: str, **kwargs: Any) -> None:
         assert identifier == self.issue.identifier

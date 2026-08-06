@@ -1192,6 +1192,7 @@ def test_enforce_status_change_publishes_exact_durable_revocation():
     orch.workflow_runtime = SimpleNamespace(enforce=True)
     issue = _issue()
     live = SimpleNamespace(
+        issue=issue,
         run_id="run-1",
         authority_generation="generation-1",
     )

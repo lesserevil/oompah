@@ -4327,8 +4327,11 @@ async def _persist_worker_submission(
     if reuses_existing_generation and canonical_status == READY_TO_INTEGRATE:
         # Duplicate accepted submit for the same generation: after repairing
         # its branch projection, no fresh summary/status/queue generation is
-        # required.
-        return existing
+        # required.  Return the canonical record, not the pre-repair object:
+        # callers bind this value back onto the live Issue, and returning the
+        # legacy object would discard a just-persisted delivery-mode repair so
+        # every identical retry rewrote the same metadata.
+        return record
     if persist_status and canonical_status != READY_TO_INTEGRATE:
         # Same-head recovery from In Progress / Needs Human / Needs CI Fix
         # (and any other non-ready status) reconciles the canonical lifecycle
