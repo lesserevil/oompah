@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T08:46:40.311515Z'
+updated_at: '2026-08-06T09:09:53.662118Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -332,5 +332,10 @@ author: oompah
 created: 2026-08-06 08:46
 ---
 Fourth independent static review REJECTED the latest uncommitted repair on four admission/fencing gaps: a drain task canceled or failed after creation leaves a permanent restart fence; non-auditor worker create_task failure can strand tracker state In Progress and lose retry authority; worker/provider publication still assumes non-eager execution and misses CancelledError rollback; and transient durable audit-rollback failure can spend a supposedly free audit attempt. Repair is underway with production-path regressions before any tests or commit.
+---
+author: oompah
+created: 2026-08-06 09:09
+---
+Fourth-review repair is complete but remains uncommitted/test-free pending independent review. It now restores the full restart fence on drain failure/cancellation, restores ordinary and retry implementation authority on task creation failure, uses eager-safe worker/provider publication with BaseException cleanup across real API/ACP/CLI paths, and journals unadmitted audit rollback so metadata outages/restarts do not consume attempt budget. Static parse/diff checks are clean.
 ---
 <!-- COMMENTS:END -->

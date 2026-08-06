@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T08:46:38.061027Z'
+updated_at: '2026-08-06T09:09:50.854337Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-08-06 08:46
 ---
 Independent static review REJECTED the latest uncommitted repair on four correctness gaps: retained raw work-decision rows can leak stale decisions through server fallback when authoritative projection omits a live task; failed/ABA publication can mutate diagnostic registry and durable scheduler jobs outside the accepted public cut; the shadow scan cursor is in-memory and resets on reload/restart, starving later tasks; and tracker construction occurs before per-project isolation so one invalid tracker can abort all projects. Repair is underway with production-path regression coverage before any tests or commit.
+---
+author: oompah
+created: 2026-08-06 09:09
+---
+Latest independent static review REJECTED five remaining blockers: a cross-thread shadow/reload lock inversion; size-bounded diagnostics can drop the authoritative decision and starve rotating coverage; full-DB backup rollback can fail or erase concurrent writes and split multi-store cuts; dashboard cache misses manufacture false available/pending answers; and old-config tracker construction can repopulate the post-reload cache. Repairs and production-path concurrency regressions are underway before testing or commit.
 ---
 <!-- COMMENTS:END -->
