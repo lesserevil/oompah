@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T02:53:59.853545Z'
+updated_at: '2026-08-06T03:00:02.152923Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
