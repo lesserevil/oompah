@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-855
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Preserve auditor candidate eligibility across operator pause retirement
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-06T16:33:01.783868Z'
+updated_at: '2026-08-06T18:00:34.955614Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -24,21 +24,26 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 0ad2f9dc5c677ad6cd902f1e9c2c86707b47b775130aff56c10ad27c67567388
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T18:00:31.418473+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862.'
+  evidence: Project-owner review of the complete active systemic-workflow corpus found
+    no equivalent task. OOMPAH-855 uniquely preserves auditor candidate eligibility
+    across scheduler pause/graceful quiesce retirement. The corpus-capacity inconclusive
+    path is the already-fixed OOMPAH-853 deployment gap, not evidence of a duplicate.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T16:32:35.677013+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T18:00:31.418473+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Project-owner review of the complete active systemic-workflow
+    corpus found no equivalent task. OOMPAH-855 uniquely preserves auditor candidate
+    eligibility across scheduler pause/graceful quiesce retirement. The corpus-capacity
+    inconclusive path is the already-fixed OOMPAH-853 deployment gap, not evidence
+    of a duplicate.
 oompah.agent_run_id: 96b97b3c-86ea-4de3-b681-871074de63c9
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-855
 oompah.integration:
