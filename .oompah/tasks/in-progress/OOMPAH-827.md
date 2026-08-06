@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T01:43:14.063338Z'
+updated_at: '2026-08-06T01:50:34.393183Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -366,5 +366,10 @@ author: oompah
 created: 2026-08-06 01:43
 ---
 Understanding (CI repair): the observability implementation is already preserved on branch OOMPAH-827, but its full quality gate failed only in tests/test_installed_cli_smoke.py. I will inspect the exact branch/recovery diff and CI failure output, reproduce the installed-command behavior, then apply and test the minimal branch-specific repair before pushing and resubmitting.
+---
+author: oompah
+created: 2026-08-06 01:50
+---
+Discovery (CI repair): the gate report has no GitHub Actions run/PR (review creation was blocked before a PR existed), and its retained output truncates the individual launcher stderr. The failure pattern is confined to the eight tests that execute the installed console-script path; direct-Python checks passed. On the preserved branch, the same smoke suite plus work-kind suite passes under xdist (32 passed, 5 skipped), so the launcher failure is not reproducible in the task runtime. I rebased the same branch onto current origin/main to invalidate the failed exact-head result. During review I also found AGENT_DISPATCHED still reconstructs precedence instead of invoking RunningEntry.classify_work_kind(), contrary to the issue's single-authority requirement; the minimal source repair is to call the classifier on the already-created entry.
 ---
 <!-- COMMENTS:END -->
