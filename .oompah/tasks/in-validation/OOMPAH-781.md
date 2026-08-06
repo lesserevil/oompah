@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T08:40:55.128613Z'
+updated_at: '2026-08-06T08:41:03.061686Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -691,5 +691,10 @@ author: oompah
 created: 2026-08-06 08:21
 ---
 Bound the final saturated-I/O pause regression; 696 affected tests pass at 6a84d9bcc.
+---
+author: oompah
+created: 2026-08-06 08:41
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
