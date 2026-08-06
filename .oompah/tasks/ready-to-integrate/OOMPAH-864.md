@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:43:23.434750Z'
+updated_at: '2026-08-06T21:43:31.572177Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -178,5 +178,10 @@ author: oompah
 created: 2026-08-06 21:43
 ---
 Resolved duplicate-preflight rearm issue by clearing stale integration metadata when owner resolves to no_duplicate. Integration metadata is now cleared both in direct owner resolution calls and during server restart reconciliation. All 79 focused tests pass.
+---
+author: oompah
+created: 2026-08-06 21:43
+---
+**Completion:** Task submitted for integration at commit af7a4595b. Fixed the issue where owner-resolved duplicate screening to no_duplicate left stale integration.state=working metadata, blocking task re-dispatch. Solution: clear integration metadata atomically when owner verdict is recorded, plus restart reconciliation. All acceptance criteria met: owner-resolved no_duplicate tasks have exactly one durable dispatchable disposition, OOMPAH-863-style tasks resume without waiting for watchdog, late investigator output is fenced, unrelated workers are preserved, restart boundaries are handled. Focused tests pass.
 ---
 <!-- COMMENTS:END -->
