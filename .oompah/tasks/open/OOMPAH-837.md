@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T11:50:33.207162Z'
+updated_at: '2026-08-06T11:50:54.264373Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -25,7 +25,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-804--task-OOMPAH-837
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
-  updated_at: '2026-08-06T11:48:22.161244+00:00'
+  updated_at: '2026-08-06T11:50:43.393900+00:00'
 oompah.agent_run_id: 84064217-9ea2-47fa-ac83-4ec4b70366c1
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-837
 oompah.duplicate_screening:
@@ -35,13 +35,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: ad03f7ea-3d1c-412a-82bb-1221acc3e465
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T11:50:19.629858+00:00'
-  claim_expires_at: '2026-08-06T12:20:19.629858+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-837 is on
+    OOMPAH-837, not expected branch epic-OOMPAH-804--task-OOMPAH-837; refusing to
+    reset it
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-06T11:51:48.558005+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -163,5 +165,14 @@ author: oompah
 created: 2026-08-06 11:50
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 11:50
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 18s
 ---
 <!-- COMMENTS:END -->
