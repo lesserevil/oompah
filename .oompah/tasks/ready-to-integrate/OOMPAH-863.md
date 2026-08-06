@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T21:50:41.697496Z'
+updated_at: '2026-08-06T21:51:08.088792Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -48,16 +48,18 @@ oompah.duplicate_screening:
     capacity tasks cover reservation, but none bind alert publication to the exact
     concurrent winner generation. The inconclusive result is the deployed pre-OOMPAH-853
     corpus budget bug.
-oompah.agent_run_id: f40d6223-4bf0-4302-9be4-44e43b8e42e7
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-863
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  updated_at: '2026-08-06T21:42:15.650416+00:00'
+  head_sha: 3e5ddd154985dc916a725244ba7fadf60db807e1
+  submitted_at: '2026-08-06T21:50:50.778719+00:00'
+  updated_at: '2026-08-06T21:50:50.778719+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2914
@@ -237,5 +239,20 @@ author: oompah
 created: 2026-08-06 21:50
 ---
 Completion: delivered the exact standalone Ready authority/reservation race repair at 3e5ddd154. Same-task concurrent and restarted losers cannot publish stale capacity waits after an exact reservation or adopted review exists; genuine other-task capacity waits, ordering, one-review fencing, create-failure diagnostics, close/release, exact-head handling, and restart recovery remain covered. Branch is clean, pushed, and tracking its task remote; submission is intentionally ordered behind OOMPAH-845 so the next combined gate includes the unrelated coroutine-leak fix.
+---
+author: oompah
+created: 2026-08-06 21:51
+---
+Bound standalone capacity alerts to exact durable delivery authority and eliminated stale same-task waits across concurrent sweeps and restart recovery; focused race/lifecycle coverage passes, with combined gate ordered behind OOMPAH-845.
+---
+author: oompah
+created: 2026-08-06 21:51
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 77
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 56s
+- Log: OOMPAH-863__20260806T214222Z.jsonl
 ---
 <!-- COMMENTS:END -->
