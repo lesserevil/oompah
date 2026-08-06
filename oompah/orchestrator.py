@@ -246,14 +246,25 @@ from oompah.terminal_transition_coordinator import (
     TransitionResult,
     accepted_audit_recovery_action,
 )
-from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_contract import (
     LIFECYCLE_FINAL_STATUSES,
     TaskDisposition,
     WorkflowOwner,
 )
-from oompah.work_decision import PermittedAction
-from oompah.workflow_facts import FactDomain, WorkflowFactCollector
+from oompah.work_decision import PermittedAction, WorkDecision
+from oompah.work_decision_projection import (
+    operator_actionable_alerts,
+    project_work_decision,
+    project_work_decision_payload,
+    work_decision_alert,
+)
+from oompah.workflow_facts import (
+    FactDomain,
+    FactObservation,
+    WorkflowFactCollector,
+    WorkflowFacts,
+)
+from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
 from oompah.workflow_liveness_metrics import workflow_liveness_health_alerts
 from oompah.workflow_shadow import (
@@ -1554,6 +1565,13 @@ class Orchestrator:
             ),
             liveness_slo_seconds=config.workflow_liveness_slo_seconds,
         )
+        # The controller is the sole owner of why-not-progressing answers.
+        # Read consumers take immutable copies from this cache; they never
+        # infer ownership or alert severity from running/retry maps.
+        self._work_decisions_lock = threading.RLock()
+        self._work_decisions: dict[tuple[str, str], WorkDecision] = {}
+        self._work_decision_generation = 0
+        self._work_decision_updated_at: str | None = None
         self._workflow_shadow_generation = 0
         self._workflow_shadow_generation_lock = threading.Lock()
         self._workflow_shadow_future: asyncio.Future[Any] | None = None
@@ -11186,6 +11204,161 @@ class Orchestrator:
             )
         return tuple(projections)
 
+    def _cache_work_decisions(
+        self, decisions: tuple[WorkDecision, ...] | list[WorkDecision], generation: int
+    ) -> None:
+        """Publish the latest bounded controller answers atomically."""
+
+        now = datetime.now(timezone.utc).isoformat()
+        with self._work_decisions_lock:
+            for decision in decisions:
+                key = (str(decision.project_id or "legacy"), decision.task_id)
+                self._work_decisions[key] = decision
+            self._work_decision_generation = max(
+                self._work_decision_generation, int(generation)
+            )
+            self._work_decision_updated_at = now
+
+    def work_decision_projection(
+        self, project_id: str | None, task_id: str, task: Issue | None = None
+    ) -> dict[str, Any] | None:
+        """Return one read-only why-not-progressing projection.
+
+        A shadow diagnostic is used as a compatibility fallback during the
+        staged controller rollout.  Both sources contain the same evaluator
+        decision and are serialized through the same public projection.
+        """
+
+        project = str(project_id or "legacy")
+        identifier = str(task_id or "").strip()
+        if not identifier:
+            return None
+        with self._work_decisions_lock:
+            decision = self._work_decisions.get((project, identifier))
+        if decision is not None:
+            return project_work_decision(decision)
+        diagnostic = self.workflow_shadow.diagnostic(project, identifier)
+        if isinstance(diagnostic, dict):
+            raw_decision = diagnostic.get("decision")
+            if isinstance(raw_decision, dict):
+                try:
+                    return project_work_decision_payload(raw_decision)
+                except (TypeError, ValueError):
+                    logger.debug(
+                        "Ignoring invalid cached workflow decision for %s/%s",
+                        project,
+                        identifier,
+                    )
+        if task is None:
+            return None
+        # Before the first bounded controller pass, expose a conservative
+        # status/evidence answer instead of making the board guess. Missing
+        # external facts deliberately become informational recovery, never a
+        # warning; the next controller pass replaces this fallback.
+        project_value = str(task.project_id or project or "legacy")
+        collected_at = datetime.now(timezone.utc).isoformat()
+        observations = {
+            FactDomain.TASK: FactObservation.known(
+                FactDomain.TASK,
+                {
+                    "identifier": task.identifier,
+                    "project_id": project_value,
+                    "status": task.state,
+                },
+                observed_at=collected_at,
+                source="projection_fallback",
+            ),
+            FactDomain.DEPENDENCIES: FactObservation.known(
+                FactDomain.DEPENDENCIES,
+                {
+                    "finish": [
+                        {
+                            "identifier": item.identifier or item.id,
+                            "status": canonicalize_status(item.state),
+                        }
+                        for item in (task.blocked_by or [])
+                    ],
+                    "hard_start": [
+                        {
+                            "identifier": item.identifier or item.id,
+                            "status": canonicalize_status(item.state),
+                        }
+                        for item in (task.start_blocked_by or [])
+                    ],
+                },
+                observed_at=collected_at,
+                source="projection_fallback",
+            ),
+            FactDomain.INTEGRATION: FactObservation.known(
+                FactDomain.INTEGRATION,
+                (
+                    task.integration.to_dict()
+                    if getattr(task, "integration", None) is not None
+                    else {"state": "none"}
+                ),
+                observed_at=collected_at,
+                source="projection_fallback",
+            ),
+            FactDomain.LANDING: FactObservation.known(
+                FactDomain.LANDING,
+                {"evidence_revisions": []},
+                observed_at=collected_at,
+                source="projection_fallback",
+            ),
+            FactDomain.RETRY_BUDGET: FactObservation.known(
+                FactDomain.RETRY_BUDGET,
+                {"attempts": 0, "max_attempts": 5},
+                observed_at=collected_at,
+                source="projection_fallback",
+            ),
+            FactDomain.CONFIG: FactObservation.known(
+                FactDomain.CONFIG, {}, observed_at=collected_at, source="projection_fallback"
+            ),
+        }
+        for domain in (
+            FactDomain.CONTAINMENT,
+            FactDomain.TERMINAL_AUDIT,
+            FactDomain.REVIEW_CI,
+            FactDomain.IMPLEMENTATION_AUTHORITY,
+        ):
+            observations[domain] = FactObservation.missing(
+                domain, observed_at=collected_at, source="projection_fallback"
+            )
+        try:
+            fallback = self.workflow_controller.evaluate(
+                (task,),
+                facts_by_task={task.identifier: WorkflowFacts(
+                    project_value, task.identifier, collected_at, observations
+                )},
+                now=datetime.fromisoformat(collected_at),
+            )
+        except Exception:
+            return None
+        return project_work_decision(fallback[0]) if fallback else None
+
+    def work_decision_projections(self) -> list[dict[str, Any]]:
+        """Return a stable, redacted copy of all cached task decisions."""
+
+        with self._work_decisions_lock:
+            values = tuple(self._work_decisions.values())
+        return [
+            project_work_decision(decision)
+            for decision in sorted(
+                values, key=lambda item: (item.project_id, item.task_id)
+            )
+        ]
+
+    def work_decision_alerts(self) -> list[dict[str, Any]]:
+        """Return only operator-actionable alerts derived from decisions."""
+
+        with self._work_decisions_lock:
+            values = tuple(self._work_decisions.values())
+        return [
+            alert
+            for decision in values
+            if (alert := work_decision_alert(decision)) is not None
+        ]
+
     def _run_workflow_shadow_sweep(self) -> dict[str, Any]:
         """Boundedly compare fresh facts with every legacy consumer projection."""
 
@@ -11243,6 +11416,19 @@ class Orchestrator:
                     self._legacy_workflow_projections(issue),
                     snapshot_generation=generation,
                 )
+                if result.diagnostic:
+                    raw_decision = result.diagnostic.get("decision")
+                    if isinstance(raw_decision, dict):
+                        try:
+                            self._cache_work_decisions(
+                                [WorkDecision.from_dict(raw_decision)], generation
+                            )
+                        except (TypeError, ValueError):
+                            logger.debug(
+                                "Workflow shadow decision was not cacheable for %s/%s",
+                                project_id,
+                                issue.identifier,
+                            )
                 evaluated += int(result.accepted)
                 changed += int(result.changed)
             except Exception as exc:  # noqa: BLE001 - diagnostics cannot stop work
@@ -11371,6 +11557,21 @@ class Orchestrator:
             }
         liveness = self.workflow_controller.liveness_snapshot()
         if result.accepted:
+            self._cache_work_decisions(
+                result.decisions, result.snapshot_generation
+            )
+            if not result.truncated:
+                live_keys = {
+                    (str(item.project_id or "legacy"), item.task_id)
+                    for item in result.decisions
+                }
+                with self._work_decisions_lock:
+                    for key in tuple(self._work_decisions):
+                        if key not in live_keys:
+                            self._work_decisions.pop(key, None)
+            # Decision severity transitions (including alert clearing) are
+            # state changes even when tracker status did not change. Liveness
+            # publication is also observable for an empty accepted snapshot.
             self._notify_state_only()
         return {
             "evaluated": len(result.decisions),
@@ -13949,6 +14150,11 @@ class Orchestrator:
                 "last_event_at": last_event_at,
                 "authority_revoked": bool(
                     getattr(entry, "authority_revoked", False)
+                ),
+                "work_decision": self.work_decision_projection(
+                    getattr(entry.issue, "project_id", None) if entry.issue else None,
+                    entry.identifier,
+                    entry.issue,
                 ),
             }
             running_index[(project_id, identifier)] = row
@@ -55483,6 +55689,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "authority_revoked": bool(
                     getattr(entry, "authority_revoked", False)
                 ),
+                "work_decision": self.work_decision_projection(
+                    getattr(entry.issue, "project_id", None) if entry.issue else None,
+                    entry.identifier,
+                    entry.issue,
+                ),
                 "managed_process_count": len(
                     getattr(entry, "managed_processes", {}) or {}
                 ),
@@ -55546,6 +55757,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "work_branch": retry.work_branch,
                     "head_sha": retry.head_sha,
                     "authority_generation": retry.authority_generation,
+                    "work_decision": self.work_decision_projection(
+                        retry.project_id, retry.identifier
+                    ),
                 }
             )
 
@@ -55590,6 +55804,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 ),
                 "policy_epoch": workflow_liveness.policy_epoch,
             }
+        work_decisions = self.work_decision_projections()
+        decision_alerts = self.work_decision_alerts()
         raw_alerts = (
             self._alerts_snapshot()
             + self._quality_gate_dashboard_alerts(quality_gate_state)
@@ -55600,7 +55816,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 if workflow_liveness_enabled
                 else []
             )
+            + decision_alerts
         )
+        snapshot_alerts = normalize_alerts(raw_alerts)
+        global_alerts = operator_actionable_alerts(snapshot_alerts)
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -55645,7 +55864,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 ),
             },
             "integration_queue": [
-                item.to_dict() for item in self.integration_queue.items()
+                {
+                    **item.to_dict(),
+                    "work_decision": self.work_decision_projection(
+                        getattr(item, "project_id", None),
+                        getattr(item, "task_id", None),
+                    ),
+                }
+                for item in self.integration_queue.items()
             ],
             "concurrency": {
                 "mode": "auto" if self.config.max_concurrent_agents == 0 else "fixed",
@@ -55659,6 +55885,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "running": running_rows,
             "tool_liveness": tool_liveness_totals,
             "retrying": retry_rows,
+            "work_decisions": work_decisions,
+            "work_decision_projection": {
+                "schema_version": 1,
+                "snapshot_generation": self._work_decision_generation,
+                "updated_at": self._work_decision_updated_at,
+                "items": work_decisions,
+            },
             "owner_claims": owner_claim_rows,
             "agent_totals": {
                 "input_tokens": totals.input_tokens,
@@ -55756,7 +55989,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # The state API and websocket share this exact presentation
             # boundary.  Producers retain their own metrics/diagnostics while
             # the dashboard receives one redacted, deduplicated contract.
-            "alerts": normalize_alerts(raw_alerts),
+            "alerts": snapshot_alerts,
+            "global_alerts": global_alerts,
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
                 "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),
