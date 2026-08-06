@@ -159,6 +159,7 @@ class TestSetupServicesSuccess:
         "WebhookForwarder": "oompah.webhooks.WebhookForwarder",
         "GitLabHookManager": "oompah.webhooks.GitLabHookManager",
         "Orchestrator": "oompah.orchestrator.Orchestrator",
+        "build_workflow_runtime": "oompah.workflow_runtime.build_workflow_runtime",
     }
 
     @pytest.mark.asyncio
@@ -190,6 +191,10 @@ class TestSetupServicesSuccess:
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
             ),
+            patch(
+                self._PATCHES["build_workflow_runtime"],
+                return_value=MagicMock(name="workflow_runtime"),
+            ),
         ):
             from oompah.bootstrap import setup_services
 
@@ -209,6 +214,10 @@ class TestSetupServicesSuccess:
         assert (
             mocks["orchestrator"].terminal_transition_coordinator
             is services.terminal_transition_coordinator
+        )
+        assert (
+            services.terminal_transition_coordinator._revoke_auditor_authority
+            is mocks["orchestrator"]._revoke_auditor_authority
         )
         mock_forwarder_cls.assert_called_once_with(
             project_store=mocks["projects"],
@@ -245,6 +254,10 @@ class TestSetupServicesSuccess:
             patch(
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
+            ),
+            patch(
+                self._PATCHES["build_workflow_runtime"],
+                return_value=MagicMock(name="workflow_runtime"),
             ),
         ):
             from oompah.bootstrap import setup_services
@@ -310,6 +323,10 @@ class TestSetupServicesSuccess:
             patch(
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
+            ),
+            patch(
+                self._PATCHES["build_workflow_runtime"],
+                return_value=MagicMock(name="workflow_runtime"),
             ),
             patch(
                 "oompah.label_bootstrap.ensure_github_labels",

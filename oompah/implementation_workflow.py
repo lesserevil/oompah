@@ -509,12 +509,30 @@ class ImplementationWorkflowController:
         self._latest: dict[str, ImplementationTaskDecision] = {}
 
     def evaluate(self, tasks: Sequence[Issue]) -> ImplementationDecisionBatch:
-        selected = dict(sorted({task.identifier: task for task in tasks}.items()))
-        selected = dict(tuple(selected.items())[: self.decision_limit])
+        # Apply the bounded window to this domain's eligible population, not
+        # to the complete project corpus.  Otherwise enough alphabetically
+        # earlier terminal/review tasks can permanently hide an Open task from
+        # every reconciliation pass.
+        selected = list(
+            sorted(
+                {
+                    task.identifier: task
+                    for task in tasks
+                    if task.state in self._STATUSES
+                }.items()
+            )
+        )
+        if len(selected) > self.decision_limit:
+            offset = self.store.allocate_decision_window(
+                total=len(selected),
+                limit=self.decision_limit,
+                scope=f"{self.collector.project_id}:implementation",
+            )
+            selected = (selected[offset:] + selected[:offset])[
+                : self.decision_limit
+            ]
         evaluated: list[ImplementationTaskDecision] = []
-        for task in selected.values():
-            if task.state not in self._STATUSES:
-                continue
+        for _, task in selected:
             facts = self.collector.collect(task.identifier)
             evaluated.append(
                 ImplementationTaskDecision(task, facts, evaluate_task(task, facts))

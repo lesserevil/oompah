@@ -1164,6 +1164,7 @@ class WorkflowJobStore:
         total: int,
         limit: int,
         snapshot_generation: int | None = None,
+        scope: str | None = None,
     ) -> int | None:
         """Return and advance a durable fair offset for a bounded task scan."""
 
@@ -1181,6 +1182,9 @@ class WorkflowJobStore:
             if snapshot_generation is not None
             else None
         )
+        key = "workflow_decision_window_offset"
+        if scope is not None:
+            key = f"{key}:{_required_text(scope, 'scope')}"
         with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
@@ -1195,17 +1199,18 @@ class WorkflowJobStore:
                 row = self._conn.execute(
                     """
                     SELECT value FROM schema_meta
-                     WHERE key = 'workflow_decision_window_offset'
-                    """
+                     WHERE key = ?
+                    """,
+                    (key,),
                 ).fetchone()
                 offset = (int(row["value"]) if row is not None else 0) % count
                 next_offset = (offset + min(bounded, count)) % count
                 self._conn.execute(
                     """
                     INSERT OR REPLACE INTO schema_meta(key, value)
-                    VALUES('workflow_decision_window_offset', ?)
+                    VALUES(?, ?)
                     """,
-                    (str(next_offset),),
+                    (key, str(next_offset)),
                 )
                 self._conn.commit()
                 return offset
