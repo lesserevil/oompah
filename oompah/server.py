@@ -4176,26 +4176,44 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
             "the worktree must be clean before task submission"
         )
     existing = getattr(issue, "integration", None)
-    base_sha = (
-        str(body.get("base_sha") or "").strip().lower()
-        or (
-            str(getattr(existing, "base_sha", "") or "").strip().lower()
-            if existing is not None
-            else ""
-        )
-        or None
+    same_task_head = bool(
+        existing is not None
+        and str(getattr(existing, "head_sha", "") or "").strip().lower()
+        == head_sha
+        and str(getattr(existing, "task_branch", "") or "").strip()
+        == task_branch
     )
+    supplied_base_branch = str(body.get("base_branch") or "").strip()
+    existing_base_branch = str(
+        getattr(existing, "base_branch", "") or ""
+    ).strip()
+    preserves_existing_base_authority = bool(
+        same_task_head
+        and (
+            not supplied_base_branch
+            or supplied_base_branch == existing_base_branch
+        )
+    )
+    supplied_base_sha = str(body.get("base_sha") or "").strip().lower()
+    base_sha = supplied_base_sha or (
+        str(getattr(existing, "base_sha", "") or "").strip().lower()
+        if preserves_existing_base_authority
+        else None
+    ) or None
     if base_sha is not None and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
         raise ValueError("base_sha must be a full hexadecimal git object id")
-    base_branch = (
-        str(body.get("base_branch") or "").strip()
-        or (
-            str(getattr(existing, "base_branch", "") or "").strip()
-            if existing is not None
-            else ""
-        )
-        or getattr(issue, "target_branch", None)
-    )
+    if supplied_base_branch:
+        base_branch = supplied_base_branch
+    elif same_task_head:
+        # A legacy accepted generation may legitimately predate persisted base
+        # authority.  Omitting ``base_branch`` on a same-head retry must
+        # preserve that exact record (including its missing value) instead of
+        # silently converting the issue's mutable target projection into new
+        # submission authority.  An explicitly supplied corrected target still
+        # creates a fresh generation below.
+        base_branch = getattr(existing, "base_branch", None)
+    else:
+        base_branch = getattr(issue, "target_branch", None)
     raw_dependency_heads = body.get("dependency_heads")
     dependency_heads = (
         {
@@ -4345,9 +4363,19 @@ async def _verify_submission_git_authority(
 
     base_branch = str(record.base_branch or "").strip() or None
     parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+    existing = getattr(issue, "integration", None)
+    reuses_exact_submission = bool(
+        existing is not None
+        and record is existing
+        and str(existing.task_branch or "").strip()
+        == str(record.task_branch or "").strip()
+        and str(existing.head_sha or "").strip().lower()
+        == str(record.head_sha or "").strip().lower()
+    )
     if (
         parent_id
         and not base_branch
+        and not reuses_exact_submission
         and getattr(orch.config, "parallel_epic_children_enabled", False)
     ):
         try:

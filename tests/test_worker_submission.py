@@ -1,6 +1,7 @@
 """Worker submission staging API and CLI tests."""
 
 import asyncio
+import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -9,7 +10,8 @@ from oompah import server as server_module
 from oompah import task_cli
 from oompah.integration import IntegrationRecord
 from oompah.integration_queue import IntegrationQueueStore
-from oompah.models import Issue
+from oompah.models import Issue, Project
+from oompah.projects import ProjectStore
 from oompah.server import app
 
 
@@ -500,6 +502,194 @@ def test_nested_child_verification_preserves_recorded_immediate_parent_target():
         "epic-OOMPAH-768--task-OOMPAH-804"
     )
     assert verified.base_branch == captured["base_branch"]
+
+
+def _real_nested_submission_store(tmp_path):
+    """Build real remote authority with a non-canonical parent branch alias."""
+
+    origin = tmp_path / "origin.git"
+    source = tmp_path / "source"
+    managed = tmp_path / "managed"
+    target_branch = "epic-OOMPAH-768--task-OOMPAH-804"
+    task_branch = "epic-OOMPAH-804--task-OOMPAH-834"
+    subprocess.run(["git", "init", "--bare", str(origin)], check=True)
+    subprocess.run(["git", "init", "-b", "main", str(source)], check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=source,
+        check=True,
+    )
+    (source / "base.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(origin)],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(["git", "push", "-u", "origin", "main"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+        cwd=origin,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "checkout", "-b", target_branch], cwd=source, check=True
+    )
+    (source / "parent.txt").write_text("parent\n", encoding="utf-8")
+    subprocess.run(["git", "add", "parent.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "parent"], cwd=source, check=True)
+    target_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "push", "-u", "origin", target_branch],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "checkout", "-b", task_branch], cwd=source, check=True
+    )
+    (source / "task.txt").write_text("first\n", encoding="utf-8")
+    subprocess.run(["git", "add", "task.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "first"], cwd=source, check=True)
+    first_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    (source / "task.txt").write_text("second\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-am", "second"], cwd=source, check=True)
+    second_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "push", "-u", "origin", task_branch],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(["git", "clone", str(origin), str(managed)], check=True)
+
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project = Project(
+        id="proj-1",
+        name="nested-authority",
+        repo_url=str(origin),
+        repo_path=str(managed),
+        branch="main",
+        default_branch="main",
+    )
+    store._projects[project.id] = project
+    return store, target_branch, task_branch, target_sha, first_head, second_head
+
+
+def test_real_verifier_preserves_reused_legacy_null_base_authority(tmp_path):
+    store, _target, task_branch, _target_sha, _first, current_head = (
+        _real_nested_submission_store(tmp_path)
+    )
+    existing = IntegrationRecord(
+        state="ready",
+        task_branch=task_branch,
+        head_sha=current_head,
+    )
+    issue = Issue(
+        id="OOMPAH-834",
+        identifier="OOMPAH-834",
+        title="Nested child",
+        state="Ready to Integrate",
+        parent_id="OOMPAH-804",
+        work_branch=task_branch,
+        target_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        integration=existing,
+    )
+    record = server_module._submission_record(
+        issue,
+        {
+            "summary": "Retry accepted legacy head",
+            "task_branch": task_branch,
+            "head_sha": current_head,
+            "remote_head_sha": current_head,
+            "worktree_clean": True,
+        },
+    )
+    assert record is existing
+    orch = MagicMock()
+    orch.project_store = store
+    orch.config.parallel_epic_children_enabled = True
+
+    verified = asyncio.run(
+        server_module._verify_submission_git_authority(
+            orch, issue, "proj-1", record
+        )
+    )
+
+    assert verified is existing
+    assert verified.base_branch is None
+    assert verified.base_sha is None
+
+
+def test_new_head_without_base_uses_canonical_nested_target_and_merge_base(tmp_path):
+    store, target_branch, task_branch, target_sha, old_head, new_head = (
+        _real_nested_submission_store(tmp_path)
+    )
+    issue = Issue(
+        id="OOMPAH-834",
+        identifier="OOMPAH-834",
+        title="Nested child",
+        state="Ready to Integrate",
+        parent_id="OOMPAH-804",
+        work_branch=task_branch,
+        target_branch=target_branch,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch=task_branch,
+            head_sha=old_head,
+        ),
+    )
+    record = server_module._submission_record(
+        issue,
+        {
+            "summary": "Submit replacement head",
+            "task_branch": task_branch,
+            "head_sha": new_head,
+            "remote_head_sha": new_head,
+            "worktree_clean": True,
+        },
+    )
+    assert record is not issue.integration
+    assert record.base_branch == target_branch
+    assert record.base_sha is None
+
+    orch = MagicMock()
+    orch.project_store = store
+    orch.config.parallel_epic_children_enabled = True
+    verified = asyncio.run(
+        server_module._verify_submission_git_authority(
+            orch, issue, "proj-1", record
+        )
+    )
+
+    assert verified.base_branch == target_branch
+    assert verified.base_sha == target_sha
 
 
 def test_same_head_submission_with_corrected_target_is_a_new_authority():

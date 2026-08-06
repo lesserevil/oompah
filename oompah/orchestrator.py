@@ -18733,10 +18733,20 @@ class Orchestrator:
                     continue
                 has_candidate = bool(str(item.candidate_head_sha or "").strip())
                 candidate_sha = str(
-                    item.candidate_head_sha if has_candidate else item.head_sha
+                    (
+                        item.candidate_head_sha
+                        if has_candidate
+                        else item.head_sha
+                    )
+                    or ""
                 ).strip()
                 candidate_base = str(
-                    item.candidate_base_sha if has_candidate else item.base_sha
+                    (
+                        item.candidate_base_sha
+                        if has_candidate
+                        else item.base_sha
+                    )
+                    or ""
                 ).strip()
                 if candidate_sha:
                     candidate_evidence.append(
