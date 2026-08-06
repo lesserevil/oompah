@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-804
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
@@ -27,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T08:22:25.802462Z'
+updated_at: '2026-08-06T09:06:26.319584Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -84,7 +84,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bf81b218-612a-43b2-bd90-9f67d6220506
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-804
 oompah.integration:
   version: 2
@@ -93,9 +93,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  head_sha: 0baeb01f1a1ca4d2b75fd46807d2889ef83a9adf
-  submitted_at: '2026-08-04T21:31:39.922144+00:00'
-  updated_at: '2026-08-04T21:31:39.922144+00:00'
+  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  submitted_at: '2026-08-06T09:06:17.505575+00:00'
+  updated_at: '2026-08-06T09:06:17.505575+00:00'
 oompah.task_costs:
   total_input_tokens: 61
   total_output_tokens: 13677
@@ -300,5 +300,15 @@ author: oompah
 created: 2026-08-06 08:22
 ---
 Restacked onto OOMPAH-781 exact head 6a84d9bcc. OOMPAH-804 head is now f9ee70d17; all 10 commits are again range-diff equivalent, diff check passes, and branch is clean/up to date. Focused tests await OOMPAH-781 integration.
+---
+author: oompah
+created: 2026-08-06 09:06
+---
+Final production composition is pushed at f89c477d4 on exact integrated OOMPAH-781 base 6a84d9bcc. Post-restack validation found and repaired project-less transition-version self-rejection, repeated canonical delivery-mode rewrites, standalone merged-review fixture projection, and exact running-entry fixture identity. Exact failures pass 5/5; full affected modules pass 275/275; the complete 43-module changed workflow/delivery/transition set passes 2,397/2,397. Terminal mutation scan passes 8/8, check-secrets passes, critical Ruff/compile/diff checks pass, and the branch is clean/up to date.
+---
+author: oompah
+created: 2026-08-06 09:06
+---
+Production durable workflow composition is complete at f89c477d4; 2,397 affected tests and static/security scans pass.
 ---
 <!-- COMMENTS:END -->
