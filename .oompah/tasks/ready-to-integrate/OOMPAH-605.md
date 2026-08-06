@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-06T21:09:05.901026Z'
+updated_at: '2026-08-06T21:09:40.390440Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 489bbc1f-b73b-43ca-94b9-dfddf87ab92f
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 1205558
   total_output_tokens: 28178
@@ -332,6 +332,15 @@ oompah.terminal_audit:
     branch_key: OOMPAH-605
     ended_at: '2026-08-06T20:51:13.172919+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-605
+  base_branch: main
+  head_sha: f2b319c1182cd654112db622a0498171e508dead
+  submitted_at: '2026-08-06T21:09:28.254194+00:00'
+  updated_at: '2026-08-06T21:09:28.254194+00:00'
 ---
 ## Summary
 
