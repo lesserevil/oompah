@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:51:59.869975Z'
+updated_at: '2026-08-06T05:34:45.449945Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-08-06 04:51
 ---
 Correction to the OOMPAH-826 evidence: its named single-module `python -m pytest ...` route did traverse the existing command classifier, but current policy deliberately treats that focused selector as light, so it never requests a lease. That is a separate arbitration-policy defect, now canonical OOMPAH-852. OOMPAH-846 remains scoped to genuine launch-path bypasses such as Codex native absolute `/bin/bash -c /absolute/.venv/bin/python -m pytest`, which should classify heavy but miss PATH/SHELL shims. Both must land before exact gates are fully isolated.
+---
+author: oompah
+created: 2026-08-06 05:34
+---
+Live provider-boundary reproduction at 2026-08-06T05:30Z: while OOMPAH-852's exact gate was the sole recorded validation owner, Codex worker OOMPAH-853 launched an unleased full suite through an absolute Bash command that invoked scripts/run-tests.sh parallel. validation_resources continued to report only OOMPAH-852 plus the OOMPAH-821 auditor waiter. I verified ancestry and terminated only the unleased test process group. This confirms the O846 top-level shell/provider-spawn and operator-side broker requirements; classifier-only coverage is insufficient.
 ---
 <!-- COMMENTS:END -->
