@@ -8252,6 +8252,33 @@ class Orchestrator:
                         ).timestamp()
                     except (TypeError, ValueError, OverflowError):
                         retry_at = None
+                current = self.integration_queue.get(
+                    project.id,
+                    issue.identifier,
+                )
+                # Candidate fencing writes the queue before tracker metadata:
+                # if that tracker write is interrupted, the next scan still
+                # observes the immutable submitted generation.  It is not a
+                # replacement submission, so retaining the durable candidate
+                # is required for the retried executor to validate and publish
+                # the exact combined-tree generation.  Match every field that
+                # enqueue uses to identify a submission; a different tracker
+                # record must retain the ordinary replacement semantics.
+                preserves_durable_candidate = bool(
+                    current is not None
+                    and current.state in {"ready", "integrating"}
+                    and str(current.candidate_head_sha or "").strip()
+                    and current.epic_id == epic_id
+                    and current.task_branch == str(record.task_branch).strip()
+                    and str(current.head_sha or "").strip().lower()
+                    == str(record.head_sha or "").strip().lower()
+                    and str(current.base_branch or "").strip()
+                    == str(record.base_branch or "").strip()
+                    and str(current.base_sha or "").strip().lower()
+                    == str(record.base_sha or "").strip().lower()
+                )
+                if preserves_durable_candidate:
+                    continue
                 self.integration_queue.enqueue(
                     project_id=project.id,
                     epic_id=epic_id,
@@ -11972,6 +11999,8 @@ class Orchestrator:
     def _integration_task_still_ready(
         self,
         item: IntegrationQueueItem,
+        *,
+        allow_precanonical_tracker_submission: bool = False,
     ) -> bool:
         """Return whether tracker and queue still authorize this executor.
 
@@ -11981,6 +12010,12 @@ class Orchestrator:
         on a quality gate.  Require the exact durable queue lease as well so
         the old generation is interrupted before it can consume passing
         evidence or mutate the epic branch.
+
+        A restarted executor with a durable candidate may temporarily accept
+        the immutable submitted head/base still present in the tracker.  That
+        exception is only for the pre-canonical preparation fence: candidate
+        canonicalization must repair tracker metadata before returning the
+        stricter authority used by the quality gate and commit stages.
         """
 
         if not self.integration_queue.owns_active_lease(
@@ -11998,18 +12033,39 @@ class Orchestrator:
         if issue is None:
             return False
         record = getattr(issue, "integration", None)
-        expected_head = str(item.candidate_head_sha or item.head_sha).strip()
+        tracker_pair = (
+            str(getattr(record, "head_sha", "") or "").strip().lower(),
+            str(getattr(record, "base_sha", "") or "").strip().lower(),
+        )
+        canonical_pair = (
+            str(item.candidate_head_sha or item.head_sha or "").strip().lower(),
+            str(item.candidate_base_sha or item.base_sha or "").strip().lower(),
+        )
+        submitted_pair = (
+            str(item.head_sha or "").strip().lower(),
+            str(item.base_sha or "").strip().lower(),
+        )
+        canonical_tracker_generation = tracker_pair == canonical_pair
+        precanonical_recovery_generation = bool(
+            allow_precanonical_tracker_submission
+            and item.candidate_head_sha
+            and item.candidate_base_sha
+            and tracker_pair == submitted_pair
+            and str(getattr(record, "base_branch", "") or "").strip()
+            == str(item.base_branch or "").strip()
+        )
         return bool(
             canonicalize_status(issue.state) == READY_TO_INTEGRATE
             and record is not None
             and str(record.task_branch or "").strip() == item.task_branch
-            and str(record.head_sha or "").strip() == expected_head
             and (
                 not item.base_branch
                 or str(record.base_branch or "").strip() == item.base_branch
             )
-            and str(record.base_sha or "").strip().lower()
-            == str(item.candidate_base_sha or item.base_sha or "").strip().lower()
+            and (
+                canonical_tracker_generation
+                or precanonical_recovery_generation
+            )
         )
 
     @staticmethod
@@ -12050,11 +12106,18 @@ class Orchestrator:
         item: IntegrationQueueItem,
         expected_dependencies: tuple[str, ...] | None,
         expected_revision: tuple[str, ...] | None,
+        *,
+        allow_precanonical_tracker_submission: bool = False,
     ) -> Callable[[], bool]:
         """Fence a gate when its normalized finish-order evidence changes."""
 
         def _is_current() -> bool:
-            if not self._integration_task_still_ready(item):
+            if not self._integration_task_still_ready(
+                item,
+                allow_precanonical_tracker_submission=(
+                    allow_precanonical_tracker_submission
+                ),
+            ):
                 return False
             if expected_dependencies is None or expected_revision is None:
                 return True
@@ -12483,6 +12546,9 @@ class Orchestrator:
             item,
             expected_dependencies,
             expected_dependency_revision,
+            allow_precanonical_tracker_submission=bool(
+                item.candidate_head_sha and item.candidate_base_sha
+            ),
         )
         return execute_integration(
             project_lock=self.project_store.project_write_lock(

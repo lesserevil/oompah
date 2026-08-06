@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import replace
 import asyncio
 import copy
@@ -28,7 +29,11 @@ from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate, QualityGateOwner
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateOwner,
+    QualityGateResult,
+)
 from oompah.statuses import (
     ARCHIVED,
     DONE,
@@ -1659,6 +1664,312 @@ def test_candidate_head_atomically_rebinds_queue_tracker_and_gate_owner(tmp_path
         assert authority.owner.head_sha == "b" * 40
         assert "b" * 40 in str(authority.generation)
         assert authority.is_current is not None and authority.is_current()
+    finally:
+        _close(orchestrator)
+
+
+def _candidate_recovery_repo(tmp_path):
+    """Create submitted A and a newer epic base for a real rebase to C."""
+
+    remote = tmp_path / "candidate-remote.git"
+    seed = tmp_path / "candidate-seed"
+
+    def git(repo, *args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    subprocess.run(
+        ["git", "init", "-q", "--bare", str(remote)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "clone", "-q", str(remote), str(seed)],
+        check=True,
+    )
+    git(seed, "config", "user.name", "oompah")
+    git(seed, "config", "user.email", "lesserevil@users.noreply.github.com")
+    (seed / "base.txt").write_text("base\n", encoding="utf-8")
+    git(seed, "add", "base.txt")
+    git(seed, "commit", "-q", "-m", "base")
+    git(seed, "branch", "-M", "main")
+    git(seed, "push", "-q", "-u", "origin", "main")
+    git(seed, "checkout", "-q", "-b", "epic-EPIC-1")
+    submitted_base = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "-q", "-u", "origin", "epic-EPIC-1")
+    git(seed, "checkout", "-q", "-b", "epic-EPIC-1--task-TASK-1")
+    (seed / "task.txt").write_text("task\n", encoding="utf-8")
+    git(seed, "add", "task.txt")
+    git(seed, "commit", "-q", "-m", "task")
+    submitted_head = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "-q", "-u", "origin", "epic-EPIC-1--task-TASK-1")
+    git(seed, "checkout", "-q", "epic-EPIC-1")
+    (seed / "advance.txt").write_text("advance epic\n", encoding="utf-8")
+    git(seed, "add", "advance.txt")
+    git(seed, "commit", "-q", "-m", "advance epic")
+    candidate_base = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "-q", "origin", "epic-EPIC-1")
+
+    epic = tmp_path / "candidate-epic"
+    task = tmp_path / "candidate-task"
+    for branch, destination in (
+        ("epic-EPIC-1", epic),
+        ("epic-EPIC-1--task-TASK-1", task),
+    ):
+        subprocess.run(
+            [
+                "git",
+                "clone",
+                "-q",
+                "--branch",
+                branch,
+                str(remote),
+                str(destination),
+            ],
+            check=True,
+        )
+        git(destination, "config", "user.name", "oompah")
+        git(
+            destination,
+            "config",
+            "user.email",
+            "lesserevil@users.noreply.github.com",
+        )
+    return remote, epic, task, submitted_head, submitted_base, candidate_base
+
+
+def test_restart_sync_retains_and_executes_durable_candidate_recovery(tmp_path):
+    """Recover C through real startup, sync, authority, Git, and gate paths."""
+
+    values = _candidate_recovery_repo(tmp_path)
+    remote, epic, task, submitted_head, submitted_base, candidate_base = values
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        head_sha=submitted_head,
+        base_branch="epic-EPIC-1",
+        base_sha=submitted_base,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    restarted = None
+    gate_calls: list[dict[str, object]] = []
+
+    class InterruptingGate:
+        def run(self, **kwargs):
+            gate_calls.append(kwargs)
+            assert kwargs["is_current"]()
+            return QualityGateResult(
+                status="interrupted",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    def configure_production_paths(current, current_project):
+        current_project.repo_url = str(remote)
+        current_project.repo_path = str(remote)
+        current.project_store.create_epic_worktree.return_value = str(epic)
+        current.project_store.create_worktree.return_value = str(task)
+        current.project_store.project_write_lock.side_effect = (
+            lambda _project_id: nullcontext()
+        )
+        current._branch_quality_gate = InterruptingGate()
+
+    try:
+        configure_production_paths(orchestrator, project)
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        initial = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="initial-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert initial is not None
+        tracker.set_metadata_field.side_effect = RuntimeError("tracker offline")
+
+        initial_result = orchestrator._execute_integration_item(initial)
+
+        assert initial_result.status == "authority_unavailable"
+        assert initial_result.expected_epic_sha == candidate_base
+        candidate_head = initial_result.rebased_task_sha
+        assert candidate_head and candidate_head != submitted_head
+        assert gate_calls == []
+        durable = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert durable is not None
+        assert durable.head_sha == submitted_head
+        assert durable.base_sha == submitted_base
+        assert durable.candidate_head_sha == candidate_head
+        assert durable.candidate_base_sha == candidate_base
+        assert issue.integration.head_sha == submitted_head
+        assert issue.integration.base_sha == submitted_base
+
+        _close(orchestrator)
+        orchestrator = None
+        restarted, restarted_project, restarted_tracker = _make_harness(
+            tmp_path,
+            issue,
+        )
+        configure_production_paths(restarted, restarted_project)
+
+        # Production startup recovers abandoned leases before the first sync.
+        with mock.patch(
+            "oompah.orchestrator.capture_workspace_processes",
+            return_value={},
+        ):
+            asyncio.run(restarted.startup_cleanup())
+        recovered = restarted.integration_queue.get(
+            restarted_project.id,
+            issue.identifier,
+        )
+        assert recovered is not None and recovered.state == "ready"
+        restarted._sync_ready_integration_submissions()
+        preserved = restarted.integration_queue.get(
+            restarted_project.id,
+            issue.identifier,
+        )
+        assert preserved is not None
+        assert preserved.state == "ready"
+        assert preserved.head_sha == submitted_head
+        assert preserved.base_sha == submitted_base
+        assert preserved.candidate_head_sha == candidate_head
+        assert preserved.candidate_base_sha == candidate_base
+
+        retry = restarted.integration_queue.claim_next(
+            project_id=restarted_project.id,
+            epic_id="EPIC-1",
+            lease_owner="retry-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert retry is not None
+        assert not restarted._integration_task_still_ready(retry)
+        assert restarted._integration_task_still_ready(
+            retry,
+            allow_precanonical_tracker_submission=True,
+        )
+
+        def persist_candidate(_identifier, _field, value):
+            issue.integration = IntegrationRecord.from_dict(value)
+
+        restarted_tracker.set_metadata_field.side_effect = persist_candidate
+        authority_modes: list[bool] = []
+        original_authority_check = restarted._integration_task_still_ready
+
+        def observe_authority(
+            item,
+            *,
+            allow_precanonical_tracker_submission=False,
+        ):
+            authority_modes.append(allow_precanonical_tracker_submission)
+            return original_authority_check(
+                item,
+                allow_precanonical_tracker_submission=(
+                    allow_precanonical_tracker_submission
+                ),
+            )
+
+        with mock.patch.object(
+            restarted,
+            "_integration_task_still_ready",
+            side_effect=observe_authority,
+        ):
+            retry_result = restarted._execute_integration_item(retry)
+
+        generation = (
+            f"integration:{restarted_project.id}:{issue.identifier}:"
+            f"{candidate_head}:retry-generation"
+        )
+        assert retry_result.status == "interrupted"
+        assert retry_result.status != "stale_head"
+        assert retry_result.rebased_task_sha == candidate_head
+        assert authority_modes[:2] == [True, True]
+        assert False in authority_modes[2:]
+        assert len(gate_calls) == 1
+        assert gate_calls[0]["expected_head_sha"] == candidate_head
+        assert gate_calls[0]["generation"] == generation
+        gate_owner = gate_calls[0]["owner"]
+        assert isinstance(gate_owner, QualityGateOwner)
+        assert gate_owner.authority_generation == generation
+        assert issue.integration.head_sha == candidate_head
+        assert issue.integration.base_sha == candidate_base
+    finally:
+        if restarted is not None:
+            _close(restarted)
+        if orchestrator is not None:
+            _close(orchestrator)
+
+
+def test_restart_sync_replaces_a_different_tracker_submission(tmp_path):
+    """A candidate fence must not suppress a genuine replacement submission."""
+
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="9" * 40,
+    )
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="candidate-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=issue.identifier,
+            lease_owner="candidate-generation",
+            expected_head_sha=claimed.head_sha,
+            candidate_head_sha="b" * 40,
+            candidate_base_sha="c" * 40,
+        ) is not None
+
+        issue.integration = replace(
+            issue.integration,
+            head_sha="d" * 40,
+            base_sha="e" * 40,
+        )
+        candidate = orchestrator.integration_queue.get(
+            project.id,
+            issue.identifier,
+        )
+        assert candidate is not None
+        assert not orchestrator._integration_task_still_ready(
+            candidate,
+            allow_precanonical_tracker_submission=True,
+        )
+        orchestrator._sync_ready_integration_submissions()
+
+        replacement = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert replacement is not None
+        assert replacement.state == "ready"
+        assert replacement.head_sha == "d" * 40
+        assert replacement.base_sha == "e" * 40
+        assert replacement.candidate_head_sha is None
+        assert replacement.candidate_base_sha is None
     finally:
         _close(orchestrator)
 
