@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-582
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Satisfy legacy Done cross-epic dependencies after parent merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T17:14:33.578222Z'
+updated_at: '2026-08-06T17:32:37.078441Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -225,6 +225,23 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T04:54:55.183299+00:00'
+  - version: 1
+    audit_id: audit-c9362f973f19
+    project_id: proj-14849f1b
+    task_id: OOMPAH-582
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9db0bedb89262cae833106e6baee3900031391ac6242968561ee7ff4432c5e9f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T17:32:33.409407+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5dc536ddd5f2
