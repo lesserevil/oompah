@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-844
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Isolate orchestrator maintenance unit tests from full-corpus recovery scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T05:03:08.400837Z'
+updated_at: '2026-08-06T05:04:22.681301Z'
 work_branch: OOMPAH-844
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/730
@@ -124,6 +124,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-5ae16c12cc7d: '2026-08-06T05:01:18.699605+00:00'
+    attempt-c3af1e3ecaf0: '2026-08-06T05:04:18.885278+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-844
@@ -134,6 +135,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-06T05:01:18.699617+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-844
+    target_state: Merged
+    evidence_fingerprint: 092291c29764bf5800f8f18879a35fe4249c6f25281c5539668536984fcf9f4f
+    audit_ids:
+    - audit-4d23077d474f
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T05:04:18.885289+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-844
@@ -147,6 +157,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T05:01:18.699633+00:00'
     applied_at: '2026-08-06T05:01:26.406791+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-844
+    audit_id: audit-4d23077d474f
+    attempt_id: attempt-c3af1e3ecaf0
+    target_state: Merged
+    evidence_fingerprint: 092291c29764bf5800f8f18879a35fe4249c6f25281c5539668536984fcf9f4f
+    status: Merged
+    audit_ids:
+    - audit-4d23077d474f
+    applied: false
+    created_at: '2026-08-06T05:04:18.885302+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -188,7 +209,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-844
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -197,7 +218,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c3af1e3ecaf0
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -207,13 +228,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T05:03:00.827013+00:00'
       branch_key: OOMPAH-844
+      verdict: pass
+      completed_at: '2026-08-06T05:04:18.885145+00:00'
+      ended_at: '2026-08-06T05:04:18.885145+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-06T04:53:16.902678+00:00'
-    updated_at: '2026-08-06T05:03:00.827013+00:00'
+    updated_at: '2026-08-06T05:04:18.885145+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5ae16c12cc7d
