@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:31:02.019007Z'
+updated_at: '2026-08-06T09:35:29.080836Z'
 work_branch: null
 target_branch: null
 review_url: null
