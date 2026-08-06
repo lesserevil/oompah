@@ -141,6 +141,7 @@ from oompah.task_handoff import (
 )
 from oompah.auth_health import (
     record_operator_401,
+    record_operator_success,
     record_worker_401,
     record_worker_403_scope,
     record_worker_403_action,
@@ -736,6 +737,9 @@ class _BasicAuthMiddleware:
                 authenticated_scope[_AUTH_PRINCIPAL_SCOPE_CAPABILITY] = (
                     _resolve_authenticated_principal(authenticated_username)
                 )
+                # OOMPAH-857: Record successful operator authentication to
+                # invalidate stale auth-failure warnings when credentials recover.
+                record_operator_success()
                 if _is_mcp_transport_scope(scope):
                     # Preserve authentication provenance for this request
                     # only.  The key/value identity is server-private and is
@@ -778,6 +782,9 @@ class _BasicAuthMiddleware:
                 ws_scope[_AUTH_PRINCIPAL_SCOPE_CAPABILITY] = (
                     _resolve_authenticated_principal(ws_authenticated_username)
                 )
+                # OOMPAH-857: Record successful operator authentication to
+                # invalidate stale auth-failure warnings when credentials recover.
+                record_operator_success()
                 await self._app(ws_scope, receive, send)
                 return
 

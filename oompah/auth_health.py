@@ -63,9 +63,14 @@ class _SlidingWindow:
 
 
 class OperatorAuthHealth:
-    """Tracks HTTP Basic auth failures on the operator plane.
+    """Tracks HTTP Basic auth failures and successes on the operator plane.
 
     Thread-safe; all public methods may be called from any thread.
+
+    Tracks both failures (401s) and successes to detect when credentials are
+    recovered. A failure followed by a success invalidates the failure-based
+    alert, allowing the dashboard to show "recovered" status instead of
+    remaining actionable.
     """
 
     def __init__(self, *, now=time.monotonic) -> None:
@@ -73,6 +78,7 @@ class OperatorAuthHealth:
         self._now = now
         self._401_window = _SlidingWindow()
         self._total_401: int = 0
+        self._last_success_ts: float | None = None
 
     def record_401(self) -> None:
         """Increment the 401 counter (wrong/stale operator credentials)."""
@@ -80,6 +86,16 @@ class OperatorAuthHealth:
             ts = self._now()
             self._401_window.record(ts)
             self._total_401 += 1
+
+    def record_success(self) -> None:
+        """Record a successful authenticated operator request.
+
+        When a success is recorded after previous failures, the failure-based
+        alert is marked as recovered, allowing the dashboard to show that
+        credentials have been restored.
+        """
+        with self._lock:
+            self._last_success_ts = self._now()
 
     def snapshot(self, window_seconds: float = _WINDOW_SECONDS) -> dict[str, Any]:
         """Return a safe, redacted health snapshot.
@@ -90,52 +106,85 @@ class OperatorAuthHealth:
               - recent_401_count: int  # failures in last *window_seconds*
               - total_401_count: int   # lifetime failures (resets on restart)
               - window_seconds: float  # the window used
-              - status: "ok" | "degraded"
+              - status: "ok" | "degraded" | "recovered"
+              - recovered: bool  # true if most recent success > most recent failure
         """
         with self._lock:
             cutoff = self._now() - window_seconds
             recent = self._401_window.count_since(cutoff)
             total = self._total_401
+            last_success = self._last_success_ts
+            # Get the most recent failure timestamp (newest entry at the end)
+            entries = self._401_window._entries
+            last_failure = entries[-1] if entries else None
 
-        status = "ok" if recent == 0 else "degraded"
+        # If there have been failures and successes, check if the most recent
+        # success is more recent than the most recent failure in the window.
+        recovered = False
+        if recent > 0 and last_success is not None and last_failure is not None:
+            recovered = last_success > last_failure
+
+        status = "ok" if recent == 0 else ("recovered" if recovered else "degraded")
         return {
             "plane": "operator_basic",
             "recent_401_count": recent,
             "total_401_count": total,
             "window_seconds": window_seconds,
             "status": status,
+            "recovered": recovered,
         }
 
     def build_alert(self, window_seconds: float = _WINDOW_SECONDS) -> dict[str, Any] | None:
         """Return an alert dict if recent operator auth failures warrant one.
 
-        Returns None when the operator plane is healthy.  The alert includes
-        actionable recovery guidance; no credentials are included.
+        Returns None when the operator plane is healthy.  If credentials have
+        recovered (recent success after recent failures), returns an alert with
+        "recovered" recovery_state so the dashboard marks it as cleared.
+        
+        The alert includes actionable recovery guidance only when the issue
+        remains active; no credentials are included.
         """
         snap = self.snapshot(window_seconds)
         if snap["recent_401_count"] == 0:
             return None
+        
         count = snap["recent_401_count"]
+        is_recovered = snap.get("recovered", False)
+        
         summary = (
             f"Operator HTTP Basic auth: {count} failed "
             f"request{'s' if count != 1 else ''} in the last "
             f"{int(window_seconds // 60)} min — credentials may be stale."
         )
-        remediation = (
-            "Update OOMPAH_HTPASSWD_FILE (or regenerate .htpasswd beside "
-            "your .env), then run `make restart` to reload credentials."
-        )
+        
+        if is_recovered:
+            # Credentials have recovered; mark the alert as resolved
+            remediation = (
+                "Operator credentials have been restored. "
+                "The server is now accepting authenticated requests."
+            )
+            recovery_state = "recovered"
+            action_required = False
+        else:
+            # Credentials are still failing; provide actionable remediation
+            remediation = (
+                "Update OOMPAH_HTPASSWD_FILE (or regenerate .htpasswd beside "
+                "your .env), then run `make restart` to reload credentials."
+            )
+            recovery_state = "active"
+            action_required = True
+        
         return {
             "level": "warning",
             "severity": "warning",
             "source": "auth_health:operator",
             "stable_id": "auth_health:operator",
-            "action_required": True,
-            "recovery_state": "active",
-            "lifecycle_state": "active",
-            "status": "active",
-            "active": True,
-            "recovered": False,
+            "action_required": action_required,
+            "recovery_state": recovery_state,
+            "lifecycle_state": recovery_state,
+            "status": recovery_state,
+            "active": not is_recovered,
+            "recovered": is_recovered,
             "summary": summary,
             "message": summary,
             "detail": (
@@ -337,6 +386,16 @@ _worker_health = WorkerAuthHealth()
 def record_operator_401() -> None:
     """Record an operator Basic-auth 401 from the server middleware."""
     _operator_health.record_401()
+
+
+def record_operator_success() -> None:
+    """Record a successful operator Basic-auth request from the server middleware.
+
+    When a success is recorded after previous failures, the failure-based
+    alert will be marked as recovered, allowing the dashboard to show that
+    credentials have been restored.
+    """
+    _operator_health.record_success()
 
 
 def record_worker_token_minted() -> None:
