@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T04:25:04.099620Z'
+updated_at: '2026-08-06T04:25:46.967747Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-06 04:25
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 04:25
+---
+Understanding: I will reproduce both reported failures in isolation and under loaded/concurrent execution, identify unrelated tracker/store/executor work entering each unit test, isolate the tests with strict contract assertions and deterministic cleanup, run focused suites plus the canonical gate, then commit, push, and submit the task.
 ---
 <!-- COMMENTS:END -->
