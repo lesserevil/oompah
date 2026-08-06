@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-849
 type: bug
-status: Backlog
+status: Archived
 priority: 1
 title: Isolate free-tier budget snapshot tests from heavyweight live state
 parent: OOMPAH-763
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:36:15.826311Z'
-updated_at: '2026-08-06T04:36:15.826311Z'
+updated_at: '2026-08-06T04:37:12.619681Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-82f55fe2630f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-849
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae138f081ed3591cb994e8f6c2840d2d08e86473299c053c760d0c4adde46ebe
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator cleanup of an accidental duplicate created in this session; no
+      implementation or evidence exists on this task.
+    created_at: '2026-08-06T04:37:09.029369+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
