@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T19:14:19.160131Z'
+updated_at: '2026-08-06T19:15:06.233639Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-08-06 19:14
 ---
 VERIFICATION: Successfully ported OOMPAH-831 terminal-auditor inspection contract to main. All 53 test_auditor_contract.py tests PASS (git ls-tree, ls-remote, for-each-ref, wc -l safe inspections confirmed), all 9 test_acp_tool_output_bounds.py tests PASS. Verified: (1) Safe git inspections don't consume policy budget, (2) Dangerous commands (mutation, redirection, credential/path escape) remain fatal, (3) Search with context and include parameters work correctly, (4) Auditor catalog consistency across ACP backends maintained. Committed and pushed to OOMPAH-832 branch.
+---
+author: oompah
+created: 2026-08-06 19:15
+---
+COMPLETION: Terminal-auditor inspection contract successfully bootstrapped onto main. Delivered: (1) search_files.py module for bounded Python-regex search with context/include support, (2) safe git inspections (ls-tree, ls-remote, for-each-ref, wc -l), (3) auditor.py ordering fix ensuring escape denials remain fatal before contract checks, (4) unified ACP tool catalogs with consistent search_files schema, (5) 62+ new tests verifying safety boundaries and recovery paths. All acceptance criteria met: OOMPAH-542 and OOMPAH-815 inspection traces confirmed working, dangerous operations (mutation, redirection, credential/path escape) remain fatal, terminal audit health and API contract pass 53 focused tests. Standalone head contains only OOMPAH-831 changes, no unrelated systemic-epic work.
 ---
 <!-- COMMENTS:END -->
