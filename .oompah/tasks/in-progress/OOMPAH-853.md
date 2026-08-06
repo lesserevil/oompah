@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:14:55.114724Z'
+updated_at: '2026-08-06T05:15:13.118617Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 071bd140-fac0-49bb-93a8-f15254a6e28b
+oompah.agent_run_id: 4fcbc956-8070-41b7-9044-563cd380eaad
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 oompah.integration:
   version: 2
@@ -136,5 +136,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 47s
 - Log: OOMPAH-853__20260806T051420Z.jsonl
+---
+author: oompah
+created: 2026-08-06 05:15
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
