@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:20:50.463589Z'
+updated_at: '2026-08-06T07:22:04.808898Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -191,5 +191,23 @@ created: 2026-08-06 07:20
 - Create mechanism to invalidate stale credential-mismatch warnings
 - Add tests for: recovered failures, continuing failures, unknown principal failures, state stream updates
 - Ensure backward compatibility and security
+---
+author: oompah
+created: 2026-08-06 07:22
+---
+**Discovery:** Found the relevant code structure:
+- auth_health.py: OperatorAuthHealth tracks 401 failures in a 15-min sliding window, generates alerts
+- server.py: Basic auth middleware calls record_operator_401() on auth failure (~line 750)
+- orchestrator.py: Includes auth_health_alerts() in state snapshot sent to dashboard
+- dashboard_alerts.py: Normalizes alerts, uses 'recovered' status to demote warnings
+
+**Root cause:** OperatorAuthHealth lacks success tracking. When a failed auth is followed by a successful auth, the alert remains active because only failure counts are tracked.
+
+**Solution approach:**
+1. Add record_operator_success() call to track successful auth with timestamp
+2. Modify OperatorAuthHealth to track last successful auth time
+3. In build_alert(), mark as 'recovered' if most recent success > most recent failure
+4. Add server.py call to record_operator_success() after successful Basic auth
+5. Write tests for recovery scenarios
 ---
 <!-- COMMENTS:END -->
