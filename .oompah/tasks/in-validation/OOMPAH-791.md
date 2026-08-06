@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T05:18:29.172597Z'
+updated_at: '2026-08-06T05:18:34.246447Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -670,5 +670,10 @@ author: oompah
 created: 2026-08-06 04:59
 ---
 Stabilized the two loaded full-gate failures at exact head 2c6fc5259; exact regressions and 318 affected-module tests pass.
+---
+author: oompah
+created: 2026-08-06 05:18
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
