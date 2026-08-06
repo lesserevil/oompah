@@ -114,6 +114,7 @@ def test_integration_recovery_requests_the_exact_accepted_task_head(tmp_path):
         task_id="OOMPAH-814",
         task_branch="OOMPAH-814",
         head_sha="a" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
         base_sha="b" * 40,
         priority=1,
         submitted_at="2026-08-05T00:00:00+00:00",
@@ -131,17 +132,25 @@ def test_integration_recovery_requests_the_exact_accepted_task_head(tmp_path):
             message="integrated",
             integrated_sha="c" * 40,
         ),
-    ):
+    ) as executor:
         result = orchestrator._execute_integration_item(item)
 
     assert result.integrated is True
     orchestrator.project_store.create_worktree.assert_called_once_with(
         project.id,
         item.task_id,
-        base_branch="epic-EPIC-1",
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
         branch_name="OOMPAH-814",
         prefer_remote_branch=True,
         expected_head_sha="a" * 40,
+    )
+    orchestrator.project_store.create_epic_worktree.assert_called_once_with(
+        project.id,
+        "EPIC-1",
+        branch_name="epic-OOMPAH-768--task-OOMPAH-804",
+    )
+    assert executor.call_args.kwargs["epic_branch"] == (
+        "epic-OOMPAH-768--task-OOMPAH-804"
     )
 
 
@@ -195,6 +204,160 @@ def test_cross_epic_dependency_requires_reachable_integrated_head(tmp_path):
             )
             == {upstream.id, upstream.identifier}
         )
+
+
+def test_dependency_reachability_uses_recorded_nested_target_not_stale_alias(
+    tmp_path,
+):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    nested = _make_issue(
+        identifier="OOMPAH-804",
+        issue_type="epic",
+        parent_id="OOMPAH-768",
+        project_id=project.id,
+    )
+    upstream = _make_issue(
+        identifier="UPSTREAM",
+        parent_id="OTHER-EPIC",
+        project_id=project.id,
+        state="Done",
+    )
+    upstream.integration = IntegrationRecord(
+        state="integrated",
+        integrated_sha="a" * 40,
+    )
+    item = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=nested.identifier,
+        task_id="OOMPAH-834",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="b" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="c" * 40,
+        priority=1,
+        submitted_at="2026-08-06T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-08-06T00:00:00+00:00",
+    )
+    orchestrator._run_project_network_git = MagicMock(
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    )
+
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 1, stdout="", stderr=""),
+    ) as run:
+        orchestrator._integration_satisfied_dependencies(
+            [nested, upstream],
+            [item],
+            project_id=project.id,
+            epic_id=nested.identifier,
+        )
+
+    ancestry_commands = [
+        call.args[0]
+        for call in run.call_args_list
+        if "merge-base" in call.args[0]
+    ]
+    assert any(
+        "origin/epic-OOMPAH-768--task-OOMPAH-804" in command
+        for command in ancestry_commands
+    )
+    assert all(
+        "origin/epic-OOMPAH-804" not in command
+        for command in ancestry_commands
+    )
+
+
+def test_durable_landing_evidence_prefers_canonical_candidate_head(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    child = _make_issue(
+        identifier="OOMPAH-834",
+        parent_id="OOMPAH-804",
+        project_id=project.id,
+    )
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="OOMPAH-804",
+        task_id=child.identifier,
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="OOMPAH-804",
+        lease_owner="candidate-evidence",
+        dependency_map={child.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.record_candidate(
+        project_id=project.id,
+        task_id=child.identifier,
+        lease_owner="candidate-evidence",
+        expected_head_sha="a" * 40,
+        candidate_head_sha="c" * 40,
+        candidate_base_sha="d" * 40,
+    ) is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        child.identifier,
+        lease_owner="candidate-evidence",
+    )
+
+    with (
+        patch.object(
+            orchestrator,
+            "_resolve_git_branch_refs",
+            return_value=("origin/main",),
+        ),
+        patch.object(
+            orchestrator,
+            "_reported_commit_landed_on_refs",
+            side_effect=lambda _repo, sha, _refs, *, base_sha=None: (
+                sha == "c" * 40 and base_sha == "d" * 40
+            ),
+        ) as landed,
+    ):
+        assert orchestrator._child_has_durable_landing_evidence(
+            child,
+            container_branches=("main",),
+            repo_path="/managed/repo",
+            project_id=project.id,
+        )
+
+    assert landed.call_args_list[0].args[1] == "c" * 40
+    assert landed.call_args_list[0].kwargs["base_sha"] == "d" * 40
+
+    with (
+        patch.object(
+            orchestrator,
+            "_resolve_git_branch_refs",
+            return_value=("origin/main",),
+        ),
+        patch.object(
+            orchestrator,
+            "_reported_commit_landed_on_refs",
+            side_effect=lambda _repo, sha, _refs, *, base_sha=None: (
+                sha == "a" * 40 and base_sha == "b" * 40
+            ),
+        ) as superseded,
+    ):
+        assert not orchestrator._child_has_durable_landing_evidence(
+            child,
+            container_branches=("main",),
+            repo_path="/managed/repo",
+            project_id=project.id,
+        )
+
+    assert [call.args[1] for call in superseded.call_args_list] == ["c" * 40]
 
 
 def test_cross_epic_done_dependency_uses_default_after_parent_lands(
@@ -830,7 +993,7 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
     task_a.integration = IntegrationRecord(
         state="ready",
         task_branch="epic-EPIC-A--task-TASK-A",
-        head_sha="a" * 40,
+        head_sha="b" * 40,
     )
     independent.integration = IntegrationRecord(
         state="ready",
@@ -842,7 +1005,30 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
         epic_id=epic_a.identifier,
         task_id=task_a.identifier,
         task_branch=task_a.integration.task_branch,
-        head_sha=task_a.integration.head_sha,
+        head_sha="a" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=epic_a.identifier,
+        lease_owner="canonical-candidate",
+        dependency_map={task_a.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.record_candidate(
+        project_id=project.id,
+        task_id=task_a.identifier,
+        lease_owner="canonical-candidate",
+        expected_head_sha="a" * 40,
+        candidate_head_sha="b" * 40,
+        candidate_base_sha="d" * 40,
+    ) is not None
+    assert orchestrator.integration_queue.fail(
+        project.id,
+        task_a.identifier,
+        lease_owner="canonical-candidate",
+        error="retry before cycle audit",
+        retryable=True,
     )
     orchestrator.integration_queue.enqueue(
         project_id=project.id,
@@ -885,6 +1071,7 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
     tracker.mark_needs_human.assert_called_once()
     assert tracker.mark_needs_human.call_args.args[0] == task_a.identifier
     assert "d" * 40 in tracker.mark_needs_human.call_args.args[1]
+    assert "b" * 40 in tracker.mark_needs_human.call_args.args[1]
     rows = {
         item.task_id: item
         for item in orchestrator.integration_queue.items(project_id=project.id)

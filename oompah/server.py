@@ -84,6 +84,7 @@ from oompah.dependency_graph import (
     dependency_parent_has_landed,
     dependency_cycle_for_new_edge,
     effective_dependencies,
+    integration_dependencies,
     issue_index,
 )
 from oompah.duplicate_screening import (
@@ -3031,7 +3032,7 @@ def _integration_queue_summary(
         ),
         None,
     )
-    dependencies = effective_dependencies(issue, index)
+    dependencies = integration_dependencies(issue, index)
     unresolved: list[str] = []
     unreachable: list[str] = []
     parent = index.get(str(issue.parent_id or "").strip())
@@ -4186,6 +4187,15 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     )
     if base_sha is not None and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
         raise ValueError("base_sha must be a full hexadecimal git object id")
+    base_branch = (
+        str(body.get("base_branch") or "").strip()
+        or (
+            str(getattr(existing, "base_branch", "") or "").strip()
+            if existing is not None
+            else ""
+        )
+        or getattr(issue, "target_branch", None)
+    )
     raw_dependency_heads = body.get("dependency_heads")
     dependency_heads = (
         {
@@ -4208,21 +4218,15 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and existing.state in {"ready", "queued", "integrating"}
         and existing.head_sha == head_sha
         and existing.task_branch == task_branch
+        and existing.base_branch == base_branch
+        and existing.base_sha == base_sha
     ):
         return existing
     now = datetime.now(timezone.utc).isoformat()
     return IntegrationRecord(
         state="ready",
         task_branch=task_branch,
-        base_branch=(
-            str(body.get("base_branch") or "").strip()
-            or (
-                str(getattr(existing, "base_branch", "") or "").strip()
-                if existing is not None
-                else ""
-            )
-            or getattr(issue, "target_branch", None)
-        ),
+        base_branch=base_branch,
         base_sha=base_sha,
         head_sha=head_sha,
         submitted_at=now,
@@ -4341,7 +4345,11 @@ async def _verify_submission_git_authority(
 
     base_branch = str(record.base_branch or "").strip() or None
     parent_id = str(getattr(issue, "parent_id", None) or "").strip()
-    if parent_id and getattr(orch.config, "parallel_epic_children_enabled", False):
+    if (
+        parent_id
+        and not base_branch
+        and getattr(orch.config, "parallel_epic_children_enabled", False)
+    ):
         try:
             base_branch = store.epic_branch_name(parent_id)
         except Exception as exc:  # noqa: BLE001 - validation must fail closed
@@ -4467,6 +4475,7 @@ def _enqueue_worker_submission(
         task_id=issue.identifier,
         task_branch=record.task_branch,
         head_sha=record.head_sha,
+        base_branch=record.base_branch,
         base_sha=record.base_sha,
         priority=getattr(issue, "priority", None),
         submitted_at=record.submitted_at,

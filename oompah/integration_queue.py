@@ -14,7 +14,7 @@ import time
 from typing import Callable, Mapping, Sequence
 
 
-INTEGRATION_QUEUE_SCHEMA_VERSION = 2
+INTEGRATION_QUEUE_SCHEMA_VERSION = 3
 _INITIALIZE_LOCK = threading.Lock()
 
 
@@ -33,6 +33,9 @@ class IntegrationQueueItem:
     lease_owner: str | None
     lease_expires_at: float | None
     updated_at: str
+    base_branch: str | None = None
+    candidate_head_sha: str | None = None
+    candidate_base_sha: str | None = None
     last_error: str | None = None
     retry_forced: bool = False
     next_retry_at: float | None = None
@@ -73,6 +76,9 @@ CREATE TABLE IF NOT EXISTS integration_queue (
     lease_owner TEXT,
     lease_expires_at REAL,
     updated_at TEXT NOT NULL,
+    base_branch TEXT,
+    candidate_head_sha TEXT,
+    candidate_base_sha TEXT,
     last_error TEXT,
     retry_forced INTEGER NOT NULL DEFAULT 0,
     next_retry_at REAL,
@@ -91,8 +97,14 @@ class IntegrationQueueStore:
     """SQLite queue whose lease claim is a single immediate transaction."""
 
     def __init__(self, path: str):
-        self.path = os.path.abspath(path)
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        requested_path = str(path)
+        self.path = (
+            ":memory:"
+            if requested_path == ":memory:"
+            else os.path.abspath(requested_path)
+        )
+        if self.path != ":memory:":
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(
             self.path,
@@ -117,6 +129,19 @@ class IntegrationQueueStore:
                 self._conn.execute(
                     "ALTER TABLE integration_queue ADD COLUMN next_retry_at REAL"
                 )
+            for column in (
+                "base_branch TEXT",
+                "candidate_head_sha TEXT",
+                "candidate_base_sha TEXT",
+            ):
+                try:
+                    self._conn.execute(
+                        f"SELECT {column.split()[0]} FROM integration_queue LIMIT 0"
+                    )
+                except sqlite3.OperationalError:
+                    self._conn.execute(
+                        f"ALTER TABLE integration_queue ADD COLUMN {column}"
+                    )
             self._conn.execute(
                 "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", str(INTEGRATION_QUEUE_SCHEMA_VERSION)),
@@ -138,7 +163,7 @@ class IntegrationQueueStore:
             next_retry_at = row["next_retry_at"]
         except (IndexError, KeyError):
             next_retry_at = None
-        
+
         return IntegrationQueueItem(
             project_id=row["project_id"],
             epic_id=row["epic_id"],
@@ -153,6 +178,9 @@ class IntegrationQueueStore:
             lease_owner=row["lease_owner"],
             lease_expires_at=row["lease_expires_at"],
             updated_at=row["updated_at"],
+            base_branch=row["base_branch"],
+            candidate_head_sha=row["candidate_head_sha"],
+            candidate_base_sha=row["candidate_base_sha"],
             last_error=row["last_error"],
             retry_forced=bool(retry_forced_val),
             next_retry_at=(
@@ -168,6 +196,7 @@ class IntegrationQueueStore:
         task_id: str,
         task_branch: str,
         head_sha: str,
+        base_branch: str | None = None,
         base_sha: str | None = None,
         priority: int | None = None,
         submitted_at: str | None = None,
@@ -206,8 +235,18 @@ class IntegrationQueueStore:
             ).fetchone()
             identical = (
                 existing is not None
-                and existing["head_sha"] == values["head_sha"]
+                and existing["epic_id"] == values["epic_id"]
+                and str(
+                    existing["candidate_head_sha"] or existing["head_sha"]
+                )
+                == values["head_sha"]
                 and existing["task_branch"] == values["task_branch"]
+                and str(existing["base_branch"] or "").strip()
+                == str(base_branch or "").strip()
+                and str(
+                    existing["candidate_base_sha"] or existing["base_sha"] or ""
+                ).strip().lower()
+                == str(base_sha or "").strip().lower()
             )
             retry_inactive = bool(
                 identical
@@ -242,15 +281,19 @@ class IntegrationQueueStore:
                 """
                 INSERT INTO integration_queue(
                     project_id, epic_id, task_id, task_branch, head_sha,
-                    base_sha, priority, submitted_at, state, attempts,
+                    base_branch, base_sha, candidate_head_sha,
+                    candidate_base_sha, priority, submitted_at, state, attempts,
                     lease_owner, lease_expires_at, updated_at, last_error,
                     retry_forced, next_retry_at
-                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?, NULL, NULL, ?, NULL, ?, ?)
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, 'ready', ?, NULL, NULL, ?, NULL, ?, ?)
                 ON CONFLICT(project_id, task_id) DO UPDATE SET
                     epic_id = excluded.epic_id,
                     task_branch = excluded.task_branch,
                     head_sha = excluded.head_sha,
+                    base_branch = excluded.base_branch,
                     base_sha = excluded.base_sha,
+                    candidate_head_sha = NULL,
+                    candidate_base_sha = NULL,
                     priority = excluded.priority,
                     submitted_at = excluded.submitted_at,
                     state = 'ready',
@@ -268,6 +311,7 @@ class IntegrationQueueStore:
                     values["task_id"],
                     values["task_branch"],
                     values["head_sha"],
+                    str(base_branch or "").strip() or None,
                     str(base_sha or "").strip() or None,
                     int(priority if priority is not None else 999),
                     submitted_at or now,
@@ -287,6 +331,66 @@ class IntegrationQueueStore:
             ).fetchone()
         assert row is not None
         return self._from_row(row)
+
+    def record_candidate(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        lease_owner: str,
+        expected_head_sha: str,
+        expected_candidate_head_sha: str | None = None,
+        candidate_head_sha: str,
+        candidate_base_sha: str,
+    ) -> IntegrationQueueItem | None:
+        """Durably bind a leased row to the exact combined-tree candidate.
+
+        The accepted submission head remains immutable in ``head_sha`` while
+        the rebased (or already-ancestor no-op) head owns the gate generation.
+        The compare-and-swap makes a late executor lose authority instead of
+        relabeling a replacement row's candidate.
+        """
+
+        candidate = str(candidate_head_sha or "").strip().lower()
+        base = str(candidate_base_sha or "").strip().lower()
+        if not candidate or not base:
+            return None
+        with self._lock:
+            result = self._conn.execute(
+                """
+                UPDATE integration_queue
+                SET candidate_head_sha = ?, candidate_base_sha = ?, updated_at = ?
+                WHERE project_id = ? AND task_id = ?
+                  AND state = 'integrating' AND lease_owner = ?
+                  AND head_sha = ?
+                  AND (
+                    (? IS NULL AND candidate_head_sha IS NULL)
+                    OR candidate_head_sha = ?
+                  )
+                """,
+                (
+                    candidate,
+                    base,
+                    _now_iso(),
+                    str(project_id),
+                    str(task_id),
+                    str(lease_owner),
+                    str(expected_head_sha),
+                    expected_candidate_head_sha,
+                    expected_candidate_head_sha,
+                ),
+            )
+            self._conn.commit()
+            if result.rowcount != 1:
+                return None
+            row = self._conn.execute(
+                """
+                SELECT * FROM integration_queue
+                WHERE project_id = ? AND task_id = ?
+                """,
+                (str(project_id), str(task_id)),
+            ).fetchone()
+        return self._from_row(row) if row is not None else None
 
     def recover_expired(self, *, now: float | None = None) -> int:
         timestamp = time.time() if now is None else float(now)
@@ -533,6 +637,8 @@ class IntegrationQueueStore:
         expected_head_sha: str,
         expected_task_branch: str,
         expected_epic_id: str | None = None,
+        restored_base_branch: str | None = None,
+        restored_base_sha: str | None = None,
     ) -> bool:
         """Rearm one exact cycle-fenced row with a compare-and-swap.
 
@@ -549,7 +655,13 @@ class IntegrationQueueStore:
                 UPDATE integration_queue
                 SET state = 'ready', lease_owner = NULL,
                     lease_expires_at = NULL, updated_at = ?, last_error = NULL,
-                    retry_forced = 0, next_retry_at = NULL
+                    retry_forced = 0, next_retry_at = NULL,
+                    base_branch = COALESCE(?, base_branch),
+                    base_sha = COALESCE(?, base_sha),
+                    candidate_base_sha = CASE
+                        WHEN candidate_head_sha IS NULL THEN NULL
+                        ELSE COALESCE(?, candidate_base_sha)
+                    END
                 WHERE project_id = ? AND task_id = ?
                   AND state = 'cancelled'
                   AND task_branch = ? AND head_sha = ?
@@ -557,12 +669,60 @@ class IntegrationQueueStore:
                 """,
                 (
                     _now_iso(),
+                    str(restored_base_branch or "").strip() or None,
+                    str(restored_base_sha or "").strip() or None,
+                    str(restored_base_sha or "").strip() or None,
                     project_id,
                     task_id,
                     expected_task_branch,
                     expected_head_sha,
                     expected_epic_id,
                     expected_epic_id,
+                ),
+            )
+            self._conn.commit()
+        return bool(result.rowcount)
+
+    def retry_integrated_after_tracker_failure(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        expected_head_sha: str,
+        expected_candidate_head_sha: str | None,
+        error: str,
+    ) -> bool:
+        """Rearm one just-completed row when its tracker write did not persist.
+
+        The completed claim did not produce a durable end-to-end success, so
+        return that attempt to the retry budget.  Otherwise a tracker failure
+        on the final permitted attempt would leave a ``ready`` row that
+        ``claim_next`` can never claim again.
+        """
+
+        with self._lock:
+            result = self._conn.execute(
+                """
+                UPDATE integration_queue
+                SET state = 'ready', lease_owner = NULL,
+                    lease_expires_at = NULL, updated_at = ?, last_error = ?,
+                    next_retry_at = NULL,
+                    attempts = MAX(attempts - 1, 0)
+                WHERE project_id = ? AND task_id = ?
+                  AND state = 'integrated' AND head_sha = ?
+                  AND (
+                    (? IS NULL AND candidate_head_sha IS NULL)
+                    OR candidate_head_sha = ?
+                  )
+                """,
+                (
+                    _now_iso(),
+                    str(error),
+                    str(project_id),
+                    str(task_id),
+                    str(expected_head_sha),
+                    expected_candidate_head_sha,
+                    expected_candidate_head_sha,
                 ),
             )
             self._conn.commit()
@@ -608,6 +768,7 @@ class IntegrationQueueStore:
         task_branch: str,
         head_sha: str,
         lease_owner: str | None,
+        candidate_head_sha: str | None = None,
         now: float | None = None,
     ) -> bool:
         """Return whether an executor still owns this exact integration row.
@@ -643,6 +804,7 @@ class IntegrationQueueStore:
                 WHERE project_id = ? AND task_id = ?
                   AND task_branch = ? AND head_sha = ?
                   AND state = 'integrating' AND lease_owner = ?
+                  AND (? IS NULL OR candidate_head_sha = ?)
                 """,
                 (
                     values["project_id"],
@@ -650,6 +812,8 @@ class IntegrationQueueStore:
                     values["task_branch"],
                     values["head_sha"],
                     values["lease_owner"],
+                    candidate_head_sha,
+                    candidate_head_sha,
                 ),
             ).fetchone()
             # Sample the production clock while the same lock still protects

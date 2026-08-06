@@ -62,6 +62,32 @@ def _store_with_one_project(tmp_path):
     return store, repo
 
 
+def test_nested_integration_target_reuses_exact_managed_branch_not_alias(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+    project = store.get("proj-sync1")
+    assert project is not None
+    exact_branch = "epic-OOMPAH-768--task-OOMPAH-804"
+    exact_path = Path(store._project_worktree_root(project)) / "OOMPAH-804"
+    exact_path.mkdir(parents=True)
+    store._registered_worktree_branch_paths = MagicMock(
+        return_value={exact_branch: {str(exact_path)}}
+    )
+    store._prepare_existing_epic_worktree = MagicMock()
+
+    result = store.create_epic_worktree(
+        project.id,
+        "OOMPAH-804",
+        branch_name=exact_branch,
+    )
+
+    assert result == str(exact_path)
+    store._prepare_existing_epic_worktree.assert_called_once_with(
+        str(exact_path),
+        exact_branch,
+        project,
+    )
+
+
 def _submission_authority_store(tmp_path):
     """Create a managed clone with published epic and plain child branches."""
 

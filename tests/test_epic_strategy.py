@@ -4874,6 +4874,7 @@ class TestLabelMergedEpics:
             state="integrated",
             task_branch="deleted-child",
             base_branch="main",
+            base_sha="c" * 40,
             head_sha=task_sha,
             integrated_sha=task_sha,
         )
@@ -4911,7 +4912,30 @@ class TestLabelMergedEpics:
             epic_id=parent.identifier,
             task_id=child.identifier,
             task_branch="deleted-child",
-            head_sha=task_sha,
+            head_sha="b" * 40,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="canonical-audit",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=child.identifier,
+            lease_owner="canonical-audit",
+            expected_head_sha="b" * 40,
+            candidate_head_sha=task_sha,
+            candidate_base_sha="c" * 40,
+        ) is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="canonical-audit",
+            error="restart before terminal-parent recovery",
+            retryable=True,
         )
 
         with patch.object(orch, "_tracker_for_project", return_value=tracker):

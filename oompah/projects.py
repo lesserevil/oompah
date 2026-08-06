@@ -4854,7 +4854,13 @@ class ProjectStore:
             )
         return changed, None
 
-    def create_epic_worktree(self, project_id: str, epic_identifier: str) -> str:
+    def create_epic_worktree(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        *,
+        branch_name: str | None = None,
+    ) -> str:
         """Create or reuse a shared epic worktree (for ``epic_strategy='shared'``
         and the long-lived epic branch under ``epic_strategy='stacked'``).
 
@@ -4867,7 +4873,11 @@ class ProjectStore:
         # Acquire per-project lock to serialize concurrent epic worktree
         # create/remove operations for the same project.
         with self.project_write_lock(project_id):
-            return self._create_epic_worktree_locked(project_id, epic_identifier)
+            return self._create_epic_worktree_locked(
+                project_id,
+                epic_identifier,
+                branch_name=branch_name,
+            )
 
     def prepare_epic_branch_for_private_dispatch(
         self,
@@ -4995,13 +5005,49 @@ class ProjectStore:
                 )
             return wt_path, head.stdout.strip()
 
-    def _create_epic_worktree_locked(self, project_id: str, epic_identifier: str) -> str:
+    def _create_epic_worktree_locked(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        *,
+        branch_name: str | None = None,
+    ) -> str:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
 
+        requested_branch = str(branch_name or "").strip()
         wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
-        branch_name = self.epic_branch_name(epic_identifier)
+        branch_name = requested_branch or self.epic_branch_name(
+            epic_identifier
+        )
+
+        # A nested epic's authoritative source can be its persisted private
+        # work branch rather than the legacy ``epic-<id>`` alias.  Reuse that
+        # exact managed checkout when it is already registered; creating or
+        # consulting the stale alias would integrate a different history.
+        if requested_branch:
+            registered = self._registered_worktree_branch_paths(project.repo_path)
+            managed_root = os.path.realpath(self._project_worktree_root(project))
+            candidates = []
+            for candidate in registered.get(branch_name, set()):
+                real_candidate = os.path.realpath(candidate)
+                try:
+                    inside_managed_root = (
+                        os.path.commonpath([managed_root, real_candidate])
+                        == managed_root
+                    )
+                except ValueError:
+                    inside_managed_root = False
+                if inside_managed_root and real_candidate != managed_root:
+                    candidates.append(real_candidate)
+            if len(candidates) == 1:
+                self._prepare_existing_epic_worktree(
+                    candidates[0],
+                    branch_name,
+                    project,
+                )
+                return candidates[0]
 
         if os.path.isdir(wt_path):
             logger.info("Epic worktree already exists path=%s", wt_path)

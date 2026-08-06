@@ -49,13 +49,20 @@ def _branch(repo, branch, *, base="main", text=None):
     return _run(repo, "rev-parse", "HEAD").stdout.strip()
 
 
-def _plan(parent_sha, *, child="EXOCOMP-130"):
+def _plan(
+    parent_sha,
+    *,
+    parent="EXOCOMP-127",
+    child="EXOCOMP-130",
+    container_branches=(),
+):
     return ContainerCycleRepairPlan(
         key="cycle-1",
-        authoritative_container="EXOCOMP-127",
+        authoritative_container=parent,
         dependent_containers=(child,),
         prerequisite_shas=(("EXOCOMP-171", parent_sha),),
         declared_closure=(parent_sha,),
+        container_branches=container_branches,
         rows=(
             CycleRepairRow(
                 task_id="EXOCOMP-200",
@@ -66,6 +73,36 @@ def _plan(parent_sha, *, child="EXOCOMP-130"):
             ),
         ),
     )
+
+
+def test_nested_cycle_repair_uses_persisted_exact_container_branches(tmp_path):
+    repo, _remote = _repo(tmp_path)
+    parent_branch = "epic-ROOT--task-PARENT"
+    child_branch = "epic-ROOT--task-CHILD"
+    old = _branch(repo, parent_branch)
+    _branch(repo, child_branch, base="main")
+    _run(repo, "switch", parent_branch)
+    (repo / "tracked.txt").write_text("nested prerequisite\n")
+    _run(repo, "add", "tracked.txt")
+    _run(repo, "commit", "-m", "nested prerequisite")
+    selected = _run(repo, "rev-parse", "HEAD").stdout.strip()
+    plan = _plan(
+        selected,
+        parent="PARENT",
+        child="CHILD",
+        container_branches=(
+            ("PARENT", parent_branch),
+            ("CHILD", child_branch),
+        ),
+    )
+
+    result = ContainerCycleRepairExecutor(str(repo)).execute(plan)
+
+    assert result.status == "ready_for_queue_restore"
+    assert result.parent_branch == parent_branch
+    assert result.parent_expected_sha == old
+    assert result.children[0].branch == child_branch
+    assert _run(repo, "rev-parse", f"origin/{child_branch}").stdout.strip() == selected
 
 
 def test_parent_fast_forward_and_parent_only_child_sync_are_idempotent(tmp_path):

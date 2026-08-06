@@ -7,10 +7,17 @@ from unittest import mock
 
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
-from oompah.integration_executor import execute_integration
+from oompah.integration_executor import (
+    IntegrationCandidateAuthority,
+    execute_integration,
+)
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate, QualityGateResult
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateOwner,
+    QualityGateResult,
+)
 from oompah.statuses import READY_TO_INTEGRATE
 
 
@@ -168,6 +175,61 @@ def test_executor_rebases_tests_and_fast_forwards_epic(tmp_path):
     assert ".oompah-no-hooks/prepare-commit-msg" not in _git(
         epic, "ls-tree", "-r", "--name-only", "HEAD"
     )
+
+
+def test_already_ancestor_candidate_rebinds_exact_gate_authority(tmp_path):
+    remote, epic, task, submitted_head = _repo(tmp_path)
+    _git(epic, "fetch", "origin", "epic-E-1--task-T-1")
+    _git(epic, "merge", "--ff-only", "origin/epic-E-1--task-T-1")
+    (epic / "target.txt").write_text("target advanced\n")
+    _git(epic, "add", "target.txt")
+    _git(epic, "commit", "-m", "advance target")
+    target_head = _git(epic, "rev-parse", "HEAD")
+    _git(epic, "push", "origin", "epic-E-1")
+    gate_calls = {}
+    canonicalized = []
+
+    class RecordingGate:
+        def run(self, **kwargs):
+            gate_calls.update(kwargs)
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    def canonicalize(candidate, base):
+        canonicalized.append((candidate, base))
+        generation = f"integration:T-1:{candidate}"
+        return IntegrationCandidateAuthority(
+            generation=generation,
+            owner=QualityGateOwner(
+                project_id="project-1",
+                task_id="T-1",
+                head_sha=candidate,
+                authority_generation=generation,
+            ),
+            is_current=lambda: True,
+        )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=submitted_head,
+        quality_gate=RecordingGate(),
+        quality_command="true",
+        repo_identity=str(remote),
+        canonicalize_candidate=canonicalize,
+    )
+
+    assert result.integrated
+    assert canonicalized == [(target_head, target_head)]
+    assert gate_calls["expected_head_sha"] == target_head
+    assert gate_calls["generation"] == f"integration:T-1:{target_head}"
+    assert gate_calls["owner"].head_sha == target_head
 
 
 def test_executor_rejects_legacy_tracked_generated_helper_before_shared_mutation(

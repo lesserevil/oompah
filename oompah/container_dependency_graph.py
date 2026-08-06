@@ -19,7 +19,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence
 
-from oompah.dependency_graph import effective_dependencies
+from oompah.dependency_graph import (
+    effective_dependencies,
+    integration_dependencies,
+)
 from oompah.models import Issue
 from oompah.statuses import READY_TO_INTEGRATE, canonicalize_status, is_terminal_status
 
@@ -185,7 +188,7 @@ def _dependency_identifiers(
 ) -> tuple[str, ...]:
     """Return own and inherited dependency identifiers for one issue."""
 
-    result = list(effective_dependencies(issue, issues_by_alias))
+    result = list(integration_dependencies(issue, issues_by_alias))
     if include_hard_start:
         result.extend(
             dependency

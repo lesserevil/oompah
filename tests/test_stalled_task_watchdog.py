@@ -1559,7 +1559,7 @@ _OOMPAH_814_HEAD = "254b131c713bece56500a72408f796c46bfee8d0"
 _REPAIR_HEAD = "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f"
 
 
-def _blocked_gate_row(orch):
+def _blocked_gate_row(orch, *, candidate_head=None):
     orch.integration_queue.enqueue(
         project_id="project-1",
         epic_id="EPIC-1",
@@ -1575,6 +1575,15 @@ def _blocked_gate_row(orch):
         satisfied={"dependency"},
     )
     assert claimed is not None
+    if candidate_head is not None:
+        assert orch.integration_queue.record_candidate(
+            project_id="project-1",
+            task_id="OOMPAH-814",
+            lease_owner="gate-owner",
+            expected_head_sha=_OOMPAH_814_HEAD,
+            candidate_head_sha=candidate_head,
+            candidate_base_sha="a" * 40,
+        ) is not None
     assert orch.integration_queue.fail(
         "project-1",
         "OOMPAH-814",
@@ -1886,7 +1895,7 @@ class TestGateFailureFencesWatchdogReopen:
         project.repo_url = "https://github.com/example/repo.git"
         project.access_token = None
         first = _make_orchestrator(tmp_path, projects=[project])
-        blocked = _blocked_gate_row(first)
+        blocked = _blocked_gate_row(first, candidate_head=_REPAIR_HEAD)
         assert blocked is not None
         first.integration_queue.close()
 
@@ -1900,7 +1909,7 @@ class TestGateFailureFencesWatchdogReopen:
             integration=IntegrationRecord(
                 state="ready",
                 task_branch="OOMPAH-814",
-                head_sha=_OOMPAH_814_HEAD,
+                head_sha=_REPAIR_HEAD,
             ),
         )
 
@@ -1918,7 +1927,7 @@ class TestGateFailureFencesWatchdogReopen:
         )
 
         assert snapshot["status"] == "failed"
-        assert snapshot["head_sha"] == _OOMPAH_814_HEAD
+        assert snapshot["head_sha"] == _REPAIR_HEAD
         assert snapshot["generation"].startswith("integration-queue-v1:")
 
     def test_action_time_queue_cas_rejects_concurrent_gate_transition(self, tmp_path):
@@ -1978,7 +1987,7 @@ class TestGateFailureFencesWatchdogReopen:
         from oompah.integration import IntegrationRecord
 
         orch = _make_orchestrator(tmp_path)
-        blocked = _blocked_gate_row(orch)
+        blocked = _blocked_gate_row(orch, candidate_head=_REPAIR_HEAD)
         assert blocked is not None
         issue = Issue(
             id="OOMPAH-814",
@@ -1989,7 +1998,7 @@ class TestGateFailureFencesWatchdogReopen:
             integration=IntegrationRecord(
                 state="ready",
                 task_branch="OOMPAH-814",
-                head_sha=_OOMPAH_814_HEAD,
+                head_sha=_REPAIR_HEAD,
             ),
         )
         tracker = MagicMock()

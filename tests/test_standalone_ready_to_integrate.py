@@ -695,6 +695,24 @@ def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
     provider.create_review.assert_called_once()
 
 
+def test_non_epic_parent_rollup_edge_does_not_self_block_child(harness):
+    """A lifecycle child rollup is not a standalone finish-order dependency."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-CHILD", parent_id="PARENT")
+    parent = _issue("PARENT", issue_type="task")
+    parent.state = OPEN
+    parent.blocked_by = [BlockerRef(id=task.id, identifier=task.identifier)]
+    tracker.fetch_issues_by_states.return_value = [task]
+    _set_all_issues(tracker, [task, parent])
+    provider.create_review.return_value = _review("TASK-CHILD", review_id="908")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, "TASK-CHILD", "trunk")
+    provider.create_review.assert_called_once()
+
+
 def test_dependency_regression_fences_stale_delivery_before_review(harness):
     """A dependency reopening cannot let a previously-authorized gate create a PR."""
 

@@ -19,10 +19,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
+from functools import partial
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
-from typing import Any, TypedDict
+from typing import Any, Callable, TypedDict
 
 from oompah.agent import (
     AgentError,
@@ -90,6 +91,7 @@ from oompah.integration import (
 )
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
+    IntegrationCandidateAuthority,
     IntegrationExecutionResult,
     execute_integration,
 )
@@ -8175,6 +8177,7 @@ class Orchestrator:
                     task_id=issue.identifier,
                     task_branch=record.task_branch,
                     head_sha=record.head_sha,
+                    base_branch=record.base_branch,
                     base_sha=record.base_sha,
                     priority=issue.priority,
                     submitted_at=record.submitted_at,
@@ -8651,6 +8654,13 @@ class Orchestrator:
                         epic_id=str(raw["epic_id"]),
                         task_branch=str(raw["task_branch"]),
                         head_sha=str(raw["head_sha"]),
+                        base_branch=(
+                            str(raw.get("base_branch") or "").strip() or None
+                        ),
+                        submission_head_sha=(
+                            str(raw.get("submission_head_sha") or "").strip()
+                            or None
+                        ),
                     )
                     for raw in (raw_plan.get("rows") or [])
                     if isinstance(raw, Mapping)
@@ -8661,6 +8671,65 @@ class Orchestrator:
                     for task, sha in raw_shas.items()
                     if str(task).strip() and str(sha).strip()
                 )
+                raw_branches = raw_plan.get("container_branches") or {}
+                container_branches = (
+                    tuple(
+                        sorted(
+                            (
+                                str(container).strip(),
+                                str(branch).strip(),
+                            )
+                            for container, branch in raw_branches.items()
+                            if str(container).strip() and str(branch).strip()
+                        )
+                    )
+                    if isinstance(raw_branches, Mapping)
+                    else ()
+                )
+                resolved_branches = dict(container_branches)
+                for container_id in cycle.containers:
+                    if container_id in resolved_branches:
+                        continue
+                    evidence = {
+                        str(row.base_branch).strip()
+                        for row in rows
+                        if row.container_id == container_id and row.base_branch
+                    }
+                    for candidate in issues:
+                        candidate_aliases = {
+                            str(value).strip()
+                            for value in (candidate.id, candidate.identifier)
+                            if str(value or "").strip()
+                        }
+                        if container_id not in candidate_aliases:
+                            continue
+                        branch = str(candidate.work_branch or "").strip()
+                        if branch:
+                            evidence.add(branch)
+                    if len(evidence) > 1:
+                        raise ValueError(
+                            f"ambiguous branch authority for {container_id}"
+                        )
+                    resolved_branches[container_id] = (
+                        next(iter(evidence))
+                        if evidence
+                        else self.project_store.epic_branch_name(container_id)
+                    )
+                container_branches = tuple(sorted(resolved_branches.items()))
+                queue_by_task = {item.task_id: item for item in queue_items}
+                if any(
+                    (current := queue_by_task.get(row.task_id)) is None
+                    or current.epic_id != row.epic_id
+                    or current.task_branch != row.task_branch
+                    or current.head_sha != (row.submission_head_sha or row.head_sha)
+                    or (current.candidate_head_sha or current.head_sha) != row.head_sha
+                    or (
+                        row.base_branch is not None
+                        and current.base_branch != row.base_branch
+                    )
+                    for row in rows
+                ):
+                    raise ValueError("persisted queue generation changed")
                 if selected and rows:
                     return ContainerCycleRepairPlan(
                         key=key,
@@ -8679,6 +8748,7 @@ class Orchestrator:
                             if str(value).strip()
                         ),
                         rows=rows,
+                        container_branches=container_branches,
                     )
             except (KeyError, TypeError, ValueError):
                 logger.warning(
@@ -8735,11 +8805,47 @@ class Orchestrator:
                     container_id=container_id,
                     epic_id=item.epic_id,
                     task_branch=item.task_branch,
-                    head_sha=item.head_sha,
+                    head_sha=(item.candidate_head_sha or item.head_sha),
+                    base_branch=item.base_branch,
+                    submission_head_sha=item.head_sha,
                 )
             )
         if not rows:
             return None
+
+        branch_evidence: dict[str, set[str]] = {
+            container_id: set() for container_id in cycle.containers
+        }
+        for container_id in cycle.containers:
+            container_issue = aliases.get(container_id)
+            if container_issue is not None:
+                branch = str(
+                    getattr(container_issue, "work_branch", "") or ""
+                ).strip()
+                if branch:
+                    branch_evidence[container_id].add(branch)
+        for row in rows:
+            if row.base_branch:
+                branch_evidence.setdefault(row.container_id, set()).add(
+                    row.base_branch
+                )
+        if any(len(branches) > 1 for branches in branch_evidence.values()):
+            logger.warning(
+                "Refusing ambiguous container-cycle branch authority for %s",
+                cycle.message_path,
+            )
+            return None
+        container_branches = tuple(
+            sorted(
+                (
+                    container_id,
+                    next(iter(branches))
+                    if branches
+                    else self.project_store.epic_branch_name(container_id),
+                )
+                for container_id, branches in branch_evidence.items()
+            )
+        )
 
         plan = ContainerCycleRepairPlan(
             key=key,
@@ -8751,6 +8857,7 @@ class Orchestrator:
             # makes an unlisted sibling commit fail closed in Git validation.
             declared_closure=tuple(sorted({sha for _task, sha in prerequisite_shas})),
             rows=tuple(sorted(rows, key=lambda row: row.task_id)),
+            container_branches=container_branches,
         )
         self._record_container_cycle_repair(key, {"plan": plan.to_dict(), "phase": "planned"})
         return plan
@@ -8830,6 +8937,159 @@ class Orchestrator:
                     exc,
                 )
 
+    def _restore_container_cycle_row(
+        self,
+        project_id: str,
+        tracker,
+        row: CycleRepairRow,
+        *,
+        target_base_branch: str,
+        target_base_sha: str,
+        executor: ContainerCycleRepairExecutor,
+    ) -> bool:
+        """Atomically restore one cycle-fenced queue/tracker generation."""
+
+        observed = tracker.fetch_issue_detail(row.task_id)
+        if observed is None or not target_base_sha:
+            return False
+        issue_id = str(observed.id or observed.identifier or row.task_id)
+        with self.issue_transition_lock(issue_id).sync():
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            observed_remote_head = executor.remote_head(row.task_branch)
+            issue = tracker.fetch_issue_detail(row.task_id)
+            record = getattr(issue, "integration", None) if issue else None
+            observed_tracker_head = str(
+                getattr(record, "head_sha", "")
+                or getattr(issue, "head_sha", "")
+                or ""
+            ).strip()
+            if (
+                issue is None
+                or str(issue.id or issue.identifier or row.task_id) != issue_id
+                or observed_remote_head != row.head_sha
+                or observed_tracker_head != row.head_sha
+            ):
+                message = (
+                    "Container-cycle repair is complete for "
+                    f"{row.container_id}, but private head authority changed: "
+                    f"expected {row.head_sha}, observed branch "
+                    f"{observed_remote_head or '<missing>'}; metadata "
+                    f"{observed_tracker_head or '<missing>'}. The cancelled row remains "
+                    "fenced; push the intended head and submit it again."
+                )
+                try:
+                    self._mark_needs_human(tracker, row.task_id, message)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Could not route changed private head %s: %s",
+                        row.task_id,
+                        exc,
+                    )
+                return False
+
+            submission_head = row.submission_head_sha or row.head_sha
+            self.integration_queue.restore_cancelled(
+                project_id,
+                row.task_id,
+                expected_head_sha=submission_head,
+                expected_task_branch=row.task_branch,
+                expected_epic_id=row.epic_id,
+                restored_base_branch=target_base_branch,
+                restored_base_sha=target_base_sha,
+            )
+            current = self.integration_queue.get(project_id, row.task_id)
+            exact_queue_restore = bool(
+                current is not None
+                and current.state == "ready"
+                and current.task_branch == row.task_branch
+                and current.head_sha == submission_head
+                and (current.candidate_head_sha or current.head_sha)
+                == row.head_sha
+                and current.base_branch == target_base_branch
+                and (current.candidate_base_sha or current.base_sha)
+                == target_base_sha
+            )
+            if not exact_queue_restore:
+                raise RuntimeError(
+                    f"queue restore did not persist for {row.task_id}"
+                )
+            try:
+                tracker.set_metadata_field(
+                    row.task_id,
+                    "oompah.integration",
+                    IntegrationRecord(
+                        state="ready",
+                        task_branch=row.task_branch,
+                        base_branch=target_base_branch,
+                        base_sha=target_base_sha,
+                        head_sha=row.head_sha,
+                        attempts=getattr(record, "attempts", 0),
+                        submitted_at=getattr(record, "submitted_at", None),
+                        updated_at=datetime.now(timezone.utc).isoformat(),
+                    ).to_dict(),
+                )
+                tracker.update_issue(row.task_id, status=READY_TO_INTEGRATE)
+            except Exception:
+                self.integration_queue.cancel(
+                    project_id,
+                    row.task_id,
+                    reason="tracker cycle restoration did not persist",
+                    expected_head_sha=submission_head,
+                    expected_state="ready",
+                )
+                raise
+
+            confirmed = tracker.fetch_issue_detail(row.task_id)
+            confirmed_record = getattr(confirmed, "integration", None)
+            confirmed_queue = self.integration_queue.get(
+                project_id,
+                row.task_id,
+            )
+            exact_confirmation = bool(
+                confirmed is not None
+                and canonicalize_status(getattr(confirmed, "state", ""))
+                == READY_TO_INTEGRATE
+                and str(
+                    getattr(confirmed_record, "head_sha", "") or ""
+                ).strip()
+                == row.head_sha
+                and str(
+                    getattr(confirmed_record, "base_branch", "") or ""
+                ).strip()
+                == target_base_branch
+                and str(
+                    getattr(confirmed_record, "base_sha", "") or ""
+                ).strip()
+                == target_base_sha
+                and confirmed_queue is not None
+                and confirmed_queue.state == "ready"
+                and confirmed_queue.head_sha == submission_head
+                and (
+                    confirmed_queue.candidate_head_sha
+                    or confirmed_queue.head_sha
+                )
+                == row.head_sha
+                and (
+                    confirmed_queue.candidate_base_sha
+                    or confirmed_queue.base_sha
+                )
+                == target_base_sha
+            )
+            if not exact_confirmation:
+                self.integration_queue.cancel(
+                    project_id,
+                    row.task_id,
+                    reason="cycle restoration confirmation failed",
+                    expected_head_sha=submission_head,
+                    expected_state="ready",
+                )
+                raise RuntimeError(
+                    f"cycle restore did not persist exactly for {row.task_id}"
+                )
+            return True
+
     def _restore_container_cycle_rows(
         self,
         project_id: str,
@@ -8844,86 +9104,34 @@ class Orchestrator:
         restorable = set(result.restorable_rows)
         restored: list[str] = []
         changed: list[str] = []
+        repaired_container_heads = {
+            plan.authoritative_container: str(result.parent_sha or "").strip(),
+            **{
+                child.container_id: str(child.resulting_sha or "").strip()
+                for child in result.children
+                if child.action
+                in {"already_reachable", "fast_forward", "merge_parent"}
+                and str(child.resulting_sha or "").strip()
+            },
+        }
         for row in plan.rows:
             if row.task_id not in restorable:
                 continue
-            remote_head = executor.remote_head(row.task_branch)
-            issue = tracker.fetch_issue_detail(row.task_id)
-            record = getattr(issue, "integration", None) if issue else None
-            current_head = str(
-                getattr(record, "head_sha", "") or getattr(issue, "head_sha", "") or ""
-            ).strip()
-            if remote_head != row.head_sha or (current_head and current_head != row.head_sha):
-                changed.append(row.task_id)
-                message = (
-                    f"Container-cycle repair is complete for {row.container_id}, but "
-                    f"private head authority changed: expected {row.head_sha}, "
-                    f"observed branch {remote_head or '<missing'} and metadata "
-                    f"{current_head or '<missing'}. The cancelled row remains fenced; "
-                    "push the intended head and submit it again."
-                )
-                try:
-                    self._mark_needs_human(tracker, row.task_id, message)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Could not route changed private head %s: %s", row.task_id, exc)
-                continue
-            if issue is None:
-                changed.append(row.task_id)
-                continue
-            restored_by_cas = self.integration_queue.restore_cancelled(
+            target_base_sha = repaired_container_heads.get(row.container_id, "")
+            target_base_branch = (
+                row.base_branch or plan.branch_for_container(row.container_id)
+            )
+            if self._restore_container_cycle_row(
                 project_id,
-                row.task_id,
-                expected_head_sha=row.head_sha,
-                expected_task_branch=row.task_branch,
-                expected_epic_id=row.epic_id,
-            )
-            current = next(
-                (
-                    item
-                    for item in self.integration_queue.items(project_id=project_id)
-                    if item.task_id == row.task_id
-                ),
-                None,
-            )
-            if not restored_by_cas and not (
-                current is not None
-                and current.state == "ready"
-                and current.task_branch == row.task_branch
-                and current.head_sha == row.head_sha
+                tracker,
+                row,
+                target_base_branch=target_base_branch,
+                target_base_sha=target_base_sha,
+                executor=executor,
             ):
-                raise RuntimeError(f"queue restore did not persist for {row.task_id}")
-            # The queue CAS is the first restoration write.  If the private
-            # authority changed, the code above fails without reopening or
-            # rewriting tracker metadata.  Tracker writes follow and are
-            # idempotently repaired on the next scan if a process exits here.
-            tracker.update_issue(row.task_id, status=READY_TO_INTEGRATE)
-            tracker.set_metadata_field(
-                row.task_id,
-                "oompah.integration",
-                IntegrationRecord(
-                    state="ready",
-                    task_branch=row.task_branch,
-                    base_branch=self.project_store.epic_branch_name(row.epic_id),
-                    base_sha=result.parent_sha,
-                    head_sha=row.head_sha,
-                    attempts=getattr(record, "attempts", 0),
-                    submitted_at=getattr(record, "submitted_at", None),
-                    updated_at=datetime.now(timezone.utc).isoformat(),
-                ).to_dict(),
-            )
-            confirmed = tracker.fetch_issue_detail(row.task_id)
-            confirmed_record = getattr(confirmed, "integration", None)
-            if (
-                confirmed is None
-                or canonicalize_status(getattr(confirmed, "state", ""))
-                != READY_TO_INTEGRATE
-                or str(getattr(confirmed_record, "head_sha", "") or "").strip()
-                != row.head_sha
-            ):
-                raise RuntimeError(
-                    f"tracker restore did not persist for {row.task_id}"
-                )
-            restored.append(row.task_id)
+                restored.append(row.task_id)
+            else:
+                changed.append(row.task_id)
         self._record_container_cycle_repair(
             plan.key,
             {
@@ -9105,11 +9313,14 @@ class Orchestrator:
                 if item_identifier not in cycle.affected_ready_tasks:
                     continue
                 record = getattr(issue, "integration", None)
+                candidate_head = str(
+                    item.candidate_head_sha or item.head_sha or ""
+                ).strip()
                 if (
                     record is not None
                     and str(getattr(record, "head_sha", "") or "").strip()
                     and str(getattr(record, "head_sha", "") or "").strip()
-                    != str(item.head_sha or "").strip()
+                    != candidate_head
                 ):
                     continue
                 if not self.integration_queue.cancel(
@@ -9125,7 +9336,7 @@ class Orchestrator:
                 action = (
                     "Container dependency cycle requires an authorized delivery "
                     f"order: {cycle.message_path}. Preserve private head "
-                    f"{item.head_sha} and deliver the exact prerequisite SHA(s) "
+                    f"{candidate_head} and deliver the exact prerequisite SHA(s) "
                     f"({sha_text}) through {target}; do not merge unrelated "
                     "sibling work. After that delivery lands, resubmit this "
                     "same private head."
@@ -10594,11 +10805,10 @@ class Orchestrator:
         """Whether a Ready task uses direct review delivery rather than an epic.
 
         Most direct tasks have no parent.  A non-epic hierarchy is also direct
-        delivery, however: its parent is meaningful only because
-        :func:`effective_dependencies` inherits finish-order constraints from
-        it.  A task with private integration metadata, an epic ancestor, or
-        an unresolved parent remains outside this path and cannot accidentally
-        bypass ordered integration.
+        delivery, however: its parent can contribute normalized finish-order
+        constraints.  A task with private integration metadata, an epic
+        ancestor, or an unresolved parent remains outside this path and cannot
+        accidentally bypass ordered integration.
         """
 
         if _is_epic_issue(issue):
@@ -10639,7 +10849,7 @@ class Orchestrator:
         index = issue_index(current_issues)
         if not self._is_standalone_ready_delivery_issue(issue, index):
             return None
-        dependencies = effective_dependencies(issue, index)
+        dependencies = integration_dependencies(issue, index)
         satisfied = self._integration_satisfied_dependencies(
             current_issues,
             [],
@@ -11425,13 +11635,23 @@ class Orchestrator:
         repo_path: str | None = None
         epic_ref: str | None = None
         default_ref: str | None = None
+        target_branches = {
+            str(item.base_branch or "").strip()
+            for item in queue_items
+            if str(item.base_branch or "").strip()
+        }
         if project_id and epic_id:
             project = self.project_store.get(project_id)
             if project is not None and project.repo_path:
                 repo_path = project.repo_path
-                epic_ref = (
-                    f"origin/{self.project_store.epic_branch_name(epic_id)}"
+                target_branch = (
+                    next(iter(target_branches))
+                    if len(target_branches) == 1
+                    else self.project_store.epic_branch_name(epic_id)
+                    if not target_branches
+                    else None
                 )
+                epic_ref = f"origin/{target_branch}" if target_branch else None
                 default_ref = f"origin/{project.default_branch}"
                 try:
                     with self.project_store.project_write_lock(project_id):
@@ -11562,6 +11782,7 @@ class Orchestrator:
             task_branch=item.task_branch,
             head_sha=item.head_sha,
             lease_owner=item.lease_owner,
+            candidate_head_sha=item.candidate_head_sha,
         ):
             return False
 
@@ -11570,11 +11791,313 @@ class Orchestrator:
         if issue is None:
             return False
         record = getattr(issue, "integration", None)
+        expected_head = str(item.candidate_head_sha or item.head_sha).strip()
         return bool(
             canonicalize_status(issue.state) == READY_TO_INTEGRATE
             and record is not None
             and str(record.task_branch or "").strip() == item.task_branch
-            and str(record.head_sha or "").strip() == item.head_sha
+            and str(record.head_sha or "").strip() == expected_head
+            and (
+                not item.base_branch
+                or str(record.base_branch or "").strip() == item.base_branch
+            )
+            and str(record.base_sha or "").strip().lower()
+            == str(item.candidate_base_sha or item.base_sha or "").strip().lower()
+        )
+
+    @staticmethod
+    def _integration_dependency_revision(
+        issues_by_alias: Mapping[str, Issue],
+        dependencies: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        """Return exact tracker evidence for one integration projection."""
+
+        revision: list[str] = []
+        for dependency in dependencies:
+            issue = issues_by_alias.get(dependency)
+            if issue is None:
+                revision.append(f"{dependency}:<missing>")
+                continue
+            parent = issues_by_alias.get(str(issue.parent_id or "").strip())
+            record = getattr(issue, "integration", None)
+            revision.append(
+                ":".join(
+                    (
+                        dependency,
+                        canonicalize_status(issue.state),
+                        str(getattr(parent, "identifier", "") or ""),
+                        canonicalize_status(getattr(parent, "state", "")),
+                        str(getattr(record, "state", "") or ""),
+                        str(getattr(record, "task_branch", "") or ""),
+                        str(getattr(record, "base_branch", "") or ""),
+                        str(getattr(record, "base_sha", "") or ""),
+                        str(getattr(record, "head_sha", "") or ""),
+                        str(getattr(record, "integrated_sha", "") or ""),
+                    )
+                )
+            )
+        return tuple(revision)
+
+    def _integration_dependency_authority(
+        self,
+        item: IntegrationQueueItem,
+        expected_dependencies: tuple[str, ...] | None,
+        expected_revision: tuple[str, ...] | None,
+    ) -> Callable[[], bool]:
+        """Fence a gate when its normalized finish-order evidence changes."""
+
+        def _is_current() -> bool:
+            if not self._integration_task_still_ready(item):
+                return False
+            if expected_dependencies is None or expected_revision is None:
+                return True
+            try:
+                tracker = self._tracker_for_project(item.project_id)
+                issues = list(tracker.fetch_all_issues())
+                index = issue_index(issues)
+                issue = index.get(item.task_id)
+                if issue is None:
+                    return False
+                current_dependencies = integration_dependencies(issue, index)
+                return bool(
+                    current_dependencies == expected_dependencies
+                    and self._integration_dependency_revision(
+                        index,
+                        current_dependencies,
+                    )
+                    == expected_revision
+                )
+            except Exception:  # noqa: BLE001 - gate authority fails closed
+                return False
+
+        return _is_current
+
+    def _canonicalize_integration_candidate(
+        self,
+        item: IntegrationQueueItem,
+        candidate_head_sha: str,
+        candidate_base_sha: str,
+        *,
+        expected_dependencies: tuple[str, ...] | None = None,
+        expected_dependency_revision: tuple[str, ...] | None = None,
+    ) -> IntegrationCandidateAuthority:
+        """Persist and fence the exact combined-tree gate generation."""
+
+        candidate = str(candidate_head_sha or "").strip().lower()
+        base = str(candidate_base_sha or "").strip().lower()
+        tracker = self._tracker_for_project(item.project_id)
+        observed = tracker.fetch_issue_detail(item.task_id)
+        if observed is None:
+            raise RuntimeError(
+                "tracker submission disappeared before candidate fencing"
+            )
+        issue_id = str(observed.id or observed.identifier or item.task_id)
+        with self.issue_transition_lock(issue_id).sync():
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            issue = tracker.fetch_issue_detail(item.task_id)
+            record = (
+                getattr(issue, "integration", None) if issue is not None else None
+            )
+            accepted_pair = (
+                str(item.head_sha or "").strip().lower(),
+                str(item.base_sha or "").strip().lower(),
+            )
+            canonical_pair = (
+                str(item.candidate_head_sha or candidate).strip().lower(),
+                str(item.candidate_base_sha or base).strip().lower(),
+            )
+            tracker_pair = (
+                str(getattr(record, "head_sha", "") or "").strip().lower(),
+                str(getattr(record, "base_sha", "") or "").strip().lower(),
+            )
+            if (
+                issue is None
+                or str(issue.id or issue.identifier or item.task_id) != issue_id
+                or canonicalize_status(issue.state) != READY_TO_INTEGRATE
+                or record is None
+                or str(record.task_branch or "").strip() != item.task_branch
+                or tracker_pair not in {accepted_pair, canonical_pair}
+                or (
+                    item.base_branch
+                    and str(record.base_branch or "").strip() != item.base_branch
+                )
+            ):
+                raise RuntimeError(
+                    "tracker submission changed before candidate fencing"
+                )
+            claimed = self.integration_queue.record_candidate(
+                project_id=item.project_id,
+                task_id=item.task_id,
+                lease_owner=str(item.lease_owner or ""),
+                expected_head_sha=item.head_sha,
+                expected_candidate_head_sha=item.candidate_head_sha,
+                candidate_head_sha=candidate,
+                candidate_base_sha=base,
+            )
+            if claimed is None:
+                raise RuntimeError(
+                    "leased integration row changed before candidate fencing"
+                )
+            if tracker_pair != (candidate, base):
+                tracker.set_metadata_field(
+                    item.task_id,
+                    "oompah.integration",
+                    replace(
+                        record,
+                        head_sha=candidate,
+                        base_branch=item.base_branch or record.base_branch,
+                        base_sha=base,
+                        updated_at=datetime.now(timezone.utc).isoformat(),
+                    ).to_dict(),
+                )
+        canonical_item = replace(
+            claimed,
+            candidate_head_sha=candidate,
+            candidate_base_sha=base,
+        )
+        generation = (
+            f"integration:{item.project_id}:{item.task_id}:"
+            f"{candidate}:{item.lease_owner or ''}"
+        )
+        owner = QualityGateOwner(
+            project_id=str(item.project_id),
+            task_id=str(item.task_id),
+            head_sha=candidate,
+            authority_generation=generation,
+        )
+        is_current = self._integration_dependency_authority(
+            canonical_item,
+            expected_dependencies,
+            expected_dependency_revision,
+        )
+        if not is_current():
+            raise RuntimeError("candidate authority did not persist atomically")
+        return IntegrationCandidateAuthority(
+            generation=generation,
+            owner=owner,
+            is_current=is_current,
+        )
+
+    def _finalize_integration_success(
+        self,
+        item: IntegrationQueueItem,
+        result: IntegrationExecutionResult,
+        *,
+        epic_id: str,
+        lease_owner: str,
+        dependency_heads: Mapping[str, str],
+        expected_dependencies: tuple[str, ...] | None,
+        expected_dependency_revision: tuple[str, ...] | None,
+    ) -> IntegrationQueueItem | None:
+        """Commit queue and tracker success without crossing a new submission.
+
+        Worker submission uses the same per-task transition lock.  Completing
+        the exact leased queue row before publishing tracker metadata means a
+        stale executor can never overwrite a replacement generation: a failed
+        queue compare-and-swap aborts the tracker write, while a new submission
+        cannot enter between the successful compare-and-swap and that write.
+        """
+
+        candidate_head = str(result.rebased_task_sha or "").strip().lower()
+        candidate_base = str(result.expected_epic_sha or "").strip().lower()
+        if not candidate_head or not candidate_base or not result.integrated_sha:
+            return None
+        canonical_item = replace(
+            item,
+            candidate_head_sha=candidate_head,
+            candidate_base_sha=candidate_base,
+        )
+        tracker = self._tracker_for_project(item.project_id)
+        observed = tracker.fetch_issue_detail(item.task_id)
+        if observed is None:
+            return None
+        issue_id = str(observed.id or observed.identifier or item.task_id)
+        with self.issue_transition_lock(issue_id).sync():
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            current_issue = tracker.fetch_issue_detail(item.task_id)
+            if (
+                current_issue is None
+                or str(
+                    current_issue.id
+                    or current_issue.identifier
+                    or item.task_id
+                )
+                != issue_id
+            ):
+                return None
+            if not self._integration_dependency_authority(
+                canonical_item,
+                expected_dependencies,
+                expected_dependency_revision,
+            )():
+                return None
+            if not self.integration_queue.complete(
+                item.project_id,
+                item.task_id,
+                lease_owner=lease_owner,
+            ):
+                return None
+            try:
+                tracker.set_metadata_field(
+                    item.task_id,
+                    "oompah.integration",
+                    IntegrationRecord(
+                        state="integrated",
+                        task_branch=item.task_branch,
+                        base_branch=(
+                            item.base_branch
+                            or self.project_store.epic_branch_name(epic_id)
+                        ),
+                        base_sha=candidate_base,
+                        head_sha=candidate_head,
+                        integrated_sha=result.integrated_sha,
+                        attempts=item.attempts,
+                        submitted_at=item.submitted_at,
+                        updated_at=datetime.now(timezone.utc).isoformat(),
+                        dependency_heads=dict(dependency_heads),
+                    ).to_dict(),
+                )
+            except Exception as exc:  # noqa: BLE001 - restore durable retry
+                rearmed = (
+                    self.integration_queue.retry_integrated_after_tracker_failure(
+                        item.project_id,
+                        item.task_id,
+                        expected_head_sha=item.head_sha,
+                        expected_candidate_head_sha=candidate_head,
+                        error=f"tracker integration finalization failed: {exc}",
+                    )
+                )
+                if not rearmed:
+                    current = self.integration_queue.get(
+                        item.project_id,
+                        item.task_id,
+                    )
+                    same_integrated_generation = bool(
+                        current is not None
+                        and current.state == "integrated"
+                        and current.head_sha == item.head_sha
+                        and current.candidate_head_sha == candidate_head
+                    )
+                    if same_integrated_generation:
+                        raise RuntimeError(
+                            "tracker finalization failed and the integrated "
+                            "queue generation could not be rearmed"
+                        ) from exc
+                logger.warning(
+                    "Rearmed integration %s after tracker finalization failed: %s",
+                    item.task_id,
+                    exc,
+                )
+                return None
+        current = self.integration_queue.get(item.project_id, item.task_id)
+        return (
+            current
+            if current is not None and current.state == "integrated"
+            else None
         )
 
     def _retire_inactive_integration_rows(
@@ -11641,7 +12164,9 @@ class Orchestrator:
                         .strip()
                         .lower()
                     )
-                    row_head = str(item.head_sha or "").strip().lower()
+                    row_head = str(
+                        item.candidate_head_sha or item.head_sha or ""
+                    ).strip().lower()
                     if (
                         tracker_record is not None
                         and tracker_head
@@ -11671,7 +12196,9 @@ class Orchestrator:
                 and item.state == "blocked"
                 and status in {NEEDS_CI_FIX, NEEDS_REBASE}
                 and str(integration_head or "").strip().lower()
-                == str(item.head_sha or "").strip().lower()
+                == str(
+                    item.candidate_head_sha or item.head_sha or ""
+                ).strip().lower()
                 and str(integration_branch or "").strip()
                 == str(item.task_branch or "").strip()
             )
@@ -11690,14 +12217,15 @@ class Orchestrator:
             # Cancel the running or pre-spawn gate for this exact item so the
             # process group is terminated even if the queue cancel arrived just
             # before the gate loop claimed the item.
+            gate_head = item.candidate_head_sha or item.head_sha
             gate_generation = (
                 f"integration:{item.project_id}:{item.task_id}:"
-                f"{item.head_sha}:{item.lease_owner or ''}"
+                f"{gate_head}:{item.lease_owner or ''}"
             )
             gate_owner = QualityGateOwner(
                 project_id=str(item.project_id),
                 task_id=str(item.task_id),
-                head_sha=str(item.head_sha or "").strip(),
+                head_sha=str(gate_head or "").strip(),
                 authority_generation=gate_generation,
             )
             self._cancel_quality_gate(
@@ -11711,6 +12239,9 @@ class Orchestrator:
     def _execute_integration_item(
         self,
         item: IntegrationQueueItem,
+        *,
+        expected_dependencies: tuple[str, ...] | None = None,
+        expected_dependency_revision: tuple[str, ...] | None = None,
     ) -> IntegrationExecutionResult:
         project = self.project_store.get(item.project_id)
         if project is None:
@@ -11718,33 +12249,43 @@ class Orchestrator:
                 status="error",
                 message=f"managed project {item.project_id} no longer exists",
             )
+        target_branch = str(item.base_branch or "").strip() or (
+            self.project_store.epic_branch_name(item.epic_id)
+        )
+        accepted_head = str(item.candidate_head_sha or item.head_sha).strip()
         try:
             epic_worktree = self.project_store.create_epic_worktree(
                 item.project_id,
                 item.epic_id,
+                branch_name=target_branch,
             )
             task_worktree = self.project_store.create_worktree(
                 item.project_id,
                 item.task_id,
-                base_branch=self.project_store.epic_branch_name(item.epic_id),
+                base_branch=target_branch,
                 branch_name=item.task_branch,
                 prefer_remote_branch=True,
-                expected_head_sha=item.head_sha,
+                expected_head_sha=accepted_head,
             )
         except Exception as exc:  # noqa: BLE001
             return IntegrationExecutionResult(
                 status="error",
                 message=f"could not recover integration worktrees: {exc}",
             )
+        is_current = self._integration_dependency_authority(
+            item,
+            expected_dependencies,
+            expected_dependency_revision,
+        )
         return execute_integration(
             project_lock=self.project_store.project_write_lock(
                 item.project_id
             ),
             epic_worktree=epic_worktree,
             task_worktree=task_worktree,
-            epic_branch=self.project_store.epic_branch_name(item.epic_id),
+            epic_branch=target_branch,
             task_branch=item.task_branch,
-            submitted_head_sha=item.head_sha,
+            submitted_head_sha=accepted_head,
             quality_gate=self._branch_quality_gate,
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
@@ -11753,18 +12294,27 @@ class Orchestrator:
             retry_forced=item.retry_forced,
             gate_generation=(
                 f"integration:{item.project_id}:{item.task_id}:"
-                f"{item.head_sha}:{item.lease_owner or ''}"
+                f"{accepted_head}:{item.lease_owner or ''}"
             ),
             gate_owner=QualityGateOwner(
                 project_id=str(item.project_id),
                 task_id=str(item.task_id),
-                head_sha=str(item.head_sha or "").strip(),
+                head_sha=accepted_head,
                 authority_generation=(
                     f"integration:{item.project_id}:{item.task_id}:"
-                    f"{item.head_sha}:{item.lease_owner or ''}"
+                    f"{accepted_head}:{item.lease_owner or ''}"
                 ),
             ),
-            commit_allowed=lambda: self._integration_task_still_ready(item),
+            commit_allowed=is_current,
+            canonicalize_candidate=lambda candidate, base: (
+                self._canonicalize_integration_candidate(
+                    item,
+                    candidate,
+                    base,
+                    expected_dependencies=expected_dependencies,
+                    expected_dependency_revision=expected_dependency_revision,
+                )
+            ),
         )
 
     def _route_integration_failure(
@@ -11773,7 +12323,7 @@ class Orchestrator:
         result: IntegrationExecutionResult,
     ) -> None:
         """Persist a recoverable repair state without deleting any branch.
-        
+
         Handles three categories of failures:
         1. Executor retryable (epic_head_race, interrupted): auto-retry immediately
         2. Conflict with infrastructure failure: backoff and retry after cooldown
@@ -11897,18 +12447,23 @@ class Orchestrator:
         tracker = self._tracker_for_project(item.project_id)
         issue = tracker.fetch_issue_detail(item.task_id)
         existing = getattr(issue, "integration", None) if issue else None
-        head_sha = result.rebased_task_sha or item.head_sha
+        head_sha = (
+            result.rebased_task_sha
+            or item.candidate_head_sha
+            or item.head_sha
+        )
         state = "ready" if retryable else "blocked"
-        
+
         # Track repair failure classification for conflicts
         backoff_until: str | None = None
-        
+
         if result.status == "conflict":
             # Classify the failure to detect infrastructure vs real conflicts
-            repair_failure_reason = repair_failure_reason or classify_conflict_repair_failure(
-                result.message
+            repair_failure_reason = (
+                repair_failure_reason
+                or classify_conflict_repair_failure(result.message)
             )
-            
+
             # Infrastructure failures (auth, provider, timeout, etc.) should retry with backoff
             if repair_failure_reason and repair_failure_reason != "conflict":
                 # Calculate exponential backoff: 5m, 15m, 45m, then needs_human
@@ -11919,7 +12474,7 @@ class Orchestrator:
                     repair_attempts = item.attempts
                     if repair_attempts >= 1:  # Attempts start at 1 on first try
                         repair_attempts -= 1
-                
+
                 max_repair_attempts = 4  # 3 backoff retries + needs_human
                 if repair_attempts < max_repair_attempts:
                     # Still have retries left
@@ -11927,21 +12482,30 @@ class Orchestrator:
                         backoff_seconds = backoff_delays[repair_attempts]
                     else:
                         backoff_seconds = backoff_delays[-1]
-                    backoff_time = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                    backoff_time = datetime.now(timezone.utc) + timedelta(
+                        seconds=backoff_seconds
+                    )
                     backoff_until = backoff_time.isoformat()
                     state = "ready"
                 else:
                     # Exhausted repair attempts, transition to needs_human
                     state = "needs_human"
-        
+
         tracker.set_metadata_field(
             item.task_id,
             "oompah.integration",
             IntegrationRecord(
                 state=state,
                 task_branch=item.task_branch,
-                base_branch=self.project_store.epic_branch_name(item.epic_id),
-                base_sha=result.expected_epic_sha or item.base_sha,
+                base_branch=(
+                    item.base_branch
+                    or self.project_store.epic_branch_name(item.epic_id)
+                ),
+                base_sha=(
+                    result.expected_epic_sha
+                    or item.candidate_base_sha
+                    or item.base_sha
+                ),
                 head_sha=head_sha,
                 attempts=item.attempts,
                 submitted_at=(
@@ -12089,7 +12653,12 @@ class Orchestrator:
                     task_id=item.task_id,
                     task_branch=item.task_branch,
                     head_sha=result.rebased_task_sha,
-                    base_sha=result.expected_epic_sha or item.base_sha,
+                    base_branch=item.base_branch,
+                    base_sha=(
+                        result.expected_epic_sha
+                        or item.candidate_base_sha
+                        or item.base_sha
+                    ),
                     priority=item.priority,
                     submitted_at=item.submitted_at,
                     explicit_retry=False,  # Automatic background retry
@@ -12102,7 +12671,7 @@ class Orchestrator:
                 result.message,
             )
             return
-        
+
         # Handle conflict with retryable infrastructure failure
         if result.status == "conflict" and backoff_until and state == "ready":
             instruction = (
@@ -12121,20 +12690,24 @@ class Orchestrator:
                 repair_failure_reason,
             )
             return
-        
+
         # Handle exhausted repairs (needs_human transition)
         if state == "needs_human":
             repair_status = NEEDS_REBASE
             _transition_repair_status(repair_status)
+            target_branch = (
+                item.base_branch
+                or self.project_store.epic_branch_name(item.epic_id)
+            )
             instruction = (
                 f"**Conflict repair exhausted**: Integration found a rebase conflict on "
                 f"`{item.task_branch}`, and after several retries due to recoverable infrastructure "
                 f"failures ({repair_failure_reason}), the repair worker has given up.\n\n"
                 f"**Action required**: Please resolve the conflict manually:\n\n"
-                f"1. Fetch the latest `{self.project_store.epic_branch_name(item.epic_id)}` "
+                f"1. Fetch the latest `{target_branch}` "
                 f"(the epic branch)\n"
                 f"2. Fetch your private branch `{item.task_branch}`\n"
-                f"3. Rebase `{item.task_branch}` onto `{self.project_store.epic_branch_name(item.epic_id)}`\n"
+                f"3. Rebase `{item.task_branch}` onto `{target_branch}`\n"
                 f"4. Resolve all conflicts\n"
                 f"5. Run the required tests\n"
                 f"6. Force-push the resolved branch: `git push --force-with-lease origin {item.task_branch}`\n"
@@ -12151,7 +12724,7 @@ class Orchestrator:
                 result.message[:500],
             )
             return
-        
+
         # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
@@ -12166,10 +12739,14 @@ class Orchestrator:
             "epic_merge_failure": OPEN,
         }.get(result.status, OPEN)
         _transition_repair_status(repair_status)
+        target_branch = (
+            item.base_branch
+            or self.project_store.epic_branch_name(item.epic_id)
+        )
         instruction = {
             "conflict": (
                 f"Integration found a rebase conflict on `{item.task_branch}`. "
-                f"Resolve it against `{self.project_store.epic_branch_name(item.epic_id)}`, "
+                f"Resolve it against `{target_branch}`, "
                 "run the required tests, push the same private branch, and "
                 "`oompah task submit` it again."
             ),
@@ -12183,7 +12760,7 @@ class Orchestrator:
                 f"The combined-tree quality gate refused `{item.task_branch}` "
                 "because its executable lifecycle path does not contain the "
                 "deployed safety prerequisite. Rebase the private branch onto "
-                f"the current `{self.project_store.epic_branch_name(item.epic_id)}` "
+                f"the current `{target_branch}` "
                 "base, preserve the candidate changes, run the full gate, push, "
                 "and `oompah task submit` it again."
             ),
@@ -12363,7 +12940,10 @@ class Orchestrator:
             return False
 
         try:
-            epic_branch = self.project_store.epic_branch_name(epic_id)
+            epic_branch = (
+                eligible_item.base_branch
+                or self._epic_branch_for_issue(epic)
+            )
             target_branch = self._resolve_epic_target_branch(
                 epic,
                 project,
@@ -12791,13 +13371,14 @@ class Orchestrator:
             return False
 
         existing = getattr(child, "integration", None)
+        candidate_head = item.candidate_head_sha or item.head_sha
         candidate = IntegrationRecord(
             state="integrated",
             task_branch=item.task_branch,
             base_branch=target_branch,
-            base_sha=item.base_sha,
-            head_sha=item.head_sha,
-            integrated_sha=item.head_sha,
+            base_sha=item.candidate_base_sha or item.base_sha,
+            head_sha=candidate_head,
+            integrated_sha=candidate_head,
             attempts=item.attempts,
             submitted_at=(
                 getattr(existing, "submitted_at", None) or item.submitted_at
@@ -12915,8 +13496,9 @@ class Orchestrator:
         """Turn exact target ancestry into durable integration/audit evidence."""
 
         existing = getattr(child, "integration", None)
+        candidate_head = item.candidate_head_sha or item.head_sha
         existing_head = str(getattr(existing, "head_sha", "") or "").strip().lower()
-        if existing_head and existing_head != item.head_sha.strip().lower():
+        if existing_head and existing_head != candidate_head.strip().lower():
             return False, "the accepted task head changed while preflight was running"
 
         if existing is None:
@@ -12924,9 +13506,9 @@ class Orchestrator:
                 state="integrated",
                 task_branch=item.task_branch,
                 base_branch=target_branch,
-                base_sha=item.base_sha,
-                head_sha=item.head_sha,
-                integrated_sha=item.head_sha,
+                base_sha=item.candidate_base_sha or item.base_sha,
+                head_sha=candidate_head,
+                integrated_sha=candidate_head,
                 attempts=item.attempts,
                 submitted_at=item.submitted_at,
                 updated_at=datetime.now(timezone.utc).isoformat(),
@@ -12937,9 +13519,9 @@ class Orchestrator:
                 state="integrated",
                 task_branch=item.task_branch,
                 base_branch=target_branch,
-                base_sha=item.base_sha,
-                head_sha=item.head_sha,
-                integrated_sha=item.head_sha,
+                base_sha=item.candidate_base_sha or item.base_sha,
+                head_sha=candidate_head,
+                integrated_sha=candidate_head,
                 attempts=item.attempts,
                 submitted_at=existing.submitted_at or item.submitted_at,
                 updated_at=datetime.now(timezone.utc).isoformat(),
@@ -13013,6 +13595,10 @@ class Orchestrator:
             if child_status in {DONE, MERGED, ARCHIVED, IN_VALIDATION}:
                 continue
 
+            candidate_head = str(
+                item.candidate_head_sha or item.head_sha or ""
+            ).strip().lower()
+
             target_branch, target_error = self._terminal_parent_target_branch(
                 parent,
                 project,
@@ -13053,12 +13639,17 @@ class Orchestrator:
                         if not refs:
                             reason = f"authoritative target `{target_branch}` is unavailable"
                         else:
-                            head = str(item.head_sha or "").strip().lower()
-                            if not re.fullmatch(r"[0-9a-f]{40,64}", head):
+                            if not re.fullmatch(
+                                r"[0-9a-f]{40,64}", candidate_head
+                            ):
                                 reason = "the accepted task head is not a valid commit SHA"
-                            elif not self._reported_commit_landed_on_refs(repo_path, head, refs):
+                            elif not self._reported_commit_landed_on_refs(
+                                repo_path,
+                                candidate_head,
+                                refs,
+                            ):
                                 reason = (
-                                    f"accepted head `{head[:12]}` is not reachable from "
+                                    f"accepted head `{candidate_head[:12]}` is not reachable from "
                                     f"`origin/{target_branch}`"
                                 )
                             else:
@@ -13090,7 +13681,7 @@ class Orchestrator:
                             reason_code="integration.parent_terminal_recovery_required",
                             idempotency_key=(
                                 f"terminal-parent-recovery:{project_id}:"
-                                f"{child.identifier}:{item.head_sha}"
+                                f"{child.identifier}:{candidate_head}"
                             ),
                             originating_job=(
                                 f"integration-terminal-parent:{project_id}:"
@@ -13347,7 +13938,7 @@ class Orchestrator:
                 continue
 
             claimed_count += 1
-            
+
             # Check if this item is in a conflict repair backoff period
             # (recoverable infrastructure failure). If so, release the lease
             # and skip it for now.
@@ -13369,11 +13960,22 @@ class Orchestrator:
                     item.task_id,
                 )
                 continue
-            
+
+            claimed_dependencies = tuple(
+                dependency_map.get(item.task_id, ())
+            )
+            claimed_dependency_revision = self._integration_dependency_revision(
+                issue_index(issues),
+                claimed_dependencies,
+            )
             result = await loop.run_in_executor(
                 self._tick_pool,
-                self._execute_integration_item,
-                item,
+                partial(
+                    self._execute_integration_item,
+                    item,
+                    expected_dependencies=claimed_dependencies,
+                    expected_dependency_revision=claimed_dependency_revision,
+                ),
             )
             if result.status == "cancelled":
                 self.integration_queue.cancel(
@@ -13441,29 +14043,35 @@ class Orchestrator:
                 )
                 if dependency is not None and dependency.state == "integrated":
                     dependency_heads[dependency.task_id] = str(
-                        dependency.head_sha
+                        dependency.candidate_head_sha or dependency.head_sha
                     )
-            tracker.set_metadata_field(
-                item.task_id,
-                "oompah.integration",
-                IntegrationRecord(
-                    state="integrated",
-                    task_branch=item.task_branch,
-                    base_branch=self.project_store.epic_branch_name(epic_id),
-                    base_sha=result.expected_epic_sha,
-                    head_sha=result.rebased_task_sha,
-                    integrated_sha=result.integrated_sha,
-                    attempts=item.attempts,
-                    submitted_at=item.submitted_at,
-                    updated_at=datetime.now(timezone.utc).isoformat(),
-                    dependency_heads=dependency_heads,
-                ).to_dict(),
-            )
-            self.integration_queue.complete(
-                project_id,
-                item.task_id,
+            integrated_item = self._finalize_integration_success(
+                item,
+                result,
+                epic_id=epic_id,
                 lease_owner=lease_owner,
+                dependency_heads=dependency_heads,
+                expected_dependencies=claimed_dependencies,
+                expected_dependency_revision=claimed_dependency_revision,
             )
+            if integrated_item is None:
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=lease_owner,
+                    error=(
+                        "integration landed but durable authority changed "
+                        "before finalization"
+                    ),
+                    retryable=True,
+                )
+                logger.warning(
+                    "Integration for %s landed but its durable generation "
+                    "changed before finalization; leaving current authority "
+                    "untouched for landing recovery",
+                    item.task_id,
+                )
+                continue
             try:
                 peers = self.coordination_peers(project_id, item.task_id)
                 for peer in peers:
@@ -13490,16 +14098,6 @@ class Orchestrator:
                     item.task_id,
                     exc,
                 )
-            integrated_item = next(
-                (
-                    current
-                    for current in (
-                        self.integration_queue.get(project_id, item.task_id),
-                    )
-                    if current is not None
-                ),
-                item,
-            )
             await self._stage_integrated_task_audit(integrated_item)
             staged_integrated_keys.add(
                 (integrated_item.project_id, integrated_item.task_id)
@@ -18092,10 +18690,10 @@ class Orchestrator:
         Tracker metadata is the preferred source because it records the exact
         post-rebase ``integrated_sha``.  Older cleanup and recovery paths could
         reset that metadata while leaving the integration-queue row intact, so
-        the submitted queue head is also considered.  A queue row is never
-        sufficient by itself: its commit must be an ancestor of the container
-        or patch-equivalent to work already in it.  The latter covers a task
-        head that the executor rebased before integration.
+        queue evidence is also considered.  Once a canonical candidate exists,
+        its superseded submitted head is not evidence.  A queue row is never
+        sufficient by itself: its canonical commit must be an ancestor of the
+        container or patch-equivalent to work already in it.
         """
         record = getattr(child, "integration", None)
         if not repo_path or not container_branches:
@@ -18133,10 +18731,16 @@ class Orchestrator:
             for item in queue_items:
                 if str(item.task_id).strip() not in child_aliases:
                     continue
-                sha = str(item.head_sha or "").strip()
-                if sha:
+                has_candidate = bool(str(item.candidate_head_sha or "").strip())
+                candidate_sha = str(
+                    item.candidate_head_sha if has_candidate else item.head_sha
+                ).strip()
+                candidate_base = str(
+                    item.candidate_base_sha if has_candidate else item.base_sha
+                ).strip()
+                if candidate_sha:
                     candidate_evidence.append(
-                        (sha, str(item.base_sha or "").strip() or None)
+                        (candidate_sha, candidate_base or None)
                     )
 
         candidate_evidence = list(dict.fromkeys(candidate_evidence))
@@ -24656,7 +25260,9 @@ class Orchestrator:
         }.get(queue_state, queue_state)
         generation = f"integration-queue-v1:{row.authority_generation()}"
         return {
-            "head_sha": str(row.head_sha or "").strip().lower(),
+            "head_sha": str(
+                row.candidate_head_sha or row.head_sha or ""
+            ).strip().lower(),
             "task_branch": str(row.task_branch or "").strip(),
             "status": status,
             "verdict": status,
@@ -24799,7 +25405,10 @@ class Orchestrator:
                     integration_branch = getattr(integration, "task_branch", "")
                 accepted_head = str(integration_head or "").strip().lower()
                 accepted_branch = str(integration_branch or "").strip()
-                if not accepted_head or accepted_head != str(_row.head_sha).lower():
+                queue_head = str(
+                    _row.candidate_head_sha or _row.head_sha or ""
+                ).strip().lower()
+                if not accepted_head or accepted_head != queue_head:
                     return False
                 if not accepted_branch or accepted_branch != str(_row.task_branch):
                     return False

@@ -15,6 +15,15 @@ def _enqueue(store, task, *, priority=1, submitted_at=None):
     )
 
 
+def test_sqlite_memory_dsn_is_not_converted_to_a_workspace_file():
+    store = IntegrationQueueStore(":memory:")
+    try:
+        assert store.path == ":memory:"
+        assert _enqueue(store, "A").task_id == "A"
+    finally:
+        store.close()
+
+
 def test_out_of_order_submission_waits_for_finish_dependency(tmp_path):
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
     _enqueue(store, "B", priority=0, submitted_at="2026-01-01T00:00:00Z")
@@ -54,6 +63,116 @@ def test_identical_resubmit_is_idempotent_and_new_head_requeues(tmp_path):
     )
     assert updated.head_sha == "feedbeef"
     assert updated.state == "ready"
+
+
+def test_same_head_with_new_recorded_target_is_a_new_authority(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    first = store.enqueue(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        task_id="OOMPAH-834",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="a" * 40,
+        base_branch="epic-OOMPAH-804",
+    )
+    corrected = store.enqueue(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        task_id="OOMPAH-834",
+        task_branch=first.task_branch,
+        head_sha=first.head_sha,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+    )
+
+    assert corrected.base_branch == "epic-OOMPAH-768--task-OOMPAH-804"
+    assert corrected.updated_at >= first.updated_at
+
+
+def test_same_head_with_new_base_sha_is_a_new_authority(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    first = store.enqueue(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        task_id="OOMPAH-834",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="a" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="b" * 40,
+    )
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        lease_owner="old-base-generation",
+        dependency_map={"OOMPAH-834": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    corrected = store.enqueue(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        task_id="OOMPAH-834",
+        task_branch=first.task_branch,
+        head_sha=first.head_sha,
+        base_branch=first.base_branch,
+        base_sha="c" * 40,
+    )
+
+    assert corrected.base_sha == "c" * 40
+    assert corrected.state == "ready"
+    assert corrected.lease_owner is None
+    assert corrected.updated_at >= first.updated_at
+
+
+def test_candidate_generation_survives_restart_and_lease_recovery(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    store.enqueue(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        task_id="OOMPAH-834",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="a" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+    )
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        lease_owner="dead-instance",
+        dependency_map={"OOMPAH-834": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    candidate = store.record_candidate(
+        project_id="p1",
+        task_id="OOMPAH-834",
+        lease_owner="dead-instance",
+        expected_head_sha="a" * 40,
+        expected_candidate_head_sha=None,
+        candidate_head_sha="b" * 40,
+        candidate_base_sha="c" * 40,
+    )
+    assert candidate is not None
+    generation = candidate.authority_generation()
+    store.close()
+
+    reopened = IntegrationQueueStore(str(path))
+    durable = reopened.get("p1", "OOMPAH-834")
+    assert durable is not None
+    assert durable.base_branch == "epic-OOMPAH-768--task-OOMPAH-804"
+    assert durable.candidate_head_sha == "b" * 40
+    assert durable.candidate_base_sha == "c" * 40
+    assert durable.authority_generation() == generation
+    assert reopened.recover_abandoned() == 1
+    recovered = reopened.claim_next(
+        project_id="p1",
+        epic_id="OOMPAH-804",
+        lease_owner="replacement",
+        dependency_map={"OOMPAH-834": ()},
+        satisfied=set(),
+    )
+    assert recovered is not None
+    assert recovered.candidate_head_sha == "b" * 40
+    reopened.close()
 
 
 def test_compare_and_swap_cancel_preserves_new_head(tmp_path):

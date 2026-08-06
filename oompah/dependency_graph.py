@@ -105,88 +105,88 @@ def integration_dependencies(
     issue: Issue,
     issues_by_id: Mapping[str, Issue],
 ) -> tuple[str, ...]:
-    """Return finish dependencies for ordered integration, excluding container rollup edges.
+    """Return the canonical finish-order projection used for integration.
 
-    Implicit parent->child rollup edges occur when a parent task has finish
-    dependencies on its children for rollup. These edges must be excluded from
-    integration queue dependencies to prevent deadlock: otherwise a child
-    would wait on itself (inherited from parent) and its siblings.
-
-    Preserves:
-    - Externally inherited finish-order prerequisites from ancestors
-    - Explicitly declared sibling dependencies
-    - Ancestor dependencies outside the current delivery container
-
-    Excludes:
-    - The task itself (never depends on itself)
-    - The immediate parent task
-    - Siblings whose only path to this task is through inherited parent rollup
+    A container's dependencies on its descendants are lifecycle rollup edges,
+    not delivery ordering. Dependencies are retained only when they point
+    outside the source task/container that declared them; a leaf's explicit
+    sibling prerequisite is therefore preserved while a container's direct
+    child rollup is removed.
     """
 
-    # Get all effective dependencies (includes inherited from ancestors)
-    all_deps = effective_dependencies(issue, issues_by_id)
-    if not all_deps:
+    aliases: dict[str, str] = {}
+    unique_issues: dict[str, Issue] = {}
+    for candidate in issues_by_id.values():
+        canonical = str(candidate.identifier or candidate.id or "").strip()
+        if not canonical:
+            continue
+        unique_issues[canonical] = candidate
+        for alias in issue_aliases(candidate):
+            aliases[alias] = canonical
+
+    issue_id = str(issue.identifier or issue.id or "").strip()
+    if not issue_id:
         return ()
 
-    # Normalize issue identifiers for comparison
-    issue_id = _ref_identifier(BlockerRef(id=issue.id, identifier=issue.identifier))
-    parent_id = str(issue.parent_id or "").strip()
-    
-    # Build set of container rollup dependencies to filter out
-    excluded: set[str] = set()
-    
-    # Never depend on self
-    excluded.add(issue_id)
+    def _canonical_ref(ref: BlockerRef) -> str:
+        value = _ref_identifier(ref)
+        return aliases.get(value, value)
 
-    # Exclude the immediate parent if present
-    if parent_id:
-        excluded.add(parent_id)
-        parent = issues_by_id.get(parent_id)
+    def _is_descendant(candidate: Issue, ancestor_id: str) -> bool:
+        ancestor = unique_issues.get(ancestor_id)
+        candidate_project = str(candidate.project_id or "").strip()
+        ancestor_project = str(getattr(ancestor, "project_id", "") or "").strip()
+        if (
+            candidate_project
+            and ancestor_project
+            and candidate_project != ancestor_project
+        ):
+            return False
+        current: Issue | None = candidate
+        visited: set[str] = set()
+        while current is not None:
+            parent_alias = str(current.parent_id or "").strip()
+            if not parent_alias:
+                return False
+            parent_id = aliases.get(parent_alias, parent_alias)
+            if parent_id in visited:
+                return False
+            visited.add(parent_id)
+            if parent_id == ancestor_id:
+                return True
+            current = issues_by_id.get(parent_alias) or unique_issues.get(parent_id)
+        return False
 
-        # Find all siblings whose only path to dependencies is parent rollup
-        if parent is not None:
-            # Get what the parent explicitly depends on (its own direct deps, not inherited)
-            parent_direct_deps = {
-                _ref_identifier(ref)
-                for ref in (parent.blocked_by or [])
-            }
-            
-            # Get what this task explicitly depends on
-            task_direct_deps = {
-                _ref_identifier(ref)
-                for ref in (issue.blocked_by or [])
-            }
-            
-            # Find all siblings (issues with the same parent)
-            for candidate_id, candidate in issues_by_id.items():
-                candidate_normalized = _ref_identifier(BlockerRef(
-                    id=candidate.id,
-                    identifier=candidate.identifier
-                ))
-                candidate_parent = str(candidate.parent_id or "").strip()
-                
-                # Check if this is a sibling
-                is_sibling = (
-                    candidate_parent == parent_id
-                    and candidate_normalized != issue_id
+    result: list[str] = []
+    seen_dependencies: set[str] = set()
+    seen_ancestors: set[str] = set()
+    current: Issue | None = issue
+    while current is not None:
+        current_id = str(current.identifier or current.id or "").strip()
+        for ref in current.blocked_by or []:
+            dependency = _canonical_ref(ref)
+            if not dependency or dependency == issue_id:
+                continue
+            dependency_issue = unique_issues.get(dependency)
+            container_rollup = bool(
+                dependency_issue is not None
+                and (
+                    dependency == current_id
+                    or _is_descendant(dependency_issue, current_id)
                 )
-                
-                if not is_sibling:
-                    continue
-                
-                # A sibling should be excluded from integration deps if:
-                # 1. It's in the parent's direct dependencies (parent's rollup)
-                # 2. AND it's NOT in this task's direct dependencies
-                is_in_parent_rollup = candidate_normalized in parent_direct_deps
-                is_explicit_on_task = candidate_normalized in task_direct_deps
-                
-                if is_in_parent_rollup and not is_explicit_on_task:
-                    excluded.add(candidate_normalized)
-
-    # Filter out excluded dependencies
-    result = [
-        dep for dep in all_deps if dep not in excluded
-    ]
+            )
+            if container_rollup or dependency in seen_dependencies:
+                continue
+            seen_dependencies.add(dependency)
+            result.append(dependency)
+        parent_alias = str(current.parent_id or "").strip()
+        if not parent_alias:
+            break
+        parent_id = aliases.get(parent_alias, parent_alias)
+        if parent_id in seen_ancestors:
+            break
+        seen_ancestors.add(parent_id)
+        current = issues_by_id.get(parent_alias) or unique_issues.get(parent_id)
     return tuple(result)
 
 
