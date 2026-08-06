@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T01:56:15.150375Z'
+updated_at: '2026-08-06T01:56:33.294166Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d7d98263-aac8-4dd6-8866-175488c89926
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48073
   total_output_tokens: 1849
@@ -95,9 +95,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-827
-  head_sha: ea12235df8e8274189adca0ac844f245e643007b
-  submitted_at: '2026-08-06T00:16:37.995338+00:00'
-  updated_at: '2026-08-06T00:16:37.995338+00:00'
+  head_sha: 3f14ddd2c64a28da8d9d642d7f9cb7056dd6cc97
+  submitted_at: '2026-08-06T01:56:21.638675+00:00'
+  updated_at: '2026-08-06T01:56:21.638675+00:00'
 ---
 ## Summary
 
@@ -386,5 +386,10 @@ author: oompah
 created: 2026-08-06 01:56
 ---
 Completion (CI repair): pushed rebased exact head 3f14ddd2c64a28da8d9d642d7f9cb7056dd6cc97 to the same OOMPAH-827 branch with force-with-lease. Git reports the branch up to date and clean. GitHub has no PR or Actions runs for this branch because the prior local branch gate blocked review creation; resubmission will rerun oompah's authoritative make test gate for this new head.
+---
+author: oompah
+created: 2026-08-06 01:56
+---
+Rebased onto current main, made AGENT_DISPATCHED use the authoritative RunningEntry classifier, and verified the installed CLI/work-kind/API focused suites at pushed head 3f14ddd2c.
 ---
 <!-- COMMENTS:END -->
