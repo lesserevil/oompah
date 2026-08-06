@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:22:57.660281Z'
+updated_at: '2026-08-06T04:23:06.544511Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -192,7 +192,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -201,7 +201,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7b25a33d2aa0
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -211,6 +211,8 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-06T04:12:11.831126+00:00'
       branch_key: OOMPAH-826
+      ended_at: '2026-08-06T04:23:02.514985+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: lesserevil
@@ -235,7 +237,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-7b25a33d2aa0
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -245,6 +247,8 @@ oompah.terminal_audit:
     model: sonnet
     started_at: '2026-08-06T04:12:11.831126+00:00'
     branch_key: OOMPAH-826
+    ended_at: '2026-08-06T04:23:02.514985+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
