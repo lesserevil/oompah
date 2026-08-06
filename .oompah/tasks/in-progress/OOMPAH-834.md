@@ -8,10 +8,11 @@ parent: OOMPAH-804
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:48:51.045973Z'
+updated_at: '2026-08-06T09:49:11.965380Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -47,49 +48,12 @@ oompah.agent_run_id: 8f54bf2b-0dd9-4d1b-ab20-53c638d78db8
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-834
-  base_branch: epic-OOMPAH-804
+  base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  submitted_at: '2026-08-06T09:31:16.579601+00:00'
-  updated_at: '2026-08-06T09:47:41.214584+00:00'
-  last_error: "Combined-tree quality gate failed: -x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_includes_service_instance_id\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-3nms8061/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7ccc7420b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_dispatch_close_race.py::TestUiCloseCancelsPendingRetry::test_pending_retry_cancelled_when_issue_closed_via_ui\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_claim_writes_run_id_to_tracker\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_claim_success_proceeds_to_worker\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_pre_dispatch_terminal_state_aborts\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_in_progress_update_called_on_github_tracker\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_native_oompah_md_claim_writes_run_id\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestMixedProjectDispatch::test_dispatch_uses_project_scoped_tracker_for_github_issue\n\
-    FAILED tests/test_worker_submission.py::test_same_head_resubmit_from_in_progress_restores_ready_lifecycle\n\
-    FAILED tests/test_worker_submission.py::test_same_head_resubmit_from_needs_human_restores_ready_lifecycle\n\
-    FAILED tests/test_worker_submission.py::test_same_head_resubmit_from_needs_ci_fix_restores_ready_lifecycle\n\
-    FAILED tests/test_worker_submission.py::test_duplicate_same_head_submit_already_ready_is_fully_idempotent\n\
-    FAILED tests/test_worker_submission.py::test_same_head_ready_submit_backfills_missing_work_branch_projection\n\
-    = 12 failed, 16620 passed, 8 skipped, 1 xfailed, 48 warnings in 917.74s (0:15:17)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  updated_at: '2026-08-06T09:48:57.419244+00:00'
 oompah.task_costs:
   total_input_tokens: 49361
   total_output_tokens: 271
@@ -267,5 +231,19 @@ author: oompah
 created: 2026-08-06 09:48
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-06 09:49
+---
+Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 09:49
+---
+Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 21s
 ---
 <!-- COMMENTS:END -->
