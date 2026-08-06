@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:19:03.146409Z'
+updated_at: '2026-08-06T09:19:24.501811Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -44,16 +44,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: abc145f8-7fde-474a-98e5-cf6898011ce6
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-834
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
-  updated_at: '2026-08-06T09:18:22.794194+00:00'
+  head_sha: 2a09b085bfb71b742c07d8ed91bc1c76add5d029
+  submitted_at: '2026-08-06T09:19:13.616511+00:00'
+  updated_at: '2026-08-06T09:19:13.616511+00:00'
 oompah.task_costs:
   total_input_tokens: 49361
   total_output_tokens: 271
@@ -112,5 +114,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 42s
 - Log: OOMPAH-834__20260806T091844Z.jsonl
+---
+author: oompah
+created: 2026-08-06 09:19
+---
+Implementation lifecycle handlers are complete at exact head 2a09b085bfb71b742c07d8ed91bc1c76add5d029 and composed into the validated OOMPAH-804 parent head. Parent-level affected workflow validation passed 2397 tests; terminal mutation scan passed 8/8; secrets and critical Ruff checks passed.
 ---
 <!-- COMMENTS:END -->
