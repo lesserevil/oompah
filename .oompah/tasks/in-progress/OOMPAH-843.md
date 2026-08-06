@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T02:42:05.066525Z'
+updated_at: '2026-08-06T02:42:31.370582Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,22 @@ author: oompah
 created: 2026-08-06 02:42
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 02:42
+---
+**UNDERSTANDING**: OOMPAH-843 addresses an impossible validation contract where auditors exhaust their session cycling through configured targets that all timeout. The core problem: a 720s default deadline applied uniformly to all targets, but the canonical full test suite needs ~1,080s. 
+
+**Planned approach**:
+1. Add per-target deadline configuration in project settings (supported in .env.example)
+2. Validate at startup that every configured auditor target can complete within its deadline
+3. Support explicitly-configured focused Make targets with security controls (no shell expansion, read-only execution)
+4. Update auditor to prefer compatible targets and avoid falling back to slower serial suite
+5. Classify configuration incompatibility separately from runtime/transport failures
+6. Comprehensive test coverage for deadline validation, target feasibility, and isolation
+
+**Relevant code to explore**: oompah/api_agent.py, oompah/acp_tools.py, oompah/auditor.py, project configuration, validation-resource lease/liveness.
+
+Starting code exploration now.
 ---
 <!-- COMMENTS:END -->
