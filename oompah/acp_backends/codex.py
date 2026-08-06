@@ -589,6 +589,10 @@ class CodexAcpBackendSession(AcpBackendSession):
             auditor=self._options.auditor,
             audit_target=self._options.audit_target,
             audit_result_handler=self._options.audit_result_handler,
+            validation_reuse_policy=self._options.validation_reuse_policy,
+            validation_reuse_authority_check=(
+                self._options.validation_reuse_authority_check
+            ),
         )
 
     # ---- run_turn: drive the openai-agents Runner ----

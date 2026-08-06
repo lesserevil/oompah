@@ -636,6 +636,27 @@ class TestCanUseToolStrictAllowlist:
         assert denies[0].payload["tool"] == "Bash"
 
 
+def test_acp_agent_session_threads_reuse_policy_into_backend_options(tmp_path):
+    policy = {"decision": "reuse_authoritative_gate", "command": "make test"}
+
+    def authority_check():
+        return "reuse_authoritative_gate"
+
+    session = AcpAgentSession(
+        workspace_path=str(tmp_path),
+        prompt="audit",
+        validation_reuse_policy=policy,
+        validation_reuse_authority_check=authority_check,
+    )
+    session._backend = MagicMock()
+    session._backend.start_session.side_effect = RuntimeError("capture options")
+
+    assert asyncio.run(session.run_task()) == "errored"
+    options = session._backend.start_session.call_args.args[0]
+    assert options.validation_reuse_policy is policy
+    assert options.validation_reuse_authority_check is authority_check
+
+
 # ----------------------------------------------------------------------
 # Tool catalog bridging
 # ----------------------------------------------------------------------

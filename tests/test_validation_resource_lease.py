@@ -11,11 +11,17 @@ import threading
 import time
 import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from oompah import validation_resource_lease as validation_lease_module
-from oompah.api_agent import _exec_run_command
+from oompah.acp_tools import _auditor_validation_success_handler
+from oompah.api_agent import (
+    _exec_run_command,
+    _execute_tool,
+    _validation_reuse_policy_decision,
+)
 from oompah.auditor import check_auditor_command
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.validation_resource_lease import (
@@ -27,6 +33,7 @@ from oompah.validation_resource_lease import (
     ValidationLeaseCancelled,
     ValidationLeaseOwner,
     ValidationResourceLease,
+    is_full_suite_validation_command,
     is_heavyweight_validation_command,
     managed_agent_validation_owner,
 )
@@ -63,6 +70,14 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         task_id=task,
         authority_generation=f"worker-{task}",
     )
+
+
+def _reusable_gate_policy() -> dict[str, str]:
+    return {
+        "decision": "reuse_authoritative_gate",
+        "command": "make test",
+        "attempt_id": "attempt-1",
+    }
 
 
 @pytest.mark.parametrize(
@@ -178,6 +193,35 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
 )
 def test_classifier_is_heavy_first_and_inspection_only_checks_bypass(command, expected):
     assert is_heavyweight_validation_command(command) is expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("pytest", True),
+        ("pytest -q", True),
+        ("pytest -p no:foo", True),
+        ("python -m pytest -n auto", True),
+        ("bash -lc 'python -m pytest -q -W error'", True),
+        ("pytest tests/", True),
+        ("python -m unittest", True),
+        ("python -m unittest discover", True),
+        ("python -m unittest discover -s tests -p 'test_*.py'", True),
+        ("env -S 'make test'", True),
+        ("pytest tests/test_one.py", False),
+        ("pytest tests/test_one.py::test_case", False),
+        ("python -m pytest -q tests/test_one.py", False),
+        ("python -m unittest tests.test_one", False),
+    ],
+)
+def test_full_suite_classifier_distinguishes_pytest_scope(command, expected):
+    assert (
+        is_full_suite_validation_command(
+            command,
+            configured_command="make test",
+        )
+        is expected
+    )
 
 
 @pytest.mark.parametrize(
@@ -1308,3 +1352,295 @@ def test_successful_heavy_command_reports_duration_to_auditor_observer(tmp_path)
     assert "exit_code: 0" in result
     assert observed[0][:2] == ("make test", tmp_path)
     assert observed[0][2] > 0
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_outcome", "expected_success"),
+    [
+        ("test", "passed", True),
+        ("fail", "failed", False),
+        ("slow", "timed_out", False),
+    ],
+)
+def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
+    tmp_path,
+    target,
+    expected_outcome,
+    expected_success,
+):
+    (tmp_path / "Makefile").write_text(
+        "test:\n\t@true\nfail:\n\t@false\nslow:\n\t@sleep 1\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    coordination = MagicMock()
+    coordination.record_auditor_quality_evidence.return_value = True
+    audit_target = types.SimpleNamespace(
+        project_id="p",
+        task_id="TASK-1",
+        audit_id="audit-1",
+    )
+    observer = _auditor_validation_success_handler(
+        coordination,
+        auditor_mode=True,
+        audit_target=audit_target,
+    )
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": f"make {target}"},
+        timeout=0.05 if target == "slow" else 5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", f"lifecycle-{target}"),
+        successful_validation_handler=observer,
+    )
+
+    telemetry_calls = coordination.record_auditor_validation_command.call_args_list
+    assert [call.kwargs["phase"] for call in telemetry_calls] == [
+        "started",
+        "completed",
+    ]
+    assert telemetry_calls[0].kwargs["outcome"] == "running"
+    assert telemetry_calls[1].kwargs["outcome"] == expected_outcome
+    assert telemetry_calls[1].kwargs["succeeded"] is expected_success
+    assert telemetry_calls[0].kwargs["duration_seconds"] == 0
+    assert telemetry_calls[1].kwargs["duration_seconds"] > 0
+    assert all(
+        call.kwargs["audit_target"] is audit_target for call in telemetry_calls
+    )
+    assert (
+        telemetry_calls[0].kwargs["invocation_id"]
+        == telemetry_calls[1].kwargs["invocation_id"]
+    )
+    if expected_success:
+        assert "exit_code: 0" in result
+        evidence_call = coordination.record_auditor_quality_evidence.call_args
+        assert evidence_call.kwargs["audit_target"] is audit_target
+        assert evidence_call.kwargs["workspace_path"] == tmp_path
+        assert evidence_call.kwargs["command"] == "make test"
+        assert evidence_call.kwargs["duration_seconds"] > 0
+    else:
+        coordination.record_auditor_quality_evidence.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("args", "authority", "expected_decision", "denied"),
+    [
+        (
+            {
+                "command": "make test",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "still exact",
+            },
+            "reuse_authoritative_gate",
+            "denied_reused_gate",
+            True,
+        ),
+        (
+            {
+                "command": "bash -lc 'make test'",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "wrapped spelling",
+            },
+            "reuse_authoritative_gate",
+            "denied_reused_gate",
+            True,
+        ),
+        (
+            {"command": "make test-serial"},
+            "reuse_authoritative_gate",
+            "denied_distinct_mode_required",
+            True,
+        ),
+        (
+            {
+                "command": "env -S 'make test'",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "opaque spelling",
+            },
+            "reuse_authoritative_gate",
+            "denied_reused_gate",
+            True,
+        ),
+        (
+            {"command": "./ci/test.sh"},
+            "reuse_authoritative_gate",
+            "denied_distinct_mode_required",
+            True,
+        ),
+        (
+            {
+                "command": "./ci/test.sh",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "task-specific opaque suite",
+            },
+            "reuse_authoritative_gate",
+            "allowed_distinct_mode",
+            False,
+        ),
+        (
+            {
+                "command": "make test-serial",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "task requires serial race coverage",
+            },
+            "reuse_authoritative_gate",
+            "allowed_distinct_mode",
+            False,
+        ),
+        (
+            {"command": "pytest tests/test_one.py -q"},
+            "reuse_authoritative_gate",
+            "",
+            False,
+        ),
+        (
+            {"command": "make test"},
+            "stale_authority",
+            "denied_stale_authority",
+            True,
+        ),
+        (
+            {"command": "make test"},
+            "full_gate_required",
+            "allowed_gate_now_required",
+            False,
+        ),
+    ],
+)
+def test_validation_reuse_policy_decision_matrix(
+    args,
+    authority,
+    expected_decision,
+    denied,
+):
+    decision, denial, justification = _validation_reuse_policy_decision(
+        args,
+        _reusable_gate_policy(),
+        lambda: authority,
+    )
+
+    assert decision == expected_decision
+    assert (denial is not None) is denied
+    if decision == "allowed_distinct_mode":
+        assert justification == args["validation_justification"]
+    else:
+        assert justification == ""
+
+
+@pytest.mark.parametrize("authority_surface", ["missing", "raises"])
+def test_validation_reuse_policy_fails_closed_without_fresh_authority(
+    authority_surface,
+):
+    def raise_authority_error():
+        raise RuntimeError("authority unavailable")
+
+    authority_check = (
+        raise_authority_error if authority_surface == "raises" else None
+    )
+
+    decision, denial, _ = _validation_reuse_policy_decision(
+        {"command": "pytest tests/test_one.py"},
+        _reusable_gate_policy(),
+        authority_check,
+    )
+
+    assert decision == "denied_stale_authority"
+    assert denial is not None
+
+
+def test_exec_denies_reused_exact_gate_before_process_launch(tmp_path, monkeypatch):
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    telemetry = MagicMock()
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+
+    result = _exec_run_command(
+        tmp_path,
+        {
+            "command": "env -S 'make test'",
+            "validation_mode": "task_required_distinct",
+            "validation_justification": "wrapper must not bypass the exact denial",
+        },
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "already passed" in result
+    popen.assert_not_called()
+    telemetry.assert_called_once()
+    assert telemetry.call_args.kwargs["decision"] == "denied_reused_gate"
+    assert telemetry.call_args.kwargs["invocation_id"]
+
+
+def test_exec_allows_exact_gate_when_reusable_proof_disappears(tmp_path):
+    (tmp_path / "Makefile").write_text("test:\n\t@true\n", encoding="utf-8")
+    telemetry = MagicMock()
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "make test"},
+        timeout=5,
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "full_gate_required",
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "exit_code: 0" in result
+    assert telemetry.call_args.kwargs["decision"] == "allowed_gate_now_required"
+
+
+def test_api_tool_dispatch_threads_validation_reuse_policy(tmp_path, monkeypatch):
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+
+    result = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "make test"},
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+    )
+
+    assert "already passed" in result
+    popen.assert_not_called()
+
+
+def test_acp_tool_dispatch_threads_validation_reuse_policy(
+    tmp_path,
+    monkeypatch,
+):
+    import asyncio
+
+    class FakeTool:
+        def __init__(self, name, handler, input_schema):
+            self.name = name
+            self.handler = handler
+            self.input_schema = input_schema
+
+    def tool(name, _description, input_schema):
+        def decorate(handler):
+            return FakeTool(name, handler, input_schema)
+
+        return decorate
+
+    monkeypatch.setitem(
+        sys.modules,
+        "claude_agent_sdk",
+        types.SimpleNamespace(tool=tool),
+    )
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+    from oompah.acp_tools import build_tool_catalog
+
+    catalog = build_tool_catalog(
+        str(tmp_path),
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+    )
+    run_command = next(item for item in catalog if item.name == "run_command")
+
+    result = asyncio.run(run_command.handler({"command": "make test"}))
+
+    assert "already passed" in result["content"][0]["text"]
+    popen.assert_not_called()

@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from oompah.terminal_audit_observability import (
     AuditAlertCondition,
     TerminalAuditAlertRegistry,
@@ -188,6 +190,247 @@ def test_quality_gate_decision_and_validation_lane_telemetry_survive_restart() -
     assert snapshot["validation"]["last_command"]["category"] == (
         "focused_supplemental_commands"
     )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "make test",
+        "make test-serial",
+        "make test-unit",
+        "./ci/test.sh",
+        "env CI=1 make test-serial",
+        "env -S 'make test'",
+        "echo ready && make test",
+        "bash -lc 'make test-serial'",
+        "timeout 30 make -C . test",
+        "pytest",
+        "pytest -q",
+        "pytest -p no:foo",
+        "python -m pytest -n auto",
+        "bash -lc 'python -m pytest -q -W error'",
+        "pytest tests/",
+        "npm test",
+        "pnpm run test",
+        "yarn test",
+        "cargo test",
+        "tox",
+        "nox -s tests",
+        "python -m unittest",
+        "python -m unittest discover -s tests",
+    ],
+)
+def test_validation_telemetry_semantically_classifies_full_suite_commands(
+    command,
+) -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command=command,
+        configured_command="make test",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["focused_supplemental_commands"] == 0
+
+
+def test_validation_telemetry_keeps_targeted_pytest_focused() -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="python -m pytest tests/test_warning.py -q",
+        configured_command="make test",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["focused_supplemental_commands"] == 1
+    assert snapshot["auditor_full_suite_runs"] == 0
+
+
+def test_validation_command_lifecycle_records_timeout_once_across_restart() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    first.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="make test-serial",
+        configured_command="make test",
+        succeeded=False,
+        phase="started",
+        outcome="running",
+        invocation_id="run-1",
+    )
+
+    running = first.snapshot()
+    assert running["auditor_full_suite_runs"] == 1
+    assert running["validation_commands_started"] == 1
+    assert running["validation_commands_completed"] == 0
+    assert "run-1" in running["validation"]["in_flight"]
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    restarted.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="make test-serial",
+        configured_command="make test",
+        duration_seconds=15.0,
+        succeeded=False,
+        phase="completed",
+        outcome="timed_out",
+        invocation_id="run-1",
+    )
+    # A repeated provider callback is idempotent for the same invocation.
+    restarted.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="make test-serial",
+        configured_command="make test",
+        duration_seconds=15.0,
+        succeeded=False,
+        phase="completed",
+        outcome="timed_out",
+        invocation_id="run-1",
+    )
+
+    snapshot = restarted.snapshot()
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["validation_commands_started"] == 1
+    assert snapshot["validation_commands_completed"] == 1
+    assert snapshot["validation_commands_timed_out"] == 1
+    assert snapshot["validation_commands_failed"] == 0
+    assert snapshot["validation"]["in_flight"] == {}
+    assert snapshot["validation"]["last_command"]["outcome"] == "timed_out"
+
+
+def test_validation_command_lifecycle_records_failed_focused_completion() -> None:
+    metrics = TerminalAuditMetrics()
+    for phase, outcome in (("started", "running"), ("completed", "failed")):
+        metrics.record_auditor_validation_command(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            command="pytest tests/test_warning.py -q",
+            configured_command="make test",
+            succeeded=False,
+            phase=phase,
+            outcome=outcome,
+            invocation_id="run-focused",
+        )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["focused_supplemental_commands"] == 1
+    assert snapshot["validation_commands_started"] == 1
+    assert snapshot["validation_commands_completed"] == 1
+    assert snapshot["validation_commands_failed"] == 1
+
+
+def test_validation_command_lifecycle_records_passed_full_completion() -> None:
+    metrics = TerminalAuditMetrics()
+    for phase, outcome, succeeded in (
+        ("started", "running", False),
+        ("completed", "passed", True),
+    ):
+        metrics.record_auditor_validation_command(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            command="make test",
+            configured_command="make test",
+            succeeded=succeeded,
+            phase=phase,
+            outcome=outcome,
+            invocation_id="run-full",
+        )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["validation_commands_started"] == 1
+    assert snapshot["validation_commands_completed"] == 1
+    assert snapshot["validation_commands_failed"] == 0
+    assert snapshot["validation_commands_timed_out"] == 0
+    assert snapshot["validation"]["last_command"]["outcome"] == "passed"
+
+
+def test_validation_reuse_policy_is_idempotent_and_survives_restart() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    kwargs = {
+        "attempt_id": "attempt-1",
+        "invocation_id": "invocation-1",
+        "command": "make test-serial",
+        "decision": "allowed_distinct_mode",
+        "justification": "required race-only mode",
+    }
+    first.record_validation_reuse_policy(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        **kwargs,
+    )
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    restarted.record_validation_reuse_policy(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        **kwargs,
+    )
+
+    snapshot = restarted.snapshot()
+    assert snapshot["reused_gate_distinct_mode_allowed"] == 1
+    assert snapshot["validation"]["last_reuse_policy"] == {
+        "project_id": "project-a",
+        "task_id": "TASK-1",
+        "audit_id": "audit-1",
+        **kwargs,
+        "recorded_at": snapshot["validation"]["last_reuse_policy"][
+            "recorded_at"
+        ],
+    }
+    with pytest.raises(ValueError, match="identity collision"):
+        restarted.record_validation_reuse_policy(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            **{**kwargs, "decision": "denied_reused_gate"},
+        )
+
+
+def test_validation_reuse_policy_requires_attempt_identity() -> None:
+    metrics = TerminalAuditMetrics()
+
+    with pytest.raises(ValueError, match="attempt_id"):
+        metrics.record_validation_reuse_policy(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            attempt_id="",
+            invocation_id="invocation-1",
+            command="make test",
+            decision="denied_reused_gate",
+        )
 
 
 def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() -> None:

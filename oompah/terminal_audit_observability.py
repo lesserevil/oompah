@@ -18,6 +18,8 @@ from functools import wraps
 from threading import RLock
 from typing import Any
 
+from oompah.validation_resource_lease import is_focused_validation_command
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,13 @@ VALIDATION_COUNTER_NAMES = (
     "full_gate_required",
     "focused_supplemental_commands",
     "auditor_full_suite_runs",
+    "validation_commands_started",
+    "validation_commands_completed",
+    "validation_commands_failed",
+    "validation_commands_timed_out",
+    "reused_gate_validation_denied",
+    "reused_gate_distinct_mode_allowed",
+    "reused_gate_became_required",
 )
 
 
@@ -203,6 +212,10 @@ class TerminalAuditMetrics:
         self._last_successful_audit_at: str | None = None
         self._last_validation_decision: dict[str, Any] | None = None
         self._last_validation_command: dict[str, Any] | None = None
+        self._last_validation_reuse_policy: dict[str, Any] | None = None
+        self._validation_reuse_policy_invocations: dict[str, dict[str, str]] = {}
+        self._validation_commands_in_flight: dict[str, dict[str, Any]] = {}
+        self._completed_validation_invocations: set[str] = set()
         self.persistence_corrupt = False
         self.persistence_error: str | None = None
         self._restore()
@@ -304,6 +317,7 @@ class TerminalAuditMetrics:
                 for field_name, destination in (
                     ("last_decision", "_last_validation_decision"),
                     ("last_command", "_last_validation_command"),
+                    ("last_reuse_policy", "_last_validation_reuse_policy"),
                 ):
                     value = validation.get(field_name)
                     if value is not None and not isinstance(value, Mapping):
@@ -311,6 +325,70 @@ class TerminalAuditMetrics:
                             f"invalid terminal-audit validation {field_name}"
                         )
                     setattr(self, destination, dict(value) if value is not None else None)
+                policy_invocations = validation.get("reuse_policy_invocations", {})
+                if not isinstance(policy_invocations, Mapping):
+                    raise ValueError(
+                        "invalid terminal-audit validation reuse-policy invocations"
+                    )
+                for invocation_id, value in policy_invocations.items():
+                    if (
+                        not isinstance(invocation_id, str)
+                        or not invocation_id.strip()
+                        or not isinstance(value, Mapping)
+                    ):
+                        raise ValueError(
+                            "invalid terminal-audit validation reuse-policy invocation"
+                        )
+                    row = {str(name): str(item) for name, item in value.items()}
+                    _identity(
+                        row.get("project_id"),
+                        row.get("task_id"),
+                        row.get("audit_id"),
+                    )
+                    if not row.get("attempt_id") or not row.get("decision"):
+                        raise ValueError(
+                            "incomplete terminal-audit validation reuse-policy invocation"
+                        )
+                    self._validation_reuse_policy_invocations[invocation_id] = row
+                in_flight = validation.get("in_flight", {})
+                if not isinstance(in_flight, Mapping):
+                    raise ValueError("invalid terminal-audit validation in-flight map")
+                for invocation_id, value in in_flight.items():
+                    if (
+                        not isinstance(invocation_id, str)
+                        or not invocation_id.strip()
+                        or not isinstance(value, Mapping)
+                    ):
+                        raise ValueError(
+                            "invalid terminal-audit validation in-flight entry"
+                        )
+                    row = dict(value)
+                    _identity(
+                        row.get("project_id"),
+                        row.get("task_id"),
+                        row.get("audit_id"),
+                    )
+                    category = row.get("category")
+                    if category not in {
+                        "auditor_full_suite_runs",
+                        "focused_supplemental_commands",
+                    }:
+                        raise ValueError(
+                            "invalid terminal-audit validation in-flight category"
+                        )
+                    self._validation_commands_in_flight[invocation_id] = row
+                completed = validation.get("completed_invocations", [])
+                if (
+                    not isinstance(completed, list)
+                    or not all(
+                        isinstance(value, str) and value.strip()
+                        for value in completed
+                    )
+                ):
+                    raise ValueError(
+                        "invalid terminal-audit completed validation invocations"
+                    )
+                self._completed_validation_invocations = set(completed)
         except Exception as exc:  # fail closed; never overwrite an unknown state document
             self.persistence_corrupt = True
             self.persistence_error = f"{type(exc).__name__}: {exc}"
@@ -357,6 +435,16 @@ class TerminalAuditMetrics:
                 "counters": dict(self._validation_counters),
                 "last_decision": copy.deepcopy(self._last_validation_decision),
                 "last_command": copy.deepcopy(self._last_validation_command),
+                "last_reuse_policy": copy.deepcopy(
+                    self._last_validation_reuse_policy
+                ),
+                "reuse_policy_invocations": copy.deepcopy(
+                    self._validation_reuse_policy_invocations
+                ),
+                "in_flight": copy.deepcopy(self._validation_commands_in_flight),
+                "completed_invocations": sorted(
+                    self._completed_validation_invocations
+                ),
             },
         }
         try:
@@ -441,26 +529,147 @@ class TerminalAuditMetrics:
         configured_command: str,
         duration_seconds: float = 0.0,
         succeeded: bool = True,
+        phase: str = "completed",
+        outcome: str = "",
+        invocation_id: str = "",
     ) -> None:
-        """Persist whether an auditor used full-suite or focused validation."""
+        """Persist one auditor validation lifecycle observation.
+
+        New callers report ``started`` and ``completed`` with a stable
+        invocation id.  The default completed-only form remains compatible
+        with older callers and is counted as one complete invocation.
+        """
 
         key = _identity(project_id, task_id, audit_id)
         command = str(command or "").strip()
-        configured = str(configured_command or "").strip()
+        phase = str(phase or "").strip().casefold()
+        if phase not in {"started", "completed"}:
+            raise ValueError("validation command phase must be started or completed")
+        invocation_id = str(invocation_id or "").strip()
         category = (
-            "auditor_full_suite_runs"
-            if configured and command == configured
-            else "focused_supplemental_commands"
+            "focused_supplemental_commands"
+            if is_focused_validation_command(command)
+            else "auditor_full_suite_runs"
         )
-        self._increment_validation(category, key[0])
+        prior = self._validation_commands_in_flight.get(invocation_id)
+        if invocation_id and invocation_id in self._completed_validation_invocations:
+            return
+        if prior is not None and (
+            tuple(prior.get(name) for name in ("project_id", "task_id", "audit_id"))
+            != key
+            or prior.get("command") != command
+        ):
+            raise ValueError("validation invocation identity changed in flight")
+        if phase == "started":
+            if not invocation_id:
+                raise ValueError("started validation command requires invocation_id")
+            if prior is None:
+                self._increment_validation(category, key[0])
+                self._increment_validation("validation_commands_started", key[0])
+                self._validation_commands_in_flight[invocation_id] = {
+                    **_identity_dict(key),
+                    "category": category,
+                    "command": command,
+                    "started_at": _timestamp(self.clock()),
+                }
+            elif prior.get("category") != category:
+                raise ValueError("validation invocation identity changed in flight")
+            normalized_outcome = "running"
+        else:
+            if prior is None:
+                # Completed-only callers predate lifecycle observations. Count
+                # their one report as both initiation and completion.
+                self._increment_validation(category, key[0])
+                self._increment_validation("validation_commands_started", key[0])
+            else:
+                category = str(prior["category"])
+                self._validation_commands_in_flight.pop(invocation_id, None)
+            self._increment_validation("validation_commands_completed", key[0])
+            normalized_outcome = str(outcome or "").strip().casefold()
+            if not normalized_outcome:
+                normalized_outcome = "passed" if succeeded else "failed"
+            if normalized_outcome == "timed_out":
+                self._increment_validation("validation_commands_timed_out", key[0])
+            elif not succeeded:
+                self._increment_validation("validation_commands_failed", key[0])
+            if invocation_id:
+                self._completed_validation_invocations.add(invocation_id)
+                if len(self._completed_validation_invocations) > 512:
+                    self._completed_validation_invocations = set(
+                        sorted(self._completed_validation_invocations)[-512:]
+                    )
         self._last_validation_command = {
             **_identity_dict(key),
             "category": category,
             "command": command,
+            "phase": phase,
+            "outcome": normalized_outcome,
+            "invocation_id": invocation_id,
             "succeeded": bool(succeeded),
             "duration_seconds": max(float(duration_seconds or 0), 0.0),
             "recorded_at": _timestamp(self.clock()),
         }
+        self._persist()
+
+    @_synchronized
+    def record_validation_reuse_policy(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        attempt_id: str,
+        invocation_id: str,
+        command: str,
+        decision: str,
+        justification: str = "",
+    ) -> None:
+        """Persist one tool-layer decision for previously reusable gate proof."""
+
+        key = _identity(project_id, task_id, audit_id)
+        invocation_id = str(invocation_id or "").strip()
+        if not invocation_id:
+            raise ValueError("validation reuse policy requires invocation_id")
+        attempt_id = str(attempt_id or "").strip()
+        if not attempt_id:
+            raise ValueError("validation reuse policy requires attempt_id")
+        decision = str(decision or "").strip().casefold()
+        if decision == "allowed_distinct_mode":
+            counter = "reused_gate_distinct_mode_allowed"
+        elif decision == "allowed_gate_now_required":
+            counter = "reused_gate_became_required"
+        elif decision.startswith("denied_"):
+            counter = "reused_gate_validation_denied"
+        else:
+            raise ValueError("unsupported validation reuse policy decision")
+        invocation = {
+            **_identity_dict(key),
+            "attempt_id": attempt_id,
+            "command": str(command or "").strip(),
+            "decision": decision,
+            "justification": str(justification or ""),
+        }
+        prior = self._validation_reuse_policy_invocations.get(invocation_id)
+        if prior is not None:
+            if prior != invocation:
+                raise ValueError(
+                    "validation reuse policy invocation identity collision"
+                )
+            return
+        self._increment_validation(counter, key[0])
+        self._last_validation_reuse_policy = {
+            **_identity_dict(key),
+            "attempt_id": attempt_id,
+            "invocation_id": invocation_id,
+            "command": invocation["command"],
+            "decision": decision,
+            "justification": invocation["justification"],
+            "recorded_at": _timestamp(self.clock()),
+        }
+        self._validation_reuse_policy_invocations[invocation_id] = invocation
+        if len(self._validation_reuse_policy_invocations) > 512:
+            oldest = next(iter(self._validation_reuse_policy_invocations))
+            self._validation_reuse_policy_invocations.pop(oldest, None)
         self._persist()
 
     @_synchronized
@@ -673,6 +882,16 @@ class TerminalAuditMetrics:
                 "counters": dict(self._validation_counters),
                 "last_decision": copy.deepcopy(self._last_validation_decision),
                 "last_command": copy.deepcopy(self._last_validation_command),
+                "last_reuse_policy": copy.deepcopy(
+                    self._last_validation_reuse_policy
+                ),
+                "reuse_policy_invocations": copy.deepcopy(
+                    self._validation_reuse_policy_invocations
+                ),
+                "in_flight": copy.deepcopy(self._validation_commands_in_flight),
+                "completed_invocations": sorted(
+                    self._completed_validation_invocations
+                ),
             },
             "persistence_corrupt": self.persistence_corrupt,
             "persistence_error": self.persistence_error,
