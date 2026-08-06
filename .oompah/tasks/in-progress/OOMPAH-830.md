@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T00:22:13.783599Z'
+updated_at: '2026-08-06T00:22:22.348837Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-08-06 00:22
 ---
 Implementation: centralized  in . It projects live active/current/next/final stages, completed and superseded history, stage-matched attempts, and redacted result-intent handoff state. The legacy flat summary fields now follow the active stage or final completed stage. List, detail, activity, and websocket board payloads already share this helper; dashboard cards/details now render current, next, and final targets. Added regression coverage in .
+---
+author: oompah
+created: 2026-08-06 00:22
+---
+Implementation update: centralized terminal-audit chain projection in server.py. It projects live active/current/next/final stages, completed and superseded history, stage-matched attempts, and redacted result-intent handoff state. Legacy flat summary fields now follow the active stage or final completed stage. List, detail, activity, and websocket board payloads share this helper; dashboard cards/details render current, next, and final targets. Regression coverage is in tests/test_terminal_status_interfaces.py. (A prior comment attempt contained shell backticks; this plain-text update is authoritative.)
 ---
 <!-- COMMENTS:END -->
