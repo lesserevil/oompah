@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:41:18.697807Z'
+updated_at: '2026-08-06T00:41:36.999310Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -184,5 +184,15 @@ author: oompah
 created: 2026-08-06 00:41
 ---
 Recover Ready/blocked children of pruned terminal parents using exact landing/audit evidence, preserve preflight retry authority, and route ambiguous work to named recovery targets with regression coverage.
+---
+author: oompah
+created: 2026-08-06 00:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 182
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 37m 9s
+- Log: OOMPAH-840__20260806T000439Z.jsonl
 ---
 <!-- COMMENTS:END -->
