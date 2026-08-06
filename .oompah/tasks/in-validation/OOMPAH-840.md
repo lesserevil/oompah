@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-840
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Recover ready children whose terminal parent branch was pruned
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T01:40:09.066128Z'
+updated_at: '2026-08-06T01:40:34.672585Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -108,6 +108,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-840
     source_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
     completed_at: '2026-08-06T00:03:09.749857+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bf47fb6355f1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-840
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 056220802f523a752467dfd9e9312bd9efa49cb5b0a7109e5a755ecdfac40e95
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T01:40:25.353836+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -195,5 +217,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 37m 9s
 - Log: OOMPAH-840__20260806T000439Z.jsonl
+---
+author: oompah
+created: 2026-08-06 01:40
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
