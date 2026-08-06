@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:37:53.824921Z'
+updated_at: '2026-08-06T18:38:44.793716Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -397,5 +397,17 @@ VERIFICATION: Re-committed the gate fixes as c296b963a with a proper task commit
 - tests/test_parallel_epic_children.py + test_epic_strategy.py + test_standalone_ready_to_integrate.py + test_stalled_task_watchdog.py + test_projects.py: 617 passed
 
 Total focused: 865 passed, 0 failed. Direct maintenance issue submission fallback plus mock-signature/base_branch test fixtures line up with the branch_name kwarg and base_branch contract added earlier in this task.
+---
+author: oompah
+created: 2026-08-06 18:38
+---
+COMPLETION: All previously identified gate failures now resolved. Branch head c296b963a pushed to origin.
+
+Delivered scope:
+- Nested-container rollup edges excluded from child integration dependencies (503e/6cba/175a/c191)
+- Restart recovery, canonical candidate persistence, and cycle repair fenced against nested delivery
+- Focused suites (865 tests) green including OOMPAH-804/834 deadlock reproduction, project-lock mocks, and task-handoff endpoint fixtures.
+
+Submitting task.
 ---
 <!-- COMMENTS:END -->
