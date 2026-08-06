@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T00:03:55.609173Z'
+updated_at: '2026-08-06T00:05:31.883836Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -71,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 130a53fd-a5cf-4e12-b897-5bb05a1991b0
+oompah.agent_run_id: d4dc44e7-66e6-448e-92bc-650c72b410b5
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-835
 oompah.integration:
   version: 2
@@ -80,7 +80,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-804--task-OOMPAH-835
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
-  updated_at: '2026-08-06T00:02:44.396102+00:00'
+  updated_at: '2026-08-06T00:05:29.240933+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1808
@@ -144,5 +144,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 16s
 - Log: OOMPAH-835__20260806T000303Z.jsonl
+---
+author: oompah
+created: 2026-08-06 00:05
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

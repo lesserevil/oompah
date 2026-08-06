@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:04:38.075295Z'
+updated_at: '2026-08-06T00:05:17.012016Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-08-06 00:04
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 00:05
+---
+Understanding: I will trace integration preflight and terminal-audit handling for Ready children of Merged/Archived parents, identify why pruned parent branches block exact landed heads, then implement focused reconciliation and retry-authority preservation with regression tests.
 ---
 <!-- COMMENTS:END -->
