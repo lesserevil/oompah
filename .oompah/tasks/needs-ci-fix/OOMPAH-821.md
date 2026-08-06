@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T01:13:55.089343Z'
+updated_at: '2026-08-06T02:53:59.853545Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -46,14 +46,51 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
-  base_sha: f1e7925b7263f980517f943291102c8c83335ed2
+  base_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
   head_sha: b8d6645cd65194d9bebdec1a38b5ab640190fcf9
   submitted_at: '2026-08-06T01:13:47.542946+00:00'
-  updated_at: '2026-08-06T01:13:47.542946+00:00'
+  updated_at: '2026-08-06T02:53:52.810809+00:00'
+  last_error: "Combined-tree quality gate failed: ders, stream = encode_request(\n\
+    \ntests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected\n\
+    tests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration\n\
+    tests/test_submission_fencing.py::test_consumed_prior_checkpoint_does_not_reopen_successor_submission\n\
+    tests/test_submission_fencing.py::test_published_commit_tree_checkpoint_with_unchanged_head_reopens\n\
+    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88:\
+    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    self._context.run(self._callback,\
+    \ *self._args)\n  Enable tracemalloc to get traceback where the object was allocated.\n\
+    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_draft_not_counted\n\
+    \  <string>:8: RuntimeWarning: coroutine 'sleep' was never awaited\n  Enable tracemalloc\
+    \ to get traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_three_non_draft_returns_three\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-dhj2e8kn/workspace/oompah/orchestrator.py:1813:\
+    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    self._stale_cache_lock\
+    \ = threading.Lock()\n  Enable tracemalloc to get traceback where the object was\
+    \ allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_auth_disabled_shows_false\n\
+    tests/test_websocket_authenticated_bootstrap.py::TestRESTWebSocketConsistency::test_rest_and_ws_both_include_build_id\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-dhj2e8kn/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
+    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
+    \ at 0x713448cb39c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
+    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
+    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
+    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
+    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
+    \ short test summary info ============================\nFAILED tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick\n\
+    ERROR tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick\n\
+    = 1 failed, 16116 passed, 8 skipped, 1 xfailed, 51 warnings, 1 error in 1010.38s\
+    \ (0:16:50) =\n\nmake: *** [Makefile:401: test] Error 1\n"
 oompah.task_costs:
   total_input_tokens: 48828
   total_output_tokens: 20386
@@ -371,5 +408,67 @@ author: oompah
 created: 2026-08-06 01:13
 ---
 Restacked the terminal-audit alert repair onto integrated OOMPAH-796; exact pushed head b8d6645cd passes 253 focused tests and static checks.
+---
+author: oompah
+created: 2026-08-06 02:53
+---
+The combined-tree quality gate failed on `epic-OOMPAH-770--task-OOMPAH-821`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+ders, stream = encode_request(
+
+tests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected
+tests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration
+tests/test_submission_fencing.py::test_consumed_prior_checkpoint_does_not_reopen_successor_submission
+tests/test_submission_fencing.py::test_published_commit_tree_checkpoint_with_unchanged_head_reopens
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88: RuntimeWarning: coroutine 'sleep' was never awaited
+    self._context.run(self._callback, *self._args)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_draft_not_counted
+  <string>:8: RuntimeWarning: coroutine 'sleep' was never awaited
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_three_non_draft_returns_three
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-dhj2e8kn/workspace/oompah/orchestrator.py:1813: RuntimeWarning: coroutine 'sleep' was never awaited
+    self._stale_cache_lock = threading.Lock()
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_auth_disabled_shows_false
+tests/test_websocket_authenticated_bootstrap.py::TestRESTWebSocketConsistency::test_rest_and_ws_both_include_build_id
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-dhj2e8kn/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x713448cb39c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick
+ERROR tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick
+= 1 failed, 16116 passed, 8 skipped, 1 xfailed, 51 warnings, 1 error in 1010.38s (0:16:50) =
+
+make: *** [Makefile:401: test] Error 1
+
+```
 ---
 <!-- COMMENTS:END -->
