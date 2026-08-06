@@ -3206,7 +3206,14 @@ class TerminalTransitionCoordinator:
                     reason=ResultRejection.REVISION_BINDING_MISMATCH,
                 )
                 return doc
-            if record.target_state is TargetState.MERGED:
+            # A successful Merged audit may advance only after the exact Done
+            # prerequisite passed at the same immutable revision. A failed
+            # audit must still be accepted so it can route the task back to
+            # its non-terminal repair state.
+            if (
+                result.verdict is Verdict.PASS
+                and record.target_state is TargetState.MERGED
+            ):
                 passed_done = [
                     candidate
                     for candidate in chain
