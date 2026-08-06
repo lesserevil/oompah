@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T21:42:56.816982Z'
+updated_at: '2026-08-06T21:43:58.726851Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-08-06 21:42
 ---
 Gate triage: exact OOMPAH-863 focused scope is green (70 serial + 70 parallel); the full gate reached 16,309 passes and failed only tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events, alongside LogFileWatcher.start unawaited-coroutine warnings. OOMPAH-845 independently reproduced and fixed that cross-test coroutine leak at 7bb2362fc and is Ready to Integrate. Do not alter OOMPAH-863 reservation logic for this unrelated failure. Reproduce the single event-loop node under saturation; preserve exact head 3e5ddd154 unless evidence shows an additional test-harness fix, and account for OOMPAH-845 rather than duplicating its patch.
+---
+author: oompah
+created: 2026-08-06 21:43
+---
+Discovery: the accepted three-commit patch already implements the required exact-authority repair. Durable reservations persist normalized accepted head plus delivery generation; same-head contenders observe but cannot acquire the winning reservation; capacity-alert arm/clear and review creation/adoption are fenced by delivery authority; same-process sweeps coalesce while cross-process barrier tests preserve the real race. The rejected full gate failed only an unrelated event-loop assertion after leaked LogFileWatcher.start coroutine warnings; OOMPAH-845 commit 7bb2362fc fixes the leak solely in tests/test_error_watcher.py.
 ---
 <!-- COMMENTS:END -->

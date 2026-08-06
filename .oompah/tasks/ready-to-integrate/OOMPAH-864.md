@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:43:31.572177Z'
+updated_at: '2026-08-06T21:44:07.240125Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -183,5 +183,20 @@ author: oompah
 created: 2026-08-06 21:43
 ---
 **Completion:** Task submitted for integration at commit af7a4595b. Fixed the issue where owner-resolved duplicate screening to no_duplicate left stale integration.state=working metadata, blocking task re-dispatch. Solution: clear integration metadata atomically when owner verdict is recorded, plus restart reconciliation. All acceptance criteria met: owner-resolved no_duplicate tasks have exactly one durable dispatchable disposition, OOMPAH-863-style tasks resume without waiting for watchdog, late investigator output is fenced, unrelated workers are preserved, restart boundaries are handled. Focused tests pass.
+---
+author: oompah
+created: 2026-08-06 21:44
+---
+Agent completed successfully in 694s (400 tokens)
+---
+author: oompah
+created: 2026-08-06 21:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 183, Tool calls: 82
+- Tokens: 10 in / 390 out [400 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 34s
+- Log: OOMPAH-864__20260806T213248Z.jsonl
 ---
 <!-- COMMENTS:END -->
