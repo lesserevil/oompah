@@ -651,6 +651,8 @@ class TestTaskScopeDirectPath:
             "remote_head_sha": "a" * 40,
             "worktree_clean": True,
         }
+        expected_integration = issue.integration.to_dict()
+        expected_integration["mode"] = "queue"
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value=evidence,
@@ -680,7 +682,7 @@ class TestTaskScopeDirectPath:
             call(
                 "OOMPAH-814",
                 "oompah.integration",
-                issue.integration.to_dict(),
+                expected_integration,
             ),
             call("OOMPAH-814", "oompah.work_branch", "OOMPAH-814"),
         ]
