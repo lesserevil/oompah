@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:22:04.808898Z'
+updated_at: '2026-08-06T07:36:30.746719Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -209,5 +209,30 @@ created: 2026-08-06 07:22
 3. In build_alert(), mark as 'recovered' if most recent success > most recent failure
 4. Add server.py call to record_operator_success() after successful Basic auth
 5. Write tests for recovery scenarios
+---
+author: oompah
+created: 2026-08-06 07:36
+---
+**Implementation:** Successfully implemented credential recovery tracking for operator Basic auth.
+
+Changes made:
+1. oompah/auth_health.py:
+   - Added _last_success_ts field to OperatorAuthHealth
+   - Added record_success() method to track successful auth timestamps
+   - Modified snapshot() to detect recovery (success_ts > failure_ts) and mark status as 'recovered'
+   - Modified build_alert() to provide 'recovered' recovery_state instead of 'active' when credentials work
+   - Added public record_operator_success() function
+
+2. oompah/server.py:
+   - Added record_operator_success import
+   - Added calls to record_operator_success() after successful HTTP Basic auth (line ~741)
+   - Added calls to record_operator_success() after successful WebSocket auth (line ~788)
+
+3. tests/test_auth_health.py:
+   - Added 9 new unit tests for recovery scenarios
+   - Added 3 new integration tests via public API
+   - All 41 auth_health tests passing
+
+Key result: Alerts now transition from 'active' to 'recovered' when credentials demonstrate successful authentication after failure, enabling dashboard to show that the issue is resolved without waiting for the 15-minute window to expire.
 ---
 <!-- COMMENTS:END -->
