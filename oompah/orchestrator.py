@@ -36405,6 +36405,10 @@ class Orchestrator:
 
         tracker = self._tracker_for_project(resolved_project_id)
         project_id = resolved_project_id
+        # Recovery helpers inherited from the root lineage use the scoped
+        # project_id_val name.  Keep it bound to the exact dispatch project
+        # proven above; never reconstruct it from mutable tracker state.
+        project_id_val = resolved_project_id
         workspace_path = entry.workspace_path
         late_changes_detected = False
         recovery_context = None
