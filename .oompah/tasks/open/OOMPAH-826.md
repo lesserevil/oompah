@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:32:31.094127Z'
+updated_at: '2026-08-06T04:34:34.733227Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -577,5 +577,19 @@ created: 2026-08-06 04:32
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-06 04:34
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #6)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 729 is merged
+**Evidence head:** `4d05dd5a580ad667d7ae3871bdba83d9b78a7404`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
