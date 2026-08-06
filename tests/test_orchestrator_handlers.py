@@ -1398,6 +1398,11 @@ class TestRunStep5cEpicMaintenance:
     def test_tick_skips_new_epic_maintenance_when_previous_still_running(self, tmp_path):
         """When the previous epic_maintenance_future is not done, tick skips a new one."""
         orch = _make_orchestrator(tmp_path)
+        # Force the slow-tick diagnostics branch deterministically.  Its
+        # dispatch breakdown consumes the awaited handler's Mapping result,
+        # which is the contract this regression protects under gate load.
+        tick_times = iter(float(value) for value in range(32))
+        orch._monotonic_clock = lambda: next(tick_times)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         # _tick() consumes a timing Mapping from this handler on the slow path.
@@ -2632,7 +2637,7 @@ class TestMaintenanceLaneNonBlocking:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -3187,7 +3192,7 @@ class TestRepoHealErrorReporting:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -3476,7 +3481,7 @@ class TestTickDelegation:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
