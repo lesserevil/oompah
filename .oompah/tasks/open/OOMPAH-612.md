@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T20:57:32.316859Z'
+updated_at: '2026-08-06T20:58:24.499224Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -216,13 +216,17 @@ oompah.terminal_audit:
     ended_at: '2026-08-06T20:51:51.492663+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
-  total_input_tokens: 207
-  total_output_tokens: 17455
+  total_input_tokens: 50509
+  total_output_tokens: 17977
   total_cost_usd: 0.0
   by_model:
     unknown:
       input_tokens: 207
       output_tokens: 17455
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 50302
+      output_tokens: 522
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -243,24 +247,47 @@ oompah.task_costs:
     output_tokens: 21
     cost_usd: 0.0
     recorded_at: '2026-08-06T20:50:34.921705+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 50302
+    output_tokens: 522
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T20:58:17.602308+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c04b91644e7d94fb8d239ada9bd3fd5d183776981094e7c4390e145129774882
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T20:58:17.604065+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4b9767dc-518b-4f76-b356-29319ac49e07
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T20:57:01.833140+00:00'
-  claim_expires_at: '2026-08-06T21:27:01.833140+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The reviewed candidates (including OOMPAH-161, OOMPAH-162,\
+    \ OOMPAH-168, and OOMPAH-195) are terminal and address unrelated problems. No\
+    \ active duplicate for the ACP auditor dispatch-loop deadlock was found.\nFocus\
+    \ handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \n\
+    Matches: none\n\nEvidence: The reviewed candidates (including OOMPAH-161, OOMPAH-162,\
+    \ OOMPAH-168, and OOMPAH-195) are terminal and address unrelated problems. No\
+    \ active duplicate for the ACP auditor dispatch-loop deadlock was found."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 69cc19bd-370f-4809-a10a-cc9254a03586
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-612__20260806T205742Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-612
+    source_sha: f2b319c1182cd654112db622a0498171e508dead
+    completed_at: '2026-08-06T20:58:17.644910+00:00'
 ---
 ## Summary
 
@@ -426,5 +453,15 @@ author: oompah
 created: 2026-08-06 20:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 20:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 50.3K in / 522 out [50.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 55s
+- Log: OOMPAH-612__20260806T205742Z.jsonl
 ---
 <!-- COMMENTS:END -->
