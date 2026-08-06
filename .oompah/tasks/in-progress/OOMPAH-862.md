@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:29:38.792545Z'
+updated_at: '2026-08-06T14:36:33.125399Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-08-06 14:29
 ---
 Discovery: BranchQualityGate persists exact-key gate outcomes in quality_gates.json, and auditors currently only contribute compatible passes through record_auditor_quality_evidence after a successful heavyweight command. The prompt builder receives only pending-target/archive data, so it cannot tell a current authoritative full gate from a missing one; telemetry also lacks the reuse/supplemental/full-run decision. I’ll add a read-only exact evidence lookup, dispatch-time evidence bundle/guidance, duration propagation, and durable decision telemetry with restart restoration.
+---
+author: oompah
+created: 2026-08-06 14:36
+---
+Operator coordination: OOMPAH-860 currently owns the validation lease for its terminal audit. Your focused pytest attempts failed before collection on the known read-only external-lock bootstrap defect and did not contend with the audit. Preserve implementation and tests, continue static checks only, and defer further validation until the operator releases the lane.
 ---
 <!-- COMMENTS:END -->
