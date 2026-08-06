@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-804
 type: task
-status: Open
+status: In Validation
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
@@ -20,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T12:56:07.755513Z'
+updated_at: '2026-08-06T12:56:15.036442Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -334,5 +334,10 @@ author: oompah
 created: 2026-08-06 09:27
 ---
 Task-scoped deadlock recovery for OOMPAH-858: removed OOMPAH-804's redundant finish edges to its four decomposition children and its already-Done external prerequisites. The hard-start prerequisite edges remain, all prerequisite tasks passed terminal audit, and the exact parent composition f89c477d passed 2397 affected tests plus mutation/secrets/Ruff checks. Also preserved stale origin/epic-OOMPAH-804 at backup/epic-OOMPAH-804-before-nested-integration-20260806 and aligned the deployed executor's stale target alias to validated f89c477d. This avoids global status mutation while allowing each existing child queue row to validate and complete naturally.
+---
+author: oompah
+created: 2026-08-06 12:56
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
