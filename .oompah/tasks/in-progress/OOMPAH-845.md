@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:23:09.582198Z'
+updated_at: '2026-08-06T21:23:23.392965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -335,5 +335,10 @@ author: oompah
 created: 2026-08-06 21:23
 ---
 Verification: All focused tests pass cleanly. Results: (1) tests/test_event_driven_loop.py: 60 passed serial, 60 passed -n4; (2) tests/test_retry_authority_generation.py: 38 passed serial, 38 passed -n4; (3) tests/test_error_watcher.py: 117 passed serial (0 warnings), 117 passed -n4; (4) Combined 215-test -n4 gate: 215 passed. All four superseding-state parameters [Merged/Archived/In Validation/Needs Human] pass. No RuntimeWarning or PytestUnraisableExceptionWarning leaks remain.
+---
+author: oompah
+created: 2026-08-06 21:23
+---
+Completion: OOMPAH-845 delivers two commits: (1) 7d0481101 — drain scheduled terminations before shutdown (oompah/orchestrator.py); (2) 6a799a148 — close saturated-gate test resources (tests/test_event_driven_loop.py, tests/test_retry_authority_generation.py); (3) 7bb2362fc — close unawaited LogFileWatcher.start coroutines in manager tests (tests/test_error_watcher.py). All three commits together eliminate the coroutine/transport/task leak class that causes PytestUnraisableExceptionWarning under full-gate saturation. The restart-recovery fencing remains semantically strict; the exact test passes deterministically under -n4.
 ---
 <!-- COMMENTS:END -->
