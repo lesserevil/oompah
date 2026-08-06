@@ -281,14 +281,35 @@ def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
     orchestrator._integration_satisfied_dependencies = mock.MagicMock(
         return_value=set()
     )
-    orchestrator._execute_integration_item = mock.MagicMock(
-        return_value=IntegrationExecutionResult(
+    def execute_live_item(item, **_kwargs):
+        # The real executor durably canonicalizes the rebased combined-tree
+        # candidate before it returns success.  Model that contract here so
+        # finalization sees the same queue/tracker generation it would in
+        # production; bypassing it would correctly fail closed.
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=item.project_id,
+            task_id=item.task_id,
+            lease_owner=item.lease_owner or "",
+            expected_head_sha=item.head_sha,
+            expected_candidate_head_sha=item.candidate_head_sha,
+            candidate_head_sha="c" * 40,
+            candidate_base_sha="b" * 40,
+        ) is not None
+        issue.integration = replace(
+            issue.integration,
+            head_sha="c" * 40,
+            base_sha="b" * 40,
+        )
+        return IntegrationExecutionResult(
             status="integrated",
             message="integrated",
             expected_epic_sha="b" * 40,
             rebased_task_sha="c" * 40,
             integrated_sha="d" * 40,
         )
+
+    orchestrator._execute_integration_item = mock.MagicMock(
+        side_effect=execute_live_item
     )
 
     async def record_audit(item):
