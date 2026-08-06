@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-859
 type: task
-status: Needs Human
+status: In Progress
 priority: null
 title: Suppress impossible terminal-audit backlog alerts with zero pending work
 parent: OOMPAH-795
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-06T11:49:27.351203Z'
+updated_at: '2026-08-06T11:59:29.001585Z'
 work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
