@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:27:10.337127Z'
+updated_at: '2026-08-06T01:30:58.301595Z'
 work_branch: OOMPAH-570
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/587
@@ -104,6 +104,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/587
 oompah.review_number: '587'
 oompah.work_branch: OOMPAH-570
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-40ca02a1d10d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-570
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7c1286ac4b07b918600972399195b8f20f39276d1824a7270be368ef4346b189
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T01:30:51.228127+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -317,5 +339,10 @@ author: oompah
 created: 2026-07-30 00:22
 ---
 Post-review hardening is pushed at 4bcaa85cc after rebasing onto PR #586/main. Focused shutdown/retry suite: 28 passed. Full make test on this exact head: 13,616 passed, 7 skipped in 262.06s. PR #587 is open; the revised semantics only rearm blocked identical explicit retries, preserve ready/integrating/integrated idempotency, and route shutdown-interrupted gates as retryable without caching false CI evidence.
+---
+author: oompah
+created: 2026-08-06 01:30
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
