@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-768
 type: epic
-status: Open
+status: In Validation
 priority: 1
 title: Migrate every workflow domain to shared decisions and durable jobs
 parent: OOMPAH-763
@@ -22,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-06T22:14:37.279990Z'
+updated_at: '2026-08-06T22:15:10.455758Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,6 +30,27 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d5cd537191ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-768
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: Open
+    created_at: '2026-08-06T22:15:02.037452+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +78,10 @@ author: oompah
 created: 2026-08-06 00:15
 ---
 Critical-path parent rebase completed while dispatch was paused. epic-OOMPAH-768 was rebased from ce2526a8b7e67426c3919cf890a9b3b1cdca20ad onto exact epic-OOMPAH-763 head 58ffd477b19f370c7ed53a191e1a05580b016c85 and pushed at 16d83ea3eaf409338cc22449e1447be088bea7df. Upstream-equivalent OOMPAH-805/819 patches dropped naturally; OOMPAH-813 conflicts were combined with the newer root recovery fences, including exact scoped project identity. Verification: 489 focused workflow, submission, review, integration, long-tick, and terminal-transition tests passed; pycompile, diff check, and make check-secrets passed. OOMPAH-807 code is now reachable on this parent.
+---
+author: oompah
+created: 2026-08-06 22:15
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
