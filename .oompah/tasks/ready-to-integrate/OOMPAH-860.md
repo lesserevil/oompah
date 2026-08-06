@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T12:57:07.390245Z'
+updated_at: '2026-08-06T13:15:15.290533Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-860
+  head_sha: 34bf3aa8a471ef7fdc11d500423f3d06d06ca782
+  submitted_at: '2026-08-06T13:15:02.657192+00:00'
+  updated_at: '2026-08-06T13:15:02.657192+00:00'
 ---
 ## Summary
 
@@ -45,5 +53,10 @@ author: oompah
 created: 2026-08-06 12:57
 ---
 Branch-specific validation completed at pushed head 34bf3aa8a after OOMPAH-837 released the serialized lane: 256 serial and 256 xdist/loadscope tests passed with RuntimeWarning and PytestUnraisableExceptionWarning promoted to errors. make check-secrets and git diff --check passed; worktree is clean and exactly up to date with origin. Holding submission only long enough for the newly queued OOMPAH-804 parent terminal audit to take priority.
+---
+author: oompah
+created: 2026-08-06 13:15
+---
+Closed exact-gate test resource leaks on dedicated pushed head 34bf3aa8a: no raw sleep coroutines, no real webhook gh spawn in missing-extension or backoff tests. Branch-specific warning-as-error validation passed 256 serial and 256 xdist/loadscope tests; check-secrets and diff check passed.
 ---
 <!-- COMMENTS:END -->
