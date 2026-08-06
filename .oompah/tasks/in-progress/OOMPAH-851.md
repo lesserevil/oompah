@@ -6,12 +6,13 @@ priority: 1
 title: Make every tick-test dispatch mock honor the timing mapping contract
 parent: OOMPAH-763
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-863
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-06T17:38:00.723786Z'
+updated_at: '2026-08-06T17:58:44.361553Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -119,5 +120,10 @@ author: oompah
 created: 2026-08-06 17:38
 ---
 Focused validation exposed the new whole-test-corpus AST guard exceeding the global five-second timeout under the live OOMPAH-846 lease-bypass saturation. Added a scoped semantic optimization: source files that cannot spell all three resolvable target components are skipped before AST parsing, reducing parse candidates from 406 modules to 23 while existing split-string/dynamic-target cases remain covered; added an invalid-unrelated-source regression. The first contaminated rerun was operator-aborted at 64 percent only to release the lane to the higher-priority OOMPAH-831 exact gate. No code failure was observed in that aborted run; full serial and xdist rerun remains required after the exact gate.
+---
+author: oompah
+created: 2026-08-06 17:58
+---
+The broad focused matrix exposed a real concurrent standalone-delivery alert race, not a timing-mock defect: durable capacity admitted one review, but a losing sweep re-armed a capacity-wait alert for that same winning task. Filed OOMPAH-863 with a deterministic barrier regression and made it a finish dependency so OOMPAH-851 cannot enter an exact integration gate that can reproduce the unrelated race. The OOMPAH-851 AST contract optimization remains preserved and its exact failing node will be rerun after OOMPAH-863 lands.
 ---
 <!-- COMMENTS:END -->
