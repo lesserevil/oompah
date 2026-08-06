@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-840
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Recover ready children whose terminal parent branch was pruned
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:41:08.225877Z'
+updated_at: '2026-08-06T00:41:13.846813Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
