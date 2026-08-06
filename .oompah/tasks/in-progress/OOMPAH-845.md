@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T03:55:27.122726Z'
+updated_at: '2026-08-06T03:55:47.410300Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-08-06 03:55
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 03:55
+---
+**Understanding phase**: Investigating flaky test_restart_recovery_preserves_superseding_state[In Validation] that fails under saturated full-suite conditions but passes when run alone. Likely a latency/timeout issue rather than deterministic state-fencing failure. Plan: (1) Read the failing test and related fixtures; (2) Inspect Orchestrator construction, state save/load, asyncio.to_thread tracker read; (3) Check event-loop fixture cleanup for unrelated background work; (4) Add explicit timeout to restart-recovery lifecycle assertion if needed; (5) Verify with focused and saturated test runs. Will not weaken production fencing or raise global timeout.
 ---
 <!-- COMMENTS:END -->
