@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T19:26:51.733029Z'
+updated_at: '2026-08-06T23:11:30.430430Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -372,5 +372,10 @@ author: oompah
 created: 2026-08-06 19:26
 ---
 Post-O858 composition review found and repaired an ordinary-dispatch publication race: an accepted submission could land after the final tracker read but before RunningEntry publication, allowing provider start without submission binding. Final publication now holds the per-issue transition lock through entry/gate publication; deterministic preliminary/fresh-fetch regression and independent review ACCEPT. Repair committed at 244456522e8fe8f074ba313f61bbef943e265fa6. Focused validation waits for the active OOMPAH-856 exact gate and final epic restack.
+---
+author: oompah
+created: 2026-08-06 23:11
+---
+Round 11 repair at cumulative diff SHA256 15f460ddbf885c508fd9946e76a1f86000b293fa5aba90fc47c7416597a44e1c: added exact-child CAS so stale done callbacks cannot poison reopened generations; added bounded, loop-neutral acknowledgment for foreign-loop child publication with fail-closed timeout; moved pre-fence handoff drain to the coordinator boundary; corrected auditor-workspace cleanup assertions. Added deterministic stale-generation and real two-loop stop-before-callback regressions. tests/test_auditor_termination_cleanup.py passes 18 serial and 18 parallel. Work remains uncommitted pending independent review.
 ---
 <!-- COMMENTS:END -->
