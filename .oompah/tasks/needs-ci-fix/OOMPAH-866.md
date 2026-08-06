@@ -6,12 +6,13 @@ priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-845
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T22:00:35.209599Z'
+updated_at: '2026-08-06T22:01:21.055966Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -312,5 +313,10 @@ FAILED tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_t
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 22:01
+---
+Gate triage: exact OOMPAH-866 gate reached 16,307 passes and failed only the same unrelated event-loop test as OOMPAH-863, alongside the same LogFileWatcher.start leak warnings. OOMPAH-845 commit 7bb2362fc fixes that cross-test leak and is now a recorded finish dependency. Preserve exact OOMPAH-866 head ee05a0ad8; do not mutate canonical-child landing logic or duplicate OOMPAH-845. Re-run only after OOMPAH-845 is integrated/rebased into the target.
 ---
 <!-- COMMENTS:END -->
