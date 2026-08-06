@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:27:05.990082Z'
+updated_at: '2026-08-06T13:32:32.524051Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-06 13:27
 ---
 IMPLEMENTATION: Created new integration_dependencies() function in dependency_graph.py that filters out implicit parent->child rollup edges while preserving explicit external/sibling dependencies. Updated _integration_dependency_map in orchestrator.py to use the new function. Created comprehensive regression tests covering: nested parent->children rollup, excluded self/sibling rollup edges, retained explicit child->sibling and external ancestor dependencies, and multiple nesting levels. All 341 existing integration tests pass.
+---
+author: oompah
+created: 2026-08-06 13:32
+---
+VERIFICATION: All tests pass. Ran 459 integration/container/dependency tests successfully. Specific test coverage: 9 nested container rollup tests + 3 OOMPAH-804/834 deadlock scenario tests. Queue can now claim eligible nested children without deadlock. Explicit external/sibling dependencies preserved. Ready for integration.
 ---
 <!-- COMMENTS:END -->
