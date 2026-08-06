@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T08:08:41.736671Z'
+updated_at: '2026-08-06T08:10:36.738992Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -684,5 +684,10 @@ FAILED tests/test_project_pause.py::TestShouldDispatchProjectPauseGate::test_glo
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 08:10
+---
+Latest exact gate completed normally with 16,308 passes and one failure in test_global_pause_takes_precedence. The contract is unchanged and structurally deterministic; this test constructs a real Orchestrator and its durable SQLite stores under the global 5-second timeout, matching the loaded-I/O failures already stabilized in OOMPAH-791. Added a scoped 20-second bound preserving the real integration coverage. Static compile/diff checks pass; exact/module reproduction waits for OOMPAH-857's currently running independent audit validation to release the shared lane.
 ---
 <!-- COMMENTS:END -->
