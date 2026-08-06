@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:12:56.056155Z'
+updated_at: '2026-08-06T21:32:40.110094Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -41,21 +41,16 @@ oompah.duplicate_screening:
     no duplicate. OOMPAH-864 is the distinct owner-resolution rearm bug reproduced
     by OOMPAH-863/OOMPAH-855; its exact transaction, generation fencing, restart recovery,
     and worktree preservation scope is not covered by the cited peers.
-oompah.agent_run_id: null
+oompah.agent_run_id: d8464adb-dc51-485c-976b-8957ad861fd2
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  head_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  submitted_at: '2026-08-06T21:11:33.960837+00:00'
-  updated_at: '2026-08-06T21:12:50.645250+00:00'
-  last_error: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs
-    from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing
-    to reset a preserved recovery snapshot
+  updated_at: '2026-08-06T21:32:37.147926+00:00'
 oompah.task_costs:
   total_input_tokens: 46277
   total_output_tokens: 287
@@ -141,5 +136,10 @@ created: 2026-08-06 21:12
 Integration could not verify `epic-OOMPAH-763--task-OOMPAH-864`: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-06 21:32
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
