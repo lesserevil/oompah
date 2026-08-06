@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:56:37.659751Z'
+updated_at: '2026-08-06T13:57:10.131441Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-08-06 13:56
 ---
 Operator coordination: your focused tests/test_retry_authority_generation.py run launched outside the validation-resource lease while OOMPAH-860 owned the exact gate, reproducing OOMPAH-846. The command exited before targeted termination; your agent session and edits are intact. Do not launch further pytest/make commands while the exact gate owns capacity; preserve implementation and defer validation until the shared lane is free.
+---
+author: oompah
+created: 2026-08-06 13:57
+---
+Implementation: preserved accepted IntegrationRecord authority across the state snapshots used during retry dispatch, while allowing a newer accepted generation to win. Retry persistence now derives its branch through assigned_work_branch. Added OOMPAH-860 regressions for stale state refresh and restart rearm on the accepted plain branch.
 ---
 <!-- COMMENTS:END -->
