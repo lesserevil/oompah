@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T14:58:55.692620Z'
+updated_at: '2026-08-06T14:59:01.781501Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-08-06 14:58
 ---
 Owner repair validated at exact pushed head 8953687bda424401e67d06d676943bbeac93faca: 61 focused accepted-branch and retry-authority tests passed serial and 61 passed with four-worker loadscope. make check-secrets and git diff --check passed; branch is clean and exactly up to date with origin.
+---
+author: oompah
+created: 2026-08-06 14:59
+---
+Preserved immutable accepted branch and head authority across state-only refresh, abort recovery, stale generations, and repair retries; focused serial and xdist validation passed at 8953687bd.
 ---
 <!-- COMMENTS:END -->
