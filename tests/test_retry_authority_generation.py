@@ -6,6 +6,7 @@ import asyncio
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,6 +17,185 @@ from oompah.integration import IntegrationRecord
 from oompah.models import Issue, RetryEntry, RunningEntry
 from oompah.orchestrator import DispatchAuthorityRevoked, Orchestrator
 from oompah.server import _cancel_retry_for_authority_change
+
+
+_OWNED_ORCHESTRATORS: list[
+    tuple[
+        Orchestrator,
+        tuple[tuple[str, Any], ...],
+        tuple[tuple[str, Any], ...],
+    ]
+] = []
+
+
+async def _terminate_owned_orchestrators(
+    owned: list[
+        tuple[
+            Orchestrator,
+            tuple[tuple[str, Any], ...],
+            tuple[tuple[str, Any], ...],
+        ]
+    ],
+    cleanup_errors: list[str],
+) -> None:
+    """Retire runtimes before their pools are joined and stores are closed."""
+
+    for owner_index, (orch, _pools, _stores) in enumerate(
+        reversed(owned), start=1
+    ):
+        orch._termination_scheduling_closed = True
+        for retry in list(orch.state.retry_attempts.values()):
+            timer = retry.timer_handle
+            if timer is not None and not timer.cancelled():
+                timer.cancel()
+        try:
+            await orch._drain_scheduled_terminations()
+        except Exception as exc:  # noqa: BLE001 - retire every orchestrator
+            cleanup_errors.append(
+                f"orchestrator {owner_index} termination drain failed: {exc!r}"
+            )
+        for issue_id, _entry in orch._running_items_snapshot():
+            try:
+                await orch._terminate_running(issue_id, cleanup_workspace=False)
+            except Exception as exc:  # noqa: BLE001 - retire every runtime
+                cleanup_errors.append(
+                    f"orchestrator {owner_index} runtime {issue_id} termination "
+                    f"failed: {exc!r}"
+                )
+        try:
+            await orch._drain_scheduled_terminations()
+        except Exception as exc:  # noqa: BLE001 - continue resource cleanup
+            cleanup_errors.append(
+                f"orchestrator {owner_index} final termination drain failed: {exc!r}"
+            )
+        remaining = [issue_id for issue_id, _entry in orch._running_items_snapshot()]
+        if remaining:
+            cleanup_errors.append(
+                f"orchestrator {owner_index} retained running entries: "
+                + ", ".join(sorted(remaining))
+            )
+
+
+def _close_owned_orchestrator_resources(
+    owned: list[
+        tuple[
+            Orchestrator,
+            tuple[tuple[str, Any], ...],
+            tuple[tuple[str, Any], ...],
+        ]
+    ],
+    cleanup_errors: list[str],
+) -> None:
+    """Join all submitted telemetry work and close every owned store."""
+
+    for owner_index, (_orch, pools, stores) in enumerate(reversed(owned), start=1):
+        for resource_name, pool in pools:
+            try:
+                pool.shutdown(wait=True, cancel_futures=False)
+            except Exception as exc:  # noqa: BLE001 - close every resource
+                cleanup_errors.append(
+                    f"orchestrator {owner_index} {resource_name} shutdown "
+                    f"failed: {exc!r}"
+                )
+            live_threads = [
+                thread.name
+                for thread in getattr(pool, "_threads", ())
+                if thread.is_alive()
+            ]
+            if live_threads:
+                cleanup_errors.append(
+                    f"orchestrator {owner_index} {resource_name} retained live "
+                    f"threads: {', '.join(live_threads)}"
+                )
+        for resource_name, store in stores:
+            try:
+                store.close()
+            except Exception as exc:  # noqa: BLE001 - close every resource
+                cleanup_errors.append(
+                    f"orchestrator {owner_index} {resource_name} close "
+                    f"failed: {exc!r}"
+                )
+
+
+def _close_owned_event_loop(
+    loop: asyncio.AbstractEventLoop,
+    cleanup_errors: list[str],
+) -> None:
+    """Cancel loop work, join the default executor, and close the loop."""
+
+    pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+    if pending:
+        for task in pending:
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception as exc:  # noqa: BLE001 - continue loop cleanup
+            cleanup_errors.append(f"pending task drain failed: {exc!r}")
+        cleanup_errors.append(
+            "event loop retained pending tasks: "
+            + ", ".join(sorted(task.get_name() for task in pending))
+        )
+
+    live_timers = [
+        handle
+        for handle in getattr(loop, "_scheduled", ())
+        if not handle.cancelled()
+    ]
+    for handle in live_timers:
+        handle.cancel()
+    if live_timers:
+        cleanup_errors.append(
+            f"event loop retained {len(live_timers)} scheduled timer(s)"
+        )
+
+    try:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+    except Exception as exc:  # noqa: BLE001 - continue executor cleanup
+        cleanup_errors.append(f"async-generator shutdown failed: {exc!r}")
+    executor = getattr(loop, "_default_executor", None)
+    try:
+        loop.run_until_complete(loop.shutdown_default_executor())
+    except Exception as exc:  # noqa: BLE001 - loop close must still run
+        cleanup_errors.append(f"default-executor shutdown failed: {exc!r}")
+    if executor is not None:
+        live_threads = [
+            thread.name
+            for thread in getattr(executor, "_threads", ())
+            if thread.is_alive()
+        ]
+        if live_threads:
+            cleanup_errors.append(
+                "default executor retained live threads: "
+                + ", ".join(live_threads)
+            )
+    loop.close()
+    asyncio.set_event_loop(None)
+
+
+@pytest.fixture(autouse=True)
+def _owned_event_loop():
+    """Give synchronous retry scheduling one loop with strict teardown."""
+
+    first_owned = len(_OWNED_ORCHESTRATORS)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield loop
+    finally:
+        owned = _OWNED_ORCHESTRATORS[first_owned:]
+        del _OWNED_ORCHESTRATORS[first_owned:]
+        cleanup_errors: list[str] = []
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                _terminate_owned_orchestrators(owned, cleanup_errors)
+            )
+        except Exception as exc:  # noqa: BLE001 - continue resource cleanup
+            cleanup_errors.append(f"orchestrator cleanup failed: {exc!r}")
+        _close_owned_orchestrator_resources(owned, cleanup_errors)
+        _close_owned_event_loop(loop, cleanup_errors)
+        if cleanup_errors:
+            pytest.fail("owned test resource leakage: " + "; ".join(cleanup_errors))
 
 
 def _issue(
@@ -49,18 +229,31 @@ def _issue(
 
 
 def _orchestrator(tmp_path) -> Orchestrator:
-    return Orchestrator(
+    orch = Orchestrator(
         config=ServiceConfig(),
         workflow_path="WORKFLOW.md",
         state_path=str(tmp_path / "service-state.json"),
     )
+    _OWNED_ORCHESTRATORS.append(
+        (
+            orch,
+            (
+                ("_tick_pool", orch._tick_pool),
+                ("_refresh_pool", orch._refresh_pool),
+            ),
+            (
+                ("coordination_store", orch.coordination_store),
+                ("integration_queue", orch.integration_queue),
+                ("review_capacity_store", orch.review_capacity_store),
+                ("workflow_job_store", orch.workflow_job_store),
+                ("task_transition_journal", orch.task_transition_journal),
+            ),
+        )
+    )
+    return orch
 
 
 def _schedule(orch: Orchestrator, issue: Issue, *, attempt: int = 1) -> RetryEntry:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
     entry = RunningEntry(
         worker_task=None,
         identifier=issue.identifier,
@@ -1127,7 +1320,6 @@ def test_restart_restores_dispatchable_state_when_claim_authority_drifted(tmp_pa
 def test_workspace_head_is_revalidated_when_tracker_has_no_head(tmp_path):
     workspace = tmp_path / "worker"
     workspace.mkdir()
-    asyncio.set_event_loop(asyncio.new_event_loop())
     orch = _orchestrator(tmp_path)
     issue = _issue(head_sha=None)
     entry = RunningEntry(
