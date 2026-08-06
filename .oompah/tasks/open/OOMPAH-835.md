@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-05T16:39:07.961011Z'
+updated_at: '2026-08-06T00:01:23.418459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Implement production ReviewWorkflow backends for all ten actions: monitor, refre
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 00:01
+---
+All prerequisite domain adapters are now available in prepared branches and the project has resumed. Promoting the review and CI production adapter so the oompah server can implement it in parallel while OOMPAH-791 and OOMPAH-796 advance through their parent rebases.
+---
+<!-- COMMENTS:END -->
