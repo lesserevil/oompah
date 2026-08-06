@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T17:27:26.840279Z'
+updated_at: '2026-08-06T18:54:28.443797Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 33m 20s
 - Log: OOMPAH-856__20260806T165405Z.jsonl
+---
+author: oompah
+created: 2026-08-06 18:54
+---
+Static race review is accepted after updating the Granian label-bootstrap test sink for the atomic alert-replacement API. Repair is committed at bae33f160050b571be8fe26f830909dd5b37df62; check-secrets and static checks pass. Focused serial/xdist validation is queued behind the active exact OOMPAH-858 gate.
 ---
 <!-- COMMENTS:END -->

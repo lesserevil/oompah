@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T17:14:45.727433Z'
+updated_at: '2026-08-06T18:54:26.335585Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ author: oompah
 created: 2026-08-06 17:14
 ---
 Owner review found the production IntegrationActionHandler and OrchestratorIntegrationActionBackend required by these full-stack scenarios live on the OOMPAH-836/OOMPAH-804 stack, which has not yet rolled from OOMPAH-768 into the shared OOMPAH-763 parent. Added an explicit hard-start on OOMPAH-768 and returned this task to Backlog. Resume only after OOMPAH-768 is terminal and OOMPAH-767 is refreshed from the shared parent; do not duplicate the production handlers or merge a sibling child branch directly.
+---
+author: oompah
+created: 2026-08-06 18:54
+---
+Read-only resume audit confirms OOMPAH-768 is the sole hard-start blocker and the current synthetic full-stack patch is not acceptance-ready. Preserved the exact dirty patch (SHA-256 5189957b1e6171eb2d5fd0452ec85f6929a42ca8fe0c29744e612c29a3d267e4) at backup ref refs/backup/OOMPAH-792-pre-resume-20260806 (b2b68db62da6362f21ba12ee52c02ba79d380252). After OOMPAH-768 lands, selectively reuse the fixtures/fact assertions and rebuild full-stack coverage on the production IntegrationActionHandler backend.
 ---
 <!-- COMMENTS:END -->
