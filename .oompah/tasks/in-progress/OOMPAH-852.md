@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-852
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Protect exact gates from concurrent focused validation commands
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T04:54:56.639155Z'
+updated_at: '2026-08-06T04:56:40.567742Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
