@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-06T21:11:00.919546Z'
+updated_at: '2026-08-06T21:11:08.949247Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: ''
@@ -341,6 +341,8 @@ oompah.integration:
   head_sha: f2b319c1182cd654112db622a0498171e508dead
   submitted_at: '2026-08-06T21:09:28.254194+00:00'
   updated_at: '2026-08-06T21:09:28.254194+00:00'
+oompah.review_head: ''
+review_head: ''
 ---
 ## Summary
 
