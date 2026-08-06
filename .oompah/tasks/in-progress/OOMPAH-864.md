@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:33:03.783723Z'
+updated_at: '2026-08-06T21:35:21.678203Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-06 21:33
 ---
 **Understanding:** This issue requires fixing the duplicate-preflight reconciliation when an owner resolves a duplicate screening to no_duplicate. Currently, when the owner calls the resolution API, the stale duplicate-preflight run remains in 'working' state, blocking scheduler dispatch. The fix must: (1) retire the abandoned duplicate-preflight run atomically when owner verdict is recorded, (2) reconcile integration state, worktree, and retry metadata in one generation, (3) handle server restarts between verdict persistence and rearm, (4) fence late investigator output, (5) preserve unrelated worker authority. Key code to review: _owner_resolve_duplicate_screening, duplicate-preflight completion/retirement, integration working metadata, orphan reconciliation, and owner-resolution tests.
+---
+author: oompah
+created: 2026-08-06 21:35
+---
+**Discovery:** Found the issue in `_owner_resolve_duplicate_screening` and `_apply_owner_duplicate_resolution_runtime_state` in orchestrator.py. When owner resolves duplicate screening to no_duplicate: (1) Task status is set to Open, (2) Task is removed from orch.state.completed to make it dispatchable, (3) BUT: Integration record state is NOT cleared. This leaves a stale 'working' state that marks the task as actively worked. Missing fix: clear/reconcile the integration record when owner verdict is recorded, similar to how duplicate-preflight completion retires it.
 ---
 <!-- COMMENTS:END -->
