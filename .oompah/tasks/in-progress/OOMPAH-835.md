@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T00:06:02.649513Z'
+updated_at: '2026-08-06T00:11:38.428418Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-06 00:06
 ---
 Understanding: Implementing production ReviewWorkflow backends for 10 actions with fresh provider-backed review facts, TaskTransitionService intents, and comprehensive isolation. Key files: review_workflow.py, workflow_runtime.py. Tests needed: provider availability, event ordering, CI/conflict/closed/head changes, merge idempotency, capacity release, multi-project routing. Starting codebase exploration.
+---
+author: oompah
+created: 2026-08-06 00:11
+---
+Discovery: Found workflow architecture. Review actions should implement WorkflowActionHandler interface (revalidate, inspect, apply, verify, build_transition). Pattern: IntegrationWorkflowHandler (GIT domain) shows model. Need to create ReviewWorkflowController + 10 handlers for actions (monitor/refresh/landing_refresh/ci_repair/conflict_repair/closed_repair/head_reconciliation/terminal_stage/merge/capacity_recheck). Handlers must emit TaskTransitionService intents, use fresh provider facts, isolate per project/task/review/head. Key files: review_workflow.py (new), workflow_runtime.py (register handlers), workflow_facts.py (REVIEW_CI domain already exists). Tests needed per-action + multi-project routing + provider unavailable.
 ---
 <!-- COMMENTS:END -->
