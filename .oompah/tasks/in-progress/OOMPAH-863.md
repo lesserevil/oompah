@@ -6,12 +6,13 @@ priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-845
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T21:42:20.974004Z'
+updated_at: '2026-08-06T21:42:56.816982Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -206,5 +207,15 @@ author: oompah
 created: 2026-08-06 21:42
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 21:42
+---
+Understanding: the race allows a sweep that lost the durable standalone delivery reservation to publish a capacity alert after another sweep has already created or adopted the same task review. I will trace the synchronized authority/reservation/review path, add a deterministic concurrent regression plus lifecycle/state projection coverage, bind alert publication to fresh canonical authority, then run focused tests and submit the exact pushed head.
+---
+author: oompah
+created: 2026-08-06 21:42
+---
+Gate triage: exact OOMPAH-863 focused scope is green (70 serial + 70 parallel); the full gate reached 16,309 passes and failed only tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events, alongside LogFileWatcher.start unawaited-coroutine warnings. OOMPAH-845 independently reproduced and fixed that cross-test coroutine leak at 7bb2362fc and is Ready to Integrate. Do not alter OOMPAH-863 reservation logic for this unrelated failure. Reproduce the single event-loop node under saturation; preserve exact head 3e5ddd154 unless evidence shows an additional test-harness fix, and account for OOMPAH-845 rather than duplicating its patch.
 ---
 <!-- COMMENTS:END -->
