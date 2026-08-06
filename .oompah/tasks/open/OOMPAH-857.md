@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-857
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Clear recovered operator-auth warnings after authenticated success
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:17:16.417571Z'
+updated_at: '2026-08-06T07:17:30.728550Z'
 work_branch: null
 target_branch: null
 review_url: null
