@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T04:18:37.335656Z'
+updated_at: '2026-08-06T04:26:25.411547Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -226,5 +226,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 32m 42s
 - Log: OOMPAH-808__20260806T034559Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:26
+---
+Direct-owner checkpoint review BLOCKED bf7244786 from submission. Required repairs: stale private branches remain permanently blocked unless the only unreachable ref is the nested branch; local-only/divergent private tips can be overwritten because remote tip wins old_sha selection; claimed generation is check-then-write and omits parent/dependency topology; selection holds project_write_lock across fetch/tracker/repair operations and repeats the work; dispatch_wait has no consumer and integration metadata can be overwritten; tests do not model inherited nested-epic edges, concurrent landing, restart-mid-repair, missing refs, or local divergence. Preserve checkpoint. Because it overlaps OOMPAH-791/781/804 central regions and IntegrationRecord mode, repair/replay after the complete OOMPAH-804 lineage is assembled, preferably extracting a small lineage-fence module.
 ---
 <!-- COMMENTS:END -->
