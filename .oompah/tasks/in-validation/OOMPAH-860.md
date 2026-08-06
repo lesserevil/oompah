@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:37:38.278350Z'
+updated_at: '2026-08-06T14:10:05.029880Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -21,14 +21,15 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-860
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
   head_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
+  integrated_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
   submitted_at: '2026-08-06T13:37:28.746669+00:00'
-  updated_at: '2026-08-06T13:37:28.746669+00:00'
+  updated_at: '2026-08-06T14:09:56.308858+00:00'
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-860
 oompah.duplicate_screening:
@@ -76,6 +77,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-860
     source_sha: 34bf3aa8a471ef7fdc11d500423f3d06d06ca782
     completed_at: '2026-08-06T13:28:38.345766+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0503df39d875
+    project_id: proj-14849f1b
+    task_id: OOMPAH-860
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 04ac076dd4796fbe2edc9aa1bda946bf2b2de4446450fd2460daefcf26dcd542
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T14:09:58.930515+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -217,5 +240,10 @@ author: oompah
 created: 2026-08-06 13:37
 ---
 Resubmitting exact hierarchical head d5edb84f1 after the full gate lost xdist worker gw1 in a known loaded-tick fixture. Composed the already-audited OOMPAH-791 stabilization patch exactly: contract-faithful dispatch timing mapping and release-recovery isolation for the crash item, plus its paired free-tier snapshot isolation. Verification: 53 serial + 53 xdist tests passed with warning errors; the exact crash node passed 20/20 separate four-worker xdist runs; original O860 256 serial + 256 xdist warning-as-error suite remains green; check-secrets/diff clean; independent exact-head review ACCEPT.
+---
+author: oompah
+created: 2026-08-06 14:10
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
