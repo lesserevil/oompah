@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: Needs Human
+status: Done
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:45:02.871199Z'
+updated_at: '2026-08-06T06:51:43.742997Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -156,6 +156,29 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T06:44:53.681055+00:00'
     applied_at: '2026-08-06T06:45:01.520448+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e1f58451f4d3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-853
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3da588dfb09a1d4ab13c7227821cbf6c4ac20bb5c88b63bc7266d2f51741db2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Independent operator review confirmed exact integrated head 52cf744ab:
+      the full configured exact-head gate passed before integration, the auditor inspected
+      the four-file diff, and focused duplicate-preflight suites passed 46, 229, and
+      36 tests. The second auditor was terminated only by the operator scheduler pause
+      used to fence a duplicate OOMPAH-854 writer; no adverse code finding was reported.
+      Candidate exhaustion is therefore an orchestration artifact, not a product defect
+      in OOMPAH-853.'
+    created_at: '2026-08-06T06:51:39.407635+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
