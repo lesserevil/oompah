@@ -1297,6 +1297,9 @@ class TestRunStep5cEpicMaintenance:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # Recovery scans the full task corpus and is unrelated to this
+        # fire-and-forget future bookkeeping assertion.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
         orch._run_step5b_maintenance = MagicMock()
         orch._run_step5c_epic_maintenance = MagicMock()
 
@@ -1339,6 +1342,9 @@ class TestRunStep5cEpicMaintenance:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # Keep this fire-and-forget assertion independent of the full-corpus
+        # release-addendum recovery scan performed at tick start.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
         orch._run_step5b_maintenance = MagicMock()
 
         # Gate: the maintenance function blocks until the event is set.
@@ -1382,13 +1388,18 @@ class TestRunStep5cEpicMaintenance:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        # _tick() consumes a timing Mapping from this handler on the slow path.
+        # Keep the mock faithful so host load cannot turn the unit test into a
+        # formatting/type failure unrelated to the maintenance-future guard.
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # The maintenance-future guard does not exercise release recovery.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
         orch._run_step5c_epic_maintenance = MagicMock()
 
         async def _run_with_fake_future():
