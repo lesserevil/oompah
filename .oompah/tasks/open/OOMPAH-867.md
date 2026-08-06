@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:22:08.861797Z'
+updated_at: '2026-08-06T22:22:57.009821Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 7ed010ec83df7aee6b7a686c688bf468afb4b0622425498a3b4babafcbde5cdd
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 94fa384f-395b-425b-9f37-ed77455e6760
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T22:22:47.396427+00:00'
+  claim_expires_at: '2026-08-06T22:52:47.396427+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 0e600d54-41a0-4b4a-88f3-c3371556fd6e
 ---
 ## Summary
 
@@ -29,3 +47,16 @@ Live release-blocking regression reproduced on OOMPAH-768 at 2026-08-06 22:15 UT
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 22:22
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 22:22
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

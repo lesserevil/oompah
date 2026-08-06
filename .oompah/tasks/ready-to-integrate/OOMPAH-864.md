@@ -6,12 +6,13 @@ priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-845
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:15:38.812846Z'
+updated_at: '2026-08-06T22:23:01.167718Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
