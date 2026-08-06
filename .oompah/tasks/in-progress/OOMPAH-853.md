@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:15:40.633031Z'
+updated_at: '2026-08-06T05:27:38.820384Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-06 05:15
 ---
 Understanding: duplicate screening must remain conclusive under healthy task/byte corpus pressure. I will trace corpus selection, structural-peer resolution, and completion/health handling; implement deterministic bounded peer representation without weakening scope or relationship guarantees; add regression coverage for budget pressure versus genuine tracker corruption; run focused checks, commit, push, and submit.
+---
+author: oompah
+created: 2026-08-06 05:27
+---
+Discovery: the OOMPAH-728 selection path reserves structural peers only as full rows, marks any row/byte overflow as availability=insufficient, and _finish_duplicate_preflight_sync converts that diagnostic directly into Needs Human. Healthy budget pressure is therefore misclassified as tracker failure. The fix retains all present structural peers as bounded structural_peers summaries, keeps normal rows when they fit, and reserves task/byte space before similarity/generic candidates; only unavailable/corrupt fetches remain retryable/actionable.
 ---
 <!-- COMMENTS:END -->
