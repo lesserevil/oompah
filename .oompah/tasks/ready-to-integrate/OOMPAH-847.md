@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-847
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Isolate dispatch-lock and epic-review unit tests from unrelated loaded-gate
   work
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T05:42:07.126793Z'
+updated_at: '2026-08-06T16:18:21.786862Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 85d81f56-1c65-4b1c-a680-90960e0e662a
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-847
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-847
   base_branch: epic-OOMPAH-763
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
-  updated_at: '2026-08-06T04:24:58.811743+00:00'
+  head_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
+  submitted_at: '2026-08-06T16:18:12.240757+00:00'
+  updated_at: '2026-08-06T16:18:12.240757+00:00'
 oompah.task_costs:
   total_input_tokens: 45935
   total_output_tokens: 400
@@ -146,5 +148,15 @@ author: oompah
 created: 2026-08-06 05:42
 ---
 Prepared test-isolation repair is independently static-reviewed, clean, and pushed at c44f574ad. All unrelated tick producers are stubbed, loop-owned futures drain before asyncio.run closes, teardown aggregates all resource failures, and the target lock/capacity assertions remain strict. This is a checkpoint pending serialized focused tests and O763 restack.
+---
+author: oompah
+created: 2026-08-06 16:18
+---
+Rebased cleanly onto OOMPAH-862 epic head 6b6784640. Exact head 5703f6f72 passed 273 focused tests serial and 273 with four-worker loadscope; secret scan and diff check passed. This covers both OOMPAH-831 combined-tree failures and deterministic executor/store cleanup.
+---
+author: oompah
+created: 2026-08-06 16:18
+---
+Isolated dispatch/review-capacity test fixtures and validated the OOMPAH-831 gate repairs at exact head 5703f6f72.
 ---
 <!-- COMMENTS:END -->
