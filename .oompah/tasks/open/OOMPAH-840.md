@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:00:24.765337Z'
+updated_at: '2026-08-06T00:03:17.179120Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -22,14 +22,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 52f697a2b11d797e87a4f0c4c40cf990f477ff479a52931be50caab547e7f51d
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T00:03:09.728117+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: d2a619d0-8f07-4bff-8aeb-b1a9f7452941
-  claim_owner: f7278be4-f84b-419e-8352-94d46afbf29e
-  claimed_at: '2026-08-05T23:59:49.621227+00:00'
-  claim_expires_at: '2026-08-06T00:29:49.621227+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The task corpus includes all 22 required structural peers\
+    \ (OOMPAH-763 epic parent, OOMPAH-764\u2013771 workflow-engine infrastructure,\
+    \ OOMPAH-806\u2013822 domain-specific fixes). None describe child recovery of\
+    \ pruned terminal parents. Related but distinct active tasks cover prerequisite\
+    \ reachability (OOMPAH-808), capacity reservation (OOMPAH-809), integration rearm\
+    \ (OOMPAH-811), and branch identity (OOMPAH-815), but no task combines the exact\
+    \ recovery requirement: detecting that a child's exact head is already landed\
+    \ in the parent's target, bypassing integration, and staging terminal transition\
+    \ without branch recreation.\nLooking at OOMPAH-840 in the context of the supplied\
+    \ project task corpus, I need to compare it against active (non-terminal) peer\
+    \ tasks to determine whether this is a duplicate of an existing issue.\n\n**OOMPAH-840\
+    \ Core Problem:**\n- Ready/blocked children whose terminal parent epic is Merged/Archived\
+    \ and has been pruned from remote\n- Example: OOMPAH-523 re-submitted at head\
+    \ 9ea2b5523, but parent epic OOMPAH-521 is Merged and remote epic-OOMPAH-521 was\
+    \ correctly pruned\n- The exact child head is reachable from origin/main, so it\
+    \ should NOT require recreation of the deleted branch\n- Needs recovery path through\
+    \ authoritative parent target/merge metadata without consuming retry_forced authority\
+    \ wastefully\n\n**Comparison Against Active Peers:**\n\n1. **OOMPAH-768 (In Progress)**:\
+    \ \"Migrate every workflow domain to shared decisions and durable jobs\" \u2014\
+    \ A large epic covering integration queue, terminal-audit, review, implementation\
+    \ domains. While OOMPAH-840 may be *part* of the migration scope, OOMPAH-768 is\
+    \ about the broad infrastructure cutover, not the specific child-recovery defect.\n\
+    \n2. **OOMPAH-769-771, OOMPAH-770**: Infrastructure epics for transition service,\
+    \ liveness, and reconciler retirement \u2014 None address the specific pruned-parent\
+    \ child recovery issue.\n\n3. **OOMPAH-807 (Done)**: \"Allow revisionless audits\
+    \ for metadata-only Archived dispositions\" \u2014 About separating code-bearing\
+    \ from metadata-only audits, not about recovering children whose heads are already\
+    \ landed.\n\n4. **OOMPAH-808 (Open)**: \"Fence nested-epic dispatch until prerequisite\
+    \ code is reachable\" \u2014 About proving hard-start prerequisite code is reachable\
+    \ before nested worker launch. This is a different problem (prerequisite validation)\
+    \ not child recovery of pruned terminals.\n\n5. **OOMPAH-809, OOMPAH-810, OOMPAH-811,\
+    \ OOMPAH-815, OOMPAH-816-817, OOMPAH-822, OOMPAH-831**: These address capacity\
+    \ management, auditor delivery, integration rearm, branch identity preservation,\
+    \ validation serialization, recovery persist"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -45,6 +79,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
   updated_at: '2026-08-06T00:00:17.708486+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 3035
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 3035
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 3035
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T00:03:09.721036+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-840__20260806T000048Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-840
+    source_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
+    completed_at: '2026-08-06T00:03:09.749857+00:00'
 ---
 ## Summary
 
@@ -72,5 +132,15 @@ author: oompah
 created: 2026-08-06 00:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 00:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 3.0K out [3.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 1s
+- Log: OOMPAH-840__20260806T000048Z.jsonl
 ---
 <!-- COMMENTS:END -->
