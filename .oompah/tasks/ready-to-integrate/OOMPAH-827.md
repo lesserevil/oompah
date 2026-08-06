@@ -12,11 +12,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T02:21:24.254359Z'
+updated_at: '2026-08-06T02:21:44.845212Z'
 work_branch: null
 target_branch: null
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/728
+review_number: '728'
 review_head: null
 merged_at: null
 oompah.duplicate_screening:
@@ -98,6 +98,8 @@ oompah.integration:
   head_sha: 3f14ddd2c64a28da8d9d642d7f9cb7056dd6cc97
   submitted_at: '2026-08-06T01:56:21.638675+00:00'
   updated_at: '2026-08-06T01:56:21.638675+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/728
+oompah.review_number: '728'
 ---
 ## Summary
 
