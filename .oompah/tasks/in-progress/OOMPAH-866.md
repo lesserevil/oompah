@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T21:20:36.743270Z'
+updated_at: '2026-08-06T21:20:52.526330Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -43,21 +43,16 @@ oompah.duplicate_screening:
     canonical evidence is persisted on helper records but not mapped to affected child
     landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
     block.'
-oompah.agent_run_id: null
+oompah.agent_run_id: cba004b7-3776-4f18-b2c2-8f273f3a628a
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  head_sha: ee05a0ad8fbdf4459bf710a29a9926b088b70d10
-  submitted_at: '2026-08-06T21:19:03.576783+00:00'
-  updated_at: '2026-08-06T21:20:05.159332+00:00'
-  last_error: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs
-    from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing
-    to reset a preserved recovery snapshot
+  updated_at: '2026-08-06T21:20:49.548392+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 3166
@@ -178,5 +173,10 @@ created: 2026-08-06 21:20
 Integration could not verify `epic-OOMPAH-763--task-OOMPAH-866`: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-06 21:20
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
