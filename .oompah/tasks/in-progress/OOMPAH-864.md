@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:35:21.678203Z'
+updated_at: '2026-08-06T21:42:07.530758Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-08-06 21:35
 ---
 **Discovery:** Found the issue in `_owner_resolve_duplicate_screening` and `_apply_owner_duplicate_resolution_runtime_state` in orchestrator.py. When owner resolves duplicate screening to no_duplicate: (1) Task status is set to Open, (2) Task is removed from orch.state.completed to make it dispatchable, (3) BUT: Integration record state is NOT cleared. This leaves a stale 'working' state that marks the task as actively worked. Missing fix: clear/reconcile the integration record when owner verdict is recorded, similar to how duplicate-preflight completion retires it.
+---
+author: oompah
+created: 2026-08-06 21:42
+---
+**Implementation:** Fixed the duplicate-preflight rearm issue by clearing stale integration metadata when owner resolves to no_duplicate. Changes: (1) Modified _owner_resolve_duplicate_screening to clear 'oompah.integration' metadata after successful no_duplicate status update. (2) Modified _reconcile_owner_duplicate_resolution_boundaries to clear integration metadata during restart reconciliation. (3) Added 2 new tests verifying integration metadata clearing in both normal and restart scenarios. All 61 duplicate_preflight tests + 5 owner resolution tests pass.
 ---
 <!-- COMMENTS:END -->

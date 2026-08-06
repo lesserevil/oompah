@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T21:40:49.175761Z'
+updated_at: '2026-08-06T21:42:10.598572Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.duplicate_screening:
     capacity tasks cover reservation, but none bind alert publication to the exact
     concurrent winner generation. The inconclusive result is the deployed pre-OOMPAH-853
     corpus budget bug.
-oompah.agent_run_id: null
+oompah.agent_run_id: f40d6223-4bf0-4302-9be4-44e43b8e42e7
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
   version: 2
@@ -238,5 +238,10 @@ FAILED tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_t
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 21:42
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
