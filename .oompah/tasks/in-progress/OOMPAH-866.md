@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T21:16:56.879205Z'
+updated_at: '2026-08-06T21:19:08.618100Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
     canonical evidence is persisted on helper records but not mapped to affected child
     landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
     block.'
-oompah.agent_run_id: ee45e465-4c31-448f-9dd3-093b2aa6a27b
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-08-06 21:16
 ---
 Verification: focused canonical landing, parallel epic-child, terminal-audit, and worker submission suites pass (145 passed, 1 expected xfail). Compileall and git diff --check also pass.
+---
+author: oompah
+created: 2026-08-06 21:19
+---
+Completion: direct epic rebases now persist project/epic/child-scoped, generation-fenced old-to-canonical child range mappings; validators consume only fresh, identity-matched, real-commit, current-ref-proven mappings. Original child SHAs and refs remain unchanged, restart restoration is covered, and the branch is pushed at ee05a0ad8.
 ---
 <!-- COMMENTS:END -->
