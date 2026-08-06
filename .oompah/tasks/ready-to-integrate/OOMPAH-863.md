@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T18:39:11.015886Z'
+updated_at: '2026-08-06T21:21:20.156599Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -47,16 +47,18 @@ oompah.duplicate_screening:
     capacity tasks cover reservation, but none bind alert publication to the exact
     concurrent winner generation. The inconclusive result is the deployed pre-OOMPAH-853
     corpus budget bug.
-oompah.agent_run_id: 4990960f-8eab-446d-879b-fddea35c4e02
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-863
   base_branch: epic-OOMPAH-763
   base_sha: 0e0056375918977c9b0b2d59524ce8ae68ceee40
-  updated_at: '2026-08-06T18:00:09.138430+00:00'
+  head_sha: 3e5ddd154985dc916a725244ba7fadf60db807e1
+  submitted_at: '2026-08-06T21:21:07.909745+00:00'
+  updated_at: '2026-08-06T21:21:07.909745+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2914
@@ -130,5 +132,10 @@ author: oompah
 created: 2026-08-06 18:39
 ---
 Concurrent same-head reservation and stale-alert repair is committed/rebased and independently accepted, including cross-process schema migration serialization and spawn-concurrent regression cleanup. make check-secrets and static checks pass. Focused serial/xdist verification will run after the currently queued OOMPAH-846 bundle.
+---
+author: oompah
+created: 2026-08-06 21:21
+---
+Made standalone review-capacity reservations exact and restart-durable, serialized schema migration across processes, coalesced overlapping same-process Ready reconciliation without weakening terminal authority fencing, and removed false capacity-wait alerts for exact owned reservations. Independent review accepted the final repair; all 70 focused tests passed serial and parallel; check-secrets passed at exact pushed head 3e5ddd154985dc916a725244ba7fadf60db807e1.
 ---
 <!-- COMMENTS:END -->
