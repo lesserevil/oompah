@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:37:01.697417Z'
+updated_at: '2026-08-06T04:37:31.355805Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -64,13 +64,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 5ccc92ec-5153-462f-b696-ecb94825a749
 oompah.task_costs:
-  total_input_tokens: 302
-  total_output_tokens: 10733
+  total_input_tokens: 320
+  total_output_tokens: 15136
   total_cost_usd: 0.0
   by_model:
     opus:
-      input_tokens: 140
-      output_tokens: 5194
+      input_tokens: 158
+      output_tokens: 9597
       cost_usd: 0.0
     unknown:
       input_tokens: 162
@@ -107,6 +107,12 @@ oompah.task_costs:
     output_tokens: 21
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:32:05.238969+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 18
+    output_tokens: 4403
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T04:37:17.388738+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-826__20260805T181747Z
@@ -117,15 +123,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-826
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:19:18.079856+00:00'
+  - run_id: OOMPAH-826__20260806T043514Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: ci_fix
+    source_branch: OOMPAH-826
+    source_sha: 4d05dd5a580ad667d7ae3871bdba83d9b78a7404
+    completed_at: '2026-08-06T04:37:17.391436+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-826
   base_branch: main
+  base_sha: e12ee5edd0334f32b4966c6dcc8b9585f43626a1
   head_sha: 4d05dd5a580ad667d7ae3871bdba83d9b78a7404
   submitted_at: '2026-08-06T04:36:54.498107+00:00'
-  updated_at: '2026-08-06T04:36:54.498107+00:00'
+  updated_at: '2026-08-06T04:37:29.150874+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/729
 oompah.review_number: '729'
 oompah.work_branch: OOMPAH-826
@@ -612,5 +627,20 @@ author: oompah
 created: 2026-08-06 04:37
 ---
 Work already delivered and merged as PR #729 (merge commit e12ee5edd) containing implementation commit 4d05dd5a5. Existing open review adoption is now exact-head gated across webhook, standalone recovery, merge reconciliation, and cached/live integration handoff. Task was reopened by watchdog after audit-candidate exhaustion in Merged state; resubmitting so oompah routes it back to terminal audit rather than requesting new implementation work.
+---
+author: oompah
+created: 2026-08-06 04:37
+---
+Agent completed successfully in 135s (4421 tokens)
+---
+author: oompah
+created: 2026-08-06 04:37
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 21, Tool calls: 12
+- Tokens: 18 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 15s
+- Log: OOMPAH-826__20260806T043514Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:36:15.826311Z'
-updated_at: '2026-08-06T04:37:12.619681Z'
+updated_at: '2026-08-06T04:37:33.385974Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,17 @@ oompah.terminal_audit:
     reason: Operator cleanup of an accidental duplicate created in this session; no
       implementation or evidence exists on this task.
     created_at: '2026-08-06T04:37:09.029369+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-849
+    target_state: Archived
+    evidence_fingerprint: ae138f081ed3591cb994e8f6c2840d2d08e86473299c053c760d0c4adde46ebe
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-06T04:37:19.432515+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -51,3 +61,18 @@ Regression evidence: the authoritative OOMPAH-791 exact-head gate at 0b5b039a re
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 04:37
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Operator cleanup of an accidental duplicate created in this session; no implementation or evidence exists on this task.
+---
+author: oompah
+created: 2026-08-06 04:37
+---
+Archived as an accidental exact duplicate created during CLI output verification; OOMPAH-848 is the canonical bug.
+---
+<!-- COMMENTS:END -->
