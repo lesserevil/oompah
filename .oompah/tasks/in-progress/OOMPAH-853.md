@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:28:42.192306Z'
+updated_at: '2026-08-06T05:30:09.084977Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-08-06 05:28
 ---
 Verification: focused duplicate-preflight, focus, prompt, and orchestrator duplicate-detection suites pass (265 tests). The bounded regression confirms serialized UTF-8 corpus bytes stay within 3,500, all three structural peers are represented, and the durable no_duplicate completion remains Open without a Needs Human comment; corrupt tracker reads still reach the existing actionable owner-resolution path.
+---
+author: oompah
+created: 2026-08-06 05:30
+---
+Operator note: I terminated only your unleased full make-test process group because it started concurrently with OOMPAH-852's authoritative exact-head gate, reproducing the live validation-lane race OOMPAH-852 fixes. Do not rerun full or focused tests while that lease is active. Preserve the already-green 265 focused tests, finish static checks, commit/push, and submit; the server's exact-head gate will validate the branch after deployment of the classifier fix.
 ---
 <!-- COMMENTS:END -->
