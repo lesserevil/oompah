@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T19:15:18.252462Z'
+updated_at: '2026-08-06T19:15:58.130224Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: c649b31a-3afd-4fb1-9cf5-3c3fc36d2e60
 oompah.task_costs:
-  total_input_tokens: 46646
-  total_output_tokens: 314
+  total_input_tokens: 48740
+  total_output_tokens: 837
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46646
-      output_tokens: 314
+      input_tokens: 48740
+      output_tokens: 837
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +62,12 @@ oompah.task_costs:
     output_tokens: 314
     cost_usd: 0.0
     recorded_at: '2026-08-05T23:59:50.107402+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 2094
+    output_tokens: 523
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T19:15:52.382145+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-832__20260805T235932Z
@@ -170,5 +176,15 @@ author: oompah
 created: 2026-08-06 19:15
 ---
 Terminal-auditor inspection contract bootstrapped onto main with 62+ tests passing; search_files.py with context support, safe git inspections, and auditor safety ordering fixed
+---
+author: oompah
+created: 2026-08-06 19:15
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 129
+- Tokens: 2.1K in / 523 out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 48m 33s
+- Log: OOMPAH-832__20260806T182734Z.jsonl
 ---
 <!-- COMMENTS:END -->
