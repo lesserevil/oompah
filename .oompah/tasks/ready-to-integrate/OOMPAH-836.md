@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-836
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-06T09:56:49.133344Z'
+updated_at: '2026-08-06T10:06:23.632649Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,14 +21,13 @@ merged_at: null
 oompah.integration:
   version: 2
   state: ready
-  attempts: 1
+  attempts: 0
   task_branch: OOMPAH-836
   base_branch: epic-OOMPAH-804
   base_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  submitted_at: '2026-08-06T09:39:23.200622+00:00'
-  updated_at: '2026-08-06T09:56:46.587815+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  head_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  submitted_at: '2026-08-06T10:06:11.312451+00:00'
+  updated_at: '2026-08-06T10:06:11.312451+00:00'
 ---
 ## Summary
 
@@ -46,5 +45,10 @@ author: oompah
 created: 2026-08-06 09:39
 ---
 Integration delivery/recovery handlers and regression coverage are complete, with exact commit 867be73e included in canonical validated composition f89c477d. Resubmitting canonical head after OOMPAH-858 task-scoped nested-delivery recovery so gate, integration, and audit share one exact candidate.
+---
+author: oompah
+created: 2026-08-06 10:06
+---
+Shared exact-gate regression repair propagated to canonical head c31b8d32a; 81 formerly failing module tests pass and independent review accepted.
 ---
 <!-- COMMENTS:END -->
