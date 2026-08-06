@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T09:53:13.831378Z'
+updated_at: '2026-08-06T10:05:56.399786Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -75,14 +75,13 @@ oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-835
 oompah.integration:
   version: 2
   state: ready
-  attempts: 1
+  attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-835
   base_branch: epic-OOMPAH-804
   base_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  submitted_at: '2026-08-06T09:38:09.263995+00:00'
-  updated_at: '2026-08-06T09:53:12.490854+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  head_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  submitted_at: '2026-08-06T10:05:48.853355+00:00'
+  updated_at: '2026-08-06T10:05:48.853355+00:00'
 oompah.task_costs:
   total_input_tokens: 1672
   total_output_tokens: 2227
@@ -197,5 +196,10 @@ author: oompah
 created: 2026-08-06 09:38
 ---
 Review/CI handlers and regression coverage are complete, with exact commit ffe8d5ad included in canonical validated composition f89c477d. Resubmitting canonical head after OOMPAH-858 task-scoped nested-delivery recovery so gate, integration, and audit share one exact candidate.
+---
+author: oompah
+created: 2026-08-06 10:05
+---
+Shared exact-gate regression repair propagated to canonical head c31b8d32a; 81 formerly failing module tests pass and independent review accepted.
 ---
 <!-- COMMENTS:END -->
