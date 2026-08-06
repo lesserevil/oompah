@@ -1100,7 +1100,7 @@ class _NativeValidationLeaseBroker:
                     lease_descriptor=descriptor,
                     timeout_seconds=self.timeout_seconds,
                     terminal_handler=lambda outcome: (
-                        self._record_supervisor_terminal(
+                        self._claim_supervisor_terminal(
                             boundary_group,
                             outcome,
                         )
@@ -1273,20 +1273,21 @@ class _NativeValidationLeaseBroker:
             )
         return run
 
-    def _record_supervisor_terminal(
+    def _claim_supervisor_terminal(
         self,
         boundary_group: str,
         outcome: str,
-    ) -> bool:
+    ) -> Callable[[], bool] | None:
+        """Claim one terminal cause and return its post-ACK publication."""
+
         with self._boundary_lock:
             run = self._validation_runs.get(boundary_group)
         if run is None:
-            return False
-        should_complete = False
+            return None
         with run.state_lock:
             run.supervisor_outcome = outcome
             if outcome == "exited" or run.terminal_outcome:
-                return False
+                return None
             resolved_outcome = outcome
             if (
                 outcome == "authority_withdrawn"
@@ -1305,12 +1306,34 @@ class _NativeValidationLeaseBroker:
                 )
             run.launch_state = "terminated"
             run.terminal_outcome = resolved_outcome
-            should_complete = True
-        return should_complete and self._complete_validation_group(
-            boundary_group,
-            succeeded=False,
-            outcome=resolved_outcome,
-        )
+        # Remove the run from item-completion contention before acknowledging
+        # the supervisor. A concurrent item that already captured ``run`` will
+        # observe terminal_outcome under state_lock and cannot publish a generic
+        # command result over this exact supervisor cause.
+        with self._boundary_lock:
+            if self._validation_runs.get(boundary_group) is not run:
+                return None
+            self._validation_runs.pop(boundary_group, None)
+            self._boundary_items.pop(boundary_group, None)
+
+        def publish_terminal() -> bool:
+            # Publication is deliberately outside the ACK boundary. The
+            # callback lock preserves started-before-completed ordering, while
+            # a blocked or failing telemetry consumer cannot delay mandatory
+            # process termination or lease release.
+            with run.callback_lock:
+                self._notify_validation_lifecycle(
+                    command=run.command,
+                    phase="completed",
+                    succeeded=False,
+                    outcome=resolved_outcome,
+                    duration_seconds=time.monotonic() - run.started_at,
+                    invocation_id=run.invocation_id,
+                    validation_scope=run.scope,
+                )
+            return True
+
+        return publish_terminal
 
     def _complete_validation_group(
         self,
@@ -1440,13 +1463,17 @@ class _NativeValidationLeaseBroker:
             self._handler_connections.difference_update(connections)
             self._handler_threads.difference_update(handlers)
             supervisor_observers = tuple(self._supervisor_observers)
-        # Each supervisor reports timeout/withdrawal/transport status before
-        # releasing its descriptor. Drain those reports before assigning the
-        # retirement fallback so an already-known terminal cause is never
-        # overwritten as authority withdrawal.
+        # Each supervisor claims timeout/withdrawal/transport status before
+        # releasing its descriptor. Give those short claim/ACK phases one
+        # shared bounded drain window before assigning the retirement fallback.
+        # The observer may remain alive only in post-claim lifecycle telemetry;
+        # retirement must never wait indefinitely for that user callback.
+        observer_deadline = time.monotonic() + 0.5
         for observer in supervisor_observers:
             if observer is not threading.current_thread():
-                observer.join()
+                observer.join(
+                    timeout=max(observer_deadline - time.monotonic(), 0.0)
+                )
         with self._handler_lock:
             self._supervisor_observers.difference_update(supervisor_observers)
         with self._boundary_lock:
@@ -2252,7 +2279,7 @@ def _terminate_supervised_process_group(
 def _supervise_validation_lease(config: Mapping[str, object]) -> int:
     """Enforce authority withdrawal independently of the service process."""
 
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         raise RuntimeError("native validation supervisor arguments are invalid")
     peer_pid = int(sys.argv[1])
     peer_start_ticks = int(sys.argv[2])
@@ -2260,10 +2287,12 @@ def _supervise_validation_lease(config: Mapping[str, object]) -> int:
     deadline_at = float(sys.argv[4])
     ready_descriptor = int(sys.argv[5])
     status_descriptor = int(sys.argv[6])
+    acknowledgement_descriptor = int(sys.argv[7])
     pidfd = -1
     terminal_reported = False
 
     def report_terminal(outcome: str) -> None:
+        nonlocal acknowledgement_descriptor
         nonlocal terminal_reported, status_descriptor
         if terminal_reported:
             return
@@ -2273,6 +2302,17 @@ def _supervise_validation_lease(config: Mapping[str, object]) -> int:
         with contextlib.suppress(OSError):
             os.close(status_descriptor)
         status_descriptor = -1
+        # Process death is what lets the SDK publish item.completed. Keep the
+        # supervised generation alive until the operator has committed this
+        # more specific cause, so generic command failure cannot win merely
+        # because its event thread was scheduled first. An operator crash
+        # closes the other pipe end and yields EOF, preserving independent
+        # fail-closed termination rather than stranding the supervisor.
+        with contextlib.suppress(OSError):
+            os.read(acknowledgement_descriptor, 16)
+        with contextlib.suppress(OSError):
+            os.close(acknowledgement_descriptor)
+        acknowledgement_descriptor = -1
 
     try:
         if not hasattr(os, "pidfd_open"):
@@ -2316,6 +2356,9 @@ def _supervise_validation_lease(config: Mapping[str, object]) -> int:
         if ready_descriptor >= 0:
             with contextlib.suppress(OSError):
                 os.close(ready_descriptor)
+        if acknowledgement_descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(acknowledgement_descriptor)
         if pidfd >= 0:
             with contextlib.suppress(OSError):
                 os.close(pidfd)
@@ -2331,7 +2374,7 @@ def _start_validation_lease_supervisor(
     peer_start_ticks: int,
     lease_descriptor: int,
     timeout_seconds: float,
-    terminal_handler: Callable[[str], object],
+    terminal_handler: Callable[[str], Callable[[], object] | None],
 ) -> threading.Thread:
     read_descriptor, write_descriptor = os.pipe2(os.O_CLOEXEC)
     try:
@@ -2339,6 +2382,16 @@ def _start_validation_lease_supervisor(
     except BaseException:
         os.close(read_descriptor)
         os.close(write_descriptor)
+        raise
+    try:
+        acknowledgement_read_descriptor, acknowledgement_write_descriptor = (
+            os.pipe2(os.O_CLOEXEC)
+        )
+    except BaseException:
+        os.close(read_descriptor)
+        os.close(write_descriptor)
+        os.close(status_read_descriptor)
+        os.close(status_write_descriptor)
         raise
     process: subprocess.Popen[bytes] | None = None
     observer: threading.Thread | None = None
@@ -2354,6 +2407,7 @@ def _start_validation_lease_supervisor(
                 repr(deadline_at),
                 str(write_descriptor),
                 str(status_write_descriptor),
+                str(acknowledgement_read_descriptor),
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -2363,6 +2417,7 @@ def _start_validation_lease_supervisor(
                 lease_descriptor,
                 write_descriptor,
                 status_write_descriptor,
+                acknowledgement_read_descriptor,
             ),
             start_new_session=True,
         )
@@ -2370,12 +2425,15 @@ def _start_validation_lease_supervisor(
         write_descriptor = -1
         os.close(status_write_descriptor)
         status_write_descriptor = -1
+        os.close(acknowledgement_read_descriptor)
+        acknowledgement_read_descriptor = -1
         readable, _, _ = select.select([read_descriptor], [], [], 2.0)
         if not readable or os.read(read_descriptor, 16) != b"READY\n":
             raise RuntimeError("native validation lease supervisor did not start")
         threading.Thread(target=process.wait, daemon=True).start()
 
         def observe_terminal() -> None:
+            publication: Callable[[], object] | None = None
             try:
                 packet = os.read(status_read_descriptor, 64)
                 outcome = packet.decode("ascii", errors="replace").strip()
@@ -2386,10 +2444,19 @@ def _start_validation_lease_supervisor(
                     "transport_error",
                 }:
                     outcome = "transport_error"
-                terminal_handler(outcome)
+                publication = terminal_handler(outcome)
             finally:
+                # Only the atomic terminal claim is inside the ACK boundary.
+                # User lifecycle publication follows ACK, so it cannot keep a
+                # withdrawn/timed-out command alive or retain its lease.
+                with contextlib.suppress(OSError):
+                    os.write(acknowledgement_write_descriptor, b"ACK\n")
+                with contextlib.suppress(OSError):
+                    os.close(acknowledgement_write_descriptor)
                 with contextlib.suppress(OSError):
                     os.close(status_read_descriptor)
+            if publication is not None:
+                publication()
 
         observer = threading.Thread(
             target=observe_terminal,
@@ -2411,8 +2478,11 @@ def _start_validation_lease_supervisor(
             os.close(write_descriptor)
         if status_write_descriptor >= 0:
             os.close(status_write_descriptor)
+        if acknowledgement_read_descriptor >= 0:
+            os.close(acknowledgement_read_descriptor)
         if not observer_started:
             os.close(status_read_descriptor)
+            os.close(acknowledgement_write_descriptor)
 
 
 def main() -> int:
