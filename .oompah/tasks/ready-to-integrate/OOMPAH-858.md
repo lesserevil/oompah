@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:39:18.301964Z'
+updated_at: '2026-08-06T18:39:27.194180Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -55,11 +55,11 @@ oompah.integration:
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
   head_sha: c296b963a2544b701c237481a0dde7bdbb9a4afd
   submitted_at: '2026-08-06T18:38:51.476510+00:00'
-  updated_at: '2026-08-06T18:38:51.476510+00:00'
+  updated_at: '2026-08-06T18:39:24.853014+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
-  total_input_tokens: 555
-  total_output_tokens: 25918
+  total_input_tokens: 596
+  total_output_tokens: 33130
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,6 +69,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 111
       output_tokens: 4854
+      cost_usd: 0.0
+    opus:
+      input_tokens: 41
+      output_tokens: 7212
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +93,12 @@ oompah.task_costs:
     output_tokens: 4854
     cost_usd: 0.0
     recorded_at: '2026-08-06T18:24:44.928091+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 41
+    output_tokens: 7212
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T18:39:13.250534+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-858__20260806T093605Z
@@ -99,6 +109,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-858
     source_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
     completed_at: '2026-08-06T09:36:34.548768+00:00'
+  - run_id: OOMPAH-858__20260806T182548Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: oompah_tests
+    source_branch: epic-OOMPAH-763--task-OOMPAH-858
+    source_sha: c296b963a2544b701c237481a0dde7bdbb9a4afd
+    completed_at: '2026-08-06T18:39:13.276371+00:00'
 ---
 ## Summary
 
