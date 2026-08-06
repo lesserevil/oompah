@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:06:19.534325Z'
+updated_at: '2026-08-06T21:07:24.662874Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -320,5 +320,10 @@ author: oompah
 created: 2026-08-06 21:06
 ---
 Understanding: The branch OOMPAH-845 at head 6a799a1483e has a confirmed restart-recovery test fix in tests/test_error_watcher.py. The prior CI gate failure was an operator-cancelled validation lease (OOMPAH-839 classification gap), not a product test failure. My plan: (1) verify the current branch state matches the accepted head, (2) run focused tests for the changed file and the event-driven-loop module, (3) confirm no regressions, then submit the task.
+---
+author: oompah
+created: 2026-08-06 21:07
+---
+Discovery: Branch OOMPAH-845 is at confirmed accepted head 6a799a1483e, which is clean and up to date with origin. The two OOMPAH-845 commits changed tests/test_event_driven_loop.py, tests/test_retry_authority_generation.py, and oompah/orchestrator.py. The 'changed_paths: test_error_watcher.py' in recovery context refers to the rolled-back false-ci-fixer snapshot, not the accepted head. Running focused tests now for the directly affected modules.
 ---
 <!-- COMMENTS:END -->
