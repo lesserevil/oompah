@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T20:35:01.060387Z'
+updated_at: '2026-08-06T20:35:09.339977Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
