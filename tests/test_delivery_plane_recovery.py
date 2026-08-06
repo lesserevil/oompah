@@ -11,6 +11,7 @@ import shlex
 import subprocess
 import threading
 import time
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -107,14 +108,20 @@ class _BlockingAlertList(list[dict[str, object]]):
         rows: list[dict[str, object]],
         entered: threading.Event,
         release: threading.Event,
+        *,
+        writer_name: str = "health-alert-writer",
     ) -> None:
         super().__init__(rows)
         self.entered = entered
         self.release = release
+        self.writer_name = writer_name
         self.blocked = False
 
     def __iter__(self):
-        if threading.current_thread().name == "health-alert-writer" and not self.blocked:
+        if (
+            threading.current_thread().name == self.writer_name
+            and not self.blocked
+        ):
             self.blocked = True
             self.entered.set()
             if not self.release.wait(timeout=5):
@@ -769,6 +776,104 @@ def test_alert_family_refresh_cannot_resurrect_concurrently_cleared_alert(tmp_pa
         if clear_started:
             clear_thread.join(timeout=5)
         _close(orchestrator)
+
+
+def test_bootstrap_callback_and_terminal_clear_share_alert_lock(tmp_path):
+    """A live bootstrap callback cannot lose alerts or restore a cleared family."""
+
+    from oompah.bootstrap import attach_webhook_forwarder_alerts
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    orchestrator, _project, _tracker = _make_harness(tmp_path, issue)
+    recovery_source = "terminal_audit_recovery:proj-1:TASK-1"
+    writer_entered = threading.Event()
+    release_writer = threading.Event()
+    clear_attempted = threading.Event()
+    clear_finished = threading.Event()
+    errors: list[BaseException] = []
+    orchestrator._alerts_lock = _ObservedAlertLock(clear_attempted)
+    orchestrator._alerts = _BlockingAlertList(
+        [
+            {"level": "warning", "source": recovery_source, "message": "stale"},
+            {"level": "info", "source": "unrelated", "message": "preserve"},
+        ],
+        writer_entered,
+        release_writer,
+        writer_name="webhook-alert-writer",
+    )
+    forwarder = SimpleNamespace(_status_callback=None)
+
+    with mock.patch(
+        "oompah.webhooks.build_webhook_forwarder_alerts",
+        return_value=[
+            {
+                "level": "warning",
+                "source": "webhook_forwarder:delivery",
+                "message": "forwarder unavailable",
+            }
+        ],
+    ):
+        attach_webhook_forwarder_alerts(orchestrator, forwarder)
+
+        def publish_forwarder_alert() -> None:
+            try:
+                forwarder._status_callback({})
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        def clear_integrated_alert() -> None:
+            try:
+                orchestrator._clear_integrated_audit_recovery_alert(
+                    "proj-1",
+                    "TASK-1",
+                )
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+            finally:
+                clear_finished.set()
+
+        callback_thread = threading.Thread(
+            target=publish_forwarder_alert,
+            name="webhook-alert-writer",
+        )
+        clear_thread = threading.Thread(
+            target=clear_integrated_alert,
+            name="integrated-alert-clear",
+        )
+        callback_started = False
+        clear_started = False
+        try:
+            callback_thread.start()
+            callback_started = True
+            assert writer_entered.wait(timeout=5)
+            clear_thread.start()
+            clear_started = True
+            assert clear_attempted.wait(timeout=5)
+            assert not clear_finished.wait(timeout=0.05)
+            release_writer.set()
+            callback_thread.join(timeout=5)
+            clear_thread.join(timeout=5)
+
+            assert not callback_thread.is_alive()
+            assert not clear_thread.is_alive()
+            assert errors == []
+            alerts = {
+                alert["source"]: alert
+                for alert in orchestrator._alerts_snapshot()
+            }
+            assert recovery_source not in alerts
+            assert alerts["unrelated"]["message"] == "preserve"
+            assert (
+                alerts["webhook_forwarder:delivery"]["message"]
+                == "forwarder unavailable"
+            )
+        finally:
+            release_writer.set()
+            if callback_started:
+                callback_thread.join(timeout=5)
+            if clear_started:
+                clear_thread.join(timeout=5)
+            _close(orchestrator)
 
 
 def test_integrated_audit_replay_is_bounded_and_resumes_after_restart(tmp_path):

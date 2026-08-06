@@ -257,6 +257,20 @@ class TestSetupServicesSuccess:
     async def test_label_bootstrap_alerts_are_attached_to_orchestrator(self, tmp_path):
         """setup_services() runs GitHub label bootstrap and surfaces alerts."""
         mocks = self._make_mocks()
+
+        def replace_matching(predicate, replacements=()):
+            mocks["orchestrator"]._alerts = [
+                alert
+                for alert in mocks["orchestrator"]._alerts
+                if not predicate(alert)
+            ]
+            mocks["orchestrator"]._alerts.extend(
+                dict(alert) for alert in replacements
+            )
+
+        mocks["orchestrator"]._replace_alerts_matching.side_effect = (
+            replace_matching
+        )
         project = MagicMock(name="project")
         project.id = "proj-gh"
         project.name = "trickle"
