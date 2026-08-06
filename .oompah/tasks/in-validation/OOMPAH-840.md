@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T01:42:49.680013Z'
+updated_at: '2026-08-06T01:47:36.278266Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -83,13 +83,17 @@ oompah.integration:
   submitted_at: '2026-08-06T00:40:51.324740+00:00'
   updated_at: '2026-08-06T01:40:07.154768+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 3035
+  total_input_tokens: 16
+  total_output_tokens: 5124
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 3035
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 2089
       cost_usd: 0.0
   runs:
   - profile: default
@@ -98,6 +102,12 @@ oompah.task_costs:
     output_tokens: 3035
     cost_usd: 0.0
     recorded_at: '2026-08-06T00:03:09.721036+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 2089
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T01:47:30.603828+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-840__20260806T000048Z
@@ -117,7 +127,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-840
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -126,7 +136,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0d709983b605
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,18 +146,22 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T01:42:33.425979+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-840
+      failure_classification: finalization_failure
+      ended_at: '2026-08-06T01:47:32.507772+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-06T01:47:42.507746+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T01:40:25.353836+00:00'
-    updated_at: '2026-08-06T01:42:33.425979+00:00'
+    updated_at: '2026-08-06T01:47:32.507772+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0d709983b605
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -157,6 +171,10 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-06T01:42:33.425979+00:00'
     branch_key: epic-OOMPAH-763--task-OOMPAH-840
+    failure_classification: finalization_failure
+    ended_at: '2026-08-06T01:47:32.507772+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-06T01:47:42.507746+00:00'
 ---
 ## Summary
 
@@ -259,5 +277,15 @@ author: oompah
 created: 2026-08-06 01:42
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 01:47
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 2, Tool calls: 0
+- Tokens: 6 in / 2.1K out [2.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 51s
+- Log: OOMPAH-840__20260806T014259Z.jsonl
 ---
 <!-- COMMENTS:END -->
