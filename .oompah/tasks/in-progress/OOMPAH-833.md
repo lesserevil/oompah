@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:02:16.443490Z'
+updated_at: '2026-08-06T00:02:41.052289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,10 @@ author: oompah
 created: 2026-08-06 00:02
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 00:02
+---
+Understanding: I will identify the reviewed OOMPAH-810 ACP command-result delivery changes, compare them with current main, port only the completion/delivery/liveness/retirement/observability logic, add regression coverage for worker and auditor races, run focused checks plus the configured gate, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T00:02:29.300725Z'
+updated_at: '2026-08-06T00:02:33.826442Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-06 00:01
 ---
 All prerequisite domain adapters are now available in prepared branches and the project has resumed. Promoting the review and CI production adapter so the oompah server can implement it in parallel while OOMPAH-791 and OOMPAH-796 advance through their parent rebases.
+---
+author: oompah
+created: 2026-08-06 00:02
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
