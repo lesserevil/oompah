@@ -3124,15 +3124,21 @@ class OrchestratorIntegrationActionBackend:
                     or getattr(issue, "head_sha", "")
                     or ""
                 ).strip()
+                base_branch = str(
+                    getattr(record, "base_branch", "")
+                    or getattr(issue, "target_branch", "")
+                    or ""
+                ).strip()
                 if branch != original_branch or head != original_head:
                     raise WorkflowActionError(
                         "integration recovery source changed after revalidation",
                         category=WorkflowFailureCategory.STALE_EVIDENCE,
                         retryable=True,
                     )
-                if not parent_id or not branch or not head:
+                if not parent_id or not branch or not head or not base_branch:
                     raise WorkflowActionError(
-                        "integration recovery lacks an exact parent, branch, or head",
+                        "integration recovery lacks an exact parent, branch, head, "
+                        "or hierarchy target",
                         category=WorkflowFailureCategory.STALE_EVIDENCE,
                         retryable=False,
                     )
@@ -3142,6 +3148,7 @@ class OrchestratorIntegrationActionBackend:
                     task_id=context.job.task_id,
                     task_branch=branch,
                     head_sha=head,
+                    base_branch=base_branch,
                     base_sha=getattr(record, "base_sha", None),
                     priority=getattr(issue, "priority", None),
                     submitted_at=getattr(record, "submitted_at", None),

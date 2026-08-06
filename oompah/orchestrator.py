@@ -28000,6 +28000,7 @@ class Orchestrator:
             task_id=issue.identifier,
             task_branch=record.task_branch,
             head_sha=record.head_sha,
+            base_branch=record.base_branch,
             base_sha=record.base_sha,
             priority=issue.priority,
             submitted_at=record.submitted_at,
