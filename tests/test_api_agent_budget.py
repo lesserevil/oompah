@@ -1541,7 +1541,7 @@ class TestRunCommandEnvOverrides:
             env_overrides={"BASH_ENV": str(startup)},
         )
 
-        assert result == "trusted"
+        assert result == "stdout:\ntrusted\nexit_code: 0"
         assert startup_marker.exists() is False
         assert heavy_marker.exists() is False
 
@@ -1569,7 +1569,7 @@ class TestRunCommandEnvOverrides:
             },
         )
 
-        assert result == "unset|unset|unset|unset"
+        assert result == "stdout:\nunset|unset|unset|unset\nexit_code: 0"
 
     def test_imported_bash_function_cannot_replace_api_command(self, tmp_path):
         from oompah.api_agent import _exec_run_command
@@ -1593,7 +1593,7 @@ class TestRunCommandEnvOverrides:
             env_overrides={"BASH_FUNC_printf%%": imported_function},
         )
 
-        assert result == "trusted"
+        assert result == "stdout:\ntrusted\nexit_code: 0"
         assert function_marker.exists() is False
         assert heavy_marker.exists() is False
 
@@ -1637,7 +1637,7 @@ class TestRunCommandEnvOverrides:
             },
         )
 
-        assert result == "trusted"
+        assert result == "stdout:\ntrusted\nexit_code: 0"
         assert marker.exists() is False
         assert heavy_marker.exists() is False
 
