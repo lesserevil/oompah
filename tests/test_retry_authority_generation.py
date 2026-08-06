@@ -341,6 +341,111 @@ def test_retry_authorizes_its_own_in_progress_write(tmp_path, source_state):
     asyncio.run(scenario())
 
 
+def test_ci_repair_retry_preserves_accepted_plain_branch_through_state_refresh(
+    tmp_path,
+):
+    """A state-only repair refresh cannot revert OOMPAH-860 to hierarchy."""
+
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        accepted = IntegrationRecord(
+            state="blocked",
+            task_branch="OOMPAH-860",
+            base_branch="epic-OOMPAH-763",
+            base_sha="b" * 40,
+            head_sha="a" * 40,
+        )
+        issue = _issue(
+            issue_id="oompah-860",
+            identifier="OOMPAH-860",
+            state="Needs CI Fix",
+            work_branch="epic-OOMPAH-763--task-OOMPAH-860",
+            head_sha=None,
+        )
+        issue.parent_id = "OOMPAH-763"
+        issue.integration = accepted
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": "Needs CI Fix"}
+        tracker = MagicMock()
+
+        def fetch(_issue_ids):
+            # Fast state refreshes can omit metadata.  Preserve the stale
+            # hierarchy projection to prove accepted IntegrationRecord wins.
+            return [
+                Issue(
+                    id=issue.id,
+                    identifier=issue.identifier,
+                    title=issue.title,
+                    state=tracker_state["state"],
+                    project_id=issue.project_id,
+                    parent_id=issue.parent_id,
+                    assignment_id=issue.assignment_id,
+                    work_branch="epic-OOMPAH-763--task-OOMPAH-860",
+                )
+            ]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+        await asyncio.sleep(0)
+
+        assert retry.work_branch == "OOMPAH-860"
+        assert tracker_state["state"] == "In Progress"
+        orch._run_worker.assert_awaited_once()
+        running = orch.state.running[issue.id]
+        assert running.issue.integration is accepted
+        assert orch._retry_issue_branch(running.issue) == "OOMPAH-860"
+
+        if not running.worker_task.done():
+            running.worker_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await running.worker_task
+
+    asyncio.run(scenario())
+
+
+def test_restart_rearms_ci_repair_on_accepted_plain_branch(tmp_path):
+    """Persisted repair authority retains an accepted branch after restart."""
+
+    original = _orchestrator(tmp_path)
+    issue = _issue(
+        issue_id="oompah-860",
+        identifier="OOMPAH-860",
+        state="Needs CI Fix",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-860",
+        head_sha=None,
+    )
+    issue.parent_id = "OOMPAH-763"
+    issue.integration = IntegrationRecord(
+        state="blocked",
+        task_branch="OOMPAH-860",
+        base_branch="epic-OOMPAH-763",
+        base_sha="b" * 40,
+        head_sha="a" * 40,
+    )
+    retry = _schedule(original, issue)
+
+    restarted = _orchestrator(tmp_path)
+    restarted._fetch_retry_issue = MagicMock(return_value=issue)
+    asyncio.run(restarted._restore_persisted_retries())
+
+    restored = restarted.state.retry_attempts[issue.id]
+    assert retry.work_branch == "OOMPAH-860"
+    assert restored.work_branch == "OOMPAH-860"
+    assert restarted._retry_issue_branch(issue) == "OOMPAH-860"
+    restarted._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
+
+
 def test_focus_handoff_open_retry_starts_feature_developer_exactly_once(tmp_path):
     async def scenario():
         orch = _orchestrator(tmp_path)
