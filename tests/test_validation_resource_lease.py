@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import sqlite3
 import subprocess
 import sys
@@ -73,6 +74,10 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("make test-unit", True),
         ("make check-secrets", False),
         ("make --help", False),
+        ("pytest --help", False),
+        ("pytest --version", False),
+        ("python -m pytest --help", False),
+        ("python -m unittest --help", False),
         ("echo ready; make test", True),
         ("echo ready\nmake test", True),
         ("./ci/test.sh", True),
@@ -105,18 +110,18 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
             True,
         ),
         ("tox -q", True),
-        ("pytest tests/test_one.py", False),
+        ("pytest tests/test_one.py", True),
         ("pytest tests/test_*.py", True),
         ("pytest 'tests/test_{one,two}.py'", True),
         ("pytest 'tests/test_[ab].py'", True),
         ("pytest tests/test_one.py tests/test_two.py", True),
-        ("pytest tests/test_one.py::test_case", False),
+        ("pytest tests/test_one.py::test_case", True),
         ("pytest -k exact_case", True),
-        ("pytest tests/test_one.py -k exact_case", False),
+        ("pytest tests/test_one.py -k exact_case", True),
         ("pytest tests/test_one.py -n auto", True),
         ("pytest tests/test_one.py --numprocesses=4", True),
         ("pytest --collect-only", True),
-        ("pytest --collect-only tests/test_one.py", False),
+        ("pytest --collect-only tests/test_one.py", True),
         (
             "pytest --collect-only tests/test_one.py tests/test_two.py",
             True,
@@ -133,7 +138,7 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("yarn run test", True),
         ("python -m unittest discover", True),
         ("python -I -m unittest discover -s tests", True),
-        ("python -m unittest tests.test_one.TestCase.test_case", False),
+        ("python -m unittest tests.test_one.TestCase.test_case", True),
         ("cargo test", True),
         ("cargo +nightly --color always test --workspace", True),
         ("cargo --config net.retry=2 test", True),
@@ -171,7 +176,7 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("git status --short", False),
     ],
 )
-def test_classifier_is_heavy_first_and_focused_checks_bypass(command, expected):
+def test_classifier_is_heavy_first_and_inspection_only_checks_bypass(command, expected):
     assert is_heavyweight_validation_command(command) is expected
 
 
@@ -181,9 +186,13 @@ def test_classifier_is_heavy_first_and_focused_checks_bypass(command, expected):
         "make test",
         "make test-serial",
         "pytest",
+        "pytest tests/test_one.py",
+        "pytest tests/test_one.py::test_case",
         "py.test tests/test_*.py",
         "python -m pytest",
+        "python -m pytest tests/test_one.py::test_case",
         "python -m unittest discover",
+        "python -m unittest tests.test_one.TestCase.test_case",
         "npm test",
         "pnpm test",
         "yarn test",
@@ -576,9 +585,24 @@ def test_slot_probe_descriptors_are_not_ambiently_inheritable(tmp_path):
         lease._close_slot_locks(available.values())
 
 
-def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(
+@pytest.mark.parametrize(
+    "command",
+    [
+        (
+            "python -m pytest -q tests/test_acp_backends.py tests/test_providers.py "
+            "tests/test_providers_ui.py tests/test_acp_agent.py "
+            "tests/test_orchestrator_handlers.py"
+        ),
+        "pytest tests/test_one.py::test_case",
+        "python -m pytest tests/test_one.py",
+        "/usr/bin/python -m pytest tests/test_one.py::test_case",
+        "python -m unittest tests.test_one.TestCase.test_case",
+    ],
+)
+def test_worker_validation_queues_behind_gate_at_worker_priority(
     tmp_path,
     monkeypatch,
+    command,
 ):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     gate = lease.acquire(_gate_owner("p1", "gate"))
@@ -595,11 +619,6 @@ def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(
             return "", ""
 
     monkeypatch.setattr("oompah.api_agent.subprocess.Popen", FakeProcess)
-    command = (
-        "python -m pytest -q tests/test_acp_backends.py tests/test_providers.py "
-        "tests/test_providers_ui.py tests/test_acp_agent.py "
-        "tests/test_orchestrator_handlers.py"
-    )
     results: list[str] = []
     worker = threading.Thread(
         target=lambda: results.append(
@@ -627,6 +646,70 @@ def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(
     assert worker.is_alive() is False
     assert process_started.is_set() is True
     assert results == ["exit_code: 0"]
+
+
+def test_focused_pytest_waits_for_exact_gate_before_real_process_start(tmp_path):
+    marker = tmp_path / "focused-test-started"
+    target = tmp_path / "target_test.py"
+    target.write_text(
+        "import os\n"
+        "from pathlib import Path\n\n"
+        "def test_runs_once():\n"
+        "    marker_path = Path(os.environ['OOMPAH_FOCUSED_MARKER'])\n"
+        "    with marker_path.open('x', encoding='utf-8') as marker:\n"
+        "        marker.write(str(os.getpid()))\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(_gate_owner("p1", "exact-gate"))
+    command = (
+        f"{shlex.quote(sys.executable)} -m pytest {shlex.quote(target.name)} -q"
+    )
+    result: list[str] = []
+    worker = threading.Thread(
+        target=lambda: result.append(
+            _exec_run_command(
+                tmp_path,
+                {"command": command},
+                timeout=10,
+                env_overrides={"OOMPAH_FOCUSED_MARKER": str(marker)},
+                validation_lease=lease,
+                validation_owner=_worker_owner("p2", "focused"),
+            )
+        )
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+
+    assert marker.exists() is False
+    assert worker.is_alive() is True
+
+    gate.release()
+    worker.join(timeout=10)
+
+    assert worker.is_alive() is False
+    assert result and "exit_code: 0" in result[0]
+    assert marker.read_text(encoding="utf-8").isdigit()
+    assert lease.status().owner_count == 0
+
+
+def test_non_test_inspection_runs_without_validation_capacity(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(_gate_owner("p1", "exact-gate"))
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "printf inspection"},
+        timeout=2,
+        validation_lease=lease,
+        validation_owner=_worker_owner("p2", "inspection"),
+    )
+
+    assert "stdout:\ninspection" in result
+    assert "exit_code: 0" in result
+    assert lease.status().owner_count == 1
+    assert lease.status().waiter_count == 0
+    gate.release()
 
 
 def test_capacity_is_process_safe_across_independent_instances(tmp_path):
