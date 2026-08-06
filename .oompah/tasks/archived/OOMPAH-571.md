@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-08-06T00:34:22.604358Z'
+updated_at: '2026-08-06T00:34:33.433423Z'
 work_branch: OOMPAH-571
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/586
@@ -97,8 +97,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-daccfe18b915
-    applied: false
+    applied: true
     created_at: '2026-08-06T00:34:17.316895+00:00'
+    applied_at: '2026-08-06T00:34:30.606540+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -243,5 +244,21 @@ author: oompah
 created: 2026-08-06 00:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 00:34
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- impl_commit: 3b08a05514646eff89cf09aa87573b26a8409b2f
+- merge_commit: bd5f23f533... (PR #586)
+- merged_into_main: true (git merge-base --is-ancestor exit 0)
+- orchestrator_line_present: oompah/orchestrator.py:38889 auditor keep-alive comment
+- tests_present: tests/test_orchestrator_merged.py: 1903 keeps_auditor / 1926 stops_ordinary_worker / 1950 stops_auditor_after_terminal
+- days_since_merge: ~7 (2026-07-29 -> 2026-08-06)
+- working_tree: clean
 ---
 <!-- COMMENTS:END -->
