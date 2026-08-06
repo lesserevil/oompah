@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-836
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-06T09:33:33.900427Z'
+updated_at: '2026-08-06T09:39:30.682287Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-836
+  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  submitted_at: '2026-08-06T09:39:23.200622+00:00'
+  updated_at: '2026-08-06T09:39:23.200622+00:00'
 ---
 ## Summary
 
@@ -29,3 +37,11 @@ Implement production task-scoped handlers for all seven IntegrationWorkflow acti
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 09:39
+---
+Integration delivery/recovery handlers and regression coverage are complete, with exact commit 867be73e included in canonical validated composition f89c477d. Resubmitting canonical head after OOMPAH-858 task-scoped nested-delivery recovery so gate, integration, and audit share one exact candidate.
+---
+<!-- COMMENTS:END -->
