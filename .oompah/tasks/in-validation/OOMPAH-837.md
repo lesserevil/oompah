@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-837
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T12:15:06.462879Z'
+updated_at: '2026-08-06T12:31:35.819690Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -20,14 +20,15 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-804--task-OOMPAH-837
-  base_branch: epic-OOMPAH-768--task-OOMPAH-804
+  base_branch: epic-OOMPAH-804
   base_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
   head_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
+  integrated_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
   submitted_at: '2026-08-06T12:14:55.045956+00:00'
-  updated_at: '2026-08-06T12:14:55.045956+00:00'
+  updated_at: '2026-08-06T12:31:27.496699+00:00'
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-837
 oompah.duplicate_screening:
@@ -63,6 +64,28 @@ oompah.task_costs:
     output_tokens: 48
     cost_usd: 0.0
     recorded_at: '2026-08-06T12:14:43.608712+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b97e164cdd4c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-837
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 358e445964cf16f891297391c78acff7059bbb2f1b53e4c00f5a172ec8df9f4a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T12:31:29.860837+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -249,5 +272,10 @@ author: oompah
 created: 2026-08-06 12:15
 ---
 Trusted quality-gate runtime restored to the root checkout; resubmitting unchanged reviewed head ef2120815 after the infrastructure-only refusal.
+---
+author: oompah
+created: 2026-08-06 12:31
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
