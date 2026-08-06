@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T08:07:18.467784Z'
+updated_at: '2026-08-06T08:19:08.428940Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-08-06 08:07
 ---
 Latest repair revision is under a third independent review. It now persists exact per-project counts outside capped records; shares one immutable policy object/epoch under one lock; tombstones per-identity recovery/escalation signatures to prevent eviction/restart recounts; applies actionable-priority cap only after cold-restore parsing; rejects stale scheduler generations before any health/counter mutation; and behaviorally proves reload/restart deadline rebase, cleanup, persistence, and epoch parity. Diff check passes; no tests/commit/push yet.
+---
+author: oompah
+created: 2026-08-06 08:19
+---
+Third static review REJECTED. Remaining blockers: stale/duplicate/failing generations can still mutate controller/scheduler jobs/counters/last_pass before liveness rejects them; sweep persistence can overwrite a newer reload/generation outside the shared transaction; capped event tombstones eventually re-count unchanged identities; bounded scheduler windows never accumulate materialization to complete for >decision_limit jobs. Accepted cardinality/policy/cold-restore/reload work remains. No tests were run.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T08:14:16.783414Z'
+updated_at: '2026-08-06T08:19:10.869576Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -317,5 +317,10 @@ author: oompah
 created: 2026-08-06 08:14
 ---
 Third independent review REJECTED the repair. Remaining P0s: restart drain sets a scheduled marker before create_task and can permanently deadlock if task creation fails; final worker and provider phase-two create_task failures do not perform exact unadmitted cleanup, leaving claims/attempt budget; cancellation before the provider task's first turn is not generically rolled back; the two-audit test manually dispatches and does not prove fresh-orchestrator durable recovery/deduplication. Accepted canonical claim, rollback selection/CAS, metrics, and lock work remains. No tests were run.
+---
+author: oompah
+created: 2026-08-06 08:19
+---
+Third review repair is continuing: restart and worker/provider task creation must publish an actual task atomically or roll back the exact fence/claim/audit; cancellation before provider first turn must use the unadmitted rollback path; and the two-audit restart test must exercise durable metadata through a genuinely fresh scheduler twice, not manual dispatch. No tests have run.
 ---
 <!-- COMMENTS:END -->
