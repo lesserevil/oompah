@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:22:43.225270Z'
+updated_at: '2026-08-06T00:22:57.122637Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -256,5 +256,10 @@ author: oompah
 created: 2026-08-06 00:22
 ---
 Implementation: committed c8e6efcd2 (and pushed as origin/OOMPAH-833). It ports only the reviewed command completion-to-delivery lifecycle: bounded result_pending handoff, exact-once provider acknowledgement, explicit delivery deadline/stall state, opaque health metrics, and worker/auditor output/race regressions. No validation, authority, cancellation, redaction, or lifecycle behavior outside that scope changed.
+---
+author: oompah
+created: 2026-08-06 00:22
+---
+Verification: the preserved focused ACP/tool-liveness/result-output suite passed 35/35; adjacent ACP/provider-retirement/validation/lifecycle coverage passed 561/573, with only 12 documented read-only operator-path failures. The new test proves child-exit concurrent with a stall scan has exactly one delivery owner and acknowledgement; auditor large output remains under 65KB until release, while provider handoff expiry reports the precise timeout. Current git diff --check is clean and the pushed branch is clean/up to date. Re-running make test, terminal scan, and secret scan is blocked before execution by the native validation guard chmod failure on its read-only service lock directory; no guard bypass was used.
 ---
 <!-- COMMENTS:END -->
