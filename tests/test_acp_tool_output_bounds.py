@@ -13,8 +13,10 @@ from oompah.api_agent import (
     _exec_run_command,
     _exec_search_files,
 )
+from oompah.acp_tools import build_tool_catalog
 from oompah.auditor import AuditorTargetContract
 from oompah.authority_boundary import auditor_policy
+from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.validation_resource_lease import ValidationResourceLease
 
 
@@ -205,3 +207,57 @@ def test_claude_auditor_can_page_search_and_submit_after_large_command(
     )["content"][0]["text"]
     assert '"accepted": true' in verdict
     assert received[0].audit_id == target.audit_id
+
+
+def test_large_auditor_result_is_bounded_before_delivery_and_then_released(
+    tmp_path,
+) -> None:
+    """A completed large command cannot clear liveness before ACP delivery."""
+
+    target = AuditorTargetContract(
+        audit_id="audit-delivery-race",
+        task_id="TASK-DELIVERY-RACE",
+        project_id="project-delivery-race",
+        target_state="Done",
+        evidence_fingerprint="b" * 64,
+        attempt_id="attempt-delivery-race",
+        previous_state="In Validation",
+    )
+    monitor = ToolLivenessMonitor()
+    (tmp_path / "Makefile").write_text(
+        "test:\n"
+        "\t@python -c \"import time; time.sleep(.05); print('start'); "
+        "print('x' * 1500000); print('make-test-serial-shaped-end')\"\n",
+        encoding="utf-8",
+    )
+    catalog = build_tool_catalog(
+        str(tmp_path),
+        tool_liveness=monitor,
+        auditor=True,
+        coordination_service=SimpleNamespace(
+            validation_resource_lease=ValidationResourceLease(
+                tmp_path / "validation-resource.sqlite3",
+                poll_seconds=0.01,
+            )
+        ),
+        action_policy=auditor_policy(
+            task_identifier=target.task_id,
+            project_id=target.project_id,
+        ),
+        audit_target=target,
+    )
+    run_command = next(tool for tool in catalog if tool.name == "run_command")
+
+    result = asyncio.run(run_command.handler({"command": "make test"}))
+    bounded = result["content"][0]["text"]
+
+    assert len(bounded) < 65_000
+    assert "result_id='" in bounded
+    pending = monitor.snapshot()
+    assert pending is not None
+    assert pending.phase == "result_pending"
+    assert ".claude" not in bounded
+
+    monitor.result_delivered()
+    assert monitor.snapshot() is None
+    assert monitor.metrics()["result_delivered"] == 1

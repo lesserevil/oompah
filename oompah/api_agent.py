@@ -778,6 +778,7 @@ def _exec_run_command(
     lease_cancelled: Callable[[], bool] | None = None,
     require_validation_lease: bool = False,
     successful_validation_handler: Callable[[str, Path], object] | None = None,
+    result_delivery_required: bool = False,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -805,7 +806,10 @@ def _exec_run_command(
             try:
                 os.killpg(process.pid, signal.SIGTERM)
             except ProcessLookupError:
-                return process.communicate()
+                # The shell may already be gone while a descendant still
+                # owns one of its stdout/stderr pipes. Never fall back to an
+                # unbounded communicate() in that state.
+                pass
         else:
             process.terminate()
         try:
@@ -818,10 +822,45 @@ def _exec_run_command(
                     pass
             else:
                 process.kill()
-            return process.communicate()
+            try:
+                return process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                # The provider is being retired; retaining partial output is
+                # neither useful nor safe. Closing our readers makes the
+                # cancellation path bounded even when an uncooperative
+                # descendant inherited the pipe.
+                for stream in (process.stdout, process.stderr):
+                    if stream is not None:
+                        with contextlib.suppress(Exception):
+                            stream.close()
+                with contextlib.suppress(Exception):
+                    process.wait(timeout=0.1)
+                return "", ""
 
     validation_handle = None
     invocation_id: str | None = None
+    result_pending = False
+
+    def _mark_result_pending() -> None:
+        """Keep liveness ownership until the provider sees this result."""
+
+        nonlocal result_pending
+        if invocation_id is None or not result_delivery_required:
+            return
+        try:
+            pending = getattr(tool_liveness, "result_pending", None)
+            if callable(pending):
+                pending(invocation_id)
+            else:
+                # Older observers do not understand the bridge lifecycle;
+                # their existing completion behavior remains compatible.
+                return
+            result_pending = True
+        except Exception:
+            # Liveness is supervisory telemetry. A broken observer must not
+            # suppress the bounded command result.
+            logger.debug("Unable to mark command result pending", exc_info=True)
+
     heavyweight_validation = is_heavyweight_validation_command(command)
     if require_validation_lease and heavyweight_validation and validation_owner is None:
         return (
@@ -838,6 +877,7 @@ def _exec_run_command(
             try:
                 invocation_id = tool_liveness.start_waiting(
                     tool_name="run_command",
+                    result_delivery_required=result_delivery_required,
                 )
             except Exception:
                 invocation_id = None
@@ -868,9 +908,14 @@ def _exec_run_command(
                 invocation_id = tool_liveness.start(
                     tool_name="run_command",
                     timeout_s=timeout,
+                    result_delivery_required=result_delivery_required,
                 )
             else:
-                tool_liveness.start_runtime(invocation_id, timeout_s=timeout)
+                tool_liveness.start_runtime(
+                    invocation_id,
+                    timeout_s=timeout,
+                    result_delivery_required=result_delivery_required,
+                )
         except Exception:
             # Liveness is supervisory telemetry. It must never prevent the
             # command itself from running when an observer is unavailable.
@@ -922,10 +967,12 @@ def _exec_run_command(
         while True:
             if _authority_cancelled():
                 _terminate_process_tree(process)
+                _mark_result_pending()
                 return "Error: validation authority withdrawn while command was running"
             remaining = runtime_deadline - time.monotonic()
             if remaining <= 0:
                 _terminate_process_tree(process)
+                _mark_result_pending()
                 return f"Error: command timed out after {timeout}s"
             try:
                 stdout, stderr = process.communicate(timeout=min(remaining, 0.25))
@@ -934,6 +981,12 @@ def _exec_run_command(
                 if invocation_id is not None:
                     with contextlib.suppress(Exception):
                         tool_liveness.heartbeat(invocation_id)
+
+        # The shell may have exited while descendants still hold one of the
+        # captured pipes. Mark the handoff before evidence recording and
+        # output assembly so concurrent stall inspection cannot retire the
+        # provider while this bounded result is being prepared.
+        _mark_result_pending()
 
         if (
             heavyweight_validation
@@ -984,7 +1037,10 @@ def _exec_run_command(
     finally:
         if invocation_id is not None:
             try:
-                tool_liveness.complete(invocation_id)
+                if result_delivery_required and not result_pending:
+                    _mark_result_pending()
+                if not result_delivery_required or not result_pending:
+                    tool_liveness.complete(invocation_id)
             except Exception:
                 pass
         if validation_handle is not None:
@@ -1268,6 +1324,8 @@ def _execute_tool(
                 command_kwargs["successful_validation_handler"] = (
                     successful_validation_handler
                 )
+            if tool_liveness is not None:
+                command_kwargs["result_delivery_required"] = True
             return handler(workspace, args, **command_kwargs)
         return handler(workspace, args)
     except ValueError as exc:
@@ -1797,6 +1855,23 @@ class ApiAgentSession:
                 summary=_summary,
                 detail=_detail,
             )
+            if kind == "tool_result":
+                mark_delivered = getattr(
+                    self.tool_liveness,
+                    "result_delivered",
+                    None,
+                )
+                if callable(mark_delivered):
+                    try:
+                        # Activity callback and JSONL persistence have both
+                        # completed, so the bounded result is durably
+                        # deliverable to the API provider.
+                        mark_delivered()
+                    except Exception:  # pragma: no cover - observer path
+                        logger.debug(
+                            "Unable to acknowledge API tool result",
+                            exc_info=True,
+                        )
 
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})

@@ -1312,6 +1312,7 @@ def build_tool_catalog(
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
                 successful_validation_handler=validation_success_handler,
+                result_delivery_required=tool_liveness is not None,
             )
         )
 
@@ -1698,6 +1699,7 @@ def build_codex_tool_catalog(
             lease_cancelled=lease_cancelled,
             require_validation_lease=(validation_lease is not None or auditor_mode),
             successful_validation_handler=validation_success_handler,
+            result_delivery_required=tool_liveness is not None,
         )
 
     @function_tool
@@ -2077,6 +2079,7 @@ def build_opencode_tool_catalog(
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
                 successful_validation_handler=validation_success_handler,
+                result_delivery_required=tool_liveness is not None,
             )
         )
 
