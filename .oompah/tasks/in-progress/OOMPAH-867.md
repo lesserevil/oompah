@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:40:47.323161Z'
+updated_at: '2026-08-06T22:45:43.245015Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,42 @@ Unified revision candidate resolver for terminal-audit workspace resolution (OOM
 
 **Result:**
 Fingerprinting and workspace creation now use the same unified resolver, eliminating divergence where epic-OOMPAH-768 was resolved by fingerprinting but not by workspace creation. This fixes the release-blocking regression where terminal-audit infrastructure exhaustion moved completed epics to Needs Human status.
+---
+author: oompah
+created: 2026-08-06 22:45
+---
+## Verification
+
+**Test Results:**
+✓ All 48 tests in test_terminal_audit.py pass
+✓ All 34 tests in test_parallel_epic_children.py pass
+✓ 1374 related tests pass (terminal-audit, epic, orchestration)
+
+**Verification of Key Scenarios:**
+
+1. **Standalone epic without work_branch (OOMPAH-768 scenario):**
+   - Candidates resolved: origin/epic-EPIC-OOMPAH-768
+   - Fingerprint first candidate: origin/epic-EPIC-OOMPAH-768
+   - ✓ Both paths now use the same logic
+
+2. **Immutable SHA precedence:**
+   - When source_sha exists, only it is tried (no branch fallback)
+   - Prevents audit divergence if evidence was immutable
+
+3. **Nested epic shared/private ordering:**
+   - Parent epic branch tried first
+   - Own epic branch available as fallback
+
+4. **Default branch fallback:**
+   - Only added for Merged/Archived audits
+   - Not added when immutable SHAs are available
+
+**Code Quality:**
+- No breaking changes to existing APIs
+- All new classes/functions are properly exported
+- Comprehensive docstrings explaining ordered precedence
+- Type hints throughout
+
+The unified resolver ensures fingerprint/workspace parity, fixing the regression where terminal-audit evidence fingerprinting could resolve canonical epic branches but workspace creation could not, leading to infrastructure exhaustion and Needs Human status for completed epics.
 ---
 <!-- COMMENTS:END -->
