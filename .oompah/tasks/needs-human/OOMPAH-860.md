@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:28:48.406247Z'
+updated_at: '2026-08-06T13:29:12.399201Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -36,13 +36,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: d84b7d35-7ecc-47da-b7fe-367d09385b42
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T13:27:30.456717+00:00'
-  claim_expires_at: '2026-08-06T13:57:30.456717+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851,
+    OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-861.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-06T13:28:38.317196+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -203,5 +205,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 0s
 - Log: OOMPAH-860__20260806T132816Z.jsonl
+---
+author: oompah
+created: 2026-08-06 13:29
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-861. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
