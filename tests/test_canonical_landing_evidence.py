@@ -6,17 +6,24 @@ evidence acceptance.
 """
 
 from datetime import datetime, timedelta, timezone
+import subprocess
+import threading
 from types import SimpleNamespace
 
 import pytest
 
 from oompah.integration import (
+    CanonicalChildLandingEvidence,
     CanonicalLandingEvidence,
     IntegrationRecord,
+    _compute_child_landing_fingerprint,
     _compute_evidence_fingerprint,
     _is_valid_git_sha,
+    parse_canonical_child_landing_evidence,
     parse_canonical_landing_evidence,
 )
+from oompah.models import Issue, Project
+from oompah.orchestrator import Orchestrator
 
 
 # Valid test data
@@ -49,6 +56,33 @@ def create_valid_evidence():
         created_at_utc=VALID_CREATED_AT,
         evidence_fingerprint=fp,
     )
+
+
+def create_valid_child_evidence(**overrides):
+    values = {
+        "project_id": "project-1",
+        "epic_id": "OOMPAH-740",
+        "child_id": "OOMPAH-741",
+        "base_sha": "a" * 40,
+        "source_sha": "b" * 40,
+        "target_base_sha": "c" * 40,
+        "target_sha": "d" * 40,
+        "generation": "generation-1",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    values.update(overrides)
+    values["evidence_fingerprint"] = _compute_child_landing_fingerprint(
+        values["project_id"],
+        values["epic_id"],
+        values["child_id"],
+        values["base_sha"],
+        values["source_sha"],
+        values["target_base_sha"],
+        values["target_sha"],
+        values["generation"],
+        values["created_at_utc"],
+    )
+    return CanonicalChildLandingEvidence(**values)
 
 
 # ============================================================================
@@ -422,6 +456,261 @@ class TestEvidenceParsing:
         evidence = CanonicalLandingEvidence.from_dict(evidence_dict)
         assert evidence.old_base_sha == "a" * 40
         assert evidence.evidence_fingerprint == fp
+
+
+class TestCanonicalChildLandingEvidence:
+    def test_round_trip_and_tampering_fail_closed(self):
+        evidence = create_valid_child_evidence()
+        assert parse_canonical_child_landing_evidence(evidence.to_dict()) == evidence
+
+        tampered = evidence.to_dict()
+        tampered["target_sha"] = "e" * 40
+        assert parse_canonical_child_landing_evidence(tampered) is None
+
+        stale = create_valid_child_evidence(
+            created_at_utc=(datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        )
+        assert not stale.is_evidence_fresh(max_age_hours=24)
+
+    def test_foreign_and_missing_identity_are_rejected(self):
+        evidence = create_valid_child_evidence()
+        foreign = evidence.to_dict()
+        foreign["project_id"] = "project-2"
+        assert parse_canonical_child_landing_evidence(foreign) is None
+        assert parse_canonical_child_landing_evidence(
+            {"project_id": "project-1", "epic_id": "OOMPAH-740"}
+        ) is None
+
+
+def _git(repo, *args):
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _landing_harness(state_path, project, children):
+    harness = Orchestrator.__new__(Orchestrator)
+    harness.project_store = SimpleNamespace(
+        epic_branch_name=lambda epic_id: f"epic-{epic_id}",
+        get=lambda project_id: project if project.id == project_id else None,
+    )
+    harness.integration_queue = SimpleNamespace(items=lambda **_kwargs: [])
+    harness._state_path = str(state_path)
+    harness._state_io_lock = threading.RLock()
+    harness._state_load_failed = False
+    harness._canonical_child_landing_evidence = {}
+    harness._canonical_child_landing_generations = {}
+    harness._fetch_epic_children = lambda _epic: list(children)
+    harness._persist_canonical_child_landing_evidence = (
+        Orchestrator._persist_canonical_child_landing_evidence.__get__(harness)
+    )
+    harness._load_state = Orchestrator._load_state.__get__(harness)
+    harness._save_state = Orchestrator._save_state.__get__(harness)
+    harness._restore_canonical_child_landing_evidence = (
+        Orchestrator._restore_canonical_child_landing_evidence.__get__(harness)
+    )
+    harness._restore_canonical_child_landing_evidence()
+    return harness
+
+
+def test_direct_rebase_persists_child_mapping_and_restart_restores_it(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.name", "oompah")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    _git(repo, "commit", "-q", "-m", "base")
+    base_sha = _git(repo, "rev-parse", "HEAD")
+
+    _git(repo, "checkout", "-q", "-b", "old")
+    (repo / "feature.txt").write_text("original\n", encoding="utf-8")
+    _git(repo, "add", "feature.txt")
+    _git(repo, "commit", "-q", "-m", "child work")
+    source_sha = _git(repo, "rev-parse", "HEAD")
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / "base.txt").write_text("current main\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    _git(repo, "commit", "-q", "-m", "current main")
+    canonical_base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "-b", "epic-OOMPAH-740")
+    (repo / "feature.txt").write_text("conflict-resolved\n", encoding="utf-8")
+    _git(repo, "add", "feature.txt")
+    _git(repo, "commit", "-q", "-m", "child work (rebased)")
+    target_sha = _git(repo, "rev-parse", "HEAD")
+
+    child = Issue(
+        id="OOMPAH-741",
+        identifier="OOMPAH-741",
+        title="child",
+        parent_id="OOMPAH-740",
+        project_id="project-1",
+        integration=IntegrationRecord(
+            state="integrated",
+            task_branch="epic-OOMPAH-740",
+            base_sha=base_sha,
+            head_sha=source_sha,
+            integrated_sha=source_sha,
+        ),
+    )
+    project = Project(
+        id="project-1",
+        name="test",
+        repo_url="https://example.invalid/test",
+        repo_path=str(repo),
+    )
+    current = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-OOMPAH-740 onto main",
+        parent_id="OOMPAH-740",
+        target_branch="main",
+    )
+    state_path = tmp_path / "service-state.json"
+    harness = _landing_harness(state_path, project, [child])
+    harness._persist_direct_epic_child_landing_evidence(
+        current=current,
+        project=project,
+        project_id=project.id,
+        epic_id="OOMPAH-740",
+        old_sha=source_sha,
+        published_sha=target_sha,
+    )
+
+    key = harness._canonical_child_landing_entry_key(
+        project.id, "OOMPAH-740", child.identifier
+    )
+    mapping = harness._canonical_child_landing_evidence[key]
+    assert mapping.source_sha == source_sha
+    assert mapping.target_sha == target_sha
+    assert mapping.target_base_sha == canonical_base
+    assert child.work_branch is None
+    assert harness._child_has_durable_landing_evidence(
+        child,
+        container_branches=("epic-OOMPAH-740",),
+        repo_path=str(repo),
+        project_id=project.id,
+        epic_identifier="OOMPAH-740",
+    )
+    epic = Issue(
+        id="OOMPAH-740",
+        identifier="OOMPAH-740",
+        title="epic",
+        project_id=project.id,
+        issue_type="epic",
+    )
+    assert Orchestrator._child_landing_evidence_block_reason(
+        harness,
+        epic,
+        child,
+        expected_work_branch="epic-OOMPAH-740",
+        container_branches=("epic-OOMPAH-740",),
+    ) is None
+
+    restarted = _landing_harness(state_path, project, [child])
+    assert restarted._canonical_child_landing_evidence[key] == mapping
+    assert restarted._child_has_durable_landing_evidence(
+        child,
+        container_branches=("epic-OOMPAH-740",),
+        repo_path=str(repo),
+        project_id=project.id,
+        epic_identifier="OOMPAH-740",
+    )
+
+
+def test_child_mapping_is_identity_scoped_and_descendants_do_not_inherit_it(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.name", "oompah")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    (repo / "file").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "file")
+    _git(repo, "commit", "-q", "-m", "base")
+    base_sha = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "-b", "old")
+    (repo / "file").write_text("rebased\n", encoding="utf-8")
+    _git(repo, "add", "file")
+    _git(repo, "commit", "-q", "-m", "child")
+    source_sha = _git(repo, "rev-parse", "HEAD")
+    (repo / "descendant.txt").write_text("descendant\n", encoding="utf-8")
+    _git(repo, "add", "descendant.txt")
+    _git(repo, "commit", "-q", "-m", "descendant child work")
+    descendant_sha = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-q", "-b", "epic-OOMPAH-740")
+    (repo / "file").write_text("canonical\n", encoding="utf-8")
+    _git(repo, "add", "file")
+    _git(repo, "commit", "-q", "-m", "child canonical")
+    target_sha = _git(repo, "rev-parse", "HEAD")
+
+    child = Issue(
+        id="OOMPAH-741",
+        identifier="OOMPAH-741",
+        title="child",
+        parent_id="OOMPAH-740",
+        project_id="project-1",
+        integration=IntegrationRecord(
+            state="integrated",
+            base_sha=base_sha,
+            head_sha=source_sha,
+            integrated_sha=source_sha,
+        ),
+    )
+    descendant = Issue(
+        id="OOMPAH-745",
+        identifier="OOMPAH-745",
+        title="descendant",
+        parent_id="OOMPAH-740",
+        project_id="project-1",
+        integration=IntegrationRecord(
+            state="integrated",
+            base_sha=source_sha,
+            head_sha=descendant_sha,
+            integrated_sha=descendant_sha,
+        ),
+    )
+    state_path = tmp_path / "service-state.json"
+    harness = _landing_harness(state_path, Project(
+        id="project-1", name="test", repo_url="x", repo_path=str(repo)
+    ), [child])
+    current = Issue(
+        id="R",
+        identifier="R",
+        title="Rebase epic-OOMPAH-740 onto main",
+        parent_id="OOMPAH-740",
+    )
+    harness._persist_direct_epic_child_landing_evidence(
+        current=current,
+        project=Project(
+            id="project-1", name="test", repo_url="x", repo_path=str(repo)
+        ),
+        project_id="project-1",
+        epic_id="OOMPAH-740",
+        old_sha=source_sha,
+        published_sha=target_sha,
+    )
+    assert harness._child_has_durable_landing_evidence(
+        child,
+        container_branches=("epic-OOMPAH-740",),
+        repo_path=str(repo),
+        project_id="project-1",
+        epic_identifier="OOMPAH-740",
+    )
+    assert not harness._child_has_durable_landing_evidence(
+        descendant,
+        container_branches=("epic-OOMPAH-740",),
+        repo_path=str(repo),
+        project_id="project-1",
+        epic_identifier="OOMPAH-740",
+    )
 
 
 # ============================================================================

@@ -92,13 +92,16 @@ from oompah.duplicate_screening import (
     save_record as save_duplicate_screening_record,
 )
 from oompah.integration import (
+    CanonicalChildLandingEvidence,
     CanonicalLandingEvidence,
     IntegrationRecord,
     _compute_evidence_fingerprint,
+    _compute_child_landing_fingerprint,
     accepted_submission_branch,
     assigned_work_branch,
     classify_conflict_repair_failure,
     is_direct_epic_maintenance_issue,
+    parse_canonical_child_landing_evidence,
 )
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
@@ -2068,6 +2071,15 @@ class Orchestrator:
         self._restore_epic_rebase_authorities()
         self._epic_rebase_states: dict[str, EpicRebaseStateEntry] = {}
         self._restore_epic_rebase_states()
+        # Direct epic rebases preserve original child identities in this
+        # service-authored ledger.  The tracker records remain untouched so a
+        # child ref never needs to be rewritten merely because its parent was
+        # conflict-rebased.
+        self._canonical_child_landing_evidence: dict[
+            str, CanonicalChildLandingEvidence
+        ] = {}
+        self._canonical_child_landing_generations: dict[str, str] = {}
+        self._restore_canonical_child_landing_evidence()
         # Per-epic cooldown (monotonic ts of last conflict-driven rebase task
         # filed) so YOLO doesn't re-file duplicates while a force-pushed rebase
         # is still settling and the forge hasn't recomputed PR mergeability.
@@ -4237,6 +4249,98 @@ class Orchestrator:
                 for epic_id, entry in self._epic_rebase_states.items()
             }
             return self._save_state(epic_rebase_states=payload)
+
+    @staticmethod
+    def _canonical_child_landing_scope_key(
+        project_id: object,
+        epic_id: object,
+    ) -> str:
+        return f"{str(project_id or '').strip()}:{str(epic_id or '').strip()}"
+
+    @staticmethod
+    def _canonical_child_landing_entry_key(
+        project_id: object,
+        epic_id: object,
+        child_id: object,
+    ) -> str:
+        return ":".join(
+            (
+                str(project_id or "").strip(),
+                str(epic_id or "").strip(),
+                str(child_id or "").strip(),
+            )
+        )
+
+    def _restore_canonical_child_landing_evidence(self) -> None:
+        """Restore child mappings only when their durable generation agrees."""
+
+        data = self._load_state()
+        raw_mappings = data.get("canonical_child_landing_evidence")
+        raw_generations = data.get("canonical_child_landing_generations")
+        if not isinstance(raw_mappings, dict) or not isinstance(raw_generations, dict):
+            return
+
+        restored: dict[str, CanonicalChildLandingEvidence] = {}
+        generations: dict[str, str] = {}
+        for scope, raw_generation in raw_generations.items():
+            scope_text = str(scope or "").strip()
+            generation = str(raw_generation or "").strip()
+            if scope_text and generation:
+                generations[scope_text] = generation
+
+        for key, raw in raw_mappings.items():
+            mapping = parse_canonical_child_landing_evidence(raw)
+            if mapping is None:
+                continue
+            scope = self._canonical_child_landing_scope_key(
+                mapping.project_id, mapping.epic_id
+            )
+            if generations.get(scope) != mapping.generation:
+                # A mapping without the current scope generation is stale or
+                # was copied across epics/projects; do not revive it.
+                continue
+            if not mapping.is_evidence_fresh():
+                continue
+            expected_key = self._canonical_child_landing_entry_key(
+                mapping.project_id, mapping.epic_id, mapping.child_id
+            )
+            if str(key).strip() != expected_key:
+                continue
+            restored[expected_key] = mapping
+
+        # Keep only generations which have at least one valid mapping.  A
+        # generation with no affected child is not useful as child evidence.
+        active_scopes = {
+            self._canonical_child_landing_scope_key(
+                mapping.project_id, mapping.epic_id
+            )
+            for mapping in restored.values()
+        }
+        self._canonical_child_landing_evidence = restored
+        self._canonical_child_landing_generations = {
+            scope: generation
+            for scope, generation in generations.items()
+            if scope in active_scopes
+        }
+        if restored:
+            logger.info(
+                "Restored %d canonical child landing mapping(s) from disk",
+                len(restored),
+            )
+
+    def _persist_canonical_child_landing_evidence(self) -> None:
+        """Atomically persist mappings and their per-epic generation fence."""
+
+        mappings = {
+            key: mapping.to_dict()
+            for key, mapping in self._canonical_child_landing_evidence.items()
+        }
+        self._save_state(
+            canonical_child_landing_evidence=mappings,
+            canonical_child_landing_generations=dict(
+                self._canonical_child_landing_generations
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Shared-worktree absorption evidence (OOMPAH-219)
@@ -25726,6 +25830,7 @@ class Orchestrator:
         container_branches: tuple[str, ...],
         repo_path: str,
         project_id: str | None = None,
+        epic_identifier: str | None = None,
     ) -> bool:
         """Check durable tracker/queue SHAs against a landed container ref.
 
@@ -25737,9 +25842,10 @@ class Orchestrator:
         sufficient by itself: its canonical commit must be an ancestor of the
         container or patch-equivalent to work already in it.
         """
-        record = getattr(child, "integration", None)
         if not repo_path or not container_branches:
             return False
+
+        record = getattr(child, "integration", None)
 
         candidate_evidence: list[tuple[str, str | None]] = []
         if record is not None and record.state == "integrated":
@@ -25813,7 +25919,377 @@ class Orchestrator:
                     ):
                         return True
 
-        return False
+        # A conflict-resolved direct epic rebase can replace every commit ID
+        # in a child's original range.  Consume the service-authored mapping
+        # only after the ordinary exact/cherry evidence above has failed.
+        mapping_project_id = str(
+            project_id or getattr(child, "project_id", None) or ""
+        ).strip()
+        mapping_epic_id = str(
+            epic_identifier or getattr(child, "parent_id", None) or ""
+        ).strip()
+        child_id = str(
+            getattr(child, "identifier", None)
+            or getattr(child, "id", None)
+            or ""
+        ).strip()
+        if not mapping_project_id or not mapping_epic_id or not child_id:
+            return False
+        scope = self._canonical_child_landing_scope_key(
+            mapping_project_id, mapping_epic_id
+        )
+        generations = getattr(self, "_canonical_child_landing_generations", {})
+        mappings = getattr(self, "_canonical_child_landing_evidence", {})
+        expected_generation = generations.get(scope)
+        if not expected_generation:
+            return False
+        mapping = mappings.get(
+            self._canonical_child_landing_entry_key(
+                mapping_project_id, mapping_epic_id, child_id
+            )
+        )
+        if mapping is None or mapping.generation != expected_generation:
+            return False
+        if not self._canonical_child_landing_mapping_is_valid(
+            mapping,
+            project_id=mapping_project_id,
+            epic_id=mapping_epic_id,
+            child_id=child_id,
+            container_branches=container_branches,
+            repo_path=repo_path,
+        ):
+            return False
+        return True
+
+    @staticmethod
+    def _git_commit_is_real(repo_path: str, sha: str) -> bool:
+        """Require a real commit object; tree/blob identities are not enough."""
+
+        try:
+            result = subprocess.run(
+                ["git", "cat-file", "-t", f"{sha}^{{commit}}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0 and result.stdout.strip() == "commit"
+
+    @staticmethod
+    def _git_is_ancestor(repo_path: str, base_sha: str, head_sha: str) -> bool:
+        try:
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", base_sha, head_sha],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0
+
+    def _canonical_child_landing_mapping_is_valid(
+        self,
+        mapping: CanonicalChildLandingEvidence,
+        *,
+        project_id: str,
+        epic_id: str,
+        child_id: str,
+        container_branches: tuple[str, ...],
+        repo_path: str,
+    ) -> bool:
+        """Validate one mapping against its identity, generation, and Git."""
+
+        if (
+            mapping.project_id != project_id
+            or mapping.epic_id != epic_id
+            or mapping.child_id != child_id
+            or not mapping.is_evidence_fresh()
+        ):
+            return False
+        scope = self._canonical_child_landing_scope_key(project_id, epic_id)
+        if (
+            getattr(self, "_canonical_child_landing_generations", {}).get(scope)
+            != mapping.generation
+        ):
+            return False
+
+        shas = (
+            mapping.base_sha,
+            mapping.source_sha,
+            mapping.target_base_sha,
+            mapping.target_sha,
+        )
+        if not all(self._git_commit_is_real(repo_path, sha) for sha in shas):
+            return False
+        if not self._git_is_ancestor(
+            repo_path, mapping.base_sha, mapping.source_sha
+        ):
+            return False
+        if not self._git_is_ancestor(
+            repo_path, mapping.target_base_sha, mapping.target_sha
+        ):
+            return False
+
+        container_refs = tuple(
+            ref
+            for branch in dict.fromkeys(container_branches)
+            for ref in self._resolve_git_branch_refs(repo_path, branch)
+        )
+        if not container_refs:
+            return False
+        # The target must be in the current canonical ref, not merely have a
+        # matching tree.  The range-aware helper also ensures the canonical
+        # target range itself is complete and verifiable.
+        return self._reported_commit_landed_on_refs(
+            repo_path,
+            mapping.target_sha,
+            container_refs,
+            base_sha=mapping.target_base_sha,
+        )
+
+    def _direct_epic_rebase_generation(
+        self,
+        *,
+        project_id: str,
+        epic_id: str,
+        rebase_task_id: str,
+        old_sha: str,
+        published_sha: str,
+    ) -> str:
+        """Derive an idempotent generation for one published direct rebase."""
+
+        content = "|".join(
+            (
+                str(project_id).strip(),
+                str(epic_id).strip(),
+                str(rebase_task_id).strip(),
+                str(old_sha).strip().lower(),
+                str(published_sha).strip().lower(),
+            )
+        )
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    def _canonical_rebase_target_base(
+        self,
+        repo_path: str,
+        target_sha: str,
+        target_branch: str | None,
+    ) -> str | None:
+        """Find the canonical range base without using tree identity."""
+
+        if target_branch:
+            refs = self._resolve_git_branch_refs(repo_path, target_branch)
+            for ref in refs:
+                try:
+                    result = subprocess.run(
+                        ["git", "merge-base", target_sha, ref],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    continue
+                base = result.stdout.strip().lower()
+                if result.returncode == 0 and self._git_commit_is_real(
+                    repo_path, base
+                ):
+                    return base
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{target_sha}^{{commit}}^"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        base = result.stdout.strip().lower()
+        return (
+            base
+            if result.returncode == 0 and self._git_commit_is_real(repo_path, base)
+            else None
+        )
+
+    def _persist_direct_epic_child_landing_evidence(
+        self,
+        *,
+        current: Issue,
+        project: Project,
+        project_id: str,
+        epic_id: str,
+        old_sha: str,
+        published_sha: str,
+    ) -> None:
+        """Record verified child ranges affected by a direct epic rebase."""
+
+        old_sha = str(old_sha or "").strip().lower()
+        published_sha = str(published_sha or "").strip().lower()
+        scope = self._canonical_child_landing_scope_key(project_id, epic_id)
+
+        def clear_scope() -> None:
+            self._canonical_child_landing_evidence = {
+                key: mapping
+                for key, mapping in self._canonical_child_landing_evidence.items()
+                if self._canonical_child_landing_scope_key(
+                    mapping.project_id, mapping.epic_id
+                ) != scope
+            }
+            self._canonical_child_landing_generations.pop(scope, None)
+            self._persist_canonical_child_landing_evidence()
+
+        if not (
+            re.fullmatch(r"[0-9a-f]{40}", old_sha)
+            and re.fullmatch(r"[0-9a-f]{40}", published_sha)
+        ):
+            clear_scope()
+            return
+        repo_path = str(getattr(project, "repo_path", "") or "").strip()
+        if not repo_path or not os.path.isdir(repo_path):
+            clear_scope()
+            return
+        if not self._git_commit_is_real(
+            repo_path, old_sha
+        ) or not self._git_commit_is_real(repo_path, published_sha):
+            clear_scope()
+            return
+
+        generation = self._direct_epic_rebase_generation(
+            project_id=project_id,
+            epic_id=epic_id,
+            rebase_task_id=current.identifier,
+            old_sha=old_sha,
+            published_sha=published_sha,
+        )
+        # A successful new generation supersedes every older mapping in this
+        # scope.  This is the stale-generation fence used on restart too.
+        self._canonical_child_landing_evidence = {
+            key: mapping
+            for key, mapping in self._canonical_child_landing_evidence.items()
+            if self._canonical_child_landing_scope_key(
+                mapping.project_id, mapping.epic_id
+            ) != scope
+        }
+        self._canonical_child_landing_generations[scope] = generation
+
+        target_branch = str(
+            getattr(current, "target_branch", None)
+            or getattr(project, "default_branch", None)
+            or "main"
+        ).strip()
+        target_base = self._canonical_rebase_target_base(
+            repo_path, published_sha, target_branch
+        )
+        if target_base is None:
+            self._persist_canonical_child_landing_evidence()
+            return
+
+        parent = Issue(
+            id=epic_id,
+            identifier=epic_id,
+            title=epic_id,
+            issue_type="epic",
+            project_id=project_id,
+        )
+        children = self._fetch_epic_children(parent)
+        container_refs = tuple(
+            ref
+            for ref in self._resolve_git_branch_refs(
+                repo_path, self.project_store.epic_branch_name(epic_id)
+            )
+        )
+        if not container_refs or not self._reported_commit_landed_on_refs(
+            repo_path,
+            published_sha,
+            container_refs,
+            base_sha=target_base,
+        ):
+            self._persist_canonical_child_landing_evidence()
+            return
+        created_at = datetime.now(timezone.utc).isoformat()
+        for child in children:
+            if _is_epic_issue(child):
+                continue
+            child_project_id = str(getattr(child, "project_id", None) or project_id).strip()
+            if child_project_id != project_id:
+                continue
+            child_id = str(
+                getattr(child, "identifier", None) or getattr(child, "id", None) or ""
+            ).strip()
+            record = getattr(child, "integration", None)
+            source_sha = str(
+                getattr(record, "integrated_sha", None)
+                or getattr(record, "head_sha", None)
+                or ""
+            ).strip().lower()
+            base_sha = str(getattr(record, "base_sha", None) or "").strip().lower()
+            if not child_id or not base_sha or not source_sha:
+                continue
+            if not all(
+                re.fullmatch(r"[0-9a-f]{40}", sha)
+                for sha in (base_sha, source_sha)
+            ):
+                continue
+            if not self._git_commit_is_real(
+                repo_path, base_sha
+            ) or not self._git_commit_is_real(repo_path, source_sha):
+                continue
+            if not self._git_is_ancestor(repo_path, base_sha, source_sha):
+                continue
+            # Only map ranges that were actually part of the pre-rebase epic.
+            # Descendant work beyond the submitted old head remains an
+            # independently validated child and cannot inherit this mapping.
+            if not self._git_is_ancestor(repo_path, source_sha, old_sha):
+                continue
+            if self._reported_commit_landed_on_refs(
+                repo_path,
+                source_sha,
+                container_refs,
+                base_sha=base_sha,
+            ):
+                # Unchanged commit identities continue through normal evidence.
+                continue
+            fp = _compute_child_landing_fingerprint(
+                project_id,
+                epic_id,
+                child_id,
+                base_sha,
+                source_sha,
+                target_base,
+                published_sha,
+                generation,
+                created_at,
+            )
+            try:
+                mapping = CanonicalChildLandingEvidence(
+                    project_id=project_id,
+                    epic_id=epic_id,
+                    child_id=child_id,
+                    base_sha=base_sha,
+                    source_sha=source_sha,
+                    target_base_sha=target_base,
+                    target_sha=published_sha,
+                    generation=generation,
+                    created_at_utc=created_at,
+                    evidence_fingerprint=fp,
+                )
+            except ValueError:
+                continue
+            self._canonical_child_landing_evidence[
+                self._canonical_child_landing_entry_key(
+                    project_id, epic_id, child_id
+                )
+            ] = mapping
+        self._persist_canonical_child_landing_evidence()
 
     def _trusted_completion_evidence_landed(
         self,
@@ -25947,6 +26423,7 @@ class Orchestrator:
             repo_path=repo_path,
             project_id=getattr(child, "project_id", None)
             or getattr(epic, "project_id", None),
+            epic_identifier=epic.identifier,
         ):
             return None
 
@@ -35620,6 +36097,7 @@ class Orchestrator:
                             container_branches=(target_branch,),
                             repo_path=str(project.repo_path or ""),
                             project_id=project_id,
+                            epic_identifier=parent.identifier,
                         )
                     if not delivered and "human-only" in labels:
                         delivered, _review_reason = (
@@ -36035,6 +36513,7 @@ class Orchestrator:
                     container_branches=containment_targets,
                     repo_path=repo_path,
                     project_id=child_project_id,
+                    epic_identifier=epic.identifier,
                 ):
                     logger.info(
                         "Epic child %s has durable landing evidence (integrated_sha "
@@ -48385,6 +48864,20 @@ class Orchestrator:
         current.project_id = project_id
         current.work_branch = epic_branch
         current.branch_name = epic_branch
+
+        # Persist child-scoped old->canonical ranges after the published head
+        # has been reconciled.  This is deliberately independent of child ref
+        # names and is idempotent across restart recovery.
+        self._persist_direct_epic_child_landing_evidence(
+            current=current,
+            project=project,
+            project_id=str(project_id),
+            epic_id=parent_id,
+            old_sha=str(
+                getattr(record, "base_sha", None) or reconciliation.old_sha or ""
+            ).strip().lower(),
+            published_sha=published_sha,
+        )
         
         # Cancel any stale concurrent ordinary integration rows created by
         # background sync before this direct path acquired authority.  Direct
