@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-04T23:03:11.988845Z'
+updated_at: '2026-08-06T03:54:50.272222Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-809
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-08-04 23:03
 ---
 Additional live evidence after OOMPAH-806 integrated at 23:01 UTC: the next scheduler tick still took 412,653 ms. audit_scan/audit_dispatch consumed 240,789 ms, reconcile 104,591 ms, and watchdog 11,582 ms. Six historical terminal auditors occupied provider capacity while newly integrated OOMPAH-806 remained queued without an auditor; OOMPAH-811 duplicate screening also consumed the only non-audit worker slot. OOMPAH-812 could start its exact gate only after this multi-minute tick. This confirms both bounded audit scanning and reserved control/repair capacity are required.
+---
+author: oompah
+created: 2026-08-06 03:54
+---
+New fe6257b live evidence after OOMPAH-826 exact-gate completion: /healthz accepted a connection but returned no body within a 2-second probe while the server main thread was CPU-bound. The subsequent state snapshot reported total_ms=364394 and dispatch_ms=354332, including audit_scan/audit_dispatch=2909ms, candidate_selection=3227ms, normal_dispatch=11535ms, and duplicate_preflight_dispatch=10944ms, yet health.status still reported healthy. The endpoint recovered about five seconds later. This is another concrete multi-minute scheduler service-interval violation for OOMPAH-809; bound all unaccounted dispatch work and ensure health/liveness projection cannot call a 364-second tick healthy.
 ---
 <!-- COMMENTS:END -->

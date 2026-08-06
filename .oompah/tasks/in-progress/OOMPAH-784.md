@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-784
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add workflow liveness SLO metrics and evidence-backed recovery health
 parent: OOMPAH-770
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T03:54:18.744146Z'
+updated_at: '2026-08-06T03:54:53.763334Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -119,7 +119,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3ec9cb63-b4a2-4e0f-85e6-baf527364b4e
+oompah.agent_run_id: a5f59342-e607-43f2-8d02-823d341a1dd1
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-784
 oompah.integration:
   version: 2
@@ -192,5 +192,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 53s
 - Log: OOMPAH-784__20260806T034651Z.jsonl
+---
+author: oompah
+created: 2026-08-06 03:54
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
