@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:38:06.370836Z'
-updated_at: '2026-08-06T05:18:58.575643Z'
+updated_at: '2026-08-06T05:19:04.082864Z'
 work_branch: OOMPAH-578
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/589
@@ -76,8 +76,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-6058ba047ef0
-    applied: false
+    applied: true
     created_at: '2026-08-06T05:18:53.070688+00:00'
+    applied_at: '2026-08-06T05:19:02.865088+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -185,5 +186,24 @@ author: oompah
 created: 2026-08-06 04:52
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 05:19
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 98c6189d302507cd77248d1fd54ad723e0166fde
+- implementation_commit: d02fec3463f881363c5ebdb333893024eb32279b
+- head_commit: e12ee5edd0334f32b4966c6dcc8b9585f43626a1
+- ancestor_check: d02fec346 is-ancestor HEAD -> true
+- focused_tests: pytest tests/test_projects.py::TestRemoveWorktreeCleanup -> 17 passed in 0.63s
+- acceptance_tests: test_terminal_cleanup_deletes_legacy_epic_named_task_workspace[epic-TASK-42] PASSED; test_terminal_cleanup_deletes_legacy_epic_named_task_workspace[None] PASSED; test_terminal_child_cleanup_preserves_shared_epic_branch PASSED
+- ownership_addition_location: oompah/projects.py:3373-3377 (Older Oompah releases comment + exact epic_branch_name match)
+- cleanup_addition_location: oompah/projects.py:5114-5131 (legacy_epic_task guard + shared removal branch with is_epic)
+- files_changed: oompah/projects.py (+11), tests/test_projects.py (+132)
+- aged_days_since_merge: ~7 days (merged 2026-07-29, audit 2026-08-06)
 ---
 <!-- COMMENTS:END -->

@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T05:18:52.068679Z'
+updated_at: '2026-08-06T05:19:14.286279Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -115,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-791
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +124,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-50dea84e66e3
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -134,18 +134,22 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T05:18:41.845420+00:00'
       branch_key: epic-OOMPAH-768--task-OOMPAH-791
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-06T05:19:07.277985+00:00'
+      failure_reason: lifecycle drain began before auditor provider launch
+      next_retry_at: '2026-08-06T05:19:17.277959+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T05:18:25.417055+00:00'
-    updated_at: '2026-08-06T05:18:41.845420+00:00'
+    updated_at: '2026-08-06T05:19:07.277985+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-50dea84e66e3
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -155,6 +159,10 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-06T05:18:41.845420+00:00'
     branch_key: epic-OOMPAH-768--task-OOMPAH-791
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-06T05:19:07.277985+00:00'
+    failure_reason: lifecycle drain began before auditor provider launch
+    next_retry_at: '2026-08-06T05:19:17.277959+00:00'
 ---
 ## Summary
 
@@ -712,5 +720,20 @@ author: oompah
 created: 2026-08-06 05:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 05:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: lifecycle_drain_before_launch, Duration: 18s
+- Log: OOMPAH-791__20260806T051905Z.jsonl
+---
+author: oompah
+created: 2026-08-06 05:19
+---
+Auditor attempt ended: lifecycle drain began before auditor provider launch. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
