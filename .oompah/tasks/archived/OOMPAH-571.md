@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-08-06T00:34:33.433423Z'
+updated_at: '2026-08-06T00:35:02.455232Z'
 work_branch: OOMPAH-571
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/586
@@ -38,13 +38,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c8548a53-d97b-48cb-a232-674c85fc6842
 oompah.task_costs:
-  total_input_tokens: 1370341
-  total_output_tokens: 5760
+  total_input_tokens: 1370382
+  total_output_tokens: 7012
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1370341
       output_tokens: 5760
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 41
+      output_tokens: 1252
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +63,12 @@ oompah.task_costs:
     output_tokens: 63
     cost_usd: 0.0
     recorded_at: '2026-07-30T00:02:41.617883+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 1252
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T00:34:57.958405+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-571__20260729T235849Z
@@ -260,5 +270,15 @@ Safe evidence:
 - tests_present: tests/test_orchestrator_merged.py: 1903 keeps_auditor / 1926 stops_ordinary_worker / 1950 stops_auditor_after_terminal
 - days_since_merge: ~7 (2026-07-29 -> 2026-08-06)
 - working_tree: clean
+---
+author: oompah
+created: 2026-08-06 00:35
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 24
+- Tokens: 41 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 52s
+- Log: OOMPAH-571__20260806T002517Z.jsonl
 ---
 <!-- COMMENTS:END -->
