@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T03:48:02.692464Z'
+updated_at: '2026-08-06T03:53:02.611477Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -211,5 +211,10 @@ author: oompah
 created: 2026-08-06 03:48
 ---
 Discovery: the stale-lineage window is in _create_workspace_for_issue's parallel-epic path. It synchronizes only the immediate epic branch, while ProjectStore._create_epic_worktree_locked creates a missing epic branch from the project default branch. A nested epic can therefore be based on old main before its authoritative parent branch is incorporated. Existing _resolve_epic_target_branch, _epic_synchronization_decision, and _file_rebase_task provide the parent-only topology policy and helper-task idempotency to reuse.
+---
+author: oompah
+created: 2026-08-06 03:53
+---
+Implementation plan: add a generation-digested nested lineage preflight at candidate selection, before claim, and under the project lock before workspace creation. A stale or unverifiable nested base will publish a blocked integration record with required-base evidence, schedule/reuse one parent-targeted rebase helper through the existing synchronization policy, and return without claim/worktree/provider launch. Private branches are recreated only after the repaired nested head passes the same ancestry check.
 ---
 <!-- COMMENTS:END -->
