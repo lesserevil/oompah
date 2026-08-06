@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:32:32.524051Z'
+updated_at: '2026-08-06T13:32:48.285107Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -48,12 +48,14 @@ oompah.agent_run_id: 19f8abe1-bcfe-43cf-bf8f-8a91ca57fed7
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
-  updated_at: '2026-08-06T13:13:52.887632+00:00'
+  head_sha: 98fc9124ce8eae2063b08c05bbef2f7951ddc599
+  submitted_at: '2026-08-06T13:32:43.117553+00:00'
+  updated_at: '2026-08-06T13:32:43.117553+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 10
@@ -158,5 +160,10 @@ author: oompah
 created: 2026-08-06 13:32
 ---
 VERIFICATION: All tests pass. Ran 459 integration/container/dependency tests successfully. Specific test coverage: 9 nested container rollup tests + 3 OOMPAH-804/834 deadlock scenario tests. Queue can now claim eligible nested children without deadlock. Explicit external/sibling dependencies preserved. Ready for integration.
+---
+author: oompah
+created: 2026-08-06 13:32
+---
+Implemented nested-container rollup edge filtering in integration dependencies. Created integration_dependencies() to exclude implicit parent->child rollup edges while preserving explicit external/sibling dependencies. Updated _integration_dependency_map to use the new function. Added 12 comprehensive regression tests covering exact OOMPAH-804/834 deadlock scenario. All 459 integration/container/dependency tests pass. Deadlock prevention: every eligible nested child can now acquire a queue lease without waiting on itself or implicit parent rollup siblings, while real finish-order constraints remain enforced.
 ---
 <!-- COMMENTS:END -->
