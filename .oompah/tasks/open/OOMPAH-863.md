@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T17:58:24.963566Z'
+updated_at: '2026-08-06T17:58:55.112646Z'
 work_branch: null
 target_branch: null
 review_url: null
