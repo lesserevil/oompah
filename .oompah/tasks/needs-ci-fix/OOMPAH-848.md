@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-848
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Isolate free-tier budget snapshot tests from heavyweight live state
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:47:33.148877Z'
+updated_at: '2026-08-06T17:47:38.989325Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -188,5 +188,15 @@ author: oompah
 created: 2026-08-06 17:31
 ---
 Isolated free-tier budget projection from heavyweight live snapshot collectors while preserving exact increment and immediate snapshot semantics; passed the full module serial, xdist, and 20 four-way concurrent named regressions.
+---
+author: oompah
+created: 2026-08-06 17:47
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-848`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
