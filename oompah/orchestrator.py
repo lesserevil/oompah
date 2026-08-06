@@ -8990,6 +8990,25 @@ class Orchestrator:
                         existing_pr = None
                         review_state = ""
                 if existing_pr is not None and review_state == "open":
+                    # A submit can replace the accepted generation after the
+                    # forge lookup above.  Revalidate the task/head authority
+                    # before even asking the gate for evidence; the gate's
+                    # own callback and the owned adoption transaction provide
+                    # the during- and after-command barriers.
+                    issue_id = str(
+                        getattr(authority.issue, "id", "") or authority.task_id
+                    )
+                    with self.issue_transition_lock(issue_id).sync():
+                        gate_authorized = self._standalone_delivery_authorized(
+                            authority,
+                            tracker,
+                        )
+                    if not gate_authorized:
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed before open-review gate",
+                        )
+                        return
                     # Gate the exact current review head before adopting the
                     # open PR so a forge CI failure followed by a repaired
                     # head cannot advance the task to In Review without
@@ -9048,6 +9067,24 @@ class Orchestrator:
                         project_id,
                         review_id=getattr(existing_pr, "id", None),
                     )
+                    # Do not execute a gate for a review lookup that a newer
+                    # accepted submission has already superseded.  Terminal
+                    # staging performs the final review/generation CAS after
+                    # the exact-head gate returns.
+                    issue_id = str(
+                        getattr(authority.issue, "id", "") or authority.task_id
+                    )
+                    with self.issue_transition_lock(issue_id).sync():
+                        gate_authorized = self._standalone_delivery_authorized(
+                            authority,
+                            tracker,
+                        )
+                    if not gate_authorized:
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed before merged-review gate",
+                        )
+                        return
                     # A forge merge does not substitute for the configured
                     # local branch gate.  Reconcile terminal state only after
                     # the accepted exact review head has passing evidence.
@@ -21417,10 +21454,11 @@ class Orchestrator:
         only one).  Top-level tasks that are not children of an epic get their
         own PR targeting ``project.default_branch`` or ``issue.target_branch``.
 
-        Returns ``True`` when no review is needed or a review exists/was
-        created. Returns ``False`` when the branch has unmerged commits but
-        oompah could not create the review; in that case the task is reopened
-        with a diagnostic comment so it is not stranded in a review-like state.
+        Returns ``True`` when no review is needed or a gate-approved review
+        exists/was created. Returns ``False`` when the exact-head gate blocks
+        review eligibility or the branch has unmerged commits but oompah could
+        not create the review; creation failures reopen the task with a
+        diagnostic comment so it is not stranded in a review-like state.
         """
         if not project_id:
             return True
@@ -21539,7 +21577,7 @@ class Orchestrator:
                         preferred_path=entry.workspace_path,
                     )
                 ):
-                    return True  # gate handled failure; leave review open
+                    return False  # gate handled failure; leave review open
                 self._mark_task_in_review(entry, project_id, r)
                 return True  # review already exists
 
@@ -21653,7 +21691,7 @@ class Orchestrator:
                             preferred_path=entry.workspace_path,
                         )
                     ):
-                        return True
+                        return False
                     self._mark_task_in_review(entry, project_id, live_review)
                     return True
 

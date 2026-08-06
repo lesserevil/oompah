@@ -825,6 +825,127 @@ def test_existing_open_review_is_reused_idempotently(harness):
     ]
 
 
+def test_existing_open_review_gate_failure_preserves_ready_review(harness):
+    """A live review cannot bypass a failed exact-head branch gate."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-3-FAIL", branch="feature/task-3-fail")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        review_id="100",
+    )
+    gate.return_value = False
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(
+        project,
+        task,
+        task.work_branch,
+        project.default_branch,
+    )
+    provider.create_review.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == READY_TO_INTEGRATE
+
+
+def test_merged_review_gate_failure_blocks_terminal_reconciliation(harness):
+    """Forge merge success cannot replace local exact-head evidence."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "c" * 40
+    task = _issue("TASK-3-MERGED-FAIL", branch="feature/task-3-merged-fail")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T13:10:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="merged",
+        review_id="102",
+        head_sha=accepted_head,
+    )
+    gate.return_value = False
+    orch.request_terminal_transition = mock.AsyncMock()
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(
+        project,
+        task,
+        task.work_branch,
+        project.default_branch,
+    )
+    orch.request_terminal_transition.assert_not_awaited()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    provider.create_review.assert_not_called()
+
+
+def test_changed_existing_review_head_is_gated_before_readoption(harness):
+    """A repaired CI-fix head requires its own gate before In Review."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    old_head = "a" * 40
+    repaired_head = "b" * 40
+    task = _issue("TASK-3-REPAIR", branch="feature/task-3-repair")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        head_sha=old_head,
+        submitted_at="2026-08-05T12:10:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = old_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        review_id="101",
+        head_sha=old_head,
+    )
+    gated_heads: list[str] = []
+
+    def record_gated_head(*_args, **_kwargs) -> bool:
+        gated_heads.append(str(task.integration.head_sha))
+        assert tracker.update_issue.call_count == len(gated_heads) - 1
+        return True
+
+    gate.side_effect = record_gated_head
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    # Model the OOMPAH-825 CI-fix resubmission: the existing review stays
+    # open, but its source branch and accepted generation advance together.
+    task.state = READY_TO_INTEGRATE
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        head_sha=repaired_head,
+        submitted_at="2026-08-05T12:54:50+00:00",
+    )
+    provider.get_branch_head_sha.return_value = repaired_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        review_id="101",
+        head_sha=repaired_head,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert gated_heads == [old_head, repaired_head]
+    assert gate.call_count == 2
+    provider.create_review.assert_not_called()
+    assert tracker.update_issue.call_args_list == [
+        mock.call(task.identifier, status=IN_REVIEW),
+        mock.call(task.identifier, status=IN_REVIEW),
+    ]
+
+
 def test_existing_closed_review_is_replaced_after_gate(harness):
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-4")
@@ -1065,7 +1186,12 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
         ) as restarted_gate:
             orch_two._reconcile_standalone_ready_to_integrate_tasks()
         provider.create_review.assert_called_once()
-        restarted_gate.assert_not_called()
+        restarted_gate.assert_called_once_with(
+            project,
+            task_two,
+            "TASK-7",
+            "trunk",
+        )
         tracker_two.update_issue.assert_called_once_with(
             "TASK-7",
             status=IN_REVIEW,
@@ -1658,7 +1784,7 @@ def test_submit_wins_before_open_webhook_adoption(harness):
     from oompah.server import _mark_task_in_review_from_webhook
     from oompah.webhooks import WebhookEvent
 
-    orch, project, tracker, provider, _detect, _gate = harness
+    orch, project, tracker, provider, _detect, gate = harness
     old_head = "e" * 40
     task = _issue("TASK-OPEN-WEBHOOK", branch="feature/open-webhook")
     task.target_branch = project.default_branch
@@ -1716,6 +1842,7 @@ def test_submit_wins_before_open_webhook_adoption(harness):
 
     assert not worker.is_alive()
     assert errors == []
+    gate.assert_not_called()
     provider.find_pr_for_branch.assert_not_called()
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
@@ -1726,7 +1853,7 @@ def test_submit_wins_before_open_webhook_adoption(harness):
 def test_exact_open_webhook_persists_metadata_before_in_review(harness):
     """The production owned webhook path accepts one exact review generation."""
 
-    orch, project, tracker, provider, _detect, _gate = harness
+    orch, project, tracker, provider, _detect, gate = harness
     accepted_head = "0" * 40
     task = _issue("TASK-OPEN-WEBHOOK-EXACT", branch="feature/open-webhook-exact")
     task.target_branch = project.default_branch
@@ -1782,6 +1909,12 @@ def test_exact_open_webhook_persists_metadata_before_in_review(harness):
     assert task.review_url == review_url
     assert task.review_head == accepted_head
     assert task.state == IN_REVIEW
+    gate.assert_called_once_with(
+        project,
+        task,
+        task.work_branch,
+        project.default_branch,
+    )
     tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
 
 
@@ -2037,7 +2170,7 @@ def test_open_review_metadata_failure_cannot_advance_status(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     tracker.update_issue.assert_not_called()
-    gate.assert_not_called()
+    gate.assert_called_once()
 
 
 def test_created_review_metadata_failure_cannot_advance_status(harness):
@@ -2103,7 +2236,7 @@ def test_final_review_revalidation_rejects_state_change_before_metadata(harness)
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
     orch.request_terminal_transition.assert_not_awaited()
-    gate.assert_not_called()
+    gate.assert_called_once()
 
 
 def test_stopped_dispatch_loop_bridge_fails_bounded_without_leaking_coroutine(
