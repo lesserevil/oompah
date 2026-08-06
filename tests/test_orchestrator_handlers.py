@@ -3158,6 +3158,7 @@ class TestRunMaintenanceJobGate:
 class TestRepoHealErrorReporting:
     """Self-heal errors are logged and tracked without affecting dispatch."""
 
+    @pytest.mark.timeout(20)
     def test_heal_failure_does_not_raise_from_tick(self, tmp_path):
         """If _maybe_heal_repos fails, _tick() must not surface the exception."""
         orch = _make_orchestrator(tmp_path)
@@ -3170,6 +3171,10 @@ class TestRepoHealErrorReporting:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # Keep this unit test scoped to repo-heal error handling.  The real
+        # recovery scan walks the entire task corpus and can exceed the global
+        # timeout under a saturated full-suite run.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
 
         def _failing_heal():
             raise RuntimeError("catastrophic git failure")
