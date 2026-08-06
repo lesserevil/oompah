@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T14:59:01.781501Z'
+updated_at: '2026-08-06T15:16:45.280402Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -45,14 +45,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-861
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-861
   base_branch: epic-OOMPAH-763
-  base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
+  base_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
   head_sha: 8953687bda424401e67d06d676943bbeac93faca
+  integrated_sha: 8953687bda424401e67d06d676943bbeac93faca
   submitted_at: '2026-08-06T14:58:53.042709+00:00'
-  updated_at: '2026-08-06T14:58:53.042709+00:00'
+  updated_at: '2026-08-06T15:16:35.155630+00:00'
 oompah.task_costs:
   total_input_tokens: 3
   total_output_tokens: 2446
@@ -79,6 +80,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-861
     source_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
     completed_at: '2026-08-06T13:30:28.810532+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d91c64ace857
+    project_id: proj-14849f1b
+    task_id: OOMPAH-861
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d546e5122ba89137a6d272e762d5489ad80eff51fa423b7aec642515a35256b9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T15:16:37.842407+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -191,5 +214,10 @@ author: oompah
 created: 2026-08-06 14:59
 ---
 Preserved immutable accepted branch and head authority across state-only refresh, abort recovery, stale generations, and repair retries; focused serial and xdist validation passed at 8953687bd.
+---
+author: oompah
+created: 2026-08-06 15:16
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
