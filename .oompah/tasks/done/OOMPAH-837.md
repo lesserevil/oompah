@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T12:55:03.914759Z'
+updated_at: '2026-08-06T12:55:21.860415Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -49,13 +49,17 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.task_costs:
-  total_input_tokens: 12
-  total_output_tokens: 48
+  total_input_tokens: 87
+  total_output_tokens: 13644
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 12
       output_tokens: 48
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 75
+      output_tokens: 13596
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -64,6 +68,12 @@ oompah.task_costs:
     output_tokens: 48
     cost_usd: 0.0
     recorded_at: '2026-08-06T12:14:43.608712+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 75
+    output_tokens: 13596
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T12:55:19.235614+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -366,5 +376,15 @@ Safe evidence:
 - terminal_cleanup_evidence_test_pass: true
 - prior_gate_regression_now_pass: test_wrong_target_helper_is_archived_without_recovery_ref_cleanup: PASSED
 - focused_totals: epic-core 140, epic-strategy 355+1xf, projects/coord/service 439, fencing/webhook/orch 504
+---
+author: oompah
+created: 2026-08-06 12:55
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 85, Tool calls: 69
+- Tokens: 75 in / 13.6K out [13.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 22m 44s
+- Log: OOMPAH-837__20260806T123244Z.jsonl
 ---
 <!-- COMMENTS:END -->
