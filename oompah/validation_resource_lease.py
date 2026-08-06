@@ -1584,6 +1584,47 @@ def _npm_segment_is_heavy(tokens: list[str]) -> bool:
     )
 
 
+def _npm_segment_is_full_suite(tokens: list[str]) -> bool:
+    """Return whether a package-manager command selects a test script."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens:
+        return False
+    package_manager = os.path.basename(command_tokens[0])
+    if package_manager not in {"npm", "pnpm", "yarn"}:
+        return False
+    index = 1
+    value_options = {
+        "--cache",
+        "--loglevel",
+        "--prefix",
+        "--registry",
+        "--userconfig",
+        "--workspace",
+        "--filter",
+        "-C",
+        "-w",
+    }
+    while index < len(command_tokens) and command_tokens[index].startswith("-"):
+        option = command_tokens[index]
+        index += 1
+        if option.partition("=")[0] in value_options and "=" not in option:
+            index += 1
+    if index >= len(command_tokens):
+        return False
+    subcommand = command_tokens[index]
+    if subcommand in {"t", "test", "tst"} or subcommand.startswith("test:"):
+        return True
+    return (
+        subcommand in {"run", "run-script"}
+        and index + 1 < len(command_tokens)
+        and (
+            command_tokens[index + 1] == "test"
+            or command_tokens[index + 1].startswith("test:")
+        )
+    )
+
+
 _CARGO_LIGHTWEIGHT_SUBCOMMANDS = frozenset(
     {
         "build",
@@ -1697,6 +1738,39 @@ def _cargo_segment_is_heavy(
     # Cargo aliases and external subcommands share the same argv surface as
     # built-ins.  Only a small, explicit set can bypass the capacity fence.
     return subcommand not in _CARGO_LIGHTWEIGHT_SUBCOMMANDS
+
+
+def _cargo_segment_is_full_suite(tokens: list[str]) -> bool:
+    """Return whether one segment selects Cargo's test runner."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens or os.path.basename(command_tokens[0]) != "cargo":
+        return False
+    index = 1
+    if index < len(command_tokens) and command_tokens[index].startswith("+"):
+        index += 1
+    value_options = {
+        "--color",
+        "--config",
+        "--lockfile-path",
+        "--manifest-path",
+        "--target-dir",
+        "-C",
+    }
+    while index < len(command_tokens) and command_tokens[index].startswith("-"):
+        option = command_tokens[index]
+        index += 1
+        if option.partition("=")[0] in value_options and "=" not in option:
+            index += 1
+    if index >= len(command_tokens):
+        return False
+    if command_tokens[index] == "test":
+        return True
+    return (
+        command_tokens[index] == "nextest"
+        and index + 1 < len(command_tokens)
+        and command_tokens[index + 1] in {"run", "test"}
+    )
 
 
 def _find_segment_is_heavy(tokens: list[str]) -> bool:
@@ -3541,9 +3615,21 @@ def is_full_suite_validation_command(
 
     configured_tokens: list[str] | None = None
     if len(configured_segments) == 1:
-        configured_tokens = _command_tokens(configured_segments[0])
+        _operator, configured_segment_tokens, configured_flags = (
+            configured_segments[0]
+        )
+        configured_tokens = _command_tokens(configured_segment_tokens)
+        aligned_configured_flags = _aligned_shell_syntax_flags(
+            configured_segment_tokens,
+            configured_tokens,
+            configured_flags,
+        )
+        if aligned_configured_flags is None or any(aligned_configured_flags):
+            # Only exact-string equality above may reuse a configured command
+            # whose argv depends on shell expansion.
+            configured_tokens = None
 
-    for tokens in segments:
+    for _operator, tokens, unresolved_syntax_flags in segments:
         env_split_command = _env_split_string_command(tokens)
         if env_split_command is not None and is_full_suite_validation_command(
             env_split_command,
@@ -3553,6 +3639,17 @@ def is_full_suite_validation_command(
         command_tokens = _command_tokens(tokens)
         if not command_tokens:
             continue
+        command_flags = _aligned_shell_syntax_flags(
+            tokens,
+            command_tokens,
+            unresolved_syntax_flags,
+        )
+        if command_flags is None or any(command_flags):
+            # Dynamic argv is already heavyweight at the execution boundary.
+            # It cannot be proven focused, so reuse policy must treat it as a
+            # potentially full-suite invocation and require the explicit
+            # distinct-mode escape.
+            return True
         if configured_tokens and command_tokens == configured_tokens:
             return True
 
@@ -3567,8 +3664,8 @@ def is_full_suite_validation_command(
             return True
         if _unittest_segment_is_full_suite(command_tokens):
             return True
-        if _npm_segment_is_heavy(command_tokens) or _cargo_segment_is_heavy(
-            command_tokens
+        if _npm_segment_is_full_suite(command_tokens) or (
+            _cargo_segment_is_full_suite(command_tokens)
         ):
             return True
         if os.path.basename(command_tokens[0]) in {"tox", "nox"}:
@@ -3616,8 +3713,23 @@ def is_focused_validation_command(command: str) -> bool:
     except ValueError:
         return False
     saw_focused = False
-    for tokens in segments:
+    for _operator, tokens, unresolved_syntax_flags in segments:
+        env_split_command = _env_split_string_command(tokens)
+        if env_split_command is not None:
+            if not is_focused_validation_command(env_split_command):
+                return False
+            saw_focused = True
+            continue
         command_tokens = _command_tokens(tokens)
+        if not command_tokens:
+            continue
+        command_flags = _aligned_shell_syntax_flags(
+            tokens,
+            command_tokens,
+            unresolved_syntax_flags,
+        )
+        if command_flags is None or any(command_flags):
+            return False
         nested_command = _nested_shell_command(command_tokens)
         if nested_command is not None:
             if is_heavyweight_validation_command(nested_command):
@@ -3625,7 +3737,7 @@ def is_focused_validation_command(command: str) -> bool:
                     return False
                 saw_focused = True
             continue
-        if not is_heavyweight_validation_command(" ".join(tokens)):
+        if not is_heavyweight_validation_command(shlex.join(tokens)):
             continue
         pytest_invocation = _pytest_invocation(command_tokens)
         if pytest_invocation is not None:
@@ -3670,10 +3782,18 @@ def contains_configured_validation_command(
         return False
     if len(configured_segments) != 1:
         return False
-    configured_tokens = _command_tokens(configured_segments[0])
+    _operator, configured_segment_tokens, configured_flags = configured_segments[0]
+    configured_tokens = _command_tokens(configured_segment_tokens)
     if not configured_tokens:
         return False
-    for tokens in segments:
+    aligned_configured_flags = _aligned_shell_syntax_flags(
+        configured_segment_tokens,
+        configured_tokens,
+        configured_flags,
+    )
+    if aligned_configured_flags is None or any(aligned_configured_flags):
+        return False
+    for _operator, tokens, unresolved_syntax_flags in segments:
         env_split_command = _env_split_string_command(tokens)
         if env_split_command is not None and contains_configured_validation_command(
             env_split_command,
@@ -3681,6 +3801,13 @@ def contains_configured_validation_command(
         ):
             return True
         command_tokens = _command_tokens(tokens)
+        command_flags = _aligned_shell_syntax_flags(
+            tokens,
+            command_tokens,
+            unresolved_syntax_flags,
+        )
+        if command_flags is None or any(command_flags):
+            continue
         if command_tokens == configured_tokens:
             return True
         nested_command = _nested_shell_command(command_tokens)
@@ -3690,6 +3817,194 @@ def contains_configured_validation_command(
         ):
             return True
     return False
+
+
+@dataclass(frozen=True)
+class ValidationCommandClassification:
+    """One normalized command classification shared by policy and leasing."""
+
+    heavyweight: bool
+    scope: str
+    contains_configured: bool = False
+
+    @property
+    def focused(self) -> bool:
+        return self.scope == "focused"
+
+    @property
+    def full_suite(self) -> bool:
+        return self.scope == "full"
+
+    @property
+    def opaque(self) -> bool:
+        return self.scope == "opaque"
+
+
+def _validation_context_is_opaque(
+    command: str,
+    *,
+    executable_search_path: str | None,
+    untrusted_executable_roots: tuple[str | os.PathLike[str], ...],
+    command_environment: Mapping[str, str] | None,
+    working_directory: str | os.PathLike[str] | None,
+) -> bool:
+    """Return whether context prevents a semantic focused/full verdict."""
+
+    try:
+        segments = _shell_segments(str(command or ""))
+        untrusted_roots = tuple(
+            Path(root).resolve() for root in untrusted_executable_roots
+        )
+    except (OSError, ValueError):
+        return True
+    for _operator, tokens, unresolved_syntax_flags in segments:
+        # The normalized executable argv deliberately omits leading
+        # assignments.  Preserve their provenance here: runner controls and
+        # PATH changes make a syntactically focused command semantically
+        # opaque, and expansion-bearing assignments cannot be resolved before
+        # the shell evaluates them.
+        if any(unresolved_syntax_flags):
+            return True
+        for token in tokens:
+            name, separator, value = token.partition("=")
+            if (
+                separator
+                and name.replace("_", "a").isalnum()
+                and _is_validation_guard_environment_name(name)
+                and value.strip()
+            ):
+                return True
+        if _guard_environment_mutation_is_heavy(tokens):
+            return True
+        command_tokens = _command_tokens(tokens)
+        if not command_tokens:
+            continue
+        command_flags = _aligned_shell_syntax_flags(
+            tokens,
+            command_tokens,
+            unresolved_syntax_flags,
+        )
+        if command_flags is None or any(command_flags):
+            return True
+        if _runner_environment_is_heavy(command_tokens, command_environment):
+            return True
+        nested_command = _nested_shell_command(command_tokens)
+        if nested_command is not None and _validation_context_is_opaque(
+            nested_command,
+            executable_search_path=executable_search_path,
+            untrusted_executable_roots=untrusted_executable_roots,
+            command_environment=command_environment,
+            working_directory=working_directory,
+        ):
+            return True
+        executable = command_tokens[0]
+        executable_name = os.path.basename(executable)
+        if executable_search_path is not None and "/" not in executable:
+            if any(
+                not part or not Path(part).is_absolute()
+                for part in executable_search_path.split(os.pathsep)
+            ):
+                return True
+            resolved = shutil.which(executable, path=executable_search_path)
+            if not resolved:
+                return True
+            try:
+                selected_path = Path(resolved).absolute()
+                resolved_path = Path(resolved).resolve(strict=True)
+                resolved_stat = resolved_path.stat()
+            except OSError:
+                return True
+            if (
+                not stat.S_ISREG(resolved_stat.st_mode)
+                or resolved_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+                or any(
+                    selected_path == root
+                    or root in selected_path.parents
+                    or resolved_path == root
+                    or root in resolved_path.parents
+                    for root in untrusted_roots
+                )
+            ):
+                return True
+        elif executable.startswith(("./", "../")) or "/" in executable:
+            try:
+                selected_path = Path(executable)
+                if not selected_path.is_absolute():
+                    selected_path = (
+                        Path(working_directory or os.getcwd()) / selected_path
+                    )
+                resolved_path = selected_path.resolve(strict=True)
+                resolved_stat = resolved_path.stat()
+            except OSError:
+                return True
+            if (
+                not stat.S_ISREG(resolved_stat.st_mode)
+                or resolved_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+                or any(
+                    resolved_path == root or root in resolved_path.parents
+                    for root in untrusted_roots
+                )
+            ):
+                return True
+        elif (
+            executable_name not in _LIGHTWEIGHT_COMMAND_NAMES
+            and executable_name not in _CLASSIFIED_COMMAND_NAMES
+            and executable_name not in {"find", "git", "rg"}
+            and not (
+                executable_name.startswith("python")
+                and executable_name[6:].replace(".", "").isdigit()
+            )
+        ):
+            return True
+    return False
+
+
+def classify_validation_command(
+    command: str,
+    *,
+    configured_command: str = "",
+    executable_search_path: str | None = None,
+    untrusted_executable_roots: tuple[str | os.PathLike[str], ...] = (),
+    command_environment: Mapping[str, str] | None = None,
+    working_directory: str | os.PathLike[str] | None = None,
+) -> ValidationCommandClassification:
+    """Classify once for capacity, gate-reuse policy, and telemetry."""
+
+    heavyweight = is_heavyweight_validation_command(
+        command,
+        executable_search_path=executable_search_path,
+        untrusted_executable_roots=untrusted_executable_roots,
+        command_environment=command_environment,
+        working_directory=working_directory,
+    )
+    if not heavyweight:
+        return ValidationCommandClassification(False, "light")
+    configured = contains_configured_validation_command(
+        command,
+        configured_command=configured_command,
+    )
+    if _validation_context_is_opaque(
+        command,
+        executable_search_path=executable_search_path,
+        untrusted_executable_roots=untrusted_executable_roots,
+        command_environment=command_environment,
+        working_directory=working_directory,
+    ):
+        scope = "opaque"
+    elif is_full_suite_validation_command(
+        command,
+        configured_command=configured_command,
+    ):
+        scope = "full"
+    elif is_focused_validation_command(command):
+        scope = "focused"
+    else:
+        scope = "opaque"
+    return ValidationCommandClassification(
+        True,
+        scope,
+        contains_configured=configured,
+    )
 
 
 def auditor_validation_owner(

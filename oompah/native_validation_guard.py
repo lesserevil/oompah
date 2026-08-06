@@ -25,6 +25,7 @@ import fcntl
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import select
@@ -38,17 +39,23 @@ import sys
 import threading
 import time
 from collections import deque
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Mapping
+from typing import Any, Callable, Mapping
 
 from oompah.validation_resource_lease import (
+    ValidationCommandClassification,
     ValidationLeaseOwner,
     ValidationResourceLease,
     _is_dynamic_loader_environment_name,
     _terminate_exact_process_group,
+    classify_validation_command,
     is_heavyweight_validation_command,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 _CONFIG_NAME = "validation-guard.json"
@@ -62,6 +69,16 @@ _CANCELLATION_NAME = "cancelled"
 _BASH_ARGV0_ENV = "OOMPAH_NATIVE_VALIDATION_BASH_ARGV0"
 _BOUNDARY_GROUP_ENV = "OOMPAH_NATIVE_VALIDATION_BOUNDARY_GROUP"
 _CAPABILITY_FD_ENV = "OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"
+_VALIDATION_MODE_ENV = "OOMPAH_VALIDATION_MODE"
+_VALIDATION_JUSTIFICATION_ENV = "OOMPAH_VALIDATION_JUSTIFICATION"
+NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION = (
+    "For a task-required full-suite mode that is genuinely distinct from the "
+    "reused exact gate, invoke the native shell command with both structured "
+    "fields as leading assignments: OOMPAH_VALIDATION_MODE="
+    "task_required_distinct OOMPAH_VALIDATION_JUSTIFICATION='<specific reason>' "
+    "<command>. While the supplied passing authority remains current, the exact "
+    "configured gate is denied even with those fields."
+)
 _PROVIDER_LAUNCHER_NAME = "oompah-validation-provider"
 _SUPERVISOR_LAUNCHER_NAME = "oompah-validation-supervisor"
 # Python builds may omit Linux's memfd/seal wrappers even when the running
@@ -461,6 +478,119 @@ def _shim_command_text(command: str, arguments: list[str]) -> str:
     return shlex.join([command, *(str(value) for value in arguments)])
 
 
+def _native_validation_policy_args(
+    command: str,
+    environment: Mapping[str, str],
+) -> dict[str, str]:
+    """Recover the native shell's structured validation-policy fields.
+
+    The Codex CLI has a native shell surface rather than oompah's JSON tool
+    schema. Its equivalent structured fields are two leading environment
+    assignments. Parse only literal assignments; dynamic shell input never
+    grants the distinct-mode exception and therefore fails closed.
+    """
+
+    values = {
+        "validation_mode": str(environment.get(_VALIDATION_MODE_ENV) or "").strip(),
+        "validation_justification": str(
+            environment.get(_VALIDATION_JUSTIFICATION_ENV) or ""
+        ).strip(),
+    }
+    invalid_fields: set[str] = set()
+
+    def accept_literal(field: str, value: str) -> None:
+        # These fields are policy data, not shell programs. Reject every
+        # expansion-bearing spelling even when quoting would make a character
+        # literal in one shell layer; nested shells must not reinterpret it.
+        if any(character in value for character in "$`*?[]{}<>~!"):
+            invalid_fields.add(field)
+            return
+        values[field] = value.strip()
+
+    for field in tuple(values):
+        accept_literal(field, values[field])
+
+    def result() -> dict[str, str]:
+        for field in invalid_fields:
+            values[field] = ""
+        return {"command": str(command or ""), **values}
+
+    try:
+        tokens = shlex.split(str(command or ""), posix=True)
+    except ValueError:
+        return result()
+    index = 0
+    if tokens and os.path.basename(tokens[0]) == "env":
+        index = 1
+        while index < len(tokens) and tokens[index].startswith("-"):
+            option = tokens[index]
+            index += 1
+            if option in {"-u", "--unset", "-C", "--chdir"}:
+                index += 1
+    while index < len(tokens):
+        name, separator, value = tokens[index].partition("=")
+        if not separator or not name.replace("_", "a").isalnum():
+            break
+        if name == _VALIDATION_MODE_ENV:
+            accept_literal("validation_mode", value)
+        elif name == _VALIDATION_JUSTIFICATION_ENV:
+            accept_literal("validation_justification", value)
+        index += 1
+    return result()
+
+
+def _peer_guard_invocation(
+    peer_pid: int,
+    root: Path,
+) -> tuple[str, dict[str, str], Path]:
+    """Read the authenticated shim peer's exact command and environment."""
+
+    try:
+        arguments = [
+            os.fsdecode(value)
+            for value in Path(f"/proc/{peer_pid}/cmdline").read_bytes().split(b"\0")
+            if value
+        ]
+        environment = {
+            os.fsdecode(key): os.fsdecode(value)
+            for item in Path(f"/proc/{peer_pid}/environ").read_bytes().split(b"\0")
+            if item
+            for key, separator, value in (item.partition(b"="),)
+            if separator
+        }
+        working_directory = Path(f"/proc/{peer_pid}/cwd").resolve(strict=True)
+        invoked_launcher = Path(arguments[2])
+        guard_bin = (root / "validation-guard-bin").resolve(strict=True)
+        if (
+            not invoked_launcher.is_absolute()
+            or invoked_launcher.parent.resolve(strict=True) != guard_bin
+            or invoked_launcher.resolve(strict=True)
+            != (guard_bin / "oompah-validation-guard").resolve(strict=True)
+        ):
+            raise RuntimeError("native validation launcher identity changed")
+        command = invoked_launcher.name
+        command_text = _shim_command_text(command, arguments[3:])
+    except (IndexError, OSError) as exc:
+        raise RuntimeError("native validation command identity is unavailable") from exc
+    return command_text, environment, working_directory
+
+
+@dataclass
+class _NativeValidationRun:
+    command: str
+    command_identity: str
+    invocation_id: str
+    scope: str
+    started_at: float
+    callback_lock: Any = field(default_factory=threading.Lock, repr=False)
+    state_lock: Any = field(default_factory=threading.Lock, repr=False)
+    launch_state: str = "preparing"
+    supervisor_outcome: str = ""
+    cleanup_outcome: str = ""
+    terminal_outcome: str = ""
+    terminal_succeeded: bool = False
+
+
 class _NativeValidationLeaseBroker:
     """Operator-side lease broker for sandboxed native command shims.
 
@@ -479,13 +609,31 @@ class _NativeValidationLeaseBroker:
         validation_lease: ValidationResourceLease,
         owner: ValidationLeaseOwner,
         timeout_seconds: float,
+        validation_reuse_policy: Mapping[str, Any] | None = None,
+        validation_reuse_authority_check: Callable[[], object] | None = None,
+        validation_reuse_policy_handler: Callable[..., object] | None = None,
+        validation_command_handler: Callable[..., object] | None = None,
+        executable_search_path: str | None = None,
+        untrusted_executable_roots: tuple[str | os.PathLike[str], ...] = (),
     ) -> None:
         self.root = root
         self.socket_path = root / _BROKER_SOCKET_NAME
         self.validation_lease = validation_lease
         self.owner = owner
         self.timeout_seconds = max(float(timeout_seconds), 1.0)
+        self.validation_reuse_policy = (
+            dict(validation_reuse_policy)
+            if isinstance(validation_reuse_policy, Mapping)
+            else None
+        )
+        self.validation_reuse_authority_check = validation_reuse_authority_check
+        self.validation_reuse_policy_handler = validation_reuse_policy_handler
+        self.validation_command_handler = validation_command_handler
+        self.executable_search_path = executable_search_path
+        self.untrusted_executable_roots = tuple(untrusted_executable_roots)
         self._stop = threading.Event()
+        self._cleanup_requested = threading.Event()
+        self._requested_cleanup_outcome = ""
         self._boundary_lock = threading.Lock()
         self._handler_lock = threading.Lock()
         self._handler_threads: set[threading.Thread] = set()
@@ -493,6 +641,9 @@ class _NativeValidationLeaseBroker:
         self._boundaries: deque[tuple[float, str, str]] = deque()
         self._seen_boundary_groups: set[str] = set()
         self._bound_item_ids: set[str] = set()
+        self._boundary_items: dict[str, str] = {}
+        self._validation_runs: dict[str, _NativeValidationRun] = {}
+        self._supervisor_observers: set[threading.Thread] = set()
         self._provider_identity: tuple[int, int] | None = None
         self._capability_secret: bytes | None = None
         self._capability_identity: tuple[int, int] | None = None
@@ -739,6 +890,10 @@ class _NativeValidationLeaseBroker:
     def _handle(self, connection: socket.socket) -> None:
         handle = None
         descriptor_transferred = False
+        lifecycle_group: str | None = None
+        lifecycle_run: _NativeValidationRun | None = None
+        supervisor_observer: threading.Thread | None = None
+        failure_outcome = "transport_error"
         with connection:
             try:
                 request = _recv_packet(connection, 256)
@@ -789,6 +944,14 @@ class _NativeValidationLeaseBroker:
                     peer_pid=peer_pid,
                     peer_start_ticks=peer_start_ticks,
                 )
+                command, command_environment, working_directory = (
+                    _peer_guard_invocation(
+                        peer_pid,
+                        self.root,
+                    )
+                )
+                if _command_identity(command) != command_identity:
+                    raise RuntimeError("native validation command identity changed")
                 peer_process_group = _process_group_id(peer_pid)
                 if peer_process_group is None:
                     raise RuntimeError("native validation peer group is unavailable")
@@ -826,12 +989,79 @@ class _NativeValidationLeaseBroker:
                         "native validation peer is not process-group fenced"
                     )
 
-                def cancelled() -> bool:
-                    return (
-                        self._stop.is_set()
-                        or (self.root / _CANCELLATION_NAME).exists()
-                        or _process_start_ticks(peer_pid) != peer_start_ticks
+                # The shim's context-aware classifier has already established
+                # that ACQUIRE is heavyweight. Recheck live reusable-gate
+                # authority in the trusted broker immediately before capacity
+                # acquisition so the native subscription path has the same
+                # exact/full/focused policy as bridged command tools.
+                from oompah.api_agent import _validation_reuse_policy_decision
+
+                policy_args = _native_validation_policy_args(
+                    command,
+                    command_environment,
+                )
+                classification = classify_validation_command(
+                    command,
+                    configured_command=str(
+                        (self.validation_reuse_policy or {}).get("command") or ""
+                    ),
+                    executable_search_path=self.executable_search_path,
+                    untrusted_executable_roots=self.untrusted_executable_roots,
+                    command_environment=command_environment,
+                    working_directory=working_directory,
+                )
+                if not classification.heavyweight:
+                    raise RuntimeError(
+                        "native validation classification changed across boundary"
                     )
+                validation_invocation_id = secrets.token_hex(16)
+
+                def reuse_policy_snapshot() -> tuple[str, str | None, str]:
+                    return _validation_reuse_policy_decision(
+                        policy_args,
+                        self.validation_reuse_policy,
+                        self.validation_reuse_authority_check,
+                        classification=classification,
+                    )
+
+                def record_reuse_policy(
+                    snapshot: tuple[str, str | None, str],
+                ) -> None:
+                    decision, _denial, justification = snapshot
+                    if decision and callable(self.validation_reuse_policy_handler):
+                        try:
+                            self.validation_reuse_policy_handler(
+                                command=command,
+                                decision=decision,
+                                justification=justification,
+                                invocation_id=validation_invocation_id,
+                            )
+                        except Exception:
+                            # Telemetry can never weaken policy enforcement.
+                            logger.debug(
+                                "Native validation reuse telemetry failed",
+                                exc_info=True,
+                            )
+
+                initial_policy = reuse_policy_snapshot()
+                denial = initial_policy[1]
+                if denial is not None:
+                    record_reuse_policy(initial_policy)
+                    raise RuntimeError(denial)
+
+                def cancellation_outcome() -> str:
+                    if self._cleanup_requested.is_set():
+                        return self._requested_cleanup_outcome or "transport_error"
+                    if self._stop.is_set() or (
+                        self.root / _CANCELLATION_NAME
+                    ).exists():
+                        return "authority_withdrawn"
+                    if _process_start_ticks(peer_pid) != peer_start_ticks:
+                        return "transport_error"
+                    return ""
+
+                def cancelled() -> bool:
+                    return bool(cancellation_outcome())
 
                 handle = self.validation_lease.acquire(
                     self.owner,
@@ -845,38 +1075,334 @@ class _NativeValidationLeaseBroker:
                 )
                 if cancelled():
                     raise RuntimeError("native validation authority was withdrawn")
+                pretransfer_policy = reuse_policy_snapshot()
+                denial = pretransfer_policy[1]
+                if denial is not None:
+                    record_reuse_policy(pretransfer_policy)
+                    raise RuntimeError(denial)
                 descriptor = handle.pass_fds[0]
-                _start_validation_lease_supervisor(
+                lifecycle_run = self._start_validation_lifecycle(
+                    boundary_group,
+                    command=command,
+                    command_identity=command_identity,
+                    classification=classification,
+                    invocation_id=validation_invocation_id,
+                )
+                lifecycle_group = boundary_group
+                pending_cancellation = cancellation_outcome()
+                if pending_cancellation:
+                    failure_outcome = pending_cancellation
+                    raise RuntimeError("native validation launch was cancelled")
+                supervisor_observer = _start_validation_lease_supervisor(
                     self.root,
                     peer_pid=peer_pid,
                     peer_start_ticks=peer_start_ticks,
                     lease_descriptor=descriptor,
                     timeout_seconds=self.timeout_seconds,
-                )
-                connection.sendmsg(
-                    [b"LEASE\n"],
-                    [
-                        (
-                            socket.SOL_SOCKET,
-                            socket.SCM_RIGHTS,
-                            array.array("i", [descriptor]),
+                    terminal_handler=lambda outcome: (
+                        self._record_supervisor_terminal(
+                            boundary_group,
+                            outcome,
                         )
-                    ],
+                    ),
                 )
+                with self._handler_lock:
+                    self._supervisor_observers.add(supervisor_observer)
+                pending_cancellation = cancellation_outcome()
+                if pending_cancellation:
+                    failure_outcome = pending_cancellation
+                    raise RuntimeError("native validation launch was cancelled")
+                if lifecycle_run is None:
+                    raise RuntimeError("native validation lifecycle is unavailable")
+                # Take the last potentially blocking authority sample before
+                # entering the linearization lock. Terminal publication and
+                # descriptor delivery then share one state transition;
+                # whichever side owns the lock first is definitive.
+                transfer_policy = reuse_policy_snapshot()
+                transfer_error = ""
+                with lifecycle_run.state_lock:
+                    if lifecycle_run.launch_state == "terminated":
+                        failure_outcome = (
+                            lifecycle_run.terminal_outcome
+                            or lifecycle_run.cleanup_outcome
+                            or (
+                                self._requested_cleanup_outcome
+                                if self._cleanup_requested.is_set()
+                                else "transport_error"
+                            )
+                        )
+                        transfer_error = (
+                            "native validation terminated before descriptor transfer"
+                        )
+                    elif self._cleanup_requested.is_set():
+                        failure_outcome = (
+                            self._requested_cleanup_outcome or "transport_error"
+                        )
+                        lifecycle_run.launch_state = "terminated"
+                        lifecycle_run.cleanup_outcome = failure_outcome
+                        lifecycle_run.terminal_outcome = failure_outcome
+                        transfer_error = (
+                            "native validation terminated before descriptor transfer"
+                        )
+                    else:
+                        denial = transfer_policy[1]
+                        if denial is not None:
+                            failure_outcome = "authority_withdrawn"
+                            lifecycle_run.launch_state = "terminated"
+                            lifecycle_run.terminal_outcome = failure_outcome
+                            transfer_error = denial
+                        else:
+                            try:
+                                sent = connection.sendmsg(
+                                    [b"LEASE\n"],
+                                    [
+                                        (
+                                            socket.SOL_SOCKET,
+                                            socket.SCM_RIGHTS,
+                                            array.array("i", [descriptor]),
+                                        )
+                                    ],
+                                )
+                                if sent != len(b"LEASE\n"):
+                                    raise RuntimeError(
+                                        "native validation lease descriptor "
+                                        "transfer was incomplete"
+                                    )
+                            except Exception:
+                                failure_outcome = (
+                                    self._requested_cleanup_outcome
+                                    if self._cleanup_requested.is_set()
+                                    else "transport_error"
+                                )
+                                lifecycle_run.launch_state = "terminated"
+                                lifecycle_run.terminal_outcome = failure_outcome
+                                raise
+                            lifecycle_run.launch_state = "transferred"
+                            descriptor_transferred = True
+                if transfer_error:
+                    if transfer_policy[1] is not None:
+                        record_reuse_policy(transfer_policy)
+                    raise RuntimeError(transfer_error)
+                # Allowed policy telemetry is immutable only after the kernel
+                # accepted the LEASE descriptor transfer.
+                record_reuse_policy(transfer_policy)
                 handle.relinquish_transferred_descriptor()
-                descriptor_transferred = True
             except Exception:
+                defer_to_cleanup_supervisor = (
+                    self._cleanup_requested.is_set()
+                    and supervisor_observer is not None
+                )
+                if (
+                    lifecycle_group is not None
+                    and not descriptor_transferred
+                    and not defer_to_cleanup_supervisor
+                ):
+                    self._complete_validation_group(
+                        lifecycle_group,
+                        succeeded=False,
+                        outcome=failure_outcome,
+                    )
                 with contextlib.suppress(OSError):
                     connection.sendall(b"DENIED\n")
             finally:
                 if handle is not None and not descriptor_transferred:
                     handle.release()
 
-    def stop(self) -> None:
+    def _notify_validation_lifecycle(
+        self,
+        *,
+        command: str,
+        phase: str,
+        succeeded: bool,
+        outcome: str,
+        duration_seconds: float,
+        invocation_id: str,
+        validation_scope: str,
+    ) -> None:
+        handler = self.validation_command_handler
+        if not callable(handler):
+            return
+        try:
+            handler(
+                command=command,
+                phase=phase,
+                succeeded=succeeded,
+                outcome=outcome,
+                duration_seconds=max(float(duration_seconds), 0.0),
+                invocation_id=invocation_id,
+                validation_scope=validation_scope,
+            )
+        except Exception:
+            logger.debug(
+                "Native validation lifecycle telemetry failed",
+                exc_info=True,
+            )
+
+    def _start_validation_lifecycle(
+        self,
+        boundary_group: str,
+        *,
+        command: str,
+        command_identity: str,
+        classification: ValidationCommandClassification,
+        invocation_id: str,
+    ) -> _NativeValidationRun:
+        run = _NativeValidationRun(
+            command=command,
+            command_identity=command_identity,
+            invocation_id=invocation_id,
+            scope=classification.scope,
+            started_at=time.monotonic(),
+        )
+        # Publish while owning this invocation's callback lock. A concurrent
+        # retirement can claim the run, but its completion callback cannot
+        # overtake a blocked started callback.
+        with run.callback_lock:
+            with self._boundary_lock:
+                if boundary_group in self._validation_runs:
+                    raise RuntimeError("native validation lifecycle already started")
+                self._validation_runs[boundary_group] = run
+            self._notify_validation_lifecycle(
+                command=command,
+                phase="started",
+                succeeded=False,
+                outcome="running",
+                duration_seconds=0.0,
+                invocation_id=invocation_id,
+                validation_scope=classification.scope,
+            )
+        return run
+
+    def _record_supervisor_terminal(
+        self,
+        boundary_group: str,
+        outcome: str,
+    ) -> bool:
+        with self._boundary_lock:
+            run = self._validation_runs.get(boundary_group)
+        if run is None:
+            return False
+        should_complete = False
+        with run.state_lock:
+            run.supervisor_outcome = outcome
+            if outcome == "exited" or run.terminal_outcome:
+                return False
+            resolved_outcome = outcome
+            if (
+                outcome == "authority_withdrawn"
+                and (
+                    run.cleanup_outcome
+                    or (
+                        self._requested_cleanup_outcome
+                        if self._cleanup_requested.is_set()
+                        else ""
+                    )
+                )
+                not in {"", "authority_withdrawn"}
+            ):
+                resolved_outcome = (
+                    run.cleanup_outcome or self._requested_cleanup_outcome
+                )
+            run.launch_state = "terminated"
+            run.terminal_outcome = resolved_outcome
+            should_complete = True
+        return should_complete and self._complete_validation_group(
+            boundary_group,
+            succeeded=False,
+            outcome=resolved_outcome,
+        )
+
+    def _complete_validation_group(
+        self,
+        boundary_group: str,
+        *,
+        succeeded: bool,
+        outcome: str,
+    ) -> bool:
+        with self._boundary_lock:
+            run = self._validation_runs.pop(boundary_group, None)
+            self._boundary_items.pop(boundary_group, None)
+        if run is None:
+            return False
+        with run.state_lock:
+            if not run.terminal_outcome:
+                run.launch_state = "terminated"
+                run.terminal_outcome = outcome
+                run.terminal_succeeded = succeeded
+            outcome = run.terminal_outcome
+            succeeded = run.terminal_succeeded
+        with run.callback_lock:
+            self._notify_validation_lifecycle(
+                command=run.command,
+                phase="completed",
+                succeeded=succeeded,
+                outcome=outcome,
+                duration_seconds=time.monotonic() - run.started_at,
+                invocation_id=run.invocation_id,
+                validation_scope=run.scope,
+            )
+        return True
+
+    def complete_validation_item(
+        self,
+        command_identity: str,
+        item_id: str,
+        *,
+        succeeded: bool,
+        outcome: str,
+    ) -> bool:
+        with self._boundary_lock:
+            boundary_group = next(
+                (
+                    group
+                    for group, bound_item_id in self._boundary_items.items()
+                    if bound_item_id == item_id
+                    and (
+                        self._validation_runs.get(group).command_identity
+                        if self._validation_runs.get(group) is not None
+                        else ""
+                    )
+                    == command_identity
+                ),
+                None,
+            )
+        if boundary_group is None:
+            return False
+        with self._boundary_lock:
+            run = self._validation_runs.get(boundary_group)
+        if run is None:
+            return False
+        with run.state_lock:
+            if run.terminal_outcome:
+                return False
+            run.launch_state = "terminated"
+            run.terminal_outcome = outcome
+            run.terminal_succeeded = succeeded
+        return self._complete_validation_group(
+            boundary_group,
+            succeeded=succeeded,
+            outcome=outcome,
+        )
+
+    def stop(self, *, cleanup_outcome: str = "authority_withdrawn") -> None:
         # Stop accepting first, then close every tracked peer before taking
         # the publication lock. A REGISTER send blocked inside that critical
         # section is thereby interrupted and can release the lock; a send that
         # completed first is the fully accepted side of the race.
+        normalized_cleanup = str(cleanup_outcome or "").strip().casefold()
+        if normalized_cleanup not in {
+            "authority_withdrawn",
+            "session_error",
+            "stream_error",
+            "timed_out",
+            "transport_error",
+        }:
+            normalized_cleanup = "transport_error"
+        # Publish the cause before disturbing any transport. A handler whose
+        # sendmsg is interrupted can then retain the operator/session reason
+        # instead of mislabelling cleanup as an independent transport fault.
+        self._requested_cleanup_outcome = normalized_cleanup
+        self._cleanup_requested.set()
         with contextlib.suppress(OSError):
             self._listener.close()
         if self._thread is not threading.current_thread():
@@ -896,12 +1422,58 @@ class _NativeValidationLeaseBroker:
             self._provider_identity = None
             self._capability_secret = None
             self._capability_identity = None
+            cleanup_runs = tuple(self._validation_runs.values())
+        # Close peers before taking a run's linearization lock so a blocked
+        # descriptor send is interrupted. Preparing runs are then atomically
+        # terminated before the cancellation fence wakes their supervisors.
+        for run in cleanup_runs:
+            with run.state_lock:
+                run.cleanup_outcome = normalized_cleanup
+                if run.launch_state == "preparing" and not run.terminal_outcome:
+                    run.launch_state = "terminated"
+        with contextlib.suppress(OSError):
+            (self.root / _CANCELLATION_NAME).touch(mode=0o600, exist_ok=True)
         for handler in handlers:
             if handler is not threading.current_thread():
                 handler.join()
         with self._handler_lock:
             self._handler_connections.difference_update(connections)
             self._handler_threads.difference_update(handlers)
+            supervisor_observers = tuple(self._supervisor_observers)
+        # Each supervisor reports timeout/withdrawal/transport status before
+        # releasing its descriptor. Drain those reports before assigning the
+        # retirement fallback so an already-known terminal cause is never
+        # overwritten as authority withdrawal.
+        for observer in supervisor_observers:
+            if observer is not threading.current_thread():
+                observer.join()
+        with self._handler_lock:
+            self._supervisor_observers.difference_update(supervisor_observers)
+        with self._boundary_lock:
+            lifecycle_groups = tuple(self._validation_runs)
+        for boundary_group in lifecycle_groups:
+            with self._boundary_lock:
+                run = self._validation_runs.get(boundary_group)
+            if run is None:
+                continue
+            with run.state_lock:
+                outcome = run.terminal_outcome
+                if not outcome:
+                    outcome = (
+                        normalized_cleanup
+                        if run.supervisor_outcome != "exited"
+                        or normalized_cleanup != "authority_withdrawn"
+                        else "stream_error"
+                    )
+                    run.launch_state = "terminated"
+                    run.terminal_outcome = outcome
+                    run.terminal_succeeded = False
+                succeeded = run.terminal_succeeded
+            self._complete_validation_group(
+                boundary_group,
+                succeeded=succeeded,
+                outcome=outcome,
+            )
         if descriptor is not None:
             with contextlib.suppress(OSError):
                 os.close(descriptor)
@@ -940,6 +1512,7 @@ class _NativeValidationLeaseBroker:
                 if boundary[1] != boundary_group
             )
             self._bound_item_ids.add(item_id)
+            self._boundary_items[boundary_group] = item_id
             return True
 
 
@@ -949,26 +1522,42 @@ def _start_native_validation_broker(
     validation_lease: ValidationResourceLease,
     owner: ValidationLeaseOwner,
     timeout_seconds: float,
+    validation_reuse_policy: Mapping[str, Any] | None = None,
+    validation_reuse_authority_check: Callable[[], object] | None = None,
+    validation_reuse_policy_handler: Callable[..., object] | None = None,
+    validation_command_handler: Callable[..., object] | None = None,
+    executable_search_path: str | None = None,
+    untrusted_executable_roots: tuple[str | os.PathLike[str], ...] = (),
 ) -> _NativeValidationLeaseBroker:
     broker = _NativeValidationLeaseBroker(
         root,
         validation_lease=validation_lease,
         owner=owner,
         timeout_seconds=timeout_seconds,
+        validation_reuse_policy=validation_reuse_policy,
+        validation_reuse_authority_check=validation_reuse_authority_check,
+        validation_reuse_policy_handler=validation_reuse_policy_handler,
+        validation_command_handler=validation_command_handler,
+        executable_search_path=executable_search_path,
+        untrusted_executable_roots=untrusted_executable_roots,
     )
     with _BROKER_REGISTRY_LOCK:
         previous = _BROKER_REGISTRY.setdefault(root.resolve(), broker)
     if previous is not broker:
-        broker.stop()
+        broker.stop(cleanup_outcome="transport_error")
         raise RuntimeError("native validation broker already exists")
     return broker
 
 
-def _stop_native_validation_broker(root: Path) -> None:
+def _stop_native_validation_broker(
+    root: Path,
+    *,
+    cleanup_outcome: str = "authority_withdrawn",
+) -> None:
     with _BROKER_REGISTRY_LOCK:
         broker = _BROKER_REGISTRY.pop(root.resolve(), None)
     if broker is not None:
-        broker.stop()
+        broker.stop(cleanup_outcome=cleanup_outcome)
 
 
 def consume_native_validation_boundary(
@@ -983,6 +1572,26 @@ def consume_native_validation_boundary(
     return broker is not None and broker.consume_recent_boundary(
         _command_identity(command),
         str(item_id),
+    )
+
+
+def complete_native_validation_command(
+    runtime_root: str | os.PathLike[str],
+    command: str,
+    item_id: str,
+    *,
+    succeeded: bool,
+    outcome: str,
+) -> bool:
+    """Complete lifecycle telemetry for a bound native command item."""
+
+    with _BROKER_REGISTRY_LOCK:
+        broker = _BROKER_REGISTRY.get(Path(runtime_root).resolve())
+    return broker is not None and broker.complete_validation_item(
+        _command_identity(command),
+        str(item_id),
+        succeeded=bool(succeeded),
+        outcome=str(outcome or ""),
     )
 
 
@@ -1032,6 +1641,10 @@ def install_native_validation_guard(
     provider_bootstrap_entrypoint_identity: tuple[int, int] | None = None,
     provider_bootstrap_entrypoint_fd: int | None = None,
     provider_untrusted_roots: tuple[str | os.PathLike[str], ...] = (),
+    validation_reuse_policy: Mapping[str, Any] | None = None,
+    validation_reuse_authority_check: Callable[[], object] | None = None,
+    validation_reuse_policy_handler: Callable[..., object] | None = None,
+    validation_command_handler: Callable[..., object] | None = None,
 ) -> tuple[dict[str, str], Path]:
     """Return an environment whose validation launchers are command guarded.
 
@@ -1048,6 +1661,10 @@ def install_native_validation_guard(
         and not str(name).startswith("BASH_FUNC_")
         and not _is_dynamic_loader_environment_name(str(name))
     }
+    # These are per-command policy inputs, never ambient provider authority.
+    # A model must opt into a distinct run on the exact native invocation.
+    guarded.pop(_VALIDATION_MODE_ENV, None)
+    guarded.pop(_VALIDATION_JUSTIFICATION_ENV, None)
     original_path = str(guarded.get("PATH") or os.defpath)
     root = Path(runtime_root).resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -1269,6 +1886,12 @@ def install_native_validation_guard(
         validation_lease=validation_lease,
         owner=owner,
         timeout_seconds=timeout_seconds,
+        validation_reuse_policy=validation_reuse_policy,
+        validation_reuse_authority_check=validation_reuse_authority_check,
+        validation_reuse_policy_handler=validation_reuse_policy_handler,
+        validation_command_handler=validation_command_handler,
+        executable_search_path=original_path,
+        untrusted_executable_roots=provider_untrusted_roots,
     )
     try:
         if provider_bootstrap_entrypoint is None:
@@ -1277,7 +1900,7 @@ def install_native_validation_guard(
     except BaseException:
         # Installation has not returned an owner capable of retiring this
         # root. Do not strand its broker listener/thread after bootstrap fails.
-        _stop_native_validation_broker(root)
+        _stop_native_validation_broker(root, cleanup_outcome="transport_error")
         raise
     return guarded, root
 
@@ -1629,14 +2252,28 @@ def _terminate_supervised_process_group(
 def _supervise_validation_lease(config: Mapping[str, object]) -> int:
     """Enforce authority withdrawal independently of the service process."""
 
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         raise RuntimeError("native validation supervisor arguments are invalid")
     peer_pid = int(sys.argv[1])
     peer_start_ticks = int(sys.argv[2])
     lease_descriptor = int(sys.argv[3])
     deadline_at = float(sys.argv[4])
     ready_descriptor = int(sys.argv[5])
+    status_descriptor = int(sys.argv[6])
     pidfd = -1
+    terminal_reported = False
+
+    def report_terminal(outcome: str) -> None:
+        nonlocal terminal_reported, status_descriptor
+        if terminal_reported:
+            return
+        terminal_reported = True
+        with contextlib.suppress(OSError):
+            os.write(status_descriptor, f"{outcome}\n".encode("ascii"))
+        with contextlib.suppress(OSError):
+            os.close(status_descriptor)
+        status_descriptor = -1
+
     try:
         if not hasattr(os, "pidfd_open"):
             raise RuntimeError("native validation pidfd supervision is unavailable")
@@ -1653,6 +2290,12 @@ def _supervise_validation_lease(config: Mapping[str, object]) -> int:
             and time.time() < deadline_at
         ):
             time.sleep(0.05)
+        if _process_start_ticks(peer_pid) != peer_start_ticks:
+            report_terminal("exited")
+        elif cancellation_path.exists():
+            report_terminal("authority_withdrawn")
+        else:
+            report_terminal("timed_out")
         while not _terminate_supervised_process_group(
             peer_pid,
             peer_start_ticks,
@@ -1664,7 +2307,12 @@ def _supervise_validation_lease(config: Mapping[str, object]) -> int:
         # Close only this supervisor's duplicate. The heavyweight command and
         # every descendant that inherited its open-file description continue
         # owning the kernel fence until their own execution actually ends.
+    except BaseException:
+        report_terminal("transport_error")
+        raise
     finally:
+        if status_descriptor >= 0:
+            report_terminal("transport_error")
         if ready_descriptor >= 0:
             with contextlib.suppress(OSError):
                 os.close(ready_descriptor)
@@ -1683,9 +2331,18 @@ def _start_validation_lease_supervisor(
     peer_start_ticks: int,
     lease_descriptor: int,
     timeout_seconds: float,
-) -> None:
+    terminal_handler: Callable[[str], object],
+) -> threading.Thread:
     read_descriptor, write_descriptor = os.pipe2(os.O_CLOEXEC)
+    try:
+        status_read_descriptor, status_write_descriptor = os.pipe2(os.O_CLOEXEC)
+    except BaseException:
+        os.close(read_descriptor)
+        os.close(write_descriptor)
+        raise
     process: subprocess.Popen[bytes] | None = None
+    observer: threading.Thread | None = None
+    observer_started = False
     try:
         deadline_at = time.time() + max(float(timeout_seconds), 1.0)
         process = subprocess.Popen(
@@ -1696,20 +2353,52 @@ def _start_validation_lease_supervisor(
                 str(lease_descriptor),
                 repr(deadline_at),
                 str(write_descriptor),
+                str(status_write_descriptor),
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True,
-            pass_fds=(lease_descriptor, write_descriptor),
+            pass_fds=(
+                lease_descriptor,
+                write_descriptor,
+                status_write_descriptor,
+            ),
             start_new_session=True,
         )
         os.close(write_descriptor)
         write_descriptor = -1
+        os.close(status_write_descriptor)
+        status_write_descriptor = -1
         readable, _, _ = select.select([read_descriptor], [], [], 2.0)
         if not readable or os.read(read_descriptor, 16) != b"READY\n":
             raise RuntimeError("native validation lease supervisor did not start")
         threading.Thread(target=process.wait, daemon=True).start()
+
+        def observe_terminal() -> None:
+            try:
+                packet = os.read(status_read_descriptor, 64)
+                outcome = packet.decode("ascii", errors="replace").strip()
+                if outcome not in {
+                    "authority_withdrawn",
+                    "exited",
+                    "timed_out",
+                    "transport_error",
+                }:
+                    outcome = "transport_error"
+                terminal_handler(outcome)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.close(status_read_descriptor)
+
+        observer = threading.Thread(
+            target=observe_terminal,
+            name=f"native-validation-supervisor-status-{peer_pid}",
+            daemon=True,
+        )
+        observer.start()
+        observer_started = True
+        return observer
     except BaseException:
         if process is not None and process.poll() is None:
             process.kill()
@@ -1720,6 +2409,10 @@ def _start_validation_lease_supervisor(
         os.close(read_descriptor)
         if write_descriptor >= 0:
             os.close(write_descriptor)
+        if status_write_descriptor >= 0:
+            os.close(status_write_descriptor)
+        if not observer_started:
+            os.close(status_read_descriptor)
 
 
 def main() -> int:
@@ -1831,6 +2524,8 @@ def main() -> int:
         )
         if _cancelled():
             raise RuntimeError("native validation authority was withdrawn before exec")
+        child_env.pop(_VALIDATION_MODE_ENV, None)
+        child_env.pop(_VALIDATION_JUSTIFICATION_ENV, None)
         os.execve(
             executable,
             [
@@ -1857,6 +2552,8 @@ def main() -> int:
     try:
         if _cancelled():
             raise RuntimeError("native validation authority was withdrawn before exec")
+        child_env.pop(_VALIDATION_MODE_ENV, None)
+        child_env.pop(_VALIDATION_JUSTIFICATION_ENV, None)
         os.set_inheritable(lease_descriptor, True)
         raw_capability_descriptor = child_env.pop(_CAPABILITY_FD_ENV, "")
         with contextlib.suppress(OSError, ValueError):
@@ -1983,6 +2680,7 @@ def retire_native_validation_guard(
     *,
     validation_lease: ValidationResourceLease | None = None,
     owner: ValidationLeaseOwner | None = None,
+    terminal_outcome: str = "authority_withdrawn",
 ) -> bool:
     """Withdraw one guard and remove it only after descendants are gone.
 
@@ -1995,8 +2693,14 @@ def retire_native_validation_guard(
     root = Path(runtime_root).resolve()
     if not root.is_dir():
         return True
+    # Let the live broker publish the exact cleanup cause before it creates
+    # the cancellation fence. Otherwise its supervisor can observe that fence
+    # first and collapse transport/session cleanup into authority withdrawal.
+    _stop_native_validation_broker(
+        root,
+        cleanup_outcome=terminal_outcome,
+    )
     (root / _CANCELLATION_NAME).touch(mode=0o600, exist_ok=True)
-    _stop_native_validation_broker(root)
     if validation_lease is None or owner is None:
         try:
             validation_lease, owner = _lease_and_owner_from_runtime_root(root)
@@ -2034,7 +2738,9 @@ def cleanup_retired_native_validation_guards(
 
 
 __all__ = [
+    "NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION",
     "cleanup_retired_native_validation_guards",
+    "complete_native_validation_command",
     "consume_native_validation_boundary",
     "install_native_validation_guard",
     "main",
