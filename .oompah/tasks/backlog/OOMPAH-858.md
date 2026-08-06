@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:23:22.752195Z'
+updated_at: '2026-08-06T09:25:39.156346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live OOMPAH-804/834 deadlock on 2026-08-06: OOMPAH-804 is a task with decomposit
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 09:25
+---
+Additional live finding: after removing the implicit parent->child rollup edges, OOMPAH-834 still waited on already-terminal external prerequisites because _integration_satisfied_dependencies and _execute_integration_item derive origin/epic-OOMPAH-804 from queue.epic_id. The authoritative nested delivery target recorded by submission is epic-OOMPAH-768--task-OOMPAH-804. The executor ignores IntegrationRecord.base_branch, so eligibility reachability, worktree creation, integration, and persisted base_branch can all use a stale sibling branch. The fix must resolve and fence the exact recorded immediate-parent target consistently; add a divergent stale epic-OOMPAH-804 alias regression. Task-scoped workaround will preserve the stale target under a backup ref and align the alias to the already validated f89c477d parent head so the deployed executor can complete the existing queue safely.
+---
+<!-- COMMENTS:END -->
