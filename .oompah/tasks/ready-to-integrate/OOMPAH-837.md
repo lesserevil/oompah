@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-837
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T11:52:40.007258Z'
+updated_at: '2026-08-06T12:12:01.345596Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -20,13 +20,15 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-837
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
-  updated_at: '2026-08-06T11:52:32.612048+00:00'
-oompah.agent_run_id: 33fb8313-be02-428f-96ba-9507ca37640c
+  head_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
+  submitted_at: '2026-08-06T12:11:48.818035+00:00'
+  updated_at: '2026-08-06T12:11:48.818035+00:00'
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-837
 oompah.duplicate_screening:
   schema_version: 1
