@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:32:56.257056Z'
+updated_at: '2026-08-06T13:33:25.659604Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.integration:
   updated_at: '2026-08-06T13:32:43.117553+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1982
+  total_input_tokens: 444
+  total_output_tokens: 21064
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1982
+      input_tokens: 444
+      output_tokens: 21064
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 1982
     cost_usd: 0.0
     recorded_at: '2026-08-06T09:36:34.541822+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 434
+    output_tokens: 19082
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T13:33:22.921797+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-858__20260806T093605Z
@@ -170,5 +176,15 @@ author: oompah
 created: 2026-08-06 13:32
 ---
 COMPLETION: Task submitted successfully. Delivered: (1) integration_dependencies() function to filter container rollup edges, (2) updated _integration_dependency_map in orchestrator.py, (3) 12 comprehensive regression tests, (4) all 459 existing tests still pass. Root cause fixed: nested children no longer inherit parent's rollup dependencies that would create self-wait and sibling wait conditions. External prerequisites and explicit sibling dependencies preserved as required.
+---
+author: oompah
+created: 2026-08-06 13:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 53
+- Tokens: 434 in / 19.1K out [19.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 36s
+- Log: OOMPAH-858__20260806T131401Z.jsonl
 ---
 <!-- COMMENTS:END -->
