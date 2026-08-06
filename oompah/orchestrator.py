@@ -10254,6 +10254,22 @@ class Orchestrator:
                     review_capacity = self._project_review_capacity(project_id)
                 review_count, review_limit, at_capacity = review_capacity
                 if at_capacity:
+                    reservation = (
+                        self._standalone_review_capacity_reservation(authority)
+                    )
+                    if reservation is not None:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            authority=authority,
+                        )
+                        logger.info(
+                            "Standalone Ready task %s already owns exact review "
+                            "capacity reservation %s",
+                            task_id,
+                            reservation.reservation_id,
+                        )
+                        return
                     # Capacity is project-wide, so later candidates cannot
                     # make progress in this sweep.  Keep an informational,
                     # non-actionable wait state for the selected task rather
@@ -10324,6 +10340,7 @@ class Orchestrator:
                     task_id=task_id,
                     source_branch=task_branch,
                     target_branch=target_branch,
+                    authority=authority,
                 )
                 if reservation is None:
                     review_count, review_limit, _ = review_capacity
@@ -10346,6 +10363,19 @@ class Orchestrator:
                         review_limit,
                     )
                     break
+                if not reservation.acquired_new:
+                    self._clear_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        authority=authority,
+                    )
+                    logger.info(
+                        "Standalone Ready task %s already owns exact review "
+                        "capacity reservation %s",
+                        task_id,
+                        reservation.reservation_id,
+                    )
+                    return
 
                 title = f"{task_id}: {issue.title}" if issue.title else task_id
                 description = issue.description or ""
@@ -16784,6 +16814,7 @@ class Orchestrator:
         source_branch: str,
         target_branch: str,
         live_reviews: list[Any] | None = None,
+        authority: StandaloneDeliveryAuthority | None = None,
     ) -> ReviewCapacityReservation | None:
         """Fetch authoritative forge state and atomically reserve one slot."""
         if live_reviews is None:
@@ -16803,13 +16834,66 @@ class Orchestrator:
             limit=limit,
             open_review_ids=self._open_review_ids(live_reviews),
             reservation_id=str(uuid.uuid4()),
+            authority_generation=(
+                authority.generation if authority is not None else None
+            ),
+            head_sha=(authority.head_sha if authority is not None else None),
         )
         if reservation is not None and not reservation.acquired_new:
+            if (
+                authority is not None
+                and reservation.project_id == authority.project_id
+                and reservation.task_id == authority.task_id
+                and reservation.source_branch == authority.branch
+                and reservation.target_branch == authority.target_branch
+                and str(reservation.head_sha or "").strip().lower()
+                == str(authority.head_sha or "").strip().lower()
+                and bool(str(authority.head_sha or "").strip())
+            ):
+                # A concurrent sweep, or a restarted sweep for the same exact
+                # accepted head, already owns the durable gap between capacity
+                # inspection and review creation.  Return that observation so
+                # the caller can suppress a false capacity-wait alert without
+                # receiving permission to create another review.
+                return reservation
             # Another sweep owns this task/branch reservation.  It may still
             # be between forge create and reservation commit; either way this
             # caller must not issue a second create request.
             return None
         return reservation
+
+    def _standalone_review_capacity_reservation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> ReviewCapacityReservation | None:
+        """Return a durable reservation for this exact accepted task head."""
+
+        expected_head = str(authority.head_sha or "").strip().lower()
+        if not expected_head:
+            return None
+        try:
+            reservations = self.review_capacity_store.active(
+                authority.project_id
+            )
+        except Exception as exc:  # noqa: BLE001 - alerting must fail closed
+            logger.warning(
+                "Could not inspect review reservations for %s: %s",
+                authority.project_id,
+                exc,
+            )
+            return None
+        return next(
+            (
+                reservation
+                for reservation in reservations
+                if reservation.task_id == authority.task_id
+                and reservation.source_branch == authority.branch
+                and reservation.target_branch == authority.target_branch
+                and str(reservation.head_sha or "").strip().lower()
+                == expected_head
+            ),
+            None,
+        )
 
     def _commit_review_slot(
         self,
