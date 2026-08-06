@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-843
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
@@ -11,13 +11,30 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T02:39:33.484875Z'
+updated_at: '2026-08-06T02:40:02.548010Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 284462f7bcc885e4ac065d8b276d6524a4a03c242330e763e67d48d068c87aae
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 3157ba9f-77ec-4c09-9917-a48f15abd7fc
+  claim_owner: f7278be4-f84b-419e-8352-94d46afbf29e
+  claimed_at: '2026-08-06T02:39:59.894568+00:00'
+  claim_expires_at: '2026-08-06T03:09:59.894568+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
@@ -29,3 +46,11 @@ Live OOMPAH-796 audit attempt attempt-bf484b85b4ed on 2026-08-06 exposed an impo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 02:39
+---
+Immediate operator mitigation staged in .env: OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS=2400, safely above the observed ~1,080-second canonical gate and below the one-hour audit session. It requires a later make restart after active gates/audits drain; no unsafe live restart was attempted. The code fix must still validate target/deadline compatibility and support explicitly configured focused targets.
+---
+<!-- COMMENTS:END -->
