@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-862
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent terminal auditors from redundantly rerunning authoritative full gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:46:26.689789Z'
+updated_at: '2026-08-06T15:53:16.522195Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
     exact full gate. Related OOMPAH-847 through OOMPAH-861 tasks address test isolation,
     resource fencing, dependency flow, and branch authority, not redundant terminal-audit
     gate reuse.
-oompah.agent_run_id: 8517ca93-c711-4906-9cf4-de73c5fba4dd
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-862
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-862
   base_branch: epic-OOMPAH-763
   base_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
-  updated_at: '2026-08-06T14:26:53.282139+00:00'
+  head_sha: 6b67846406858b585ce47939f70bec76eb706fe8
+  submitted_at: '2026-08-06T15:53:06.504910+00:00'
+  updated_at: '2026-08-06T15:53:06.504910+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2503
@@ -161,5 +163,15 @@ author: oompah
 created: 2026-08-06 14:46
 ---
 Direct owner claim is now active and the managed worker has stopped with a clean recovery checkpoint at cc305f7a4. Independent static review rejected that checkpoint on three concrete gaps: API auditors bypass duration and validation telemetry; stale or not-configured evidence can be reused without a current-authority freshness fence; and telemetry treats make test-serial or wrapped full-suite attempts as focused while omitting failed and timed-out attempts. Owner repair will add fail-closed authority checks, API parity, semantic full-suite classification, and regressions before validation.
+---
+author: oompah
+created: 2026-08-06 15:53
+---
+Owner repair is complete at exact pushed head 6b6784640 after final independent static ACCEPT. Enforcement now revalidates live audit authority, denies redundant exact and opaque full-suite commands before process launch, permits only bounded attempt-scoped distinct-mode exceptions, and records consistent durable lifecycle telemetry across API, Claude, Codex, and OpenCode. Validation: 548 focused tests passed serial and 548 passed with four-worker loadscope; secret scan and diff check passed.
+---
+author: oompah
+created: 2026-08-06 15:53
+---
+Prevented redundant terminal-audit full gates with fail-closed live authority checks, tool enforcement, structured distinct-mode escape, and durable API/ACP telemetry; 548 serial plus 548 xdist tests passed at 6b6784640.
 ---
 <!-- COMMENTS:END -->
