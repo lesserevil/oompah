@@ -11,13 +11,32 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T17:58:55.112646Z'
-work_branch: null
+updated_at: '2026-08-06T18:00:09.112372Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 7752a9d697051b42829f41131d2549044bd68bcdf9b08358058a2e1bdc27616b
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 65e52117-c8f9-44db-ae90-514b58c5afef
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T17:59:53.593591+00:00'
+  claim_expires_at: '2026-08-06T18:29:53.593591+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 4990960f-8eab-446d-879b-fddea35c4e02
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 ---
 ## Summary
 
@@ -29,3 +48,11 @@ Live deterministic reproduction while validating OOMPAH-851: two concurrent _rec
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 18:00
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
