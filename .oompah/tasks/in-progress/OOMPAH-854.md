@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T08:35:11.942889Z'
+updated_at: '2026-08-06T08:46:40.311515Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -327,5 +327,10 @@ author: oompah
 created: 2026-08-06 08:35
 ---
 Fourth repair revision is under independent review. Restart drain task/owner publication and create_task rollback are now atomic; final worker/provider task-creation failure and any pre-first-turn auditor cancellation release the exact claim/runtime/branch/audit/metrics/retry budget; the restart regression now uses shared durable metadata, a fresh orchestrator, two real scans, and one provider start per audit. Diff check passes; no tests/commit/push yet.
+---
+author: oompah
+created: 2026-08-06 08:46
+---
+Fourth independent static review REJECTED the latest uncommitted repair on four admission/fencing gaps: a drain task canceled or failed after creation leaves a permanent restart fence; non-auditor worker create_task failure can strand tracker state In Progress and lose retry authority; worker/provider publication still assumes non-eager execution and misses CancelledError rollback; and transient durable audit-rollback failure can spend a supposedly free audit attempt. Repair is underway with production-path regressions before any tests or commit.
 ---
 <!-- COMMENTS:END -->
