@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T04:38:45.864802Z'
+updated_at: '2026-08-06T04:59:32.277757Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -56,47 +56,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: 16d83ea3eaf409338cc22449e1447be088bea7df
-  head_sha: 0b5b039a1e21643973001852987b5d8e39352bc7
-  submitted_at: '2026-08-06T03:42:28.180033+00:00'
-  updated_at: '2026-08-06T04:29:08.248269+00:00'
-  last_error: "Combined-tree quality gate failed: stForwarderProcessFullLifecycle::test_process_start_and_immediate_exit\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-5q5en4on/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7c74de2039c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_includes_build_id\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-5q5en4on/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x734c68b479c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_budget_free_tier_dispatch.py::TestGetSnapshotFreeTierActive::test_should_dispatch_increments_and_snapshot_reflects_it\n\
-    FAILED tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_skips_new_epic_maintenance_when_previous_still_running\n\
-    = 2 failed, 16192 passed, 8 skipped, 1 xfailed, 51 warnings in 1104.62s (0:18:24)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
+  submitted_at: '2026-08-06T04:59:25.318463+00:00'
+  updated_at: '2026-08-06T04:59:25.318463+00:00'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -665,5 +632,15 @@ author: oompah
 created: 2026-08-06 04:38
 ---
 Authoritative head 0b5b039a completed 16,192 tests successfully before two unrelated loaded-gate failures. OOMPAH-844 already contains the scoped release-recovery stub for the failing epic-maintenance test and owns the current exact-gate lease. Filed canonical OOMPAH-848 for the unrelated free-tier snapshot failure. Direct owner claim 38ca32a96ca4490a92094de551110abf now fences OOMPAH-791; in-flight workaround is to keep the lane exclusive, incorporate only proven test-isolation fixes after their gates, and resubmit this exact implementation lineage without weakening production behavior.
+---
+author: oompah
+created: 2026-08-06 04:59
+---
+Owner repair completed at exact pushed head 2c6fc5259. The free-tier snapshot test now exercises one full snapshot after the counter transition, and the maintenance-future tests stub unrelated release-addendum scans and use a faithful timing-mapping dispatch mock. Exact failing nodes pass 2/2; both affected modules pass 318/318 with xdist; git diff check and branch cleanliness pass.
+---
+author: oompah
+created: 2026-08-06 04:59
+---
+Stabilized the two loaded full-gate failures at exact head 2c6fc5259; exact regressions and 318 affected-module tests pass.
 ---
 <!-- COMMENTS:END -->
