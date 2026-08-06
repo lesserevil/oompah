@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:46:06.154939Z'
+updated_at: '2026-08-06T14:46:26.689789Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 11s
 - Log: OOMPAH-862__20260806T142704Z.jsonl
+---
+author: oompah
+created: 2026-08-06 14:46
+---
+Direct owner claim is now active and the managed worker has stopped with a clean recovery checkpoint at cc305f7a4. Independent static review rejected that checkpoint on three concrete gaps: API auditors bypass duration and validation telemetry; stale or not-configured evidence can be reused without a current-authority freshness fence; and telemetry treats make test-serial or wrapped full-suite attempts as focused while omitting failed and timed-out attempts. Owner repair will add fail-closed authority checks, API parity, semantic full-suite classification, and regressions before validation.
 ---
 <!-- COMMENTS:END -->
