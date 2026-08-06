@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T05:19:14.286279Z'
+updated_at: '2026-08-06T05:43:12.948071Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -115,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-791
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,13 +138,27 @@ oompah.terminal_audit:
       ended_at: '2026-08-06T05:19:07.277985+00:00'
       failure_reason: lifecycle drain began before auditor provider launch
       next_retry_at: '2026-08-06T05:19:17.277959+00:00'
+    - version: 1
+      attempt_id: attempt-c29149f92ba2
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4887e4e96cbf76084f97b22979ef1ac4b142c181bb186157468db69403cd7eba
+      created_at: '2026-08-06T05:43:10.018139+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-06T05:43:10.018139+00:00'
+      branch_key: epic-OOMPAH-768--task-OOMPAH-791
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T05:18:25.417055+00:00'
-    updated_at: '2026-08-06T05:19:07.277985+00:00'
+    updated_at: '2026-08-06T05:43:10.018139+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-50dea84e66e3
@@ -163,6 +177,20 @@ oompah.terminal_audit:
     ended_at: '2026-08-06T05:19:07.277985+00:00'
     failure_reason: lifecycle drain began before auditor provider launch
     next_retry_at: '2026-08-06T05:19:17.277959+00:00'
+  - version: 1
+    attempt_id: attempt-c29149f92ba2
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4887e4e96cbf76084f97b22979ef1ac4b142c181bb186157468db69403cd7eba
+    created_at: '2026-08-06T05:43:10.018139+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-06T05:43:10.018139+00:00'
+    branch_key: epic-OOMPAH-768--task-OOMPAH-791
+    candidate_rotation_count: 1
 ---
 ## Summary
 
