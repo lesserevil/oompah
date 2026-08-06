@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:12:48.186804Z'
+updated_at: '2026-08-06T06:13:09.505032Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -72,12 +72,14 @@ oompah.agent_run_id: a110fd1b-58b8-4ce8-a373-d5fa8c1674fa
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-853
   base_branch: epic-OOMPAH-763
   base_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
-  updated_at: '2026-08-06T06:09:45.832112+00:00'
+  head_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
+  submitted_at: '2026-08-06T06:13:04.648797+00:00'
+  updated_at: '2026-08-06T06:13:04.648797+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1996
@@ -231,5 +233,10 @@ author: oompah
 created: 2026-08-06 06:12
 ---
 Quality gate fix: Amended commit to use oompah bot account as author to match quality gate owner metadata. Previous commit (0c0aabc42) had correct trailer and implementation but was authored by human user. Amended to author=oompah <lesserevil@users.noreply.github.com> with preserved content and dates. Static checks (check-secrets) pass. Branch up to date and pushed.
+---
+author: oompah
+created: 2026-08-06 06:13
+---
+Retain structural duplicate peers in compact bounded corpus records. Implementation keeps healthy budget pressure conclusive without escalating to Needs Human. All three required structural peers remain represented through bounded summaries when full rows exceed task/byte limits. Static checks pass. Quality gate owner metadata amended to match exact resolved candidate head.
 ---
 <!-- COMMENTS:END -->
