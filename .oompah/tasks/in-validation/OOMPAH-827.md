@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T03:41:31.675488Z'
+updated_at: '2026-08-06T03:51:06.049949Z'
 work_branch: OOMPAH-827
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/728
@@ -117,6 +117,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8ece097368e7: '2026-08-06T03:18:59.811463+00:00'
+    attempt-b2026facde1c: '2026-08-06T03:51:04.702399+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-827
@@ -127,6 +128,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-06T03:18:59.811475+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-827
+    target_state: Merged
+    evidence_fingerprint: b1a8254d2559d7d62fb51b86b9ccdef17bfe64e857fb33bc3e92b6f73f6c0bd0
+    audit_ids:
+    - audit-a4191da2118c
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T03:51:04.702411+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-827
@@ -140,6 +150,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T03:18:59.811491+00:00'
     applied_at: '2026-08-06T03:19:06.601285+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-827
+    audit_id: audit-a4191da2118c
+    attempt_id: attempt-b2026facde1c
+    target_state: Merged
+    evidence_fingerprint: b1a8254d2559d7d62fb51b86b9ccdef17bfe64e857fb33bc3e92b6f73f6c0bd0
+    status: Merged
+    audit_ids:
+    - audit-a4191da2118c
+    applied: false
+    created_at: '2026-08-06T03:51:04.702424+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -181,7 +202,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-827
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -190,7 +211,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b2026facde1c
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -200,13 +221,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T03:41:22.801617+00:00'
       branch_key: OOMPAH-827
+      verdict: pass
+      completed_at: '2026-08-06T03:51:04.702293+00:00'
+      ended_at: '2026-08-06T03:51:04.702293+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-06T02:35:41.208827+00:00'
-    updated_at: '2026-08-06T03:41:22.801617+00:00'
+    updated_at: '2026-08-06T03:51:04.702293+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8ece097368e7
