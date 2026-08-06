@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-857
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Clear recovered operator-auth warnings after authenticated success
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:20:03.000920Z'
+updated_at: '2026-08-06T07:20:21.878223Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 829393a0-546d-487c-9f90-50c049fa815d
+oompah.agent_run_id: e19b3a8b-0541-424f-82e3-363b45441af1
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-857
 oompah.integration:
   version: 2
@@ -52,7 +52,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-740--task-OOMPAH-857
   base_branch: epic-OOMPAH-740
   base_sha: 4cdcc7e6e4f2f13087bce5942edf6a19821b9979
-  updated_at: '2026-08-06T07:19:38.590989+00:00'
+  updated_at: '2026-08-06T07:20:20.416891+00:00'
 oompah.task_costs:
   total_input_tokens: 47595
   total_output_tokens: 1848
@@ -163,5 +163,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 23s
 - Log: OOMPAH-857__20260806T071945Z.jsonl
+---
+author: oompah
+created: 2026-08-06 07:20
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
