@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T18:31:46.235404Z'
+updated_at: '2026-08-06T18:33:57.851226Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-08-06 18:31
 ---
 DISCOVERY: OOMPAH-831 consists of 2 commits (81b8be698 and 0e0056375) on origin/epic-OOMPAH-763--task-OOMPAH-831 branch. These add: (1) new search_files.py for bounded regex search, (2) updated auditor.py with safe git inspection (ls-tree, ls-remote, for-each-ref, wc -l), (3) safe read-only inspection command validation, (4) critical ordering fix ensuring escape denials remain fatal before contract mismatch checks, (5) 206 new tests in test_auditor_contract.py. None of these are currently on main. Starting to apply these changes now.
+---
+author: oompah
+created: 2026-08-06 18:33
+---
+IMPLEMENTATION: Successfully cherry-picked OOMPAH-831 commits (81b8be698 and 0e0056375) onto main. Changes include: (1) new oompah/search_files.py for bounded regex search with context support, (2) updated auditor.py with safe git inspections (ls-tree, ls-remote, for-each-ref, wc -l), (3) updated acp_tools.py with new schema for search_files with include/context parameters, (4) 206 new tests in test_auditor_contract.py. Critical safety ordering fix ensures path/credential escapes are fatal before contract mismatch checks. Now running test suite to verify.
 ---
 <!-- COMMENTS:END -->
