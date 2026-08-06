@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T04:22:03.746027Z'
+updated_at: '2026-08-06T07:31:11.823566Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25m 30s
 - Log: OOMPAH-795__20260806T035642Z.jsonl
+---
+author: oompah
+created: 2026-08-06 07:31
+---
+Independent static review REJECTED the current uncommitted repair. Blockers: queued audit age still becomes a false actionable error; failed-project truth is lost after cold restart; several alert and agent-panel identities remain identifier-only across projects; full-sync can publish old decisions with newer issues and discard the intervening update; reload epoch/tracker cutover is non-atomic and does not immediately notify/refresh; Done parity tests do not prove cache/API/UI behavior. Accepted epoch fencing, redaction, and card/detail identity work will be preserved while repair continues. No tests were run.
 ---
 <!-- COMMENTS:END -->
