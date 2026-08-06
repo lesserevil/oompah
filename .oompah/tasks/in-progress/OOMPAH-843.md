@@ -6,12 +6,13 @@ priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-831
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T03:10:27.981456Z'
+updated_at: '2026-08-06T03:24:28.815277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -200,5 +201,10 @@ author: oompah
 created: 2026-08-06 03:10
 ---
 Independent read-only review of the current uncommitted worktree found it is not yet acceptance-ready. Required corrections before submission: wire per-target deadlines through normal ApiAgentSession and every ACP backend catalog (current constructor/global timeout wins); validate actual configured/observed target duration feasibility during load/startup, not merely deadline > 0; reject invalid per-target values fail-closed instead of silently falling back; implement prompt/tool fallback ordering and configuration-incompatibility observability; cover multi-project/resource-lane/runtime-budget behavior; fix local-import patch targets and trailing whitespace; replace placeholder tests with assertions. Preserve OOMPAH-831's authoritative search/path/credential inspection fences. OOMPAH-831 exact sequence is f3b8326ed then security follow-up 93b0295bc; after O843 is complete, replay only its commits atop the epic head containing both O831 commits, without merging main ancestry.
+---
+author: oompah
+created: 2026-08-06 03:24
+---
+Recorded finish-order dependency on OOMPAH-831. This does not block ongoing implementation, but OOMPAH-843 must not integrate before O831's complete f3b8326ed -> 93b0295bc security sequence is landed and its commits are replayed onto the reachable target lineage.
 ---
 <!-- COMMENTS:END -->
