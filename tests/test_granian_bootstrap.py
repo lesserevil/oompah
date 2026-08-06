@@ -9,6 +9,7 @@ These tests verify:
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import sys
 from types import SimpleNamespace
@@ -517,11 +518,17 @@ class TestUvicornHttpAuthWiring:
         class _Orchestrator:
             wants_restart = True
 
+            def __init__(self):
+                self.stopped_safely = False
+
             async def run(self):
                 return None
 
             async def stop(self):
-                return None
+                raise AssertionError("entry point bypassed fail-closed stop")
+
+            async def stop_until_safe(self):
+                self.stopped_safely = True
 
             def stop_threadsafe(self):
                 return None
@@ -552,7 +559,34 @@ class TestUvicornHttpAuthWiring:
             result = await main_mod._run("WORKFLOW.md", None)
 
         assert result is True
+        assert services.orchestrator.stopped_safely is True
         set_credentials.assert_called_once_with(credentials)
+
+    @pytest.mark.asyncio
+    async def test_process_boundary_defers_cancellation_until_safe_stop(self):
+        from oompah.server import _await_fail_closed_orchestrator_stop
+
+        stop_started = asyncio.Event()
+        allow_stop = asyncio.Event()
+
+        class _Orchestrator:
+            def stop_threadsafe(self):
+                return None
+
+            async def stop_until_safe(self):
+                stop_started.set()
+                await allow_stop.wait()
+
+        boundary = asyncio.create_task(
+            _await_fail_closed_orchestrator_stop(_Orchestrator())
+        )
+        await asyncio.wait_for(stop_started.wait(), timeout=3)
+        boundary.cancel()
+        await asyncio.sleep(0)
+
+        assert boundary.done() is False
+        allow_stop.set()
+        await boundary
 
 
 # ---------------------------------------------------------------------------

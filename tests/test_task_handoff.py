@@ -1098,7 +1098,10 @@ class TestTaskScopeDirectPath:
             for _ in range(100):
                 if (
                     orch._current_running_entry(issue.id) is None
-                    and issue.id not in orch._scheduled_termination_ids
+                    and not any(
+                        key[0] == issue.id
+                        for key in orch._scheduled_termination_entries
+                    )
                 ):
                     break
                 await asyncio.sleep(0.01)
@@ -1130,7 +1133,9 @@ class TestTaskScopeDirectPath:
         ]
         assert orch._current_running_entry(issue.id) is None
         assert issue.id not in orch.state.claimed
-        assert issue.id not in orch._scheduled_termination_ids
+        assert not any(
+            key[0] == issue.id for key in orch._scheduled_termination_entries
+        )
         assert tracker.update_issue.call_args_list == [
             call(issue.identifier, status="Ready to Integrate"),
             call(issue.identifier, status="Ready to Integrate"),

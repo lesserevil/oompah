@@ -425,6 +425,7 @@ async def _run(
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.server import (
+        _await_fail_closed_orchestrator_stop,
         app,
         set_api_event_loop,
         set_gitlab_hook_manager,
@@ -560,14 +561,10 @@ async def _run(
         pass
     finally:
         wants_restart = orchestrator.wants_restart
-        stop_future = orchestrator.stop_threadsafe()
-        if stop_future is not None:
-            try:
-                await asyncio.wait_for(asyncio.wrap_future(stop_future), timeout=5.0)
-            except (asyncio.TimeoutError, Exception) as exc:
-                logger.warning("Timed out stopping orchestrator thread: %s", exc)
-        else:
-            await orchestrator.stop()
+        # Re-exec/exit is forbidden while a setup-only runtime is the sole
+        # in-memory rollback owner.  The shared process-boundary helper shields
+        # and retries shutdown until that authority is durable.
+        await _await_fail_closed_orchestrator_stop(orchestrator)
         await webhook_forwarder.stop()
         await gitlab_hook_manager.stop()
         watch_task.cancel()
