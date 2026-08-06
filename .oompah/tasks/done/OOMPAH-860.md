@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T14:58:10.007577Z'
+updated_at: '2026-08-06T14:58:20.085361Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -101,8 +101,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-0503df39d875
-    applied: false
+    applied: true
     created_at: '2026-08-06T14:58:06.404514+00:00'
+    applied_at: '2026-08-06T14:58:17.268682+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -309,5 +310,28 @@ author: oompah
 created: 2026-08-06 14:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 14:58
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- worktree_head_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
+- origin_OOMPAH-860_head_sha: 34bf3aa8a471ef7fdc11d500423f3d06d06ca782
+- origin_hierarchical_head_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
+- primary_commit_subject: OOMPAH-860: close leaked exact-gate test resources
+- primary_commit_stat: tests/test_submission_fencing.py +6/-6, tests/test_webhooks.py +17/-5
+- stabilization_commit_subject: Stabilize loaded orchestration gate tests
+- worker_task_none_locations: tests/test_submission_fencing.py:120,246,330,390,560,622,666 (7/7 replaced)
+- asyncio_sleep_0_leaks_remaining: none in tests/
+- test_launch_skips_missing_gh_mocks: patch(oompah.webhooks.asyncio.create_subprocess_exec, AsyncMock, side_effect=FileNotFoundError) + asserts process=None, stderr_task=None, disabled=True
+- test_exponential_backoff_mocks_launch: patch.object(fwd, '_launch', AsyncMock) + asyncio.sleep mock, verifies launch.assert_awaited_once_with(fp)
+- make_test_serial_result: 16081 passed, 7 skipped, 1 xfailed, 42 warnings in 2282.33s exit_code=0
+- [REDACTED-credential-key]: clean exit_code=0
+- git_diff_check_result: clean exit_code=0
+- worktree_git_status: clean, up to date with origin (detached HEAD at hierarchical branch head)
 ---
 <!-- COMMENTS:END -->
