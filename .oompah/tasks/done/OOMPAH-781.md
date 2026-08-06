@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T08:54:28.855539Z'
+updated_at: '2026-08-06T08:54:56.696175Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -82,13 +82,17 @@ oompah.integration:
     OOMPAH-812: 1230456cc7834d14b8064d73e1742734ab670d2a
     OOMPAH-793: a744be37d42047e25e6fc62a6a64878c187290e0
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1252
+  total_input_tokens: 96
+  total_output_tokens: 16757
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1252
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 86
+      output_tokens: 15505
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +101,12 @@ oompah.task_costs:
     output_tokens: 1252
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:24:23.239960+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 86
+    output_tokens: 15505
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T08:54:54.047155+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-781__20260804T202239Z
@@ -787,5 +797,15 @@ Safe evidence:
 - oversized_output_test: test_checkpoint_excludes_oversized_or_untrusted_output
 - restart_tests: test_restart_requeues_audit_without_a_live_attempt, test_finalizing_result_survives_restart_and_reclaims_exact_lease, test_action_required_checkpoint_replays_result_after_restart
 - starvation_test: test_finalization_replay_precedes_pause_and_capacity_gates
+---
+author: oompah
+created: 2026-08-06 08:54
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 80
+- Tokens: 86 in / 15.5K out [15.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 17s
+- Log: OOMPAH-781__20260806T084152Z.jsonl
 ---
 <!-- COMMENTS:END -->
