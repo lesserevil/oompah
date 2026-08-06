@@ -137,6 +137,7 @@ class QualityGateResult:
     duration_seconds: float = 0.0
     output_tail: str = ""
     cached: bool = False
+    recorded_at: float | None = None
 
     @property
     def passed(self) -> bool:
@@ -1375,6 +1376,60 @@ class BranchQualityGate:
             )
         return True
 
+    def lookup(
+        self,
+        *,
+        repo_identity: str,
+        target_branch: str,
+        work_branch: str,
+        head_sha: str,
+        command: str,
+    ) -> QualityGateResult | None:
+        """Return durable evidence for one exact head without executing it.
+
+        Terminal-audit prompt construction must be able to inspect the
+        authoritative integration gate without acquiring validation capacity or
+        spawning candidate code.  The lookup is deliberately exact-keyed: a
+        missing, malformed, different-head, or different-command entry is a
+        cache miss and therefore cannot suppress an auditor-requested gate.
+        """
+
+        command = str(command or "").strip()
+        head = str(head_sha or "").strip().lower()
+        if not command or not re.fullmatch(r"[0-9a-f]{40,64}", head):
+            return None
+        key = self._evidence_key(
+            repo_identity=str(repo_identity or "").strip(),
+            target_branch=str(target_branch or "").strip(),
+            work_branch=str(work_branch or "").strip(),
+            head_sha=head,
+            command=command,
+        )
+        try:
+            with self._lock:
+                entry = self._load().get(key)
+        except OSError:
+            return None
+        if not isinstance(entry, dict) or not entry.get("status"):
+            return None
+        try:
+            duration = max(float(entry.get("duration_seconds", 0) or 0), 0.0)
+        except (TypeError, ValueError):
+            duration = 0.0
+        try:
+            recorded_at = float(entry.get("recorded_at"))
+        except (TypeError, ValueError):
+            recorded_at = None
+        return QualityGateResult(
+            status=str(entry["status"]),
+            head_sha=head,
+            command=command,
+            duration_seconds=duration,
+            output_tail=str(entry.get("output_tail", "") or ""),
+            cached=True,
+            recorded_at=recorded_at,
+        )
+
     @contextmanager
     def _key_lock(self, key: str):
         """Yield a single-flight lock and discard it once its last user leaves."""
@@ -1579,6 +1634,11 @@ class BranchQualityGate:
                 ),
                 output_tail=str(cached_entry.get("output_tail", "") or ""),
                 cached=True,
+                recorded_at=(
+                    float(cached_entry.get("recorded_at"))
+                    if cached_entry.get("recorded_at") is not None
+                    else None
+                ),
             )
 
         # Fast cache lookup does not consume host capacity.  Crucially, the

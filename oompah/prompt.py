@@ -434,6 +434,56 @@ def render_auditor_prompt(
             value, ensure_ascii=False, sort_keys=True, default=str, indent=2
         ).replace("`", "\\u0060")
 
+    quality_gate_evidence = None
+    if isinstance(evidence_summary, Mapping):
+        quality_gate_evidence = evidence_summary.get(
+            "authoritative_quality_gate",
+            evidence_summary.get("quality_gate"),
+        )
+    quality_gate_contract: list[str] = []
+    if isinstance(quality_gate_evidence, Mapping):
+        decision = str(quality_gate_evidence.get("decision") or "").strip()
+        quality_gate_contract = [
+            "### Authoritative exact-head quality-gate evidence",
+            "The following is scheduler-supplied evidence for the accepted head;"
+            " it is not a request to mutate state:",
+            "@@TICK@@json",
+            _safe_json(dict(quality_gate_evidence)),
+            "@@TICK@@",
+        ]
+        if decision == "reuse_authoritative_gate":
+            quality_gate_contract.extend(
+                [
+                    "The configured full gate is current and passing for the exact"
+                    " accepted head. Verify the patch and audit its requirements,"
+                    " but do not rerun the configured full gate merely for completion.",
+                    "Do not substitute a redundant full-suite variant such as"
+                    " `make test-serial` for the already passing gate.",
+                    "The approved validation-target list is an allowlist, not a"
+                    " request to run every listed target; the configured full gate"
+                    " remains satisfied by the evidence above.",
+                    "Narrowly targeted missing checks remain allowed, including"
+                    " focused warning or race checks. A distinct execution mode"
+                    " remains allowed when the task specifically requires it or"
+                    " the supplied exact-head evidence is no longer current.",
+                ]
+            )
+        elif decision == "not_configured":
+            quality_gate_contract.append(
+                "No configured full gate is available; inspect the patch and use"
+                " only the approved focused validation relevant to this task."
+            )
+        else:
+            quality_gate_contract.extend(
+                [
+                    "A current passing exact-head full-gate result was not found."
+                    " The configured full gate is required when code-bearing"
+                    " validation is needed; focused checks are not a substitute.",
+                    "If the evidence is missing, stale, failed, or for a different"
+                    " head, do not claim that the full gate was reused.",
+                ]
+            )
+
     wrapped_description = _wrap_issue_description(issue) or "(no description supplied)"
     comment_lines: list[str] = []
     for comment in comments or []:
@@ -523,6 +573,9 @@ def render_auditor_prompt(
         evidence_text,
         "",
     ]
+    if quality_gate_contract:
+        prompt_content.extend(quality_gate_contract)
+        prompt_content.append("")
     prompt_content.extend(metadata_archive_contract)
     
     # Conditionally add validation targets section

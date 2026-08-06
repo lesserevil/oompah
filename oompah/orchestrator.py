@@ -16655,6 +16655,7 @@ class Orchestrator:
         audit_target: object,
         workspace_path: str | os.PathLike[str],
         command: str,
+        duration_seconds: float = 0.0,
     ) -> bool:
         """Reuse a successful auditor gate only for the exact submitted head.
 
@@ -16743,11 +16744,162 @@ class Orchestrator:
                     evidence_fingerprint=target.evidence_fingerprint,
                     expected_evidence_fingerprint=current_fingerprint,
                     detached_workspace=detached,
-                )
+                ),
+                duration_seconds=duration_seconds,
             )
         except Exception as exc:  # noqa: BLE001 - reuse must fail closed
             logger.debug("Auditor quality evidence was not reusable: %s", exc)
             return False
+
+    def _terminal_audit_quality_gate_evidence(
+        self,
+        issue: Issue,
+        project: Project | None,
+        audit_target: object,
+    ) -> dict[str, Any]:
+        """Build the trusted exact-head gate bundle for an auditor prompt.
+
+        The integration gate is keyed by the accepted submission head, not by
+        the potentially newer default-branch revision used for a later
+        Merged/Archived audit workspace.  A missing exact key is intentionally
+        represented as ``full_gate_required``; auditors may run the configured
+        gate in that case, but must never infer that a different head is safe.
+        """
+
+        command = self._quality_gate_command(project) if project is not None else ""
+        integration = getattr(issue, "integration", None)
+        accepted_head = str(
+            getattr(integration, "head_sha", "")
+            or getattr(issue, "source_sha", "")
+            or ""
+        ).strip().lower()
+        work_branch = str(
+            getattr(integration, "task_branch", "")
+            or assigned_work_branch(issue)
+            or getattr(issue, "source_branch", "")
+            or getattr(issue, "work_branch", "")
+            or getattr(issue, "branch_name", "")
+            or ""
+        ).strip()
+        target_branch = str(
+            getattr(integration, "base_branch", "")
+            or getattr(issue, "target_branch", "")
+            or (getattr(project, "default_branch", "") if project else "")
+            or ""
+        ).strip()
+        repo_identity = str(
+            (getattr(project, "repo_url", "") if project else "")
+            or (getattr(project, "repo_path", "") if project else "")
+            or (getattr(project, "id", "") if project else "")
+            or ""
+        ).strip()
+        result: QualityGateResult | None = None
+        reason = ""
+        if not command:
+            decision = "not_configured"
+            status = "not_configured"
+            reason = "no configured full quality-gate command"
+        elif not accepted_head or not work_branch or not target_branch or not repo_identity:
+            decision = "full_gate_required"
+            status = "missing"
+            reason = "authoritative exact-head identity is incomplete"
+        else:
+            result = self._branch_quality_gate.lookup(
+                repo_identity=repo_identity,
+                target_branch=target_branch,
+                work_branch=work_branch,
+                head_sha=accepted_head,
+                command=command,
+            )
+            if result is None:
+                decision = "full_gate_required"
+                status = "missing"
+                reason = "no current passing result for the accepted exact head"
+            elif result.status == "passed":
+                decision = "reuse_authoritative_gate"
+                status = result.status
+            else:
+                decision = "full_gate_required"
+                status = result.status
+                reason = "authoritative exact-head gate did not pass"
+
+        targets = []
+        if project is not None:
+            raw_targets = getattr(project, "auditor_validation_targets", None)
+            if isinstance(raw_targets, (list, tuple)):
+                targets = [str(value).strip() for value in raw_targets if str(value).strip()]
+        bundle: dict[str, Any] = {
+            "decision": decision,
+            "command": command,
+            "result": status,
+            "status": status,
+            "head_sha": result.head_sha if result is not None else accepted_head,
+            "accepted_head_sha": accepted_head,
+            "target_branch": target_branch,
+            "work_branch": work_branch,
+            "duration_seconds": (
+                result.duration_seconds if result is not None else None
+            ),
+            "recorded_at": result.recorded_at if result is not None else None,
+            "reason": reason,
+            "focused_evidence": {
+                "configured_auditor_targets": targets,
+                "supplemental_checks_allowed": True,
+                "supplemental_scope": [
+                    "narrowly targeted tests",
+                    "warning checks",
+                    "race checks",
+                ],
+            },
+        }
+        metrics = getattr(self, "_terminal_audit_metrics", None)
+        recorder = getattr(metrics, "record_quality_gate_decision", None)
+        if callable(recorder):
+            try:
+                recorder(
+                    str(getattr(audit_target, "project_id", "") or issue.project_id or "legacy"),
+                    str(getattr(audit_target, "task_id", "") or issue.identifier),
+                    str(getattr(audit_target, "audit_id", "") or "unknown"),
+                    decision=decision,
+                    result=status,
+                    head_sha=accepted_head,
+                    command=command,
+                    duration_seconds=(
+                        result.duration_seconds if result is not None else None
+                    ),
+                )
+            except Exception:  # telemetry must not block audit dispatch
+                logger.debug("Unable to record terminal-audit gate decision", exc_info=True)
+        return bundle
+
+    def record_auditor_validation_command(
+        self,
+        *,
+        audit_target: object,
+        command: str,
+        duration_seconds: float = 0.0,
+        succeeded: bool = True,
+    ) -> None:
+        """Record whether an auditor ran the full or focused validation lane."""
+
+        metrics = getattr(self, "_terminal_audit_metrics", None)
+        recorder = getattr(metrics, "record_auditor_validation_command", None)
+        if not callable(recorder):
+            return
+        try:
+            project = self.project_store.get(str(getattr(audit_target, "project_id", "")))
+            configured = self._quality_gate_command(project) if project is not None else ""
+            recorder(
+                str(getattr(audit_target, "project_id", "") or "legacy"),
+                str(getattr(audit_target, "task_id", "") or "unknown"),
+                str(getattr(audit_target, "audit_id", "") or "unknown"),
+                command=str(command or ""),
+                configured_command=configured,
+                duration_seconds=duration_seconds,
+                succeeded=succeeded,
+            )
+        except Exception:  # telemetry must not block an auditor command
+            logger.debug("Unable to record auditor validation command", exc_info=True)
 
     @staticmethod
     def _worktree_head(path: str) -> str:
@@ -34763,6 +34915,13 @@ class Orchestrator:
                             "pending_target": audit_target.to_dict(),
                             "pending_target_count": pending_count,
                         }
+                        evidence_summary["authoritative_quality_gate"] = (
+                            self._terminal_audit_quality_gate_evidence(
+                                issue,
+                                project_obj,
+                                audit_target,
+                            )
+                        )
                         auditor_comments = comments
                         archive_snapshot = self._revisionless_archive_evidence(
                             issue,
@@ -35425,6 +35584,13 @@ class Orchestrator:
                             "pending_target": audit_target.to_dict(),
                             "pending_target_count": pending_count,
                         }
+                        evidence_summary["authoritative_quality_gate"] = (
+                            self._terminal_audit_quality_gate_evidence(
+                                issue,
+                                project_obj,
+                                audit_target,
+                            )
+                        )
                         auditor_comments = comments
                         archive_snapshot = self._revisionless_archive_evidence(
                             issue,

@@ -88,15 +88,42 @@ def _auditor_validation_success_handler(
         "record_auditor_quality_evidence",
         None,
     )
-    if not auditor_mode or audit_target is None or not callable(recorder):
+    command_recorder = getattr(
+        coordination_service,
+        "record_auditor_validation_command",
+        None,
+    )
+    if (
+        not auditor_mode
+        or audit_target is None
+        or (not callable(recorder) and not callable(command_recorder))
+    ):
         return None
 
-    def record(command: str, workspace: Path) -> object:
-        return recorder(
-            audit_target=audit_target,
-            workspace_path=workspace,
-            command=command,
-        )
+    def record(
+        command: str,
+        workspace: Path,
+        *,
+        duration_seconds: float = 0.0,
+    ) -> object:
+        if callable(command_recorder):
+            try:
+                command_recorder(
+                    audit_target=audit_target,
+                    command=command,
+                    duration_seconds=duration_seconds,
+                    succeeded=True,
+                )
+            except Exception:  # telemetry must not block evidence recording
+                logger.debug("Auditor validation telemetry failed", exc_info=True)
+        if callable(recorder):
+            return recorder(
+                audit_target=audit_target,
+                workspace_path=workspace,
+                command=command,
+                duration_seconds=duration_seconds,
+            )
+        return None
 
     return record
 

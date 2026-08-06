@@ -97,6 +97,50 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
     assert json.dumps(AUDITOR_RESULT_TOOL_SCHEMA, indent=2) in prompt
 
 
+def test_auditor_prompt_reuses_current_full_gate_but_allows_focused_checks():
+    prompt = render_auditor_prompt(
+        _issue(),
+        target=_target(),
+        evidence_summary={
+            "authoritative_quality_gate": {
+                "decision": "reuse_authoritative_gate",
+                "command": "make test",
+                "result": "passed",
+                "head_sha": "a" * 40,
+                "duration_seconds": 321.4,
+                "focused_evidence": {
+                    "supplemental_checks_allowed": True,
+                    "supplemental_scope": ["warning checks", "race checks"],
+                },
+            }
+        },
+    )
+
+    assert "current and passing for the exact accepted head" in prompt
+    assert "do not rerun the configured full gate" in prompt
+    assert "`make test-serial`" in prompt
+    assert "allowlist, not a request to run every listed target" in prompt
+    assert "focused warning or race checks" in prompt
+
+
+def test_auditor_prompt_requires_full_gate_when_exact_evidence_is_missing():
+    prompt = render_auditor_prompt(
+        _issue(),
+        target=_target(),
+        evidence_summary={
+            "authoritative_quality_gate": {
+                "decision": "full_gate_required",
+                "command": "make test",
+                "result": "missing",
+                "head_sha": "b" * 40,
+            }
+        },
+    )
+
+    assert "current passing exact-head full-gate result was not found" in prompt
+    assert "configured full gate is required" in prompt
+
+
 def test_metadata_archive_prompt_does_not_require_fake_code_revision():
     target = AuditorTargetContract(
         audit_id="audit-803",
