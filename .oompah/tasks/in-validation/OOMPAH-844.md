@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-844
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Isolate orchestrator maintenance unit tests from full-corpus recovery scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T04:41:21.379330Z'
+updated_at: '2026-08-06T04:53:30.744881Z'
 work_branch: OOMPAH-844
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/730
@@ -110,6 +110,45 @@ oompah.review_number: '730'
 oompah.work_branch: OOMPAH-844
 oompah.target_branch: main
 oompah.review_head: d58976219e939c349498f69ce2fdbcb6ff650e96
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c9dff9bc3978
+    project_id: proj-14849f1b
+    task_id: OOMPAH-844
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 092291c29764bf5800f8f18879a35fe4249c6f25281c5539668536984fcf9f4f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-06T04:53:16.902678+00:00'
+  - version: 1
+    audit_id: audit-4d23077d474f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-844
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 092291c29764bf5800f8f18879a35fe4249c6f25281c5539668536984fcf9f4f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-06T04:53:16.902678+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -217,5 +256,15 @@ author: oompah
 created: 2026-08-06 04:40
 ---
 Branch quality gate passed for `d58976219e939c349498f69ce2fdbcb6ff650e96` using `make test` in 662.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-06 04:53
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-06 04:53
+---
+YOLO: merged PR #730.
 ---
 <!-- COMMENTS:END -->
