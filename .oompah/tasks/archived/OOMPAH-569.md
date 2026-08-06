@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:26:15.028867Z'
-updated_at: '2026-08-06T00:56:32.799997Z'
+updated_at: '2026-08-06T00:58:15.108627Z'
 work_branch: OOMPAH-569
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/585
@@ -106,6 +106,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-06T00:24:47.202368+00:00'
     branch_key: OOMPAH-569
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 553
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 553
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 553
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T00:58:11.180971+00:00'
 ---
 ## Summary
 
@@ -163,5 +179,15 @@ Safe evidence:
 - focused_test_results: test_quality_gate.py 9 passed; test_client_auth.py 60 passed
 - ancestry: merge commit 8483db2e3 is an ancestor of main and origin/main
 - aging_basis: closed 2026-07-29; today 2026-08-06 (>=7 days)
+---
+author: oompah
+created: 2026-08-06 00:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 42, Tool calls: 26
+- Tokens: 6 in / 553 out [559 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 33m 20s
+- Log: OOMPAH-569__20260806T002510Z.jsonl
 ---
 <!-- COMMENTS:END -->
