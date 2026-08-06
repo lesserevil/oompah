@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:11:04.861530Z'
+updated_at: '2026-08-06T04:12:31.611959Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -186,18 +186,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7b25a33d2aa0
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+      created_at: '2026-08-06T04:12:11.831126+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-06T04:12:11.831126+00:00'
+      branch_key: OOMPAH-826
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-06T04:02:29.056807+00:00'
+    updated_at: '2026-08-06T04:12:11.831126+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7974892cf5b3
@@ -211,6 +225,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-06T04:03:02.561025+00:00'
+    branch_key: OOMPAH-826
+  - version: 1
+    attempt_id: attempt-7b25a33d2aa0
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+    created_at: '2026-08-06T04:12:11.831126+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-06T04:12:11.831126+00:00'
     branch_key: OOMPAH-826
 ---
 ## Summary
@@ -421,5 +448,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 50s
 - Log: OOMPAH-826__20260806T040322Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:12
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-06 04:12
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
