@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:26:57.322765Z'
+updated_at: '2026-08-06T16:28:10.454282Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 59d51c65-69ee-405e-b275-034dd94d5ea4
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-767--task-OOMPAH-792
 oompah.integration:
   version: 2
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-08-06 16:26
 ---
 Verification: full-stack incident replay passes all 7 corpus scenarios, including duplicate schedule delivery, abandoned-lease restart recovery, native tracker transitions, real Git ref/ancestry assertions, and UI diagnostic reason parity. Focused affected suites pass: 233 tests green; final contract/evaluator/full-stack rerun: 71 passed. Ruff and git diff checks are clean. make setup remains blocked by the sandbox validation lock/package-manager issue noted above.
+---
+author: oompah
+created: 2026-08-06 16:28
+---
+Completion: committed and pushed 040741ecb. Delivered the parameterized seven-incident full-stack replay, restart/duplicate-event safety checks, native Git/tracker/evaluator/worker/transition/UI diagnostic composition, verified-landing reason preservation, and audited direct-maintenance transition coverage. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
