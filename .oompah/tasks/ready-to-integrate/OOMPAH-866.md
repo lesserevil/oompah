@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T21:19:08.618100Z'
+updated_at: '2026-08-06T21:19:20.555267Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -47,12 +47,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
   base_sha: 72cc4481c3eee5605345a4a36c3fe688149572b8
-  updated_at: '2026-08-06T20:54:06.955948+00:00'
+  head_sha: ee05a0ad8fbdf4459bf710a29a9926b088b70d10
+  submitted_at: '2026-08-06T21:19:03.576783+00:00'
+  updated_at: '2026-08-06T21:19:03.576783+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 3166
@@ -151,5 +153,10 @@ author: oompah
 created: 2026-08-06 21:19
 ---
 Completion: direct epic rebases now persist project/epic/child-scoped, generation-fenced old-to-canonical child range mappings; validators consume only fresh, identity-matched, real-commit, current-ref-proven mappings. Original child SHAs and refs remain unchanged, restart restoration is covered, and the branch is pushed at ee05a0ad8.
+---
+author: oompah
+created: 2026-08-06 21:19
+---
+Implemented durable canonical child landing mappings for direct epic conflict rebases with fail-closed validation and restart persistence; focused suites pass.
 ---
 <!-- COMMENTS:END -->
