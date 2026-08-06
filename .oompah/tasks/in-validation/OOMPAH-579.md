@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-579
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Prune branchless terminal legacy epic-task worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-07-30T04:40:31.612733Z'
+updated_at: '2026-08-06T04:49:01.119224Z'
 work_branch: OOMPAH-579
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/591
@@ -178,6 +178,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-30T04:20:02.983899+00:00'
     updated_at: '2026-07-30T04:40:15.958708+00:00'
+  - version: 1
+    audit_id: audit-761d8231b229
+    project_id: proj-14849f1b
+    task_id: OOMPAH-579
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 041557e3a675910e9b6b42c59de3d8b97d6b1d0734565d684163e40a0553d4cb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T04:48:57.570868+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-251e79e4565b
