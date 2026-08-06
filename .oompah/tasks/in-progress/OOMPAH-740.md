@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T08:23:04.867230Z'
+updated_at: '2026-08-06T08:23:41.239164Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -34,7 +34,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/731
 oompah.review_number: '731'
 oompah.work_branch: epic-OOMPAH-740
 oompah.target_branch: main
-oompah.agent_run_id: null
+oompah.agent_run_id: 7c556956-e689-473a-a89b-92ca7cf70a2d
 oompah.integration:
   version: 2
   state: ready
@@ -136,5 +136,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 52s
 - Log: OOMPAH-740__20260806T071051Z.jsonl
+---
+author: oompah
+created: 2026-08-06 08:23
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-06 08:23
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
