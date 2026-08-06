@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T03:57:49.482574Z'
+updated_at: '2026-08-06T04:14:33.561327Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-08-06 03:57
 ---
 Discovery: the branch already has pure WorkDecision evaluation and an enforce-mode controller, but consumers still read legacy rows/alerts; the public snapshot exposes no canonical task decision collection. I am tracing retained controller state and snapshot assembly to add a shared projection at the state boundary while preserving websocket sequencing and auth redaction.
+---
+author: oompah
+created: 2026-08-06 04:14
+---
+Implementation: added the shared redacted WorkDecision projection boundary and cache, attached it to state/running/retry/queue, board/detail responses, and a protected single-task endpoint. Global alerts now require explicit action_required plus warning severity; the dashboard renders the same reason/owner/prerequisite/action fields with escaped accessible markup. Added projection documentation and parity/redaction/alert/UI tests.
 ---
 <!-- COMMENTS:END -->
