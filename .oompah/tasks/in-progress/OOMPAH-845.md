@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:05:53.333184Z'
+updated_at: '2026-08-06T21:06:19.534325Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -315,5 +315,10 @@ author: oompah
 created: 2026-08-06 21:05
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-06 21:06
+---
+Understanding: The branch OOMPAH-845 at head 6a799a1483e has a confirmed restart-recovery test fix in tests/test_error_watcher.py. The prior CI gate failure was an operator-cancelled validation lease (OOMPAH-839 classification gap), not a product test failure. My plan: (1) verify the current branch state matches the accepted head, (2) run focused tests for the changed file and the event-driven-loop module, (3) confirm no regressions, then submit the task.
 ---
 <!-- COMMENTS:END -->
