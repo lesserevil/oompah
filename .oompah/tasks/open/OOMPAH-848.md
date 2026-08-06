@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T04:40:18.214105Z'
+updated_at: '2026-08-06T04:42:08.448344Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -45,6 +45,22 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
   updated_at: '2026-08-06T04:40:10.052323+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2298
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2298
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2298
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T04:42:02.511155+00:00'
 ---
 ## Summary
 
