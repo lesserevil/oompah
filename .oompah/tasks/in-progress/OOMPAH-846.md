@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T15:32:38.383647Z'
+updated_at: '2026-08-06T16:02:55.300897Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-08-06 15:32
 ---
 Focused validation exposed a real portability blocker at bb7fba9cc: on the deployed CPython build, os.memfd_create is absent, so _sealed_capability_descriptor raises AttributeError before native guard bootstrap. The four-module matrix cascaded into broker accept timeouts and was stopped at its exact process group; no edits were lost and the lease released. A single-test reproduction failed deterministically after 3 passes. Repair now requires a secure immutable capability-descriptor fallback plus missing-memfd regression before rerunning the matrix.
+---
+author: oompah
+created: 2026-08-06 16:02
+---
+Fresh independent static review ACCEPTED the repaired native-validation guard diff ecde06e4b. The REGISTER/stop race, descriptor ownership and leak paths, handler socket/thread shutdown, copied sealed-memfd rejection, and deterministic regressions were all reviewed with no remaining correctness or security blocker. Validation remains queued behind the active OOMPAH-862 exact gate.
 ---
 <!-- COMMENTS:END -->
