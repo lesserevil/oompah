@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-06T00:21:15.334089Z'
+updated_at: '2026-08-06T00:21:24.920138Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
