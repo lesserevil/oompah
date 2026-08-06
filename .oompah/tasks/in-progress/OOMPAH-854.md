@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T07:40:52.621327Z'
+updated_at: '2026-08-06T08:05:54.410813Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -307,5 +307,10 @@ author: oompah
 created: 2026-08-06 07:40
 ---
 Second independent static review REJECTED the repair. Remaining blockers: the real make restart pre-drain quiesce can still be reopened by resume before restart is claimed; provider_started is marked under lock but actual provider/process start occurs afterward, leaving a post-marker admission window; rollback chooses the last unresolved record instead of the exact dispatched record in canonical Done→Merged chains; pre-provider rollback can leave dashboard gauges at queued=0/running=0 and reads nonexistent entry.attempt; no two-audit quiesce/restart/new-instance exactly-once or running→rollback→queued metric test exists. Accepted lock/coalescing/CAS work remains intact. No tests were run.
+---
+author: oompah
+created: 2026-08-06 08:05
+---
+Third repair revision complete and under independent review. Canonical restart now owns a pre-quiesce restart claim; delayed resume/IPC cannot reopen it; provider launch uses a two-phase generation handshake with atomic API/ACP/CLI start-task publication; rollback selects the first canonical unresolved record and preserves the Merged successor/retry budget; metrics immediately reconcile running→queued using retry_attempt; and two-audit restart/new-instance exactly-once races are covered. Diff check passes; no tests/commit/push yet.
 ---
 <!-- COMMENTS:END -->
