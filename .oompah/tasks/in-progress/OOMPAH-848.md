@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T05:42:10.607751Z'
+updated_at: '2026-08-06T17:30:52.714228Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 29b45efe-cf49-45e4-b3f8-8d75e813f434
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-848
 oompah.integration:
   version: 2
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-08-06 05:42
 ---
 Prepared free-tier regression repair is independently static-reviewed, clean, and pushed at 01c21a3d9 on top of checkpoint e655fdbf9. Pure budget projection tests use a storage-free minimal object, full orchestrators close both pools and five stores, and a real public get_snapshot budget-routing contract remains. Checkpoint only; focused tests and O763 restack are pending.
+---
+author: oompah
+created: 2026-08-06 17:30
+---
+Restacked free-tier budget isolation repair validated at 98de5d1f5: the complete module passed 41 serial and 41 under four-way xdist; the named increment/snapshot regression then passed 20 executions in five four-process concurrent batches. make check-secrets and git diff --check are clean. The branch was pushed with exact force-with-lease.
 ---
 <!-- COMMENTS:END -->
