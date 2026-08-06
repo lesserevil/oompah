@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T04:59:03.780964Z'
+updated_at: '2026-08-06T05:07:41.516277Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-06 04:59
 ---
 Discovery: the shared validation classifier is used by the API/Claude/OpenCode/Codex tool catalogs and the native Codex guard. The pytest classifier returns false for one explicit file/node and the unittest classifier returns false for one selected test; those are the production bypass. Lease acquisition already starts liveness before waiting, attaches before process creation, and supports cancellation. Existing tests encode the old focused bypass and will be inverted and expanded.
+---
+author: oompah
+created: 2026-08-06 05:07
+---
+Implementation: removed the focused-selector bypass from the shared classifier. All recognized pytest/py.test and python -m unittest commands now lease capacity after help/version exclusion, including single files, node IDs, and single unittest methods. Expanded lease tests cover named and absolute Python launchers, real exact-gate waiting before a focused pytest process, one-time execution, cancellation/telemetry coverage already in the lane, and concurrent non-test inspection.
 ---
 <!-- COMMENTS:END -->
