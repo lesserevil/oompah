@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Open
+status: Needs Human
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T18:01:19.468016Z'
+updated_at: '2026-08-06T18:01:25.541440Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 7s
 - Log: OOMPAH-863__20260806T180027Z.jsonl
+---
+author: oompah
+created: 2026-08-06 18:01
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
