@@ -22,7 +22,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:11:09.193040Z'
+updated_at: '2026-08-06T07:11:51.336900Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -91,5 +91,10 @@ author: oompah
 created: 2026-08-06 07:11
 ---
 Understanding: this pass is limited to rebasing epic-OOMPAH-740 onto origin/main, preserving every existing epic commit while reconciling conflicts with current main. I will inspect both conflict sides, run focused dashboard alert/state tests, force-push with lease, verify the exact post-push diff and branch status, then submit the rebased head.
+---
+author: oompah
+created: 2026-08-06 07:11
+---
+Discovery: the first conflict is in Orchestrator._serialize_state. Current main added validation-resource health/status, while OOMPAH-741 added quality-gate facts plus normalization of the combined dashboard alert contract. Both are independent and required, so the resolution keeps validation resource telemetry/actionability and feeds quality-gate, credential, auth-health, and stored alerts through normalize_alerts exactly once.
 ---
 <!-- COMMENTS:END -->
