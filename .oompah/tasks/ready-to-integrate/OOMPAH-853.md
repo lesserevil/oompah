@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:13:09.505032Z'
+updated_at: '2026-08-06T06:13:23.555099Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -81,13 +81,13 @@ oompah.integration:
   submitted_at: '2026-08-06T06:13:04.648797+00:00'
   updated_at: '2026-08-06T06:13:04.648797+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1996
+  total_input_tokens: 148
+  total_output_tokens: 6449
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1996
+      input_tokens: 148
+      output_tokens: 6449
       cost_usd: 0.0
   runs:
   - profile: default
@@ -96,6 +96,12 @@ oompah.task_costs:
     output_tokens: 1996
     cost_usd: 0.0
     recorded_at: '2026-08-06T05:14:48.855557+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 138
+    output_tokens: 4453
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T06:13:20.700613+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-853__20260806T051420Z
@@ -238,5 +244,15 @@ author: oompah
 created: 2026-08-06 06:13
 ---
 Retain structural duplicate peers in compact bounded corpus records. Implementation keeps healthy budget pressure conclusive without escalating to Needs Human. All three required structural peers remain represented through bounded summaries when full rows exceed task/byte limits. Static checks pass. Quality gate owner metadata amended to match exact resolved candidate head.
+---
+author: oompah
+created: 2026-08-06 06:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 16
+- Tokens: 138 in / 4.5K out [4.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 43s
+- Log: OOMPAH-853__20260806T060956Z.jsonl
 ---
 <!-- COMMENTS:END -->
