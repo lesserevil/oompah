@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:44:27.875051Z'
+updated_at: '2026-08-06T07:18:45.292966Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -292,5 +292,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 1s
 - Log: OOMPAH-854__20260806T064002Z.jsonl
+---
+author: oompah
+created: 2026-08-06 07:18
+---
+Independent static review REJECTED the current uncommitted repair. Restart is not yet inside the shared provider-admission transaction: restart-in-progress can be set outside the lock, dispatch does not treat it as blocked, and unpause during drain can reopen admission. Required deterministic restart/stop/resume races, rollback CAS conflicts, true persisted-paused startup, and admission metric assertions are also missing. Accepted quiesce/publication/rollback semantics are being preserved while repair continues; no tests were run.
 ---
 <!-- COMMENTS:END -->
