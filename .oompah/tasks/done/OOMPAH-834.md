@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T11:15:09.783039Z'
+updated_at: '2026-08-06T11:15:52.214648Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -57,13 +57,17 @@ oompah.integration:
   submitted_at: '2026-08-06T10:05:16.305589+00:00'
   updated_at: '2026-08-06T10:21:38.793076+00:00'
 oompah.task_costs:
-  total_input_tokens: 49361
-  total_output_tokens: 271
+  total_input_tokens: 49367
+  total_output_tokens: 437
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 49361
       output_tokens: 271
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 166
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +76,12 @@ oompah.task_costs:
     output_tokens: 271
     cost_usd: 0.0
     recorded_at: '2026-08-06T09:18:57.009999+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 166
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T11:15:48.759973+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-834__20260806T091844Z
@@ -371,5 +381,15 @@ Safe evidence:
 - single_failure_reason: pytest-timeout (>5.0s) at epoll_wait during asyncio.run(session.run_task())
 - single_failure_impact_on_task: unrelated: covered files oompah/acp_agent.py, oompah/acp_backends/base.py, tests/test_comment_delivery.py are not in the OOMPAH-834 diff
 - coordination_status: Sibling epic-OOMPAH-804 tasks (OOMPAH-835/836/837) all resubmitted at the same canonical head c31b8d32a
+---
+author: oompah
+created: 2026-08-06 11:15
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 77, Tool calls: 58
+- Tokens: 6 in / 166 out [172 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 53m 34s
+- Log: OOMPAH-834__20260806T102222Z.jsonl
 ---
 <!-- COMMENTS:END -->
