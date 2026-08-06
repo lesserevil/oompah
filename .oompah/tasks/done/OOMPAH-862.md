@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T16:54:58.506331Z'
+updated_at: '2026-08-06T16:55:04.660100Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -106,8 +106,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-5d02829b0301
-    applied: false
+    applied: true
     created_at: '2026-08-06T16:54:54.741804+00:00'
+    applied_at: '2026-08-06T16:55:03.338630+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -265,5 +266,30 @@ author: oompah
 created: 2026-08-06 16:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 16:55
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_sha: 6b67846406858b585ce47939f70bec76eb706fe8
+- branch_pushed_to_origin: epic-OOMPAH-763--task-OOMPAH-862
+- full_gate_command: make test
+- full_gate_result: 16187 passed, 7 skipped, 1 xfailed, 53 warnings in 1016.75s
+- full_gate_duration_seconds: 1016.75
+- test_workers: 4 xdist loadgroup
+- terminal_mutation_scan: passed (8 identified, 8 allowlisted)
+- files_changed: 16
+- insertions: 2594
+- deletions: 171
+- prompt_gate_reuse_message: prompt.py: 'do not rerun the configured full gate' + 'Do not substitute a redundant full-suite variant such as make test-serial'
+- fail_closed_surfaces: fingerprint, state, integrated_sha, branch head, live pending target audit_id/attempt_id/fingerprint, gate command/head/branches, invalid timestamp
+- distinct_mode_escape: task_required_distinct with non-empty validation_justification
+- tool_catalogs_covered: api_agent, acp_tools Claude, Codex, OpenCode
+- telemetry_counters_added: validation_commands_started/completed/failed/timed_out, reused_gate_validation_denied/distinct_mode_allowed/became_required
+- restart_persistence_tests: test_quality_gate_decision_and_validation_lane_telemetry_survive_restart, test_validation_command_lifecycle_records_timeout_once_across_restart, test_validation_reuse_policy_is_idempotent_and_survives_restart
 ---
 <!-- COMMENTS:END -->
