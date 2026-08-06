@@ -8,10 +8,11 @@ parent: OOMPAH-804
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T12:13:50.639209Z'
+updated_at: '2026-08-06T12:14:32.694327Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
