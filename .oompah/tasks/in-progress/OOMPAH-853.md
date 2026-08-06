@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:30:09.084977Z'
+updated_at: '2026-08-06T05:31:57.576846Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4fcbc956-8070-41b7-9044-563cd380eaad
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 oompah.integration:
   version: 2
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-08-06 05:30
 ---
 Operator note: I terminated only your unleased full make-test process group because it started concurrently with OOMPAH-852's authoritative exact-head gate, reproducing the live validation-lane race OOMPAH-852 fixes. Do not rerun full or focused tests while that lease is active. Preserve the already-green 265 focused tests, finish static checks, commit/push, and submit; the server's exact-head gate will validate the branch after deployment of the classifier fix.
+---
+author: oompah
+created: 2026-08-06 05:31
+---
+Completion: delivered and pushed 92e8d38fc. Healthy duplicate corpus pressure now retains every present structural peer through deterministic compact summaries within task/byte bounds, preserves relationship/project/terminal handling, and completes durable conclusive verdicts without Needs Human. Unavailable/corrupt tracker reads remain on bounded retry and actionable owner-resolution flow. Focused suites: 265 passed; py_compile and diff checks passed. The equivalent full 16,075-test parallel run started with passes but was host-terminated (SIGTERM) during early global tests; make setup/test wrapper was separately blocked by the host read-only validation-lease path.
 ---
 <!-- COMMENTS:END -->
