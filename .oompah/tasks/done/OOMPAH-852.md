@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T05:48:55.213013Z'
+updated_at: '2026-08-06T05:49:04.948474Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -129,8 +129,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-39bfc465060c
-    applied: false
+    applied: true
     created_at: '2026-08-06T05:48:51.433686+00:00'
+    applied_at: '2026-08-06T05:49:02.209409+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -283,5 +284,21 @@ author: oompah
 created: 2026-08-06 05:43
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 05:49
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
+- remote_ref: origin/epic-OOMPAH-763--task-OOMPAH-852
+- changed_files: oompah/validation_resource_lease.py; tests/test_validation_resource_lease.py
+- diff_stat: 2 files changed, 104 insertions(+), 72 deletions(-)
+- focused_tests: test_validation_resource_lease.py 153 passed; test_native_validation_guard.py 19 passed; test_tool_liveness.py 27 passed; test_api_agent_budget.py 105 passed
+- classifier_call_sites: oompah/api_agent.py:864; oompah/native_validation_guard.py:322
+- acceptance_evidence: test_focused_pytest_waits_for_exact_gate_before_real_process_start; test_non_test_inspection_runs_without_validation_capacity; test_worker_validation_queues_behind_gate_at_worker_priority parameterized over focused Python selectors
 ---
 <!-- COMMENTS:END -->
