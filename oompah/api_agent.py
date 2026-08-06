@@ -47,14 +47,13 @@ from oompah.auditor import (
 )
 from oompah.provider_health import openai_chat_completions_url
 from oompah.validation_resource_lease import (
+    ValidationCommandClassification,
     ValidationLeaseCancelled,
     ValidationLeaseError,
     ValidationLeaseOwner,
     ValidationResourceLease,
-    contains_configured_validation_command,
-    is_focused_validation_command,
     _is_dynamic_loader_environment_name,
-    is_heavyweight_validation_command,
+    classify_validation_command,
     managed_agent_validation_owner,
 )
 
@@ -173,6 +172,8 @@ def _validation_reuse_policy_decision(
     args: Mapping[str, Any],
     policy: Mapping[str, Any] | None,
     authority_check: Callable[[], object] | None,
+    *,
+    classification: ValidationCommandClassification | None,
 ) -> tuple[str, str | None, str]:
     """Return a durable decision, optional denial, and bounded-mode reason.
 
@@ -186,8 +187,14 @@ def _validation_reuse_policy_decision(
         str(policy.get("decision") or "") != "reuse_authoritative_gate"
     ):
         return "", None, ""
-    command = str(args.get("command") or "").strip()
-    if not is_heavyweight_validation_command(command):
+    if classification is None:
+        return (
+            "denied_unclassified_command",
+            "Error: validation command classification is unavailable; this "
+            "command was denied.",
+            "",
+        )
+    if not classification.heavyweight:
         return "", None, ""
     try:
         authority = authority_check() if callable(authority_check) else "stale_authority"
@@ -206,18 +213,14 @@ def _validation_reuse_policy_decision(
             "",
         )
 
-    configured = str(policy.get("command") or "").strip()
-    if contains_configured_validation_command(
-        command,
-        configured_command=configured,
-    ):
+    if classification.contains_configured:
         return (
             "denied_reused_gate",
             "Error: the authoritative exact-head quality gate already passed; "
             "rerunning that configured gate is denied.",
             "",
         )
-    if is_focused_validation_command(command):
+    if classification.focused:
         return "", None, ""
 
     mode = str(args.get("validation_mode") or "").strip()
@@ -885,26 +888,6 @@ def _exec_run_command(
     git_err = validate_git_command_is_noninteractive(command)
     if git_err:
         return f"Error: {git_err}"
-    validation_invocation_id = secrets.token_hex(16)
-    policy_decision, policy_denial, policy_justification = (
-        _validation_reuse_policy_decision(
-            args,
-            validation_reuse_policy,
-            validation_reuse_authority_check,
-        )
-    )
-    if policy_decision and callable(validation_reuse_policy_handler):
-        try:
-            validation_reuse_policy_handler(
-                command=command,
-                decision=policy_decision,
-                justification=policy_justification,
-                invocation_id=validation_invocation_id,
-            )
-        except Exception:  # policy enforcement must not depend on telemetry
-            logger.debug("Unable to record validation reuse policy", exc_info=True)
-    if policy_denial is not None:
-        return policy_denial
     # Build env from the agent's own env, layering caller-supplied overrides
     # on top, then remove client-only Basic-auth inputs before spawning a
     # command.  This applies even when no explicit overrides are supplied,
@@ -923,6 +906,61 @@ def _exec_run_command(
     # This prevents git from spawning editors even if the command bypasses our validation.
     if "git" in command:
         env.update(NONINTERACTIVE_GIT_ENV)
+
+    # Classify exactly once against the normalized environment and actual
+    # execution scope. Reuse authority and capacity ownership must agree even
+    # when PATH resolves an innocuous-looking name to task-controlled code.
+    untrusted_executable_roots = (
+        str(workspace.resolve()),
+        "/tmp",
+        "/var/tmp",
+        tempfile.gettempdir(),
+        *(str(env[name]) for name in ("TMPDIR", "TMP", "TEMP") if env.get(name)),
+    )
+    validation_classification = classify_validation_command(
+        command,
+        configured_command=str(
+            (validation_reuse_policy or {}).get("command") or ""
+        ),
+        executable_search_path=str(env.get("PATH") or os.defpath),
+        untrusted_executable_roots=untrusted_executable_roots,
+        command_environment=env,
+        working_directory=workspace,
+    )
+    heavyweight_validation = validation_classification.heavyweight
+    validation_invocation_id = secrets.token_hex(16)
+
+    def _validation_reuse_policy_snapshot() -> tuple[str, str | None, str]:
+        return _validation_reuse_policy_decision(
+            args,
+            validation_reuse_policy,
+            validation_reuse_authority_check,
+            classification=validation_classification,
+        )
+
+    def _record_validation_reuse_policy(
+        snapshot: tuple[str, str | None, str],
+    ) -> None:
+        policy_decision, _policy_denial, policy_justification = snapshot
+        if policy_decision and callable(validation_reuse_policy_handler):
+            try:
+                validation_reuse_policy_handler(
+                    command=command,
+                    decision=policy_decision,
+                    justification=policy_justification,
+                    invocation_id=validation_invocation_id,
+                )
+            except Exception:  # policy enforcement must not depend on telemetry
+                logger.debug(
+                    "Unable to record validation reuse policy",
+                    exc_info=True,
+                )
+
+    initial_policy = _validation_reuse_policy_snapshot()
+    policy_denial = initial_policy[1]
+    if policy_denial is not None:
+        _record_validation_reuse_policy(initial_policy)
+        return policy_denial
 
     def _terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
         if os.name == "posix":
@@ -1005,6 +1043,7 @@ def _exec_run_command(
             "phase": phase,
             "outcome": outcome,
             "invocation_id": validation_invocation_id,
+            "validation_scope": validation_classification.scope,
         }
         kwargs = {
             name: value
@@ -1038,19 +1077,6 @@ def _exec_run_command(
             # suppress the bounded command result.
             logger.debug("Unable to mark command result pending", exc_info=True)
 
-    heavyweight_validation = is_heavyweight_validation_command(
-        command,
-        executable_search_path=str(env.get("PATH") or os.defpath),
-        untrusted_executable_roots=(
-            str(workspace.resolve()),
-            "/tmp",
-            "/var/tmp",
-            tempfile.gettempdir(),
-            *(str(env[name]) for name in ("TMPDIR", "TMP", "TEMP") if env.get(name)),
-        ),
-        command_environment=env,
-        working_directory=workspace,
-    )
     if require_validation_lease and heavyweight_validation and validation_owner is None:
         return (
             "Error: heavyweight validation is unavailable because trusted "
@@ -1138,6 +1164,21 @@ def _exec_run_command(
             popen_kwargs["pass_fds"] = validation_handle.pass_fds
         if _authority_cancelled():
             return "Error: validation authority withdrawn before command launch"
+        # Validate after the capacity queue, then sample once more immediately
+        # before launch. Only the denial is definitive at this point; an
+        # allowed decision is recorded after Popen succeeds below.
+        prelaunch_policy = _validation_reuse_policy_snapshot()
+        policy_denial = prelaunch_policy[1]
+        if policy_denial is not None:
+            _record_validation_reuse_policy(prelaunch_policy)
+            return policy_denial
+        if _authority_cancelled():
+            return "Error: validation authority withdrawn before command launch"
+        launch_policy = _validation_reuse_policy_snapshot()
+        policy_denial = launch_policy[1]
+        if policy_denial is not None:
+            _record_validation_reuse_policy(launch_policy)
+            return policy_denial
         command_started = time.monotonic()
         validation_command_started_at = command_started
         # The bridge has already classified the command against ``env`` above.
@@ -1150,6 +1191,10 @@ def _exec_run_command(
             **popen_kwargs,
         )
         validation_process_started = True
+        # Allowed is definitive only after the process boundary accepted the
+        # launch. Denials are recorded before returning above, so every
+        # invocation publishes at most one immutable policy decision.
+        _record_validation_reuse_policy(launch_policy)
         _notify_validation_observer(
             phase="started",
             succeeded=False,

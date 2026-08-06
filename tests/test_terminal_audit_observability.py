@@ -254,6 +254,27 @@ def test_validation_telemetry_keeps_targeted_pytest_focused() -> None:
     assert snapshot["auditor_full_suite_runs"] == 0
 
 
+def test_validation_telemetry_never_reclassifies_opaque_pytest_as_focused() -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="pytest tests/test_warning.py -q",
+        configured_command="make test",
+        validation_scope="opaque",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["focused_supplemental_commands"] == 0
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["validation"]["last_command"]["category"] == (
+        "auditor_full_suite_runs"
+    )
+    assert snapshot["validation"]["last_command"]["validation_scope"] == "opaque"
+
+
 def test_validation_command_lifecycle_records_timeout_once_across_restart() -> None:
     persisted: dict = {}
     first = TerminalAuditMetrics(

@@ -532,6 +532,7 @@ class TerminalAuditMetrics:
         phase: str = "completed",
         outcome: str = "",
         invocation_id: str = "",
+        validation_scope: str = "",
     ) -> None:
         """Persist one auditor validation lifecycle observation.
 
@@ -546,10 +547,22 @@ class TerminalAuditMetrics:
         if phase not in {"started", "completed"}:
             raise ValueError("validation command phase must be started or completed")
         invocation_id = str(invocation_id or "").strip()
+        normalized_scope = str(validation_scope or "").strip().casefold()
         category = (
             "focused_supplemental_commands"
-            if is_focused_validation_command(command)
+            if (
+                normalized_scope == "focused"
+                or (
+                    not normalized_scope
+                    and is_focused_validation_command(command)
+                )
+            )
             else "auditor_full_suite_runs"
+        )
+        effective_scope = normalized_scope or (
+            "focused"
+            if category == "focused_supplemental_commands"
+            else "full"
         )
         prior = self._validation_commands_in_flight.get(invocation_id)
         if invocation_id and invocation_id in self._completed_validation_invocations:
@@ -558,6 +571,11 @@ class TerminalAuditMetrics:
             tuple(prior.get(name) for name in ("project_id", "task_id", "audit_id"))
             != key
             or prior.get("command") != command
+            or (
+                normalized_scope
+                and prior.get("validation_scope")
+                and prior.get("validation_scope") != normalized_scope
+            )
         ):
             raise ValueError("validation invocation identity changed in flight")
         if phase == "started":
@@ -569,6 +587,7 @@ class TerminalAuditMetrics:
                 self._validation_commands_in_flight[invocation_id] = {
                     **_identity_dict(key),
                     "category": category,
+                    "validation_scope": effective_scope,
                     "command": command,
                     "started_at": _timestamp(self.clock()),
                 }
@@ -583,6 +602,9 @@ class TerminalAuditMetrics:
                 self._increment_validation("validation_commands_started", key[0])
             else:
                 category = str(prior["category"])
+                effective_scope = str(
+                    prior.get("validation_scope") or effective_scope
+                )
                 self._validation_commands_in_flight.pop(invocation_id, None)
             self._increment_validation("validation_commands_completed", key[0])
             normalized_outcome = str(outcome or "").strip().casefold()
@@ -601,6 +623,7 @@ class TerminalAuditMetrics:
         self._last_validation_command = {
             **_identity_dict(key),
             "category": category,
+            "validation_scope": effective_scope,
             "command": command,
             "phase": phase,
             "outcome": normalized_outcome,
