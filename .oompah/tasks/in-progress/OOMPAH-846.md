@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:19:28.795055Z'
+updated_at: '2026-08-06T04:20:51.021907Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-06 04:19
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 04:20
+---
+Third live reproduction at 04:20 UTC: OOMPAH-795 provider-native Codex paths concurrently spawned absolute /home/shedwards/src/oompah/.venv/bin/python pytest commands over three files (retry_authority_generation/auto_concurrency/default_first_dispatch) and two files (submit_queue_concurrency/stall_to_dispatch_recovery) while OOMPAH-791 owned capacity=1. Neither appeared in validation-resource owners/waiters. Operator terminated only top-level sandboxes 2871518/2871522; worker and dirty worktree were preserved. Enforcement must cover parallel tool calls and absolute interpreter paths before spawn.
 ---
 <!-- COMMENTS:END -->
