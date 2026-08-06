@@ -1329,6 +1329,7 @@ class Orchestrator:
                 else {}
             ),
         )
+        self._auditor_validation_evidence_error: str | None = None
         self._refresh_auditor_validation_observations()
         self.coordination_store = CoordinationStore(
             os.path.join(_state_dir, "coordination.sqlite3")
@@ -2610,11 +2611,13 @@ class Orchestrator:
             if condition.kind != "validation_contract_incompatible"
         }
         for project in projects:
-            contract = build_auditor_validation_contract(project)
-            if contract.configuration_error:
+            configuration_error = (
+                self._terminal_audit_validation_configuration_error(project.id)
+            )
+            if configuration_error:
                 self._record_terminal_audit_validation_configuration(
                     project.id,
-                    contract.configuration_error,
+                    configuration_error,
                     sync=False,
                 )
         if self._terminal_audit_manual_alerts != previous:
@@ -2631,15 +2634,32 @@ class Orchestrator:
 
         try:
             projects = self.project_store.list_all()
-            observations = (
+        except Exception as exc:  # noqa: BLE001 - configuration fails closed
+            logger.warning(
+                "Unable to read projects for auditor validation evidence (%s)",
+                type(exc).__name__,
+            )
+            return
+
+        try:
+            duration_evidence = (
                 self._branch_quality_gate.observed_command_durations_seconds()
             )
-        except Exception as exc:  # noqa: BLE001 - configuration fails closed
+        except Exception as exc:  # noqa: BLE001 - evidence must fail closed
             logger.warning(
                 "Unable to hydrate auditor validation duration evidence (%s)",
                 type(exc).__name__,
             )
-            return
+            observations = {}
+            evidence_error = "quality-gate duration evidence is unavailable"
+        else:
+            observations = duration_evidence.durations
+            evidence_error = (
+                f"quality-gate duration evidence is {duration_evidence.load_status}"
+                if duration_evidence.load_status in {"corrupt", "unavailable"}
+                else None
+            )
+        self._auditor_validation_evidence_error = evidence_error
 
         for project in projects:
             observed_targets: dict[str, int] = {}
@@ -2668,9 +2688,14 @@ class Orchestrator:
                 if duration is not None:
                     observed_targets[tokens[1]] = duration
             project.auditor_validation_target_observed_seconds = observed_targets
-            project.auditor_validation_contract_error = (
-                build_auditor_validation_contract(project).configuration_error
-            )
+            contract_error = build_auditor_validation_contract(
+                project
+            ).configuration_error
+            project.auditor_validation_contract_error = "; ".join(
+                error
+                for error in (evidence_error, contract_error)
+                if error
+            ) or None
 
     def _terminal_audit_validation_configuration_error(
         self,
@@ -2692,7 +2717,17 @@ class Orchestrator:
                 )
             if project is None:
                 return f"project {normalized_id} is unavailable"
-        return build_auditor_validation_contract(project).configuration_error
+        contract_error = build_auditor_validation_contract(
+            project
+        ).configuration_error
+        return "; ".join(
+            error
+            for error in (
+                self._auditor_validation_evidence_error,
+                contract_error,
+            )
+            if error
+        ) or None
 
     def clear_terminal_audit_alert(
         self, project_id: str, task_id: str, audit_id: str

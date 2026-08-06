@@ -301,6 +301,7 @@ class TestOpencodeSessionLifecycle:
             permission_mode=opt_kwargs.get("permission_mode", "default"),
             on_event=on_event,
             turn_timeout_s=opt_kwargs.get("turn_timeout_s", 60),
+            tool_liveness=opt_kwargs.get("tool_liveness"),
         )
         session = OpencodeAcpBackendSession(options)
 
@@ -479,6 +480,33 @@ class TestOpencodeSessionLifecycle:
         assert kinds[-1] == "result"
         assert events[-1].payload["subtype"] == "success"
         assert session.status == "succeeded"
+
+    @pytest.mark.asyncio
+    async def test_run_turn_extends_outer_deadline_for_bounded_tool_time(self):
+        proc = _build_mock_proc(stdout_lines=[_json_msg("result")])
+        liveness = MagicMock()
+        liveness.outer_deadline_extension_seconds.side_effect = [0.0, 6.0]
+        monotonic_calls = 0
+
+        def monotonic():
+            nonlocal monotonic_calls
+            monotonic_calls += 1
+            return 0.0 if monotonic_calls == 1 else 15.0
+
+        with patch(
+            "oompah.acp_backends.opencode.time.monotonic",
+            side_effect=monotonic,
+        ):
+            session, events = await self._drive_session(
+                proc,
+                turn_timeout_s=10,
+                tool_liveness=liveness,
+            )
+
+        assert session.status == "succeeded"
+        assert not any(event.kind == "acp_turn_timeout" for event in events)
+        assert events[-1].kind == "result"
+        assert liveness.outer_deadline_extension_seconds.call_count == 2
 
     @pytest.mark.asyncio
     async def test_run_turn_sets_errored_status_on_exception(self):

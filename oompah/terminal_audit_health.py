@@ -361,16 +361,20 @@ def build_terminal_audit_health(
             pending += 1
             increment(observation.project_id, "pending_count")
 
-        # Age tracking — use the record's own timestamp if available
-        record_ts = _record_created_at(record)
-        issue_ts = _parse_timestamp(observation.issue_created_at)
-        ts = record_ts or issue_ts
-        if ts is not None:
-            age_s = (current_time - ts).total_seconds()
-            if age_s >= stale_after_seconds:
-                stale_pending += 1
-                increment(observation.project_id, "stale_pending_count")
-            oldest = min(oldest, ts) if oldest is not None else ts
+        # Pending age is actionable only while no live auditor owns the
+        # request. Running attempts are supervised by their phase-specific
+        # liveness deadlines and must not inherit the record's historical age
+        # as a false stale-pending warning.
+        if record.request_state == RequestState.PENDING:
+            record_ts = _record_created_at(record)
+            issue_ts = _parse_timestamp(observation.issue_created_at)
+            ts = record_ts or issue_ts
+            if ts is not None:
+                age_s = (current_time - ts).total_seconds()
+                if age_s >= stale_after_seconds:
+                    stale_pending += 1
+                    increment(observation.project_id, "stale_pending_count")
+                oldest = min(oldest, ts) if oldest is not None else ts
 
         # Failure classification — only count unresolved failures.
         #

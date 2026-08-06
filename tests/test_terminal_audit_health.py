@@ -179,11 +179,20 @@ class TestFreshNormalQueue:
         assert alerts == [], f"Expected no alerts for fresh queue, got: {alerts}"
 
     def test_fresh_in_progress_counts_correctly(self):
-        """An in-progress record increments in_progress_count, not pending_count."""
+        """A live request is supervised by liveness, not pending-age alerts."""
         rec = _record(request_state=RequestState.IN_PROGRESS)
-        health = build_terminal_audit_health([_obs(rec)], now=NOW)
+        health = build_terminal_audit_health(
+            [_obs(rec)],
+            now=NOW + timedelta(days=2),
+            stale_after_seconds=60,
+        )
         assert health.in_progress_count == 1
         assert health.pending_count == 0
+        assert health.stale_pending_count == 0
+        assert health.oldest_pending_at is None
+        assert health.oldest_pending_age_seconds is None
+        assert not health.degraded
+        assert terminal_audit_health_alerts(health) == []
 
     def test_stale_threshold_not_reached_is_healthy(self):
         """A record at exactly stale_after_seconds - 1 must not be stale."""

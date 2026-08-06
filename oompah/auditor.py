@@ -271,6 +271,13 @@ def build_auditor_validation_contract(
                 f"expected_source={budget.expected_source})"
             )
 
+    if project is not None and not budgets and not errors:
+        errors.append(
+            f"project {project_id or '(unknown)'} has no feasible auditor "
+            "validation targets; configure an approved target with a positive "
+            "expected duration or provide compatible completed gate evidence"
+        )
+
     return AuditorValidationContract(
         project_id=project_id,
         targets=tuple(budgets),
