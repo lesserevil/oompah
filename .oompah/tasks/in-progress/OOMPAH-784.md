@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T07:45:14.214774Z'
+updated_at: '2026-08-06T08:07:18.467784Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -296,5 +296,10 @@ author: oompah
 created: 2026-08-06 07:45
 ---
 Second static review REJECTED the repair. Remaining blockers: failed-project omission truth still collapses under the task cap; mutable/copy SLO policies allow mixed reload epochs; unchanged evicted recovery/escalation rows double-count cumulative totals on reappearance; smaller-cap cold restore slices alphabetically before priority retention; stale scheduler passes can overwrite newer liveness without a generation fence; reload tests still do not prove real deadline rebase/cleanup/persistence. Accepted ownership/deadline/materialization/config work remains. No tests were run.
+---
+author: oompah
+created: 2026-08-06 08:07
+---
+Latest repair revision is under a third independent review. It now persists exact per-project counts outside capped records; shares one immutable policy object/epoch under one lock; tombstones per-identity recovery/escalation signatures to prevent eviction/restart recounts; applies actionable-priority cap only after cold-restore parsing; rejects stale scheduler generations before any health/counter mutation; and behaviorally proves reload/restart deadline rebase, cleanup, persistence, and epoch parity. Diff check passes; no tests/commit/push yet.
 ---
 <!-- COMMENTS:END -->
