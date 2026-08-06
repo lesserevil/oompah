@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T17:26:54.267254Z'
+updated_at: '2026-08-06T17:27:09.806543Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -151,5 +150,15 @@ author: oompah
 created: 2026-08-06 17:25
 ---
 Operator stopped only the stray provider-native full-test sandbox rooted at PID 2879786 after confirming it bypassed the sole validation-resource lease and ran concurrently with the OOMPAH-858 exact gate. The OOMPAH-856 worker session, edits, and worktree were preserved. This is live evidence for OOMPAH-846; rerun validation through the guarded lane after implementation is stable.
+---
+author: oompah
+created: 2026-08-06 17:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 112
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 33m 20s
+- Log: OOMPAH-856__20260806T165405Z.jsonl
 ---
 <!-- COMMENTS:END -->
