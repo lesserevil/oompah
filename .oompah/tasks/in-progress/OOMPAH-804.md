@@ -27,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T07:18:43.050555Z'
+updated_at: '2026-08-06T07:39:47.496508Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -285,5 +285,10 @@ author: oompah
 created: 2026-08-06 07:18
 ---
 Prepared branch restacked onto repaired OOMPAH-781 exact head ac298bbf6. Old OOMPAH-804 head 3d06b8832 became d6111375e; all 10 commits replayed without conflicts and range-diff marks every patch equivalent. Diff check passes, branch is clean/up to date, and no tests were run while OOMPAH-781 owns the validation lane.
+---
+author: oompah
+created: 2026-08-06 07:39
+---
+Restacked once more onto final OOMPAH-781 repair head 6d6b641eb. OOMPAH-804 head is now 8d12b56ed; all 10 commits replayed without conflicts and range-diff remains patch-equivalent. Diff check passes and the branch is clean/up to date. Focused tests remain deferred until OOMPAH-781 integrates.
 ---
 <!-- COMMENTS:END -->
