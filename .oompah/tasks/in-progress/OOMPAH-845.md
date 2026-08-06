@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
-- human-only
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:02:17.311224Z'
+updated_at: '2026-08-06T21:02:38.691167Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +290,15 @@ author: oompah
 created: 2026-08-06 20:56
 ---
 Operator evidence: the 2026-08-06 20:41 UTC gate termination was an intentional exact-owner validation lease cancellation to avoid validating against a soon-changing main branch, not a product test failure. This is the known OOMPAH-839 external/interrupted-gate classification gap. Do not modify production or tests to address that cancellation. Preserve accepted head 6a799a1483e213341e292d77e4dbf0ea970f6765; if the worktree has no independently reproduced failure, return the task to Ready to Integrate for a fresh exact gate after main advances.
+---
+author: oompah
+created: 2026-08-06 21:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 42
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 32s
+- Log: OOMPAH-845__20260806T205224Z.jsonl
 ---
 <!-- COMMENTS:END -->
