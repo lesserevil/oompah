@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:43:04.866698Z'
+updated_at: '2026-08-06T04:44:27.707418Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -297,18 +297,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-bc0f4d9102ac
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
+      created_at: '2026-08-06T04:44:17.475799+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-06T04:44:17.475799+00:00'
+      branch_key: OOMPAH-826
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-06T04:42:59.822053+00:00'
+    updated_at: '2026-08-06T04:44:17.475799+00:00'
   - version: 1
     audit_id: audit-8221cfa13f2b
     project_id: proj-14849f1b
@@ -371,6 +385,19 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-06T04:32:13.881751+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-bc0f4d9102ac
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
+    created_at: '2026-08-06T04:44:17.475799+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-06T04:44:17.475799+00:00'
+    branch_key: OOMPAH-826
 ---
 ## Summary
 
@@ -676,5 +703,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 15s
 - Log: OOMPAH-826__20260806T043514Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:44
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-06 04:44
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

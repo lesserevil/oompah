@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T04:43:53.449310Z'
+updated_at: '2026-08-06T04:44:31.528346Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-06 04:43
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 04:44
+---
+Understanding: I will trace get_snapshot and the free-tier dispatch tests, reproduce the heavyweight live-state dependency, then isolate the budget projection with regression assertions and run focused serial/concurrent checks before submitting.
 ---
 <!-- COMMENTS:END -->
