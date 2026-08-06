@@ -76,6 +76,7 @@ class ReviewObservation:
     conflict: bool = False
     needs_rebase: bool = False
     draft: bool = False
+    auto_merge_enabled: bool = False
     provider: str | None = None
     source_deleted: bool = False
     capacity: Mapping[str, Any] | None = None
@@ -143,6 +144,9 @@ class ReviewObservation:
             conflict=bool(getattr(review, "has_conflicts", False)),
             needs_rebase=bool(getattr(review, "needs_rebase", False)),
             draft=bool(getattr(review, "draft", False)),
+            auto_merge_enabled=bool(
+                getattr(review, "auto_merge_enabled", False)
+            ),
             provider=provider,
             capacity=capacity,
         )
@@ -178,6 +182,7 @@ class ReviewObservation:
             "conflict": self.conflict,
             "needs_rebase": self.needs_rebase,
             "draft": self.draft,
+            "auto_merge_enabled": self.auto_merge_enabled,
             "provider": self.provider,
             "source_deleted": self.source_deleted,
             "capacity": dict(self.capacity or {}),
@@ -323,6 +328,7 @@ class ReviewRoute(str, Enum):
     LANDED = "landed"
     RETRY = "retry"
     ACTION_REQUIRED = "action_required"
+    CAPACITY_RECHECK = "capacity_recheck"
 
 
 @dataclass(frozen=True, slots=True)
@@ -391,6 +397,12 @@ def classify_review_result(result: ReviewExecutionResult) -> ClassifiedReviewRes
     }:
         return ClassifiedReviewResult(
             ReviewRoute.RETRY, True, WorkflowFailureCategory.TRANSIENT
+        )
+    if status == "capacity_recheck":
+        return ClassifiedReviewResult(
+            ReviewRoute.CAPACITY_RECHECK,
+            False,
+            WorkflowFailureCategory.UNKNOWN,
         )
     return ClassifiedReviewResult(
         ReviewRoute.ACTION_REQUIRED, False, WorkflowFailureCategory.POLICY
@@ -601,6 +613,12 @@ class ReviewWorkflowBackend(Protocol):
         verification: VerificationResult,
     ) -> TransitionIntent | None | Awaitable[TransitionIntent | None]: ...
 
+    def verify(
+        self,
+        context: WorkflowJobContext,
+        effect: EffectResult,
+    ) -> VerificationResult | Awaitable[VerificationResult]: ...
+
 
 async def _resolve(value: Any) -> Any:
     return await value if inspect.isawaitable(value) else value
@@ -613,6 +631,23 @@ class ReviewWorkflowHandler:
 
     def __init__(self, backend: ReviewWorkflowBackend) -> None:
         self.backend = backend
+
+    @staticmethod
+    def _receipt(
+        result: ReviewExecutionResult,
+        classified: ClassifiedReviewResult,
+    ) -> dict[str, Any]:
+        return {
+            "status": result.status,
+            "message": result.message,
+            "route": classified.route.value,
+            "observation": (
+                result.observation.to_fact_value()
+                if result.observation is not None
+                else None
+            ),
+            "landing": result.landing.to_dict() if result.landing else None,
+        }
 
     async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
         result = await _resolve(self.backend.revalidate(context))
@@ -641,12 +676,7 @@ class ReviewWorkflowHandler:
             )
         return EffectObservation(
             applied=classified.route in {ReviewRoute.OBSERVED, ReviewRoute.LANDED},
-            receipt={
-                "status": result.status,
-                "message": result.message,
-                "route": classified.route.value,
-                "landing": result.landing.to_dict() if result.landing else None,
-            },
+            receipt=self._receipt(result, classified),
         )
 
     async def apply(self, context: WorkflowJobContext) -> EffectResult:
@@ -670,20 +700,23 @@ class ReviewWorkflowHandler:
                 category=classified.category,
                 retryable=False,
             )
-        return EffectResult(
-            {
-                "status": result.status,
-                "message": result.message,
-                "route": classified.route.value,
-                "landing": result.landing.to_dict() if result.landing else None,
-            }
-        )
+        return EffectResult(self._receipt(result, classified))
 
     async def verify(
         self,
         context: WorkflowJobContext,
         effect: EffectResult,
     ) -> VerificationResult:
+        verifier = getattr(self.backend, "verify", None)
+        if callable(verifier):
+            result = await _resolve(verifier(context, effect))
+            if not isinstance(result, VerificationResult):
+                raise WorkflowActionError(
+                    "review backend returned invalid verification",
+                    category=WorkflowFailureCategory.PERMANENT,
+                    retryable=False,
+                )
+            return result
         route = _text(effect.receipt.get("route"))
         if route == ReviewRoute.LANDED.value:
             raw = effect.receipt.get("landing")
