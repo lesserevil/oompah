@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-831
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make terminal-auditor search and safe inspection fallbacks match their advertised
   contract
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T01:54:55.186349Z'
+updated_at: '2026-08-06T03:13:12.022657Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -37,16 +37,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2fdfd633-6e83-4332-ab14-1dd8aae6b221
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-831
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-831
   base_branch: epic-OOMPAH-763
   base_sha: bb42de1e71f355a8f0eb2c4c0ddd958715b646e6
-  updated_at: '2026-08-05T18:31:46.688846+00:00'
+  head_sha: 93b0295bcf533d129eb8568ede120e2ad3944066
+  submitted_at: '2026-08-06T03:13:01.483750+00:00'
+  updated_at: '2026-08-06T03:13:01.483750+00:00'
 ---
 ## Summary
 
@@ -124,5 +126,15 @@ author: oompah
 created: 2026-08-06 01:54
 ---
 Direct-owner implementation is complete locally at exact restacked head 93b0295bcf533d129eb8568ede120e2ad3944066 on OOMPAH-840 parent 93cc4c856. Independent review caught and the follow-up commit fixed a fail-closed ordering bug: path-escape and credential-like operands are now checked before recoverable read-only recognition, with explicit ls-remote/for-each-ref regressions. The full focused auditor/ACP/provider/terminal-health matrix passes 435 tests; compileall, diff, and secret checks pass. Holding push/submission until the active OOMPAH-791 critical gate and OOMPAH-840 parent audit settle, so this work does not compete for the single full-gate lane.
+---
+author: oompah
+created: 2026-08-06 03:13
+---
+Direct implementation complete at exact head 93b0295bcf533d129eb8568ede120e2ad3944066. The ordered commits are f3b8326ed (inspection/search contract) followed by 93b0295bc (security fence: credential/path escape denials remain fatal before recoverable git fallbacks). Verification: 435 focused auditor/ACP/authority/provider/terminal-audit/project-tool tests passed; py_compile, git diff --check, and make check-secrets passed. Independent re-review found no blockers. OOMPAH-843 must be replayed after this exact sequence rather than replacing these fences.
+---
+author: oompah
+created: 2026-08-06 03:13
+---
+Align terminal-auditor search and safe inspection fallbacks with the advertised contract while preserving fatal credential/path escape fences; 435 focused tests and independent review pass at 93b0295bc.
 ---
 <!-- COMMENTS:END -->
