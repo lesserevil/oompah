@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T07:23:24.629718Z'
+updated_at: '2026-08-06T07:31:24.210467Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -649,5 +649,10 @@ task: <Task pending name='quarantine-worker-TASK-123' coro=<Orchestrator._termin
 make: *** [Makefile:401: test] Error 3
 
 ```
+---
+author: oompah
+created: 2026-08-06 07:31
+---
+The repaired audit suites passed, but the exact gate hit a separate loaded-test isolation failure after 6,609 passes: xdist worker gw1 exited while test_snapshot_tick_metrics_include_dispatch_timing was under the global 5-second timeout. The test ran a full tick but did not stub terminal-lifecycle recovery or epic maintenance, then drained unrelated executor work; the orphaned quarantine-worker diagnostic confirms leaked background lifecycle work. Local repair isolates those non-asserted lanes and applies a bounded 20-second loaded-gate timeout consistent with existing OOMPAH-791 stabilizations. Static compile/diff checks pass; exact reproduction is queued behind OOMPAH-857's server-owned validation lease.
 ---
 <!-- COMMENTS:END -->
