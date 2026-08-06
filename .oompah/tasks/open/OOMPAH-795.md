@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-795
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Expose one why-not-progressing projection and make alerts truthful
 parent: OOMPAH-770
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-04T14:06:38.139083Z'
+updated_at: '2026-08-06T03:19:45.630593Z'
 work_branch: null
 target_branch: null
 review_url: null
