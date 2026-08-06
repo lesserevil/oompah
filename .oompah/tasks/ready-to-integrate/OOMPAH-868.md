@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-868
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:41:10.230869Z'
+updated_at: '2026-08-06T23:43:36.880820Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,6 +72,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-868
     source_sha: f2b319c1182cd654112db622a0498171e508dead
     completed_at: '2026-08-06T23:29:06.990841+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-868
+  head_sha: db7588a7d11fbda140b12cbe3d78497c32f855c8
+  submitted_at: '2026-08-06T23:43:31.328890+00:00'
+  updated_at: '2026-08-06T23:43:31.328890+00:00'
 ---
 ## Summary
 
@@ -204,5 +212,10 @@ The workflow file .github/workflows/ci-dedicated.yml requires modification (need
 ✓ Complete diagnostics: JUnit XML artifacts capture all test details
 
 Branch OOMPAH-868 pushed with implementation. Workflow integration requires operator/maintainer action.
+---
+author: oompah
+created: 2026-08-06 23:43
+---
+Implemented validation-resource lease brokering for dedicated CI with bounded output and JUnit XML diagnostics. Routes dedicated pytest runs through capacity=1 broker to prevent concurrent heavyweight processes. Reduced verbose console output replaces per-test amplification. All 7 new tests pass; workflow integration requires operator action with workflow scope.
 ---
 <!-- COMMENTS:END -->
