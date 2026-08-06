@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T09:48:24.767684Z'
+updated_at: '2026-08-06T16:13:39.741217Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -352,5 +352,10 @@ author: oompah
 created: 2026-08-06 09:48
 ---
 Fresh independent review rejected the repair for four remaining durability/cancellation gaps: pre-admission recovery can remain process-only after retry-journal failure; pause deletes unresolved recovery owners; concurrent retry journal writes can stale-reorder; and audit cancellation can escape before compensation with an unshielded lane fallback. Repair is active with primary-journal/restart, pause/resume, write-order, and pre-compensation repeated-cancellation regressions; no validation or submission until a new independent review accepts it.
+---
+author: oompah
+created: 2026-08-06 16:13
+---
+Fresh readiness review found one remaining P0 restart fence: a pre-provider auditor fence is only recorded in memory until worker-exit cleanup, so a drain timeout or process exit can leave an abandoned In Progress audit and consume an attempt; dual rollback-journal failure also logs without closing admission. Owner repair is now making the rollback durable before cleanup, failing admission closed when persistence is unavailable, and replacing the masked restart test with restart-without-manual-worker-exit plus dual-journal-failure regressions. No validation will run until fresh static acceptance.
 ---
 <!-- COMMENTS:END -->
