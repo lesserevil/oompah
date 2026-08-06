@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-848
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Isolate free-tier budget snapshot tests from heavyweight live state
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:30:57.824131Z'
+updated_at: '2026-08-06T17:31:03.007700Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
