@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T04:57:00.182748Z'
+updated_at: '2026-08-06T04:57:26.772576Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-06 04:57
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 04:57
+---
+Understanding: focused pytest/py.test/unittest and configured validation targets must acquire ValidationResourceLease before process creation; help/version and static inspection remain outside the lane. I will trace classifiers and launch guards, add regression coverage for lease ordering/cancellation/telemetry, implement the smallest focused fix, and run affected Makefile checks.
 ---
 <!-- COMMENTS:END -->
