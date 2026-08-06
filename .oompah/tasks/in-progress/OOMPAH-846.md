@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:31:28.555626Z'
+updated_at: '2026-08-06T04:32:05.213462Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -164,5 +164,32 @@ author: oompah
 created: 2026-08-06 04:31
 ---
 Live reproduction at 2026-08-06T04:29Z: OOMPAH-847 spawned two provider-native command sandboxes (top PIDs 2957672 and 2961523) running absolute-venv pytest against tests/test_epic_strategy.py and tests/test_dispatch_lane_contract.py while the authoritative OOMPAH-791 make test gate was starting. Both bypassed the validation-resource lease. I terminated only those two test sandboxes; their implementation edits remain intact. This is direct evidence that worker command_execution paths must acquire the same lease as gates/auditors.
+---
+author: oompah
+created: 2026-08-06 04:32
+---
+## Understanding and Initial Assessment
+
+### Issue Summary
+Live regression after OOMPAH-816: OOMPAH-808 and OOMPAH-844 workers spawned test processes (pytest, make test) outside the validation-resource lease while OOMPAH-831 exact gate held the sole capacity slot. Also OOMPAH-795 spawned concurrent pytest commands via absolute interpreter paths. This recreated the host saturation that OOMPAH-816 was designed to prevent.
+
+### Root Cause
+Command-path-dependent enforcement: validation-resource lease guards are installed via native_validation_guard for some execution paths (OOMPAH-784/OOMPAH-845), but other worker command paths spawn executables directly without acquisition guards, bypassing the lease mechanism entirely.
+
+### Solution Strategy
+1. Identify ALL worker command spawn points (ACP backends: Codex/Claude/OpenCode/API; auditor; tool execution)
+2. Install validation-resource lease guards consistently before process launch
+3. Classify heavyweight commands (make targets, pytest commands, multi-file test suites)
+4. Reuse existing OOMPAH-816 validation_resource_lease (don't build parallel lock)
+5. Ensure exact gates own priority; queue time doesn't consume runtime deadline
+
+### Specialist Investigation Focus
+As Oompah Tests Auth Specialist: examine ACP backend command execution paths, tool invocation surfaces, and integration points where validation-resource leases must be enforced. Ensure process-table boundary compliance that no heavyweight child spawns until lease acquisition.
+
+### Next Steps
+1. Locate all worker command spawn points in acp_tools, acp_backends, and related modules
+2. Identify which paths currently lack validation-resource lease guards
+3. Implement consistent guard installation
+4. Verify with comprehensive tests
 ---
 <!-- COMMENTS:END -->

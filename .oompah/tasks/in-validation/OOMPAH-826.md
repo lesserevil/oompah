@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:23:37.082853Z'
+updated_at: '2026-08-06T04:32:15.071077Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -64,8 +64,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 176
-  total_output_tokens: 10712
+  total_input_tokens: 302
+  total_output_tokens: 10733
   total_cost_usd: 0.0
   by_model:
     opus:
@@ -73,8 +73,8 @@ oompah.task_costs:
       output_tokens: 5194
       cost_usd: 0.0
     unknown:
-      input_tokens: 36
-      output_tokens: 5518
+      input_tokens: 162
+      output_tokens: 5539
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -101,6 +101,12 @@ oompah.task_costs:
     output_tokens: 743
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:22:54.854540+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 126
+    output_tokens: 21
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T04:32:05.238969+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-826__20260805T181747Z
@@ -192,7 +198,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -216,7 +222,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c002241f9b6a
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -227,6 +233,8 @@ oompah.terminal_audit:
       started_at: '2026-08-06T04:23:11.428729+00:00'
       branch_key: OOMPAH-826
       candidate_rotation_count: 1
+      ended_at: '2026-08-06T04:32:13.881751+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: lesserevil
@@ -266,7 +274,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-c002241f9b6a
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -277,6 +285,8 @@ oompah.terminal_audit:
     started_at: '2026-08-06T04:23:11.428729+00:00'
     branch_key: OOMPAH-826
     candidate_rotation_count: 1
+    ended_at: '2026-08-06T04:32:13.881751+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -516,5 +526,15 @@ author: oompah
 created: 2026-08-06 04:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 04:32
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 7
+- Tokens: 126 in / 21 out [147 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 38s
+- Log: OOMPAH-826__20260806T042344Z.jsonl
 ---
 <!-- COMMENTS:END -->
