@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-08-06T17:37:44.613221Z'
+updated_at: '2026-08-06T17:37:58.231356Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: caacc9ea-0c2e-497f-b3cb-18e3d0da98c5
 oompah.task_costs:
-  total_input_tokens: 119988
-  total_output_tokens: 6526
+  total_input_tokens: 120016
+  total_output_tokens: 11611
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -73,6 +73,10 @@ oompah.task_costs:
     opus:
       input_tokens: 63
       output_tokens: 1677
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 28
+      output_tokens: 5085
       cost_usd: 0.0
   runs:
   - profile: default
@@ -99,6 +103,12 @@ oompah.task_costs:
     output_tokens: 1677
     cost_usd: 0.0
     recorded_at: '2026-07-30T04:48:25.398255+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 28
+    output_tokens: 5085
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T17:37:54.751819+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-582__20260730T044038Z
@@ -519,5 +529,15 @@ Safe evidence:
 - api_summary_negative_test: test_integration_queue_summary_rejects_done_child_of_unlanded_parent
 - prior_focused_pass_count: 24
 - prior_make_test: 13694 passed, 7 skipped
+---
+author: oompah
+created: 2026-08-06 17:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 29, Tool calls: 22
+- Tokens: 28 in / 5.1K out [5.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 12s
+- Log: OOMPAH-582__20260806T173554Z.jsonl
 ---
 <!-- COMMENTS:END -->

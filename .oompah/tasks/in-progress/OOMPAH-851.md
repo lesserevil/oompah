@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-06T05:42:14.193223Z'
+updated_at: '2026-08-06T17:38:00.723786Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-08-06 05:42
 ---
 Prepared timing-mock contract repair is independently static-reviewed, clean, and pushed at 288946416. All direct _handle_dispatch_needed AsyncMocks return real mappings, the originally failing maintenance test deterministically forces slow diagnostics, and an AST regression prevents bare mocks. Checkpoint only; focused tests and O763 restack are pending.
+---
+author: oompah
+created: 2026-08-06 17:38
+---
+Focused validation exposed the new whole-test-corpus AST guard exceeding the global five-second timeout under the live OOMPAH-846 lease-bypass saturation. Added a scoped semantic optimization: source files that cannot spell all three resolvable target components are skipped before AST parsing, reducing parse candidates from 406 modules to 23 while existing split-string/dynamic-target cases remain covered; added an invalid-unrelated-source regression. The first contaminated rerun was operator-aborted at 64 percent only to release the lane to the higher-priority OOMPAH-831 exact gate. No code failure was observed in that aborted run; full serial and xdist rerun remains required after the exact gate.
 ---
 <!-- COMMENTS:END -->
