@@ -321,6 +321,7 @@ class TestDispatchLaneLockAcquisition:
         orch = _make_orchestrator(tmp_path)
 
         def raise_error():
+            assert orch._dispatch_lane_lock.locked()
             raise RuntimeError("Simulated fetch failure")
 
         orch._fetch_all_candidates = raise_error
@@ -810,6 +811,7 @@ class TestDispatchLockExceptionSafety:
         orch = _make_orchestrator(tmp_path)
 
         def bad_fetch():
+            assert orch._dispatch_lane_lock.locked()
             raise ValueError("boom")
 
         orch._fetch_all_candidates = bad_fetch
@@ -825,6 +827,7 @@ class TestDispatchLockExceptionSafety:
         orch._fetch_all_candidates = MagicMock(return_value=[])
 
         def bad_resolve(_):
+            assert orch._dispatch_lane_lock.locked()
             raise RuntimeError("resolver broke")
 
         orch._pre_resolve_blockers = bad_resolve
@@ -841,9 +844,16 @@ class TestDispatchLockExceptionSafety:
         # This contract belongs to the outer lock wrapper.  Keep the inner
         # dispatch traversal out of the test so auditor, tracker, duplicate
         # preflight, and executor work cannot affect lock-safety timing.
-        locked_dispatch = AsyncMock(
-            side_effect=[RuntimeError("first call fails"), {"dispatch_ms": 0.0}]
-        )
+        lock_states: list[bool] = []
+
+        async def locked_dispatch_side_effect():
+            lock_states.append(orch._dispatch_lane_lock.locked())
+            assert orch._dispatch_lane_lock.locked()
+            if len(lock_states) == 1:
+                raise RuntimeError("first call fails")
+            return {"dispatch_ms": 0.0}
+
+        locked_dispatch = AsyncMock(side_effect=locked_dispatch_side_effect)
         orch._handle_dispatch_needed_locked = locked_dispatch  # type: ignore[method-assign]
 
         async def run_both():
@@ -852,12 +862,16 @@ class TestDispatchLockExceptionSafety:
                 await orch._handle_dispatch_needed()
             assert not orch._dispatch_lane_lock.locked()
             # Lock must be free so the second call succeeds.
-            result = await orch._handle_dispatch_needed()
+            result = await asyncio.wait_for(
+                orch._handle_dispatch_needed(),
+                timeout=1.0,
+            )
             return result
 
         result = asyncio.run(run_both())
         assert isinstance(result, dict)
         assert locked_dispatch.await_count == 2
+        assert lock_states == [True, True]
         assert not orch._dispatch_lane_lock.locked()
         assert all(
             getattr(orch, future_name, None) is None
