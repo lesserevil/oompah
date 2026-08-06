@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-795
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose one why-not-progressing projection and make alerts truthful
 parent: OOMPAH-770
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T03:52:49.661264Z'
+updated_at: '2026-08-06T03:56:24.746298Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fa7f348d-d3fa-463f-8983-d5bfb2cf5ba5
+oompah.agent_run_id: 7b681f73-6bbc-4059-a848-183ddd630e65
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-795
 oompah.integration:
   version: 2
@@ -123,5 +123,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 11s
 - Log: OOMPAH-795__20260806T034836Z.jsonl
+---
+author: oompah
+created: 2026-08-06 03:56
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
