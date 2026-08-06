@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-06T02:14:27.664456Z'
+updated_at: '2026-08-06T03:09:41.968988Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -142,6 +142,30 @@ oompah.work_contributors:
     completed_at: '2026-08-05T20:23:14.469433+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-bf484b85b4ed: '2026-08-06T03:09:38.394917+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-796
+    target_state: Done
+    evidence_fingerprint: c63748e75598faff56fcb36b96ded5980fc587fb20253717d6b79cc687b713ca
+    audit_ids:
+    - audit-5dfb4a09f74b
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T03:09:38.394926+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-796
+    audit_id: audit-5dfb4a09f74b
+    attempt_id: attempt-bf484b85b4ed
+    target_state: Done
+    evidence_fingerprint: c63748e75598faff56fcb36b96ded5980fc587fb20253717d6b79cc687b713ca
+    status: Done
+    audit_ids:
+    - audit-5dfb4a09f74b
+    applied: false
+    created_at: '2026-08-06T03:09:38.394939+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -149,7 +173,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-796
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -173,7 +197,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bf484b85b4ed
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -184,13 +208,16 @@ oompah.terminal_audit:
       started_at: '2026-08-06T02:14:00.513582+00:00'
       branch_key: epic-OOMPAH-770--task-OOMPAH-796
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-06T03:09:38.394799+00:00'
+      ended_at: '2026-08-06T03:09:38.394799+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T01:12:15.437840+00:00'
-    updated_at: '2026-08-06T02:14:00.513582+00:00'
+    updated_at: '2026-08-06T03:09:38.394799+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7775109d03da
