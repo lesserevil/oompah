@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:52:26.425915Z'
+updated_at: '2026-08-06T04:52:35.232404Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -170,6 +170,18 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-06T04:32:18.194315+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-826
+    target_state: Merged
+    evidence_fingerprint: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
+    audit_ids:
+    - audit-fb8a1f984e0e
+    - audit-812557c71067
+    - audit-caed0f700c8e
+    - audit-8221cfa13f2b
+    kind: override
+    applied: true
+    retired_at: '2026-08-06T04:52:32.421978+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-826
@@ -183,6 +195,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T04:10:24.548190+00:00'
     applied_at: '2026-08-06T04:10:38.341484+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-826
     audit_id: audit-812557c71067
@@ -195,6 +208,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T04:32:18.194335+00:00'
     applied_at: '2026-08-06T04:32:28.049492+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-44d3c084ba5f
@@ -213,7 +227,7 @@ oompah.terminal_audit:
       retires an erroneous duplicate audit loop that had exhausted candidates and
       reopened already-delivered work.
     created_at: '2026-08-06T04:52:22.929299+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -316,7 +330,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -341,13 +355,13 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-06T04:42:59.822053+00:00'
-    updated_at: '2026-08-06T04:44:17.475799+00:00'
+    updated_at: '2026-08-06T04:52:32.421938+00:00'
   - version: 1
     audit_id: audit-8221cfa13f2b
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -359,6 +373,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-06T04:42:59.822053+00:00'
+    updated_at: '2026-08-06T04:52:32.421963+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7974892cf5b3
@@ -732,5 +747,12 @@ author: oompah
 created: 2026-08-06 04:44
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 04:52
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Existing independent PASS and merged PR are durable evidence; override retires an erroneous duplicate audit loop that had exhausted candidates and reopened already-delivered work.
 ---
 <!-- COMMENTS:END -->
