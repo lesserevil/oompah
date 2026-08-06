@@ -20,16 +20,20 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import subprocess
 import sys
+import threading
+import time
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from oompah import native_validation_guard as guard_module
 from oompah.acp_backends import (
     BACKENDS,
     AcpBackendOptions,
@@ -1164,6 +1168,214 @@ class TestCodexCliPath:
                 validation_lease=lease,
                 owner=owner,
             ) is True
+
+    @pytest.mark.parametrize(
+        ("expected_outcome", "timeout_seconds", "withdraw_authority"),
+        [
+            ("timed_out", 1, False),
+            ("authority_withdrawn", 10, True),
+        ],
+    )
+    def test_managed_native_supervisor_cause_precedes_codex_item_completion(
+        self,
+        tmp_path,
+        monkeypatch,
+        expected_outcome,
+        timeout_seconds,
+        withdraw_authority,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id=f"AUDIT-{expected_outcome}",
+            authority_generation="attempt-1",
+        )
+        real_bin = tmp_path / "real-bin"
+        real_bin.mkdir()
+        fake_make = real_bin / "make"
+        fake_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+        fake_make.chmod(0o700)
+        lifecycle: list[dict[str, object]] = []
+        lifecycle_started = threading.Event()
+        terminal_callback_started = threading.Event()
+        release_terminal_callback = threading.Event()
+        terminal_published = threading.Event()
+        terminal_callback_attempts = 0
+
+        def record_lifecycle(**values):
+            nonlocal terminal_callback_attempts
+            if values["phase"] == "completed":
+                terminal_callback_attempts += 1
+                terminal_callback_started.set()
+                assert release_terminal_callback.wait(timeout=5)
+            lifecycle.append(values)
+            if values["phase"] == "started":
+                lifecycle_started.set()
+            else:
+                terminal_published.set()
+                if expected_outcome == "timed_out":
+                    raise RuntimeError("injected terminal telemetry failure")
+
+        guarded, root = install_native_validation_guard(
+            {
+                "PATH": (
+                    f"{real_bin}{os.pathsep}"
+                    f"{os.environ.get('PATH', os.defpath)}"
+                )
+            },
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=timeout_seconds,
+            validation_command_handler=record_lifecycle,
+        )
+        with guard_module._BROKER_REGISTRY_LOCK:
+            broker = guard_module._BROKER_REGISTRY[root.resolve()]
+        terminal_observed = threading.Event()
+        release_terminal = threading.Event()
+        terminal_committed = threading.Event()
+        real_claim_terminal = broker._claim_supervisor_terminal
+
+        def block_terminal_claim(boundary_group, outcome):
+            if outcome == expected_outcome:
+                terminal_observed.set()
+                assert release_terminal.wait(timeout=5)
+            publication = real_claim_terminal(boundary_group, outcome)
+            if outcome == expected_outcome:
+                terminal_committed.set()
+            return publication
+
+        monkeypatch.setattr(
+            broker,
+            "_claim_supervisor_terminal",
+            block_terminal_claim,
+        )
+        descriptor_baseline = set(os.listdir("/proc/self/fd"))
+        command = "make test-serial"
+        process = subprocess.Popen(
+            ["/bin/bash", "-c", command],
+            env={**os.environ, **guarded},
+            pass_fds=(
+                int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+            ),
+        )
+        retired = False
+
+        def wait_until(predicate, *, timeout=5.0):
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if predicate():
+                    return
+                time.sleep(0.01)
+            raise AssertionError("condition did not become true")
+
+        def descriptor_transferred():
+            with broker._boundary_lock:
+                runs = tuple(broker._validation_runs.values())
+            for run in runs:
+                with run.state_lock:
+                    if run.launch_state == "transferred":
+                        return True
+            return False
+
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                billing_model="subscription",
+            )
+        )
+        session._validation_guard_dir = str(root)
+        session._cli_abort = asyncio.Event()
+        item = _cli_item(
+            "command_execution",
+            id=f"validation-{expected_outcome}",
+            command=command,
+            exit_code=1,
+            aggregated_output="",
+        )
+
+        async def translate(event_type):
+            return [
+                event
+                async for event in session._translate_cli_item(event_type, item)
+            ]
+
+        try:
+            assert lifecycle_started.wait(timeout=5)
+            assert [event.kind for event in asyncio.run(translate("item.started"))] == [
+                "tool_use"
+            ]
+            wait_until(descriptor_transferred)
+            if withdraw_authority:
+                (root / guard_module._CANCELLATION_NAME).touch(mode=0o600)
+            assert terminal_observed.wait(timeout=5)
+
+            # The observer has the exact cause but is deliberately barred from
+            # claiming it. The supervisor must retain the live process until
+            # that atomic claim prevents generic item completion from winning.
+            with pytest.raises(subprocess.TimeoutExpired):
+                process.wait(timeout=1)
+            assert [entry["phase"] for entry in lifecycle] == ["started"]
+
+            release_terminal.set()
+            assert terminal_committed.wait(timeout=5)
+            assert terminal_callback_started.wait(timeout=5)
+
+            # The exact cause is now atomically owned and removed from item
+            # contention, but its user callback remains blocked. ACK must
+            # already have released mandatory termination and lease cleanup.
+            item.exit_code = process.wait(timeout=5)
+            assert item.exit_code != 0
+            assert [
+                event.kind
+                for event in asyncio.run(translate("item.completed"))
+            ] == ["tool_result"]
+            assert [entry["phase"] for entry in lifecycle] == ["started"]
+            wait_until(lambda: lease.status().owner_count == 0)
+            wait_until(
+                lambda: set(os.listdir("/proc/self/fd")) == descriptor_baseline
+            )
+
+            retirement_started = time.monotonic()
+            assert retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            ) is True
+            assert time.monotonic() - retirement_started < 2
+            retired = True
+
+            release_terminal_callback.set()
+            assert terminal_published.wait(timeout=5)
+            assert [entry["phase"] for entry in lifecycle] == [
+                "started",
+                "completed",
+            ]
+            assert lifecycle[1]["outcome"] == expected_outcome
+            assert lifecycle[1]["succeeded"] is False
+            assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+            assert terminal_callback_attempts == 1
+            assert [
+                event.kind
+                for event in asyncio.run(translate("item.completed"))
+            ] == ["tool_result"]
+            assert terminal_callback_attempts == 1
+        finally:
+            release_terminal.set()
+            release_terminal_callback.set()
+            with contextlib.suppress(ProcessLookupError):
+                process.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=1)
+            if not retired:
+                retire_native_validation_guard(
+                    root,
+                    validation_lease=lease,
+                    owner=owner,
+                )
 
     def test_managed_native_distinct_full_lifecycle_reuses_invocation_id(
         self,

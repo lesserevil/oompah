@@ -909,7 +909,9 @@ def test_native_terminal_publication_before_transfer_prevents_execution(
     def terminal_before_transfer(*_args, terminal_handler, **_kwargs):
         prep_started.set()
         assert publish_terminal.wait(timeout=5)
-        terminal_handler("transport_error")
+        publication = terminal_handler("transport_error")
+        if publication is not None:
+            publication()
         observer = threading.Thread(target=lambda: None, daemon=True)
         observer.start()
         return observer
@@ -1314,7 +1316,10 @@ def test_native_natural_exit_awaiting_item_records_stream_error_on_cleanup(
             )
 
 
-@pytest.mark.parametrize("failure_surface", ["second_pipe", "observer_start"])
+@pytest.mark.parametrize(
+    "failure_surface",
+    ["second_pipe", "third_pipe", "observer_start"],
+)
 def test_native_supervisor_setup_failure_restores_fd_baseline(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1343,18 +1348,19 @@ def test_native_supervisor_setup_failure_restores_fd_baseline(
         timeout_seconds=10,
     )
     baseline = _open_fd_snapshot()
-    if failure_surface == "second_pipe":
+    if failure_surface in {"second_pipe", "third_pipe"}:
         real_pipe2 = guard_module.os.pipe2
         calls = 0
+        fail_at = 2 if failure_surface == "second_pipe" else 3
 
-        def fail_second_pipe(flags: int) -> tuple[int, int]:
+        def fail_pipe(flags: int) -> tuple[int, int]:
             nonlocal calls
             calls += 1
-            if calls == 2:
-                raise OSError("injected second pipe failure")
+            if calls == fail_at:
+                raise OSError(f"injected {failure_surface} failure")
             return real_pipe2(flags)
 
-        monkeypatch.setattr(guard_module.os, "pipe2", fail_second_pipe)
+        monkeypatch.setattr(guard_module.os, "pipe2", fail_pipe)
     else:
         real_thread_start = guard_module.threading.Thread.start
 
