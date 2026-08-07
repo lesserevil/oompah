@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-07T04:59:50.627458Z'
+updated_at: '2026-08-07T05:14:36.797363Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: ''
@@ -570,5 +570,19 @@ author: oompah
 created: 2026-08-07 04:59
 ---
 Branch quality gate passed for `f2b319c1182cd654112db622a0498171e508dead` using `make test` in 649.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 05:14
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/595
+Reviewed head: `8ce6fa0ad3a343b053298a64f721a6a3b73ceb22`
+Accepted submission head: `f2b319c1182cd654112db622a0498171e508dead`
+Source branch: `OOMPAH-612`
+Target branch: `main`
+Reason: review head 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22 does not match accepted submission head f2b319c1182cd654112db622a0498171e508dead
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
