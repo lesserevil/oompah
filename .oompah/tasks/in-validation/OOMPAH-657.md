@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:06:57.675432Z'
+updated_at: '2026-08-07T13:09:44.934189Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -225,12 +225,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-657
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 11dc64bd965a2c5ecf28bce2ff598771b0c3dcf34bc9b6ccf8fa8b75b76650ab
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-de9b03d5b1e3
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 11dc64bd965a2c5ecf28bce2ff598771b0c3dcf34bc9b6ccf8fa8b75b76650ab
+      created_at: '2026-08-07T13:09:38.261332+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T13:09:38.261332+00:00'
+      branch_key: OOMPAH-657
+      selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
+      selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
     requested_by:
       version: 1
       identity: oompah
@@ -239,6 +254,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:06:51.414081+00:00'
     selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
     selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+    updated_at: '2026-08-07T13:09:38.261332+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d3c89591d481
@@ -253,6 +269,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T12:54:42.355655+00:00'
     branch_key: OOMPAH-657
+  - version: 1
+    attempt_id: attempt-de9b03d5b1e3
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 11dc64bd965a2c5ecf28bce2ff598771b0c3dcf34bc9b6ccf8fa8b75b76650ab
+    created_at: '2026-08-07T13:09:38.261332+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T13:09:38.261332+00:00'
+    branch_key: OOMPAH-657
+    selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
+    selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
 ---
 ## Summary
 
@@ -711,5 +742,10 @@ created: 2026-07-31 13:00
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Independent audit audit-6e9bfb54bf88 returned PASS after PR #618 merged, but a duplicate sibling audit left the accepted transition stuck In Validation. Owner override applies the already-verified terminal result and breaks the known OOMPAH-653 coordinator race.
+---
+author: oompah
+created: 2026-08-07 13:09
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
