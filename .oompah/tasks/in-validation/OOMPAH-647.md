@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T19:24:33.881339Z'
+updated_at: '2026-08-07T19:25:10.429697Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: ''
@@ -351,12 +351,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-20a86e4253bb
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
+      created_at: '2026-08-07T19:25:08.839751+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T19:25:08.839751+00:00'
+      branch_key: OOMPAH-647
+      selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+      selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
     requested_by:
       version: 1
       identity: oompah-cli
@@ -365,6 +380,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:29.847300+00:00'
     selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
     selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+    updated_at: '2026-08-07T19:25:08.839751+00:00'
   - version: 1
     audit_id: audit-54f3838ee199
     project_id: proj-14849f1b
@@ -462,6 +478,21 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T10:33:28.570956+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-20a86e4253bb
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
+    created_at: '2026-08-07T19:25:08.839751+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T19:25:08.839751+00:00'
+    branch_key: OOMPAH-647
+    selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+    selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
 oompah.review_head: ''
 review_head: ''
 ---

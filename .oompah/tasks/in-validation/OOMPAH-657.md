@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T18:20:55.808279Z'
+updated_at: '2026-08-07T19:24:53.125495Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -239,7 +239,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-657
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -336,6 +336,44 @@ oompah.terminal_audit:
     selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
     selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
     updated_at: '2026-08-07T13:12:48.854809+00:00'
+  - version: 1
+    audit_id: audit-cda420acdd59
+    project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T19:24:48.940022+00:00'
+    selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
+    selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+  - version: 1
+    audit_id: audit-669199e560db
+    project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T19:24:48.940022+00:00'
+    selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
+    selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
   attempt_history:
   - version: 1
     attempt_id: attempt-d3c89591d481

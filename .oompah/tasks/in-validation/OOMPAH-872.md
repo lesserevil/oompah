@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T18:19:55.207463Z'
+updated_at: '2026-08-07T19:24:59.055312Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737

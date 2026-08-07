@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T19:24:39.837046Z'
+updated_at: '2026-08-07T19:24:43.949226Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
