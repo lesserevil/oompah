@@ -1552,6 +1552,21 @@ class Orchestrator:
         # git/test work runs in the tick pool, then terminal-audit staging
         # resumes on the scheduler loop.
         self._integration_future: "asyncio.Future[None] | None" = None
+        # Shared-epic delivery must not wait behind a slow full scheduler tick.
+        # The executor is created only by ``run`` so direct unit calls to
+        # ``_tick`` retain their lightweight, fixture-owned executor behavior.
+        self._integration_pool: ThreadPoolExecutor | None = None
+        # A refresh while an integration pass owns the single delivery future
+        # records exactly one follow-up pass.  This preserves one active queue
+        # owner while making submit/refresh/cutover notifications prompt.
+        self._integration_recheck_requested = False
+        self._integration_wake_pending = False
+        # Durable integrated-row audit staging is intentionally not part of
+        # the prompt claim future.  One coalesced audit owner may replay its
+        # bounded history on the tick executor while the claim lane continues
+        # independently on ``_integration_pool``.
+        self._integration_audit_future: "asyncio.Future[None] | None" = None
+        self._integration_audit_recheck_requested = False
         # Standalone Ready delivery has its own maintenance future. A
         # standalone exact-head quality gate can take minutes; it must not
         # occupy the future that recovers and claims shared-epic queue rows.
@@ -4888,6 +4903,18 @@ class Orchestrator:
 
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
+        # Preserve the established cross-thread refresh ordering: publish the
+        # ordinary dispatch wake before adding the independent integration
+        # wake.  Consumers can therefore continue to treat the first callback
+        # as the authoritative refresh edge.
+        self._post_dispatch_refresh()
+        # Shared-epic submissions are durable, but their delivery claim cannot
+        # be held behind a currently slow dispatch/audit tick.  The dedicated
+        # lane coalesces this with an active pass rather than double-claiming.
+        self._wake_integration_lane(recheck_active=True)
+
+    def _post_dispatch_refresh(self) -> None:
+        """Wake the ordinary dispatch loop without rearming integration."""
         self._set_refresh_requested()
         self._post_event(
             DispatchEvent(
@@ -4895,6 +4922,122 @@ class Orchestrator:
                 payload={"reason": "api_request"},
             )
         )
+
+    def _integration_executor(self) -> ThreadPoolExecutor:
+        """Return the isolated integration executor once the service is live."""
+
+        return self._integration_pool or self._tick_pool
+
+    def _ensure_integration_lane(self) -> bool:
+        """Start one shared-epic reconciliation pass when the lane is idle."""
+
+        if (
+            self._stopping
+            or not self.config.parallel_epic_children_enabled
+            or (
+                self._integration_future is not None
+                and not self._integration_future.done()
+            )
+        ):
+            return False
+        self._integration_wake_pending = False
+        self._integration_future = asyncio.create_task(
+            self._run_integration_lane(),
+            name="epic-integration-queues",
+        )
+        return True
+
+    def _wake_integration_lane_on_loop(self, *, recheck_active: bool) -> None:
+        """Coalesce a delivery wakeup on the scheduler loop."""
+
+        if self._stopping or not self.config.parallel_epic_children_enabled:
+            return
+        if self._integration_future is not None and not self._integration_future.done():
+            self._integration_recheck_requested |= recheck_active
+            return
+        self._ensure_integration_lane()
+
+    def _wake_integration_lane(self, *, recheck_active: bool) -> None:
+        """Promptly wake shared-epic delivery from any API or worker thread."""
+
+        loop = self._dispatch_loop
+        if loop is None or not loop.is_running():
+            # An API loop can exist before the scheduler loop starts.  Never
+            # create a scheduler-owned task on that foreign loop.
+            self._integration_wake_pending = True
+            return
+        if self._running_loop() is not loop:
+            loop.call_soon_threadsafe(
+                lambda: self._wake_integration_lane_on_loop(
+                    recheck_active=recheck_active
+                ),
+            )
+            return
+        self._wake_integration_lane_on_loop(recheck_active=recheck_active)
+
+    async def _run_integration_lane(self) -> None:
+        """Run one active integration owner, with at most one coalesced retry."""
+
+        while not self._stopping:
+            self._integration_recheck_requested = False
+            try:
+                await self._process_integration_queues()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - a later wake/full sync retries safely
+                logger.exception("Shared-epic integration reconciliation failed")
+            if not self._integration_recheck_requested:
+                return
+
+    def _ensure_integration_audit_lane(self, *, recheck_active: bool = False) -> bool:
+        """Start or coalesce durable integrated-row terminal-audit replay."""
+
+        if (
+            self._stopping
+            or not self.config.parallel_epic_children_enabled
+            or not self._terminal_audit_started
+        ):
+            return False
+        if (
+            self._integration_audit_future is not None
+            and not self._integration_audit_future.done()
+        ):
+            self._integration_audit_recheck_requested |= recheck_active
+            return False
+        self._integration_audit_future = asyncio.create_task(
+            self._run_integration_audit_lane(),
+            name="integration-terminal-audit-replay",
+        )
+        return True
+
+    async def _run_integration_audit_lane(self) -> None:
+        """Replay durable audits without retaining prompt claim ownership."""
+
+        while not self._stopping:
+            self._integration_audit_recheck_requested = False
+            try:
+                progress = await self._replay_integrated_audit_batch()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - durable rows retry later
+                logger.exception("Integrated terminal-audit reconciliation failed")
+                progress = {
+                    "batch_size": max(
+                        int(getattr(self.config, "integration_audit_batch_size", 32)),
+                        1,
+                    ),
+                    "replayed": 0,
+                    "deferred": True,
+                    "cursor": self._maintenance_cursors.get("integration_audit"),
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            self._record_integration_audit_progress(progress)
+            # A full successful batch may have more durable history behind it.
+            # Errors wait for the next scheduler wake rather than tight-looping.
+            if progress.get("deferred") and not progress.get("error"):
+                self._integration_audit_recheck_requested = True
+            if not self._integration_audit_recheck_requested:
+                return
 
     def _cleanup_stale_project_worktree_dirs(
         self, project: Any, limit: int
@@ -6362,6 +6505,16 @@ class Orchestrator:
         the loop contract).
         """
         self._dispatch_loop = asyncio.get_running_loop()
+        if self.config.parallel_epic_children_enabled:
+            # Queue reconciliation makes tracker and git calls which can take
+            # minutes.  Give it an executor distinct from tick dispatch and
+            # terminal-audit work; quality-gate capacity remains governed by
+            # the existing durable validation lease.
+            self._integration_pool = ThreadPoolExecutor(
+                max_workers=2,
+                thread_name_prefix="integration",
+            )
+            self._wake_integration_lane(recheck_active=False)
         # Establish the grandfather baseline and recover tracker-backed
         # validation work before the first dispatch tick.  This is deliberately
         # a one-shot startup operation; later scans are tied to the existing
@@ -6369,6 +6522,7 @@ class Orchestrator:
         await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._run_terminal_audit_enforcement
         )
+        self._ensure_integration_audit_lane()
         # Legacy shared-epic lifecycle repairs are deliberately fire-and-forget
         # from startup.  The service can accept health/state/resume traffic
         # while the durable worker drains its bounded queue.
@@ -6519,6 +6673,7 @@ class Orchestrator:
                 self._maintenance_future,
                 self._epic_maintenance_future,
                 self._integration_future,
+                self._integration_audit_future,
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,
             )
@@ -6591,6 +6746,12 @@ class Orchestrator:
             wait=True,
             cancel_futures=False,
         )
+        if self._integration_pool is not None:
+            await asyncio.to_thread(
+                self._integration_pool.shutdown,
+                wait=True,
+                cancel_futures=False,
+            )
         self.review_capacity_store.close()
 
     async def _tick(self) -> None:
@@ -6642,6 +6803,14 @@ class Orchestrator:
         # full-corpus read+parse is the dominant tick cost). Writes during
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
+
+        # The shared-epic queue has an independent owner.  Start it before
+        # any unbounded scheduler work, but do not turn an ordinary tick into
+        # a second queued pass while its current owner is still active.
+        self._ensure_integration_lane()
+        # Historical terminal-audit replay owns a distinct future/executor
+        # path, so even a slow batch cannot retain the prompt claim future.
+        self._ensure_integration_audit_lane()
 
         # Arm standalone delivery before the dispatch and maintenance lanes.
         # A full task scan or a long maintenance operation must not defer the
@@ -6734,21 +6903,6 @@ class Orchestrator:
             self._tick_pool, self._maybe_run_watchdog
         )
         watchdog_ms = (self._monotonic_clock() - _t_watchdog) * 1000
-
-        # Ready private task heads are integrated outside the dispatch lane.
-        # The shared-epic driver is independent of the standalone driver, so
-        # an exact-head standalone gate cannot hold shared queue claims.
-        if (
-            self.config.parallel_epic_children_enabled
-            and (
-                self._integration_future is None
-                or self._integration_future.done()
-            )
-        ):
-            self._integration_future = asyncio.create_task(
-                self._process_integration_queues(),
-                name="epic-integration-queues",
-            )
 
         # 5b. MAINTENANCE LANE — periodic managed-checkout self-heal, terminal
         # worktree cleanup, auto-archive, and merged-label sweeps (TASK-466.2).
@@ -12794,6 +12948,51 @@ class Orchestrator:
             "error": error,
         }
 
+    def _record_integration_audit_progress(
+        self,
+        progress: Mapping[str, Any],
+    ) -> None:
+        """Publish the independent durable-audit lane's latest outcome."""
+
+        snapshot = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "batch_size": progress.get("batch_size"),
+            "replayed": int(progress.get("replayed", 0) or 0),
+            "deferred": bool(progress.get("deferred")),
+            "cursor": progress.get("cursor"),
+            "error": progress.get("error"),
+        }
+        self._maintenance_status["integration_audit"] = snapshot
+        queue_progress = self._maintenance_status.get("integration_queue")
+        if isinstance(queue_progress, dict):
+            queue_progress.update(
+                {
+                    "audit_batch_size": snapshot["batch_size"],
+                    "audit_replayed": snapshot["replayed"],
+                    "audit_deferred": snapshot["deferred"],
+                    "audit_cursor": snapshot["cursor"],
+                    "audit_error": snapshot["error"],
+                    "audit_last_run_at": snapshot["last_run_at"],
+                }
+            )
+
+    def _integration_audit_progress_snapshot(self) -> dict[str, Any]:
+        """Return audit telemetry without coupling it to the claim pass."""
+
+        progress = self._maintenance_status.get("integration_audit")
+        if isinstance(progress, dict):
+            return dict(progress)
+        return {
+            "batch_size": max(
+                int(getattr(self.config, "integration_audit_batch_size", 32)),
+                1,
+            ),
+            "replayed": 0,
+            "deferred": False,
+            "cursor": self._maintenance_cursors.get("integration_audit"),
+            "error": None,
+        }
+
     def _record_integration_queue_progress(
         self,
         *,
@@ -12802,6 +13001,9 @@ class Orchestrator:
         oldest_eligible_submitted_at: str | None,
         claimed_count: int,
         audit_progress: Mapping[str, Any],
+        last_claim_latency_seconds: float | None = None,
+        run_started_at: str | None = None,
+        run_duration_ms: float | None = None,
     ) -> None:
         """Publish live queue progress and a bounded-claim stall signal."""
 
@@ -12839,6 +13041,10 @@ class Orchestrator:
         )
         progress = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "last_run_started_at": run_started_at,
+            "last_run_duration_ms": (
+                round(run_duration_ms, 1) if run_duration_ms is not None else None
+            ),
             "status": "degraded" if degraded else "healthy",
             "ready_count": ready_count,
             "eligible_ready_count": eligible_ready_count,
@@ -12850,6 +13056,11 @@ class Orchestrator:
                 else None
             ),
             "claim_timeout_seconds": claim_timeout,
+            "last_claim_latency_seconds": (
+                round(last_claim_latency_seconds, 1)
+                if last_claim_latency_seconds is not None
+                else None
+            ),
             "audit_batch_size": audit_progress.get("batch_size"),
             "audit_replayed": audit_progress.get("replayed", 0),
             "audit_deferred": bool(audit_progress.get("deferred")),
@@ -12878,11 +13089,13 @@ class Orchestrator:
             )
 
     async def _process_integration_queues(self) -> None:
-        """Recover, claim, integrate, and audit private epic child heads."""
+        """Recover and claim private epic heads without awaiting audit replay."""
 
         loop = asyncio.get_running_loop()
+        run_started_at = datetime.now(timezone.utc).isoformat()
+        run_started_monotonic = self._monotonic_clock()
         await loop.run_in_executor(
-            self._tick_pool,
+            self._integration_executor(),
             self._sync_ready_integration_submissions,
         )
         self.integration_queue.recover_expired()
@@ -12895,7 +13108,7 @@ class Orchestrator:
             tracker = self._tracker_for_project(project.id)
             try:
                 project_issues = await loop.run_in_executor(
-                    self._tick_pool,
+                    self._integration_executor(),
                     tracker.fetch_all_issues,
                 )
             except Exception as exc:  # noqa: BLE001 - executor also fails closed
@@ -12937,6 +13150,7 @@ class Orchestrator:
         # completion.  Reconcile those exact published heads here; this path
         # never reruns the rebase and is idempotent once terminal auditing owns
         # the task.
+        meaningful_integration = False
         for project in self.project_store.list_all():
             issues = project_issue_snapshots.get(str(project.id))
             if issues is None:
@@ -12954,23 +13168,30 @@ class Orchestrator:
                     record,
                     project.id,
                 )
-                if completion is not None and not completion[0]:
-                    logger.info(
-                        "Deferred direct epic maintenance recovery for %s: %s",
-                        issue.identifier,
-                        completion[1],
-                    )
+                if completion is not None:
+                    if completion[0]:
+                        # Recovery published a durable epic head and staged its
+                        # terminal handoff.  It has no worker-exit event to wake
+                        # ordinary reconciliation, so retain that edge below.
+                        meaningful_integration = True
+                    else:
+                        logger.info(
+                            "Deferred direct epic maintenance recovery for %s: %s",
+                            issue.identifier,
+                            completion[1],
+                        )
 
-        # Keep historical integrated rows out of the live grouping query. They
-        # are replayed in a bounded cursor-based lane after Ready work gets a
-        # chance to acquire leases below.
+        # Keep historical integrated rows out of this live grouping query.
+        # Their bounded cursor replay has a distinct lifecycle-managed future,
+        # so it cannot retain this pass while Ready work waits for a lease.
         all_items = self.integration_queue.items(
             states=("ready", "integrating")
         )
         eligible_ready_count = 0
         oldest_eligible_submitted_at: str | None = None
         claimed_count = 0
-        staged_integrated_keys: set[tuple[str, str]] = set()
+        integrated_count = 0
+        last_claim_latency_seconds: float | None = None
 
         groups = sorted(
             {
@@ -12989,7 +13210,7 @@ class Orchestrator:
                 continue
             tracker = self._tracker_for_project(project_id)
             issues = await loop.run_in_executor(
-                self._tick_pool,
+                self._integration_executor(),
                 tracker.fetch_all_issues,
             )
             queue_items = self.integration_queue.items(
@@ -13052,7 +13273,7 @@ class Orchestrator:
             if item is None:
                 # Queue blocked? Check if it's due to stale epic ancestry
                 await loop.run_in_executor(
-                    self._tick_pool,
+                    self._integration_executor(),
                     lambda: self._detect_and_repair_integration_queue_staleness_block(
                         project_id=project_id,
                         epic_id=epic_id,
@@ -13065,6 +13286,18 @@ class Orchestrator:
                 continue
 
             claimed_count += 1
+            try:
+                submitted_at = datetime.fromisoformat(
+                    item.submitted_at.replace("Z", "+00:00")
+                )
+                if submitted_at.tzinfo is None:
+                    submitted_at = submitted_at.replace(tzinfo=timezone.utc)
+                last_claim_latency_seconds = max(
+                    0.0,
+                    (datetime.now(timezone.utc) - submitted_at).total_seconds(),
+                )
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                last_claim_latency_seconds = None
             
             # Check if this item is in a conflict repair backoff period
             # (recoverable infrastructure failure). If so, release the lease
@@ -13089,7 +13322,7 @@ class Orchestrator:
                 continue
             
             result = await loop.run_in_executor(
-                self._tick_pool,
+                self._integration_executor(),
                 self._execute_integration_item,
                 item,
             )
@@ -13120,7 +13353,7 @@ class Orchestrator:
                 continue
             if not result.integrated:
                 await loop.run_in_executor(
-                    self._tick_pool,
+                    self._integration_executor(),
                     self._route_integration_failure,
                     item,
                     result,
@@ -13182,6 +13415,8 @@ class Orchestrator:
                 item.task_id,
                 lease_owner=lease_owner,
             )
+            integrated_count += 1
+            meaningful_integration = True
             try:
                 peers = self.coordination_peers(project_id, item.task_id)
                 for peer in peers:
@@ -13208,23 +13443,7 @@ class Orchestrator:
                     item.task_id,
                     exc,
                 )
-            integrated_item = next(
-                (
-                    current
-                    for current in (
-                        self.integration_queue.get(project_id, item.task_id),
-                    )
-                    if current is not None
-                ),
-                item,
-            )
-            await self._stage_integrated_task_audit(integrated_item)
-            staged_integrated_keys.add(
-                (integrated_item.project_id, integrated_item.task_id)
-            )
-        audit_progress = await self._replay_integrated_audit_batch(
-            skip=staged_integrated_keys
-        )
+        audit_progress = self._integration_audit_progress_snapshot()
         self._record_integration_queue_progress(
             queue_items=self.integration_queue.items(
                 states=("ready", "integrating")
@@ -13233,8 +13452,27 @@ class Orchestrator:
             oldest_eligible_submitted_at=oldest_eligible_submitted_at,
             claimed_count=claimed_count,
             audit_progress=audit_progress,
+            last_claim_latency_seconds=last_claim_latency_seconds,
+            run_started_at=run_started_at,
+            run_duration_ms=(self._monotonic_clock() - run_started_monotonic) * 1000,
         )
-        self.request_refresh()
+        if integrated_count:
+            # Completion is durable before this wake.  Audit replay can lag,
+            # restart, or fail independently without retaining claim authority.
+            self._ensure_integration_audit_lane(recheck_active=True)
+        # A durable integration can unblock a dependent row.  Wake one
+        # follow-up pass; a backoff/cancelled claim must not create a tight
+        # self-requeue loop.
+        if integrated_count:
+            self._wake_integration_lane(recheck_active=True)
+        if meaningful_integration:
+            # The newly integrated task and any dependency it unblocked need
+            # prompt ordinary reconciliation. A recovered direct epic head
+            # has the same need but no worker-exit event. An idle scan must
+            # not enqueue a refresh: every refresh runs a tick, and every tick
+            # probes this lane, so an unconditional post here creates a
+            # self-sustaining integration-pass <-> dispatch-tick feedback loop.
+            self._post_dispatch_refresh()
 
     def _run_step5c_epic_maintenance(self) -> None:
         """Sync fire-and-forget wrapper for tick step 5c (epic maintenance).
@@ -41164,6 +41402,21 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "repo_hygiene_health": dict(
                     getattr(self, "_maintenance_status", {}).get(
                         "repo_hygiene_health", {}
+                    )
+                    or {}
+                ),
+                # Shared-epic delivery is an independently scheduled lane.
+                # Keep its latest run and bounded-claim telemetry in the
+                # primary state snapshot, not only the metrics side channel.
+                "integration_queue": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "integration_queue", {}
+                    )
+                    or {}
+                ),
+                "integration_audit": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "integration_audit", {}
                     )
                     or {}
                 ),
