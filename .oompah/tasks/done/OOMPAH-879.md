@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-879
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Prevent concurrent duplicate epic-rebase tasks for one epic generation
 parent: OOMPAH-763
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T17:01:30.633829Z'
+updated_at: '2026-08-07T17:28:18.139252Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -77,6 +77,29 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-879
     source_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
     completed_at: '2026-08-07T10:47:59.311802+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9a9c6baee4bc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-879
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf8a16c39a5688538aa4b6f340de396079a89f57d6d8838c9c4c1039a813dfd4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner implementation received independent security review, passed
+      the exact combined full gate at a85a36baf, and was published by an exact remote
+      lease; no independent auditor can run safely on the paused pre-fix service.
+    created_at: '2026-08-07T17:28:12.603051+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -184,5 +207,10 @@ author: oompah
 created: 2026-08-07 17:01
 ---
 Combined shared epic head 02eb534fa completed the first exact full make test gate: 17,367 passed, 7 skipped, 1 xfailed, with 14 failures isolated to four compatibility-contract clusters (auditor read-only Git policy, rebase admission fixtures, detached-descendant validation fencing, and legacy terminal-audit recovery). Independent repairs are running in parallel; project remains paused pending a green exact-head rerun.
+---
+author: oompah
+created: 2026-08-07 17:28
+---
+Final combined shared-epic head a85a36baf7b3ebcb45be27823755b5694a790a49 passed the exact full gate: terminal mutation scan 9/9 and make test 17,381 passed, 7 skipped, 1 expected xfail, 0 failed in 1207.74s. The head was published to origin/epic-OOMPAH-763 using exact force-with-lease against prior remote e06bec5490b9d55d169f7de439755c49eff35307 and the remote now resolves exactly to a85a36baf. O891/O892 reviewed safeguards and O846/O854 lifecycle protections are included.
 ---
 <!-- COMMENTS:END -->
