@@ -413,7 +413,7 @@ def test_publish_failure_rolls_back_observe_before_versioned_failure_commit(
 
 
 @pytest.mark.parametrize("worker_mutation", ("complete", "checkpoint"))
-def test_failed_publication_cannot_rollback_concurrent_worker_progress(
+def test_failed_publication_cannot_rollback_cross_connection_worker_progress(
     controller,
     monkeypatch,
     worker_mutation,
@@ -426,6 +426,7 @@ def test_failed_publication_cannot_rollback_concurrent_worker_progress(
     )
     assert claimed is not None
     assert claimed.lease_token is not None
+    worker_store = WorkflowJobStore(controller.store.path)
 
     authority_captured = Event()
     release_publication = Event()
@@ -450,46 +451,49 @@ def test_failed_publication_cannot_rollback_concurrent_worker_progress(
     def mutate_claimed_job():
         worker_started.set()
         if worker_mutation == "complete":
-            return controller.store.complete(
+            return worker_store.complete(
                 claimed.job_id,
                 claimed.lease_token,
                 result_transition={"outcome": "worker-finished"},
             )
-        return controller.store.checkpoint(
+        return worker_store.checkpoint(
             claimed.job_id,
             claimed.lease_token,
             phase="worker-progress",
             checkpoint={"completed_steps": 3},
         )
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        publication = pool.submit(
-            controller.full_sync,
-            (task,),
-            facts=fact_map(task),
-            persist_liveness_state=fail_persist,
-        )
-        assert authority_captured.wait(timeout=5)
-        worker = pool.submit(mutate_claimed_job)
-        assert worker_started.wait(timeout=5)
-        try:
-            with pytest.raises(FutureTimeoutError):
-                worker.result(timeout=0.05)
-        finally:
-            release_publication.set()
-        with pytest.raises(OSError, match="disk unavailable"):
-            publication.result(timeout=5)
-        mutated = worker.result(timeout=5)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            publication = pool.submit(
+                controller.full_sync,
+                (task,),
+                facts=fact_map(task),
+                persist_liveness_state=fail_persist,
+            )
+            assert authority_captured.wait(timeout=5)
+            worker = pool.submit(mutate_claimed_job)
+            assert worker_started.wait(timeout=5)
+            try:
+                with pytest.raises(FutureTimeoutError):
+                    worker.result(timeout=0.05)
+            finally:
+                release_publication.set()
+            with pytest.raises(OSError, match="disk unavailable"):
+                publication.result(timeout=5)
+            mutated = worker.result(timeout=5)
 
-    persisted = controller.store.get(claimed.job_id)
-    assert persisted == mutated
-    if worker_mutation == "complete":
-        assert persisted.state is WorkflowJobState.COMPLETED
-        assert persisted.result_transition == {"outcome": "worker-finished"}
-    else:
-        assert persisted.state is WorkflowJobState.RUNNING
-        assert persisted.phase == "worker-progress"
-        assert persisted.checkpoint == {"completed_steps": 3}
+        persisted = controller.store.get(claimed.job_id)
+        assert persisted == mutated
+        if worker_mutation == "complete":
+            assert persisted.state is WorkflowJobState.COMPLETED
+            assert persisted.result_transition == {"outcome": "worker-finished"}
+        else:
+            assert persisted.state is WorkflowJobState.RUNNING
+            assert persisted.phase == "worker-progress"
+            assert persisted.checkpoint == {"completed_steps": 3}
+    finally:
+        worker_store.close()
 
 
 def test_sqlite_commit_failure_after_liveness_publish_rolls_back_external_state(

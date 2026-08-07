@@ -789,6 +789,7 @@ class WorkflowFactCollector:
         FactDomain.TERMINAL_AUDIT,
         FactDomain.REVIEW_CI,
         FactDomain.IMPLEMENTATION_AUTHORITY,
+        FactDomain.DUPLICATE_INVESTIGATION,
         FactDomain.RETRY_BUDGET,
         FactDomain.CONFIG,
     )

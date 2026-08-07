@@ -22,6 +22,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+try:  # pragma: no cover - the service runtime is POSIX-only today
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None  # type: ignore[assignment]
+
 
 WORKFLOW_JOB_SCHEMA_VERSION = 5
 DEFAULT_SCAN_LIMIT = 100
@@ -486,24 +491,65 @@ class WorkflowJobStore:
         clock: Callable[[], float] = time.time,
         id_factory: Callable[[], str] | None = None,
     ) -> None:
-        self.path = os.path.abspath(path)
+        if fcntl is None:
+            raise WorkflowJobStoreError(
+                "workflow snapshot authority requires POSIX flock support"
+            )
+        self.path = os.path.realpath(os.path.abspath(path))
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         self._clock = clock
         self._id_factory = id_factory or (lambda: f"workflow-job-{uuid.uuid4().hex}")
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(self.path, check_same_thread=False, timeout=10)
-        self._conn.row_factory = sqlite3.Row
-        with _INITIALIZE_LOCK, self._lock:
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA busy_timeout=10000")
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._initialize()
+        lock_flags = os.O_CREAT | os.O_RDWR
+        if hasattr(os, "O_CLOEXEC"):
+            lock_flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            lock_flags |= os.O_NOFOLLOW
+        self._authority_lock_fd = os.open(
+            f"{self.path}.authority.lock",
+            lock_flags,
+            0o600,
+        )
+        self._authority_lock_depth = 0
+        try:
+            self._conn = sqlite3.connect(
+                self.path,
+                check_same_thread=False,
+                timeout=10,
+            )
+            self._conn.row_factory = sqlite3.Row
+            with _INITIALIZE_LOCK, self._authority_mutation_guard():
+                self._conn.execute("PRAGMA foreign_keys=ON")
+                self._conn.execute("PRAGMA busy_timeout=10000")
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._initialize()
+        except Exception:
+            if hasattr(self, "_conn"):
+                self._conn.close()
+            os.close(self._authority_lock_fd)
+            raise
+
+    @contextmanager
+    def _authority_mutation_guard(self) -> Iterator[None]:
+        """Serialize authority writes across every connection to this store."""
+
+        with self._lock:
+            outermost = self._authority_lock_depth == 0
+            if outermost:
+                fcntl.flock(self._authority_lock_fd, fcntl.LOCK_EX)
+            self._authority_lock_depth += 1
+            try:
+                yield
+            finally:
+                self._authority_lock_depth -= 1
+                if outermost:
+                    fcntl.flock(self._authority_lock_fd, fcntl.LOCK_UN)
 
     @contextmanager
     def snapshot_authority_guard(self) -> Iterator[None]:
-        """Serialize snapshot authority publication with worker mutations."""
+        """Serialize snapshot publication with every durable authority writer."""
 
-        with self._lock:
+        with self._authority_mutation_guard():
             yield
 
     def _initialize(self) -> None:
@@ -564,6 +610,9 @@ class WorkflowJobStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+            if self._authority_lock_fd >= 0:
+                os.close(self._authority_lock_fd)
+                self._authority_lock_fd = -1
 
     @property
     def schema_version(self) -> int:
@@ -590,7 +639,7 @@ class WorkflowJobStore:
     def allocate_snapshot_generation(self) -> int:
         """Return a process-independent, monotonically increasing scan fence."""
 
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 value = self._next_counter_locked("workflow_snapshot_generation")
@@ -611,7 +660,7 @@ class WorkflowJobStore:
         if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
             raise ValueError("snapshot_generation must be a positive integer")
         generation = int(snapshot_generation)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 allocated_row = self._conn.execute(
@@ -652,7 +701,7 @@ class WorkflowJobStore:
         if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
             raise ValueError("snapshot_generation must be a positive integer")
         generation = int(snapshot_generation)
-        with self._lock:
+        with self._authority_mutation_guard():
             row = self._conn.execute(
                 """
                 SELECT
@@ -706,7 +755,7 @@ class WorkflowJobStore:
         if rollback_authority is not None and not callable(rollback_authority):
             raise TypeError("rollback_authority must be callable")
         generation = int(snapshot_generation)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             publication: WorkflowSnapshotPublication | None = None
             result: Any | None = None
@@ -831,7 +880,7 @@ class WorkflowJobStore:
             if snapshot_generation is not None
             else None
         )
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 if (
@@ -923,7 +972,7 @@ class WorkflowJobStore:
         timestamp = float(self._clock() if now is None else now)
         replacement_generation = f"snapshot:{snapshot}"
         message = "task absent from newer authoritative workflow snapshot"
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 if not self._snapshot_generation_is_current_locked(snapshot):
@@ -1068,7 +1117,7 @@ class WorkflowJobStore:
     def snapshot_membership(self) -> tuple[tuple[str, str, int], ...]:
         """Return the bounded current full-snapshot membership for diagnostics."""
 
-        with self._lock:
+        with self._authority_mutation_guard():
             rows = self._conn.execute(
                 """
                 SELECT project_id, task_id, snapshot_generation
@@ -1140,7 +1189,7 @@ class WorkflowJobStore:
             where = f"({predicates})"
             params = tuple(item for identity in identities for item in identity)
 
-        with self._lock:
+        with self._authority_mutation_guard():
             cursors = tuple(
                 dict(row)
                 for row in self._conn.execute(
@@ -1195,7 +1244,7 @@ class WorkflowJobStore:
             params = tuple(item for identity in authority.identities for item in identity)
 
         before_jobs = {str(row["job_id"]): row for row in authority.jobs}
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 published_row = self._conn.execute(
@@ -1325,7 +1374,7 @@ class WorkflowJobStore:
         timestamp = float(self._clock() if now is None else now)
         replacement_generation = f"publication-rollback:{snapshot}"
         message = "workflow snapshot publication did not commit"
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 published_row = self._conn.execute(
@@ -1554,7 +1603,7 @@ class WorkflowJobStore:
             raise ValueError("snapshot_generation must be a positive integer")
         snapshot = int(snapshot_generation)
         timestamp = float(self._clock() if now is None else now)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 existing = self._conn.execute(
@@ -1849,7 +1898,7 @@ class WorkflowJobStore:
         if not isinstance(spec, WorkflowJobSpec):
             raise TypeError("spec must be a WorkflowJobSpec")
         now = float(self._clock())
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 job, _created = self._enqueue_locked(spec, now=now)
@@ -1895,7 +1944,7 @@ class WorkflowJobStore:
         if len(expected_keys) != len(normalized_specs):
             raise WorkflowJobStoreError("scheduled job specs contain duplicate keys")
         timestamp = float(self._clock() if now is None else now)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._conn.execute(
@@ -2151,7 +2200,7 @@ class WorkflowJobStore:
     ) -> int:
         timestamp = float(self._clock() if now is None else now)
         bounded = _bounded_limit(limit)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 recovered = self._recover_expired_locked(now=timestamp, limit=bounded)
@@ -2177,7 +2226,7 @@ class WorkflowJobStore:
         if lease_owner is not None:
             values.append(_required_text(lease_owner, "lease_owner"))
         values.append(bounded)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 rows = self._conn.execute(
@@ -2278,7 +2327,7 @@ class WorkflowJobStore:
             else ""
         )
         lease_token = uuid.uuid4().hex
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._recover_expired_locked(now=timestamp, limit=bounded_recovery)
@@ -2372,7 +2421,7 @@ class WorkflowJobStore:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         timestamp = float(self._clock() if now is None else now)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2404,7 +2453,7 @@ class WorkflowJobStore:
         clean_checkpoint = _json_object(checkpoint, "checkpoint")
         assert clean_checkpoint is not None
         normalized_phase = _required_text(phase, "phase")
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2443,7 +2492,7 @@ class WorkflowJobStore:
     ) -> WorkflowJob:
         timestamp = float(self._clock() if now is None else now)
         result = _json_object(result_transition, "result_transition")
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2494,7 +2543,7 @@ class WorkflowJobStore:
         message = _required_text(error, "error")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 owned = self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2557,7 +2606,7 @@ class WorkflowJobStore:
         expected = _required_text(generation, "generation")
         replacement = _required_text(replacement_generation, "replacement_generation")
         message = _required_text(reason, "reason")
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 existing = self._row_locked(job_id)
@@ -2618,7 +2667,7 @@ class WorkflowJobStore:
         task = _required_text(task_id, "task_id")
         current = _required_text(keep_generation, "keep_generation")
         message = _required_text(reason, "reason")
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 rows = self._conn.execute(
@@ -2679,7 +2728,7 @@ class WorkflowJobStore:
         timestamp = float(self._clock() if now is None else now)
         expected = _required_text(generation, "generation")
         message = _required_text(reason, "reason")
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 existing = self._row_locked(job_id)
