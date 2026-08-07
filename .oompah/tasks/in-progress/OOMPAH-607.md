@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T08:46:28.951040Z'
+updated_at: '2026-08-07T08:47:08.278361Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -694,5 +694,10 @@ author: oompah
 created: 2026-08-07 08:46
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 08:47
+---
+Understanding: terminal status requests can resolve a tracker through a project alias but pass the alias into terminal owner authorization. I will trace the resolution and terminal interfaces, canonicalize the managed project ID at that boundary, add owner/alias/unknown/unauthorized regressions, and run focused checks.
 ---
 <!-- COMMENTS:END -->
