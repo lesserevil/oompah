@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T10:42:59.185543Z'
+updated_at: '2026-08-07T10:46:10.188240Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -45,14 +45,22 @@ oompah.work_contributors:
     source_branch: OOMPAH-646
     source_sha: d7027de514d1fcee1cf3e150f9f02b11b3168071
     completed_at: '2026-07-31T06:58:02.250282+00:00'
+  - run_id: OOMPAH-646__20260807T104312Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-646
+    source_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
+    completed_at: '2026-08-07T10:45:55.266097+00:00'
 oompah.task_costs:
-  total_input_tokens: 40853427
-  total_output_tokens: 79921
+  total_input_tokens: 40853437
+  total_output_tokens: 81596
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 40853359
-      output_tokens: 75206
+      input_tokens: 40853369
+      output_tokens: 76881
       cost_usd: 0.0
     unknown:
       input_tokens: 68
@@ -95,6 +103,12 @@ oompah.task_costs:
     output_tokens: 200
     cost_usd: 0.0
     recorded_at: '2026-08-07T10:31:31.021145+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1675
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T10:45:48.982079+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -609,5 +623,15 @@ author: oompah
 created: 2026-08-07 10:42
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-07 10:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 0s
+- Log: OOMPAH-646__20260807T104312Z.jsonl
 ---
 <!-- COMMENTS:END -->
