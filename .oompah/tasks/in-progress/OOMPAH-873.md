@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T07:35:51.641834Z'
+updated_at: '2026-08-07T07:44:41.919257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,13 +69,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: c836d4a9-4d98-4bb9-a3c4-be7c1c59a3a7
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2181
+  total_input_tokens: 576
+  total_output_tokens: 2311
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2181
+      input_tokens: 576
+      output_tokens: 2311
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +84,12 @@ oompah.task_costs:
     output_tokens: 2181
     cost_usd: 0.0
     recorded_at: '2026-08-07T07:21:21.245354+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 566
+    output_tokens: 130
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T07:44:39.020782+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-873__20260807T071751Z
@@ -160,5 +166,15 @@ The snapshot generation code (_fetch_and_serialize_issues/_fetch_all_issues) may
 3. Ensure both paths read from the same state-branch generation authority
 4. Add tests to verify snapshot and detail reads always match
 5. Fix cache invalidation/source generation tracking
+---
+author: oompah
+created: 2026-08-07 07:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 34
+- Tokens: 566 in / 130 out [696 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 20s
+- Log: OOMPAH-873__20260807T072630Z.jsonl
 ---
 <!-- COMMENTS:END -->
