@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T17:52:46.707608Z'
+updated_at: '2026-08-07T18:03:57.965849Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,40 @@ created: 2026-08-07 17:52
 - Preserve fail-closed behavior for security (PID reuse, foreign process, unverified identity)
 
 **Next:** Will explore existing lifecycle and startup tests to understand the current test patterns.
+---
+author: oompah
+created: 2026-08-07 18:03
+---
+**Discovery:** I've located and analyzed the root cause:
+
+**Problem code (Makefile start target, line ~246):**
+- Hard-coded 10-second timeout in the listener wait loop
+- Unconditional deletion of PID/metadata files on timeout
+- No re-verification of owned process identity after timeout
+- Process that successfully binds after timeout is orphaned
+
+**Key files modified:**
+1. **.env.example** - Added OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS (range 5-120s, default 10s)
+2. **Makefile** - Updated to:
+   - Read LISTENER_STARTUP_TIMEOUT from .env
+   - Re-verify owned process identity after timeout
+   - Only delete PID/metadata after confirming process exit or identity change
+   - Give late listeners a 30-second grace period to bind
+   - Report "late listener" warnings instead of silent failures
+
+**Identity-safe implementation:**
+- After timeout, run process_identity.py verify before any deletion
+- If process exists + identity matches = preserve PID/metadata (late listener)
+- If process exited or identity changed = fail-closed with cleanup
+- No silent orphaning of verified processes
+
+**Tests added (tests/test_listener_startup_timeout.py):**
+- Configuration validation (bounded range, default value, env documentation)
+- Late listener scenario (identity preservation over time)
+- Genuine startup failures (fail-closed behavior)
+- PID/metadata preservation logic
+- Makefile structure validation
+
+**All tests pass:** 10/10 new tests + 23/23 makefile structure tests + 6/6 PID tests = 39 passing tests
 ---
 <!-- COMMENTS:END -->
