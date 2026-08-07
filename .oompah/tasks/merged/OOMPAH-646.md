@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T21:19:03.058205Z'
+updated_at: '2026-08-07T21:19:19.422416Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: ''
@@ -1261,5 +1261,10 @@ created: 2026-08-07 21:18
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner verified PR #747 merged exact submitted head 38806932e609860b2c81e84253a09df515ff4e5b as bb82f7f39510f0e02886307291812f2f8b3e6901 after all required CI checks succeeded.
+---
+author: oompah
+created: 2026-08-07 21:19
+---
+Owner completion verified. PR #747 merged exact submitted head 38806932e609860b2c81e84253a09df515ff4e5b into main as merge commit bb82f7f39510f0e02886307291812f2f8b3e6901. Required GitHub CI test (3.11), test (3.12), and test (3.13) all completed SUCCESS. The exact-head canonical gate also passed earlier: 15,952 passed, 7 skipped, 1 xfailed. Task owner-overridden to Merged and retained as terminal provenance.
 ---
 <!-- COMMENTS:END -->
