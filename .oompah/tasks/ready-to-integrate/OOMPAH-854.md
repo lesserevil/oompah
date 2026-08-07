@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T23:11:30.430430Z'
+updated_at: '2026-08-07T10:32:11.734856Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -40,16 +40,18 @@ oompah.duplicate_screening:
     OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, and OOMPAH-853 found
     related validation-lane work but no task duplicating the terminal-auditor admission
     race during quiesce.
-oompah.agent_run_id: ac2f08ce-3aa7-45d3-8b02-f7d3752d3dd6
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-854
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-854
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
-  updated_at: '2026-08-06T06:39:51.555442+00:00'
+  head_sha: 91e76723eda12781b40dce69eec609a815575a7d
+  submitted_at: '2026-08-07T10:31:59.931389+00:00'
+  updated_at: '2026-08-07T10:31:59.931389+00:00'
 oompah.task_costs:
   total_input_tokens: 47148
   total_output_tokens: 22261
@@ -377,5 +379,15 @@ author: oompah
 created: 2026-08-06 23:11
 ---
 Round 11 repair at cumulative diff SHA256 15f460ddbf885c508fd9946e76a1f86000b293fa5aba90fc47c7416597a44e1c: added exact-child CAS so stale done callbacks cannot poison reopened generations; added bounded, loop-neutral acknowledgment for foreign-loop child publication with fail-closed timeout; moved pre-fence handoff drain to the coordinator boundary; corrected auditor-workspace cleanup assertions. Added deterministic stale-generation and real two-loop stop-before-callback regressions. tests/test_auditor_termination_cleanup.py passes 18 serial and 18 parallel. Work remains uncommitted pending independent review.
+---
+author: oompah
+created: 2026-08-07 10:31
+---
+Direct-owner completion: restored the O854/O865 semantic union on the exact epic-OOMPAH-763 parent and made auditor quiesce, provider-generation admission, budget reservation, rollback, and forced retirement linearizable. Independent review accepted. Brokered focused validation: 630 passed before the final budget-leak reproducer; final two-case release/persistence retry regression: 2 passed. Terminal mutation scan 8/8, secret scan, py_compile, and diff check pass. Published exact head 91e76723eda12781b40dce69eec609a815575a7d.
+---
+author: oompah
+created: 2026-08-07 10:32
+---
+Fence terminal-auditor admission across lifecycle drain and preserve the restored provider/budget authority invariants.
 ---
 <!-- COMMENTS:END -->
