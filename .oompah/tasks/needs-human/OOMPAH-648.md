@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T18:40:03.618807Z'
+updated_at: '2026-08-07T18:56:39.573562Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -130,6 +130,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-7d1427097e93: '2026-07-31T08:37:54.213561+00:00'
     no-auditor-audit-db48e6cb6d3e-2: '2026-07-31T09:01:23.248842+00:00'
+    attempt-3a4ef40145d8: '2026-08-07T18:56:31.514051+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-cb7445addbd3
@@ -181,7 +182,29 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-07-31T18:18:07.434305+00:00'
-  oompah.terminal_audit_result_intents: []
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Archived
+    evidence_fingerprint: 105705b393fb602a37ebc3c72934fee096a56f87ef9cb307f2428527acb6578d
+    audit_ids:
+    - audit-2f23be7e09d9
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T18:56:31.514071+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    audit_id: audit-2f23be7e09d9
+    attempt_id: attempt-3a4ef40145d8
+    target_state: Archived
+    evidence_fingerprint: 105705b393fb602a37ebc3c72934fee096a56f87ef9cb307f2428527acb6578d
+    status: Needs Human
+    audit_ids:
+    - audit-2f23be7e09d9
+    kind: result
+    applied: true
+    created_at: '2026-08-07T18:56:31.514091+00:00'
+    applied_at: '2026-08-07T18:56:38.134354+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -302,7 +325,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-648
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -311,7 +334,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3a4ef40145d8
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -323,6 +346,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-648
       selected_ref: ca51c22b90785daec5d4dd7f0e29dc22045957cc
       selected_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
+      verdict: needs_human
+      failure_classification: missing_evidence
+      completed_at: '2026-08-07T18:56:31.513903+00:00'
+      ended_at: '2026-08-07T18:56:31.513903+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -331,7 +358,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T18:39:22.717061+00:00'
     selected_ref: ca51c22b90785daec5d4dd7f0e29dc22045957cc
     selected_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
-    updated_at: '2026-08-07T18:39:53.315988+00:00'
+    updated_at: '2026-08-07T18:56:31.513903+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d1427097e93
@@ -649,5 +676,12 @@ author: oompah
 created: 2026-08-07 18:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 18:56
+---
+Needs Human — Archived audit requires operator input.
+
+[REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
