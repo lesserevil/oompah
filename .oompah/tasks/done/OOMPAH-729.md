@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T19:24:28.219465Z'
+updated_at: '2026-08-07T08:43:28.922613Z'
 work_branch: OOMPAH-729
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/686
@@ -167,7 +167,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-729
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -232,7 +232,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-729
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -244,6 +244,44 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T19:24:27.110103+00:00'
+  - version: 1
+    audit_id: audit-195960bc9661
+    project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:43:26.409001+00:00'
+    selected_ref: e4b2865eaff689389c35305372785511457b9cd9
+    selected_sha: e4b2865eaff689389c35305372785511457b9cd9
+  - version: 1
+    audit_id: audit-5c3f1c964790
+    project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:43:26.409001+00:00'
+    selected_ref: e4b2865eaff689389c35305372785511457b9cd9
+    selected_sha: e4b2865eaff689389c35305372785511457b9cd9
   attempt_history:
   - version: 1
     attempt_id: attempt-165d83e2ba60

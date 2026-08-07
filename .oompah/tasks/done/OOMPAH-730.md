@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T19:44:52.245758Z'
+updated_at: '2026-08-07T08:43:33.660090Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -198,7 +198,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -289,7 +289,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -301,6 +301,44 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T19:44:51.181488+00:00'
+  - version: 1
+    audit_id: audit-6c4f45c75dc0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-730
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:43:32.070068+00:00'
+    selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
+    selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
+  - version: 1
+    audit_id: audit-756265816f3f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-730
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:43:32.070068+00:00'
+    selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
+    selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
   attempt_history:
   - version: 1
     attempt_id: attempt-83ebd6844473
