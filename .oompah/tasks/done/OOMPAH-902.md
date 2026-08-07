@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-902
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Make exact-gate sandboxes provide a hermetic operator identity
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T19:34:38.556598Z'
+updated_at: '2026-08-07T19:47:00.863720Z'
 work_branch: OOMPAH-902
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.integration:
 oompah.work_branch: OOMPAH-902
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-99ddba2c2ed2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-902
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct operator review accepted the exact sandbox-security repair at
+      f09c0546f55c4994b8894e003874215ac3d8c816: 50 focused tests passed, a real BranchQualityGate
+      run passed 40 tests with only 11 explicitly proven nested-host-policy skips,
+      scoped lint/diff/secret checks passed, and deployed epic revision eb08e86b9
+      is healthy. The queued redundant auditor would repeat validation while blocking
+      older repair waiters.'
+    created_at: '2026-08-07T19:46:56.945413+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
