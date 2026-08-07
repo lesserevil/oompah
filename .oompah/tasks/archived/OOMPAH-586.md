@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Validation
+status: Archived
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-08-07T01:46:24.578903Z'
+updated_at: '2026-08-07T02:15:48.415381Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -72,6 +72,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-9b8858a0a4d1: '2026-07-31T00:39:45.680453+00:00'
     attempt-6fadf019ce9c: '2026-07-31T01:22:33.566702+00:00'
+    attempt-eb53c1029f32: '2026-08-07T02:15:44.484646+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-586
+    target_state: Archived
+    evidence_fingerprint: 81a3fdf5b523246a702161fa6ba68203b3bb1eba2d1ac15cd8b1e8d637361a06
+    audit_ids:
+    - audit-7fa0a1369c2c
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T02:15:44.484657+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-586
+    audit_id: audit-7fa0a1369c2c
+    attempt_id: attempt-eb53c1029f32
+    target_state: Archived
+    evidence_fingerprint: 81a3fdf5b523246a702161fa6ba68203b3bb1eba2d1ac15cd8b1e8d637361a06
+    status: Archived
+    audit_ids:
+    - audit-7fa0a1369c2c
+    applied: false
+    created_at: '2026-08-07T02:15:44.484672+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -148,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-586
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -157,7 +180,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-eb53c1029f32
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -167,13 +190,16 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T01:46:14.093644+00:00'
       branch_key: epic-OOMPAH-586
+      verdict: pass
+      completed_at: '2026-08-07T02:15:44.484456+00:00'
+      ended_at: '2026-08-07T02:15:44.484456+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T01:45:47.832711+00:00'
-    updated_at: '2026-08-07T01:46:14.093644+00:00'
+    updated_at: '2026-08-07T02:15:44.484456+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b8858a0a4d1
