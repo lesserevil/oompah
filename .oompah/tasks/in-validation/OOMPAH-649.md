@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T10:13:39.702952Z'
+updated_at: '2026-08-07T10:13:54.881746Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -506,5 +506,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 50s
 - Log: OOMPAH-649__20260807T095105Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:13
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
