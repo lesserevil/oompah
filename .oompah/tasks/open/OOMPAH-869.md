@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-869
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make inherited validation-fence restart test deterministic under saturated
   gates
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:34:37.725618Z'
+updated_at: '2026-08-07T04:34:54.862296Z'
 work_branch: null
 target_branch: null
 review_url: null
