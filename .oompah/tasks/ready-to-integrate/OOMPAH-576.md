@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T03:11:52.796707Z'
+updated_at: '2026-08-07T03:13:44.351586Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -144,13 +144,14 @@ oompah.work_contributors:
     source_sha: f2b319c1182cd654112db622a0498171e508dead
     completed_at: '2026-08-07T02:55:51.771798+00:00'
 oompah.integration:
-  version: 1
+  version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-576
-  head_sha: 6f5a859b215c0a9a4744984e89b27e3fe990050d
-  submitted_at: '2026-07-30T13:48:56.421801+00:00'
-  updated_at: '2026-07-30T13:48:56.421801+00:00'
+  base_branch: main
+  head_sha: e280a391ce72067c080173fad9056b49e98c0bb6
+  submitted_at: '2026-08-07T03:13:36.941655+00:00'
+  updated_at: '2026-08-07T03:13:36.941655+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/599
 oompah.review_number: '599'
 oompah.work_branch: OOMPAH-576
@@ -604,5 +605,10 @@ Implementation covers all acceptance criteria:
 ✓ Integration executor returns branch_mismatch status without attempting reset
 
 The implementation successfully hardens task submission and integration worktree preparation to prevent the OOMPAH-483 regression where a wrong-checkout submission overwrote the recorded work branch and reset a live worktree.
+---
+author: oompah
+created: 2026-08-07 03:13
+---
+Reject integration submissions from the wrong checkout before mutating task worktrees - implementation complete and verified
 ---
 <!-- COMMENTS:END -->
