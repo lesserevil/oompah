@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:51:46.820678Z'
+updated_at: '2026-08-07T20:51:52.193445Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -119,7 +119,19 @@ oompah.terminal_audit:
       This owner override finalizes already-proven merged work and avoids a redundant
       audit.'
     created_at: '2026-08-07T20:51:42.509476+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-868
+    target_state: Merged
+    evidence_fingerprint: 51f3fe191f53260f9a75b59920d452d246f2be744fa7c80d23291bd12e68e949
+    audit_ids:
+    - audit-2a8ebe2a11a1
+    - audit-6d1b45f02741
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T20:51:50.766970+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -127,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-868
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -141,12 +153,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T20:49:56.603021+00:00'
     selected_ref: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
     selected_sha: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
+    updated_at: '2026-08-07T20:51:50.766925+00:00'
   - version: 1
     audit_id: audit-6d1b45f02741
     project_id: proj-14849f1b
     task_id: OOMPAH-868
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -160,6 +173,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T20:49:56.603021+00:00'
     selected_ref: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
     selected_sha: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
+    updated_at: '2026-08-07T20:51:50.766953+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -421,5 +435,12 @@ author: oompah
 created: 2026-08-07 20:50
 ---
 Completion evidence: exact reviewed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a passed the canonical full gate (15,955 passed, 7 skipped, 1 xfailed), PR #746 passed CI on Python 3.11/3.12/3.13 and merged as 89de987837dc38045af3c79fdd90ff0332677404.
+---
+author: oompah
+created: 2026-08-07 20:51
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact reviewed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a passed the canonical full gate; PR #746 passed all required CI and merged as 89de987837dc38045af3c79fdd90ff0332677404. This owner override finalizes already-proven merged work and avoids a redundant audit.
 ---
 <!-- COMMENTS:END -->
