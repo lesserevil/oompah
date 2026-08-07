@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T04:11:39.021486Z'
+updated_at: '2026-08-07T04:11:51.674374Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -572,5 +572,10 @@ author: oompah
 created: 2026-08-07 04:11
 ---
 OOMPAH-581: Prune merged epic repair workspaces verified complete. Implementation adds ProjectStore._cleanup_epic_repair_workspace_locked (oompah/projects.py:4610) to safely remove auxiliary task-style repair workspaces left by epic repair/planner runs. All guards enforced: registered path only, exact same-identifier branch, clean worktree, merged/ancestor-safe. Integrated into cleanup_terminal_issue for terminal epics only. Full test coverage with 7/7 focused tests passing plus 141+ neighboring tests. All auth/access-control checks pass: project-level write locking, no arbitrary path inference, git-based validations. Ready for delivery.
+---
+author: oompah
+created: 2026-08-07 04:11
+---
+COMPLETION: Task submitted for integration. Verified as Oompah Tests Auth Specialist: (1) Implementation (_cleanup_epic_repair_workspace_locked in oompah/projects.py:4610) is properly integrated into cleanup_terminal_issue at line 5211, (2) Protected by project_write_lock preventing concurrent races, (3) Four-stage guard sequence verified: registered path via worktree_path_for+git-worktree-list, exact identifier branch via git-symbolic-ref, clean worktree via git-status, merged/ancestor-safe via git-merge-base, (4) Test coverage complete: 7/7 TestEpicRepairWorkspaceCleanup + 141 neighboring tests all passing with zero regressions, (5) No arbitrary paths inferred, no shared branches or dirty worktrees removed, proper fail-safe defaults throughout. PR #600 already merged (741a7d88b). Work is complete and ready for delivery.
 ---
 <!-- COMMENTS:END -->
