@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
+- human-only
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T15:03:14.037674Z'
+updated_at: '2026-08-07T18:23:56.463702Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
