@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-08-07T18:44:08.558889Z'
+updated_at: '2026-08-07T18:44:15.578720Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -180,8 +180,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-c71d6e78e93e
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-07T18:44:04.504807+00:00'
+    applied_at: '2026-08-07T18:44:14.036916+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -522,5 +523,27 @@ author: oompah
 created: 2026-08-07 18:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 18:44
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- accepted_head_sha: ab4cab20c0697076098bd429d529fd3d8d3434e9
+- merge_commit_in_main: fa26c40007ce128012cf76d93334cba51181709f
+- pr_number: 611
+- current_head: ab4cab20c0697076098bd429d529fd3d8d3434e9
+- atomic_read_tests: 6/6 passed
+- md_tracker_suite: 122/122 passed
+- state_branch_suite: 32/32 passed
+- terminal_mutation_scan: 15/15 passed
+- full_gate_evidence: stale - no current recorded result; prior gate passed in 272.8s
+- supplemental_checks_allowed: true
+- code_in_main: confirmed via git log
+- previous_state: Merged
+- target_state: Archived
 ---
 <!-- COMMENTS:END -->
