@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T04:21:07.648551Z'
+updated_at: '2026-08-07T06:02:23.161168Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 554c1f0e-e780-453e-b715-8f0473048bc4
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46712
   total_output_tokens: 699
@@ -80,9 +80,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-867
-  head_sha: c15f58451f148923d205d7016fa28ae949994fc7
-  submitted_at: '2026-08-06T22:45:49.805871+00:00'
-  updated_at: '2026-08-06T22:45:49.805871+00:00'
+  head_sha: 3296c2516b0c2fd0da7fd3420226428e940680d6
+  submitted_at: '2026-08-07T06:02:14.105488+00:00'
+  updated_at: '2026-08-07T06:02:14.105488+00:00'
 ---
 ## Summary
 
@@ -329,5 +329,10 @@ author: oompah
 created: 2026-08-07 04:21
 ---
 Post-repair validation at exact uncommitted diff SHA256 43fa885b8757553f7482225bdfbde19059a010d262a13666fbc8116ee8b3b15e: six focused modules pass 377 serial and 377 parallel. This includes immutable binding persistence, legacy unreachable-evidence exhaustion, and exact Done/Merged binding-chain regressions. Independent final review remains required before commit/push/submit.
+---
+author: oompah
+created: 2026-08-07 06:02
+---
+Implemented immutable terminal-audit revision binding and canonical epic candidate parity; completed branch-backed evidence is re-resolved before idempotent acknowledgement. Independent review ACCEPT. Validation: 3 binding regressions passed; six affected modules passed 387 serial and 387 parallel; make check-secrets, range-diff, full branch diff-check, and py_compile passed. Rebased onto origin/main and pushed at 3296c2516b0c2fd0da7fd3420226428e940680d6.
 ---
 <!-- COMMENTS:END -->
