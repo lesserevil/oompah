@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T10:08:05.576156Z'
+updated_at: '2026-08-07T10:14:13.255086Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -110,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-865
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -154,7 +154,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7c783135bb6a
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -167,6 +167,8 @@ oompah.terminal_audit:
       selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
       selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T10:14:11.843820+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah-integration
@@ -215,7 +217,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-7c783135bb6a
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -228,6 +230,8 @@ oompah.terminal_audit:
     selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T10:14:11.843820+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
