@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-07T19:12:30.822448Z'
+updated_at: '2026-08-07T19:17:58.954891Z'
 work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-08-07 19:12
 ---
 Direct implementation complete on local branch epic-OOMPAH-795--task-OOMPAH-859 at 45665108f0e514f21902ca4e7ed0e8f87d61adbc. Scoped extraction onto shared baseline a85a36baf: pending age/stale facts now derive only from PENDING records; zero-pending backlog alerts are suppressed; stale pending backlog is informational/non-operator-action; partial scans retain one complete fact generation until an authoritative refresh atomically clears the backlog facts and alert. Validation under canonical broker: 100 focused health/observability tests passed, plus 367 adjacent API/dashboard/enforcement/recovery/WebSocket tests passed. make check-secrets and diff/compile checks passed. Branch is intentionally not pushed or submitted pending program composition.
+---
+author: oompah
+created: 2026-08-07 19:17
+---
+Restacked the single scoped OOMPAH-859 commit onto current shared epic 6df7dcbe10c6bba1e03df940dbe28111875ebccd. New local head: a5fb5794a01c5537c9608b695ba7ec9525419eee. Recovery ref recovery/OOMPAH-859-pre-restack-45665108f preserves the prior accepted head 45665108f0e514f21902ca4e7ed0e8f87d61adbc. Rebase was conflict-free; focused brokered health/observability validation remains green (100 passed). Worktree is clean and remains intentionally unpushed/unsubmitted.
 ---
 <!-- COMMENTS:END -->
