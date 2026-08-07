@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T06:08:21.433317Z'
+updated_at: '2026-08-07T06:11:23.737803Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -773,5 +773,19 @@ tests/test_delivery_plane_recovery.py::test_retire_inactive_rows_retires_open_ta
 [gw2] [ 23%] PASSED tests/test_delivery_plane_recovery.py::test_ready_retry_metadata_rearms_identical_blocked_queue_row 
 tests/test_delivery_plane_recovery.py::test_retire_inactive_rows_does_not_retire_ready_to_integrate_tasks
 ```
+---
+author: oompah
+created: 2026-08-07 06:11
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #1)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 600 is merged
+**Evidence head:** `f2b319c1182cd654112db622a0498171e508dead`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
