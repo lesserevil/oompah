@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T04:12:13.612017Z'
+updated_at: '2026-08-07T05:13:06.730701Z'
 work_branch: OOMPAH-581
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/600
-review_number: '600'
+review_url: ''
+review_number: ''
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -137,8 +137,8 @@ oompah.integration:
   head_sha: f2b319c1182cd654112db622a0498171e508dead
   submitted_at: '2026-08-07T04:11:31.688856+00:00'
   updated_at: '2026-08-07T04:11:31.688856+00:00'
-oompah.review_url: https://github.com/lesserevil/oompah/pull/600
-oompah.review_number: '600'
+oompah.review_url: ''
+oompah.review_number: ''
 oompah.work_branch: OOMPAH-581
 oompah.target_branch: main
 oompah.terminal_audit:
@@ -297,6 +297,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T02:45:23.476675+00:00'
     branch_key: OOMPAH-581
+oompah.review_head: ''
+review_head: ''
 ---
 ## Summary
 
@@ -593,5 +595,19 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 14s
 - Log: OOMPAH-581__20260807T035708Z.jsonl
+---
+author: oompah
+created: 2026-08-07 05:12
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/600
+Reviewed head: `741a7d88b2ad409575a0b3577564b98f57733f87`
+Accepted submission head: `f2b319c1182cd654112db622a0498171e508dead`
+Source branch: `OOMPAH-581`
+Target branch: `main`
+Reason: review head 741a7d88b2ad409575a0b3577564b98f57733f87 does not match accepted submission head f2b319c1182cd654112db622a0498171e508dead
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
