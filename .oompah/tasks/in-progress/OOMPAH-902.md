@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T18:53:18.730603Z'
+updated_at: '2026-08-07T18:59:23.044811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-07 18:53
 ---
 Implemented and committed local review candidate 48e884c039097e683f0a47810bff8037fd0eea5f (not pushed/submitted). Security repair: BranchQualityGate now creates a synthetic one-entry passwd/group/nsswitch sidecar outside the candidate-writable /oompah-gate bind, validates ownership/modes, and mounts only those files read-only at /etc; HOME is a private /home tmpfs path and pytest temp/XDG/pycache are private /tmp tmpfs paths. Rebase sandbox now runs a trusted namespace probe and classifies the exact observed Debian/AppArmor 'No permissions to create a new namespace' result as host-policy unavailable while production remains fail-closed; integration tests skip only that classification and static tests retain credential/network fencing assertions. Focused leased tests: 44 passed (changed quality-gate checks, full credential-isolation module, exact original test_native_validation_deep_root_uses_random_protected_socket); scoped ruff passed; make check-secrets passed. Final exact-head BranchQualityGate at 48e884c: 31 passed, 11 skipped in 3.66s for the credential-isolation module plus the original native failure. The skips are the proven nested-bwrap host-policy paths; pwd/getpwuid and fail-closed classifier regressions passed. Full make test intentionally not run pending review.
+---
+author: oompah
+created: 2026-08-07 18:59
+---
+Independent-review blocker repaired in amended local commit 25c0fe6ad2bf0dcf3cbaf3de4a8cc940dc5b4c4f (not pushed/submitted). test_default_sandbox_provides_immutable_synthetic_identity_and_tmpfs now accepts needs_rebase only when output starts with the complete quality-gate sandbox-unavailable chain through the exact observed  denial; malformed identity/tmpfs and generic sandbox regressions fail the assertion. Requested direct leased test passed 1/1. Final exact-head BranchQualityGate at 25c0fe6ad passed with 32 passed, 11 proven nested-host-policy skips in 3.97s for the narrowed regression, credential-isolation module, and original native pwd/getpwuid failure test.
 ---
 <!-- COMMENTS:END -->
