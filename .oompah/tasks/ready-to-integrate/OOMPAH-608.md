@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T10:37:42.745315Z'
+updated_at: '2026-08-07T10:37:59.283381Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: ''
-review_number: '606'
+review_number: ''
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -120,7 +120,7 @@ oompah.integration:
   submitted_at: '2026-08-07T10:16:40.510848+00:00'
   updated_at: '2026-08-07T10:16:40.510848+00:00'
 oompah.review_url: ''
-oompah.review_number: '606'
+oompah.review_number: ''
 oompah.work_branch: OOMPAH-608
 oompah.target_branch: main
 oompah.terminal_audit:
@@ -361,6 +361,8 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T08:44:43.680174+00:00'
     failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
     next_retry_at: '2026-08-07T08:45:23.680159+00:00'
+oompah.review_head: ''
+review_head: ''
 ---
 ## Summary
 
