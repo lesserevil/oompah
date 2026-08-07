@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:06:25.806837Z'
+updated_at: '2026-08-07T14:08:00.902400Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -30,14 +30,24 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 0
   task_branch: epic-OOMPAH-763
   base_branch: epic-OOMPAH-763
   base_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
   head_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+  integrated_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
   submitted_at: '2026-08-07T14:06:02.102964+00:00'
-  updated_at: '2026-08-07T14:06:02.102964+00:00'
+  updated_at: '2026-08-07T14:07:55.799014+00:00'
+  canonical_landing_evidence:
+    old_base_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+    old_head_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+    new_base_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+    new_head_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+    target_epic_branch: epic-OOMPAH-763
+    rebase_task_id: OOMPAH-896
+    created_at_utc: '2026-08-07T14:07:55.798945+00:00'
+    evidence_fingerprint: 9c51809ea6ace0bb3d2092c8a585c233fdf9e043012657e1f09ee337ac75a93a
 ---
 ## Summary
 
