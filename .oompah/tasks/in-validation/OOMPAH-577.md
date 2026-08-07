@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: Needs CI Fix
+status: In Validation
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T19:32:45.209072Z'
+updated_at: '2026-08-07T19:38:58.800785Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -73,7 +73,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -137,7 +137,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -166,6 +166,44 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T06:08:51.515138+00:00'
+  - version: 1
+    audit_id: audit-2344c7a84197
+    project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7a4a0f05d5fac6e125b4343692192ec5cb77aa7cd0f360105856d8983b5344
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs CI Fix
+    created_at: '2026-08-07T19:38:50.168902+00:00'
+    selected_ref: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+    selected_sha: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+  - version: 1
+    audit_id: audit-044432495737
+    project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7a4a0f05d5fac6e125b4343692192ec5cb77aa7cd0f360105856d8983b5344
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs CI Fix
+    created_at: '2026-08-07T19:38:50.168902+00:00'
+    selected_ref: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+    selected_sha: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
   attempt_history:
   - version: 1
     attempt_id: attempt-2d156054d52d
@@ -2264,5 +2302,10 @@ FAILED tests/test_acp_codex_backend.py::TestCodexCliPath::test_managed_native_cl
 RuntimeWarning: Enable tracemalloc to get the object allocation traceback
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 19:38
+---
+YOLO: merged PR #744.
 ---
 <!-- COMMENTS:END -->
