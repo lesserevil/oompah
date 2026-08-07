@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-08-07T08:42:55.137773Z'
+updated_at: '2026-08-07T09:34:14.631278Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -140,12 +140,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-418
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3fed0bbc33ec
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+      created_at: '2026-08-07T09:34:13.286978+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T09:34:13.286978+00:00'
+      branch_key: epic-OOMPAH-418
+      selected_ref: origin/main
+      selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     requested_by:
       version: 1
       identity: oompah
@@ -154,6 +169,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:42:51.403270+00:00'
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    updated_at: '2026-08-07T09:34:13.286978+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-148316224bb3
@@ -194,6 +210,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T02:22:16.584113+00:00'
     branch_key: epic-OOMPAH-418
+  - version: 1
+    attempt_id: attempt-3fed0bbc33ec
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+    created_at: '2026-08-07T09:34:13.286978+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T09:34:13.286978+00:00'
+    branch_key: epic-OOMPAH-418
+    selected_ref: origin/main
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
 oompah.task_costs:
   total_input_tokens: 152
   total_output_tokens: 28398
