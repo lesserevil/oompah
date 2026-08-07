@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-08-07T10:30:58.218524Z'
+updated_at: '2026-08-07T10:35:10.684198Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -140,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-418
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -149,7 +149,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3fed0bbc33ec
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -161,6 +161,8 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-418
       selected_ref: origin/main
       selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+      ended_at: '2026-08-07T10:35:03.118613+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: oompah
@@ -213,7 +215,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-3fed0bbc33ec
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -225,6 +227,8 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-418
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    ended_at: '2026-08-07T10:35:03.118613+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 oompah.task_costs:
   total_input_tokens: 622
   total_output_tokens: 28532
