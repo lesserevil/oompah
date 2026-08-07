@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:31:15.571049Z'
-updated_at: '2026-08-07T10:38:55.829789Z'
+updated_at: '2026-08-07T10:41:23.505081Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -75,5 +75,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 0s
 - Log: OOMPAH-878__20260807T103704Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:41
+---
+Direct-owner intervention: this auto-filed rebase is a concurrent duplicate of active OOMPAH-877 for the same epic-OOMPAH-763 generation. Its worker was retired before mutation; the shared epic worktree and origin/epic-OOMPAH-763 remain clean at 04fa678. Keep this task non-dispatchable until OOMPAH-877 completes after OOMPAH-854 and OOMPAH-866 integrate, then archive it as superseded. Systemic prevention is tracked by OOMPAH-879.
 ---
 <!-- COMMENTS:END -->

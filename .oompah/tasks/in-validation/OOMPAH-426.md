@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-08-07T10:41:10.151576Z'
+updated_at: '2026-08-07T10:41:32.283807Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -322,7 +322,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -345,6 +345,22 @@ oompah.terminal_audit:
       selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
       ended_at: '2026-08-07T10:41:08.633019+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-5560865977bd
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+      created_at: '2026-08-07T10:41:16.721026+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T10:41:16.721026+00:00'
+      branch_key: epic-OOMPAH-426
+      selected_ref: origin/main
+      selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: orchestrator
@@ -352,7 +368,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:26:59.449946+00:00'
     selected_ref: origin/main
     selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
-    updated_at: '2026-08-07T10:34:44.755858+00:00'
+    updated_at: '2026-08-07T10:41:16.721026+00:00'
   - version: 1
     audit_id: audit-c2e4f6be07ca
     project_id: proj-14849f1b
@@ -483,6 +499,22 @@ oompah.terminal_audit:
     selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
     ended_at: '2026-08-07T10:41:08.633019+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-5560865977bd
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+    created_at: '2026-08-07T10:41:16.721026+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T10:41:16.721026+00:00'
+    branch_key: epic-OOMPAH-426
+    selected_ref: origin/main
+    selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -887,5 +919,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 57s
 - Log: OOMPAH-426__20260807T103511Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:41
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 10:41
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
