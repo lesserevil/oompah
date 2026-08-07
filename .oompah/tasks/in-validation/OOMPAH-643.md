@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T20:08:58.680259Z'
+updated_at: '2026-08-07T20:09:27.272522Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: ''
@@ -180,6 +180,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:42:59.582986+00:00'
     applied_at: '2026-08-07T09:43:09.961801+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6f209dbcc1b2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 673fe8081908dc89bcce21a3ce7022ac2eacdcc0d20f8e1e6946cd0938598190
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #745 merged exact accepted head 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+      into main after all Python 3.11, 3.12, and 3.13 CI jobs passed; owner override
+      retires the redundant post-merge audit.'
+    created_at: '2026-08-07T20:09:25.669713+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
