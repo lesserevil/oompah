@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-30T22:04:21.076975Z'
+updated_at: '2026-08-07T08:42:45.317749Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -88,7 +88,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,6 +219,25 @@ oompah.terminal_audit:
     previous_state: In Validation
     created_at: '2026-07-30T22:02:11.312030+00:00'
     updated_at: '2026-07-30T22:04:09.191999+00:00'
+  - version: 1
+    audit_id: audit-3a82bfd112c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-414
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T08:42:41.721143+00:00'
+    selected_ref: origin/main
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
   attempt_history:
   - version: 1
     attempt_id: attempt-d0ebf75eb257
