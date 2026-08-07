@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:40:09.157982Z'
+updated_at: '2026-08-07T09:41:40.337569Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -174,6 +174,7 @@ oompah.terminal_audit:
     attempt-60d86ee9562c: '2026-07-31T02:47:25.569475+00:00'
     no-auditor-audit-d7244a8797ac-0: '2026-08-07T03:48:38.735786+00:00'
     no-auditor-audit-92362c1c4018-0: '2026-08-07T07:22:52.281224+00:00'
+    no-auditor-audit-995a3dbfef87-2: '2026-08-07T09:41:29.895576+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-581
@@ -190,6 +191,7 @@ oompah.terminal_audit:
     evidence_fingerprint: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
     audit_ids:
     - audit-92362c1c4018
+    - audit-995a3dbfef87
     kind: result
     applied: true
     retired_at: '2026-08-07T07:22:52.281249+00:00'
@@ -218,6 +220,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:22:52.281270+00:00'
     applied_at: '2026-08-07T07:23:01.629589+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    audit_id: audit-995a3dbfef87
+    attempt_id: no-auditor-audit-995a3dbfef87-2
+    target_state: Done
+    evidence_fingerprint: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    status: Needs Human
+    audit_ids:
+    - audit-995a3dbfef87
+    applied: true
+    created_at: '2026-08-07T09:41:29.895614+00:00'
+    applied_at: '2026-08-07T09:41:37.537816+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -370,7 +384,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -396,7 +410,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ba3498e8dd84
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -409,6 +423,22 @@ oompah.terminal_audit:
       selected_ref: f2b319c1182cd654112db622a0498171e508dead
       selected_sha: f2b319c1182cd654112db622a0498171e508dead
       candidate_rotation_count: 1
+      ended_at: '2026-08-07T09:41:27.289340+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-995a3dbfef87-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T09:41:29.895348+00:00'
+      completed_at: '2026-08-07T09:41:29.895348+00:00'
+      selected_ref: f2b319c1182cd654112db622a0498171e508dead
+      selected_sha: f2b319c1182cd654112db622a0498171e508dead
     requested_by:
       version: 1
       identity: oompah-cli
@@ -417,7 +447,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:58:37.605256+00:00'
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
-    updated_at: '2026-08-07T09:30:33.321219+00:00'
+    updated_at: '2026-08-07T09:41:29.895348+00:00'
   - version: 1
     audit_id: audit-1ed4580274d8
     project_id: proj-14849f1b
@@ -484,7 +514,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ba3498e8dd84
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -497,6 +527,8 @@ oompah.terminal_audit:
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
     candidate_rotation_count: 1
+    ended_at: '2026-08-07T09:41:27.289340+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.review_head: ''
 review_head: ''
 ---
@@ -1087,5 +1119,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 29s
 - Log: OOMPAH-581__20260807T093053Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:41
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
