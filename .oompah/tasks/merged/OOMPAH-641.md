@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T19:33:31.648817Z'
+updated_at: '2026-08-07T19:33:35.898210Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -235,6 +235,30 @@ oompah.terminal_audit:
       re-audit is unnecessary.'
     created_at: '2026-08-07T19:32:52.565394+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain merged source head 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8 as
+      terminal provenance; it is already on current main and no owner-authorized new
+      revision exists.
+    marked_at: '2026-08-07T19:33:34.311646+00:00'
+    updated_at: '2026-08-07T19:33:34.311646+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain merged source head 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8 as
+        terminal provenance; it is already on current main and no owner-authorized
+        new revision exists.
+      recorded_at: '2026-08-07T19:33:34.311646+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1

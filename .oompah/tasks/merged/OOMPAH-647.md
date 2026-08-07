@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T19:25:22.638947Z'
+updated_at: '2026-08-07T19:33:41.971963Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: ''
@@ -191,6 +191,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:33:36.226175+00:00'
     applied_at: '2026-08-07T10:33:43.480300+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-14f8f2f8e353
+    project_id: proj-14849f1b
+    task_id: OOMPAH-647
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Retain the previously accepted merged revision: verified source head
+      18e405d8e6db9549f70e032bc846ce1e4763e6f8 is an exact ancestor of current origin/main.
+      Direct takeover changed lifecycle state but introduced no new revision; redundant
+      re-audit is unnecessary.'
+    created_at: '2026-08-07T19:33:38.128722+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
