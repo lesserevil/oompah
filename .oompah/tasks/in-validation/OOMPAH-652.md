@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-08-07T10:53:08.559409Z'
+updated_at: '2026-08-07T10:53:12.891652Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
