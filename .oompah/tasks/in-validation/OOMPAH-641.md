@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T10:30:29.645758Z'
+updated_at: '2026-08-07T10:51:38.655358Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -161,7 +161,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-641
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -195,7 +195,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-641
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -254,6 +254,44 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T07:11:09.923055+00:00'
     updated_at: '2026-08-07T07:23:03.849724+00:00'
+  - version: 1
+    audit_id: audit-b89c65c4fdb7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-641
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T10:51:28.198397+00:00'
+    selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+  - version: 1
+    audit_id: audit-aa2204db9e01
+    project_id: proj-14849f1b
+    task_id: OOMPAH-641
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T10:51:28.198397+00:00'
+    selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
   attempt_history:
   - version: 1
     attempt_id: attempt-2590e4533e41
@@ -615,5 +653,10 @@ author: oompah
 created: 2026-08-07 10:29
 ---
 Branch quality gate passed for `5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8` using `make test` in 653.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 10:51
+---
+YOLO: merged PR #738.
 ---
 <!-- COMMENTS:END -->
