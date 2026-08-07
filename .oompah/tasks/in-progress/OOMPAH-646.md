@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T20:19:40.803141Z'
+updated_at: '2026-08-07T20:41:23.213398Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -710,5 +710,10 @@ author: oompah
 created: 2026-08-07 20:19
 ---
 Direct repair restacked onto current origin/main. Implemented project review-lifecycle generations, close/merge fences, cache pruning, stale poll CAS rejection, authoritative live-open ledger reconciliation, explicit reopen handling, and same-process standalone sweep coalescing. Focused review-capacity/standalone/webhook/cache/epic coverage is green: 755 passed. Terminal mutation scan and secret scan pass. Performing final review and branch commit/push now.
+---
+author: oompah
+created: 2026-08-07 20:41
+---
+Direct repair is complete and pushed on branch OOMPAH-646 at exact head 38806932e609860b2c81e84253a09df515ff4e5b, based on current origin/main e731c3d985d368bedcf71f9e031c8c7de87de218. Review lifecycle generation fences now prevent close/merge webhooks from being overtaken by stale scheduler, standalone, epic, webhook, or /api/v1/reviews cache publication. Only generation-current authoritative live-open/reopen observations can adopt capacity; successful authoritative empty listings reconcile stale reservations. The API publication path holds the lifecycle barrier through response filtering and TTL publication. Provider-swallowed transport failures fail closed and preserve cache/capacity. Regressions cover close + stale cache + reconciliation + later reopen, concurrent sweeps, API close-during-fetch, and swallowed provider outages. Final brokered affected suite: 758 passed. terminal-audit scan: 10/10 allowlisted. Secret scan, diff check, and py_compile passed. Independent reviewer ACCEPTED with no remaining correctness blocker. Recovery refs preserve bb78d0a0b, e6147efa0, and 38806932e. Per instruction, task was not submitted and no PR was opened.
 ---
 <!-- COMMENTS:END -->
