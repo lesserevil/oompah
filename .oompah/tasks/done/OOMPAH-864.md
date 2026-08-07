@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:47:43.519699Z'
+updated_at: '2026-08-07T19:47:48.811930Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -119,7 +119,18 @@ oompah.terminal_audit:
       restack, static checks passed, and it is integrated on shared epic commit 6df7dcbe1.
       The queued redundant auditor is starving older focused repair waiters.'
     created_at: '2026-08-07T19:47:39.543231+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-864
+    target_state: Done
+    evidence_fingerprint: ce0a2207d90658449c98d695024a0ad9583fed2d29c2baef08c84219b3ab3a13
+    audit_ids:
+    - audit-65d635e6914f
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:47:47.415543+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -127,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-864
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -156,7 +167,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:15:12.823658+00:00'
     selected_ref: 02527892c31eba7f422009e2c09e579f0c44580a
     selected_sha: 02527892c31eba7f422009e2c09e579f0c44580a
-    updated_at: '2026-08-07T19:16:25.804804+00:00'
+    updated_at: '2026-08-07T19:47:47.415514+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-107b4ad3183b
@@ -420,5 +431,12 @@ author: oompah
 created: 2026-08-07 19:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:47
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct operator review accepted OOMPAH-864's fail-closed duplicate-preflight authority repair at 02527892c31eba7f422009e2c09e579f0c44580a: independent race review accepted it, 85 focused duplicate/owner/integration tests passed after restack, static checks passed, and it is integrated on shared epic commit 6df7dcbe1. The queued redundant auditor is starving older focused repair waiters.
 ---
 <!-- COMMENTS:END -->
