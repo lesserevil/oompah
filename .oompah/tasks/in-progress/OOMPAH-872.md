@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T08:45:41.310920Z'
+updated_at: '2026-08-07T08:48:53.107208Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-08-07 08:45
 ---
 Implementation: added credential-free canonical Git repository identities and local checkout inspection in oompah/projects.py; rewired Orchestrator._management_tracker_scope to authorize independent clones, cached mirrors, and shared worktrees only when configured/runtime/managed identity evidence agrees; retained the explicit local-repository compatibility path; and added an actionable startup alert when global ErrorWatcher filing is disabled. Regression coverage now includes URL transports/default ports, relative remotes, canonical clone, mirror, worktree, foreign, missing, ambiguous, startup, and restart cases.
+---
+author: oompah
+created: 2026-08-07 08:48
+---
+Completion: delivered identity-safe operational tracker resolution at commit 0458f8f72. The production service clone can now select the one configured Oompah project across clone/mirror/worktree paths; ambiguous, foreign, invalid, or missing evidence disables filing and emits a redacted actionable alert. Focused suites pass 192/192, the dedicated resolver suite passes 12/12 after final alert-snapshot coverage, secret scanning passes, and origin/OOMPAH-872 is synchronized.
 ---
 <!-- COMMENTS:END -->
