@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:58:05.057419Z'
-updated_at: '2026-08-07T20:34:15.558422Z'
+updated_at: '2026-08-07T20:34:22.428750Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,17 @@ oompah.terminal_audit:
       with all three CI jobs green; OOMPAH-648 is restored to Merged and retained
       as terminal provenance, preventing recurrence.'
     created_at: '2026-08-07T20:34:11.811878+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-903
+    target_state: Done
+    evidence_fingerprint: c7e6b945872f4b4d87bcb66e80199d721f56d88cfc423912b364d90173ae43f3
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T20:34:20.832019+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -118,5 +128,12 @@ Source: `backend:orchestrator`
 Message: ACP worker failed issue_id=OOMPAH-648
 
 Source issue: `OOMPAH-648`
+---
+author: oompah
+created: 2026-08-07 20:34
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Incident root cause was stale watchdog reopening of already-merged OOMPAH-648, followed by correct accepted-head mismatch fencing. OOMPAH-871 PR #741 merged exact head 158a2d03f0651b955666ba31c25b3fb412973ccd as 41b1477682c6460a1bb55356ac44c799c9fa783a with all three CI jobs green; OOMPAH-648 is restored to Merged and retained as terminal provenance, preventing recurrence.
 ---
 <!-- COMMENTS:END -->
