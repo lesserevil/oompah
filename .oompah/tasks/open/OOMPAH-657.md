@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:19:16.220403Z'
+updated_at: '2026-08-07T13:22:05.891051Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -22,14 +22,36 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 8592d28fa3b6ea813428c21035b16e98c78ff1b02054482140ec39246702488d
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T13:21:53.196636+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 3dd759c7-c8d2-4a4d-b2cd-eda0eacc6224
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T13:18:47.948932+00:00'
-  claim_expires_at: '2026-08-07T13:48:47.948932+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: I reviewed every task in the supplied corpus against\
+    \ OOMPAH-657 (\"Run branch quality gates from immutable exact-head snapshots\"\
+    ). After excluding all terminal-state tasks (Done, Merged, Archived), the only\
+    \ non-terminal task present in the corpus is OOMPAH-657 itself (status: Open).\
+    \ There are no other active tasks to match against.\nFocus handoff: duplicate_detector\n\
+    Duplicate preflight verdict: no_duplicate\nMatches: none\n\nEvidence: I reviewed\
+    \ every task in the supplied corpus against OOMPAH-657 (\"Run branch quality gates\
+    \ from immutable exact-head snapshots\"). After excluding all terminal-state tasks\
+    \ (Done, Merged, Archived), the only non-terminal task present in the corpus is\
+    \ OOMPAH-657 itself (status: Open). There are no other active tasks to match against.\n\
+    \nThe closest thematically related tasks are all in terminal states and therefore\
+    \ ineligible as duplicate targets:\n- **OOMPAH-655** (Merged) \u2014 enforced\
+    \ full-gate *service isolation* from candidate branch code; complementary but\
+    \ distinct scope (sandbox boundary, not immutable snapshots)\n- **OOMPAH-659**\
+    \ (Merged) \u2014 deferred standalone gates until finish-order dependencies satisfied;\
+    \ orthogonal concern (ordering, not snapshot immutability)\n- **OOMPAH-658** (Merged)\
+    \ \u2014 deduplicated duplicate-preflight runs; unrelated\n\nThe task's own history\
+    \ confirms it was previously implemented and merged (PR #618, audit PASS 2026-07-31),\
+    \ then reopened due to a lifecycle coordinator race (OOMPAH-653). The current\
+    \ Open state reflects a watchdog-driven reopen, not a new or duplicate problem\
+    \ report. No active peer task describes the same immutable-snapshot gate isolation\
+    \ requirement."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -37,8 +59,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 3387f00f-4a10-4c38-8100-f5b004307861
 oompah.task_costs:
-  total_input_tokens: 5168913
-  total_output_tokens: 54751
+  total_input_tokens: 5168916
+  total_output_tokens: 56115
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -46,8 +68,8 @@ oompah.task_costs:
       output_tokens: 13082
       cost_usd: 0.0
     sonnet:
-      input_tokens: 4450774
-      output_tokens: 32744
+      input_tokens: 4450777
+      output_tokens: 34108
       cost_usd: 0.0
     unknown:
       input_tokens: 72
@@ -90,6 +112,12 @@ oompah.task_costs:
     output_tokens: 67
     cost_usd: 0.0
     recorded_at: '2026-08-07T13:12:29.478310+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 1364
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T13:21:53.196290+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-657__20260731T110710Z
@@ -116,6 +144,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-657
     source_sha: 0593430f81bb3f3b9c19a7064dded7e878685e27
     completed_at: '2026-07-31T12:01:24.096110+00:00'
+  - run_id: OOMPAH-657__20260807T131923Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: duplicate_detector
+    source_branch: OOMPAH-657
+    source_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    completed_at: '2026-08-07T13:21:53.214880+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -819,5 +855,15 @@ author: oompah
 created: 2026-08-07 13:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-07 13:21
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 2, Tool calls: 0
+- Tokens: 3 in / 1.4K out [1.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 45s
+- Log: OOMPAH-657__20260807T131923Z.jsonl
 ---
 <!-- COMMENTS:END -->
