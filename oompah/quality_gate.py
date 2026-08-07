@@ -38,6 +38,11 @@ _EVIDENCE_VERSION = 2
 _OOMPAH_652_SAFETY_HEAD = "ec0ec7d89fb8804571fcf7e780558e6d979b73ea"
 
 _SANDBOX_RUN_ROOT = Path("/oompah-gate")
+_SANDBOX_TMP_ROOT = Path("/tmp/oompah-gate")
+_SANDBOX_HOME = Path("/home/oompah")
+_GATE_CONTAINER_PREFIX = "oompah-quality-gate-"
+_GATE_MUTABLE_ROOT_NAME = "run"
+_GATE_IDENTITY_ROOT_NAME = "identity"
 
 
 class _SandboxUnavailable(RuntimeError):
@@ -714,13 +719,94 @@ class BranchQualityGate:
 
     @staticmethod
     def _gate_run_root() -> Path:
-        """Create an operator-owned, private root for one candidate command."""
-        root = Path(tempfile.mkdtemp(prefix="oompah-quality-gate-"))
-        os.chmod(root, 0o700)
-        for relative in ("home", "tmp", "cache", "config", "data", "lifecycle"):
-            path = root / relative
-            path.mkdir(mode=0o700)
-        return root
+        """Create private mutable state and an unexposed identity sidecar."""
+        container = Path(tempfile.mkdtemp(prefix=_GATE_CONTAINER_PREFIX))
+        try:
+            os.chmod(container, 0o700)
+            root = container / _GATE_MUTABLE_ROOT_NAME
+            root.mkdir(mode=0o700)
+            for relative in ("home", "tmp", "cache", "config", "data", "lifecycle"):
+                path = root / relative
+                path.mkdir(mode=0o700)
+
+            # The candidate needs a stable effective-user record for trusted
+            # code that derives the operator socket parent with pwd.getpwuid.
+            # Keep these files beside, never below, the root mounted writable
+            # at /oompah-gate.  They are exposed only through read-only /etc
+            # binds constructed by _sandbox_command.
+            identity_root = container / _GATE_IDENTITY_ROOT_NAME
+            identity_root.mkdir(mode=0o700)
+            identity_payloads = {
+                "passwd": (
+                    f"oompah:x:{os.geteuid()}:{os.getegid()}:"
+                    f"Oompah Quality Gate:{_SANDBOX_HOME}:/bin/sh\n"
+                ),
+                "group": f"oompah:x:{os.getegid()}:\n",
+                "nsswitch.conf": "passwd: files\ngroup: files\nshadow: files\n",
+            }
+            for name, payload in identity_payloads.items():
+                destination = identity_root / name
+                destination.write_text(payload, encoding="utf-8")
+                destination.chmod(0o444)
+            identity_root.chmod(0o500)
+            return root
+        except Exception:
+            shutil.rmtree(container, ignore_errors=True)
+            raise
+
+    @staticmethod
+    def _gate_identity_files(run_root: Path) -> dict[str, Path]:
+        """Return validated server-owned identity files for one gate."""
+        root = run_root.resolve(strict=True)
+        container = root.parent
+        temp_root = Path(tempfile.gettempdir()).resolve()
+        if (
+            root.name != _GATE_MUTABLE_ROOT_NAME
+            or container.parent != temp_root
+            or not container.name.startswith(_GATE_CONTAINER_PREFIX)
+            or run_root.is_symlink()
+            or container.is_symlink()
+            or container.stat().st_uid != os.geteuid()
+        ):
+            raise _SandboxUnavailable("quality-gate identity root is not trusted")
+        identity_root = container / _GATE_IDENTITY_ROOT_NAME
+        try:
+            identity_metadata = identity_root.stat(follow_symlinks=False)
+        except OSError as exc:
+            raise _SandboxUnavailable(
+                "quality-gate identity database is unavailable"
+            ) from exc
+        if (
+            identity_root.is_symlink()
+            or not identity_root.is_dir()
+            or identity_metadata.st_uid != os.geteuid()
+            or identity_metadata.st_mode & 0o777 != 0o500
+        ):
+            raise _SandboxUnavailable(
+                "quality-gate identity database is not immutable"
+            )
+        files = {
+            "passwd": identity_root / "passwd",
+            "group": identity_root / "group",
+            "nsswitch.conf": identity_root / "nsswitch.conf",
+        }
+        for path in files.values():
+            try:
+                metadata = path.stat(follow_symlinks=False)
+            except OSError as exc:
+                raise _SandboxUnavailable(
+                    "quality-gate identity database is unavailable"
+                ) from exc
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or metadata.st_uid != os.geteuid()
+                or metadata.st_mode & 0o222
+            ):
+                raise _SandboxUnavailable(
+                    "quality-gate identity database is not immutable"
+                )
+        return files
 
     @staticmethod
     def _cleanup_gate_run_root(root: Path) -> None:
@@ -728,16 +814,30 @@ class BranchQualityGate:
         try:
             resolved = root.resolve(strict=False)
             temp_root = Path(tempfile.gettempdir()).resolve()
+            container = resolved.parent
             if (
-                resolved.parent != temp_root
-                or not resolved.name.startswith("oompah-quality-gate-")
+                resolved.name != _GATE_MUTABLE_ROOT_NAME
+                or container.parent != temp_root
+                or not container.name.startswith(_GATE_CONTAINER_PREFIX)
                 or root.is_symlink()
-                or not root.exists()
-                or root.stat().st_uid != os.getuid()
+                or container.is_symlink()
+                or not resolved.exists()
+                or container.stat().st_uid != os.geteuid()
             ):
                 logger.warning("Refusing to remove unexpected gate root %s", root)
                 return
-            shutil.rmtree(root)
+            identity_root = container / _GATE_IDENTITY_ROOT_NAME
+            identity_info = identity_root.stat(follow_symlinks=False)
+            if (
+                identity_root.is_symlink()
+                or not identity_root.is_dir()
+                or identity_info.st_uid != os.geteuid()
+                or identity_info.st_mode & 0o777 != 0o500
+            ):
+                logger.warning("Refusing to remove untrusted gate identity %s", root)
+                return
+            identity_root.chmod(0o700)
+            shutil.rmtree(container)
         except FileNotFoundError:
             pass
         except OSError as exc:
@@ -891,12 +991,12 @@ class BranchQualityGate:
             value = os.environ.get(key)
             if value:
                 environment[key] = value
-        # The host root is bound at _SANDBOX_RUN_ROOT.  Export only that
-        # sandbox-visible path: a host tempfile path would be inaccessible
-        # after /tmp and /home are hidden by bubblewrap.
-        private_tmp = _SANDBOX_RUN_ROOT / "tmp"
+        # Disposable high-churn pytest state belongs on the sandbox's private
+        # tmpfs, not the ext4-backed host run root.  This avoids amplifying
+        # metadata writes into jbd2 stalls during the full parallel suite.
+        private_tmp = _SANDBOX_TMP_ROOT
         private_lifecycle = _SANDBOX_RUN_ROOT / "lifecycle"
-        private_home = _SANDBOX_RUN_ROOT / "home"
+        private_home = _SANDBOX_HOME
         # Bind-and-close allocation is the portable interface available to the
         # existing Makefile contract.  The candidate still cannot select the
         # operator's configured port because this value is server-generated.
@@ -920,12 +1020,10 @@ class BranchQualityGate:
                 "TMPDIR": str(private_tmp),
                 "TMP": str(private_tmp),
                 "TEMP": str(private_tmp),
-                "XDG_CACHE_HOME": str(_SANDBOX_RUN_ROOT / "cache"),
-                "XDG_CONFIG_HOME": str(_SANDBOX_RUN_ROOT / "config"),
-                "XDG_DATA_HOME": str(_SANDBOX_RUN_ROOT / "data"),
-                "PYTHONPYCACHEPREFIX": str(
-                    _SANDBOX_RUN_ROOT / "cache" / "pycache"
-                ),
+                "XDG_CACHE_HOME": str(private_tmp / "cache"),
+                "XDG_CONFIG_HOME": str(private_tmp / "config"),
+                "XDG_DATA_HOME": str(private_tmp / "data"),
+                "PYTHONPYCACHEPREFIX": str(private_tmp / "pycache"),
             }
         )
         return environment
@@ -1001,6 +1099,7 @@ class BranchQualityGate:
         repo = Path(repo_path).resolve()
         if not repo.is_dir() or repo.is_symlink():
             raise _SandboxUnavailable("quality-gate worktree is not a real directory")
+        identity_files = BranchQualityGate._gate_identity_files(run_root)
 
         # Start from an empty root rather than a read-only host root.  Candidate
         # code receives only a disposable source snapshot, its private gate
@@ -1046,6 +1145,14 @@ class BranchQualityGate:
             "--tmpfs",
             "/tmp",
             "--dir",
+            str(_SANDBOX_TMP_ROOT),
+            "--dir",
+            str(_SANDBOX_TMP_ROOT / "cache"),
+            "--dir",
+            str(_SANDBOX_TMP_ROOT / "config"),
+            "--dir",
+            str(_SANDBOX_TMP_ROOT / "data"),
+            "--dir",
             "/var",
             "--dir",
             "/var/tmp",
@@ -1055,6 +1162,19 @@ class BranchQualityGate:
             "/home",
             "--tmpfs",
             "/home",
+            "--dir",
+            str(_SANDBOX_HOME),
+            "--dir",
+            "/etc",
+            "--ro-bind",
+            str(identity_files["passwd"]),
+            "/etc/passwd",
+            "--ro-bind",
+            str(identity_files["group"]),
+            "/etc/group",
+            "--ro-bind",
+            str(identity_files["nsswitch.conf"]),
+            "/etc/nsswitch.conf",
         ]
 
         # bwrap's bind destinations must already exist.  Do not inherit an
@@ -1068,6 +1188,12 @@ class BranchQualityGate:
             Path("/var"),
             Path("/var/tmp"),
             Path("/home"),
+            _SANDBOX_HOME,
+            Path("/etc"),
+            _SANDBOX_TMP_ROOT,
+            _SANDBOX_TMP_ROOT / "cache",
+            _SANDBOX_TMP_ROOT / "config",
+            _SANDBOX_TMP_ROOT / "data",
         }
 
         def add_destination(path: Path) -> None:
