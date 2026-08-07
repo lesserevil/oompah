@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T10:39:21.814728Z'
+updated_at: '2026-08-07T10:40:26.094270Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -298,5 +298,10 @@ author: oompah
 created: 2026-08-07 10:39
 ---
 Recovered the existing clean O846 worktree at ef1e1d07a (six local commits ahead of origin/epic-OOMPAH-763, two commits behind). The 2026-08-07 O577 process used deployed main c22debc, which predates this provider-boundary repair. Added a direct regression for the exact native path: absolute Codex Bash -> scripts/run-tests.sh serial -> /usr/bin/env bash -> three-file pytest. With an exact-gate owner holding capacity=1, the script remains a TASK-577 waiter and cannot reach its interpreter until release. Focused regression passed through the canonical validation broker.
+---
+author: oompah
+created: 2026-08-07 10:40
+---
+Additional live bypass at 2026-08-07T10:38Z: while canonical exact-gate owner OOMPAH-854 held the sole validation slot (authority integration:proj-14849f1b:OOMPAH-854:91e76723..., sandbox root PID 3949522), server-managed Codex worker OOMPAH-643 was already running an unleased full make test via scripts/run-tests.sh parallel (pytest PID 3909665, four xdist children 3911165/3911195/3911233/3911290). The broker listed only OOMPAH-854 as owner and OOMPAH-846 as waiter; OOMPAH-643 was absent. Both suites remained live concurrently and OOMPAH-854 workers showed I/O wait. No process was terminated. This confirms the uncovered provider-native full-Make path remains live on deployed c22debc4 and must be fenced before process launch.
 ---
 <!-- COMMENTS:END -->
