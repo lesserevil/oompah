@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:20:11.622683Z'
+updated_at: '2026-08-07T13:20:36.769008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 11s
+---
+author: oompah
+created: 2026-08-07 13:20
+---
+Temporary owner sequencing claim 8fc0649fb1b64409baee48fb030929cb applied after two provider-free dispatch failures correctly reported that epic-OOMPAH-763 is dirty/diverged during OOMPAH-877's exact repair. This is not an implementation failure. Release the claim immediately after OOMPAH-877's exact CAS push so the server can implement OOMPAH-887 from the repaired epic head without retry churn.
 ---
 <!-- COMMENTS:END -->
