@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:53:27.323591Z'
+updated_at: '2026-08-07T10:53:53.616805Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -725,5 +725,15 @@ author: oompah
 created: 2026-08-07 10:53
 ---
 Implementation: no conflict edits were necessary because the branch rebased cleanly and already matches main. I force-pushed the existing OOMPAH-647 review branch with --force-with-lease, recreating the remote ref at the clean rebased head.
+---
+author: oompah
+created: 2026-08-07 10:53
+---
+Verification: after force-push, HEAD, origin/main, and origin/OOMPAH-647 all resolve to 18e405d8;  and the review diff are empty, and git pull --rebase / git push report up to date. Focused tests could not start because Make/Python validation guards fail before collection on a read-only shared validation-lease lock; uv execution also cannot create its transient scope. No code changes were made in this clean rebase pass.
+---
+author: oompah
+created: 2026-08-07 10:53
+---
+Completion: restored and force-pushed the OOMPAH-647 branch as a clean rebase of main (18e405d8). No conflicts or branch-only changes remained, and the remote review diff is empty.
 ---
 <!-- COMMENTS:END -->
