@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: Needs Human
+status: Done
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T10:14:37.557404Z'
+updated_at: '2026-08-07T10:15:53.334832Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -128,6 +128,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:14:25.953402+00:00'
     applied_at: '2026-08-07T10:14:34.507133+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8c3fcf2edf24
+    project_id: proj-14849f1b
+    task_id: OOMPAH-865
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner recovery: exact integrated head 04fa6781091efc6f11b952b9f1b35123facce64f
+      passed independent review and brokered modified-module validation (211 serial
+      and 211 xdist4), plus all five prior gate failures. All three configured auditor
+      transports terminated before verdict; OOMPAH-876 tracks candidate exhaustion.'
+    created_at: '2026-08-07T10:15:48.138939+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
