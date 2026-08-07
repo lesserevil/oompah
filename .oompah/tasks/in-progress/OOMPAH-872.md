@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T17:35:43.557184Z'
+updated_at: '2026-08-07T17:45:37.176245Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 7b49f9fa-5d02-4af3-86f8-e8915a11b2e9
 oompah.task_costs:
   total_input_tokens: 48036
   total_output_tokens: 557
@@ -93,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-872
     source_sha: 45e2b83356dd041200d7cad0970c7e6f939dc757
     completed_at: '2026-08-07T07:17:59.496533+00:00'
+  - run_id: 37a4e22f74f245189abec1a5db167f79--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: frontend
+    source_branch: OOMPAH-872
+    source_sha: null
+    completed_at: ''
 oompah.integration:
   version: 2
   state: ready
@@ -577,5 +585,15 @@ author: oompah
 created: 2026-08-07 17:35
 ---
 Recovered an unpublished worktree checkpoint after worker/service interruption. Exact recovery evidence is durable at refs/oompah/recovery/OOMPAH-872-09fc713aa7ea143b (798b7de07c8cf60f4adc0f3953e525ce8bff9f09); the ownerless task was returned to Open.
+---
+author: oompah
+created: 2026-08-07 17:45
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-07 17:45
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

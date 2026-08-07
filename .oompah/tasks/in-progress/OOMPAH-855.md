@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-855
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve auditor candidate eligibility across operator pause retirement
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-06T18:00:34.955614Z'
+updated_at: '2026-08-07T17:45:46.395653Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     eligibility across scheduler pause/graceful quiesce retirement. The corpus-capacity
     inconclusive path is the already-fixed OOMPAH-853 deployment gap, not evidence
     of a duplicate.
-oompah.agent_run_id: 96b97b3c-86ea-4de3-b681-871074de63c9
+oompah.agent_run_id: a049c8d6-3acf-4fbf-a512-60cced11a592
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-855
 oompah.integration:
   version: 2
@@ -52,8 +52,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-855
   base_branch: epic-OOMPAH-763
-  base_sha: 6b67846406858b585ce47939f70bec76eb706fe8
-  updated_at: '2026-08-06T16:31:12.980404+00:00'
+  base_sha: a85a36baf7b3ebcb45be27823755b5694a790a49
+  updated_at: '2026-08-07T17:45:44.666721+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2744
@@ -80,6 +80,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-855
     source_sha: 6b67846406858b585ce47939f70bec76eb706fe8
     completed_at: '2026-08-06T16:32:35.707636+00:00'
+  - run_id: 117bbd8e19e540ca877226e1150565f2--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: epic-OOMPAH-763--task-OOMPAH-855
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -122,5 +130,10 @@ author: oompah
 created: 2026-08-06 16:33
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-07 17:45
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
