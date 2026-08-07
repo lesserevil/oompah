@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-874
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Classify cancelled exact gates as retryable scheduling, not CI failure
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T07:33:02.421742Z'
+updated_at: '2026-08-07T08:36:25.642458Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9b98672f-7c97-4e15-952d-2f07bee4c517
+oompah.agent_run_id: 38215628-66b9-4984-8382-068e01046d9a
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-874
 oompah.integration:
   version: 2
