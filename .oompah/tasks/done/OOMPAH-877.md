@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T14:47:25.295939Z'
+updated_at: '2026-08-07T14:47:33.230147Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -55,7 +55,17 @@ oompah.terminal_audit:
       with 16652 passed and zero failures, plus 20 consecutive WebSocket stress runs,
       and was published by exact force-with-lease from ca1c527.
     created_at: '2026-08-07T14:47:19.859762+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-877
+    target_state: Done
+    evidence_fingerprint: bec8134c4776799e78f527c81be2b71d41b4e4dfbd205f6a5df4facb937ce6ea
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:47:30.056944+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -108,5 +118,12 @@ author: oompah
 created: 2026-08-07 14:36
 ---
 Recovery head e06bec5490b9d55d169f7de439755c49eff35307 is clean, contains the accepted generation repair and restored fixture contracts, and differs from the prior near-green head only by the intended five-line WebSocket synchronization patch. Brokered stress passed 20 module runs, 320 tests total, zero failures. The definitive exact-head make test is currently running under the canonical validation lease. Remote remains fenced at ca1c527 until that gate reports.
+---
+author: oompah
+created: 2026-08-07 14:47
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Exact recovery head e06bec549 passed the canonical full Makefile gate with 16652 passed and zero failures, plus 20 consecutive WebSocket stress runs, and was published by exact force-with-lease from ca1c527.
 ---
 <!-- COMMENTS:END -->
