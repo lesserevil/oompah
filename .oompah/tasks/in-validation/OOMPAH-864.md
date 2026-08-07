@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:15:18.341624Z'
+updated_at: '2026-08-07T19:16:34.188599Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -106,12 +106,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-864
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ce0a2207d90658449c98d695024a0ad9583fed2d29c2baef08c84219b3ab3a13
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-107b4ad3183b
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ce0a2207d90658449c98d695024a0ad9583fed2d29c2baef08c84219b3ab3a13
+      created_at: '2026-08-07T19:16:25.804804+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T19:16:25.804804+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-864
+      selected_ref: 02527892c31eba7f422009e2c09e579f0c44580a
+      selected_sha: 02527892c31eba7f422009e2c09e579f0c44580a
     requested_by:
       version: 1
       identity: oompah-cli
@@ -120,7 +135,23 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:15:12.823658+00:00'
     selected_ref: 02527892c31eba7f422009e2c09e579f0c44580a
     selected_sha: 02527892c31eba7f422009e2c09e579f0c44580a
-  attempt_history: []
+    updated_at: '2026-08-07T19:16:25.804804+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-107b4ad3183b
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ce0a2207d90658449c98d695024a0ad9583fed2d29c2baef08c84219b3ab3a13
+    created_at: '2026-08-07T19:16:25.804804+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T19:16:25.804804+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-864
+    selected_ref: 02527892c31eba7f422009e2c09e579f0c44580a
+    selected_sha: 02527892c31eba7f422009e2c09e579f0c44580a
 ---
 ## Summary
 
@@ -358,5 +389,15 @@ author: oompah
 created: 2026-08-07 19:15
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 19:16
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 19:16
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
