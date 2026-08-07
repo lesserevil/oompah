@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T12:04:50.196151Z'
+updated_at: '2026-08-07T13:08:48.105259Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/739
@@ -164,6 +164,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T08:55:57.563534+00:00'
     applied_at: '2026-08-07T08:56:06.346015+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d803394a76b2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation after auditor transport exhaustion: exact accepted
+      head f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6 passed the configured make test
+      gate in 788.5s and is the second parent of merged PR #739 at c9f16e399efcbe1a0e9ac70948c8fac2d9262017;
+      git merge-base confirms it is an ancestor of current origin/main. The audit
+      attempts failed before substantive review due transport/workspace failures,
+      so implementation must not be reopened.'
+    created_at: '2026-08-07T13:08:41.912188+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
