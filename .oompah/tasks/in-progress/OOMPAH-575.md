@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Needs Human
+status: In Progress
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T09:42:56.030701Z'
+updated_at: '2026-08-07T10:03:18.156240Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
