@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T07:26:38.853306Z'
+updated_at: '2026-08-07T07:27:38.992290Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-08-07 07:26
 ---
 Understanding: the service ErrorWatcher must map its runtime checkout to the explicitly configured Oompah management project using durable repository identity, while rejecting ambiguous or foreign matches and preserving fail-closed protections. I will trace startup wiring and project identity resolution, implement focused resolver changes, add regression tests for canonical/alias/ambiguous/foreign/restart cases, then run focused checks.
+---
+author: oompah
+created: 2026-08-07 07:27
+---
+Discovery: Orchestrator._management_tracker_scope in oompah/orchestrator.py:3990-4022 uses exact workflow-root/path coincidence. The global tracker is deliberately fail-closed in managed mode, and server.set_orchestrator disables the global ErrorWatcher when this scope lookup raises. I will add durable git repository identity matching with explicit management-project authority and retain strict ambiguity/foreign rejection.
 ---
 <!-- COMMENTS:END -->
