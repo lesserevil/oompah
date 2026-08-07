@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:06:34.028897Z'
-updated_at: '2026-08-07T14:52:20.097753Z'
+updated_at: '2026-08-07T14:52:28.470671Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -45,7 +45,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:52:14.568874+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-888
+    target_state: Archived
+    evidence_fingerprint: 4ebc7558acb7a78e1c2cabab5ffe96c8e7472294866c9b3d3d73eb93078198c9
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:52:25.280269+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -68,5 +78,12 @@ author: oompah
 created: 2026-08-07 13:17
 ---
 Direct-owner containment applied before implementation. This is recurrence #8 of the duplicate epic-OOMPAH-763 rebase helper race while canonical OOMPAH-877 already owns and has repaired the same generation. Preserve this task/claim as fenced incident evidence; do not mutate or push the shared branch. OOMPAH-879 owns the systemic authority/idempotency fix.
+---
+author: oompah
+created: 2026-08-07 14:52
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
