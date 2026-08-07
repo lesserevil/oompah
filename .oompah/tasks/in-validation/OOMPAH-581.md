@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:09:39.913867Z'
+updated_at: '2026-08-07T09:09:58.775974Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -999,5 +999,15 @@ author: oompah
 created: 2026-08-07 08:58
 ---
 Owner recovery: this already-merged task was reopened by stale watchdog/reconciliation evidence. Restaging the authoritative Merged transition with the expanded verdict-capable auditor pool; no implementation work is authorized. OOMPAH-871 fixes the systemic terminal-provenance reopen path.
+---
+author: oompah
+created: 2026-08-07 09:09
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 09:09
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
