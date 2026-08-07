@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T09:42:44.296591Z'
+updated_at: '2026-08-07T09:42:56.030701Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -209,8 +209,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-3f0f5b312547
-    applied: false
+    applied: true
     created_at: '2026-08-07T09:42:42.904466+00:00'
+    applied_at: '2026-08-07T09:42:53.092688+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -805,5 +806,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 22m 57s
 - Log: OOMPAH-575__20260807T072442Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:42
+---
+Needs Human — Merged audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->

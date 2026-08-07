@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T09:34:50.838110Z'
+updated_at: '2026-08-07T09:43:01.098531Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -132,6 +132,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-e5b97bb4551d: '2026-07-31T07:20:21.752967+00:00'
     attempt-616413d31544: '2026-07-31T08:05:46.127554+00:00'
+    infrastructure-exhausted-audit-f116ee35fbfd-3: '2026-08-07T09:42:59.582967+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Archived
+    evidence_fingerprint: 499d905bf6f3a7602ef9860f46fe15b992241f8e2e1349d50f41e40243b3cf88
+    audit_ids:
+    - audit-f116ee35fbfd
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:42:59.582975+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    audit_id: audit-f116ee35fbfd
+    attempt_id: infrastructure-exhausted-audit-f116ee35fbfd-3
+    target_state: Archived
+    evidence_fingerprint: 499d905bf6f3a7602ef9860f46fe15b992241f8e2e1349d50f41e40243b3cf88
+    status: Needs Human
+    audit_ids:
+    - audit-f116ee35fbfd
+    applied: false
+    created_at: '2026-08-07T09:42:59.582986+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -207,7 +230,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-643
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -252,13 +275,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T09:34:49.484508+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T09:35:29.484494+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-f116ee35fbfd-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 499d905bf6f3a7602ef9860f46fe15b992241f8e2e1349d50f41e40243b3cf88
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T09:42:59.582878+00:00'
+      completed_at: '2026-08-07T09:42:59.582878+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T08:13:09.941876+00:00'
-    updated_at: '2026-08-07T09:34:49.484508+00:00'
+    updated_at: '2026-08-07T09:42:59.582878+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e5b97bb4551d
