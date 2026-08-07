@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T18:39:04.635817Z'
+updated_at: '2026-08-07T10:15:05.735762Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -288,5 +288,10 @@ author: oompah
 created: 2026-08-06 18:39
 ---
 Repair is committed and rebased at exact head dc211f829c3f494b4fd7817128ba46d7ab53ffe9. Independent post-rebase composition review accepted the supervisor ACK ordering, validation lease enforcement, and newer auditor-search composition. make check-secrets and diff checks pass. Focused serial verification is durably queued behind the active OOMPAH-832 validation owner.
+---
+author: oompah
+created: 2026-08-07 10:15
+---
+Live enforcement miss on 2026-08-07 around 10:12 UTC: scheduler worker OOMPAH-577 launched PID 3314696 via scripts/run-tests.sh serial for test_terminal_transition_coordinator.py, test_orchestrator_handlers.py, and test_delivery_plane_recovery.py while the canonical broker showed OOMPAH-871 exact_gate as sole owner and O866/O854 as waiters. Process ancestry: server -> Codex O577 -> bwrap -> run-tests.sh -> pytest; it was not represented as a validation lease owner/waiter. Acceptance must cover this Codex/sandbox worker command path so heavyweight tests cannot run concurrently with an exact gate.
 ---
 <!-- COMMENTS:END -->
