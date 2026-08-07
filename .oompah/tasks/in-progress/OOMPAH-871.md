@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T07:30:17.007676Z'
+updated_at: '2026-08-07T07:48:35.149605Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,17 @@ author: oompah
 created: 2026-08-07 07:30
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 07:48
+---
+**Understanding**: The scenario is a terminal task (Done/Merged/Archived) that an operator has retained *purely as provenance* — a historical record — but does not want the system to treat as active work. A watchdog observed some stale/historical signal and reopened it, causing another full validation/review cycle.
+
+**Planned approach**:
+1. Introduce a durable 'provenance-only' (a.k.a. terminal-suppression) marker persisted in the terminal-audit metadata envelope (\`oompah.terminal_audit\`). Store it via the same TerminalAuditMetadataStore that already owns quarantine — same lock discipline, same redaction. Marker is set only by an explicit operator/owner action and cleared only by an explicit owner-authorized new revision.
+2. Every dispatch/reopen/reconcile path checks the marker before mutating status. Specifically: stalled-task watchdog reopen (\`_execute_stalled_watchdog_reopen_under_authority\`), review reconciliation reopen (\`_reopen_missing_review\`, \`_reopen_stale_in_review_task\`), shared-absorption reopen, epic child reopen, dispatch eligibility (\`_should_dispatch\`), auto-archive skip guard, restart recovery.
+3. Owner-initiated 'new revision' explicitly clears the marker and bumps an authority generation. This is the only path that returns the task to a dispatchable state.
+4. Malformed provenance metadata is quarantined (existing MetadataQuarantine path) and surfaces an operator alert — never silently mutates status.
+5. Tests: watchdog ticks + restart recovery leave the record non-dispatchable; owner-authored revision creates a new authority generation; stale branch/review observations cannot reopen; malformed metadata does not mutate status.
 ---
 <!-- COMMENTS:END -->
