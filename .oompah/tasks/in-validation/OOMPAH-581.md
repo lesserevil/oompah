@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T07:15:55.650909Z'
+updated_at: '2026-08-07T07:16:32.202260Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -192,7 +192,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -226,7 +226,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -285,6 +285,40 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T03:47:07.470300+00:00'
     updated_at: '2026-08-07T03:48:38.735639+00:00'
+  - version: 1
+    audit_id: audit-92362c1c4018
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T07:16:26.653779+00:00'
+  - version: 1
+    audit_id: audit-c2ccc4272c2f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T07:16:26.653779+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
@@ -831,5 +865,10 @@ author: oompah
 created: 2026-08-07 07:15
 ---
 Agent completed without closing this issue (200s (482027 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-08-07 07:16
+---
+Owner workaround: PR #600 is merged; reviewed head 741a7d88 and the stale accepted head f2b319c are both ancestors of current origin/main with zero target diff. Retired the erroneous CI-fixer retry under direct claim. OOMPAH-870 tracks the zero-diff Ready fast path and OOMPAH-871 tracks the watchdog reopen. Restoring this task to the Merged terminal audit path; no new implementation, gate, or PR is warranted.
 ---
 <!-- COMMENTS:END -->
