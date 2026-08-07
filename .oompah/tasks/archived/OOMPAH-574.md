@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-574
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Rerun failed cached quality gates on explicit same-head retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-08-07T02:48:41.412844Z'
+updated_at: '2026-08-07T02:58:27.991745Z'
 work_branch: OOMPAH-574
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/598
@@ -100,6 +100,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-8bbf80aa87af: '2026-07-31T02:32:57.162559+00:00'
     attempt-8c015e1f6a8c: '2026-07-31T02:36:58.722143+00:00'
+    attempt-dc9feea79b1d: '2026-08-07T02:58:24.248650+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-574
+    target_state: Archived
+    evidence_fingerprint: c852c4cd3b63b251d9cf8d3a03cc447af2f29bfe44ab33db7eadcb27ef2e35c0
+    audit_ids:
+    - audit-758155b093a2
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T02:58:24.248663+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-574
+    audit_id: audit-758155b093a2
+    attempt_id: attempt-dc9feea79b1d
+    target_state: Archived
+    evidence_fingerprint: c852c4cd3b63b251d9cf8d3a03cc447af2f29bfe44ab33db7eadcb27ef2e35c0
+    status: Archived
+    audit_ids:
+    - audit-758155b093a2
+    applied: false
+    created_at: '2026-08-07T02:58:24.248680+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -175,7 +198,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-574
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,7 +207,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-dc9feea79b1d
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -194,13 +217,16 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T02:48:33.852913+00:00'
       branch_key: OOMPAH-574
+      verdict: pass
+      completed_at: '2026-08-07T02:58:24.248221+00:00'
+      ended_at: '2026-08-07T02:58:24.248221+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T02:46:31.414610+00:00'
-    updated_at: '2026-08-07T02:48:33.852913+00:00'
+    updated_at: '2026-08-07T02:58:24.248221+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8bbf80aa87af
