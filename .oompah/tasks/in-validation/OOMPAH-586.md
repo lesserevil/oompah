@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: Merged
+status: In Validation
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T01:22:56.922173Z'
+updated_at: '2026-08-07T01:45:51.428672Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -143,6 +143,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T00:36:41.194797+00:00'
     updated_at: '2026-07-31T01:22:33.566510+00:00'
+  - version: 1
+    audit_id: audit-7fa0a1369c2c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-586
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 81a3fdf5b523246a702161fa6ba68203b3bb1eba2d1ac15cd8b1e8d637361a06
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T01:45:47.832711+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b8858a0a4d1
