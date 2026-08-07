@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T09:41:02.563655Z'
+updated_at: '2026-08-07T09:42:12.413604Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -114,6 +114,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-78d38e3cdbe2-1: '2026-08-07T08:45:14.443926+00:00'
+    no-auditor-audit-4b7ddaa796f1-3: '2026-08-07T09:42:02.927214+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-870
@@ -124,6 +125,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T08:45:14.443938+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    target_state: Merged
+    evidence_fingerprint: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    audit_ids:
+    - audit-4b7ddaa796f1
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:42:02.927222+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-870
@@ -137,6 +147,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T08:45:14.443955+00:00'
     applied_at: '2026-08-07T08:45:22.816971+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    audit_id: audit-4b7ddaa796f1
+    attempt_id: no-auditor-audit-4b7ddaa796f1-3
+    target_state: Merged
+    evidence_fingerprint: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    status: Needs Human
+    audit_ids:
+    - audit-4b7ddaa796f1
+    applied: true
+    created_at: '2026-08-07T09:42:02.927232+00:00'
+    applied_at: '2026-08-07T09:42:09.423382+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -212,7 +234,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-870
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -258,7 +280,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6eb6ad6cf199
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -271,6 +293,22 @@ oompah.terminal_audit:
       selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
       selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T09:41:55.965974+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-4b7ddaa796f1-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T09:42:02.927101+00:00'
+      completed_at: '2026-08-07T09:42:02.927101+00:00'
+      selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+      selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     requested_by:
       version: 1
       identity: oompah-cli
@@ -279,7 +317,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:52:20.557537+00:00'
     selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
-    updated_at: '2026-08-07T09:32:34.546865+00:00'
+    updated_at: '2026-08-07T09:42:02.927101+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d919149aed7
@@ -338,7 +376,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-6eb6ad6cf199
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -351,6 +389,8 @@ oompah.terminal_audit:
     selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T09:41:55.965974+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -571,5 +611,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 53s
 - Log: OOMPAH-870__20260807T093318Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:42
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
