@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T17:28:18.139252Z'
+updated_at: '2026-08-07T17:28:24.411968Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -96,7 +96,17 @@ oompah.terminal_audit:
       the exact combined full gate at a85a36baf, and was published by an exact remote
       lease; no independent auditor can run safely on the paused pre-fix service.
     created_at: '2026-08-07T17:28:12.603051+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-879
+    target_state: Done
+    evidence_fingerprint: cf8a16c39a5688538aa4b6f340de396079a89f57d6d8838c9c4c1039a813dfd4
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T17:28:22.974983+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -212,5 +222,12 @@ author: oompah
 created: 2026-08-07 17:28
 ---
 Final combined shared-epic head a85a36baf7b3ebcb45be27823755b5694a790a49 passed the exact full gate: terminal mutation scan 9/9 and make test 17,381 passed, 7 skipped, 1 expected xfail, 0 failed in 1207.74s. The head was published to origin/epic-OOMPAH-763 using exact force-with-lease against prior remote e06bec5490b9d55d169f7de439755c49eff35307 and the remote now resolves exactly to a85a36baf. O891/O892 reviewed safeguards and O846/O854 lifecycle protections are included.
+---
+author: oompah
+created: 2026-08-07 17:28
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation received independent security review, passed the exact combined full gate at a85a36baf, and was published by an exact remote lease; no independent auditor can run safely on the paused pre-fix service.
 ---
 <!-- COMMENTS:END -->
