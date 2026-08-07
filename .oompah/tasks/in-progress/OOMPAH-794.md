@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-794
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Delete superseded reconcilers, watchdog heuristics, and duplicate workflow
   predicates
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:23.320051Z'
-updated_at: '2026-08-04T14:07:35.263879Z'
+updated_at: '2026-08-07T18:22:29.582401Z'
 work_branch: null
 target_branch: null
 review_url: null

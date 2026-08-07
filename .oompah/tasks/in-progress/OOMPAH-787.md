@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-787
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Complete shadow/enforce rollout, upgrade compatibility, and operator documentation
 parent: OOMPAH-771
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:09.296051Z'
-updated_at: '2026-08-04T14:07:42.606506Z'
+updated_at: '2026-08-07T18:22:12.907929Z'
 work_branch: null
 target_branch: null
 review_url: null
