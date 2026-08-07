@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T19:57:05.646980Z'
+updated_at: '2026-08-07T19:57:25.650655Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -24,13 +24,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4b107410-1441-450e-87ac-04ab087bc66a
-  claim_owner: f68d3589-0c36-4c86-8c6c-d0fbd572f48b
-  claimed_at: '2026-08-07T19:56:44.817340+00:00'
-  claim_expires_at: '2026-08-07T20:26:44.817340+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: origin/OOMPAH-648 does not match accepted head ca51c22b90785daec5d4dd7f0e29dc22045957cc
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-07T20:01:02.810410+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -1182,5 +1182,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 11s
+---
+author: oompah
+created: 2026-08-07 19:57
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-648/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
