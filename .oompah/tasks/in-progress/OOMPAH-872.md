@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T11:07:38.023566Z'
+updated_at: '2026-08-07T11:10:42.572915Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -542,5 +542,10 @@ author: oompah
 created: 2026-08-07 11:07
 ---
 Discovery (continuation): independently verified that the resolver has no separate management-project model field to consult. The registered project's repo_url is the durable authority, repo_path must provide valid Git evidence, and runtime aliases are accepted only when canonical remote/common-dir evidence agrees. Startup catches unsafe resolution, disables only the global watcher, preserves project watchers, and records a redacted actionable alert.
+---
+author: oompah
+created: 2026-08-07 11:10
+---
+Implementation (review): no new code delta was needed after the independent audit; the preserved commit already contains the focused projects.py/orchestrator.py/server.py implementation and regression suite. The audit confirmed the exact authority and fail-closed behavior described in the issue.
 ---
 <!-- COMMENTS:END -->
