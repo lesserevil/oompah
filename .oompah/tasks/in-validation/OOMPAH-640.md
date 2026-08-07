@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T07:12:58.708859Z'
+updated_at: '2026-08-07T08:13:01.626744Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -228,6 +228,23 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T06:55:14.228060+00:00'
+  - version: 1
+    audit_id: audit-c63ac83352b6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ce07f0a8706f98c2779b6893bcd6b343d88ee7d40a317ee33637adc0cc8d6f13
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T08:12:58.036619+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d7409ced47f5
