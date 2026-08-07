@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-619
 type: epic
-status: In Validation
+status: Archived
 priority: 1
 title: Unify CLI authentication sources and align the installed client
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-08-07T21:54:52.032994Z'
+updated_at: '2026-08-07T22:35:50.162792Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -31,6 +31,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-3a4b0536b50d: '2026-07-31T15:00:12.993955+00:00'
     attempt-88d6cfdc81a5: '2026-07-31T21:33:47.207022+00:00'
+    attempt-2d0b94872e3f: '2026-08-07T22:35:46.164123+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-619
@@ -50,6 +51,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T21:33:47.207045+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-619
+    target_state: Archived
+    evidence_fingerprint: c5cf9a080b29a7e60084087fea03010defa018005ff5b6ee2b5b4b600e0b455e
+    audit_ids:
+    - audit-08210eeb9df6
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T22:35:46.164139+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-619
@@ -75,6 +85,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T21:33:47.207068+00:00'
     applied_at: '2026-07-31T21:33:52.081337+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-619
+    audit_id: audit-08210eeb9df6
+    attempt_id: attempt-2d0b94872e3f
+    target_state: Archived
+    evidence_fingerprint: c5cf9a080b29a7e60084087fea03010defa018005ff5b6ee2b5b4b600e0b455e
+    status: Archived
+    audit_ids:
+    - audit-08210eeb9df6
+    kind: result
+    applied: false
+    created_at: '2026-08-07T22:35:46.164159+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -165,7 +187,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-619
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -174,7 +196,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2d0b94872e3f
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -186,6 +208,9 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-619
       selected_ref: origin/main
       selected_sha: bb82f7f39510f0e02886307291812f2f8b3e6901
+      verdict: pass
+      completed_at: '2026-08-07T22:35:46.163943+00:00'
+      ended_at: '2026-08-07T22:35:46.163943+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -194,7 +219,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T21:53:53.021531+00:00'
     selected_ref: origin/main
     selected_sha: bb82f7f39510f0e02886307291812f2f8b3e6901
-    updated_at: '2026-08-07T21:54:42.952839+00:00'
+    updated_at: '2026-08-07T22:35:46.163943+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3a4b0536b50d
