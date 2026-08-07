@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-08-07T17:19:43.560200Z'
+updated_at: '2026-08-07T17:19:51.567511Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -289,8 +289,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-e5015007a113
-    applied: false
+    applied: true
     created_at: '2026-08-07T17:19:39.369533+00:00'
+    applied_at: '2026-08-07T17:19:49.944872+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1550,5 +1551,28 @@ author: oompah
 created: 2026-08-07 17:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 17:19
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: a1dd3287d1faeeccf777c57764b9283cb653304d
+- merge_commit_title: Merge pull request #625 from lesserevil/OOMPAH-655
+- merge_commit_is_ancestor_of_main: true; git merge-base --is-ancestor exit_code=0
+- branch_head_at_merge: 5dc381dda7aecb5589ff88de69dc5746239acc86
+- previous_state: Merged
+- test_quality_gate_result: 31 passed in 7.16s
+- test_integration_executor_result: 10 passed in 2.06s
+- test_client_auth_result: 62 passed in 0.21s
+- changed_files_summary: 11 files, +1528/-171; quality_gate.py +560, plans/candidate-code-sandbox.md +265, tests/test_quality_gate.py +668
+- isolation_mechanisms: git ancestry preflight; disposable git-archive snapshot; empty-root bubblewrap with user/PID/network/mount namespaces plus namespace-local loopback; sandbox-visible /oompah-gate lifecycle env; private port; strict cleanup; process-group SIGKILL reaping
+- documentation_present: plans/candidate-code-sandbox.md on main
+- regression_fixtures_present: host_pid_localhost_attack_blocked; old_branch_without_OOMPAH-652_ancestor_rejected; spoofed_markers_rejected; snapshot_rejects_symlink_to_host_state; sandbox_reaps_descendants; preflight_allows_lifecycle_evolution_behind_OS_boundary
+- prior_audits: Done PASS (opus, 2026-07-31T17:06); Merged PASS (opus, 2026-07-31T17:08)
+- full_gate_evidence: Branch quality gate passed for 8da703b5f... using make test in 379.1s (comment 2026-07-31 16:40)
 ---
 <!-- COMMENTS:END -->
