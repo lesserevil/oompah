@@ -8,11 +8,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T08:45:04.209791Z'
+updated_at: '2026-08-07T08:45:37.691221Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -264,5 +263,20 @@ author: oompah
 created: 2026-08-07 08:44
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 08:45
+---
+Run #4 [attempt=4, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 25s
+- Log: OOMPAH-871__20260807T084424Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:45
+---
+Direct-owner takeover after three server attempts ended without a valid submission. Preserving recovery checkpoint 77a9cf08 and repairing the independent-review blockers: authenticated owner entry points, central terminal mutation fencing, fail-closed marker lookup, payload-safe malformed metadata handling, and production-path tests.
 ---
 <!-- COMMENTS:END -->

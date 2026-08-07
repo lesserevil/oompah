@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T08:37:47.787826Z'
+updated_at: '2026-08-07T08:45:41.310920Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,15 @@ author: oompah
 created: 2026-08-07 08:37
 ---
 Discovery (continuation): the preserved resolver is in the right startup path, but audit found two fail-closed gaps: the scp-style regex can consume http:// and git:// URLs, producing inconsistent canonical identities, and a runtime clone can currently match configured repo_url even when the registered project checkout cannot provide repository evidence. I will restrict scp parsing to true scheme-less syntax, normalize standard ports, require valid matching checkout identity for Git runtimes, and add regression coverage.
+---
+author: oompah
+created: 2026-08-07 08:45
+---
+Verification: focused integration run passes 192/192 tests: tests/test_management_tracker_resolution.py, tests/test_managed_tracker_state_branch_guard.py, tests/test_projects.py, tests/test_epic_draft_migration.py, tests/test_release_pick_migration_startup.py, and tests/test_error_watcher_orchestrator.py. This covers operational watcher routing, state-branch isolation, project persistence/restart, and neighboring startup consumers.
+---
+author: oompah
+created: 2026-08-07 08:45
+---
+Implementation: added credential-free canonical Git repository identities and local checkout inspection in oompah/projects.py; rewired Orchestrator._management_tracker_scope to authorize independent clones, cached mirrors, and shared worktrees only when configured/runtime/managed identity evidence agrees; retained the explicit local-repository compatibility path; and added an actionable startup alert when global ErrorWatcher filing is disabled. Regression coverage now includes URL transports/default ports, relative remotes, canonical clone, mirror, worktree, foreign, missing, ambiguous, startup, and restart cases.
 ---
 <!-- COMMENTS:END -->

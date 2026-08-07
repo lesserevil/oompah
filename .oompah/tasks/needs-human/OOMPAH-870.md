@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T08:44:58.698166Z'
+updated_at: '2026-08-07T08:45:25.933496Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -94,6 +94,31 @@ oompah.target_branch: main
 oompah.review_head: aaaebbfa5152e9942a1decd9ef2d319573ca0493
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-78d38e3cdbe2-1: '2026-08-07T08:45:14.443926+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    target_state: Done
+    evidence_fingerprint: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    audit_ids:
+    - audit-78d38e3cdbe2
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T08:45:14.443938+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    audit_id: audit-78d38e3cdbe2
+    attempt_id: no-auditor-audit-78d38e3cdbe2-1
+    target_state: Done
+    evidence_fingerprint: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    status: Needs Human
+    audit_ids:
+    - audit-78d38e3cdbe2
+    applied: true
+    created_at: '2026-08-07T08:45:14.443955+00:00'
+    applied_at: '2026-08-07T08:45:22.816971+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +126,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-870
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,6 +149,20 @@ oompah.terminal_audit:
       selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
       ended_at: '2026-08-07T08:44:57.164441+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-78d38e3cdbe2-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T08:45:14.443717+00:00'
+      completed_at: '2026-08-07T08:45:14.443717+00:00'
+      selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+      selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     requested_by:
       version: 1
       identity: yolo-merge
@@ -132,7 +171,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:21:30.064281+00:00'
     selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
-    updated_at: '2026-08-07T08:35:29.718500+00:00'
+    updated_at: '2026-08-07T08:45:14.443717+00:00'
   - version: 1
     audit_id: audit-ad075da8086f
     project_id: proj-14849f1b
@@ -297,5 +336,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 57s
 - Log: OOMPAH-870__20260807T083555Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:45
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
