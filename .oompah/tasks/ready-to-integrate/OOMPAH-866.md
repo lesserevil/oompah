@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-07T17:35:58.590212Z'
+updated_at: '2026-08-07T17:44:23.140095Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -48,32 +48,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
-  base_sha: e06bec5490b9d55d169f7de439755c49eff35307
-  head_sha: f959c182795e0189da987747a1a528741aabe4c8
-  submitted_at: '2026-08-07T10:32:21.724386+00:00'
-  updated_at: '2026-08-07T14:53:29.875332+00:00'
-  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/2)
-
-    error: could not apply 1b5950a29... OOMPAH-866: honor canonical child mappings
-    after direct rebases
-
-    hint: Resolve all conflicts manually, mark them as resolved with
-
-    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-    hint: You can instead skip this commit: run "git rebase --skip".
-
-    hint: To abort and get back to the state before "git rebase", run "git rebase
-    --abort".
-
-    hint: Disable this message with "git config set advice.mergeConflict false"
-
-    Could not apply 1b5950a29... # OOMPAH-866: honor canonical child mappings after
-    direct rebases'
+  base_sha: a85a36baf7b3ebcb45be27823755b5694a790a49
+  head_sha: f359964dc029d92666b2c23f4fe3f7fa6c9bdd7f
+  submitted_at: '2026-08-07T17:44:13.472120+00:00'
+  updated_at: '2026-08-07T17:44:13.472120+00:00'
 oompah.task_costs:
   total_input_tokens: 74
   total_output_tokens: 5691
@@ -340,5 +322,10 @@ author: oompah
 created: 2026-08-07 14:53
 ---
 Integration found a rebase conflict on `epic-OOMPAH-763--task-OOMPAH-866`. Resolve it against `epic-OOMPAH-763`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-08-07 17:44
+---
+Rebased the canonical child-mapping and generation-fencing repair onto exact shared epic a85a36baf, preserving the O879 rebase-authority semantics and restoring target-owned workspace helper imports. Focused validation: 200/200 across canonical landing, parallel epic children, terminal audit, and worker submission; secret scan and diff check passed. Published exact head f359964dc029d92666b2c23f4fe3f7fa6c9bdd7f.
 ---
 <!-- COMMENTS:END -->
