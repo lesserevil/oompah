@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T07:30:47.830719Z'
+updated_at: '2026-08-07T07:30:58.239480Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Live regression on OOMPAH-869 on 2026-08-07: the operator deliberately cancelled
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 07:30
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+<!-- COMMENTS:END -->
