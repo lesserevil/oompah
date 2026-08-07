@@ -701,16 +701,33 @@ class TestRunEventDrivenLoop:
         contract.
         """
         orch = self._make_orch_with_mocked_tick(tmp_path)
+        startup_tick_completed = asyncio.Event()
+        queued_event_tick_completed = asyncio.Event()
+        tick_count = 0
+        original_tick = orch._tick
+
+        async def _tracked_tick():
+            nonlocal tick_count
+            tick_count += 1
+            await original_tick()
+            if tick_count == 1:
+                startup_tick_completed.set()
+            else:
+                queued_event_tick_completed.set()
+
+        orch._tick = _tracked_tick
 
         async def _run_and_stop():
             async def _feed_events():
-                # Wait for loop to start
-                await asyncio.sleep(0.01)
+                # Do not assume a fixed delay is enough for startup under a
+                # saturated test worker.  The queued-event assertion is only
+                # meaningful after the initial tick has completed.
+                await asyncio.wait_for(startup_tick_completed.wait(), timeout=2.0)
                 # Post two events back-to-back (no yield between them).
                 # With coalescing they may merge into a single dispatch pass.
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED))
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.WORKER_EXIT))
-                await asyncio.sleep(0.05)
+                await asyncio.wait_for(queued_event_tick_completed.wait(), timeout=2.0)
                 orch._stopping = True
                 # Unblock queue.get()
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
@@ -719,7 +736,7 @@ class TestRunEventDrivenLoop:
 
         event_loop.run_until_complete(_run_and_stop())
         # Startup tick + at least 1 event tick (2 events may coalesce into 1).
-        assert orch._tick.call_count >= 2
+        assert tick_count >= 2
 
     def test_run_coalesces_burst_events_into_fewer_ticks(self, tmp_path, event_loop):
         """Events posted synchronously (no yield between them) coalesce into one tick.
