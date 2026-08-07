@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T10:36:26.016150Z'
+updated_at: '2026-08-07T10:36:31.609827Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -109,7 +109,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-872
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -135,7 +135,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9ddad95f09d6
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,6 +148,10 @@ oompah.terminal_audit:
       selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
       selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
       candidate_rotation_count: 1
+      failure_classification: finalization_failure
+      ended_at: '2026-08-07T10:36:24.559768+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-07T10:36:44.559740+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
@@ -156,7 +160,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:45:34.532405+00:00'
     selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
-    updated_at: '2026-08-07T10:17:34.985930+00:00'
+    updated_at: '2026-08-07T10:36:24.559768+00:00'
   - version: 1
     audit_id: audit-46b8ca9873dd
     project_id: proj-14849f1b
@@ -197,7 +201,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-9ddad95f09d6
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -210,6 +214,10 @@ oompah.terminal_audit:
     selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     candidate_rotation_count: 1
+    failure_classification: finalization_failure
+    ended_at: '2026-08-07T10:36:24.559768+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-07T10:36:44.559740+00:00'
 ---
 ## Summary
 
