@@ -2388,6 +2388,48 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         assert child.work_branch == "epic-EPIC-3"
         assert child.branch_name == "epic-EPIC-3"
 
+    def test_normalizes_stale_branch_name_when_work_branch_is_canonical(
+        self, tmp_path
+    ):
+        """A partial issue must not retain its child branch in prompt identity."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        parent_epic = _make_issue(
+            identifier="EPIC-4",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="TASK-53",
+            parent_id="EPIC-4",
+            project_id="proj-1",
+            work_branch="epic-EPIC-4",
+        )
+        child.branch_name = "TASK-53"  # stale prompt identity only
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="TASK-53",
+            issue=child,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        assert child.work_branch == "epic-EPIC-4"
+        assert child.branch_name == "epic-EPIC-4"
+        # The persisted work branch was already canonical, so no write is needed.
+        tracker.set_metadata_field.assert_not_called()
+
 
 # --------------------------------------------------- epic completion + PR open
 

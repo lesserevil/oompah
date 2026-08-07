@@ -22299,21 +22299,24 @@ class Orchestrator:
                 else:
                     expected_epic_branch = None
                 
-                # Check and correct stale work_branch in-memory.
-                # Persistence is best-effort; in-memory correction is mandatory.
+                # Normalize both branch identities before returning to the
+                # caller.  ``branch_name`` is rendered into agent prompts and
+                # can be stale independently of ``work_branch`` on a partial
+                # tracker record.  Persistence is best-effort; in-memory
+                # correction is mandatory.
                 if expected_epic_branch:
-                    current_branch = (
+                    current_work_branch = (
                         getattr(entry.issue, "work_branch", None) or ""
                     ).strip()
-                    if current_branch and current_branch != expected_epic_branch:
+                    entry.issue.work_branch = expected_epic_branch
+                    entry.issue.branch_name = expected_epic_branch
+                    if current_work_branch != expected_epic_branch:
                         logger.debug(
                             "Correcting stale work_branch for child %s: %s -> %s",
                             entry.identifier,
-                            current_branch,
+                            current_work_branch or "<missing>",
                             expected_epic_branch,
                         )
-                        entry.issue.work_branch = expected_epic_branch
-                        entry.issue.branch_name = expected_epic_branch
                         # Persist the correction best-effort
                         try:
                             tracker = self._tracker_for_issue(entry.issue)
