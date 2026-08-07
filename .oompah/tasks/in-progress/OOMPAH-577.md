@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T12:56:39.798833Z'
+updated_at: '2026-08-07T12:57:46.549741Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -848,5 +848,15 @@ author: oompah
 created: 2026-08-07 12:56
 ---
 Implementation: Stabilized the failing live dashboard convergence test in tests/test_ws_fault_injection.py. Its injected state broadcasts now run through the TestClient WebSocket portal (the connection-owning event loop) instead of independent asyncio.run loops, eliminating the cross-loop send-lock race while retaining the real broadcast and fault-injection path.
+---
+author: oompah
+created: 2026-08-07 12:57
+---
+Verification: PASS — focused convergence test passed 20 consecutive runs; tests/test_ws_fault_injection.py passed (16 tests); adjacent tests/test_ws_lifecycle.py and tests/test_ws_full_sync.py passed (71 tests).  could not start because the host validation guard raises EROFS changing /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3.locks; this is external test infrastructure, so the exact-head Oompah branch gate remains the authoritative full check. PR #588 is merged and its pull_request-only GitHub Actions workflow did not create a new run for the post-merge branch push.
+---
+author: oompah
+created: 2026-08-07 12:57
+---
+Completion: Pushed ac686a3a1 to the existing OOMPAH-577 branch. The only change makes the live WebSocket fault-injection test dispatch through its connection-owning portal loop, removing the nondeterministic cross-loop broadcast race that blocked the branch gate.
 ---
 <!-- COMMENTS:END -->
