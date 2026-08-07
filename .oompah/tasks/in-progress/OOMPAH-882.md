@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-882
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:57:51.621916Z'
-updated_at: '2026-08-07T11:57:57.565852Z'
+updated_at: '2026-08-07T11:59:09.587758Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -26,6 +26,7 @@ oompah.epic_rebase_target:
   target_branch: main
   parent_id: null
   resolution: confirmed_top_level
+oompah.agent_run_id: ce1d5ee0-9126-456e-b2ca-5fcd697ae85d
 ---
 ## Summary
 
