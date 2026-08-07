@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: Merged
+status: In Validation
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-31T13:36:45.393688Z'
+updated_at: '2026-08-07T14:07:37.878760Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -118,6 +118,25 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Merged
     created_at: '2026-07-31T13:36:44.630895+00:00'
+  - version: 1
+    audit_id: audit-9cce4c37ec04
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7093bae7c200a46844e0dbb6d5521d3145a5b10033886067d0019a65d6be8be8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T14:07:33.053461+00:00'
+    selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
   attempt_history: []
 ---
 ## Summary
