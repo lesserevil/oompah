@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-875
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent slow scheduler lanes from starving Ready integration claims
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T09:37:00.973638Z'
+updated_at: '2026-08-07T09:58:43.873435Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null
@@ -69,16 +69,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: eb3c671b-557d-472d-b96f-f9101577659e
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-875
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-875
   base_branch: epic-OOMPAH-768
   base_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
-  updated_at: '2026-08-07T08:48:00.632247+00:00'
+  head_sha: 461b01548a2efc403c6c22eacc050a5a87851ab3
+  submitted_at: '2026-08-07T09:58:33.514446+00:00'
+  updated_at: '2026-08-07T09:58:33.514446+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 3529
@@ -170,5 +172,10 @@ author: oompah
 created: 2026-08-07 09:37
 ---
 Repaired review blocker and amended local commit to 682095362 (still not pushed/submitted). Freshly integrated audit staging and historical integrated-row replay no longer run inside the prompt integration future. A separate coalesced integration-audit future replays the durable cursor on the tick executor while Ready claims use the isolated integration executor; it is startup-gated by terminal-audit initialization and included in graceful background draining. Prompt self-rechecks now occur only after durable integration, avoiding backoff/cancel tight loops. Added deterministic coverage proving an actual Ready claim completes while 200-row audit replay is blocked, cross-thread refresh burst coalescing during a real slow tick, audit-wake coalescing, and shutdown waiting for slow audit replay. py_compile and git diff --check pass. No heavy test gate, push, submit, claim release, or restart performed.
+---
+author: oompah
+created: 2026-08-07 09:58
+---
+Implemented isolated prompt integration and historical audit lanes with scheduler-loop ownership, coalesced wakes, safe startup/shutdown drain, meaningful-mutation dispatch refreshes, and telemetry. Fixed idle pass feedback loop, direct epic-maintenance recovery wake, and cross-thread refresh ordering. Exact head 461b01548a2e; independent release review ACCEPT; brokered focused suite 128 passed; terminal mutation scan, secret scan, py_compile, and diff checks passed.
 ---
 <!-- COMMENTS:END -->
