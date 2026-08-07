@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T12:04:12.487186Z'
+updated_at: '2026-08-07T12:38:55.546394Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-08-07 12:04
 ---
 Fifth live duplicate reproduction: OOMPAH-882 auto-filed/dispatched between OOMPAH-877 clean preflight and its authorized rebase command, despite active direct-owner claims on O877/O878/O880/O881. O882 began the exact 04fa678 to c9f16e3 rebase and stopped step 9/78 before operator containment. Claim 6344dd46defe4c9ba2ac75d3a90761e3 retired it; recovery refs/archive and exact SHA evidence are recorded on O882. Acceptance must make duplicate-generation filing plus dispatch atomic with existing task/owner claims; a preflight-only fence is demonstrably insufficient.
+---
+author: oompah
+created: 2026-08-07 12:38
+---
+Live recurrence #6: OOMPAH-884 was auto-filed and dispatched while OOMPAH-877 plus four duplicate helpers were already fenced. It observed the operator's newly rebased local shared worktree and force-pushed unvalidated ca1c52744 to origin/epic-OOMPAH-763 at 12:30 UTC, before the focused semantic suite later reported three failures. The operator claimed OOMPAH-884 after tracing its agent log. Acceptance must cover a duplicate helper discovering another authority's completed local mutation and forbid its push, including generic force-with-lease syntax that lacks the exact recorded ref/SHA CAS.
 ---
 <!-- COMMENTS:END -->
