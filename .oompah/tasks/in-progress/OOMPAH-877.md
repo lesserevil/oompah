@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T10:22:21.739632Z'
-work_branch: null
+updated_at: '2026-08-07T10:22:57.175186Z'
+work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
 review_number: null
@@ -27,6 +27,7 @@ oompah.epic_rebase_target:
   parent_id: null
   resolution: confirmed_top_level
 oompah.agent_run_id: 922098a3-91e7-4418-8913-7cf50cd83b97
+oompah.work_branch: epic-OOMPAH-763
 ---
 ## Summary
 
@@ -40,3 +41,11 @@ This task was auto-filed because epic OOMPAH-763 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 10:22
+---
+Agent dispatched (profile: standard)
+---
+<!-- COMMENTS:END -->
