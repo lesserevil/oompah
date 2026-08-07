@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T21:18:42.387412Z'
+updated_at: '2026-08-07T21:18:49.784433Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: ''
@@ -167,6 +167,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T10:33:11.774981+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-646
+    target_state: Merged
+    evidence_fingerprint: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
+    audit_ids:
+    - audit-179ca730d57d
+    - audit-6514bbb96a7e
+    - audit-49e27b809392
+    - audit-7f7529678c61
+    - audit-598da83dac70
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T21:18:48.285953+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-646
@@ -180,6 +193,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:33:11.774993+00:00'
     applied_at: '2026-08-07T10:33:22.355980+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-3f782b289bcc
@@ -197,7 +211,7 @@ oompah.terminal_audit:
     reason: 'Owner verified PR #747 merged exact submitted head 38806932e609860b2c81e84253a09df515ff4e5b
       as bb82f7f39510f0e02886307291812f2f8b3e6901 after all required CI checks succeeded.'
     created_at: '2026-08-07T21:18:36.579753+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -358,7 +372,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -387,13 +401,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T21:17:52.082661+00:00'
     selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
     selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
-    updated_at: '2026-08-07T21:18:23.525262+00:00'
+    updated_at: '2026-08-07T21:18:48.285902+00:00'
   - version: 1
     audit_id: audit-598da83dac70
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -407,6 +421,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T21:17:52.082661+00:00'
     selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
     selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
+    updated_at: '2026-08-07T21:18:48.285932+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e672336e007e
@@ -1217,5 +1232,12 @@ author: oompah
 created: 2026-08-07 21:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 21:18
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner verified PR #747 merged exact submitted head 38806932e609860b2c81e84253a09df515ff4e5b as bb82f7f39510f0e02886307291812f2f8b3e6901 after all required CI checks succeeded.
 ---
 <!-- COMMENTS:END -->
