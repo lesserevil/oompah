@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T16:19:55.720573Z'
+updated_at: '2026-08-07T16:20:06.957602Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -155,6 +155,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T16:19:54.191206+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Direct-owner implementation is independently reviewed, validated, and
+      pushed; retain this terminal record while the parent epic is composed.
+    marked_at: '2026-08-07T16:20:03.678387+00:00'
+    updated_at: '2026-08-07T16:20:03.678387+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Direct-owner implementation is independently reviewed, validated, and
+        pushed; retain this terminal record while the parent epic is composed.
+      recorded_at: '2026-08-07T16:20:03.678387+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
