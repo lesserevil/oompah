@@ -417,6 +417,18 @@ class TestRetryExhaustion:
         assert health.transport_retry_pending_count == 0
         assert health.retry_exhausted_count == 1
 
+    def test_zero_transport_retry_budget_does_not_exhaust_before_initial_launch(self):
+        """Zero disables recovery retries without hiding fresh candidate capacity."""
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=[]))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=0,
+        )
+
+        assert health.transport_retry_pending_count == 0
+        assert health.retry_exhausted_count == 0
+
     def test_retry_exhaustion_is_active_until_the_record_recovers(self):
         """An audit that used max_attempts increments retry_exhausted_count."""
         attempts = [
