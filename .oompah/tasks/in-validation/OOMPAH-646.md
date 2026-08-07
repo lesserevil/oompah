@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T21:18:01.320784Z'
+updated_at: '2026-08-07T21:18:38.429321Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: ''
@@ -180,6 +180,24 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:33:11.774993+00:00'
     applied_at: '2026-08-07T10:33:22.355980+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3f782b289bcc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-646
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner verified PR #747 merged exact submitted head 38806932e609860b2c81e84253a09df515ff4e5b
+      as bb82f7f39510f0e02886307291812f2f8b3e6901 after all required CI checks succeeded.'
+    created_at: '2026-08-07T21:18:36.579753+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -340,12 +358,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-bd3df76daee6
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
+      created_at: '2026-08-07T21:18:23.525262+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T21:18:23.525262+00:00'
+      branch_key: OOMPAH-646
+      selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
+      selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
     requested_by:
       version: 1
       identity: NVShawn
@@ -354,6 +387,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T21:17:52.082661+00:00'
     selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
     selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
+    updated_at: '2026-08-07T21:18:23.525262+00:00'
   - version: 1
     audit_id: audit-598da83dac70
     project_id: proj-14849f1b
@@ -451,6 +485,21 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T10:33:05.474486+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-bd3df76daee6
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
+    created_at: '2026-08-07T21:18:23.525262+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T21:18:23.525262+00:00'
+    branch_key: OOMPAH-646
+    selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
+    selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
 oompah.review_head: ''
 review_head: ''
 ---
@@ -1158,5 +1207,15 @@ author: oompah
 created: 2026-08-07 21:18
 ---
 YOLO: merged PR #747.
+---
+author: oompah
+created: 2026-08-07 21:18
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 21:18
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
