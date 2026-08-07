@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T20:01:27.762876Z'
+updated_at: '2026-08-07T20:04:02.592506Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -29,12 +29,12 @@ oompah.duplicate_screening:
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 2
-  retry_after: '2026-08-07T20:03:21.266352+00:00'
+  retry_count: 3
+  retry_after: '2026-08-07T20:07:52.015674+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9933b8a0-6933-4ac7-8851-54874a9698b4
+oompah.agent_run_id: 518c716a-a901-478b-88b3-b97d3c70b7b7
 oompah.task_costs:
   total_input_tokens: 26033567
   total_output_tokens: 68369
@@ -253,6 +253,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-648
+    source_sha: null
+    completed_at: ''
+  - run_id: ea8fb79dced942ef8199e3bda66d2df0--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-648
     source_sha: null
@@ -1245,5 +1253,24 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 6s
+---
+author: oompah
+created: 2026-08-07 20:03
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 20:03
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 8s
+---
+author: oompah
+created: 2026-08-07 20:04
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-648/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
