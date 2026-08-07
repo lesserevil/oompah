@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,12 +12,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T09:24:26.949813Z'
+updated_at: '2026-08-07T09:24:43.570220Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
 review_number: '737'
-review_head: null
+review_head: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -83,6 +83,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/737
 oompah.review_number: '737'
 oompah.work_branch: OOMPAH-872
 oompah.target_branch: main
+oompah.review_head: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
 ---
 ## Summary
 
