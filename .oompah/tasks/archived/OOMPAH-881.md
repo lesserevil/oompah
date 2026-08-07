@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:44:20.677274Z'
-updated_at: '2026-08-07T14:49:58.129924Z'
+updated_at: '2026-08-07T14:50:07.230859Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -71,7 +71,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:49:52.081997+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-881
+    target_state: Archived
+    evidence_fingerprint: 6a2ed605353f8f830a8cae4bccbd755c2860a989337824988ae6cbb1622cd8ae
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:50:05.609813+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -124,5 +134,12 @@ author: oompah
 created: 2026-08-07 11:55
 ---
 Direct owner takeover retired this fourth duplicate epic-rebase task before any git mutation. At containment it had a live Claude/sonnet provider run c07d6c38901e49a58b9b9d1a4e5c7443 but the shared epic checkout remained clean at exact local/origin 04fa6781091efc6f11b952b9f1b35123facce64f with no rebase metadata. OOMPAH-877 is the sole intended rebase after all prerequisites; keep OOMPAH-881 fenced for later archive. OOMPAH-879 is actively implementing the systemic atomic-generation fix.
+---
+author: oompah
+created: 2026-08-07 14:50
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
