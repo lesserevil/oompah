@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: In Progress
+status: Merged
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T09:00:49.104401Z'
+updated_at: '2026-08-07T09:01:24.848215Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -156,6 +156,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T08:34:00.419210+00:00'
     applied_at: '2026-08-07T08:34:06.545072+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a50748b56536
+    project_id: proj-14849f1b
+    task_id: OOMPAH-832
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #732 merged at accepted head faa217b41a87ed3a1869a4fe38947778a55fe4fe
+      and that revision is present on main; restoring the completed terminal outcome
+      after the watchdog erroneously reopened it.'
+    created_at: '2026-08-07T09:01:21.000677+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
