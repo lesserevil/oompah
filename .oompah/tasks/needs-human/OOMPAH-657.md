@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:12:32.459851Z'
+updated_at: '2026-08-07T13:12:58.474361Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -154,6 +154,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-d3c89591d481: '2026-07-31T12:59:21.526262+00:00'
+    no-auditor-audit-ed465995092d-1: '2026-08-07T13:12:48.855034+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-58de5613106a
@@ -173,6 +174,29 @@ oompah.terminal_audit:
       Owner override applies the already-verified terminal result and breaks the known
       OOMPAH-653 coordinator race.'
     created_at: '2026-07-31T13:00:14.999114+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Archived
+    evidence_fingerprint: 11dc64bd965a2c5ecf28bce2ff598771b0c3dcf34bc9b6ccf8fa8b75b76650ab
+    audit_ids:
+    - audit-ed465995092d
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T13:12:48.855046+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    audit_id: audit-ed465995092d
+    attempt_id: no-auditor-audit-ed465995092d-1
+    target_state: Archived
+    evidence_fingerprint: 11dc64bd965a2c5ecf28bce2ff598771b0c3dcf34bc9b6ccf8fa8b75b76650ab
+    status: Needs Human
+    audit_ids:
+    - audit-ed465995092d
+    applied: true
+    created_at: '2026-08-07T13:12:48.855063+00:00'
+    applied_at: '2026-08-07T13:12:57.216302+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -231,7 +255,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-657
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -240,7 +264,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-de9b03d5b1e3
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -252,6 +276,22 @@ oompah.terminal_audit:
       branch_key: OOMPAH-657
       selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
       selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+      ended_at: '2026-08-07T13:12:43.774858+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-ed465995092d-1
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 11dc64bd965a2c5ecf28bce2ff598771b0c3dcf34bc9b6ccf8fa8b75b76650ab
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T13:12:48.854809+00:00'
+      completed_at: '2026-08-07T13:12:48.854809+00:00'
+      selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
+      selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
     requested_by:
       version: 1
       identity: oompah
@@ -260,7 +300,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:06:51.414081+00:00'
     selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
     selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
-    updated_at: '2026-08-07T13:09:38.261332+00:00'
+    updated_at: '2026-08-07T13:12:48.854809+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d3c89591d481
@@ -278,7 +318,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-de9b03d5b1e3
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -290,6 +330,8 @@ oompah.terminal_audit:
     branch_key: OOMPAH-657
     selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
     selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+    ended_at: '2026-08-07T13:12:43.774858+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -768,5 +810,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 46s
 - Log: OOMPAH-657__20260807T131001Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:12
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
