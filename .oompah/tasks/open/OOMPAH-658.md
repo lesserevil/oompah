@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T18:08:45.156365Z'
+updated_at: '2026-08-07T18:09:24.600433Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -27,17 +27,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: origin/OOMPAH-658 does not match accepted head 6e27fb150b7bd711c98c7aa5c94e355200dfa325
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: cb8e1d92-3edd-45c2-b615-55968651b570
+  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
+  claimed_at: '2026-08-07T18:09:17.621478+00:00'
+  claim_expires_at: '2026-08-07T18:39:17.621478+00:00'
   retry_count: 1
-  retry_after: '2026-08-07T18:09:12.097674+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8aaf457b-3763-4f80-b960-f5ea34345263
+oompah.agent_run_id: c9242819-6e2f-472b-854c-0d30b5cc3852
 oompah.task_costs:
   total_input_tokens: 928553
   total_output_tokens: 28098
@@ -1372,5 +1372,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=— -> Claude/opus]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 16s
+---
+author: oompah
+created: 2026-08-07 18:09
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
 ---
 <!-- COMMENTS:END -->
