@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T18:56:39.573562Z'
+updated_at: '2026-08-07T18:56:56.218021Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 308582af-d7cf-4a5c-a2ee-cddd09db635e
 oompah.task_costs:
-  total_input_tokens: 26033532
-  total_output_tokens: 50485
+  total_input_tokens: 26033567
+  total_output_tokens: 68369
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -67,8 +67,8 @@ oompah.task_costs:
       output_tokens: 45151
       cost_usd: 0.0
     unknown:
-      input_tokens: 33
-      output_tokens: 5334
+      input_tokens: 68
+      output_tokens: 23218
       cost_usd: 0.0
   runs:
   - profile: default
@@ -95,6 +95,12 @@ oompah.task_costs:
     output_tokens: 5334
     cost_usd: 0.0
     recorded_at: '2026-07-31T08:38:11.031952+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 35
+    output_tokens: 17884
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T18:56:52.834536+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-648__20260731T071619Z
@@ -683,5 +689,15 @@ created: 2026-08-07 18:56
 Needs Human — Archived audit requires operator input.
 
 [REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 18:56
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 58, Tool calls: 37
+- Tokens: 35 in / 17.9K out [17.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 54s
+- Log: OOMPAH-648__20260807T184010Z.jsonl
 ---
 <!-- COMMENTS:END -->
