@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-07T18:03:01.071919Z'
+updated_at: '2026-08-07T18:11:37.670120Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -420,5 +420,10 @@ ERROR tests/test_native_validation_guard.py::test_external_broker_socket_rejects
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-07 18:11
+---
+Operator triage: accepted task delta remains clean/pushed at dab5702e5 and its focused suites were already green. The new combined-tree gate reached 17,257 passes, then reported 120 native-validation/credential-isolation failures plus 5 teardown errors in exactly 1200.17s; the same a85 composition passed the local brokered full gate with 17,381 passes. This is being investigated as a systemic BranchQualityGate/sandbox execution failure rather than a reservation-race regression. Preserve this exact head; do not make speculative OOMPAH-863 code changes until the gate-runtime reproduction is isolated.
 ---
 <!-- COMMENTS:END -->
