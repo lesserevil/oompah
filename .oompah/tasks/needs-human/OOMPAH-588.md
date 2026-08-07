@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Review
+status: Needs Human
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-05T08:07:20.474200Z'
+updated_at: '2026-08-07T13:49:54.599568Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -2122,5 +2122,10 @@ author: oompah
 created: 2026-08-05 08:06
 ---
 Lifecycle reconciliation restored OOMPAH-588 to audited Done: Cannot transition shared-epic child OOMPAH-588 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
+---
+author: oompah
+created: 2026-08-07 13:49
+---
+The parent epic OOMPAH-584 merged from epic-OOMPAH-584, but this task was In Review with work branch epic-OOMPAH-588. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
