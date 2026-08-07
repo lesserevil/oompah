@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T07:24:12.452100Z'
+updated_at: '2026-08-07T07:46:38.524354Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -159,6 +159,31 @@ oompah.terminal_audit:
       raced and incorrectly regressed the terminal owner override; no gate is now
       active and branch equals main.
     created_at: '2026-07-31T06:08:37.323574+00:00'
+  applied_result_attempts:
+    attempt-3c098a00efde: '2026-08-07T07:46:26.636014+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Done
+    evidence_fingerprint: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    audit_ids:
+    - audit-0596d209fc36
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:46:26.636026+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    audit_id: audit-0596d209fc36
+    attempt_id: attempt-3c098a00efde
+    target_state: Done
+    evidence_fingerprint: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    status: In Validation
+    audit_ids:
+    - audit-0596d209fc36
+    applied: true
+    created_at: '2026-08-07T07:46:26.636043+00:00'
+    applied_at: '2026-08-07T07:46:35.319399+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -166,7 +191,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -190,7 +215,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3c098a00efde
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -201,13 +226,16 @@ oompah.terminal_audit:
       started_at: '2026-08-07T07:24:01.912788+00:00'
       branch_key: OOMPAH-575
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-07T07:46:26.635833+00:00'
+      ended_at: '2026-08-07T07:46:26.635833+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:06:07.644926+00:00'
-    updated_at: '2026-08-07T07:24:01.912788+00:00'
+    updated_at: '2026-08-07T07:46:26.635833+00:00'
   - version: 1
     audit_id: audit-3f0f5b312547
     project_id: proj-14849f1b
@@ -634,5 +662,20 @@ author: oompah
 created: 2026-08-07 07:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 07:46
+---
+Audit PASS — Done
+
+OOMPAH-575 completion audit: PASS. All 14,163 tests passed including regression test suite. TestCodexHandoffAuth (5 tests) verifies token injection, credential stripping, and fail-closed behavior. TestHandoffTokenFailClosed (6 tests) verifies scope enforcement and end-to-end workflow. Code implementation confirmed in codex.py lines 774-777. Branch equals merged main; acceptance criteria met.
+
+Safe evidence:
+- total_tests_passed: 14163
+- tests_skipped: 7
+- tests_xfailed: 1
+- test_runtime: 264.71s
+- branch_head: bb0fd760c
+- implementation: codex.py:774-777 token injection confirmed
 ---
 <!-- COMMENTS:END -->
