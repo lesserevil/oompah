@@ -18,12 +18,12 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T14:03:06.172012Z'
+updated_at: '2026-08-07T21:42:03.287556Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
-review_url: https://github.com/lesserevil/oompah/pull/743
-review_number: '743'
-review_head: null
+review_url: https://github.com/lesserevil/oompah/pull/748
+review_number: '748'
+review_head: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
@@ -290,9 +290,10 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
 oompah.target_branch: epic-OOMPAH-763
 oompah.work_branch: epic-OOMPAH-764
-oompah.review_url: https://github.com/lesserevil/oompah/pull/743
-oompah.review_number: '743'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/748
+oompah.review_number: '748'
 oompah.agent_run_id: null
+oompah.review_head: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
 ---
 ## Summary
 
