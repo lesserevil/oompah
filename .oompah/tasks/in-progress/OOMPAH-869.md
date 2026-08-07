@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:36:21.977183Z'
+updated_at: '2026-08-07T04:36:52.162362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,17 @@ author: oompah
 created: 2026-08-07 04:36
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 04:36
+---
+Understanding: Test test_restart_observes_child_that_inherited_kernel_fence fails non-deterministically under saturated scheduling on Python 3.12. Root cause: test uses fixed sleep (0.5s) to keep child alive, but expects acquire to timeout in 0.05s. Under high load, child finishes before assertion executes, so lease succeeds rather than timing out. Solution: Replace wall-clock timing with deterministic synchronization using condition variables or events to:
+1. Ensure child is blocked/alive without relying on sleep
+2. Observe owner_count before blocking acquire
+3. Verify acquire timeouts while inherited FD is held
+4. Verify acquire succeeds after explicit release
+5. No process or lease owner leaks
+
+Plan: Examine test and validation-resource code, implement deterministic synchronization primitives, run tests serially and in parallel.
 ---
 <!-- COMMENTS:END -->
