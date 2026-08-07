@@ -76,6 +76,7 @@ def _orchestrator() -> Orchestrator:
         return_value="audit-reservation-key"
     )
     orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
+    orchestrator._reconcile_audit_budget_reservations = MagicMock()
     orchestrator._audit_metrics = {"exhaustion_count": 0, "last_error": None}
     return orchestrator
 
@@ -196,7 +197,9 @@ def test_restarted_legacy_binding_failure_exhausts_durably_without_workspace() -
     orchestrator._audit_store = MagicMock(return_value=store)
     orchestrator._uncommitted_terminal_result_intents = MagicMock(return_value=0)
     orchestrator._refresh_terminal_audit_health = MagicMock()
-    orchestrator._audit_selector = MagicMock(return_value=MagicMock())
+    orchestrator._prepare_audit_selector = AsyncMock(
+        return_value=(MagicMock(), None)
+    )
     orchestrator._running_values_snapshot = MagicMock(return_value=[])
     orchestrator._audit_branch_busy = MagicMock(return_value=False)
     orchestrator._backoff_delay = MagicMock(return_value=0)
