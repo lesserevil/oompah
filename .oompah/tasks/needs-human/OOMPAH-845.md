@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T07:21:40.486903Z'
+updated_at: '2026-08-07T07:23:34.038967Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -120,6 +120,31 @@ oompah.target_branch: main
 oompah.review_head: 60a701e828d7fb5ebaa878e021639c93b0856cf7
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-0e160a2ced7f-1: '2026-08-07T07:23:23.562267+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    target_state: Done
+    evidence_fingerprint: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    audit_ids:
+    - audit-0e160a2ced7f
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:23:23.562279+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    audit_id: audit-0e160a2ced7f
+    attempt_id: no-auditor-audit-0e160a2ced7f-1
+    target_state: Done
+    evidence_fingerprint: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    status: Needs Human
+    audit_ids:
+    - audit-0e160a2ced7f
+    applied: true
+    created_at: '2026-08-07T07:23:23.562295+00:00'
+    applied_at: '2026-08-07T07:23:31.049768+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -127,7 +152,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-845
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -136,7 +161,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2753f2ad908d
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -146,13 +171,27 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T07:11:20.711408+00:00'
       branch_key: OOMPAH-845
+      ended_at: '2026-08-07T07:23:17.995858+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-0e160a2ced7f-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:23:23.562089+00:00'
+      completed_at: '2026-08-07T07:23:23.562089+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-07T06:04:20.178475+00:00'
-    updated_at: '2026-08-07T07:11:20.711408+00:00'
+    updated_at: '2026-08-07T07:23:23.562089+00:00'
   - version: 1
     audit_id: audit-e3a217648c00
     project_id: proj-14849f1b
@@ -174,7 +213,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-2753f2ad908d
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,6 +223,8 @@ oompah.terminal_audit:
     model: haiku
     started_at: '2026-08-07T07:11:20.711408+00:00'
     branch_key: OOMPAH-845
+    ended_at: '2026-08-07T07:23:17.995858+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -492,5 +533,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 14s
 - Log: OOMPAH-845__20260807T071146Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:23
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

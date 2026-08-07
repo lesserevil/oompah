@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T07:17:33.812493Z'
+updated_at: '2026-08-07T07:23:20.278542Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -180,18 +180,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-832
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-813b2c7219b7
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+      created_at: '2026-08-07T07:23:12.286547+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T07:23:12.286547+00:00'
+      branch_key: OOMPAH-832
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T05:09:55.490568+00:00'
+    updated_at: '2026-08-07T07:23:12.286547+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-63e8cf18eb13
@@ -208,6 +222,19 @@ oompah.terminal_audit:
     branch_key: OOMPAH-832
     ended_at: '2026-08-07T07:10:13.720886+00:00'
     failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-813b2c7219b7
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+    created_at: '2026-08-07T07:23:12.286547+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T07:23:12.286547+00:00'
+    branch_key: OOMPAH-832
 ---
 ## Summary
 
@@ -369,5 +396,15 @@ author: oompah
 created: 2026-08-07 07:17
 ---
 Owner workaround: PR #732 is merged and its accepted head faa217b41 is present on current main. The stalled-task watchdog reopened this audit hold even though no implementation remains; OOMPAH-871 tracks that reopen bug, and OOMPAH-865 is the auditor-candidate repair. Direct claim prevents duplicate implementation while restoring the existing Merged terminal chain; no new code, gate, or PR is warranted.
+---
+author: oompah
+created: 2026-08-07 07:23
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 07:23
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
