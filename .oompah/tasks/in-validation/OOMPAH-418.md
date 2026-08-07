@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: Merged
+status: In Validation
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-31T02:26:07.416144Z'
+updated_at: '2026-08-07T08:42:55.137773Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -38,7 +38,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-418
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -135,6 +135,25 @@ oompah.terminal_audit:
     previous_state: In Validation
     created_at: '2026-07-31T02:10:20.408357+00:00'
     updated_at: '2026-07-31T02:25:52.671828+00:00'
+  - version: 1
+    audit_id: audit-012bd3b53573
+    project_id: proj-14849f1b
+    task_id: OOMPAH-418
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T08:42:51.403270+00:00'
+    selected_ref: origin/main
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
   attempt_history:
   - version: 1
     attempt_id: attempt-148316224bb3
