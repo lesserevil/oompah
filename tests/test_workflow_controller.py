@@ -27,6 +27,7 @@ from oompah.workflow_facts import (
 )
 from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
 from oompah.workflow_reasons import AlertSeverity
+from oompah.workflow_scheduler import WorkflowJobScheduler
 
 
 NOW = datetime(2026, 8, 4, 12, tzinfo=timezone.utc)
@@ -147,6 +148,21 @@ def test_full_sync_updates_authoritative_liveness_projection(controller):
         health.tasks[0].next_reassessment_at
         == result.decisions[0].next_reassessment_at
     )
+
+
+def test_controller_rejects_scheduler_with_a_separate_durable_store(tmp_path):
+    controller_store = WorkflowJobStore(str(tmp_path / "controller.sqlite3"))
+    scheduler_store = WorkflowJobStore(str(tmp_path / "scheduler.sqlite3"))
+    scheduler = WorkflowJobScheduler(store=scheduler_store)
+    try:
+        with pytest.raises(ValueError, match="must share one workflow job store"):
+            UniversalTotalityLivenessController(
+                store=controller_store,
+                scheduler=scheduler,
+            )
+    finally:
+        controller_store.close()
+        scheduler_store.close()
 
 
 def test_incomplete_source_scan_cannot_report_liveness_healthy(controller):

@@ -122,13 +122,18 @@ class AuditAlertCondition:
         kind, project_id, task_id, audit_id = self.key
         return f"terminal_audit:{kind}:{project_id}:{task_id}:{audit_id}"
 
-    def to_alert(self) -> dict[str, str]:
+    def to_alert(self) -> dict[str, Any]:
         return {
             "level": self.level,
             "source": self.source,
             "title": "Terminal audit requires attention",
             "message": self.message,
             "action": self.action,
+            # AuditAlertCondition represents only exhausted/corrupt/manual
+            # recovery states. Routine queued, running, retrying, and healthy
+            # observations never become conditions, so every emitted row is a
+            # truthful operator handoff at the global-alert boundary.
+            "action_required": True,
         }
 
 
@@ -142,12 +147,12 @@ class TerminalAuditAlertRegistry:
     def conditions(self) -> tuple[AuditAlertCondition, ...]:
         return tuple(self._conditions.values())
 
-    def sync(self, conditions: Iterable[AuditAlertCondition]) -> list[dict[str, str]]:
+    def sync(self, conditions: Iterable[AuditAlertCondition]) -> list[dict[str, Any]]:
         desired = {condition.key: condition for condition in conditions}
         self._conditions = desired
         return [condition.to_alert() for condition in desired.values()]
 
-    def add(self, condition: AuditAlertCondition) -> dict[str, str]:
+    def add(self, condition: AuditAlertCondition) -> dict[str, Any]:
         self._conditions[condition.key] = condition
         return condition.to_alert()
 
@@ -977,12 +982,17 @@ def threshold_conditions(
     max_attempts: int,
     max_age_seconds: float,
 ) -> list[AuditAlertCondition]:
-    """Build only actionable threshold/corruption conditions."""
+    """Build only conditions that have a concrete operator remedy.
 
+    Queue age is intentionally absent.  Age and backlog depth remain useful
+    health metrics, but the passage of time does not prove that automatic
+    scheduling has stopped or identify an action only an operator can take.
+    Attempt exhaustion, by contrast, is a completed recovery path and is
+    therefore actionable.
+    """
+
+    del max_age_seconds  # retained for configuration/API compatibility
     conditions: list[AuditAlertCondition] = []
-    now = metrics.clock()
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
     if metrics.persistence_corrupt:
         conditions.append(
             AuditAlertCondition(
@@ -1003,8 +1013,6 @@ def threshold_conditions(
             )
         )
     for entry in metrics.pending_entries():
-        queued_at = _parse_timestamp(entry.get("queued_at"))
-        age = (now - queued_at).total_seconds() if queued_at else 0.0
         attempts = int(entry.get("attempts", 0))
         if attempts >= max_attempts:
             conditions.append(
@@ -1012,14 +1020,6 @@ def threshold_conditions(
                     "attempt_threshold", entry["project_id"], entry["task_id"], entry["audit_id"],
                     f"Audit has reached the configured attempt threshold ({attempts}/{max_attempts}).",
                     "Review the audit record and add or repair an independent auditor before retrying.",
-                )
-            )
-        elif age >= max_age_seconds:
-            conditions.append(
-                AuditAlertCondition(
-                    "age_threshold", entry["project_id"], entry["task_id"], entry["audit_id"],
-                    f"Audit has been queued for {age:.0f}s, beyond the configured {max_age_seconds:.0f}s age threshold.",
-                    "Check auditor health and queue capacity, then retry the audit.",
                 )
             )
     return conditions

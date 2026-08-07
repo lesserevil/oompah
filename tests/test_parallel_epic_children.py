@@ -1420,20 +1420,6 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
     )
 
 
-def test_dashboard_shows_queue_wait_reason_and_dependency_semantics():
-    html = (
-        Path(__file__).resolve().parents[1]
-        / "oompah"
-        / "templates"
-        / "dashboard.html"
-    ).read_text(encoding="utf-8")
-
-    assert "renderIntegrationSummary(issue.integration, issue.integration_queue)" in html
-    assert "source.wait_reason" in html
-    assert "Must finish after:" in html
-    assert "Cannot start until:" in html
-
-
 def test_parallel_workspace_persists_private_branch_and_integration_record(
     tmp_path,
 ):

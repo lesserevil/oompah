@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -720,3 +721,89 @@ def test_json_checkpoints_reject_nonportable_values(store):
             phase="bad",
             checkpoint={"not-json": {1, 2}},
         )
+
+
+@pytest.mark.parametrize("operation", ("renew", "checkpoint", "complete", "fail"))
+def test_delayed_worker_ack_uses_post_lock_time_and_rejects_expired_lease(
+    store,
+    clock,
+    operation,
+):
+    store.enqueue(spec())
+    running = store.claim_next(lease_owner="worker-a", lease_seconds=10)
+    assert running is not None
+    acknowledgement_started = threading.Event()
+
+    def delayed_acknowledgement():
+        acknowledgement_started.set()
+        if operation == "renew":
+            return store.renew(
+                running.job_id,
+                running.lease_token,
+                lease_seconds=10,
+            )
+        if operation == "checkpoint":
+            return store.checkpoint(
+                running.job_id,
+                running.lease_token,
+                phase="working",
+                checkpoint={"step": 1},
+            )
+        if operation == "complete":
+            return store.complete(running.job_id, running.lease_token)
+        return store.fail(
+            running.job_id,
+            running.lease_token,
+            category=WorkflowFailureCategory.TRANSIENT,
+            error="retry",
+            retryable=True,
+        )
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    store._lock.acquire()  # noqa: SLF001 - deliberate lock-wait regression
+    try:
+        acknowledgement = pool.submit(delayed_acknowledgement)
+        assert acknowledgement_started.wait(timeout=2)
+        clock.advance(20)
+    finally:
+        store._lock.release()  # noqa: SLF001
+    try:
+        with pytest.raises(WorkflowJobLeaseLost):
+            acknowledgement.result(timeout=2)
+    finally:
+        pool.shutdown(wait=True)
+
+
+def test_delayed_claim_uses_post_lock_time_for_retry_eligibility(store, clock):
+    store.enqueue(spec())
+    running = claim(store)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="retry",
+        retryable=True,
+        retry_delay_seconds=10,
+    )
+    claim_started = threading.Event()
+
+    def delayed_claim():
+        claim_started.set()
+        return store.claim_next(lease_owner="worker-b", lease_seconds=30)
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    store._lock.acquire()  # noqa: SLF001 - deliberate lock-wait regression
+    try:
+        future = pool.submit(delayed_claim)
+        assert claim_started.wait(timeout=2)
+        clock.advance(20)
+    finally:
+        store._lock.release()  # noqa: SLF001
+    try:
+        claimed = future.result(timeout=2)
+    finally:
+        pool.shutdown(wait=True)
+
+    assert claimed is not None
+    assert claimed.job_id == running.job_id

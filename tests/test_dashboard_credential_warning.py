@@ -57,9 +57,13 @@ def test_auth_health_is_status_when_healthy_and_not_a_duplicate_when_degraded() 
     state_update = _function(html, "handleStateUpdate")
     auth_renderer = _function(html, "renderAuthHealthBanner")
 
-    assert "const authHealthHasAction" in state_update
-    assert "renderAuthHealthBanner(state.auth_health || null, authHealthHasAction)" in state_update
-    assert "if (hiddenByAlert || !authHealth)" in auth_renderer
+    assert "const authHealthHasAction" not in state_update
+    assert (
+        "renderAuthHealthBanner(state.auth_health || null, actionableAlerts)"
+        in state_update
+    )
+    assert "const actionableSources" in auth_renderer
+    assert "if (!authHealth || actionableSources.size === 0)" in auth_renderer
     assert "Operator auth" in auth_renderer
     assert "Worker token" in auth_renderer
 

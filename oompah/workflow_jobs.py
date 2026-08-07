@@ -359,6 +359,14 @@ class WorkflowJobStoreError(RuntimeError):
     """Base class for workflow-job persistence errors."""
 
 
+class WorkflowJobPublicationError(WorkflowJobStoreError):
+    """A staged workflow publication could not commit or roll back cleanly."""
+
+    def __init__(self, message: str, *, rollback_failed: bool = False) -> None:
+        super().__init__(message)
+        self.rollback_failed = bool(rollback_failed)
+
+
 class WorkflowJobIdempotencyConflict(WorkflowJobStoreError):
     """An idempotency key was reused for different immutable work."""
 
@@ -2278,7 +2286,6 @@ class WorkflowJobStore:
         owner = _required_text(lease_owner, "lease_owner")
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
-        timestamp = float(self._clock() if now is None else now)
         bounded_recovery = _bounded_limit(recovery_limit)
         clauses = [
             "(candidate.state = ? OR (candidate.state = ? "
@@ -2312,7 +2319,7 @@ class WorkflowJobStore:
         values: list[object] = [
             WorkflowJobState.QUEUED.value,
             WorkflowJobState.RETRY_WAIT.value,
-            timestamp,
+            0.0,
         ]
         for column, value in (
             ("project_id", project_id),
@@ -2339,6 +2346,8 @@ class WorkflowJobStore:
         )
         lease_token = uuid.uuid4().hex
         with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
+            values[2] = timestamp
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._recover_expired_locked(now=timestamp, limit=bounded_recovery)
@@ -2431,8 +2440,12 @@ class WorkflowJobStore:
     ) -> WorkflowJob:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
-        timestamp = float(self._clock() if now is None else now)
         with self._authority_mutation_guard():
+            # Resolve implicit time only after acquiring the serialization lock.
+            # A heartbeat that waited behind another short transaction must not
+            # validate against its pre-wait timestamp and write a renewal that is
+            # already expired when it becomes visible.
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2460,11 +2473,11 @@ class WorkflowJobStore:
         checkpoint: Mapping[str, Any],
         now: float | None = None,
     ) -> WorkflowJob:
-        timestamp = float(self._clock() if now is None else now)
         clean_checkpoint = _json_object(checkpoint, "checkpoint")
         assert clean_checkpoint is not None
         normalized_phase = _required_text(phase, "phase")
         with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2501,9 +2514,9 @@ class WorkflowJobStore:
         result_transition: Mapping[str, Any] | None = None,
         now: float | None = None,
     ) -> WorkflowJob:
-        timestamp = float(self._clock() if now is None else now)
         result = _json_object(result_transition, "result_transition")
         with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -2549,12 +2562,12 @@ class WorkflowJobStore:
         retry_delay_seconds: float = 0,
         now: float | None = None,
     ) -> WorkflowJob:
-        timestamp = float(self._clock() if now is None else now)
         failure = WorkflowFailureCategory(category)
         message = _required_text(error, "error")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
         with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 owned = self._owned_row_locked(job_id, lease_token, now=timestamp)

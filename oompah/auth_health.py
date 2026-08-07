@@ -163,27 +163,27 @@ class OperatorAuthHealth:
                 "Operator credentials have been restored. "
                 "The server is now accepting authenticated requests."
             )
-            recovery_state = "recovered"
-            action_required = False
         else:
             # Credentials are still failing; provide actionable remediation
             remediation = (
                 "Update OOMPAH_HTPASSWD_FILE (or regenerate .htpasswd beside "
                 "your .env), then run `make restart` to reload credentials."
             )
-            recovery_state = "active"
-            action_required = True
 
         return {
-            "level": "warning",
-            "severity": "warning",
+            # A rolling-window observation clears by age and is not proof that
+            # current operator authentication is broken. Keep it available to
+            # diagnostics without promoting a stale or mistyped request into
+            # a global operator warning.
+            "level": "info",
+            "severity": "info",
             "source": "auth_health:operator",
             "stable_id": "auth_health:operator",
-            "action_required": action_required,
-            "recovery_state": recovery_state,
-            "lifecycle_state": recovery_state,
-            "status": recovery_state,
-            "active": not is_recovered,
+            "action_required": False,
+            "recovery_state": "observation_window",
+            "lifecycle_state": "observation_window",
+            "status": "observation_window",
+            "active": True,
             "recovered": is_recovered,
             "summary": summary,
             "message": summary,
@@ -352,14 +352,17 @@ class WorkerAuthHealth:
             "procedure."
         )
         return {
-            "level": "warning",
-            "severity": "warning",
+            # Individual handoff failures are bounded observations; scheduler
+            # retry and a later accepted token are the normal recovery path.
+            # Exhausted workflow recovery is escalated by WorkDecision.
+            "level": "info",
+            "severity": "info",
             "source": "auth_health:worker",
             "stable_id": "auth_health:worker",
-            "action_required": True,
-            "recovery_state": "active",
-            "lifecycle_state": "active",
-            "status": "active",
+            "action_required": False,
+            "recovery_state": "observation_window",
+            "lifecycle_state": "observation_window",
+            "status": "observation_window",
             "active": True,
             "recovered": False,
             "summary": summary,

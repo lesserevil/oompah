@@ -220,7 +220,14 @@ class TestCardElementCache:
 
     def test_issue_fingerprint_includes_key_fields(self, script: str):
         body = _extract_function(script, "issueFingerprint")
-        for field in ("identifier", "title", "description", "state", "priority"):
+        for field in (
+            "project_id",
+            "identifier",
+            "title",
+            "description",
+            "state",
+            "priority",
+        ):
             assert field in body, (
                 f"issueFingerprint must include '{field}' field"
             )

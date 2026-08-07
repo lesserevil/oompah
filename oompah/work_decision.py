@@ -62,9 +62,9 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "controller.evaluation_failed",
         "dispatch.dependencies_blocked",
         "dispatch.eligible",
-        "evidence.conflicting_task_facts",
         "duplicate.investigating",
         "duplicate.recovery_scheduled",
+        "evidence.conflicting_task_facts",
         "evidence.dependencies_malformed",
         "evidence.project_or_task_mismatch",
         "evidence.task_fact_identity_mismatch",
@@ -86,6 +86,8 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "graph.impossible",
         "liveness.reassessment_overdue",
         "operator.action_required",
+        "ownership.conflict",
+        "ownership.impossible",
         "prioritization.awaiting_owner",
         "requestor.answer_required",
         "retry.exhausted",
@@ -648,6 +650,8 @@ def _validation_decision(
             action=PermittedAction.RETRY_AUDIT,
             job="terminal_audit_recovery",
         )
+    # Quarantined or unsafe evidence cannot be automatically retried: the
+    # metadata is corrupt or the audit found an unsafe archive condition.
     if bool(value.get("quarantined")) or bool(value.get("unsafe")):
         return _decision(
             task,
@@ -762,6 +766,7 @@ def _integration_decision(
             prerequisites=finish + hard_start,
             actions=(PermittedAction.WAIT_DEPENDENCY,),
         )
+    # A current exact live claim outranks a historical action-required fact.
     if bool(value.get("live_claim_precedes_history")):
         return _decision(
             task,
@@ -818,6 +823,8 @@ def _integration_decision(
             alert=AlertSeverity.INFO,
             durable_jobs=("integration_recovery",),
         )
+    # A blocked exact-head gate is authoritative unless an explicit
+    # same-generation retry has been forced by the repair path.
     if value.get("state") == "blocked" and not bool(value.get("retry_forced")):
         return _decision(
             task,

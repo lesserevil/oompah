@@ -221,8 +221,8 @@ class TestDispatchLoopStaleSeconds:
 
 
 class TestDispatchStaleAlert:
-    def test_arm_adds_error_alert(self, tmp_path):
-        """_arm_dispatch_stale_alert() must add an error-level alert."""
+    def test_arm_adds_recovery_managed_observation(self, tmp_path):
+        """A requested restart remains informational while recovery is active."""
         orch = _make_orchestrator(
             tmp_path, dispatch_stale_threshold_ms=120_000
         )
@@ -233,7 +233,8 @@ class TestDispatchStaleAlert:
             f"Expected 'dispatch_loop_stale' alert, got: {sources}"
         )
         alert = next(a for a in orch._alerts if a["source"] == "dispatch_loop_stale")
-        assert alert["level"] == "error"
+        assert alert["level"] == "info"
+        assert alert["action_required"] is False
         assert "(threshold: 120s)" in alert["message"]
 
     def test_arm_is_idempotent(self, tmp_path):

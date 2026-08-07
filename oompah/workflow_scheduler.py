@@ -127,7 +127,9 @@ class WorkflowJobScheduler:
             raise ValueError("default_priority must be an integer")
         self.default_priority = int(default_priority)
         self.max_attempts = _bounded(max_attempts, "max_attempts")
-        self._metrics_lock = threading.Lock()
+        # Publication transactions hold this lock while reconcile re-enters it
+        # so scheduler metrics can be restored with the durable job-store cut.
+        self._metrics_lock = threading.RLock()
         self._wakeup = asyncio.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._run_lock = asyncio.Lock()

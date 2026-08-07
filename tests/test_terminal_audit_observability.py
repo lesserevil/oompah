@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 import pytest
 
@@ -30,9 +33,14 @@ from oompah.terminal_audit_metadata import (
     MetadataQuarantine,
     TerminalAuditMetadata,
 )
+from oompah.terminal_audit_health import (
+    AuditHealthObservation,
+    HEALTH_ALERT_PREFIX,
+)
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, _AuditCandidateScan
+from oompah.roles import Candidate
 
 
 class _Clock:
@@ -85,6 +93,28 @@ def _no_auditor_record(
         attempts=[attempt],
         created_at=completed_at,
         updated_at=completed_at,
+    )
+
+
+def _aged_pending_observation(
+    task_id: str = "TASK-STALE",
+    audit_id: str = "audit-stale",
+) -> AuditHealthObservation:
+    old_timestamp = "2000-01-01T00:00:00+00:00"
+    pending = TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id="project-a",
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("d" * 64),
+        request_state=RequestState.PENDING,
+        created_at=old_timestamp,
+    )
+    return AuditHealthObservation(
+        project_id="project-a",
+        issue_identifier=task_id,
+        issue_created_at=old_timestamp,
+        record=pending,
     )
 
 
@@ -528,24 +558,14 @@ def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() 
     assert metrics.snapshot()["stale_discarded"] == 1
 
 
-def test_threshold_alerts_deduplicate_and_clear_on_recovery() -> None:
+def test_queue_age_threshold_is_informational_not_actionable() -> None:
     now = datetime(2026, 7, 29, 12, tzinfo=timezone.utc)
     clock = _Clock(now)
     metrics = TerminalAuditMetrics(clock=clock)
     metrics.record_queued("project-a", "TASK-1", "audit-1", queued_at=now - timedelta(seconds=61), attempts=1)
-    registry = TerminalAuditAlertRegistry()
-
-    conditions = threshold_conditions(metrics, max_attempts=3, max_age_seconds=60)
-    assert [condition.key for condition in conditions] == [
-        ("age_threshold", "project-a", "TASK-1", "audit-1")
-    ]
-    assert len(registry.sync(conditions)) == 1
-    assert len(registry.sync(conditions)) == 1
-    assert len(registry.conditions) == 1
-
-    metrics.record_passed("project-a", "TASK-1", "audit-1", completed_at=now)
-    assert registry.sync(threshold_conditions(metrics, max_attempts=3, max_age_seconds=60)) == []
-    assert registry.conditions == ()
+    snapshot = metrics.snapshot(now=now)
+    assert snapshot["oldest_queue_age_seconds"] == 61
+    assert threshold_conditions(metrics, max_attempts=3, max_age_seconds=60) == []
 
 
 def test_normal_queue_running_and_passed_states_have_no_alerts() -> None:
@@ -573,6 +593,7 @@ def test_no_candidate_alert_has_actionable_instructions_and_is_deduplicated() ->
     registry.add(condition)
     assert len(registry.conditions) == 1
     assert "Configure" in alert["action"]
+    assert alert["action_required"] is True
     assert "project-a:TASK-1:audit-1" in alert["source"]
 
     registry.clear("project-a", "TASK-1", "audit-1")
@@ -670,6 +691,333 @@ def test_snapshot_exposes_finalization_failure_separately(tmp_path: Path) -> Non
             str(alert["source"]).endswith("finalization_failures")
             for alert in snapshot["alerts"]
         )
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_partial_health_scan_keeps_one_generation_of_facts_and_alerts(
+    tmp_path: Path,
+) -> None:
+    """A partial scan cannot pair empty current counts with an older alert."""
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    observation = _aged_pending_observation()
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [observation], scan_complete=True, scan_error_count=0
+        )
+        orchestrator._refresh_terminal_audit_health(
+            [], scan_complete=False, scan_error_count=1
+        )
+
+        incomplete = orchestrator.get_snapshot()
+        health = incomplete["terminal_audit_health"]
+        assert health == incomplete["health"]["terminal_audit"]
+        assert health["pending_count"] == 1
+        assert health["stale_pending_count"] == 1
+        assert health["oldest_pending_age_seconds"] is not None
+        assert health["scan_complete"] is False
+        assert health["scan_error_count"] == 1
+        health_alerts = {
+            alert["source"]: alert
+            for alert in incomplete["alerts"]
+            if str(alert.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
+        }
+        backlog = health_alerts[HEALTH_ALERT_PREFIX + "backlog_age"]
+        assert "across 1 pending audit(s)" in backlog["detail"]
+        assert HEALTH_ALERT_PREFIX + "scan" in health_alerts
+
+        orchestrator._refresh_terminal_audit_health(
+            [], scan_complete=True, scan_error_count=0
+        )
+        recovered = orchestrator.get_snapshot()
+        assert recovered["terminal_audit_health"]["pending_count"] == 0
+        assert recovered["terminal_audit_health"]["stale_pending_count"] == 0
+        assert recovered["terminal_audit_health"]["oldest_pending_at"] is None
+        assert (
+            recovered["terminal_audit_health"]["oldest_pending_age_seconds"]
+            is None
+        )
+        assert not [
+            alert
+            for alert in recovered["alerts"]
+            if alert.get("source") == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_launch_publishes_in_progress_health_observation(
+    tmp_path: Path,
+) -> None:
+    """The launch fence replaces the pre-launch pending health snapshot."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    created_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    fingerprint = EvidenceFingerprint("c" * 64)
+    issue = Issue(
+        id="issue-launch",
+        identifier="TASK-LAUNCH",
+        title="Launch an independent terminal auditor",
+        description="Verify health observes the durable launch fence.",
+        state="In Validation",
+        project_id="project-a",
+        branch_name="task-launch",
+        created_at=created_at,
+    )
+    pending = TerminalAuditRecord(
+        audit_id="audit-launch",
+        project_id="project-a",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        created_at=created_at.isoformat(),
+    )
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[pending],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    selector = MagicMock()
+    selector.select_candidates.return_value = (
+        [Candidate(provider_id="provider-a", model="model-a")],
+        None,
+    )
+    tracker = MagicMock()
+    tracker.get_metadata.return_value = {}
+    update_record = MagicMock(return_value=True)
+    launch_state = {"completed": False}
+
+    async def _mark_launched(*_args, **_kwargs) -> bool:
+        launch_state["completed"] = True
+        return True
+
+    try:
+        with (
+            patch.object(
+                orchestrator,
+                "_available_slots",
+                side_effect=lambda: 0 if launch_state["completed"] else 1,
+            ),
+            patch.object(
+                orchestrator,
+                "_dispatch_is_blocked",
+                return_value=False,
+            ),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan((issue,)),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_bind_audit_record_revision",
+                return_value=pending,
+            ),
+            patch.object(orchestrator, "_audit_selector", return_value=selector),
+            patch.object(orchestrator, "_audit_branch_busy", return_value=False),
+            patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orchestrator, "_audit_update_record", new=update_record
+            ),
+            patch.object(
+                orchestrator,
+                "_dispatch",
+                new=AsyncMock(side_effect=_mark_launched),
+            ),
+        ):
+            result = await orchestrator._dispatch_audit_lane()
+
+        assert result["audit_dispatch"] >= 0
+        assert launch_state["completed"] is True
+        assert orchestrator._audit_metrics["last_dispatched_count"] == 1
+        assert update_record.call_count == 1
+        persisted = update_record.call_args.args[2]
+        assert persisted.request_state == RequestState.IN_PROGRESS
+        assert orchestrator._audit_health.pending_count == 0
+        assert orchestrator._audit_health.in_progress_count == 1
+        assert orchestrator._audit_health.oldest_pending_at is None
+        assert orchestrator._audit_health.oldest_pending_age_seconds is None
+        assert orchestrator._audit_health.stale_pending_count == 0
+        assert not [
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_scan_limit_cannot_publish_complete_partial_facts(
+    tmp_path: Path,
+) -> None:
+    """Candidates beyond the lane limit keep last-complete health authoritative."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=1,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index}",
+            title=f"Audit candidate {index}",
+            state="In Validation",
+            project_id="project-a",
+            created_at=datetime.now(timezone.utc),
+        )
+        for index in range(2)
+    )
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [_aged_pending_observation()],
+            scan_complete=True,
+            scan_error_count=0,
+        )
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(
+                orchestrator,
+                "_dispatch_is_blocked",
+                return_value=False,
+            ),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan(candidates),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        health = orchestrator._audit_health
+        assert orchestrator._audit_metrics["discovered_candidate_count"] == 2
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 1
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is False
+        assert orchestrator._audit_metrics["pending_count"] == 1
+        assert health.pending_count == 1
+        assert health.stale_pending_count == 1
+        assert health.oldest_pending_age_seconds is not None
+        assert health.scan_complete is False
+        assert health.scan_error_count == 0
+        sources = {str(alert.get("source", "")) for alert in orchestrator._alerts}
+        assert HEALTH_ALERT_PREFIX + "backlog_age" in sources
+        assert HEALTH_ALERT_PREFIX + "scan" in sources
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_project_fetch_failure_cannot_clear_last_complete_audit_health(
+    tmp_path: Path,
+) -> None:
+    """One unreadable project makes the aggregate audit scan incomplete."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    project_store.list_all.return_value = [
+        SimpleNamespace(id="project-a"),
+        SimpleNamespace(id="project-b"),
+    ]
+    visible = Issue(
+        id="issue-visible",
+        identifier="TASK-VISIBLE",
+        title="Visible audit candidate",
+        state="In Validation",
+        created_at=datetime.now(timezone.utc),
+    )
+    healthy_tracker = MagicMock()
+    healthy_tracker.fetch_issues_by_states.return_value = [visible]
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+
+    def _tracker_for_project(project_id: str):
+        if project_id == "project-b":
+            raise RuntimeError("tracker unavailable")
+        return healthy_tracker
+
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [_aged_pending_observation()],
+            scan_complete=True,
+            scan_error_count=0,
+        )
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(
+                orchestrator,
+                "_dispatch_is_blocked",
+                return_value=False,
+            ),
+            patch.object(
+                orchestrator,
+                "_tracker_for_project",
+                side_effect=_tracker_for_project,
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        health = orchestrator._audit_health
+        assert visible.project_id == "project-a"
+        assert orchestrator._audit_metrics["discovered_candidate_count"] == 1
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 1
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is False
+        assert orchestrator._audit_metrics["pending_count"] == 1
+        assert health.pending_count == 1
+        assert health.stale_pending_count == 1
+        assert health.oldest_pending_age_seconds is not None
+        assert health.scan_complete is False
+        assert health.scan_error_count == 1
+        sources = {str(alert.get("source", "")) for alert in orchestrator._alerts}
+        assert HEALTH_ALERT_PREFIX + "backlog_age" in sources
+        assert HEALTH_ALERT_PREFIX + "scan" in sources
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)

@@ -2138,6 +2138,40 @@ def _detail_cache_get(
     cached = _api_cache.get(cache_key)
     if cached is None:
         return None
+    if isinstance(cached, Mapping):
+        identifier = str(cached.get("identifier") or "").strip()
+        cached_project = str(cached.get("project_id") or project_id or "").strip()
+        cached_decision = cached.get("work_decision")
+        cached_revision = (
+            str(cached_decision.get("decision_revision") or "")
+            if isinstance(cached_decision, Mapping)
+            else ""
+        )
+        current_decision = _work_decision_for_task(
+            orch, cached_project or None, identifier
+        )
+        current_revision = (
+            str(current_decision.get("decision_revision") or "")
+            if isinstance(current_decision, Mapping)
+            else ""
+        )
+        cached_availability = str(
+            cached.get("work_decision_availability") or ""
+        )
+        current_availability = _work_decision_availability_for_task(
+            orch,
+            cached_project or None,
+            identifier,
+            task_state=str(cached.get("state") or ""),
+        )
+        if (
+            cached_revision != current_revision
+            or cached_availability != current_availability
+        ):
+            _api_cache.invalidate(cache_key)
+            with _detail_cache_lock:
+                _detail_cache_generations.pop(cache_key, None)
+            return None
     with _detail_cache_lock:
         binding = _detail_cache_generations.get(cache_key)
     if binding is None:
@@ -2186,6 +2220,10 @@ _GITLAB_HOOK_RECONCILE_FIELDS = frozenset(
 
 _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
     {
+        # Repository identity can determine an inferred forge-tracker scope;
+        # the default branch configures native-Markdown tracker reads/writes.
+        "repo_url",
+        "default_branch",
         "access_token",
         "status_actor_login",
         "status_label_authorized_logins",
@@ -2211,7 +2249,16 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     """Drop cached tracker state after project tracker config changes."""
     project_trackers = getattr(orch, "_project_trackers", None)
     if isinstance(project_trackers, dict):
-        project_trackers.pop(project_id, None)
+        tracker_lock = getattr(orch, "_project_trackers_lock", None)
+        if tracker_lock is None:
+            project_trackers.pop(project_id, None)
+        else:
+            with tracker_lock:
+                project_trackers.pop(project_id, None)
+                generation = int(
+                    getattr(orch, "_project_tracker_generation", 1)
+                )
+                setattr(orch, "_project_tracker_generation", generation + 1)
 
     branch_indexes = getattr(orch, "_branch_indexes", None)
     if isinstance(branch_indexes, dict):
@@ -2220,6 +2267,27 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     stale_caches = getattr(orch, "_stale_caches", None)
     if isinstance(stale_caches, dict):
         stale_caches.pop(project_id, None)
+
+
+def _update_project_tracker_configuration(
+    orch: object,
+    project_id: str,
+    **fields: Any,
+) -> Any | None:
+    """Persist tracker config and fence tracker/decision caches in one cut."""
+
+    updater = getattr(type(orch), "update_project_tracker_configuration", None)
+    if callable(updater):
+        return updater(orch, project_id, **fields)
+    # Compatibility for API-only embedders and narrow test doubles. Production
+    # uses the orchestrator authority cut above.
+    project_store = getattr(orch, "project_store", None)
+    if project_store is None:
+        raise RuntimeError("project store is unavailable")
+    project = project_store.update(project_id, **fields)
+    if project is not None:
+        _invalidate_project_tracker_cache(orch, project_id)
+    return project
 
 
 def _resolve_github_token_owner(access_token: str | None) -> str | None:
@@ -3071,7 +3139,12 @@ def _any_tracker_checkpoint_newer_than(orch: "Orchestrator", snapshot_at: float)
         trackers.append(primary)
     project_trackers = getattr(orch, "_project_trackers", {})
     if isinstance(project_trackers, dict):
-        trackers.extend(project_trackers.values())
+        tracker_lock = getattr(orch, "_project_trackers_lock", None)
+        if tracker_lock is None:
+            trackers.extend(tuple(project_trackers.values()))
+        else:
+            with tracker_lock:
+                trackers.extend(tuple(project_trackers.values()))
     for tracker in trackers:
         checkpoint_at = getattr(tracker, "last_checkpoint_at", None)
         if isinstance(checkpoint_at, float) and checkpoint_at > snapshot_at:
@@ -3410,6 +3483,7 @@ def _work_decision_for_task(
         return None
     getter = getattr(type(orch), "work_decision_projection", None)
     if callable(getter):
+        value = None
         try:
             value = getter(orch, project_id, task_id, task)
         except TypeError:
@@ -3422,9 +3496,12 @@ def _work_decision_for_task(
                 value = None
         except Exception:
             logger.debug("workflow decision unavailable for %s", task_id)
-        else:
-            if isinstance(value, Mapping):
-                return dict(value)
+        if isinstance(value, Mapping):
+            return dict(value)
+        # An authoritative getter returning no projection is itself a
+        # fail-closed answer (bounded omission, unavailable project, or
+        # lifecycle-final task). Never bypass it through the retained raw cache.
+        return None
     # Lightweight test doubles and API-only embedders may expose the cache as
     # a mapping rather than the orchestrator method.  Accept only serialized
     # WorkDecision values and project them through the same boundary.
@@ -3438,6 +3515,38 @@ def _work_decision_for_task(
             except (TypeError, ValueError):
                 return None
     return None
+
+
+def _work_decision_availability_for_task(
+    orch: Any,
+    project_id: str | None,
+    identifier: str | None,
+    *,
+    task_state: str | None = None,
+) -> str:
+    """Read the controller's explicit availability for one task identity."""
+
+    task_id = str(identifier or "").strip()
+    if canonicalize_status(task_state) in {MERGED, ARCHIVED}:
+        return "not_applicable"
+    getter = getattr(type(orch), "work_decision_availability", None)
+    if callable(getter):
+        try:
+            return str(getter(orch, project_id, task_id))
+        except TypeError:
+            # Compatibility for embedders that still expose project-only
+            # availability. They remain conservative for cache misses.
+            try:
+                return str(getter(orch, project_id))
+            except Exception:
+                return "unavailable"
+        except Exception:
+            return "unavailable"
+    return (
+        "available"
+        if _work_decision_for_task(orch, project_id, task_id) is not None
+        else "pending"
+    )
 
 
 def _sync_orchestrator_review_cache(
@@ -3600,6 +3709,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
 
 
 def _on_agent_activity(
+    project_id: str | None,
     identifier: str,
     entry,
     run_id: str | None = None,
@@ -3611,6 +3721,7 @@ def _on_agent_activity(
         lambda: _broadcast(
             {
                 "type": "activity",
+                "project_id": project_id,
                 "identifier": identifier,
                 "run_id": run_id,
                 "entry": entry.to_dict()
@@ -3906,6 +4017,12 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
             "work_decision": _work_decision_for_task(
                 orch, issue.project_id, issue.identifier, issue
             ),
+            "work_decision_availability": _work_decision_availability_for_task(
+                orch,
+                issue.project_id,
+                issue.identifier,
+                task_state=issue.state,
+            ),
             "labels": issue.labels,
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
@@ -4084,15 +4201,21 @@ async def _send_ws(ws: WebSocket, msg: dict[str, Any]) -> None:
             _ws_send_locks[ws] = send_lock
             _ws_delivery_sequences.setdefault(ws, 0)
     async with send_lock:
-        with _ws_delivery_sequences_lock:
-            sequence = _ws_delivery_sequences.get(ws, 0) + 1
-            _ws_delivery_sequences[ws] = sequence
-        envelope = _protocol_message(msg, sequence)
-        try:
-            await ws.send_text(json.dumps(envelope, default=str))
-        except Exception:
-            _unregister_ws(ws)
-            raise
+        await _send_ws_locked(ws, msg)
+
+
+async def _send_ws_locked(ws: WebSocket, msg: dict[str, Any]) -> None:
+    """Send while the caller owns this connection's send lock."""
+
+    with _ws_delivery_sequences_lock:
+        sequence = _ws_delivery_sequences.get(ws, 0) + 1
+        _ws_delivery_sequences[ws] = sequence
+    envelope = _protocol_message(msg, sequence)
+    try:
+        await ws.send_text(json.dumps(envelope, default=str))
+    except Exception:
+        _unregister_ws(ws)
+        raise
 
 
 async def _broadcast(msg: dict) -> None:
@@ -4208,68 +4331,73 @@ async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
         if ws in _ws_fullsync_pending:
             return
         _ws_fullsync_pending.add(ws)
-    try:
-        # 1. Read state with its own revision (stale is acceptable for a
-        #    full sync — the client is replacing its whole cached state).
-        state_snapshot, state_revision = _read_state_snapshot_with_revision(
-            allow_stale=True
-        )
-        if state_snapshot is None:
-            state_snapshot = _cached_state_snapshot_or_unavailable()
-            _, state_revision, _ = _protocol_values()
-        state_data = _enrich_state_snapshot(state_snapshot)
-
-        # 2. Try to get a fresh issues snapshot before reading it.  Use a
-        #    bounded wait so the client is not blocked indefinitely on a slow
-        #    rebuild; an unavailable fresh snapshot becomes a retryable error.
-        await _ensure_issues_snapshot_refresh(orch, broadcast=False)
-        await _wait_for_issues_snapshot_refresh(timeout_ms=3000)
-
-        # 3. Read issues + revision atomically.  The lock inside
-        #    _issues_snapshot_payload_with_revision ensures the payload and
-        #    its ``data_revision`` come from the same snapshot generation:
-        #    a concurrent invalidation cannot stamp the old board with the
-        #    new revision.
-        issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
-            allow_empty=False, orch=orch
-        )
-        if issues_payload is None:
-            raise RuntimeError("fresh issue snapshot is unavailable")
-
-        # 4. Stamp the current epoch so the client can verify the watermarks
-        #    belong to this process lifetime.
-        epoch, _, _ = _protocol_values()
-
-        await _send_ws(
-            ws,
-            {
-                "type": "full_sync",
-                "state": state_data,
-                "state_revision": state_revision,
-                "issues": issues_payload,
-                "issue_revision": issue_revision,
-                "epoch": epoch,
-            },
-        )
-        # Full sync message sent successfully; record success
-        _ws_sync_record_success()
-    except Exception as exc:
-        logger.debug("full_sync assembly failed for connection: %s", exc)
-        _ws_sync_record_failure()
+    with _ws_delivery_sequences_lock:
+        send_lock = _ws_send_locks.get(ws)
+        if send_lock is None:
+            send_lock = asyncio.Lock()
+            _ws_send_locks[ws] = send_lock
+            _ws_delivery_sequences.setdefault(ws, 0)
+    # Hold the per-connection ordering lock for the complete snapshot cut.
+    # State/issue observers can continue updating caches and queue broadcasts,
+    # but those decision messages receive a sequence only after full_sync and
+    # are therefore replayed instead of being hidden below its watermark.
+    async with send_lock:
         try:
-            await _send_ws(
+            # 1. Read state with its own revision (stale is acceptable for a
+            #    full sync — the client is replacing its whole cached state).
+            state_snapshot, state_revision = _read_state_snapshot_with_revision(
+                allow_stale=True
+            )
+            if state_snapshot is None:
+                state_snapshot = _cached_state_snapshot_or_unavailable()
+                _, state_revision, _ = _protocol_values()
+            state_data = _enrich_state_snapshot(state_snapshot)
+
+            # 2. Try to get a fresh issues snapshot before reading it.  Use a
+            #    bounded wait so the client is not blocked indefinitely on a
+            #    slow rebuild; unavailable fresh data is a retryable error.
+            await _ensure_issues_snapshot_refresh(orch, broadcast=False)
+            await _wait_for_issues_snapshot_refresh(timeout_ms=3000)
+
+            # 3. Read issues + revision atomically.  The lock inside
+            #    _issues_snapshot_payload_with_revision ensures the payload and
+            #    its ``data_revision`` come from the same snapshot generation.
+            issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
+                allow_empty=False, orch=orch
+            )
+            if issues_payload is None:
+                raise RuntimeError("fresh issue snapshot is unavailable")
+
+            epoch, _, _ = _protocol_values()
+            await _send_ws_locked(
                 ws,
                 {
-                    "type": "full_sync_error",
-                    "code": "snapshot_unavailable",
-                    "retryable": True,
+                    "type": "full_sync",
+                    "state": state_data,
+                    "state_revision": state_revision,
+                    "issues": issues_payload,
+                    "issue_revision": issue_revision,
+                    "epoch": epoch,
                 },
             )
-        except Exception:
-            pass  # connection may already be dead; that's fine
-    finally:
-        with _ws_fullsync_lock:
-            _ws_fullsync_pending.discard(ws)
+            _ws_sync_record_success()
+        except Exception as exc:
+            logger.debug("full_sync assembly failed for connection: %s", exc)
+            _ws_sync_record_failure()
+            try:
+                await _send_ws_locked(
+                    ws,
+                    {
+                        "type": "full_sync_error",
+                        "code": "snapshot_unavailable",
+                        "retryable": True,
+                    },
+                )
+            except Exception:
+                pass  # connection may already be dead; that's fine
+        finally:
+            with _ws_fullsync_lock:
+                _ws_fullsync_pending.discard(ws)
 
 
 # ----------------------------------------------------------------------
@@ -14467,6 +14595,12 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "work_decision": _work_decision_for_task(
                 orch, project_id, issue.identifier, issue
             ),
+            "work_decision_availability": _work_decision_availability_for_task(
+                orch,
+                project_id,
+                issue.identifier,
+                task_state=issue.state,
+            ),
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
             "project_id": project_id,
@@ -14563,6 +14697,14 @@ async def api_issue_full_detail(identifier: str, request: Request):
                     "work_decision": _work_decision_for_task(
                         orch, c.project_id or project_id, c.identifier, c
                     ),
+                    "work_decision_availability": (
+                        _work_decision_availability_for_task(
+                            orch,
+                            c.project_id or project_id,
+                            c.identifier,
+                            task_state=c.state,
+                        )
+                    ),
                     "priority": c.priority,
                     "issue_type": c.issue_type,
                     "project_id": c.project_id or project_id,
@@ -14611,12 +14753,37 @@ async def api_work_decision(project_id: str, identifier: str):
             orch, project_id, issue.identifier, issue
         )
         if decision is None:
+            availability = _work_decision_availability_for_task(
+                orch,
+                project_id,
+                issue.identifier,
+                task_state=issue.state,
+            )
+            messages = {
+                "incomplete": (
+                    "The current bounded workflow pass is incomplete for this "
+                    "task; rotating or reconciliation sweeps will reevaluate it"
+                ),
+                "unavailable": (
+                    "Workflow evidence for this task's project is currently "
+                    "unavailable"
+                ),
+                "pending": "No current workflow decision is available yet",
+                "disabled": "The workflow decision controller is disabled",
+                "not_applicable": (
+                    "Workflow decisions are not produced for lifecycle-final tasks"
+                ),
+            }
             return JSONResponse(
                 {
                     "error": {
                         "code": "decision_unavailable",
-                        "message": "No current workflow decision is available yet",
-                    }
+                        "message": messages.get(
+                            availability,
+                            "No current workflow decision is available yet",
+                        ),
+                    },
+                    "availability": availability,
                 },
                 status_code=503,
             )
@@ -15310,50 +15477,84 @@ async def api_apply_release_picks_to_all_children(identifier: str, request: Requ
 
 
 @app.get("/api/v1/agents/{identifier}/activity")
-async def api_agent_activity(identifier: str):
-    """Return the activity log for a running agent."""
+async def api_agent_activity(identifier: str, project_id: str | None = None):
+    """Return one project-scoped running agent activity log.
+
+    ``project_id`` is optional only for legacy callers when the task identifier
+    resolves to exactly one running entry.
+    """
     try:
         orch = _get_orchestrator()
+        project_supplied = project_id is not None
+        requested_project_key = str(project_id or "")
+        matches = []
         for _, entry in _running_items_snapshot(orch):
-            if entry.identifier == identifier:
-                issue = getattr(entry, "issue", None)
-                project_id = issue.project_id if issue else None
-                terminal_audit_summary: dict[str, Any] | None = None
-                if issue is not None:
-                    try:
-                        tracker = orch._tracker_for_project(project_id) if project_id else getattr(orch, "tracker", None)
-                        terminal_audit_summary = _issue_terminal_audit_summary(
-                            issue, tracker=tracker
-                        )
-                    except Exception:  # noqa: BLE001 – audit read must not break activity
-                        pass
-                payload: dict[str, Any] = {
-                    "identifier": identifier,
-                    "run_id": getattr(entry, "run_id", None),
-                    "profile": entry.agent_profile_name,
-                    "provider_name": entry.provider_name,
-                    "model_name": entry.model_name,
-                    "work_kind": entry.classify_work_kind(),
-                    "duplicate_preflight": bool(
-                        getattr(entry, "duplicate_preflight", False)
-                    ),
-                    "started_at": entry.started_at.isoformat(),
-                    "activity": [a.to_dict() for a in entry.activity_log],
-                }
-                # Add safe audit identity fields
-                if getattr(entry, "is_auditor", False):
-                    payload["is_auditor"] = True
-                    if getattr(entry, "audit_id", None):
-                        payload["audit_id"] = entry.audit_id
-                    if getattr(entry, "audit_attempt_id", None):
-                        payload["audit_attempt_id"] = entry.audit_attempt_id
-                # Add retirement state
-                if getattr(entry, "retirement_pending", False):
-                    payload["retiring"] = True
-                if terminal_audit_summary is not None:
-                    payload["terminal_audit_summary"] = terminal_audit_summary
-                return JSONResponse(payload)
-        return JSONResponse({"identifier": identifier, "run_id": None, "activity": []})
+            issue = getattr(entry, "issue", None)
+            entry_project_id = issue.project_id if issue else None
+            entry_project_key = str(entry_project_id or "")
+            if entry.identifier == identifier and (
+                not project_supplied or entry_project_key == requested_project_key
+            ):
+                matches.append((entry, issue, entry_project_id))
+        if not project_supplied and len(matches) > 1:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "ambiguous_task_identity",
+                        "message": (
+                            "project_id is required when task identifiers overlap"
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+        for entry, issue, entry_project_id in matches:
+            terminal_audit_summary: dict[str, Any] | None = None
+            if issue is not None:
+                try:
+                    tracker = (
+                        orch._tracker_for_project(entry_project_id)
+                        if entry_project_id
+                        else getattr(orch, "tracker", None)
+                    )
+                    terminal_audit_summary = _issue_terminal_audit_summary(
+                        issue, tracker=tracker
+                    )
+                except Exception:  # noqa: BLE001 – audit read must not break activity
+                    pass
+            payload: dict[str, Any] = {
+                "identifier": identifier,
+                "project_id": entry_project_id,
+                "run_id": getattr(entry, "run_id", None),
+                "profile": entry.agent_profile_name,
+                "provider_name": entry.provider_name,
+                "model_name": entry.model_name,
+                "work_kind": entry.classify_work_kind(),
+                "duplicate_preflight": bool(
+                    getattr(entry, "duplicate_preflight", False)
+                ),
+                "started_at": entry.started_at.isoformat(),
+                "activity": [a.to_dict() for a in entry.activity_log],
+            }
+            if getattr(entry, "is_auditor", False):
+                payload["is_auditor"] = True
+                if getattr(entry, "audit_id", None):
+                    payload["audit_id"] = entry.audit_id
+                if getattr(entry, "audit_attempt_id", None):
+                    payload["audit_attempt_id"] = entry.audit_attempt_id
+            if getattr(entry, "retirement_pending", False):
+                payload["retiring"] = True
+            if terminal_audit_summary is not None:
+                payload["terminal_audit_summary"] = terminal_audit_summary
+            return JSONResponse(payload)
+        return JSONResponse(
+            {
+                "identifier": identifier,
+                "project_id": project_id,
+                "run_id": None,
+                "activity": [],
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -17895,8 +18096,15 @@ async def api_update_project(project_id: str, request: Request):
             if "paused" in fields
             else None
         )
+        tracker_configuration_changed = bool(
+            set(fields) & _PROJECT_TRACKER_CACHE_FIELDS
+        )
         with admission_lock or contextlib.nullcontext():
-            project = orch.project_store.update(project_id, **fields)
+            project = (
+                _update_project_tracker_configuration(orch, project_id, **fields)
+                if tracker_configuration_changed
+                else orch.project_store.update(project_id, **fields)
+            )
         if not project:
             return JSONResponse(
                 {
@@ -17907,8 +18115,7 @@ async def api_update_project(project_id: str, request: Request):
                 },
                 status_code=404,
             )
-        if set(fields) & _PROJECT_TRACKER_CACHE_FIELDS:
-            _invalidate_project_tracker_cache(orch, project_id)
+        if tracker_configuration_changed:
             _api_cache.invalidate("issues:all")
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
@@ -18265,8 +18472,8 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                         else:
                             # Config update happens last, under the lock,
                             # only after remote verification succeeds.
-                            _invalidate_project_tracker_cache(orch, project_id)
-                            orch.project_store.update(
+                            _update_project_tracker_configuration(
+                                orch,
                                 project_id,
                                 state_branch_enabled=True,
                                 state_branch_shadow_write=True,
@@ -18306,8 +18513,8 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                         forge_base_url=forge_base_url,
                     )
                     if result.ok:
-                        _invalidate_project_tracker_cache(orch, project_id)
-                        orch.project_store.update(
+                        _update_project_tracker_configuration(
+                            orch,
                             project_id,
                             state_branch_shadow_write=False,
                             state_branch_migration_stage="B",
@@ -18363,8 +18570,8 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                         forge_base_url=forge_base_url,
                     )
                     if result.ok:
-                        _invalidate_project_tracker_cache(orch, project_id)
-                        orch.project_store.update(
+                        _update_project_tracker_configuration(
+                            orch,
                             project_id,
                             state_branch_enabled=False,
                             state_branch_shadow_write=False,

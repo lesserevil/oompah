@@ -448,6 +448,10 @@ class UniversalTotalityLivenessController:
             raise ValueError(f"decision_limit must be between 1 and {MAX_CONTROLLER_LIMIT}")
         if isinstance(max_attempts, bool) or int(max_attempts) < 1:
             raise ValueError("max_attempts must be positive")
+        if scheduler is not None and scheduler.store is not store:
+            raise ValueError(
+                "controller and scheduler must share one workflow job store"
+            )
         self.store = store
         self.scheduler = scheduler or WorkflowJobScheduler(
             store=store, decision_limit=int(decision_limit), max_attempts=int(max_attempts)
@@ -1031,7 +1035,7 @@ class UniversalTotalityLivenessController:
                     escalations,
                     (
                         reconciliation.truncated
-                        or nonfinal_count > self.decision_limit
+                        or len(decisions) < nonfinal_count
                         or not source_scan_complete
                     ),
                 )
