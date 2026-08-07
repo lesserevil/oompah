@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T07:59:04.416645Z'
+updated_at: '2026-08-07T08:34:15.381264Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -209,6 +209,8 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-07T06:04:20.178475+00:00'
+    selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+    selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
   attempt_history:
   - version: 1
     attempt_id: attempt-2753f2ad908d

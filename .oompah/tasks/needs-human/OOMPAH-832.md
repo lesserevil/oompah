@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T08:33:49.529889Z'
+updated_at: '2026-08-07T08:34:09.395735Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -111,6 +111,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-0fbeacc19e56-1: '2026-08-07T07:10:31.725780+00:00'
+    no-auditor-audit-87e8dfa62ac7-1: '2026-08-07T08:34:00.419181+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-832
@@ -121,6 +122,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T07:10:31.725793+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-832
+    target_state: Merged
+    evidence_fingerprint: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+    audit_ids:
+    - audit-87e8dfa62ac7
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T08:34:00.419195+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-832
@@ -134,6 +144,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:10:31.725810+00:00'
     applied_at: '2026-08-07T07:10:40.006881+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-832
+    audit_id: audit-87e8dfa62ac7
+    attempt_id: no-auditor-audit-87e8dfa62ac7-1
+    target_state: Merged
+    evidence_fingerprint: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+    status: Needs Human
+    audit_ids:
+    - audit-87e8dfa62ac7
+    applied: true
+    created_at: '2026-08-07T08:34:00.419210+00:00'
+    applied_at: '2026-08-07T08:34:06.545072+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -186,7 +208,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-832
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -207,13 +229,27 @@ oompah.terminal_audit:
       branch_key: OOMPAH-832
       ended_at: '2026-08-07T08:33:37.035675+00:00'
       failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: no-auditor-audit-87e8dfa62ac7-1
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T08:34:00.419044+00:00'
+      completed_at: '2026-08-07T08:34:00.419044+00:00'
+      selected_ref: faa217b41a87ed3a1869a4fe38947778a55fe4fe
+      selected_sha: faa217b41a87ed3a1869a4fe38947778a55fe4fe
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T05:09:55.490568+00:00'
-    updated_at: '2026-08-07T07:23:12.286547+00:00'
+    updated_at: '2026-08-07T08:34:00.419044+00:00'
     selected_ref: faa217b41a87ed3a1869a4fe38947778a55fe4fe
     selected_sha: faa217b41a87ed3a1869a4fe38947778a55fe4fe
   attempt_history:
@@ -428,5 +464,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 4s
 - Log: OOMPAH-832__20260807T072323Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:34
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
