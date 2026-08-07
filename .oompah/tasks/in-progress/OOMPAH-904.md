@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-904
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Post-commit worker cleanup failed for OOMPAH-647'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:33:51.824852Z'
-updated_at: '2026-08-07T20:12:37.344859Z'
+updated_at: '2026-08-07T20:12:54.951840Z'
 work_branch: null
 target_branch: null
 review_url: null
