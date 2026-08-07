@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-892
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Publish rebased epic branch through server-owned CAS capability
 parent: OOMPAH-879
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T15:06:41.360982Z'
+updated_at: '2026-08-07T15:07:06.359219Z'
 work_branch: null
 target_branch: null
 review_url: null
