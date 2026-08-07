@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Needs Human
+status: Open
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T07:25:05.788260Z'
+updated_at: '2026-08-07T07:29:49.432213Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -651,5 +651,19 @@ created: 2026-08-07 07:25
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 07:29
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #12)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 605 is merged
+**Evidence head:** `b10b328ed7779cd3c72e7097a77f8ab4e69c1c90`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
