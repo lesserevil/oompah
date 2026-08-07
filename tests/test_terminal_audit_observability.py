@@ -275,6 +275,30 @@ def test_validation_telemetry_never_reclassifies_opaque_pytest_as_focused() -> N
     assert snapshot["validation"]["last_command"]["validation_scope"] == "opaque"
 
 
+def test_orchestrator_forwards_trusted_validation_scope() -> None:
+    recorded: dict[str, object] = {}
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._terminal_audit_metrics = SimpleNamespace(
+        record_auditor_validation_command=lambda *args, **kwargs: recorded.update(
+            {"args": args, "kwargs": kwargs}
+        )
+    )
+    orchestrator.project_store = SimpleNamespace(get=lambda _project_id: None)
+
+    orchestrator.record_auditor_validation_command(
+        audit_target=SimpleNamespace(
+            project_id="project-a",
+            task_id="TASK-1",
+            audit_id="audit-1",
+        ),
+        command="pytest tests/test_warning.py -q",
+        validation_scope="opaque",
+    )
+
+    assert recorded["args"] == ("project-a", "TASK-1", "audit-1")
+    assert recorded["kwargs"]["validation_scope"] == "opaque"
+
+
 def test_validation_command_lifecycle_records_timeout_once_across_restart() -> None:
     persisted: dict = {}
     first = TerminalAuditMetrics(
