@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T12:48:41.280306Z'
+updated_at: '2026-08-07T12:49:38.019338Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -314,7 +314,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: a65df28f-042e-4207-935b-d0c31ae33881
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-577__20260807T083821Z
