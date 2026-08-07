@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T07:21:10.523424Z'
+updated_at: '2026-08-07T07:31:21.230529Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -89,6 +89,45 @@ oompah.review_number: '735'
 oompah.work_branch: OOMPAH-867
 oompah.target_branch: main
 oompah.review_head: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f64e3cfbf518
+    project_id: proj-14849f1b
+    task_id: OOMPAH-867
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T07:31:07.784061+00:00'
+  - version: 1
+    audit_id: audit-a8bca1ec2de3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-867
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T07:31:07.784061+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -423,5 +462,15 @@ author: oompah
 created: 2026-08-07 07:19
 ---
 Branch quality gate passed for `8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae` using `make test` in 653.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 07:31
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 07:31
+---
+YOLO: merged PR #735.
 ---
 <!-- COMMENTS:END -->
