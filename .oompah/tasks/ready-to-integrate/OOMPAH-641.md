@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T10:18:21.349668Z'
+updated_at: '2026-08-07T10:18:30.667160Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: ''
-review_number: '607'
+review_number: ''
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -122,7 +122,7 @@ oompah.integration:
   submitted_at: '2026-08-07T09:12:01.013972+00:00'
   updated_at: '2026-08-07T09:12:01.013972+00:00'
 oompah.review_url: ''
-oompah.review_number: '607'
+oompah.review_number: ''
 oompah.work_branch: OOMPAH-641
 oompah.target_branch: main
 oompah.terminal_audit:
