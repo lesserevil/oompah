@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T09:12:32.473651Z'
+updated_at: '2026-08-07T09:27:19.147720Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -254,5 +254,10 @@ author: oompah
 created: 2026-08-07 09:12
 ---
 Discovery: exact in-process gate interrupts already retry, but durable ValidationResourceLease cancellation can terminate the subprocess without telling BranchQualityGate, so the resulting nonzero exit is misclassified as ci_failure. Lease tombstones also have no cancellation provenance. Separately, retry dispatch’s final pre-start checks do not consult the persisted temporary human-only takeover fence.
+---
+author: oompah
+created: 2026-08-07 09:27
+---
+Implementation: exact validation-lease tombstones now record cancellation actor/reason and quality gates translate durable cancellation into an interrupted/retryable result. Integration persists cancelled_retryable provenance, requeues the identical head without ci-fix, and projects it as a non-actionable retry; real nonzero gates remain ci_failure with diagnostics. Final dispatch status writes now re-check the persisted owner-takeover fence/lease under the project lock.
 ---
 <!-- COMMENTS:END -->
