@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-08-07T02:15:48.415381Z'
+updated_at: '2026-08-07T02:15:57.640755Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -93,8 +93,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-7fa0a1369c2c
-    applied: false
+    applied: true
     created_at: '2026-08-07T02:15:44.484672+00:00'
+    applied_at: '2026-08-07T02:15:54.606360+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -430,5 +431,24 @@ author: oompah
 created: 2026-08-07 01:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 02:15
+---
+Audit PASS — Archived
+
+Epic OOMPAH-586 successfully merged and ready for archive. All 15,757 tests pass (0 failures). All child tasks (OOMPAH-575/593/594/595) confirmed Done. Acceptance criteria met: scoped auth for workers, credential reload, operator health signals, no credential exposure. Code merged to main via commit 36747100a.
+
+Safe evidence:
+- merge_commit: 36747100a4263312f54a7a8130ae39721d750da4
+- merge_message: Merge pull request #597 from lesserevil/epic-OOMPAH-586
+- current_main_ancestor: f2b319c1182cd654112db622a0498171e508dead
+- tests_passed: 15757
+- tests_failed: 0
+- tests_skipped: 7
+- tests_xfailed: 1
+- child_tasks_status: All Done (OOMPAH-575, OOMPAH-593, OOMPAH-594, OOMPAH-595)
+- acceptance_criteria: Scoped auth for workers; credential reload/drift handling; operator health signals; no credential exposure; Makefile gates pass
+- previous_audit: PASS at 2026-07-31 01:22 with 876 focused tests, 0 failures
 ---
 <!-- COMMENTS:END -->
