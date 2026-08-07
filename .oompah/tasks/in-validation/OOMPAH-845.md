@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T05:53:58.068093Z'
+updated_at: '2026-08-07T06:04:33.897246Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -108,6 +108,45 @@ oompah.review_number: '734'
 oompah.work_branch: OOMPAH-845
 oompah.target_branch: main
 oompah.review_head: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0e160a2ced7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T06:04:20.178475+00:00'
+  - version: 1
+    audit_id: audit-e3a217648c00
+    project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T06:04:20.178475+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -386,5 +425,15 @@ author: oompah
 created: 2026-08-07 05:52
 ---
 Branch quality gate passed for `60a701e828d7fb5ebaa878e021639c93b0856cf7` using `make test` in 649.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 06:04
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 06:04
+---
+YOLO: merged PR #734.
 ---
 <!-- COMMENTS:END -->
