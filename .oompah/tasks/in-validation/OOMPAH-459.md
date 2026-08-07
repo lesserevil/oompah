@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:58:50.271574Z'
+updated_at: '2026-08-07T14:58:55.424281Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -707,5 +707,10 @@ author: oompah
 created: 2026-08-07 14:58
 ---
 Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 14:58
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
