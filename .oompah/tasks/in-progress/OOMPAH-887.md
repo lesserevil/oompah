@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:07:57.389641Z'
+updated_at: '2026-08-07T22:37:16.714506Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-07 22:07
 ---
 Direct-owner takeover supersedes the old sequencing note: OOMPAH-877 is complete, but the operator subsequently directed that all remaining nonterminal Oompah work be claimed and implemented directly. Claim 8fc0649fb1b64409baee48fb030929cb is therefore intentionally retained; implementation will proceed in an isolated branch from the current OOMPAH-763 composition, with the OOMPAH-779 exact ancestry topology and stale-generation race covered before handoff.
+---
+author: oompah
+created: 2026-08-07 22:37
+---
+Direct implementation complete on pushed branch OOMPAH-887-direct at exact commit 8bd96dd5389d6d3c13004f27365eb5f080fb8be6 (base 3a1928d6bb7d7b47a48a90a7d0e0a56e147bb96c). Done-child reconciliation now freezes one target/candidate remote advertisement, threads immutable commit IDs through durable, trusted-completion, canonical-mapping, and branch containment proofs, retries once when the generation moves, and revalidates immediately before both Merged and Needs Human mutations. Deterministic coverage includes the OOMPAH-779/OOMPAH-765/OOMPAH-763 topology, exact and patch-equivalent containment, restart from stale refs, both stale escalation and stale promotion movement races, genuine unlanded work, and refresh failure. Evidence: brokered focused suite 122 passed; python compilation and git diff checks passed; make check-secrets passed. Branch is clean and matches origin.
 ---
 <!-- COMMENTS:END -->
