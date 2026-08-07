@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T19:25:02.576960Z'
+updated_at: '2026-08-07T19:32:56.574473Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -194,6 +194,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T11:27:44.396891+00:00'
     applied_at: '2026-08-07T11:27:53.148338+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f939afb569d3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-641
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Retain the previously accepted merged revision: verified source head
+      5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8 is an exact ancestor of current origin/main.
+      Direct takeover changed lifecycle state but introduced no new revision; redundant
+      re-audit is unnecessary.'
+    created_at: '2026-08-07T19:32:52.565394+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
