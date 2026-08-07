@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T14:04:43.156152Z'
-updated_at: '2026-08-07T14:16:00.703821Z'
+updated_at: '2026-08-07T14:17:26.972384Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -90,5 +90,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 29s
 - Log: OOMPAH-897__20260807T140802Z.jsonl
+---
+author: oompah
+created: 2026-08-07 14:17
+---
+Operator recovery: the project was paused and a direct-owner takeover retired the exact scheduler runtime after it rebased the shared epic worktree concurrently with OOMPAH-877 validation repair. Remote epic-OOMPAH-763 remains fenced at ca1c527440734830c17b09b49616c394008258f8; main remains 41b1477682c6460a1bb55356ac44c799c9fa783a. Local post-rebase 78e93dc9, accepted full-gate fix a70fe0bc, and WS stabilization d0081847 are preserved under refs/oompah/recovery. Recovery is proceeding under the direct owner with no push authorized until brokered validation passes. This is recurrence evidence for OOMPAH-879/OOMPAH-891/OOMPAH-892.
 ---
 <!-- COMMENTS:END -->
