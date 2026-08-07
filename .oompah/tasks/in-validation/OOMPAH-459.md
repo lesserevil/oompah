@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T15:04:09.660239Z'
+updated_at: '2026-08-07T15:05:03.985299Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -344,12 +344,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-79e8b0c96641
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+      created_at: '2026-08-07T15:04:53.087387+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T15:04:53.087387+00:00'
+      branch_key: epic-OOMPAH-459
+      selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+      selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     requested_by:
       version: 1
       identity: orchestrator
@@ -357,6 +372,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:28:34.123822+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    updated_at: '2026-08-07T15:04:53.087387+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3ae4bc120dca
@@ -442,6 +458,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: haiku
     started_at: '2026-08-07T14:58:40.688139+00:00'
+    branch_key: epic-OOMPAH-459
+    selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+  - version: 1
+    attempt_id: attempt-79e8b0c96641
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    created_at: '2026-08-07T15:04:53.087387+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T15:04:53.087387+00:00'
     branch_key: epic-OOMPAH-459
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
@@ -776,5 +807,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 16s
 - Log: OOMPAH-459__20260807T145859Z.jsonl
+---
+author: oompah
+created: 2026-08-07 15:04
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 15:05
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
