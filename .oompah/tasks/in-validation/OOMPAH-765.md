@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T13:09:21.347109Z'
+updated_at: '2026-08-07T13:10:03.644245Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -273,7 +273,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5e77c3a4155d
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -286,6 +286,24 @@ oompah.terminal_audit:
       selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
       selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
       candidate_rotation_count: 1
+      ended_at: '2026-08-07T13:09:53.211461+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-865102d62e6c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+      created_at: '2026-08-07T13:10:02.033634+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T13:10:02.033634+00:00'
+      branch_key: epic-OOMPAH-765
+      selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+      selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -294,7 +312,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:39:30.386721+00:00'
     selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
-    updated_at: '2026-08-07T13:01:23.213869+00:00'
+    updated_at: '2026-08-07T13:10:02.033634+00:00'
   - version: 1
     audit_id: audit-0ba79960c14a
     project_id: proj-14849f1b
@@ -361,7 +379,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-5e77c3a4155d
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -374,6 +392,24 @@ oompah.terminal_audit:
     selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     candidate_rotation_count: 1
+    ended_at: '2026-08-07T13:09:53.211461+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-865102d62e6c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    created_at: '2026-08-07T13:10:02.033634+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T13:10:02.033634+00:00'
+    branch_key: epic-OOMPAH-765
+    selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+    selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+    candidate_rotation_count: 2
 ---
 ## Summary
 
