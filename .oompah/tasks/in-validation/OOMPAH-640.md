@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T09:23:54.040339Z'
+updated_at: '2026-08-07T09:24:19.622334Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -811,5 +811,10 @@ author: oompah
 created: 2026-08-07 09:23
 ---
 Owner recovery: PR #608 is merged, exact head 5a5f4867f passed the full branch gate, and the prior Merged owner override already recorded complete evidence after transport exhaustion. The new Needs Human state is a provenance-only re-audit, not unfinished implementation. Restoring Merged; OOMPAH-871 prevents this recurrence.
+---
+author: oompah
+created: 2026-08-07 09:24
+---
+Restore already-merged PR #608 provenance after erroneous terminal re-audit.
 ---
 <!-- COMMENTS:END -->
