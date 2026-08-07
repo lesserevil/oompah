@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T08:11:39.399693Z'
+updated_at: '2026-08-07T08:21:44.287311Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -82,6 +82,45 @@ oompah.review_number: '736'
 oompah.work_branch: OOMPAH-870
 oompah.target_branch: main
 oompah.review_head: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-78d38e3cdbe2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T08:21:30.064281+00:00'
+  - version: 1
+    audit_id: audit-ad075da8086f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T08:21:30.064281+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -181,5 +220,15 @@ author: oompah
 created: 2026-08-07 08:10
 ---
 Branch quality gate passed for `aaaebbfa5152e9942a1decd9ef2d319573ca0493` using `make test` in 647.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 08:21
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 08:21
+---
+YOLO: merged PR #736.
 ---
 <!-- COMMENTS:END -->
