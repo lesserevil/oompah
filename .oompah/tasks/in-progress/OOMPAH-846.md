@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T10:40:26.094270Z'
+updated_at: '2026-08-07T10:41:02.424918Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -303,5 +303,10 @@ author: oompah
 created: 2026-08-07 10:40
 ---
 Additional live bypass at 2026-08-07T10:38Z: while canonical exact-gate owner OOMPAH-854 held the sole validation slot (authority integration:proj-14849f1b:OOMPAH-854:91e76723..., sandbox root PID 3949522), server-managed Codex worker OOMPAH-643 was already running an unleased full make test via scripts/run-tests.sh parallel (pytest PID 3909665, four xdist children 3911165/3911195/3911233/3911290). The broker listed only OOMPAH-854 as owner and OOMPAH-846 as waiter; OOMPAH-643 was absent. Both suites remained live concurrently and OOMPAH-854 workers showed I/O wait. No process was terminated. This confirms the uncovered provider-native full-Make path remains live on deployed c22debc4 and must be fenced before process launch.
+---
+author: oompah
+created: 2026-08-07 10:41
+---
+Second live regression recorded at 2026-08-07 10:34Z: OOMPAH-643's server-managed Codex/luna session launched an unleased full make test below its sandbox: server -> Codex exec -> codex-linux-sandbox -> /bin/bash -c PATH=... /usr/bin/make test -> scripts/run-tests.sh parallel -> pytest -n4 (parent PID 3909665 plus four xdist children). OOMPAH-854 was the sole canonical broker owner; no O643 owner/waiter existed. No process was terminated. The O846 provider-boundary implementation covers this exact form by using the absolute Bash BASH_ENV boundary before it evaluates PATH=/... /usr/bin/make test; contextual classification marks it heavyweight/opaque before the absolute Make child can start. Added an explicit held-gate regression for that exact route in addition to the O577 scripts/run-tests.sh serial path.
 ---
 <!-- COMMENTS:END -->
