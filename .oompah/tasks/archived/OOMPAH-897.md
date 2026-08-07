@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T14:04:43.156152Z'
-updated_at: '2026-08-07T14:55:59.779207Z'
+updated_at: '2026-08-07T14:56:13.061491Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -55,7 +55,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:55:51.161206+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-897
+    target_state: Archived
+    evidence_fingerprint: 03e4171144ade516c6612ce4b3b25d22ec531f0259a061b4ccc34681b6ad4548
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:56:06.841658+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -118,5 +128,12 @@ author: oompah
 created: 2026-08-07 14:17
 ---
 Operator recovery: the project was paused and a direct-owner takeover retired the exact scheduler runtime after it rebased the shared epic worktree concurrently with OOMPAH-877 validation repair. Remote epic-OOMPAH-763 remains fenced at ca1c527440734830c17b09b49616c394008258f8; main remains 41b1477682c6460a1bb55356ac44c799c9fa783a. Local post-rebase 78e93dc9, accepted full-gate fix a70fe0bc, and WS stabilization d0081847 are preserved under refs/oompah/recovery. Recovery is proceeding under the direct owner with no push authorized until brokered validation passes. This is recurrence evidence for OOMPAH-879/OOMPAH-891/OOMPAH-892.
+---
+author: oompah
+created: 2026-08-07 14:56
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
