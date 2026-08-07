@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T19:20:13.208186Z'
+updated_at: '2026-08-07T19:20:21.078883Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -927,5 +927,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 14s
+---
+author: oompah
+created: 2026-08-07 19:20
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-648/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
