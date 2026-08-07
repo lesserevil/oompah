@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T13:45:21.762757Z'
+updated_at: '2026-08-07T13:45:43.018243Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-08-07 13:44
 ---
 Correction: the prior focused pytest invocation was not broker-authorized while the canonical validation lane was occupied. It completed before this correction and must not be treated as validation evidence. No test process from that invocation remains; all further validation is deferred to the brokered lease.
+---
+author: oompah
+created: 2026-08-07 13:45
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->

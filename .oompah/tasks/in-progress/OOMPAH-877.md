@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T12:40:08.853171Z'
+updated_at: '2026-08-07T13:45:45.343197Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-08-07 12:40
 ---
 Validation/publish incident: the authorized rebase reached ca1c52744 locally, but its 908-test focused semantic suite later reported 3 failures. Before that result, duplicate OOMPAH-884 discovered the local shared-worktree head and force-pushed it with generic --force-with-lease, bypassing the operator's exact-CAS/no-push hold. O884 is now returned to In Progress and direct-owner fenced. O877 is rebasing the exposed head onto latest main and repairing the failures before any further exact-CAS push; O879 includes this sixth recurrence and generic-push bypass regression.
+---
+author: oompah
+created: 2026-08-07 13:45
+---
+Full-gate follow-up separated as OOMPAH-894: exact repeated owner rearm of an unbound auto-archive audit currently returns audit_not_retryable because coalescing conflates retained transition provenance with rearm authorization identity. O877 remains scoped to the four actual gate failures; O894 preserves truthful auto_archive provenance while making repeated exact rearm idempotent.
 ---
 <!-- COMMENTS:END -->
