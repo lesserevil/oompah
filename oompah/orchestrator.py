@@ -293,6 +293,8 @@ from oompah.task_handoff import (
     TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
     TaskHandoffFence,
+    OperationPermitDenied,
+    acquire_task_handoff_permit,
     consume_task_handoff_failure,
     issue_task_handoff_token,
     revoke_task_handoff_token,
@@ -23215,12 +23217,39 @@ class Orchestrator:
             return False
         target_epic = epic_identifier or parent_id
         try:
-            epic_branch = self.project_store.epic_branch_name(target_epic).lower()
+            configured_epic_branch = self.project_store.epic_branch_name(target_epic)
         except Exception:  # noqa: BLE001 - fallback only affects classification
+            configured_epic_branch = None
+        if (
+            isinstance(configured_epic_branch, str)
+            and configured_epic_branch.strip()
+        ):
+            epic_branch = configured_epic_branch.strip().lower()
+        else:
             epic_branch = f"epic-{target_epic}".lower()
         return is_direct_epic_maintenance_issue(issue) and epic_branch in (
             issue.title or ""
         ).strip().lower()
+
+    def _has_epic_rebase_publish_authority(self, issue: Issue) -> bool:
+        """Return whether this exact task owns server-issued publish scope."""
+        if not self._is_epic_rebase_task(issue):
+            return False
+        project_id = str(getattr(issue, "project_id", "") or "").strip()
+        parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+        task_id = self._epic_rebase_authority_task_id(issue)
+        if not project_id or not parent_id or not task_id:
+            return False
+        with self._epic_rebase_authority_lock:
+            entry = self._epic_rebase_authorities.get(
+                self._epic_rebase_authority_key(project_id, parent_id)
+            )
+            return bool(
+                entry is not None
+                and entry.authority_task_id == task_id
+                and entry.authority_generation
+                and entry.authority_epic_head
+            )
 
     @staticmethod
     def _isolated_cli_provider_auth_kind(command: str) -> str:
@@ -23457,13 +23486,16 @@ class Orchestrator:
         heads: dict[str, str] = {}
         if isinstance(repo_path, str) and repo_path:
             try:
+                remote_name = self.project_store.canonical_remote_name(
+                    str(project_id or "")
+                )
                 result = self._run_project_network_git(
                     project,
                     [
                         "git",
                         "ls-remote",
                         "--heads",
-                        "origin",
+                        remote_name,
                         f"refs/heads/{epic_branch}",
                         f"refs/heads/{target_branch}",
                     ],
@@ -23521,6 +23553,40 @@ class Orchestrator:
         old = self._epic_rebase_authorities.get(authority_key)
         state_entry = self._epic_rebase_states.get(epic.identifier)
         task_id = self._epic_rebase_authority_task_id(task) if task else None
+        same_publish_authority = bool(
+            old is not None
+            and old.authority_generation == generation
+            and old.authority_task_id == task_id
+        )
+        preserve_publish = bool(
+            same_publish_authority
+            and old is not None
+            and (
+                not old.authority_publish_state
+                or self._epic_rebase_publish_evidence_is_exact(
+                    old,
+                    str(old.authority_publish_candidate or ""),
+                )
+            )
+        )
+        finalize_lost_publish = bool(
+            old is not None
+            and task is not None
+            and old.authority_task_id == task_id
+            and old.authority_publish_candidate == epic_head
+            and self._epic_rebase_publish_evidence_is_exact(
+                old,
+                str(old.authority_publish_candidate or ""),
+            )
+            and target_head
+            and self._epic_rebase_publish_evidence_matches_workspace(
+                task,
+                epic,
+                old.authority_publish_candidate or "",
+                target_head or "",
+            )
+        )
+        preserve_publish = preserve_publish or finalize_lost_publish
         entry = EpicRebaseStateEntry(
             state=(
                 state_entry.state
@@ -23547,6 +23613,30 @@ class Orchestrator:
             authority_creation_reserved=task is None,
             authority_creation_marker=self._epic_rebase_creation_marker(
                 epic.project_id, epic.identifier, generation
+            ),
+            authority_publish_state=(
+                "published"
+                if finalize_lost_publish
+                else old.authority_publish_state if preserve_publish and old else ""
+            ),
+            authority_publish_candidate=(
+                old.authority_publish_candidate if preserve_publish and old else None
+            ),
+            authority_publish_lease_head=(
+                old.authority_publish_lease_head if preserve_publish and old else None
+            ),
+            authority_publish_target_head=(
+                old.authority_publish_target_head if preserve_publish and old else None
+            ),
+            authority_publish_remote_head=(
+                epic_head
+                if finalize_lost_publish
+                else old.authority_publish_remote_head if preserve_publish and old else None
+            ),
+            authority_publish_verified_at=(
+                time.time()
+                if finalize_lost_publish
+                else old.authority_publish_verified_at if preserve_publish and old else 0.0
             ),
         )
         self._epic_rebase_authorities[authority_key] = entry
@@ -28946,6 +29036,7 @@ class Orchestrator:
         *,
         cwd: str,
         timeout: float,
+        canonical_remote_url: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run a managed network Git command with project-scoped credentials."""
         token = getattr(project, "access_token", None)
@@ -28954,9 +29045,48 @@ class Orchestrator:
             token = None
         if not isinstance(forge_kind, str):
             forge_kind = "github"
+        # Keep transport conveniences such as proxy/CA variables, but strip
+        # every ambient Git control before adding server-issued overrides.
+        # The worker never controls the service environment, and this also
+        # prevents an operator shell's stale GIT_DIR/GIT_CONFIG_* settings
+        # from changing the privileged command's repository or behavior.
+        base_env = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("GIT_")
+            and key not in {"SSH_ASKPASS", "LD_PRELOAD"}
+        }
+        base_env.update(
+            {
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": os.devnull,
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_SSH_COMMAND": "ssh -F /dev/null -oBatchMode=yes",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+            }
+        )
+        config: list[tuple[str, str]] = [
+            ("core.hooksPath", os.devnull),
+            ("credential.helper", ""),
+            ("protocol.ext.allow", "never"),
+            ("core.sshCommand", "ssh -F /dev/null -oBatchMode=yes"),
+        ]
+        if canonical_remote_url is not None:
+            config.extend(
+                [
+                    ("remote.origin.url", canonical_remote_url),
+                    ("remote.origin.pushurl", canonical_remote_url),
+                ]
+            )
+        base_env["GIT_CONFIG_COUNT"] = str(len(config))
+        for index, (key, value) in enumerate(config):
+            base_env[f"GIT_CONFIG_KEY_{index}"] = key
+            base_env[f"GIT_CONFIG_VALUE_{index}"] = value
         with git_credential_environment(
             forge_kind=forge_kind,
             access_token=token,
+            base_env=base_env,
         ) as env:
             result = subprocess.run(
                 args,
@@ -30067,21 +30197,14 @@ class Orchestrator:
             if reservation is None:
                 return None
             title = f"Rebase {epic_branch} onto {target_branch}"
-            if epic_head:
-                push_instruction = (
-                    "Push only with the exact remote compare-and-swap command "
-                    f"`git push --force-with-lease=refs/heads/{epic_branch}:"
-                    f"{epic_head} origin HEAD:refs/heads/{epic_branch}`."
-                )
-            else:
-                push_instruction = (
-                    f"Resolve the exact `refs/heads/{epic_branch}` SHA from "
-                    "origin immediately before pushing, then use only "
-                    "`git push --force-with-lease=refs/heads/"
-                    f"{epic_branch}:<exact-sha> origin HEAD:refs/heads/"
-                    f"{epic_branch}`. Bare `--force` or "
-                    "`--force-with-lease` is not authorized."
-                )
+            push_instruction = (
+                "Do not run `git push` or any other remote-mutating command. "
+                "After committing the rebased result, call the dedicated "
+                "`publish_epic_rebase(candidate=<full-lowercase-sha>)` tool "
+                "to publish the exact shared-worktree HEAD. "
+                "The server owns the remote, refs, lease, credentials, and "
+                "compare-and-swap argv."
+            )
             description = (
                 f"The epic branch `{epic_branch}` is stale: it has fallen "
                 f"behind `{target_branch}`. Rebase the branch onto "
@@ -42999,11 +43122,24 @@ class Orchestrator:
         if self._is_epic_rebase_task(issue):
             policy = replace(
                 policy,
-                shell_authority_check=(
-                    lambda command: self._epic_rebase_push_denial(issue, command)
+                allowed_actions=frozenset(
+                    action
+                    for action in policy.allowed_actions
+                    if action != ProtectedAction.GIT_PUSH
                 ),
+                shell_authority_check=self._epic_rebase_remote_shell_denial,
             )
         return policy
+
+    @staticmethod
+    def _epic_rebase_remote_shell_denial(_command: str) -> str:
+        """Keep every epic rebase remote mutation in the server process."""
+        return (
+            "Error: epic rebase workers cannot push through shell commands; "
+            "use the `publish_epic_rebase` tool so the server can verify and "
+            "execute the exact compare-and-swap "
+            "[reason=epic_rebase_server_publish_required]"
+        )
 
     @staticmethod
     def _epic_rebase_push_command_denial(
@@ -43066,6 +43202,603 @@ class Orchestrator:
         except (OSError, subprocess.TimeoutExpired):
             return False
         return result.returncode == 0
+
+    def _persist_epic_rebase_publish_evidence(
+        self,
+        *,
+        project_id: str,
+        epic_identifier: str,
+        entry: EpicRebaseStateEntry,
+        state: str,
+        candidate: str,
+        lease_head: str,
+        target_head: str,
+        remote_head: str | None,
+    ) -> bool:
+        """Durably advance the server-owned two-phase publish record.
+
+        Callers hold the rebase-authority lock.  Restore the complete prior
+        entry when persistence fails so memory never advertises evidence that
+        did not reach the restart boundary.
+        """
+        key = self._epic_rebase_authority_key(project_id, epic_identifier)
+        current = self._epic_rebase_authorities.get(key)
+        if current is not entry:
+            return False
+        prior = replace(entry)
+        entry.authority_publish_state = state
+        entry.authority_publish_candidate = candidate
+        entry.authority_publish_lease_head = lease_head
+        entry.authority_publish_target_head = target_head
+        entry.authority_publish_remote_head = remote_head
+        entry.authority_publish_verified_at = time.time() if remote_head else 0.0
+        entry.updated_at = time.time()
+        if self._persist_epic_rebase_authorities():
+            return True
+        self._epic_rebase_authorities[key] = prior
+        return False
+
+    @staticmethod
+    def _epic_rebase_publish_evidence_is_exact(
+        entry: EpicRebaseStateEntry,
+        candidate: str,
+    ) -> bool:
+        """Validate the complete durable identity of one publish phase."""
+        full_sha = r"(?:[0-9a-f]{40}|[0-9a-f]{64})"
+        identity_matches = bool(
+            re.fullmatch(full_sha, candidate)
+            and entry.authority_publish_candidate == candidate
+            and re.fullmatch(
+                full_sha,
+                str(entry.authority_publish_lease_head or ""),
+            )
+            and re.fullmatch(
+                full_sha,
+                str(entry.authority_publish_target_head or ""),
+            )
+        )
+        if not identity_matches:
+            return False
+        if entry.authority_publish_state == "prepared":
+            return (
+                entry.authority_publish_remote_head is None
+                and entry.authority_publish_verified_at == 0
+            )
+        if entry.authority_publish_state == "published":
+            return bool(
+                entry.authority_publish_remote_head == candidate
+                and entry.authority_publish_verified_at > 0
+            )
+        return False
+
+    @staticmethod
+    def _epic_rebase_publish_trusted_repo(project: Any) -> str:
+        """Resolve the operator-managed checkout used for privileged Git."""
+        raw = getattr(project, "repo_path", None)
+        if not isinstance(raw, str) or not raw.strip() or not os.path.isabs(raw):
+            raise ProjectError(
+                "Trusted managed project checkout is unavailable "
+                "[reason=epic_rebase_publish_trusted_repo_missing]"
+            )
+        try:
+            resolved = str(Path(raw).resolve(strict=True))
+        except (OSError, RuntimeError):
+            resolved = ""
+        if not resolved or not os.path.isdir(resolved):
+            raise ProjectError(
+                "Trusted managed project checkout is unavailable "
+                "[reason=epic_rebase_publish_trusted_repo_missing]"
+            )
+        return resolved
+
+    @staticmethod
+    def _epic_rebase_publish_local_git(
+        workspace: str,
+        args: list[str],
+    ) -> subprocess.CompletedProcess[str]:
+        """Run one fixed, replacement-free local Git inspection.
+
+        Rebase workers can write the shared object/ref database.  In
+        particular they must not be able to forge ancestry through
+        ``refs/replace`` or inject process-level Git configuration.  The only
+        inspection run against the worker checkout is its exact HEAD read;
+        object and ancestry checks use the trusted project checkout.
+        """
+        safe_env = {
+            "PATH": os.environ.get("PATH", os.defpath),
+            "HOME": os.devnull,
+            "LC_ALL": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_ASKPASS": "/bin/false",
+            "GIT_SSH_COMMAND": "/bin/false",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+        }
+        try:
+            return subprocess.run(
+                ["git", "--no-replace-objects", *args],
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+                env=safe_env,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                "Could not inspect the locked epic rebase worktree "
+                "[reason=epic_rebase_publish_local_git_failed]"
+            ) from exc
+
+    def _epic_rebase_publish_evidence_matches_workspace(
+        self,
+        task: Issue,
+        epic: Issue,
+        candidate: str,
+        target_head: str,
+    ) -> bool:
+        """Prove durable publish evidence still names this locked checkout."""
+        if (
+            not task.project_id
+            or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", candidate) is None
+            or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", target_head) is None
+        ):
+            return False
+        try:
+            project = self.project_store.get(task.project_id)
+            trusted_repo = self._epic_rebase_publish_trusted_repo(project)
+            workspace = self.project_store.epic_worktree_path_for(
+                task.project_id,
+                epic.identifier,
+            )
+            if (
+                not isinstance(workspace, str)
+                or not os.path.isdir(workspace)
+            ):
+                return False
+            head = self._epic_rebase_publish_local_git(
+                workspace,
+                ["rev-parse", "--verify", "HEAD^{commit}"],
+            )
+            if head.returncode != 0 or head.stdout.strip().lower() != candidate:
+                return False
+            candidate_object = self._epic_rebase_publish_local_git(
+                trusted_repo,
+                ["rev-parse", "--verify", f"{candidate}^{{commit}}"],
+            )
+            if (
+                candidate_object.returncode != 0
+                or candidate_object.stdout.strip().lower() != candidate
+            ):
+                return False
+            contains_target = self._epic_rebase_publish_local_git(
+                trusted_repo,
+                ["merge-base", "--is-ancestor", target_head, candidate],
+            )
+            return contains_target.returncode == 0
+        except Exception:  # noqa: BLE001 - recovery evidence fails closed
+            return False
+
+    def publish_epic_rebase_candidate(
+        self,
+        project_id: str,
+        task_identifier: str,
+        candidate: str,
+    ) -> dict[str, Any]:
+        """Publish one exact helper candidate through server-owned Git.
+
+        The caller controls only the scoped project/task identity and a full
+        commit object ID.  Remote name, refs, lease, argv, cwd, credentials,
+        and recovery identity are all derived under the canonical authority
+        and project locks.  The authority lock is deliberately outermost: the
+        existing rebase reconciliation paths already use authority -> project
+        ordering when they retire duplicate or wrong-target helpers.
+        """
+        project_id = str(project_id or "").strip()
+        task_identifier = str(task_identifier or "").strip()
+        candidate = str(candidate or "").strip()
+        if not project_id or not task_identifier:
+            raise ValueError("project_id and task identifier are required")
+        if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", candidate) is None:
+            raise ValueError("candidate must be a full lowercase commit object ID")
+
+        # The authority transaction is global today, so the helper identity is
+        # sufficient until the parent epic is re-resolved inside both locks.
+        with self._epic_rebase_authority_transaction(
+            project_id,
+            task_identifier,
+        ):
+            with self.project_store.project_write_lock(project_id):
+                project = self.project_store.get(project_id)
+                if project is None:
+                    raise ProjectError(
+                        "Managed project is unavailable "
+                        "[reason=epic_rebase_publish_project_missing]"
+                    )
+                trusted_repo = self._epic_rebase_publish_trusted_repo(project)
+                tracker = self._tracker_for_project(project_id)
+                issue = tracker.fetch_issue_detail(task_identifier)
+                if issue is None or str(issue.project_id or "") != project_id:
+                    raise ProjectError(
+                        "Scoped epic rebase helper is unavailable "
+                        "[reason=epic_rebase_publish_task_missing]"
+                    )
+                if not self._is_epic_rebase_task(issue):
+                    raise ProjectError(
+                        "Task is not an epic rebase helper "
+                        "[reason=epic_rebase_publish_wrong_task_kind]"
+                    )
+                parent = self._resolve_parent_epic(issue, fail_closed=True)
+                if parent is None:
+                    raise ProjectError(
+                        "Epic rebase parent cannot be resolved "
+                        "[reason=epic_rebase_publish_parent_missing]"
+                    )
+
+                epic_branch = self.project_store.epic_branch_name(parent.identifier)
+                target_branch = self._resolve_epic_target_branch(parent, project)
+                remote_name = self.project_store.canonical_remote_name(project_id)
+                remote_url = self.project_store.canonical_remote_url(project_id)
+                if (
+                    not isinstance(remote_name, str)
+                    or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", remote_name)
+                    is None
+                ):
+                    raise ProjectError(
+                        "Canonical project remote is invalid "
+                        "[reason=epic_rebase_publish_remote_invalid]"
+                    )
+                if not isinstance(remote_url, str) or not remote_url.strip():
+                    raise ProjectError(
+                        "Canonical project remote URL is invalid "
+                        "[reason=epic_rebase_publish_remote_invalid]"
+                    )
+                workspace = self.project_store.epic_worktree_path_for(
+                    project_id,
+                    parent.identifier,
+                )
+                if not isinstance(workspace, str) or not os.path.isdir(workspace):
+                    raise ProjectError(
+                        "Shared epic rebase worktree is unavailable "
+                        "[reason=epic_rebase_publish_workspace_missing]"
+                    )
+
+                candidate_object = self._epic_rebase_publish_local_git(
+                    trusted_repo,
+                    ["rev-parse", "--verify", f"{candidate}^{{commit}}"],
+                )
+                if (
+                    candidate_object.returncode != 0
+                    or candidate_object.stdout.strip().lower() != candidate
+                ):
+                    raise ProjectError(
+                        "Candidate does not resolve to the exact commit object "
+                        "[reason=epic_rebase_publish_candidate_invalid]"
+                    )
+                locked_head = self._epic_rebase_publish_local_git(
+                    workspace,
+                    ["rev-parse", "--verify", "HEAD^{commit}"],
+                )
+                if (
+                    locked_head.returncode != 0
+                    or locked_head.stdout.strip().lower() != candidate
+                ):
+                    raise ProjectError(
+                        "Candidate is not the locked shared-worktree HEAD "
+                        "[reason=epic_rebase_publish_candidate_tampered]"
+                    )
+
+                observed = self._observe_epic_rebase_generation(
+                    project_id=project_id,
+                    epic_identifier=parent.identifier,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    require_remote=True,
+                )
+                if observed is None:
+                    raise ProjectError(
+                        "Remote rebase generation cannot be resolved "
+                        "[reason=epic_rebase_generation_unresolved]"
+                    )
+                generation, remote_epic_head, target_head = observed
+                assert remote_epic_head is not None and target_head is not None
+                entry = self._epic_rebase_authority_entry(
+                    project_id,
+                    parent.identifier,
+                )
+                task_id = self._epic_rebase_authority_task_id(issue)
+                if entry is None or entry.authority_task_id != task_id:
+                    raise ProjectError(
+                        "Task does not own epic rebase publication authority "
+                        "[reason=epic_rebase_publish_authority_revoked]"
+                    )
+
+                contains_target = self._epic_rebase_publish_local_git(
+                    trusted_repo,
+                    ["merge-base", "--is-ancestor", target_head, candidate],
+                )
+                if contains_target.returncode != 0:
+                    raise ProjectError(
+                        "Candidate does not contain the current target head "
+                        "[reason=epic_rebase_target_not_ancestor]"
+                    )
+
+                # A prepared request whose remote already names the candidate
+                # is the only idempotent lost-response recovery path.  Exact
+                # durable task/candidate/lease evidence prevents an unrelated
+                # remote update from being mistaken for our publication.
+                evidence_matches = self._epic_rebase_publish_evidence_is_exact(
+                    entry,
+                    candidate,
+                )
+                if remote_epic_head == candidate and evidence_matches:
+                    if entry.authority_publish_state == "prepared":
+                        recovery_helpers = self._active_epic_rebase_siblings(
+                            tracker,
+                            parent,
+                            target_branch=target_branch,
+                        )
+                        recovery_winner = self._select_epic_rebase_authority(
+                            project_id,
+                            parent.identifier,
+                            recovery_helpers,
+                        )
+                        if (
+                            recovery_winner is None
+                            or self._epic_rebase_authority_task_id(recovery_winner)
+                            != task_id
+                        ):
+                            raise ProjectError(
+                                "Prepared publication no longer has active authority "
+                                "[reason=epic_rebase_publish_authority_revoked]"
+                            )
+                    if not self._persist_epic_rebase_publish_evidence(
+                        project_id=project_id,
+                        epic_identifier=parent.identifier,
+                        entry=entry,
+                        state="published",
+                        candidate=candidate,
+                        lease_head=entry.authority_publish_lease_head or "",
+                        target_head=target_head,
+                        remote_head=candidate,
+                    ):
+                        raise ProjectError(
+                            "Published outcome could not be persisted "
+                            "[reason=epic_rebase_publish_evidence_persist_failed]"
+                        )
+                    return {
+                        "published": True,
+                        "recovered": True,
+                        "candidate": candidate,
+                    }
+
+                if entry.authority_publish_state == "published":
+                    raise ProjectError(
+                        "A completed publication was subsequently revoked "
+                        "[reason=epic_rebase_publish_remote_changed]"
+                    )
+                if (
+                    entry.authority_publish_state == "prepared"
+                    and entry.authority_publish_candidate == candidate
+                    and remote_epic_head
+                    not in {candidate, entry.authority_publish_lease_head}
+                ):
+                    raise ProjectError(
+                        "Remote epic head changed outside the prepared lease "
+                        "[reason=epic_rebase_publish_cas_race]"
+                    )
+                if (
+                    entry.authority_generation != generation
+                    or entry.authority_epic_head != remote_epic_head
+                ):
+                    raise ProjectError(
+                        "Epic rebase generation is no longer current "
+                        "[reason=epic_rebase_generation_stale]"
+                    )
+                if entry.authority_publish_state == "prepared" and (
+                    entry.authority_publish_candidate != candidate
+                    or entry.authority_publish_lease_head != remote_epic_head
+                ):
+                    raise ProjectError(
+                        "Prepared publication evidence does not match this request "
+                        "[reason=epic_rebase_publish_evidence_mismatch]"
+                    )
+
+                helpers = self._active_epic_rebase_siblings(
+                    tracker,
+                    parent,
+                    target_branch=target_branch,
+                )
+                winner = self._select_epic_rebase_authority(
+                    project_id,
+                    parent.identifier,
+                    helpers,
+                )
+                if (
+                    winner is None
+                    or self._epic_rebase_authority_task_id(winner) != task_id
+                ):
+                    raise ProjectError(
+                        "Another helper owns the current rebase generation "
+                        "[reason=epic_rebase_duplicate_authority]"
+                    )
+
+                if not self._persist_epic_rebase_publish_evidence(
+                    project_id=project_id,
+                    epic_identifier=parent.identifier,
+                    entry=entry,
+                    state="prepared",
+                    candidate=candidate,
+                    lease_head=remote_epic_head,
+                    target_head=target_head,
+                    remote_head=None,
+                ):
+                    raise ProjectError(
+                        "Publication intent could not be persisted "
+                        "[reason=epic_rebase_publish_evidence_persist_failed]"
+                    )
+
+                # This is the sole remote mutation edge.  Every argument is
+                # server-issued; the worker cannot select a remote, refspec,
+                # lease, cwd, executable, environment, or idempotency key.
+                push_argv = [
+                    "git",
+                    "--no-replace-objects",
+                    "push",
+                    (
+                        "--force-with-lease="
+                        f"refs/heads/{epic_branch}:{remote_epic_head}"
+                    ),
+                    remote_name,
+                    f"{candidate}:refs/heads/{epic_branch}",
+                ]
+                push = self._run_project_network_git(
+                    project,
+                    push_argv,
+                    # Resolve the server-owned ``origin`` only through the
+                    # trusted project checkout. The worker-writable linked
+                    # worktree may contain config.worktree, pushurl, helper,
+                    # or sshCommand injection and is never a privileged
+                    # network-Git cwd.
+                    cwd=trusted_repo,
+                    timeout=60,
+                    canonical_remote_url=remote_url,
+                )
+                after = self._observe_epic_rebase_generation(
+                    project_id=project_id,
+                    epic_identifier=parent.identifier,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    require_remote=True,
+                )
+                after_epic_head = after[1] if after is not None else None
+                after_target_head = after[2] if after is not None else None
+                if after_epic_head != candidate:
+                    reason = (
+                        "epic_rebase_publish_cas_race"
+                        if after_epic_head not in {None, remote_epic_head}
+                        else "epic_rebase_publish_remote_unverified"
+                    )
+                    raise ProjectError(
+                        "Server-owned rebase publication did not verify "
+                        f"[reason={reason}]"
+                    )
+                if after_target_head is None:
+                    raise ProjectError(
+                        "Post-publication target head could not be verified "
+                        "[reason=epic_rebase_publish_remote_unverified]"
+                    )
+                if after_target_head != target_head:
+                    contains_after_target = self._epic_rebase_publish_local_git(
+                        trusted_repo,
+                        [
+                            "merge-base",
+                            "--is-ancestor",
+                            after_target_head,
+                            candidate,
+                        ],
+                    )
+                    if contains_after_target.returncode != 0:
+                        raise ProjectError(
+                            "Target advanced during epic rebase publication "
+                            "[reason=epic_rebase_target_advanced_during_publish]"
+                        )
+                    target_head = after_target_head
+                if not self._persist_epic_rebase_publish_evidence(
+                    project_id=project_id,
+                    epic_identifier=parent.identifier,
+                    entry=entry,
+                    state="published",
+                    candidate=candidate,
+                    lease_head=remote_epic_head,
+                    target_head=target_head,
+                    remote_head=candidate,
+                ):
+                    raise ProjectError(
+                        "Published outcome could not be persisted "
+                        "[reason=epic_rebase_publish_evidence_persist_failed]"
+                    )
+                return {
+                    "published": True,
+                    # A failed/unknown push response with the exact remote
+                    # outcome is successful lost-response recovery.
+                    "recovered": push.returncode != 0,
+                    "candidate": candidate,
+                }
+
+    def publish_worker_epic_rebase_candidate(
+        self,
+        project_id: str,
+        task_identifier: str,
+        candidate: str,
+    ) -> dict[str, Any]:
+        """Bridge an in-process agent tool through its server-owned permit.
+
+        Isolated worker shells never receive the bearer token.  The running
+        entry retains it inside the scheduler, allowing this callback to
+        acquire the same exact project/task/action permit as the HTTP handoff
+        route immediately before entering the publish critical section.
+        """
+        project_id = str(project_id or "").strip()
+        task_identifier = str(task_identifier or "").strip()
+        with self._retry_authority_lock:
+            matches = [
+                entry
+                for entry in self.state.running.values()
+                if entry.identifier == task_identifier
+                and str(getattr(entry.issue, "project_id", "") or "") == project_id
+            ]
+            if len(matches) != 1:
+                raise ProjectError(
+                    "Current worker publication authority is unavailable "
+                    "[reason=epic_rebase_publish_authority_revoked]"
+                )
+            running_entry = matches[0]
+            if bool(getattr(running_entry, "authority_revoked", False)):
+                raise ProjectError(
+                    "Current worker publication authority is unavailable "
+                    "[reason=epic_rebase_publish_authority_revoked]"
+                )
+            token = getattr(running_entry, "task_handoff_token", None)
+            permit = acquire_task_handoff_permit(
+                token,
+                project_id=project_id,
+                task_identifier=task_identifier,
+                action="publish-epic-rebase",
+            )
+        if permit is None:
+            raise ProjectError(
+                "Current worker publication capability is unavailable "
+                "[reason=epic_rebase_publish_capability_revoked]"
+            )
+        try:
+            permit.begin()
+        except OperationPermitDenied as exc:
+            raise ProjectError(
+                "Current worker publication capability was revoked "
+                "[reason=epic_rebase_publish_capability_revoked]"
+            ) from exc
+        try:
+            with self._retry_authority_lock:
+                current = self.state.running.get(running_entry.issue.id)
+                if (
+                    current is not running_entry
+                    or current.task_handoff_token != token
+                    or bool(getattr(current, "authority_revoked", False))
+                ):
+                    raise ProjectError(
+                        "Current worker publication authority changed "
+                        "[reason=epic_rebase_publish_authority_revoked]"
+                    )
+            return self.publish_epic_rebase_candidate(
+                project_id,
+                task_identifier,
+                candidate,
+            )
+        finally:
+            permit.end()
 
     def _epic_rebase_push_denial(
         self,
@@ -43192,14 +43925,16 @@ class Orchestrator:
         return None
 
     def _issue_task_handoff_token(self, issue: Issue) -> str | None:
-        """Mint and start a subprocess-only capability lease.
+        """Mint and start a server-owned worker capability lease.
 
         The lease is owned by this dispatch instance, not by a bearer token
         alone. It renews the server-owned grant while the worker is running,
         including intervals with no tracker traffic. Termination paths revoke
         the token after process-tree cleanup completes.
 
-        When called before ``state.running`` has an entry for the issue (for
+        Isolated in-process API/ACP tools consume the grant through the
+        orchestrator bridge without placing its bearer token in the worker
+        shell. When called before ``state.running`` has an entry (for
         example, from direct-mint call sites in tests), the token is still
         minted for scope-testing purposes but no lease is started; the grant
         will then expire naturally at its wall-clock TTL.
@@ -43209,21 +43944,24 @@ class Orchestrator:
         owner_id = f"{self._service_instance_id}:{issue.id}:{uuid.uuid4().hex}"
         token: str | None = None
         try:
+            allowed_actions = {
+                "view",
+                "comment",
+                "set-status",
+                "submit",
+                "coordination-peers",
+                "coordination-inbox",
+                "coordination-send",
+                "coordination-checkpoint",
+                "add-label",
+                "remove-label",
+            }
+            if self._has_epic_rebase_publish_authority(issue):
+                allowed_actions.add("publish-epic-rebase")
             token = issue_task_handoff_token(
                 project_id=issue.project_id,
                 task_identifier=issue.identifier,
-                allowed_actions={
-                    "view",
-                    "comment",
-                    "set-status",
-                    "submit",
-                    "coordination-peers",
-                    "coordination-inbox",
-                    "coordination-send",
-                    "coordination-checkpoint",
-                    "add-label",
-                    "remove-label",
-                },
+                allowed_actions=allowed_actions,
                 owner_id=owner_id,
             )
             record_worker_token_minted()
@@ -44881,6 +45619,11 @@ class Orchestrator:
                 ),
                 project_store=self.project_store,
                 submission_handler=_api_submission_handler,
+                publish_rebase_handler=(
+                    self.publish_worker_epic_rebase_candidate
+                    if self._has_epic_rebase_publish_authority(issue)
+                    else None
+                ),
                 before_transport_contact=lambda: self._begin_provider_contact(
                     issue,
                     run_id,
@@ -45625,6 +46368,9 @@ class Orchestrator:
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 isolate_remote_write=self._is_epic_rebase_task(issue),
+                epic_rebase_publish_enabled=(
+                    self._has_epic_rebase_publish_authority(issue)
+                ),
                 tool_liveness=(
                     self.state.running[issue.id].session.tool_liveness
                     if issue.id in self.state.running

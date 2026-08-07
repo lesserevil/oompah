@@ -422,6 +422,288 @@ def test_opencode_mcp_run_command_uses_rebase_credential_boundary(
     _assert_mcp_shell_is_isolated(result["content"][0]["text"])
 
 
+def test_publish_tool_binds_current_project_and_task_without_shell_token(
+    tmp_path, monkeypatch
+):
+    def fake_tool(name, description, schema):
+        del description, schema
+
+        def decorate(handler):
+            handler.name = name
+            handler.handler = handler
+            return handler
+
+        return decorate
+
+    calls = []
+
+    class Coordinator:
+        def publish_worker_epic_rebase_candidate(
+            self, project_id, task_identifier, candidate
+        ):
+            calls.append((project_id, task_identifier, candidate))
+            return {"published": True, "candidate": candidate}
+
+    monkeypatch.setitem(sys.modules, "opencode", types.SimpleNamespace(tool=fake_tool))
+    monkeypatch.delenv("OOMPAH_TASK_HANDOFF_TOKEN", raising=False)
+    candidate = "a" * 40
+
+    from oompah.acp_tools import build_opencode_tool_catalog
+
+    catalog = build_opencode_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=Coordinator(),
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=True,
+    )
+    publish = next(item for item in catalog if item.name == "publish_epic_rebase")
+    rejected = asyncio.run(
+        publish.handler({"candidate": candidate, "remote": "attacker"})
+    )
+    result = asyncio.run(publish.handler({"candidate": candidate}))
+
+    assert rejected["content"][0]["text"] == (
+        "Error: publish_epic_rebase accepts only candidate"
+    )
+    assert calls == [("project-bound", "REBASE-BOUND", candidate)]
+    assert result["content"][0]["text"] == (
+        '{"candidate": "' + candidate + '", "published": true}'
+    )
+    assert "OOMPAH_TASK_HANDOFF_TOKEN" not in os.environ
+
+
+def test_publish_tool_is_not_advertised_without_exact_session_authority(
+    tmp_path, monkeypatch
+):
+    def fake_tool(name, description, schema):
+        del description, schema
+
+        def decorate(handler):
+            handler.name = name
+            return handler
+
+        return decorate
+
+    monkeypatch.setitem(sys.modules, "opencode", types.SimpleNamespace(tool=fake_tool))
+    from oompah.acp_tools import build_opencode_tool_catalog
+
+    ordinary = build_opencode_tool_catalog(str(tmp_path))
+    missing_task = build_opencode_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        coordination_service=MagicMock(
+            publish_worker_epic_rebase_candidate=lambda *_args: None
+        ),
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=True,
+    )
+
+    assert "publish_epic_rebase" not in {item.name for item in ordinary}
+    assert "publish_epic_rebase" not in {item.name for item in missing_task}
+
+
+def test_claude_publish_catalog_requires_all_authority_gates(tmp_path):
+    pytest.importorskip("claude_agent_sdk")
+    from oompah.acp_tools import build_tool_catalog
+
+    coordinator = MagicMock()
+    coordinator.publish_worker_epic_rebase_candidate = MagicMock()
+    enabled = build_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=coordinator,
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=True,
+    )
+    disabled = build_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=coordinator,
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=False,
+    )
+
+    assert "publish_epic_rebase" in {item.name for item in enabled}
+    assert "publish_epic_rebase" not in {item.name for item in disabled}
+
+
+def test_codex_publish_catalog_requires_all_authority_gates(tmp_path):
+    pytest.importorskip("agents")
+    from oompah.acp_tools import build_codex_tool_catalog
+
+    coordinator = MagicMock()
+    coordinator.publish_worker_epic_rebase_candidate = MagicMock()
+    enabled = build_codex_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=coordinator,
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=True,
+    )
+    missing_callback = build_codex_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=None,
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=True,
+    )
+
+    assert "publish_epic_rebase" in {item.name for item in enabled}
+    assert "publish_epic_rebase" not in {item.name for item in missing_callback}
+
+
+def test_publish_tool_validates_full_candidate_before_callback():
+    from oompah.acp_tools import _exec_publish_epic_rebase_candidate
+
+    handler = MagicMock()
+    result = _exec_publish_epic_rebase_candidate(
+        "refs/heads/main",
+        "project-bound",
+        "REBASE-BOUND",
+        publish_handler=handler,
+    )
+
+    assert result == "Error: candidate must be a full lowercase commit SHA"
+    handler.assert_not_called()
+
+
+def test_publish_tool_fails_closed_without_callback_or_bound_authority():
+    from oompah.acp_tools import _exec_publish_epic_rebase_candidate
+
+    candidate = "b" * 40
+    assert "assigned managed task" in _exec_publish_epic_rebase_candidate(
+        candidate,
+        None,
+        "REBASE-BOUND",
+    )
+    assert "service is unavailable" in _exec_publish_epic_rebase_candidate(
+        candidate,
+        "project-bound",
+        "REBASE-BOUND",
+    )
+
+
+def test_publish_tool_redacts_callback_failure():
+    from oompah.acp_tools import _exec_publish_epic_rebase_candidate
+    from oompah.secrets import register_secret, retire_secret
+
+    secret = "publish-capability-secret-value"
+    register_secret(secret)
+
+    def fail(*_args):
+        raise RuntimeError(f"authority failed with bearer {secret}")
+
+    try:
+        result = _exec_publish_epic_rebase_candidate(
+            "c" * 40,
+            "project-bound",
+            "REBASE-BOUND",
+            publish_handler=fail,
+        )
+    finally:
+        retire_secret(secret)
+
+    assert result.startswith("Error:")
+    assert secret not in result
+    assert "[REDACTED]" in result
+
+
+def test_isolated_api_publish_tool_reaches_server_capability_without_token(
+    tmp_path, monkeypatch
+):
+    from oompah.api_agent import ApiAgentSession
+
+    candidate = "d" * 40
+    calls = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": "publish-call",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "publish_epic_rebase",
+                                        "arguments": '{"candidate":"' + candidate + '"}',
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            },
+            {"choices": [{"message": {"content": "done"}}]},
+        ]
+    )
+
+    async def fake_call_api(_self, _messages):
+        return next(responses)
+
+    def publish(project_id, task_identifier, received_candidate):
+        assert "OOMPAH_TASK_HANDOFF_TOKEN" not in os.environ
+        calls.append((project_id, task_identifier, received_candidate))
+        return {"published": True, "candidate": received_candidate}
+
+    monkeypatch.delenv("OOMPAH_TASK_HANDOFF_TOKEN", raising=False)
+    monkeypatch.setattr(ApiAgentSession, "_call_api", fake_call_api)
+    session = ApiAgentSession(
+        base_url="http://example.invalid",
+        api_key="test",
+        model="test-model",
+        workspace_path=str(tmp_path),
+        project_id="project-api",
+        task_identifier="REBASE-API",
+        publish_rebase_handler=publish,
+        isolate_remote_write=True,
+    )
+
+    definitions = session._tool_definitions
+    tool_names = {tool["function"]["name"] for tool in definitions}
+    publish_schema = next(
+        tool["function"]["parameters"]
+        for tool in definitions
+        if tool["function"]["name"] == "publish_epic_rebase"
+    )
+    result = asyncio.run(session.run_task("publish the finished rebase"))
+
+    assert "publish_epic_rebase" in tool_names
+    assert publish_schema["required"] == ["candidate"]
+    assert publish_schema["additionalProperties"] is False
+    assert set(publish_schema["properties"]) == {"candidate"}
+    assert result.status == "succeeded"
+    assert calls == [("project-api", "REBASE-API", candidate)]
+    assert "OOMPAH_TASK_HANDOFF_TOKEN" not in os.environ
+
+
+def test_api_publish_tool_is_hidden_outside_isolated_rebase_session(tmp_path):
+    from oompah.api_agent import ApiAgentSession
+
+    session = ApiAgentSession(
+        base_url="http://example.invalid",
+        api_key="test",
+        model="test-model",
+        workspace_path=str(tmp_path),
+        project_id="project-api",
+        task_identifier="ORDINARY-1",
+        publish_rebase_handler=MagicMock(),
+        isolate_remote_write=False,
+    )
+
+    assert "publish_epic_rebase" not in {
+        tool["function"]["name"] for tool in session._tool_definitions
+    }
+
+
 def test_codex_api_keys_are_scoped_per_session_not_process_global(monkeypatch, tmp_path):
     """Concurrent/rotated provider keys must not cross through os.environ."""
     from oompah.acp_backends import codex as codex_module
