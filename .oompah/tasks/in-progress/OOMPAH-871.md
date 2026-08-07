@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T10:21:17.853607Z'
+updated_at: '2026-08-07T10:35:21.346510Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,9 +122,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-871
-  head_sha: bf81691f649971380788c3afd1438978abd95b37
-  submitted_at: '2026-08-07T09:31:55.985216+00:00'
-  updated_at: '2026-08-07T09:31:55.985216+00:00'
+  head_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
+  submitted_at: '2026-08-07T10:35:18.581223+00:00'
+  updated_at: '2026-08-07T10:35:18.581223+00:00'
 ---
 ## Summary
 
