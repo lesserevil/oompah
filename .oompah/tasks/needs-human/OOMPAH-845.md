@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T09:29:06.611762Z'
+updated_at: '2026-08-07T09:31:07.087122Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -140,6 +140,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-0e160a2ced7f-1: '2026-08-07T07:23:23.562267+00:00'
+    no-auditor-audit-e3a217648c00-3: '2026-08-07T09:30:57.300044+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-845
@@ -150,6 +151,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T07:23:23.562279+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    target_state: Merged
+    evidence_fingerprint: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    audit_ids:
+    - audit-e3a217648c00
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:30:57.300061+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-845
@@ -163,6 +173,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:23:23.562295+00:00'
     applied_at: '2026-08-07T07:23:31.049768+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    audit_id: audit-e3a217648c00
+    attempt_id: no-auditor-audit-e3a217648c00-3
+    target_state: Merged
+    evidence_fingerprint: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    status: Needs Human
+    audit_ids:
+    - audit-e3a217648c00
+    applied: true
+    created_at: '2026-08-07T09:30:57.300083+00:00'
+    applied_at: '2026-08-07T09:31:05.741513+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -215,7 +237,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-845
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -259,7 +281,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-72ac58628cd3
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -272,6 +294,22 @@ oompah.terminal_audit:
       selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
       selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T09:30:53.222445+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-e3a217648c00-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T09:30:57.299830+00:00'
+      completed_at: '2026-08-07T09:30:57.299830+00:00'
+      selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+      selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
     requested_by:
       version: 1
       identity: yolo-merge
@@ -280,7 +318,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T06:04:20.178475+00:00'
     selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
     selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
-    updated_at: '2026-08-07T09:13:06.242478+00:00'
+    updated_at: '2026-08-07T09:30:57.299830+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2753f2ad908d
@@ -335,7 +373,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-72ac58628cd3
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -348,6 +386,8 @@ oompah.terminal_audit:
     selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
     selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T09:30:53.222445+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -742,5 +782,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 14m 26s
 - Log: OOMPAH-845__20260807T091509Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:31
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
