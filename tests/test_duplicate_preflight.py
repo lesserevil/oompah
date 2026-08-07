@@ -183,7 +183,9 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch._retry_dispatching = {}
     orch._persisted_retry_entries = []
     orch._dispatch_loop = None
+    orch._termination_scheduling_closed = False
     orch._scheduled_termination_ids = set()
+    orch._scheduled_termination_tasks = {}
     orch._terminating_worker_ids = set()
     orch.request_refresh = MagicMock()
     return orch
