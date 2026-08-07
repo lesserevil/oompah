@@ -97,6 +97,8 @@ from oompah.integration import (
     IntegrationRecord,
     _compute_evidence_fingerprint,
     _compute_child_landing_fingerprint,
+    accepted_submission_branch,
+    assigned_work_branch,
     classify_conflict_repair_failure,
     is_direct_epic_maintenance_issue,
     parse_canonical_child_landing_evidence,
