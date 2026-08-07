@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T11:02:02.104792Z'
+updated_at: '2026-08-07T11:02:29.635167Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -668,5 +668,15 @@ author: oompah
 created: 2026-08-07 11:00
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-649`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-08-07 11:02
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-07 11:02
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

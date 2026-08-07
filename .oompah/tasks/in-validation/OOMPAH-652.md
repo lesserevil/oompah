@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-08-07T10:53:12.891652Z'
+updated_at: '2026-08-07T11:02:21.700107Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
@@ -179,12 +179,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-652
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ef089af0a0e2
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
+      created_at: '2026-08-07T11:02:18.926368+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T11:02:18.926368+00:00'
+      branch_key: OOMPAH-652
+      selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
+      selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
     requested_by:
       version: 1
       identity: oompah
@@ -193,6 +208,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:53:05.465536+00:00'
     selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
     selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
+    updated_at: '2026-08-07T11:02:18.926368+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cd1d35c63d9
@@ -220,6 +236,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T10:25:59.120274+00:00'
     branch_key: OOMPAH-652
+  - version: 1
+    attempt_id: attempt-ef089af0a0e2
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
+    created_at: '2026-08-07T11:02:18.926368+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T11:02:18.926368+00:00'
+    branch_key: OOMPAH-652
+    selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
+    selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
 ---
 ## Summary
 
