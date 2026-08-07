@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T14:47:41.538204Z'
+updated_at: '2026-08-07T14:47:51.318412Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -66,6 +66,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T14:47:30.056944+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain the exact owner-validated rebase provenance at e06bec549; all duplicate
+      helper generations are superseded and must not reopen this task.
+    marked_at: '2026-08-07T14:47:47.503257+00:00'
+    updated_at: '2026-08-07T14:47:47.503257+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain the exact owner-validated rebase provenance at e06bec549; all
+        duplicate helper generations are superseded and must not reopen this task.
+      recorded_at: '2026-08-07T14:47:47.503257+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
