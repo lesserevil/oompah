@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T19:33:58.494643Z'
+updated_at: '2026-08-07T19:34:16.379307Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: ''
@@ -67,8 +67,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 270373
-  total_output_tokens: 55151
+  total_input_tokens: 270627
+  total_output_tokens: 55194
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -76,8 +76,8 @@ oompah.task_costs:
       output_tokens: 37552
       cost_usd: 0.0
     unknown:
-      input_tokens: 500
-      output_tokens: 17599
+      input_tokens: 754
+      output_tokens: 17642
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -122,6 +122,12 @@ oompah.task_costs:
     output_tokens: 1240
     cost_usd: 0.0
     recorded_at: '2026-08-07T10:46:46.255511+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 254
+    output_tokens: 43
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T19:34:13.250802+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-647__20260731T070958Z
@@ -1019,5 +1025,15 @@ author: oompah
 created: 2026-08-07 19:33
 ---
 Already integrated on main; owner override restores the verified terminal record after direct takeover.
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 14
+- Tokens: 254 in / 43 out [297 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 58s
+- Log: OOMPAH-647__20260807T192528Z.jsonl
 ---
 <!-- COMMENTS:END -->

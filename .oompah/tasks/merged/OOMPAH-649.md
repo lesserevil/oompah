@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T19:34:04.558460Z'
+updated_at: '2026-08-07T19:34:09.888643Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
@@ -176,6 +176,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T10:33:57.140025+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Merged
+    evidence_fingerprint: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
+    audit_ids:
+    - audit-4e11fcd2a697
+    - audit-1e014b11292a
+    - audit-03669ffaeaba
+    - audit-19e451ad4be7
+    - audit-f0f396469843
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:34:08.489986+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-649
@@ -189,6 +202,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:33:57.140036+00:00'
     applied_at: '2026-08-07T10:34:05.399357+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-571b0e5b48da
@@ -208,7 +222,7 @@ oompah.terminal_audit:
       Direct takeover changed lifecycle state but introduced no new revision; redundant
       re-audit is unnecessary.'
     created_at: '2026-08-07T19:34:00.761067+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -355,7 +369,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -384,13 +398,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:38.221111+00:00'
     selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
     selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
-    updated_at: '2026-08-07T19:25:48.895004+00:00'
+    updated_at: '2026-08-07T19:34:08.489939+00:00'
   - version: 1
     audit_id: audit-f0f396469843
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -404,6 +418,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:38.221111+00:00'
     selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
     selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+    updated_at: '2026-08-07T19:34:08.489968+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2ae62c68e14f
@@ -977,5 +992,12 @@ author: oompah
 created: 2026-08-07 19:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Retain the previously accepted merged revision: verified source head c9f16e399efcbe1a0e9ac70948c8fac2d9262017 is an exact ancestor of current origin/main. Direct takeover changed lifecycle state but introduced no new revision; redundant re-audit is unnecessary.
 ---
 <!-- COMMENTS:END -->
