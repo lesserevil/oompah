@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:59:00.582379Z'
+updated_at: '2026-08-07T23:00:37.853497Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -50,14 +50,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: OOMPAH-887
   base_branch: epic-OOMPAH-763
   base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
   head_sha: 6324701418ca2d3a18b5576286dfb28c9d979445
   submitted_at: '2026-08-07T22:58:46.882639+00:00'
-  updated_at: '2026-08-07T22:58:46.882639+00:00'
+  updated_at: '2026-08-07T23:00:27.233025+00:00'
+  last_error: 'could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-887
+    is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head 6324701418ca2d3a18b5576286dfb28c9d979445;
+    refusing to reset it'
 oompah.work_branch: OOMPAH-887
 ---
 ## Summary
@@ -192,5 +195,12 @@ author: oompah
 created: 2026-08-07 22:59
 ---
 Closed the late open-review cache race at exact head 6324701418ca2d3a18b5576286dfb28c9d979445; 273 affected tests pass.
+---
+author: oompah
+created: 2026-08-07 23:00
+---
+Integration could not verify `OOMPAH-887`: could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-887 is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head 6324701418ca2d3a18b5576286dfb28c9d979445; refusing to reset it
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
