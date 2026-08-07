@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T08:44:46.156945Z'
+updated_at: '2026-08-07T08:56:09.240829Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -108,6 +108,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-084f1d7c63d1: '2026-07-31T06:27:49.737161+00:00'
     attempt-afe11c46a4fd: '2026-07-31T06:32:56.163390+00:00'
+    infrastructure-exhausted-audit-aa7a871256ae-3: '2026-08-07T08:55:57.563505+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Archived
+    evidence_fingerprint: 6697438b242a070fec98b4a57cb295327d27a09cae3b98730aafece647a8859a
+    audit_ids:
+    - audit-aa7a871256ae
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T08:55:57.563517+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    audit_id: audit-aa7a871256ae
+    attempt_id: infrastructure-exhausted-audit-aa7a871256ae-3
+    target_state: Archived
+    evidence_fingerprint: 6697438b242a070fec98b4a57cb295327d27a09cae3b98730aafece647a8859a
+    status: Needs Human
+    audit_ids:
+    - audit-aa7a871256ae
+    applied: true
+    created_at: '2026-08-07T08:55:57.563534+00:00'
+    applied_at: '2026-08-07T08:56:06.346015+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -183,7 +207,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -230,13 +254,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T08:44:43.680174+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T08:45:23.680159+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-aa7a871256ae-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6697438b242a070fec98b4a57cb295327d27a09cae3b98730aafece647a8859a
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T08:55:57.563352+00:00'
+      completed_at: '2026-08-07T08:55:57.563352+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:11:01.356889+00:00'
-    updated_at: '2026-08-07T08:44:43.680174+00:00'
+    updated_at: '2026-08-07T08:55:57.563352+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-084f1d7c63d1
@@ -610,5 +646,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 57s
 - Log: OOMPAH-608__20260807T072400Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:56
+---
+Needs Human — Archived audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->

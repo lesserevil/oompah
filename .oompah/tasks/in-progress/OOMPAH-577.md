@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T08:46:49.663446Z'
+updated_at: '2026-08-07T08:55:56.655891Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -409,5 +409,26 @@ author: oompah
 created: 2026-08-07 08:46
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 08:55
+---
+**Understanding & Current Status:**
+
+OOMPAH-577 implementation has been merged to main (commit 70fa1de48, PR #588). The work allows changed integrated heads to retry failed completed terminal audits.
+
+**Key Implementation:**
+- Modified TerminalTransitionCoordinator.request_transition to only reject completed requests with *identical* evidence fingerprints (stale)
+- When the same target is requested with *changed* evidence fingerprint, the old completed record is marked SUPERSEDED and a fresh PENDING record is created
+- Ensures independent audits can retry after earlier failure when integrated SHA changes
+- Test added: changed_completed_evidence_queues_fresh_audit
+
+**Current Status:**
+- Work is merged and in HEAD
+- Task status is stuck in 'In Progress' due to terminal audit process issues
+- Stalled-task watchdog reopened as 'actionable'
+- I'm verifying the implementation is correct by running focused tests
+
+**Next Steps:** Run terminal_transition_coordinator focused tests to confirm all behavior works.
 ---
 <!-- COMMENTS:END -->
