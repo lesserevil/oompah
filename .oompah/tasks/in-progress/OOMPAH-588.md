@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Review
+status: In Progress
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -14,10 +14,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - epic:rebased
-- human-only
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-07T18:17:59.528997Z'
+updated_at: '2026-08-07T18:18:10.769119Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
