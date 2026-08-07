@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T19:41:00.781968Z'
+updated_at: '2026-08-07T19:41:17.096437Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -59,7 +59,7 @@ oompah.terminal_audit:
       3.12, and 3.13 checks passed; prior exact-head acceptance was retained. Direct
       operator completion avoids a redundant post-merge full audit.'
     created_at: '2026-08-07T19:40:56.477312+00:00'
-    applied: false
+    applied: true
   applied_result_attempts:
     no-auditor-audit-c1eee8ef1fc2-2: '2026-08-07T07:22:36.552463+00:00'
   oompah.terminal_audit_retirements:
@@ -72,6 +72,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T07:22:36.552473+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Merged
+    evidence_fingerprint: 8a7a4a0f05d5fac6e125b4343692192ec5cb77aa7cd0f360105856d8983b5344
+    audit_ids:
+    - audit-c1eee8ef1fc2
+    - audit-534d62772883
+    - audit-ddd74e1c9e1e
+    - audit-2344c7a84197
+    - audit-044432495737
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:41:05.853222+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-577
@@ -85,6 +98,29 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:22:36.552485+00:00'
     applied_at: '2026-08-07T07:22:44.871987+00:00'
+    retired_by_override: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain protected PR #744 merge 4964bfa243e9dfd1bf48485f6a3b1fcfa0532f3c
+      as terminal provenance; no owner-authorized new revision exists.'
+    marked_at: '2026-08-07T19:41:14.868077+00:00'
+    updated_at: '2026-08-07T19:41:14.868077+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain protected PR #744 merge 4964bfa243e9dfd1bf48485f6a3b1fcfa0532f3c
+        as terminal provenance; no owner-authorized new revision exists.'
+      recorded_at: '2026-08-07T19:41:14.868077+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -173,7 +209,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -224,13 +260,13 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T06:08:51.515138+00:00'
-    updated_at: '2026-08-07T19:40:13.364049+00:00'
+    updated_at: '2026-08-07T19:41:05.853169+00:00'
   - version: 1
     audit_id: audit-2344c7a84197
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -244,12 +280,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:38:50.168902+00:00'
     selected_ref: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
     selected_sha: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+    updated_at: '2026-08-07T19:41:05.853193+00:00'
   - version: 1
     audit_id: audit-044432495737
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -263,6 +300,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:38:50.168902+00:00'
     selected_ref: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
     selected_sha: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+    updated_at: '2026-08-07T19:41:05.853205+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2d156054d52d
@@ -2405,5 +2443,17 @@ author: oompah
 created: 2026-08-07 19:38
 ---
 YOLO: merged PR #744.
+---
+author: oompah
+created: 2026-08-07 19:41
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #744 merged rebased source head 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc as 4964bfa243e9dfd1bf48485f6a3b1fcfa0532f3c after all required Python 3.11, 3.12, and 3.13 checks passed; prior exact-head acceptance was retained. Direct operator completion avoids a redundant post-merge full audit.
+---
+author: oompah
+created: 2026-08-07 19:41
+---
+Merged by protected PR #744 with all required CI checks green.
 ---
 <!-- COMMENTS:END -->
