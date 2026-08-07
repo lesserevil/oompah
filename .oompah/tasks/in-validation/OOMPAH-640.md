@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Needs Human
+status: In Validation
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T09:23:32.201765Z'
+updated_at: '2026-08-07T09:23:54.040339Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -179,7 +179,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-640
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -240,7 +240,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-640
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -321,6 +321,44 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T08:12:58.036619+00:00'
+  - version: 1
+    audit_id: audit-f05d7dd4b05e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b958a76bdf3258cb154784766f09d04bf0f0da82146059ed00a67a19210db388
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-08-07T09:23:46.834324+00:00'
+    selected_ref: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+    selected_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+  - version: 1
+    audit_id: audit-215e204666f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b958a76bdf3258cb154784766f09d04bf0f0da82146059ed00a67a19210db388
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-08-07T09:23:46.834324+00:00'
+    selected_ref: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+    selected_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
   attempt_history:
   - version: 1
     attempt_id: attempt-d7409ced47f5
