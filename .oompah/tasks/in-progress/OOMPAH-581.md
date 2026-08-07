@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T03:57:57.566467Z'
+updated_at: '2026-08-07T04:09:48.279104Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -551,5 +551,10 @@ author: oompah
 created: 2026-08-07 03:57
 ---
 UNDERSTANDING: This task involves cleanup of merged epic repair workspaces. According to previous auditor notes (Audit PASS - Merged), PR #600 was already merged with full implementation including: (1) ProjectStore._cleanup_epic_repair_workspace_locked method, (2) 7/7 focused tests passing (TestEpicRepairWorkspaceCleanup), (3) 94/94 project tests passing. The implementation has proper guards: registered path validation, exact same-identifier branch check, clean worktree verification, and ancestor safety checks. My role is to verify the implementation is properly integrated and there are no auth/access-control concerns. Checking code now.
+---
+author: oompah
+created: 2026-08-07 04:09
+---
+DISCOVERY: Verified implementation is present and fully tested. The _cleanup_epic_repair_workspace_locked method (oompah/projects.py:4610) is properly integrated into cleanup_terminal_issue at line 5211, only invoked for terminal epics (is_epic=True). TestEpicRepairWorkspaceCleanup test class has 7 tests covering: (1) happy-path removes merged auxiliary workspace, (2) preserves dirty worktrees, (3) preserves unmerged heads, (4) preserves shared branches, (5) skips non-matching identifiers, (6) skips unregistered directories, (7) non-epic doesn't trigger cleanup. All 7 tests PASS.
 ---
 <!-- COMMENTS:END -->
