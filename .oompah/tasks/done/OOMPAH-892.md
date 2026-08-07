@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-892
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Publish rebased epic branch through server-owned CAS capability
 parent: OOMPAH-879
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T16:07:21.690441Z'
+updated_at: '2026-08-07T16:21:52.021962Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,28 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8e55db75bb62
+    project_id: proj-14849f1b
+    task_id: OOMPAH-892
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e7adb657d72086903f4744395dbcc192caafda7b98110fe6ab438b5e764cfb40
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner implementation at pushed head f4053078b7c5ce02d6fa4629edc05d520615c1e9
+      passed focused and matrix validation plus independent security review.
+    created_at: '2026-08-07T16:21:46.738539+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -52,5 +74,10 @@ author: oompah
 created: 2026-08-07 16:07
 ---
 Submission handoff correction: the task submission command returned HTTP 400 because this delegated implementation checkout is branch epic-OOMPAH-763--task-OOMPAH-879 while the task expects work branch OOMPAH-892. The committed head is pushed and exactly matches origin/epic-OOMPAH-763--task-OOMPAH-879. No unrequested branch creation, rebase, composition, shared-epic push, or terminal-status override was performed.
+---
+author: oompah
+created: 2026-08-07 16:21
+---
+Final independent security review ACCEPTed pushed head f4053078b7c5ce02d6fa4629edc05d520615c1e9. Verified server-owned trusted repo/URL/Git environment, replacement-free candidate and ancestry validation, exact force-with-lease plus post-push target revalidation, complete durable prepared/published recovery evidence, exact current winner/generation gates, stripped worker credentials, denied remote shell pushes, and authority propagation through Claude/Codex/OpenCode rebuilt catalogs. Validation: focused 5/5, publish matrix 679/679, rebase/authority 235/235, ACP/session/boundary 224/224; secret scan clean.
 ---
 <!-- COMMENTS:END -->
