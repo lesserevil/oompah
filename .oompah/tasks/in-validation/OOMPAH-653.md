@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-08-07T14:19:23.437555Z'
+updated_at: '2026-08-07T14:20:39.463944Z'
 work_branch: OOMPAH-653
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/619
@@ -309,7 +309,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a317e3818f47
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -321,6 +321,24 @@ oompah.terminal_audit:
       branch_key: OOMPAH-653
       selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
       selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+      ended_at: '2026-08-07T14:20:23.690151+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-9e86773f5ebd
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 88e40d7a544a7bae36bcd649fcdfa6207ebbd522ba6fc5a946fc2268e5d5836e
+      created_at: '2026-08-07T14:20:28.106944+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T14:20:28.106944+00:00'
+      branch_key: OOMPAH-653
+      selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+      selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
@@ -329,7 +347,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:07:49.826294+00:00'
     selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
     selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
-    updated_at: '2026-08-07T14:11:31.512800+00:00'
+    updated_at: '2026-08-07T14:20:28.106944+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cc7eaef92086
@@ -360,7 +378,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-a317e3818f47
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -372,6 +390,24 @@ oompah.terminal_audit:
     branch_key: OOMPAH-653
     selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
     selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+    ended_at: '2026-08-07T14:20:23.690151+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-9e86773f5ebd
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 88e40d7a544a7bae36bcd649fcdfa6207ebbd522ba6fc5a946fc2268e5d5836e
+    created_at: '2026-08-07T14:20:28.106944+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T14:20:28.106944+00:00'
+    branch_key: OOMPAH-653
+    selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+    selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -1259,5 +1295,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 40s
 - Log: OOMPAH-653__20260807T141155Z.jsonl
+---
+author: oompah
+created: 2026-08-07 14:20
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-07 14:20
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

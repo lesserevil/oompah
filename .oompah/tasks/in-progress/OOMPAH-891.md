@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T14:09:13.417249Z'
+updated_at: '2026-08-07T14:20:38.070707Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-08-07 14:09
 ---
 Selector correction: an initially matched ACP profile is no longer assumed safe. Shared-epic rebase dispatch reroutes both OpenCode and Codex-subscription ACP profiles to a proven bridged callback profile; OpenCode runtime remains fail-closed before auth bootstrap or Popen. Static checks pass; focused tests still await broker capacity.
+---
+author: oompah
+created: 2026-08-07 14:20
+---
+Acceptance review found one remaining launch-path blocker after the selector hardening: the final focus-resolved provider could still be missing/empty/unknown and  would default it to Claude before credential bootstrap. Required fix is now in progress: isolated epic-rebase work must revalidate the final resolved provider and fail closed before defaults/auth; only explicit Claude or explicit non-subscription Codex is admissible. Dispatch-level regressions will cover missing, empty, unknown, and unsafe focus overrides. The sandbox/remote-shell review found no other escape route.
 ---
 <!-- COMMENTS:END -->
