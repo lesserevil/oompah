@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-881
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:44:20.677274Z'
-updated_at: '2026-08-07T11:44:25.123941Z'
+updated_at: '2026-08-07T11:49:22.885336Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -26,6 +26,7 @@ oompah.epic_rebase_target:
   target_branch: main
   parent_id: null
   resolution: confirmed_top_level
+oompah.agent_run_id: 6be1b829-0c82-4dd4-a5a2-7cbb764f50f6
 ---
 ## Summary
 
@@ -39,3 +40,11 @@ This task was auto-filed because epic OOMPAH-763 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 11:49
+---
+Agent dispatched (profile: standard)
+---
+<!-- COMMENTS:END -->
