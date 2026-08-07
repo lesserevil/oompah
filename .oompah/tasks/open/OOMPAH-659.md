@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T17:53:39.854757Z'
+updated_at: '2026-08-07T17:55:12.580054Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -26,17 +26,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: origin/OOMPAH-659 does not match accepted head cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 5c01ef25-d4f4-4955-a176-dbce0a903e7a
+  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
+  claimed_at: '2026-08-07T17:54:54.409955+00:00'
+  claim_expires_at: '2026-08-07T18:24:54.409955+00:00'
   retry_count: 2
-  retry_after: '2026-08-07T17:54:36.488313+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 173d9970-38ed-4b2d-b095-35e5dcecf825
+oompah.agent_run_id: ddf29751-ffff-460d-9959-882acbb713e5
 oompah.task_costs:
   total_input_tokens: 7599646
   total_output_tokens: 52255
@@ -649,5 +649,10 @@ Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 26s
+---
+author: oompah
+created: 2026-08-07 17:55
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
 ---
 <!-- COMMENTS:END -->
