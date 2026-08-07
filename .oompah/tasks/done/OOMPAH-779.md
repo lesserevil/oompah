@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-04T17:02:25.390456Z'
+updated_at: '2026-08-07T08:40:07.704697Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-779
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-779
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -95,6 +95,44 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T17:02:17.788190+00:00'
+  - version: 1
+    audit_id: audit-2a8e57633d32
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d56597acc1edba76f5769a89792c0aef5f3841080ca4fea989f96faa914c0177
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:40:05.716254+00:00'
+    selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+  - version: 1
+    audit_id: audit-cdcfd665d497
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d56597acc1edba76f5769a89792c0aef5f3841080ca4fea989f96faa914c0177
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:40:05.716254+00:00'
+    selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
   attempt_history: []
 oompah.work_branch: epic-OOMPAH-765
 ---
