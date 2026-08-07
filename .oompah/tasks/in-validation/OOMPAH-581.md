@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-31T02:47:53.700024Z'
+updated_at: '2026-08-07T03:47:11.199838Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -210,6 +210,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T02:43:05.702270+00:00'
     updated_at: '2026-07-31T02:47:25.569260+00:00'
+  - version: 1
+    audit_id: audit-d7244a8797ac
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9951a13f8aebbe259b01691d978a59ec480afb2136e90b50ea11a9ad12f92877
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T03:47:07.470300+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
