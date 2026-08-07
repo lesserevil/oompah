@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T10:35:40.281014Z'
+updated_at: '2026-08-07T10:49:52.504748Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -266,5 +266,10 @@ author: oompah
 created: 2026-08-07 10:35
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 10:49
+---
+Understanding: continuing prior attempts. Focus: modify auditor dispatch to distinguish transport/finalization failures from substantive candidate exhaustion. Currently oompah/auditor_dispatch.py:attempted_pairs() marks every attempt with a provider/model as consumed, so a run_command result-delivery timeout or provider shutdown before verdict permanently consumes the sole eligible candidate. Plan: (1) add is_transport_failure() helper (INFRASTRUCTURE_ERROR/FINALIZATION_FAILURE with no verdict); (2) make attempted_pairs() exclude transport-failure attempts so the pair remains eligible; (3) add substantive_attempt_count() and transport_retry_count(); (4) update plan() to gate exhaustion on substantive_attempts >= max_attempts plus a new bounded max_transport_retries; (5) add audit_max_transport_retries config (default 3); (6) update health build/alerts to surface transport-retry-in-progress vs substantive exhaustion; (7) tests for OOMPAH-870 pattern, policy rejection still consumes, verdict-incapable candidates don't mask zero capacity, and restart preserves classification.
 ---
 <!-- COMMENTS:END -->

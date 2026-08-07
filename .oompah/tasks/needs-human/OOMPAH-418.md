@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: In Validation
+status: Needs Human
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-08-07T10:48:56.221734Z'
+updated_at: '2026-08-07T10:50:01.252112Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -31,6 +31,30 @@ oompah.terminal_audit:
     attempt-148316224bb3: '2026-07-31T02:13:31.751337+00:00'
     attempt-1e7c852922ee: '2026-07-31T02:21:50.510089+00:00'
     attempt-ae94de725cf8: '2026-07-31T02:25:52.672095+00:00'
+    no-auditor-audit-012bd3b53573-3: '2026-08-07T10:49:48.048444+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-418
+    target_state: Archived
+    evidence_fingerprint: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+    audit_ids:
+    - audit-012bd3b53573
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T10:49:48.048456+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-418
+    audit_id: audit-012bd3b53573
+    attempt_id: no-auditor-audit-012bd3b53573-3
+    target_state: Archived
+    evidence_fingerprint: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+    status: Needs Human
+    audit_ids:
+    - audit-012bd3b53573
+    applied: true
+    created_at: '2026-08-07T10:49:48.048469+00:00'
+    applied_at: '2026-08-07T10:49:58.185884+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -140,7 +164,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-418
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,7 +208,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7f3b13905796
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -197,6 +221,22 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T10:49:44.875121+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-012bd3b53573-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T10:49:48.048230+00:00'
+      completed_at: '2026-08-07T10:49:48.048230+00:00'
+      selected_ref: origin/main
+      selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     requested_by:
       version: 1
       identity: oompah
@@ -205,7 +245,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:42:51.403270+00:00'
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
-    updated_at: '2026-08-07T10:41:58.345622+00:00'
+    updated_at: '2026-08-07T10:49:48.048230+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-148316224bb3
@@ -284,7 +324,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-7f3b13905796
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -297,6 +337,8 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T10:49:44.875121+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
   total_input_tokens: 664
   total_output_tokens: 29202
@@ -558,5 +600,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 44s
 - Log: OOMPAH-418__20260807T104219Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:49
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
