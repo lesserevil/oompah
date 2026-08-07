@@ -121,6 +121,14 @@ class _MemoryTracker:
 
     def set_metadata_field(self, identifier: str, key: str, value: Any) -> None:
         self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
+        if key == "oompah.integration" and isinstance(value, dict):
+            self.issue.integration = IntegrationRecord.from_dict(value)
+        elif key == "oompah.review_url":
+            self.issue.review_url = value or None
+        elif key == "oompah.review_number":
+            self.issue.review_number = value or None
+        elif key == "oompah.review_head":
+            self.issue.review_head = value or None
 
     def update_issue(self, identifier: str, **kwargs: Any) -> None:
         assert identifier == self.issue.identifier
@@ -2576,6 +2584,257 @@ def test_merged_review_completes_real_done_and_merged_audits(
         assert not _delivery_alerts(orch)
     finally:
         _close_orchestrator(orch)
+
+
+def test_exact_gated_contained_head_stages_durable_noop_without_forge_warning(
+    harness,
+    caplog,
+):
+    """A contained accepted head uses terminal audit without creating a review."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "a" * 40
+    task = _issue("TASK-NOOP", branch="feature/noop")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-06T10:00:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = None
+    project.max_in_flight_prs = 1
+    orch._reviews_cache = {
+        project.id: [_review("other-task", review_id="occupied")]
+    }
+    orch._count_review_branch_ahead = mock.MagicMock(
+        return_value=(0, [], "")
+    )
+    transition = TransitionResult(success=True, status_staged=True)
+    orch.request_terminal_transition = mock.AsyncMock(return_value=transition)
+
+    def persist_metadata(_identifier, key, value) -> None:
+        if key == "oompah.integration":
+            task.integration = IntegrationRecord.from_dict(value)
+        elif key == "oompah.review_url":
+            task.review_url = value or None
+        elif key == "oompah.review_number":
+            task.review_number = value or None
+        elif key == "oompah.review_head":
+            task.review_head = value or None
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, task.work_branch, "trunk")
+    provider.find_pr_for_branch.assert_called_once_with("org/repo", task.work_branch)
+    provider.create_review.assert_not_called()
+    orch.request_terminal_transition.assert_awaited_once()
+    assert task.integration is not None
+    assert task.integration.state == "integrated"
+    assert task.integration.integrated_sha == accepted_head
+    assert task.integration.head_sha == accepted_head
+    assert task.integration.base_branch == project.default_branch
+    assert not _delivery_alerts(orch)
+    assert not any(
+        "Failed to create PR" in record.getMessage() for record in caplog.records
+    )
+
+
+def test_contained_noop_enters_the_real_terminal_audit_chain(tmp_path, monkeypatch):
+    """The no-op marker is persisted before the normal Done/Merged audit chain."""
+
+    project = Project(
+        id="proj-noop-audit",
+        name="No-op Audit Project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+    )
+    accepted_head = "e" * 40
+    task = _issue("TASK-NOOP-AUDIT", branch="feature/noop-audit")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-06T10:15:00+00:00",
+    )
+    tracker = _MemoryTracker(task)
+    provider = mock.MagicMock(spec=SCMProvider)
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = None
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    orch = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers.json")),
+    )
+    gate = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(orch, "_review_quality_gate_passes", gate)
+    orch._count_review_branch_ahead = mock.MagicMock(
+        return_value=(0, [], "")
+    )
+    store = TerminalAuditMetadataStore(
+        tracker,
+        orch.project_store,
+        project.id,
+    )
+
+    try:
+        orch._reconcile_standalone_ready_to_integrate_tasks()
+
+        gate.assert_called_once_with(
+            project,
+            task,
+            task.work_branch,
+            project.default_branch,
+        )
+        provider.create_review.assert_not_called()
+        assert task.state == IN_VALIDATION
+        assert task.integration is not None
+        assert task.integration.state == "integrated"
+        assert task.integration.integrated_sha == accepted_head
+        assert [record.target_state for record in store.read(task.identifier).pending_chain] == [
+            TargetState.DONE,
+            TargetState.MERGED,
+        ]
+    finally:
+        _close_orchestrator(orch)
+
+
+def test_contained_noop_replay_is_idempotent_and_skips_review_lookup(harness):
+    """A replayed canonical no-op does not rerun the gate or contact review APIs."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "b" * 40
+    task = _issue("TASK-NOOP-REPLAY", branch="feature/noop-replay")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-06T10:05:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = None
+    orch._count_review_branch_ahead = mock.MagicMock(
+        return_value=(0, [], "")
+    )
+    orch.request_terminal_transition = mock.AsyncMock(
+        return_value=TransitionResult(success=True, status_staged=True)
+    )
+
+    def persist_metadata(_identifier, key, value) -> None:
+        if key == "oompah.integration":
+            task.integration = IntegrationRecord.from_dict(value)
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, task.work_branch, "trunk")
+    provider.find_pr_for_branch.assert_called_once()
+    provider.create_review.assert_not_called()
+    assert orch.request_terminal_transition.await_count == 2
+    first_fingerprint = orch.request_terminal_transition.await_args_list[0].kwargs[
+        "evidence_fingerprint"
+    ]
+    second_fingerprint = orch.request_terminal_transition.await_args_list[1].kwargs[
+        "evidence_fingerprint"
+    ]
+    assert first_fingerprint == second_fingerprint
+    assert not _delivery_alerts(orch)
+
+
+def test_uncontained_accepted_head_keeps_the_normal_review_path(harness):
+    """A valid accepted head that is not landed must not use the no-op path."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "c" * 40
+    task = _issue("TASK-NOT-NOOP", branch="feature/not-noop")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-06T10:10:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = None
+    provider.create_review.return_value = _review(
+        task.work_branch or "",
+        review_id="no-op-avoidance",
+        head_sha=accepted_head,
+    )
+    orch._count_review_branch_ahead = mock.MagicMock(
+        return_value=(1, [f"{accepted_head} pending"], "")
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, task.work_branch, "trunk")
+    provider.create_review.assert_called_once()
+    assert task.integration is not None
+    assert task.integration.state == "ready"
+    assert not _delivery_alerts(orch)
+
+
+def test_containment_proves_the_accepted_sha_against_a_managed_target_ref(
+    harness,
+    tmp_path,
+    monkeypatch,
+):
+    """Managed repositories use the accepted immutable SHA, not a stale branch tip."""
+
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "d" * 40
+    task = _issue("TASK-CONTAINMENT-SHA", branch="feature/containment-sha")
+    tracker.fetch_issues_by_states.return_value = [task]
+    repo_path = tmp_path / "managed-repo"
+    (repo_path / ".git").mkdir(parents=True)
+    project.repo_path = str(repo_path)
+
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    refresh = mock.MagicMock(return_value=(True, None))
+    monkeypatch.setattr(orch, "_refresh_landing_evidence_target_refs", refresh)
+    git_run = mock.MagicMock(return_value=mock.Mock(returncode=0))
+    monkeypatch.setattr("oompah.orchestrator.subprocess.run", git_run)
+
+    result, reason = orch._standalone_accepted_head_containment(
+        project,
+        authority,
+        tracker,
+        work_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+    )
+
+    assert (result, reason) == ("contained", "")
+    refresh.assert_called_once()
+    merge_base_calls = [
+        call
+        for call in git_run.call_args_list
+        if "merge-base" in call.args[0]
+    ]
+    assert len(merge_base_calls) == 1
+    assert accepted_head in merge_base_calls[0].args[0]
 
 
 def test_unsupported_repository_alerts_without_crashing(harness):
