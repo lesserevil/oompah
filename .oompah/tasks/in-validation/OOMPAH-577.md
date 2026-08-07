@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T07:10:05.009110Z'
+updated_at: '2026-08-07T07:10:10.098140Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -223,5 +223,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 56s
 - Log: OOMPAH-577__20260731T060623Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:10
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
