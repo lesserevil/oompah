@@ -501,8 +501,9 @@ class TestGitHubClaimRunIdProtocol:
         our_run_id = _call_args.args[2]
         assert our_run_id  # must be non-empty
 
-        # get_metadata must have been called to verify the claim.
-        mock_tracker.get_metadata.assert_called_once()
+        # Dispatch reads the prior assignment before writing, then re-reads to
+        # verify that its exact claim won the shared-tracker race.
+        assert mock_tracker.get_metadata.call_count == 2
 
         # The foreign run_id does NOT match ours → dispatch must abort.
         assert issue.id not in orch.state.claimed, (

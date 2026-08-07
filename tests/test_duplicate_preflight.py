@@ -204,6 +204,7 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch._dispatch_loop = None
     orch.project_store = MagicMock()
     orch.project_store.get.return_value = None
+    orch.project_store.list_all.return_value = []
     return orch
 
 
@@ -1845,7 +1846,11 @@ async def test_preflight_retirement_callback_does_not_kill_replacement_runtime()
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
-    orch._terminate_running.assert_not_awaited()
+    orch._terminate_running.assert_awaited_once_with(
+        issue.id,
+        False,
+        expected_entry=old_entry,
+    )
     assert orch.state.running[issue.id] is replacement
 
 

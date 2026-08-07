@@ -72,6 +72,7 @@ class _ServerWithMismatchedLauncher:
         self.committed = False
         self.resumed = False
         self.stopped = False
+        self.restart_claim_id: str | None = None
         self.calls: list[tuple[str, str]] = []
         self.repaired_to_revision: str | None = None
 
@@ -110,6 +111,29 @@ class _ServerWithMismatchedLauncher:
             self.resumed = True
             return {"ok": True, "paused": False}
         if path == "/api/v1/orchestrator/restart":
+            if body.get("claim_only") is True:
+                requested = str(body.get("restart_request_id") or "")
+                assert requested
+                if self.restart_claim_id is not None:
+                    return {
+                        "ok": True,
+                        "coalesced": True,
+                        "restart_request_id": self.restart_claim_id,
+                    }
+                self.restart_claim_id = requested
+                return {
+                    "ok": True,
+                    "coalesced": False,
+                    "restart_request_id": requested,
+                }
+            if body.get("cancel_claim") is True:
+                requested = str(body.get("restart_request_id") or "")
+                if requested != self.restart_claim_id:
+                    return {"ok": False, "cancelled": False}
+                self.restart_claim_id = None
+                return {"ok": True, "cancelled": True}
+            assert body.get("restart_request_id") == self.restart_claim_id
+            self.restart_claim_id = None
             self.committed = True
             return {"ok": True}
         raise AssertionError(f"unexpected request: {method} {path}")

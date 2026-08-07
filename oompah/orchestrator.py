@@ -6253,7 +6253,25 @@ class Orchestrator:
         with self._provider_admission_lock:
             replacement = self._current_running_entry(issue_id)
             if replacement is not None and replacement is not entry:
-                return False
+                # A newer runtime generation supersedes every remaining
+                # requirement for this exact retired entry.  In particular,
+                # the old coordinator must neither remove the replacement's
+                # workspace nor publish a retry that could compete with it.
+                # Withdraw an exact old-generation capability if retirement
+                # published one before the replacement won; never touch a
+                # capability owned by another generation.
+                with self._retry_authority_lock:
+                    authorization = self._post_retirement_retry_tokens.get(issue_id)
+                    if authorization is not None and authorization[0] is entry:
+                        self._post_retirement_retry_tokens.pop(issue_id, None)
+                # Mark the monotonic request union satisfied so the caller
+                # can publish the successful exact-generation retirement
+                # instead of looping or reporting a false failure.
+                if coordinator.cleanup_workspace:
+                    coordinator.cleanup_satisfied = True
+                if coordinator.post_retirement_retry:
+                    coordinator.retry_satisfied = True
+                return True
             with self._retry_authority_lock:
                 authorization = self._post_retirement_retry_tokens.get(issue_id)
                 if authorization is not None and authorization[0] is not entry:

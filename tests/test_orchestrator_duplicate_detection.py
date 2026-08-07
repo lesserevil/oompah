@@ -258,6 +258,11 @@ class TestFocusHandoff:
         orch = self._make_orchestrator()
         orch._retry_authority_lock = threading.RLock()
         orch._retry_dispatching = {}
+        orch._retry_schedule_builders = {}
+        orch._retry_schedule_epochs = {}
+        orch._retry_timer_arming_tokens = {}
+        orch._retry_timer_generations = {}
+        orch._post_retirement_retry_tokens = {}
         orch._revoked_authority_generations = {}
         orch._persist_retry_entries = MagicMock()
         orch.state.retry_attempts = {}

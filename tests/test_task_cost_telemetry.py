@@ -861,8 +861,10 @@ class TestTerminateRunningWritesCostRecord:
             )
         ]
 
-    def test_late_termination_cannot_clean_newer_worker_generation(self, tmp_path):
-        """A replacement generation keeps ownership after old cleanup yields."""
+    def test_late_termination_cannot_clean_or_retry_newer_worker_generation(
+        self, tmp_path
+    ):
+        """A replacement supersedes the old generation's cleanup and retry."""
         orch, entry = self._make_orchestrator_with_running(tmp_path)
         entry.issue.project_id = "project-1"
         entry.workspace_path = str(tmp_path / "task-worktree")
@@ -875,7 +877,14 @@ class TestTerminateRunningWritesCostRecord:
 
             def preserve_worktree_changes(self, *_args):
                 # Simulate a retry dispatch winning while the old snapshot
-                # callback is in flight. The old path must not remove it.
+                # callback is in flight after old-generation retry authority
+                # was published. The old path must neither remove the
+                # replacement nor leave that stale capability consumable.
+                orch._post_retirement_retry_tokens[entry.identifier] = (
+                    entry,
+                    object(),
+                    0,
+                )
                 orch.state.running[entry.identifier] = replacement
                 return {"recovery_ref": "refs/recovery/new", "snapshot_head": "new"}
 
@@ -887,10 +896,15 @@ class TestTerminateRunningWritesCostRecord:
         orch._fire_telemetry_comment = MagicMock()
 
         assert asyncio.run(
-            orch._terminate_running(entry.identifier, cleanup_workspace=True)
+            orch._terminate_running(
+                entry.identifier,
+                cleanup_workspace=True,
+                post_retirement_retry=True,
+            )
         ) is True
         assert orch.state.running[entry.identifier] is replacement
         assert remove_calls == []
+        assert entry.identifier not in orch._post_retirement_retry_tokens
 
     def test_snapshot_failure_holds_task_for_human_reconciliation(self, tmp_path):
         """Recovery errors remove retry eligibility and preserve the task state."""
@@ -969,9 +983,8 @@ class TestTerminateRunningWritesCostRecord:
         orch._post_comment.assert_called_once()
         assert "retry publication" in orch._post_comment.call_args.args[1]
 
-    def test_terminate_fires_cost_before_workspace_cleanup(self, tmp_path):
-        """Cost record must be written before workspace is removed
-        (so entry still holds the session token data at write time)."""
+    def test_terminate_fires_cost_after_workspace_cleanup_commit(self, tmp_path):
+        """Telemetry follows exact retirement so cancellation cannot double count."""
         orch, entry = self._make_orchestrator_with_running(tmp_path)
 
         call_order = []
@@ -983,10 +996,12 @@ class TestTerminateRunningWritesCostRecord:
         asyncio.run(orch._terminate_running("test-001", cleanup_workspace=True))
 
         assert "cost" in call_order
-        # Cost must appear before workspace removal (or workspace may not be called
-        # if no project_id, but cost must still be first)
+        # The entry is retained by the coordinator even after its workspace is
+        # removed, so token data remains available. Emitting only after cleanup
+        # and exact removal prevents a canceled pre-commit child from recording
+        # the same run again when a replacement stop owner retries retirement.
         if "workspace" in call_order:
-            assert call_order.index("cost") < call_order.index("workspace")
+            assert call_order.index("workspace") < call_order.index("cost")
 
     def test_terminate_with_no_entry_does_not_crash(self, tmp_path):
         """Terminating a non-existent issue is a no-op."""
