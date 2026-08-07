@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T08:47:35.737276Z'
+updated_at: '2026-08-07T08:47:52.413659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,3 +65,11 @@ Acceptance criteria: a Ready integration row with satisfied dependencies and ava
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 08:47
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
