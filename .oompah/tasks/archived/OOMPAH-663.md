@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-663
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Canonicalize integrated-task fingerprints for owner overrides
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-08-07T15:12:18.978942Z'
+updated_at: '2026-08-07T15:18:38.394480Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -103,6 +103,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-6e2ab2992878: '2026-07-31T14:37:53.998603+00:00'
     attempt-799ddfb586a7: '2026-07-31T14:40:33.673395+00:00'
+    attempt-06539235c434: '2026-08-07T15:18:30.200446+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-663
@@ -122,6 +123,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T14:40:33.673412+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    target_state: Archived
+    evidence_fingerprint: e3d1b6db636b04ddf05ead78efe67b46415b916c457633ef1cf53aaea2da5479
+    audit_ids:
+    - audit-4a4cb7e26353
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T15:18:30.200466+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-663
@@ -147,6 +157,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:40:33.673435+00:00'
     applied_at: '2026-07-31T14:40:40.264739+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    audit_id: audit-4a4cb7e26353
+    attempt_id: attempt-06539235c434
+    target_state: Archived
+    evidence_fingerprint: e3d1b6db636b04ddf05ead78efe67b46415b916c457633ef1cf53aaea2da5479
+    status: Archived
+    audit_ids:
+    - audit-4a4cb7e26353
+    applied: false
+    created_at: '2026-08-07T15:18:30.200488+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -222,7 +243,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-663
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -231,7 +252,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-06539235c434
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -243,6 +264,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-663
       selected_ref: 3bfc42ec9e14809441868bba108fe5dccec18ab7
       selected_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
+      verdict: pass
+      completed_at: '2026-08-07T15:18:30.200191+00:00'
+      ended_at: '2026-08-07T15:18:30.200191+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -251,7 +275,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T15:10:27.682732+00:00'
     selected_ref: 3bfc42ec9e14809441868bba108fe5dccec18ab7
     selected_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
-    updated_at: '2026-08-07T15:12:08.170453+00:00'
+    updated_at: '2026-08-07T15:18:30.200191+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6e2ab2992878
