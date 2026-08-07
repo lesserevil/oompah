@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T10:08:41.536815Z'
+updated_at: '2026-08-07T10:21:04.443664Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b5f421d6-0441-409c-863b-452422a9d3db
+oompah.agent_run_id: eb7c0c8d-0a62-4c07-b0e7-09810dcb4e96
 oompah.task_costs:
   total_input_tokens: 10289150
   total_output_tokens: 60909
