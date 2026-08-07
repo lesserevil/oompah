@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T19:32:28.715750Z'
+updated_at: '2026-08-07T19:32:45.209072Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
