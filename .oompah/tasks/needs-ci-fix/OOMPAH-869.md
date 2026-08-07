@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-869
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Make inherited validation-fence restart test deterministic under saturated
   gates
@@ -9,10 +9,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:47:18.410156Z'
+updated_at: '2026-08-07T05:38:17.579741Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +195,56 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 4s
 - Log: OOMPAH-869__20260807T043623Z.jsonl
+---
+author: oompah
+created: 2026-08-07 05:38
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-869`
+Target: `main`
+Head: `519ec2e492dec109ab008ad3617a5489928f2a30`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+[  9%] PASSED tests/test_auditor_termination_cleanup.py::test_forced_termination_does_not_release_replacement_auditor_claim 
+tests/test_auto_concurrency.py::TestAutoConcurrency::test_positive_configuration_remains_fixed 
+[gw3] [  9%] PASSED tests/test_auditor_termination_cleanup.py::test_uncommitted_normal_exit_is_a_finalization_failure 
+tests/test_bench_server.py::TestPercentile::test_empty_returns_zero 
+[gw3] [  9%] PASSED tests/test_bench_server.py::TestPercentile::test_empty_returns_zero 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_partially_free_model_output_nonzero 
+[gw1] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_free_model_returns_truthy_model_name 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_paid_model_returns_falsy 
+[gw0] [  9%] PASSED tests/test_auto_concurrency.py::TestAutoConcurrency::test_auto_limit_is_recalculated_each_refresh 
+tests/test_auto_concurrency.py::TestAutoConcurrency::test_lower_auto_limit_never_terminates_running_agents 
+[gw2] [  9%] PASSED tests/test_auto_concurrency.py::TestAutoConcurrency::test_positive_configuration_remains_fixed 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_partially_free_model_input_nonzero 
+[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_partially_free_model_output_nonzero 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_no_provider_returns_falsy 
+[gw1] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_paid_model_returns_falsy 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_no_profiles_returns_falsy 
+[gw0] [  9%] PASSED tests/test_auto_concurrency.py::TestAutoConcurrency::test_lower_auto_limit_never_terminates_running_agents 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_model_not_in_model_costs_returns_falsy 
+[gw2] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_partially_free_model_input_nonzero 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_profile_selects_paid 
+[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_no_provider_returns_falsy 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_profile_selects_free 
+[gw1] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_no_profiles_returns_falsy 
+tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_free_model_dispatched_when_budget_exceeded 
+[gw0] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_model_not_in_model_costs_returns_falsy 
+tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_default_is_free 
+[gw2] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_profile_selects_paid 
+tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_paid_reject_reason_is_budget_exceeded_paid 
+[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_profile_selects_free 
+tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_unknown_cost_model_rejected_conservatively 
+[gw1] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_free_model_dispatched_when_budget_exceeded 
+tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_budget_not_exceeded_still_allowed 
+[gw0] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_default_is_free 
+tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_paid_model_rejected_when_budget_exceeded
+```
 ---
 <!-- COMMENTS:END -->
