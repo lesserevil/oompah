@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T07:31:21.230529Z'
+updated_at: '2026-08-07T08:34:50.788644Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -98,18 +98,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-867
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-23d90ec08efa
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+      created_at: '2026-08-07T08:34:49.268856+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T08:34:49.268856+00:00'
+      branch_key: OOMPAH-867
+      selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+      selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T07:31:07.784061+00:00'
+    selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+    selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+    updated_at: '2026-08-07T08:34:49.268856+00:00'
   - version: 1
     audit_id: audit-a8bca1ec2de3
     project_id: proj-14849f1b
@@ -127,7 +145,22 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T07:31:07.784061+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-23d90ec08efa
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    created_at: '2026-08-07T08:34:49.268856+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T08:34:49.268856+00:00'
+    branch_key: OOMPAH-867
+    selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+    selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
 ---
 ## Summary
 
