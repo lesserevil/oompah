@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T17:47:11.203354Z'
+updated_at: '2026-08-07T17:52:22.854491Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -32,12 +32,12 @@ oompah.duplicate_screening:
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 1
-  retry_after: '2026-08-07T17:47:20.339004+00:00'
+  retry_count: 2
+  retry_after: '2026-08-07T17:54:10.907173+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f6f87ba9-e288-4104-a03b-4e693ee12fc6
+oompah.agent_run_id: 23ba04f6-8ffc-4dea-a162-860dd70160d3
 oompah.task_costs:
   total_input_tokens: 928553
   total_output_tokens: 28098
@@ -154,6 +154,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: opus
+    focus: duplicate_detector
+    source_branch: OOMPAH-658
+    source_sha: null
+    completed_at: ''
+  - run_id: 0ed233be3828410e8e97c8275444648a--contributor-9efe7fcc211b
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
     focus: duplicate_detector
     source_branch: OOMPAH-658
     source_sha: null
@@ -1202,5 +1210,19 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=— -> Claude/opus]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 20s
+---
+author: oompah
+created: 2026-08-07 17:52
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+author: oompah
+created: 2026-08-07 17:52
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=— -> Claude/opus]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 11s
 ---
 <!-- COMMENTS:END -->
