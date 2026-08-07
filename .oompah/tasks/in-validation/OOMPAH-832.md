@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T05:12:39.674179Z'
+updated_at: '2026-08-07T07:10:26.174497Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -110,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-832
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -119,7 +119,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-63e8cf18eb13
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -129,6 +129,8 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T05:10:30.957832+00:00'
       branch_key: OOMPAH-832
+      ended_at: '2026-08-07T07:10:13.720886+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: lesserevil
@@ -157,7 +159,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-63e8cf18eb13
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -167,6 +169,8 @@ oompah.terminal_audit:
     model: haiku
     started_at: '2026-08-07T05:10:30.957832+00:00'
     branch_key: OOMPAH-832
+    ended_at: '2026-08-07T07:10:13.720886+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
