@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T17:47:18.747584Z'
+updated_at: '2026-08-07T17:47:40.586253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: f0851d52-6576-472e-9059-fb5f851965d8
 ---
 ## Summary
 
@@ -68,3 +69,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 17:47
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
