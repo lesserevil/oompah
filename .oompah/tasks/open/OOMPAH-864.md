@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:14:32.452969Z'
+updated_at: '2026-08-07T19:15:02.731531Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -46,14 +46,17 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
   base_sha: eb08e86b9ca20277e403222e949e7408c7badbeb
   head_sha: 02527892c31eba7f422009e2c09e579f0c44580a
   submitted_at: '2026-08-07T19:14:11.009313+00:00'
-  updated_at: '2026-08-07T19:14:11.009313+00:00'
+  updated_at: '2026-08-07T19:14:54.621914+00:00'
+  last_error: 'could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-864
+    is at 742075be6bc166405156bcbfeb39c7d99d355530, not accepted head 02527892c31eba7f422009e2c09e579f0c44580a;
+    refusing to reset it'
 oompah.task_costs:
   total_input_tokens: 46287
   total_output_tokens: 677
