@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-08-07T21:54:31.919111Z'
+updated_at: '2026-08-07T21:54:38.503203Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -179,8 +179,11 @@ oompah.terminal_audit:
     - audit-8bf132785a1e
     - audit-ef827ed9402c
     kind: override
-    applied: true
+    applied: false
     retired_at: '2026-08-02T18:22:45.675625+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-660
@@ -248,6 +251,42 @@ oompah.terminal_audit:
       evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:22:36.702942+00:00'
     applied: true
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-07T21:54:33.462523+00:00'
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: OOMPAH-660 is an auto-filed epic maintenance/rebase child; its successful
+      terminal target is audited Done. It must not be promoted to Merged merely because
+      it changed the epic branch.
+    done_audit_ids: []
+    done_override_ids:
+    - override-6ca80332d3a5
+    done_override_equivalence:
+      version: 1
+      project_id: proj-14849f1b
+      task_id: OOMPAH-660
+      target_state: Done
+      override_id: override-6ca80332d3a5
+      authorized_by:
+        version: 1
+        identity: lesserevil
+        source: api
+      applied: true
+      legacy_evidence_fingerprint: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+      current_evidence_fingerprint: ab40139d20357c96bd12885b6e5d66faa752c6e577b3dc2c5bf215c2d3646e02
+      integration:
+        state: integrated
+        task_branch: epic-OOMPAH-619--task-OOMPAH-660
+        head_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
+        base_branch: epic-OOMPAH-619
+        integrated_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
+    created_at: '2026-08-07T21:54:33.462523+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -813,5 +852,10 @@ created: 2026-08-02 18:22
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
+---
+author: oompah
+created: 2026-08-07 21:54
+---
+Lifecycle reconciliation restored OOMPAH-660 to authorized Done: OOMPAH-660 is an auto-filed epic maintenance/rebase child; its successful terminal target is audited Done. It must not be promoted to Merged merely because it changed the epic branch.
 ---
 <!-- COMMENTS:END -->
