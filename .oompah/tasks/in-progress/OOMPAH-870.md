@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T07:28:31.236016Z'
+updated_at: '2026-08-07T07:46:04.665643Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-08-07 07:28
 ---
 Discovery: The affected path is Orchestrator._reconcile_standalone_ready_to_integrate_tasks in oompah/orchestrator.py. It validates the submitted branch/head and runs the exact quality gate, but when no live review remains it unconditionally reserves capacity and calls create_review; a valid accepted head already contained by the target therefore gets a forge no-review retry warning. Existing merged/Done reconciliation has containment helpers, but this Ready path lacks an accepted-generation containment CAS and durable terminal handoff. I am tracing coordinator and metadata contracts to preserve stale-generation fences and legacy In Review behavior.
+---
+author: oompah
+created: 2026-08-07 07:46
+---
+Implementation: Added an exact accepted-head containment check with target-ref refresh and immutable merge-base validation, plus a durable IntegrationRecord(state=integrated) no-op landing marker. Valid contained Ready submissions enter the existing terminal transition coordinator without review creation; replay detects the marker before forge lookup. Unknown containment keeps the ordinary review path available, and stale authority is rechecked before and after evidence persistence.
 ---
 <!-- COMMENTS:END -->
