@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T19:35:44.530433Z'
+updated_at: '2026-08-07T19:35:51.705836Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -160,6 +160,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T12:28:57.782056+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-873
+    target_state: Merged
+    evidence_fingerprint: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+    audit_ids:
+    - audit-bee8b4d51a55
+    - audit-cfc60f7d9673
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:35:50.164792+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-873
@@ -173,6 +183,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T12:28:57.782073+00:00'
     applied_at: '2026-08-07T12:29:05.748337+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-ce3f8abb97fe
@@ -192,7 +203,7 @@ oompah.terminal_audit:
       Direct takeover changed lifecycle state but introduced no new revision; redundant
       re-audit is unnecessary.'
     created_at: '2026-08-07T19:35:35.443083+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -271,7 +282,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-873
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -300,7 +311,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:05:44.182570+00:00'
     selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
     selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
-    updated_at: '2026-08-07T19:34:46.379509+00:00'
+    updated_at: '2026-08-07T19:35:50.164755+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f377f7de4b20
@@ -742,5 +753,12 @@ author: oompah
 created: 2026-08-07 19:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:35
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Retain the previously accepted merged revision: verified source head 78aecdcf07412f6f4eabf9e735b7206a3faa93b7 is an exact ancestor of current origin/main. Direct takeover changed lifecycle state but introduced no new revision; redundant re-audit is unnecessary.
 ---
 <!-- COMMENTS:END -->
