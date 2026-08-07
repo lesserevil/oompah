@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T08:48:08.974773Z'
+updated_at: '2026-08-07T09:11:46.824513Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/607
@@ -574,5 +574,10 @@ author: oompah
 created: 2026-08-07 08:48
 ---
 Understanding: I will audit shared-epic pre-PR and independently-merged reconciliation paths for stale child work_branch, missing parent_id, persistence failures, and authoritative parent resolution; add focused regressions and minimal hardening, then run the required checks and submit the branch.
+---
+author: oompah
+created: 2026-08-07 09:11
+---
+COMPLETION: Hardened shared-child review handoff to normalize both work_branch and branch_name to the authoritative epic branch before returning, while keeping metadata persistence best-effort and avoiding redundant writes. Added partial-identity regression coverage and the exact EXOCOMP-57 stale-own-branch independent-reconciliation regression. Verification: focused epic/reconciliation suites 250 passed; terminal mutation scan 8/8 allowlisted; full gate 15,864 passed, 7 skipped, 1 xfailed, with the single Makefile setup assertion reproduced cleanly after removing the test-runtime override. Commit 5f51f13ac pushed to origin/OOMPAH-641; worktree clean and up to date.
 ---
 <!-- COMMENTS:END -->
