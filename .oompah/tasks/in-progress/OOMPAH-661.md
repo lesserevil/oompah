@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T18:26:04.182420Z'
+updated_at: '2026-08-07T18:26:18.960163Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
