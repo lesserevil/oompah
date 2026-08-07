@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T09:45:15.700304Z'
+updated_at: '2026-08-07T09:47:47.351848Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -186,6 +186,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T09:09:10.429787+00:00'
     updated_at: '2026-07-31T09:44:33.134148+00:00'
+  - version: 1
+    audit_id: audit-03669ffaeaba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: df4a28d8ca0b22532179178e99ede2ea1162f45c7f925aa04f2d303f24c4983e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T09:47:39.887871+00:00'
+    selected_ref: 0957d99556f3200361fa225ba313a7b5db53daa6
+    selected_sha: 0957d99556f3200361fa225ba313a7b5db53daa6
   attempt_history:
   - version: 1
     attempt_id: attempt-2ae62c68e14f
