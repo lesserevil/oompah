@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T22:03:20.192977Z'
+updated_at: '2026-08-07T22:37:56.741229Z'
 work_branch: OOMPAH-906
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-08-07 22:03
 ---
 Preserved trusted exact-gate HOME for xdist native-validation guard state with fail-closed writable-root checks, bounded teardown cleanup, and regression coverage. Exact head: 273c3ddb683abe295f2c878b022d899896ebd618.
+---
+author: oompah
+created: 2026-08-07 22:37
+---
+Independent-review findings are fixed and pushed at replacement exact head 510988c96e982ff170fbb78bda8c39963f11b113. The resolved candidate worker HOME and runner-owned session root are now checked against every writable gate root, relative temp/run roots resolve against the worker cwd, HOME/pytest-workers and session symlink escapes fail closed, and recursive cleanup never follows a resolved symlink target. Each gate gets a unique runner/controller-owned HOME namespace; controller teardown and the shell runner EXIT trap remove partial state after killed/crashed xdist workers and configuration failures. Regression coverage includes OOMPAH_TEMP_ROOT=/home/oompah/pytest-workers, all six relative temp/run variables, parent symlinks, controller crash/config leftovers, killed pytest, and config-failure cleanup. Canonical broker evidence: focused worker-isolation plus the exact three OOMPAH-869 managed-native reproductions passed 36/36 under simulated gate + real xdist; broader parallel/Codex/quality-gate modules passed 187/187 under the same boundary; both runs verified no worker-HOME leak. Final Ruff, py_compile, bash syntax, diff check, and make check-secrets passed. Branch is clean and matches origin/OOMPAH-906 exactly.
 ---
 <!-- COMMENTS:END -->
