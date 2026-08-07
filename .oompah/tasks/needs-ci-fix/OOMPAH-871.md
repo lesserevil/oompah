@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-871
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T09:32:07.793155Z'
+updated_at: '2026-08-07T10:17:58.223305Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -296,5 +297,59 @@ author: oompah
 created: 2026-08-07 09:32
 ---
 Added durable provenance-only terminal suppression, centralized managed-tracker status fencing, and authenticated owner retain/new-revision API and CLI controls. Malformed metadata fails closed without payload leakage. Independent static review accepted; 204 focused regressions, terminal mutation scan, diff check, compile checks, and secret scan pass at rebased head bf81691f6.
+---
+author: oompah
+created: 2026-08-07 10:17
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-871`
+Target: `main`
+Head: `bf81691f649971380788c3afd1438978abd95b37`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+able/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_managed_tracker_state_branch_guard.py::test_orchestrator_global_tracker_is_read_only_in_managed_mode
+FAILED tests/test_managed_tracker_state_branch_guard.py::test_server_error_watcher_and_scheduler_write_only_to_state_branch
+FAILED tests/test_managed_tracker_state_branch_guard.py::test_auto_archive_and_shutdown_leave_code_branch_untouched
+FAILED tests/test_orchestrator_duplicate_detection.py::TestShouldDispatchRejectsDuplicateCandidate::test_issue_without_duplicate_candidate_label_allowed
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_repairs_merged_task_with_open_unmerged_review
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_repairs_merged_conflicted_review_to_needs_rebase
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_repairs_github_work_branch_merged_state
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_shared_follow_up_repairs_only_exact_named_terminal_child
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_false_merged_repair_skips_stale_cached_open_review
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_shared_follow_up_can_use_persisted_review_number
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_reopens_when_merged_branch_name_is_stale
+FAILED tests/test_orchestrator_merged.py::TestReconcileStaleInReviewTasks::test_reopens_closed_unmerged_review_with_commits_ahead
+FAILED tests/test_project_pause.py::TestShouldDispatchProjectPauseGate::test_pause_does_not_block_other_project
+FAILED tests/test_project_pause.py::TestShouldDispatchProjectPauseGate::test_unpaused_project_dispatches
+FAILED tests/test_project_pause.py::TestShouldDispatchProjectPauseGate::test_unpaused_global_unpaused_project_dispatches
+FAILED tests/test_stalled_task_watchdog.py::TestGateFailureFencesWatchdogReopen::test_missing_generation_remains_compatible_when_queue_row_is_absent
+FAILED tests/test_stalled_task_watchdog.py::TestGateFailureFencesWatchdogReopen::test_duplicate_comment_fallback_reopens_only_once
+FAILED tests/test_stalled_task_watchdog.py::TestGateFailureFencesWatchdogReopen::test_action_time_queue_cas_applies_unchanged_generation
+FAILED tests/test_stalled_task_watchdog.py::TestGateFailureFencesWatchdogReopen::test_tracker_generation_change_during_action_waits_for_authority
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap1_zero_open_dispatches
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap1_one_open_still_dispatches
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap3_one_open_dispatches
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap3_two_open_dispatches
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_p0_dispatches_at_limit
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap3_zero_open_dispatches
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_p0_dispatches_above_limit
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_two_projects_independent_limits
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap3_three_open_still_dispatches
+FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap1_on_one_project_does_not_block_any_dispatch
+= 29 failed, 15878 passed, 11 skipped, 1 xfailed, 42 warnings in 653.87s (0:10:53) =
+
+make: *** [Makefile:401: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->

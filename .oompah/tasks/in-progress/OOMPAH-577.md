@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T10:11:07.436257Z'
+updated_at: '2026-08-07T10:18:02.164915Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -614,5 +614,15 @@ author: oompah
 created: 2026-08-07 10:11
 ---
 Discovery: Commit 70fa1de48 (PR #588) is already an ancestor of this worktree HEAD. Its coordinator logic rejects only completed records with matching target, fingerprint, and revision binding; changed evidence supersedes the historical record and stages a new Pending audit. The integrated completion path recomputes its fingerprint from the current integration record before requesting Done.
+---
+author: oompah
+created: 2026-08-07 10:17
+---
+Implementation: No additional patch was needed in this retry because the requested implementation is already present in merged PR #588 / commit 70fa1de48. The current coordinator preserves the old audit as Superseded, creates a fresh Pending record for changed evidence, and retains exact completed-evidence rejection.
+---
+author: oompah
+created: 2026-08-07 10:18
+---
+Verification: PASS —  completed with 448 passed in 293.66s. Coverage includes changed-completed-evidence supersession, identical-evidence rejection/coalescing, coordinator routing, and integrated-audit recovery. The complete Makefile gate remains orchestrator-owned for the review-ready head.
 ---
 <!-- COMMENTS:END -->
