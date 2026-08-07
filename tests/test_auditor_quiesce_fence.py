@@ -1436,6 +1436,7 @@ async def test_audit_lane_repeated_cancel_waits_for_fallback_thread_start(
         patch.object(orch, "_audit_store", return_value=store),
         patch.object(orch, "_audit_selector", return_value=selector),
         patch.object(orch, "_revisionless_archive_evidence", return_value=None),
+        patch.object(orch, "_bind_audit_record_revision", return_value=record),
         patch.object(orch, "_tracker_for_issue", return_value=tracker),
         patch("oompah.orchestrator.asyncio.to_thread", side_effect=controlled_to_thread),
     ):
@@ -3245,6 +3246,11 @@ def test_two_audits_survive_canonical_restart_and_admit_once_on_new_orchestrator
             patch.object(fresh, "_tracker_for_issue", return_value=tracker),
             patch.object(fresh, "_audit_selector", return_value=selector),
             patch.object(fresh, "_revisionless_archive_evidence", return_value=None),
+            patch.object(
+                fresh,
+                "_bind_audit_record_revision",
+                side_effect=lambda _issue, record: record,
+            ),
             patch.object(fresh, "_run_worker", side_effect=_run_auditor),
             patch.object(fresh, "_post_comment"),
             patch.object(fresh, "_announce_coordination_start"),
