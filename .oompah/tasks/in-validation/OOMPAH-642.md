@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T07:12:51.212746Z'
+updated_at: '2026-08-07T08:13:07.520250Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -205,6 +205,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T07:02:07.397951+00:00'
     updated_at: '2026-07-31T07:12:24.763564+00:00'
+  - version: 1
+    audit_id: audit-bdfc9e5e99cb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-642
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5eef731bde068d42a18dc4712e3fdeb9713ba45a408c260ef096592d0f13ba6b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T08:13:03.968667+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3755ea18f7aa
