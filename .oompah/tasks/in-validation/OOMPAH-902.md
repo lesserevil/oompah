@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-902
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Make exact-gate sandboxes provide a hermetic operator identity
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T19:10:57.644006Z'
+updated_at: '2026-08-07T19:11:29.232484Z'
 work_branch: OOMPAH-902
 target_branch: null
 review_url: null
@@ -32,6 +32,61 @@ oompah.integration:
     from the published epic head eb08e86b9ca20277e403222e949e7408c7badbeb; refusing
     to reset a preserved recovery snapshot
 oompah.work_branch: OOMPAH-902
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8dbb97f0ae9e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-902
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+    attempts:
+    - version: 1
+      attempt_id: attempt-bd594e4191e6
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+      created_at: '2026-08-07T19:11:21.422047+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T19:11:21.422047+00:00'
+      branch_key: OOMPAH-902
+      selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
+      selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Open
+    created_at: '2026-08-07T19:11:12.986284+00:00'
+    selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
+    selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
+    updated_at: '2026-08-07T19:11:21.422047+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-bd594e4191e6
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+    created_at: '2026-08-07T19:11:21.422047+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T19:11:21.422047+00:00'
+    branch_key: OOMPAH-902
+    selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
+    selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
 ---
 ## Summary
 
@@ -76,5 +131,20 @@ created: 2026-08-07 19:10
 Integration could not verify `OOMPAH-902`: epic worktree head a85a36baf7b3ebcb45be27823755b5694a790a49 differs from the published epic head eb08e86b9ca20277e403222e949e7408c7badbeb; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-07 19:11
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 19:11
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 19:11
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
