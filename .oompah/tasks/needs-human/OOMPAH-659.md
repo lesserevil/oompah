@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-659
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Defer standalone full gates until finish dependencies are satisfied
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T17:55:41.037770Z'
+updated_at: '2026-08-07T17:56:04.331257Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -26,13 +26,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 5c01ef25-d4f4-4955-a176-dbce0a903e7a
-  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
-  claimed_at: '2026-08-07T17:54:54.409955+00:00'
-  claim_expires_at: '2026-08-07T18:24:54.409955+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: origin/OOMPAH-659 does not match accepted head cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-07T17:59:36.813703+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -671,5 +671,10 @@ Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 28s
+---
+author: oompah
+created: 2026-08-07 17:56
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-659/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
