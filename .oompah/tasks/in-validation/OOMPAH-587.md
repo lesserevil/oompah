@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-07T13:41:12.041890Z'
+updated_at: '2026-08-07T13:48:53.316403Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -891,7 +891,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -917,7 +917,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-403f9137030f
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -930,6 +930,10 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
       candidate_rotation_count: 1
+      failure_classification: finalization_failure
+      ended_at: '2026-08-07T13:48:49.199253+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-07T13:49:09.199220+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -938,7 +942,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:25:13.344231+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:41:00.297454+00:00'
+    updated_at: '2026-08-07T13:48:49.199253+00:00'
   - version: 1
     audit_id: audit-8dcb52fee17f
     project_id: proj-14849f1b
@@ -1179,7 +1183,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-403f9137030f
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -1192,14 +1196,18 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     candidate_rotation_count: 1
+    failure_classification: finalization_failure
+    ended_at: '2026-08-07T13:48:49.199253+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-07T13:49:09.199220+00:00'
 oompah.task_costs:
-  total_input_tokens: 552
-  total_output_tokens: 67577
+  total_input_tokens: 566
+  total_output_tokens: 76613
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 552
-      output_tokens: 67577
+      input_tokens: 566
+      output_tokens: 76613
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -1298,6 +1306,12 @@ oompah.task_costs:
     output_tokens: 22
     cost_usd: 0.0
     recorded_at: '2026-08-07T13:39:52.824067+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 9036
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T13:48:43.022189+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/601
 oompah.review_number: '601'
 oompah.work_branch: epic-OOMPAH-587
@@ -2140,5 +2154,15 @@ author: oompah
 created: 2026-08-07 13:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 13:48
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 18, Tool calls: 6
+- Tokens: 14 in / 9.0K out [9.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 40s
+- Log: OOMPAH-587__20260807T134122Z.jsonl
 ---
 <!-- COMMENTS:END -->
