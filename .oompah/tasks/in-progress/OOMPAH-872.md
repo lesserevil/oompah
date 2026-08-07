@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T07:26:08.599298Z'
+updated_at: '2026-08-07T07:26:38.853306Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-07 07:26
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 07:26
+---
+Understanding: the service ErrorWatcher must map its runtime checkout to the explicitly configured Oompah management project using durable repository identity, while rejecting ambiguous or foreign matches and preserving fail-closed protections. I will trace startup wiring and project identity resolution, implement focused resolver changes, add regression tests for canonical/alias/ambiguous/foreign/restart cases, then run focused checks.
 ---
 <!-- COMMENTS:END -->
