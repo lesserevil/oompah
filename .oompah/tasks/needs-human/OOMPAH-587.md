@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-07T13:54:54.080820Z'
+updated_at: '2026-08-07T13:55:13.855053Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -41,6 +41,7 @@ oompah.terminal_audit:
     attempt-e3747a7713a5: '2026-08-04T00:14:22.036463+00:00'
     attempt-469759a9191d: '2026-08-04T00:21:24.005114+00:00'
     attempt-6619c93219d9: '2026-08-04T00:36:49.708812+00:00'
+    no-auditor-audit-0d031f1ea687-3: '2026-08-07T13:55:01.441586+00:00'
   oompah.terminal_override_records: []
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
@@ -66,6 +67,15 @@ oompah.terminal_audit:
     lifecycle_reconciled: true
     reconciled_to: Done
     retired_reason: shared_epic_parent_not_landed
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-587
+    target_state: Done
+    evidence_fingerprint: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    audit_ids:
+    - audit-0d031f1ea687
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T13:55:01.441595+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-587
@@ -247,6 +257,18 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:30.015621+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-587
+    audit_id: audit-0d031f1ea687
+    attempt_id: no-auditor-audit-0d031f1ea687-3
+    target_state: Done
+    evidence_fingerprint: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    status: Needs Human
+    audit_ids:
+    - audit-0d031f1ea687
+    applied: true
+    created_at: '2026-08-07T13:55:01.441616+00:00'
+    applied_at: '2026-08-07T13:55:10.606709+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-587
@@ -891,7 +913,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -952,6 +974,20 @@ oompah.terminal_audit:
       candidate_rotation_count: 2
       ended_at: '2026-08-07T13:54:52.327716+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-0d031f1ea687-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T13:55:01.441448+00:00'
+      completed_at: '2026-08-07T13:55:01.441448+00:00'
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -960,7 +996,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:25:13.344231+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:50:34.925317+00:00'
+    updated_at: '2026-08-07T13:55:01.441448+00:00'
   - version: 1
     audit_id: audit-8dcb52fee17f
     project_id: proj-14849f1b
@@ -2231,5 +2267,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 34s
 - Log: OOMPAH-587__20260807T135110Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:55
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
