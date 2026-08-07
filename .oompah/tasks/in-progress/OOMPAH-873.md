@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T08:35:51.810935Z'
+updated_at: '2026-08-07T08:52:14.575164Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +196,15 @@ author: oompah
 created: 2026-08-07 08:35
 ---
 Discovery: The list path mutates authoritative tracker objects after fetch: _fetch_all_issues rolls an In Progress epic to Done when its children are Done (and coerces children under Proposed parents), while detail returns the canonical state unchanged. This directly explains OOMPAH-768. Separately, generation binding is only read-before/read-after with one retry, so a second concurrent mutation can stamp an older object with a newer generation. I will remove list-only state rewriting and provide an atomic native snapshot read that returns issues plus the exact generation under the repository lock.
+---
+author: oompah
+created: 2026-08-07 08:52
+---
+Implementation: Updated native Markdown lifecycle writes to atomically rename the updated status file; added lock-bound list/detail generation reads; made state-branch issue lists preserve canonical task state instead of epic/parent-derived lanes; rejected raced snapshot candidates without advancing data_revision; prevented REST, initial issue pushes, broadcasts, and full_sync from publishing known-invalidated boards; added HTTP 503/retryable full_sync behavior and documentation. Added focused regressions in tests/test_oompah_md_tracker.py, tests/test_oompah_md_tracker_state_branch.py, tests/test_server_issue_snapshot.py, and tests/test_ws_full_sync.py.
+---
+author: oompah
+created: 2026-08-07 08:52
+---
+Verification blocked before test execution: both  and Python validation are intercepted by the managed native validation guard, which fails with OSError EROFS while chmod targets /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3.locks outside the writable worktree.  passes. I attempted the instructed follow-up task creation after finding no matching task, but the task-scoped handoff capability denied create. Per spawned-worker security rules, stopping for operator reconciliation with changes uncommitted and unsubmitted.
 ---
 <!-- COMMENTS:END -->

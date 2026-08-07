@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T08:51:13.399697Z'
+updated_at: '2026-08-07T08:52:25.530693Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -177,7 +177,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-870
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -189,6 +189,25 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-07T08:21:30.064281+00:00'
+  - version: 1
+    audit_id: audit-4b7ddaa796f1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T08:52:20.557537+00:00'
+    selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+    selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
   attempt_history:
   - version: 1
     attempt_id: attempt-7d919149aed7
@@ -357,5 +376,10 @@ created: 2026-08-07 08:51
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 08:52
+---
+Owner recovery: the watchdog incorrectly reopened this merged task after auditor infrastructure exhaustion. PR #736 is merged at exact accepted head aaaebbfa5152e9942a1decd9ef2d319573ca0493. Added verdict-capable independent auditor candidates and restaging the authoritative Merged transition; no implementation work is authorized. OOMPAH-876 tracks the transport/candidate classification defect, and OOMPAH-871 tracks terminal provenance reopen suppression.
 ---
 <!-- COMMENTS:END -->

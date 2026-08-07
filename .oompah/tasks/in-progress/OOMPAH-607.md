@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T08:47:08.278361Z'
+updated_at: '2026-08-07T08:52:09.175431Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -699,5 +699,10 @@ author: oompah
 created: 2026-08-07 08:47
 ---
 Understanding: terminal status requests can resolve a tracker through a project alias but pass the alias into terminal owner authorization. I will trace the resolution and terminal interfaces, canonicalize the managed project ID at that boundary, add owner/alias/unknown/unauthorized regressions, and run focused checks.
+---
+author: oompah
+created: 2026-08-07 08:52
+---
+Implementation: verified the merged OOMPAH-607 implementation in oompah/server.py. _canonical_managed_project_id feeds canonical IDs through _get_tracker_for_issue_or_project, api_task_handoff, and _stage_terminal_transition; _project_by_id and coordinator authorization therefore receive the managed ID. Existing regressions cover canonical/alias owner overrides, staged canonical IDs, unauthorized actors, unknown aliases, and non-leaking errors.
 ---
 <!-- COMMENTS:END -->
