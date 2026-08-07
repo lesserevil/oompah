@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Merged
+status: In Validation
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:49:16.137684Z'
+updated_at: '2026-08-07T07:10:58.015318Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -261,6 +261,23 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T06:25:49.441224+00:00'
+  - version: 1
+    audit_id: audit-6604aca888bd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0142173a893415b183cae67c00a14f90aa1a0a1233347fc2495e40127b489957
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T07:10:52.852119+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3d919736a8a3
