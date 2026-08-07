@@ -9070,6 +9070,80 @@ class Orchestrator:
                     )
                     continue
 
+                # A successful no-op landing is durable evidence in its own
+                # right.  On a restart, do not ask the forge to rediscover a
+                # review for a generation that has already been proven to be
+                # contained by the target branch.
+                if self._is_standalone_noop_landing(
+                    authority.issue,
+                    task_branch,
+                    target_branch,
+                    authority.head_sha,
+                ):
+                    containment, containment_reason = (
+                        self._standalone_accepted_head_containment(
+                            project,
+                            authority,
+                            tracker,
+                            work_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                    )
+                    if containment != "contained":
+                        reason = (
+                            "canonical zero-diff landing evidence could not be "
+                            f"revalidated: {containment_reason}"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            reason,
+                            authority=authority,
+                        )
+                        logger.warning(
+                            "Deferred standalone no-op landing for %s: %s",
+                            task_id,
+                            containment_reason,
+                        )
+                        continue
+                    staged, transition = (
+                        self._request_standalone_contained_with_authority(
+                            authority,
+                            tracker,
+                            project=project,
+                            work_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                    )
+                    if not staged:
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed before no-op terminal staging",
+                        )
+                        continue
+                    if transition is not None and transition.success:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                        logger.info(
+                            "Staged already-contained standalone task %s for "
+                            "terminal audit without a forge review",
+                            task_id,
+                        )
+                    else:
+                        reason = (
+                            transition.reason
+                            if transition is not None
+                            else "terminal audit transition failed"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"contained no-op landing could not enter terminal audit: {reason}",
+                        )
+                    return
+
                 try:
                     existing_pr = provider.find_pr_for_branch(
                         repo_slug,
@@ -9343,7 +9417,23 @@ class Orchestrator:
                 if review_capacity is None:
                     review_capacity = self._project_review_capacity(project_id)
                 review_count, review_limit, at_capacity = review_capacity
+                contained_before_gate = False
                 if at_capacity:
+                    # A zero-diff landing does not consume review capacity.
+                    # Check it before honoring the project-wide cap, but still
+                    # require the exact quality gate below before staging.
+                    capacity_containment, _capacity_reason = (
+                        self._standalone_accepted_head_containment(
+                            project,
+                            authority,
+                            tracker,
+                            work_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                    )
+                    if capacity_containment == "contained":
+                        contained_before_gate = True
+                if at_capacity and not contained_before_gate:
                     # Capacity is project-wide, so later candidates cannot
                     # make progress in this sweep.  Keep an informational,
                     # non-actionable wait state for the selected task rather
@@ -9406,6 +9496,66 @@ class Orchestrator:
                         authority=authority,
                     )
                     continue
+
+                # The exact accepted-head gate above proves the task's
+                # submitted generation.  A branch tip already contained in
+                # the target has no valid replacement review to create; store
+                # that fact and enter the same terminal audit coordinator used
+                # by merged reviews.
+                if contained_before_gate:
+                    containment = "contained"
+                else:
+                    containment, _containment_reason = (
+                        self._standalone_accepted_head_containment(
+                            project,
+                            authority,
+                            tracker,
+                            work_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                    )
+                if containment == "contained":
+                    staged, transition = (
+                        self._request_standalone_contained_with_authority(
+                            authority,
+                            tracker,
+                            project=project,
+                            work_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                    )
+                    if not staged:
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed before no-op terminal staging",
+                        )
+                        continue
+                    if transition is not None and transition.success:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                        logger.info(
+                            "Staged already-contained standalone task %s for "
+                            "terminal audit without a forge review",
+                            task_id,
+                        )
+                    else:
+                        reason = (
+                            transition.reason
+                            if transition is not None
+                            else "terminal audit transition failed"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"contained no-op landing could not enter terminal audit: {reason}",
+                        )
+                    return
+                # A missing managed clone or an unavailable target ref does
+                # not prove that the accepted head is already landed.  Keep
+                # the ordinary review path available in that case; only the
+                # positive, exact containment result activates the no-op path.
 
                 reservation = self._acquire_review_slot(
                     project=project,
@@ -10685,6 +10835,438 @@ class Orchestrator:
             if not self._standalone_delivery_authorized(authority, tracker):
                 return False, None
             return True, action()
+
+    @staticmethod
+    def _is_standalone_noop_landing(
+        issue: Issue,
+        work_branch: str,
+        target_branch: str,
+        accepted_head: str | None,
+    ) -> bool:
+        """Return whether *issue* carries canonical zero-diff evidence."""
+
+        integration = getattr(issue, "integration", None)
+        expected_head = str(accepted_head or "").strip().lower()
+        return bool(
+            expected_head
+            and str(getattr(integration, "state", "") or "").strip().lower()
+            == "integrated"
+            and str(getattr(integration, "task_branch", "") or "").strip()
+            == str(work_branch or "").strip()
+            and str(getattr(integration, "base_branch", "") or "").strip()
+            == str(target_branch or "").strip()
+            and str(getattr(integration, "head_sha", "") or "").strip().lower()
+            == expected_head
+            and str(
+                getattr(integration, "integrated_sha", "") or ""
+            ).strip().lower()
+            == expected_head
+        )
+
+    def _standalone_accepted_head_containment(
+        self,
+        project: Project,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        *,
+        work_branch: str,
+        target_branch: str,
+        verify_authority: bool = True,
+    ) -> tuple[str, str]:
+        """Prove the exact accepted head is contained by the target branch.
+
+        The forge source-head check binds ``authority.head_sha`` to the exact
+        accepted submission.  Refresh the target ref and test that immutable
+        SHA directly; falling back to the existing branch-ahead helper is kept
+        only for tracker/test adapters without a managed clone.  The result is
+        tri-state so an unavailable proof never becomes a forge review retry.
+        """
+
+        if verify_authority and not self._standalone_delivery_authorized(
+            authority,
+            tracker,
+        ):
+            return "unknown", "delivery authority is no longer current"
+        accepted_head = str(authority.head_sha or "").strip().lower()
+        if not accepted_head:
+            return "unknown", "accepted submission head is unavailable"
+
+        repo_path = str(getattr(project, "repo_path", "") or "")
+        refs_fresh, refresh_error = self._refresh_landing_evidence_target_refs(
+            repo_path,
+            (target_branch,),
+            access_token=getattr(project, "access_token", None),
+            forge_kind=getattr(project, "forge_kind", "github"),
+        )
+        if not refs_fresh:
+            return (
+                "unknown",
+                f"target ref refresh failed ({refresh_error or 'unknown error'})",
+            )
+
+        if os.path.isdir(repo_path) and os.path.exists(
+            os.path.join(repo_path, ".git")
+        ):
+            target_ref = ""
+            for candidate in (
+                f"refs/remotes/origin/{target_branch}",
+                f"refs/heads/{target_branch}",
+            ):
+                try:
+                    resolved = subprocess.run(
+                        [
+                            "git",
+                            "rev-parse",
+                            "--verify",
+                            "--quiet",
+                            f"{candidate}^{{commit}}",
+                        ],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    continue
+                if resolved.returncode == 0:
+                    target_ref = candidate
+                    break
+            if not target_ref:
+                return "unknown", f"target branch {target_branch} is unavailable"
+            try:
+                contained = subprocess.run(
+                    [
+                        "git",
+                        "merge-base",
+                        "--is-ancestor",
+                        accepted_head,
+                        target_ref,
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return "unknown", "exact target containment check could not start"
+            if contained.returncode == 0:
+                return "contained", ""
+            if contained.returncode == 1:
+                return (
+                    "not_contained",
+                    f"accepted head {accepted_head} is not contained in {target_branch}",
+                )
+            return "unknown", "exact target containment check failed"
+
+        # Small tracker adapters and unit tests may not have a managed clone.
+        # Their branch-ahead observation is the only available evidence, but
+        # errors remain fail-closed.
+        ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
+            project,
+            target_branch,
+            work_branch,
+        )
+        if commit_error:
+            return "unknown", commit_error
+        if ahead > 0:
+            return (
+                "not_contained",
+                f"accepted branch remains {ahead} commit(s) ahead of {target_branch}",
+            )
+        return "contained", ""
+
+    def _standalone_noop_terminal_authorized(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        *,
+        work_branch: str,
+        target_branch: str,
+    ) -> bool:
+        """Validate terminal authority after the integration evidence write."""
+
+        with self._standalone_delivery_authority_lock:
+            key = (authority.project_id, authority.task_id)
+            if (
+                authority.revoked
+                or self._standalone_delivery_authorities.get(key) is not authority
+            ):
+                return False
+        current = self._fresh_standalone_delivery_issue(authority, tracker)
+        if current is None:
+            return False
+        if canonicalize_status(current.state) != authority.expected_state:
+            return False
+        project = self.project_store.get(authority.project_id)
+        if project is None:
+            return False
+        if (
+            self._branch_for_issue(current, project) != work_branch
+            or str(current.target_branch or project.default_branch or "").strip()
+            != target_branch
+            or _is_epic_issue(current)
+        ):
+            return False
+        if not self._is_standalone_noop_landing(
+            current,
+            work_branch,
+            target_branch,
+            authority.head_sha,
+        ):
+            return False
+        dependency_state = self._current_standalone_finish_dependency_state(
+            current,
+            tracker,
+        )
+        if (
+            dependency_state is None
+            or dependency_state.revision != authority.dependency_revision
+        ):
+            return False
+        try:
+            current_head = authority.head_resolver()
+        except Exception:  # noqa: BLE001 - remote head is authoritative
+            return False
+        if str(current_head or "").strip().lower() != str(
+            authority.head_sha or ""
+        ).strip().lower():
+            return False
+        authority.issue = current
+        return True
+
+    def _standalone_noop_integration_record(
+        self,
+        issue: Issue,
+        *,
+        work_branch: str,
+        target_branch: str,
+        accepted_head: str,
+    ) -> IntegrationRecord:
+        """Build the durable integration record for an already-landed head."""
+
+        existing = getattr(issue, "integration", None)
+        return IntegrationRecord(
+            state="integrated",
+            task_branch=work_branch,
+            base_branch=target_branch,
+            base_sha=getattr(existing, "base_sha", None),
+            head_sha=accepted_head,
+            integrated_sha=accepted_head,
+            attempts=int(getattr(existing, "attempts", 0) or 0),
+            submitted_at=getattr(existing, "submitted_at", None),
+            updated_at=datetime.now(timezone.utc).isoformat(),
+            dependency_heads=dict(getattr(existing, "dependency_heads", {}) or {}),
+        )
+
+    async def _request_standalone_contained_with_authority_inner(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        *,
+        project: Project,
+        work_branch: str,
+        target_branch: str,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Persist zero-diff evidence and stage the normal terminal audit chain."""
+
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        async with self.issue_transition_lock(issue_id):
+            if not await asyncio.to_thread(
+                self._standalone_delivery_authorized,
+                authority,
+                tracker,
+            ):
+                return False, None
+            containment, _reason = await asyncio.to_thread(
+                self._standalone_accepted_head_containment,
+                project,
+                authority,
+                tracker,
+                work_branch=work_branch,
+                target_branch=target_branch,
+            )
+            if containment != "contained":
+                return False, None
+
+            accepted_head = str(authority.head_sha or "").strip()
+            current = authority.issue
+            if self._is_standalone_noop_landing(
+                current,
+                work_branch,
+                target_branch,
+                authority.head_sha,
+            ):
+                canonical_record = current.integration
+            else:
+                canonical_record = self._standalone_noop_integration_record(
+                    current,
+                    work_branch=work_branch,
+                    target_branch=target_branch,
+                    accepted_head=accepted_head,
+                )
+                try:
+                    def persist_noop_evidence() -> None:
+                        # A closed/historical review must not remain visible as
+                        # if it was reused for this no-op landing.
+                        for field in (
+                            "oompah.review_url",
+                            "oompah.review_number",
+                            "oompah.review_head",
+                        ):
+                            if getattr(current, field.rsplit(".", 1)[-1], None):
+                                tracker.set_metadata_field(
+                                    authority.task_id,
+                                    field,
+                                    "",
+                                )
+                        tracker.set_metadata_field(
+                            authority.task_id,
+                            "oompah.integration",
+                            canonical_record.to_dict(),
+                        )
+
+                    await asyncio.to_thread(persist_noop_evidence)
+                except Exception as exc:  # noqa: BLE001 - durable proof is required
+                    logger.warning(
+                        "Could not persist contained landing evidence for %s: %s",
+                        authority.task_id,
+                        exc,
+                    )
+                    return False, None
+
+            if not await asyncio.to_thread(
+                self._standalone_noop_terminal_authorized,
+                authority,
+                tracker,
+                work_branch=work_branch,
+                target_branch=target_branch,
+            ):
+                return False, None
+            final_containment, _final_reason = await asyncio.to_thread(
+                self._standalone_accepted_head_containment,
+                project,
+                authority,
+                tracker,
+                work_branch=work_branch,
+                target_branch=target_branch,
+                verify_authority=False,
+            )
+            if final_containment != "contained":
+                return False, None
+
+            landed_issue = replace(
+                authority.issue,
+                integration=canonical_record,
+                work_branch=work_branch,
+                branch_name=work_branch,
+                target_branch=target_branch,
+                review_number=None,
+                review_url=None,
+                review_head=None,
+            )
+            landed_issue.project_id = authority.project_id
+            fingerprint = compute_issue_evidence_fingerprint(
+                landed_issue,
+                authority.project_id,
+            )
+            try:
+                transition = await self.request_terminal_transition(
+                    current_issue=landed_issue,
+                    requested_target=TargetState.MERGED,
+                    trigger_identity=ContributorIdentity(
+                        "standalone-ready-reconciliation",
+                        "oompah",
+                    ),
+                    project_id=authority.project_id,
+                    evidence_fingerprint=fingerprint,
+                )
+            except Exception as exc:  # noqa: BLE001 - retry from durable evidence
+                logger.debug(
+                    "Failed to request contained standalone Merged transition "
+                    "for %s: %s",
+                    authority.task_id,
+                    exc,
+                )
+                return True, None
+            return True, transition
+
+    async def _request_standalone_contained_with_authority_async(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        **kwargs: Any,
+    ) -> tuple[bool, TransitionResult | None]:
+        operation = asyncio.create_task(
+            self._request_standalone_contained_with_authority_inner(
+                authority,
+                tracker,
+                **kwargs,
+            )
+        )
+        try:
+            return await asyncio.shield(operation)
+        except asyncio.CancelledError:
+            def _consume_result(task: asyncio.Task) -> None:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:  # noqa: BLE001 - detached cleanup
+                    logger.warning(
+                        "Detached contained landing staging failed for %s: %s",
+                        authority.task_id,
+                        exc,
+                    )
+
+            operation.add_done_callback(_consume_result)
+            raise
+
+    def _request_standalone_contained_with_authority(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        **kwargs: Any,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Bridge contained-landing staging onto the dispatch event loop."""
+
+        request = self._request_standalone_contained_with_authority_async(
+            authority,
+            tracker,
+            **kwargs,
+        )
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                request.close()
+                raise RuntimeError(
+                    "synchronous contained landing staging cannot block the "
+                    "dispatch loop"
+                )
+            try:
+                future = asyncio.run_coroutine_threadsafe(request, loop)
+            except Exception:
+                request.close()
+                return False, None
+            try:
+                return future.result(
+                    timeout=_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS
+                )
+            except TimeoutError:
+                logger.warning(
+                    "Timed out waiting for contained landing staging for %s",
+                    authority.task_id,
+                )
+                return False, None
+            except Exception as exc:  # noqa: BLE001 - retryable bridge failure
+                logger.warning(
+                    "Contained landing staging bridge failed for %s: %s",
+                    authority.task_id,
+                    exc,
+                )
+                return False, None
+        return asyncio.run(request)
 
     async def _request_standalone_merged_with_authority_inner(
         self,
