@@ -47,14 +47,17 @@ children:
 - OOMPAH-864
 - OOMPAH-865
 - OOMPAH-866
+- OOMPAH-877
 blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
 - architecture
+- rebase-requested
+- epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-06T20:39:35.553822Z'
+updated_at: '2026-08-07T09:38:35.577076Z'
 work_branch: null
 target_branch: null
 review_url: null
