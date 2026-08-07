@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:56:04.518580Z'
+updated_at: '2026-08-07T13:56:39.278659Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -157,9 +157,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-657
+  base_branch: main
   head_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
-  submitted_at: '2026-07-31T12:39:08.343778+00:00'
-  updated_at: '2026-07-31T12:39:08.343778+00:00'
+  submitted_at: '2026-08-07T13:56:30.243567+00:00'
+  updated_at: '2026-08-07T13:56:30.243567+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/618
 oompah.review_number: '618'
 oompah.work_branch: OOMPAH-657
@@ -963,5 +964,10 @@ Discovery: The task lifecycle is blocked by a missing remote branch, not a CI fa
 - Project owner applied Merged transition
 
 Root cause of current stuck state: after merge, GitHub deleted origin/OOMPAH-657 (normal post-merge cleanup). Subsequent CI-fix agents couldn't submit because remote_head_sha was unavailable. Fix: restored origin/OOMPAH-657 at commit 0212dada6 so submission can proceed.
+---
+author: oompah
+created: 2026-08-07 13:56
+---
+Work complete and merged in PR #618. Branch restored at verified head 0212dada64768ed8f89e7b27f461f121c4a42299 for task lifecycle completion. Implementation: immutable exact-head quality gate snapshots with pre-spawn barriers, durable generation tombstones, Ready-to-Open row retirement, and expired lease authority withdrawal. All 83 focused tests passed; make test passed in 370.5s; GitHub Actions CI passed across Python 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
