@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:12:09.637700Z'
+updated_at: '2026-08-07T14:19:40.150390Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -104,6 +104,22 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-763
     selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
     selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+oompah.task_costs:
+  total_input_tokens: 206
+  total_output_tokens: 51
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 206
+      output_tokens: 51
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 206
+    output_tokens: 51
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T14:19:36.873716+00:00'
 ---
 ## Summary
 
@@ -193,5 +209,15 @@ author: oompah
 created: 2026-08-07 14:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 14:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 12
+- Tokens: 206 in / 51 out [257 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 36s
+- Log: OOMPAH-896__20260807T141216Z.jsonl
 ---
 <!-- COMMENTS:END -->
