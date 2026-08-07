@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-08-07T08:57:05.351298Z'
+updated_at: '2026-08-07T09:07:10.946847Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -25,13 +25,13 @@ review_number: '543'
 merged_at: null
 oompah.agent_run_id: 28e0109e-70af-4e36-a8db-f4dbcd7ab473
 oompah.task_costs:
-  total_input_tokens: 1909002
-  total_output_tokens: 40762
+  total_input_tokens: 1909044
+  total_output_tokens: 47428
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1909002
-      output_tokens: 40762
+      input_tokens: 1909044
+      output_tokens: 47428
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +70,12 @@ oompah.task_costs:
     output_tokens: 1940
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:04:17.424091+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 42
+    output_tokens: 6666
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T09:07:04.259304+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/543
 oompah.review_number: '543'
 oompah.work_branch: epic-OOMPAH-414
@@ -224,7 +230,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -233,7 +239,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b20c96a7d3cd
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -245,6 +251,10 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-414
       selected_ref: origin/main
       selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+      failure_classification: finalization_failure
+      ended_at: '2026-08-07T09:07:05.097249+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-07T09:07:15.097208+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -253,7 +263,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:42:41.721143+00:00'
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
-    updated_at: '2026-08-07T08:56:44.340004+00:00'
+    updated_at: '2026-08-07T09:07:05.097249+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d0ebf75eb257
@@ -310,7 +320,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-b20c96a7d3cd
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -322,6 +332,10 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-414
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    failure_classification: finalization_failure
+    ended_at: '2026-08-07T09:07:05.097249+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-07T09:07:15.097208+00:00'
 ---
 ## Summary
 
@@ -642,5 +656,15 @@ author: oompah
 created: 2026-08-07 08:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 09:07
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 14, Tool calls: 4
+- Tokens: 42 in / 6.7K out [6.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 6s
+- Log: OOMPAH-414__20260807T085712Z.jsonl
 ---
 <!-- COMMENTS:END -->
