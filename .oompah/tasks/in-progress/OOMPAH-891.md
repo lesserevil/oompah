@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T14:03:44.868374Z'
+updated_at: '2026-08-07T14:07:04.359445Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -110,5 +110,10 @@ author: oompah
 created: 2026-08-07 14:03
 ---
 Follow-up: isolated shared-epic rebase dispatch now proactively selects a supported ACP bridged profile instead of a legacy CLI profile, and skips Codex subscription ACP because its provider transport and native shell cannot be separated. This prevents repeated unsafe/unusable CLI retries.
+---
+author: oompah
+created: 2026-08-07 14:07
+---
+Final isolation hardening: OpenCode is now fail-closed for every isolated shared-epic rebase mode before any auth bootstrap or subprocess launch; the rebase profile selector excludes it, alongside Codex subscription CLI. Static compilation and diff checks pass. Broker remains owned by OOMPAH-877 (with OOMPAH-846 queued), so focused tests remain correctly deferred.
 ---
 <!-- COMMENTS:END -->
