@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T11:52:28.676041Z'
+updated_at: '2026-08-07T11:53:16.170117Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fd50c400-55af-4166-9249-31b65df68a50
+oompah.agent_run_id: be399a43-108e-4e95-a074-028d54903082
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-876
 oompah.integration:
   version: 2
