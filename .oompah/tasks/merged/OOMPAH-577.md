@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T19:40:15.204498Z'
+updated_at: '2026-08-07T19:41:00.781968Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -41,6 +41,25 @@ oompah.terminal_audit:
     reason: 'Restore proven merged state from PR #588 merge commit 70fa1de48 and recorded
       green CI/live evidence.'
     created_at: '2026-07-31T06:06:55.508737+00:00'
+  - version: 1
+    override_id: override-40c828b1d821
+    project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7a4a0f05d5fac6e125b4343692192ec5cb77aa7cd0f360105856d8983b5344
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #744 merged rebased source head 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+      as 4964bfa243e9dfd1bf48485f6a3b1fcfa0532f3c after all required Python 3.11,
+      3.12, and 3.13 checks passed; prior exact-head acceptance was retained. Direct
+      operator completion avoids a redundant post-merge full audit.'
+    created_at: '2026-08-07T19:40:56.477312+00:00'
+    applied: false
   applied_result_attempts:
     no-auditor-audit-c1eee8ef1fc2-2: '2026-08-07T07:22:36.552463+00:00'
   oompah.terminal_audit_retirements:
