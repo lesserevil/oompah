@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: Needs CI Fix
+status: In Validation
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T21:10:11.837191Z'
+updated_at: '2026-08-07T21:18:01.320784Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: ''
@@ -187,7 +187,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -237,7 +237,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -335,6 +335,44 @@ oompah.terminal_audit:
     selected_ref: 355258ef0d1b1600f09cd111511f2828946e4ec7
     selected_sha: 355258ef0d1b1600f09cd111511f2828946e4ec7
     updated_at: '2026-08-07T10:33:11.774844+00:00'
+  - version: 1
+    audit_id: audit-7f7529678c61
+    project_id: proj-14849f1b
+    task_id: OOMPAH-646
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs CI Fix
+    created_at: '2026-08-07T21:17:52.082661+00:00'
+    selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
+    selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
+  - version: 1
+    audit_id: audit-598da83dac70
+    project_id: proj-14849f1b
+    task_id: OOMPAH-646
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2fef76bda2369ca10bff54d4b0c33814e0eef981ac8dbc00659e1070c0f7b41a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs CI Fix
+    created_at: '2026-08-07T21:17:52.082661+00:00'
+    selected_ref: 38806932e609860b2c81e84253a09df515ff4e5b
+    selected_sha: 38806932e609860b2c81e84253a09df515ff4e5b
   attempt_history:
   - version: 1
     attempt_id: attempt-e672336e007e
@@ -1115,5 +1153,10 @@ FAILED tests/test_acp_codex_backend.py::TestCodexCliPath::test_managed_native_cl
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 21:18
+---
+YOLO: merged PR #747.
 ---
 <!-- COMMENTS:END -->
