@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T03:56:18.544243Z'
+updated_at: '2026-08-07T03:56:51.654083Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
