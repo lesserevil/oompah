@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:07.630785Z'
-updated_at: '2026-08-04T17:02:35.777731Z'
+updated_at: '2026-08-07T08:40:21.098778Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-786
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -70,7 +70,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-786
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -87,7 +87,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-786
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -99,6 +99,44 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T17:02:30.923844+00:00'
+  - version: 1
+    audit_id: audit-9970b12bab41
+    project_id: proj-14849f1b
+    task_id: OOMPAH-786
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cd08e3b546a99e8dced6d5cb84c4085a5e75cfb8c76c112d8b0ad4b99ec427e5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:40:19.379916+00:00'
+    selected_ref: b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b
+    selected_sha: b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b
+  - version: 1
+    audit_id: audit-222d1bfb20ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-786
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cd08e3b546a99e8dced6d5cb84c4085a5e75cfb8c76c112d8b0ad4b99ec427e5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T08:40:19.379916+00:00'
+    selected_ref: b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b
+    selected_sha: b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b
   attempt_history: []
 ---
 ## Summary
