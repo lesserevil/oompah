@@ -10890,6 +10890,23 @@ class Orchestrator:
             },
         }
 
+    def _collect_universal_workflow_facts(self, task: Issue):
+        """Collect one project-scoped snapshot for the enforcing controller."""
+
+        project_id = str(task.project_id or "legacy")
+        tracker = (
+            self._tracker_for_project(project_id)
+            if task.project_id
+            else self.tracker
+        )
+        collector = WorkflowFactCollector(
+            project_id=project_id,
+            tracker=tracker,
+            sources=self._workflow_shadow_sources(task),
+            integration_queue=self.integration_queue,
+        )
+        return collector.collect(task.identifier)
+
     def _legacy_workflow_projections(
         self, issue: Issue
     ) -> tuple[LegacyWorkflowProjection, ...]:
@@ -11098,6 +11115,7 @@ class Orchestrator:
                     project_id=project_id,
                     tracker=tracker,
                     sources=self._workflow_shadow_sources(issue),
+                    integration_queue=self.integration_queue,
                 )
                 facts = collector.collect(issue.identifier)
                 result = self.workflow_shadow.evaluate(

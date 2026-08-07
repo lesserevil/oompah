@@ -21,11 +21,20 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import canonicalize_status
 from oompah.tracker import TrackerProtocol
+
+
+@runtime_checkable
+class IntegrationQueueProtocol(Protocol):
+    """Narrow queue-store surface needed for integration fact overlay."""
+
+    def get(self, project_id: str, task_id: str) -> Any | None:
+        """Return one queue row or None if the task is not queued."""
+        ...
 
 WORKFLOW_FACTS_SCHEMA_VERSION = 1
 LANDING_FACT_SCHEMA_VERSION = 1
@@ -801,6 +810,7 @@ class WorkflowFactCollector:
         tracker: TrackerProtocol,
         sources: Mapping[FactDomain | str, FactSource] | None = None,
         landing_collector: GitLandingCollector | None = None,
+        integration_queue: IntegrationQueueProtocol | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
@@ -825,6 +835,7 @@ class WorkflowFactCollector:
             and landing_collector.project_id != self.project_id
         ):
             raise ValueError("landing collector project does not match fact collector")
+        self.integration_queue = integration_queue
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _now(self) -> tuple[datetime, str]:
@@ -910,6 +921,82 @@ class WorkflowFactCollector:
             now_iso,
             observations,
         )
+
+    def _overlay_integration_queue(
+        self,
+        tracker_value: dict[str, Any] | None,
+        issue: Issue,
+        now_iso: str,
+    ) -> dict[str, Any] | None:
+        """Overlay exact-head durable queue state onto tracker integration."""
+
+        if self.integration_queue is None:
+            return tracker_value
+        try:
+            queue_row = self.integration_queue.get(self.project_id, issue.identifier)
+        except Exception:  # noqa: BLE001 - queue evidence boundary
+            return tracker_value
+        if queue_row is None:
+            return tracker_value
+
+        tracker_head = None
+        if isinstance(tracker_value, dict):
+            tracker_head = tracker_value.get("head_sha")
+        issue_head = getattr(issue, "head_sha", None)
+        queue_head = getattr(queue_row, "head_sha", None)
+        authoritative_head = tracker_head or issue_head
+        if authoritative_head and queue_head and str(queue_head) != str(authoritative_head):
+            return tracker_value
+        if authoritative_head and not queue_head:
+            return tracker_value
+
+        base: dict[str, Any] = dict(tracker_value) if tracker_value is not None else {}
+        queue_state = str(getattr(queue_row, "state", None) or "").strip()
+        retry_forced = bool(getattr(queue_row, "retry_forced", False))
+        prior_tracker_state = None
+        if isinstance(tracker_value, dict):
+            prior = tracker_value.get("state")
+            prior_tracker_state = str(prior).strip() if prior else None
+
+        lease_expires_at_raw = getattr(queue_row, "lease_expires_at", None)
+        lease_owner_raw = getattr(queue_row, "lease_owner", None)
+        lease_expires_dt: datetime | None = None
+        if lease_expires_at_raw is not None:
+            try:
+                lease_expires_dt = datetime.fromtimestamp(
+                    float(lease_expires_at_raw), tz=timezone.utc
+                )
+            except (TypeError, ValueError, OSError, OverflowError):
+                lease_expires_dt = None
+
+        if queue_state in ("integrating", "blocked"):
+            base["state"] = queue_state
+        if queue_state == "integrating":
+            if lease_expires_dt is not None:
+                base["lease_expires_at"] = _render_time(lease_expires_dt)
+            if lease_owner_raw:
+                base["lease_owner"] = str(lease_owner_raw)
+            live_lease_valid = (
+                lease_expires_dt is not None
+                and lease_expires_dt > self._clock()
+                and bool(lease_owner_raw)
+            )
+            if live_lease_valid and prior_tracker_state in {
+                "ready",
+                "queued",
+                None,
+                "",
+            }:
+                base["live_claim_precedes_history"] = True
+        if queue_state == "blocked":
+            last_error = getattr(queue_row, "last_error", None)
+            if last_error:
+                base["last_error"] = str(last_error)
+            if retry_forced:
+                base["retry_forced"] = True
+        if retry_forced and "retry_forced" not in base:
+            base["retry_forced"] = True
+        return base
 
     def collect(
         self,
@@ -997,6 +1084,9 @@ class WorkflowFactCollector:
                 source="tracker",
             )
         integration = _integration_value(issue)
+        integration = self._overlay_integration_queue(
+            integration, issue, now_iso
+        )
         observations[FactDomain.INTEGRATION] = (
             FactObservation.known(
                 FactDomain.INTEGRATION,
