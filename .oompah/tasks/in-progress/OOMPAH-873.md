@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T13:40:03.299590Z'
+updated_at: '2026-08-07T13:40:09.762903Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a2776f10-93c0-4de9-a791-312c5f75e949
+oompah.agent_run_id: 1626be4e-125c-4670-82ed-6b63577a9d56
 oompah.task_costs:
   total_input_tokens: 11703460
   total_output_tokens: 51871
