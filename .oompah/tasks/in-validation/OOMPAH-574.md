@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-574
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Rerun failed cached quality gates on explicit same-head retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-31T02:37:23.913890Z'
+updated_at: '2026-08-07T02:46:37.269528Z'
 work_branch: OOMPAH-574
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/598
@@ -170,6 +170,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T02:27:17.415166+00:00'
     updated_at: '2026-07-31T02:36:58.721962+00:00'
+  - version: 1
+    audit_id: audit-758155b093a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-574
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c852c4cd3b63b251d9cf8d3a03cc447af2f29bfe44ab33db7eadcb27ef2e35c0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T02:46:31.414610+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8bbf80aa87af
