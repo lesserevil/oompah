@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T20:41:07.860132Z'
+updated_at: '2026-08-07T20:55:12.419410Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
@@ -367,5 +367,10 @@ author: oompah
 created: 2026-08-07 20:41
 ---
 Direct owner restacked the lifecycle startup-timeout fix onto current main and pushed exact head fba0b8838. Focused listener-startup suite passes 10/10. Holding submission until the current review slot clears so it cannot starve the systemic composition gate.
+---
+author: oompah
+created: 2026-08-07 20:55
+---
+Final direct verification found and fixed two real gaps in the prepared lifecycle patch: the documented 5-120 second bound was not enforced, and a verified process still had PID/meta deleted after the extra grace period. The final branch validates configuration before spawn, retains exact lifecycle evidence at timeout, refuses unverified signaling, and includes a real Make integration covering timeout -> late bind -> rediscovery -> exact stop. Restacked onto current main 89de98783 and pushed exact head 4c76d9dc330ce77763f495930e37d3bbe8072be4. Evidence: 105/105 listener, Make lifecycle, setup, CLI sync, and process-identity tests passed through the canonical capacity-1 broker; scoped Ruff, diff, and secret checks passed; remote parity verified. Not submitted per direct-owner handoff.
 ---
 <!-- COMMENTS:END -->

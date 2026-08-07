@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T20:41:04.968555Z'
+updated_at: '2026-08-07T20:55:08.065815Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -306,5 +306,10 @@ author: oompah
 created: 2026-08-07 20:41
 ---
 Direct owner restacked the one-commit deterministic validation-fence test onto current main, removed trailing-whitespace defects, and pushed exact head 7a02eb343. The reproduced regression test passes (1 passed in 2.19s). Holding submission until the current review slot clears so it cannot starve the systemic composition gate.
+---
+author: oompah
+created: 2026-08-07 20:55
+---
+Final direct verification found and fixed a detached-child cleanup gap in the prepared test. The deterministic fixture now records the child's PID/start ticks and uses the production identity-fenced process-group terminator from a finally block, so an assertion failure cannot leak the 30-second child or inherited lease. Restacked onto current main 89de98783 and pushed exact head 9fba0551672e48c8bf8fa2b0f43801d5bcf44441. Evidence: complete tests/test_validation_resource_lease.py passed 139/139 through the canonical capacity-1 broker; scoped Ruff and diff checks passed; remote parity verified. Not submitted per direct-owner handoff.
 ---
 <!-- COMMENTS:END -->
