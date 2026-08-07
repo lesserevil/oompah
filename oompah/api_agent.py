@@ -659,6 +659,25 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "publish_epic_rebase",
+            "description": (
+                "Publish the current epic-rebase worktree HEAD through the "
+                "server-owned compare-and-swap capability. Pass only the full "
+                "lowercase candidate commit SHA; project, task, remote, refs, "
+                "lease, credentials, argv, cwd, and environment are fixed by "
+                "the server."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"candidate": {"type": "string"}},
+                "required": ["candidate"],
+                "additionalProperties": False,
+            },
+        },
+    },
     AUDITOR_RESULT_TOOL_SCHEMA,
 ]
 
@@ -1482,6 +1501,7 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "list_files": [],
     "ask_question": ["question"],
     "attach_image": ["issue_identifier", "filename", "content_base64"],
+    "publish_epic_rebase": ["candidate"],
     AUDITOR_RESULT_TOOL_NAME: ["audit_id", "target_state", "evidence_fingerprint", "verdict", "message"],
 }
 
@@ -1514,6 +1534,7 @@ def _execute_tool(
     validation_reuse_policy_handler: Callable[..., object] | None = None,
     project_store: Any = None,
     submission_handler: Any = None,
+    publish_rebase_handler: Any = None,
     isolate_remote_write: bool = False,
 ) -> str:
     """Execute a tool call and return its string result.
@@ -1535,6 +1556,20 @@ def _execute_tool(
         if session_denial is not None:
             return session_denial
         return submit_auditor_result(args, audit_target, audit_result_handler)
+
+    if name == "publish_epic_rebase":
+        if not isolate_remote_write or not callable(publish_rebase_handler):
+            return "Error: epic rebase publication capability is unavailable"
+        if set(args) != {"candidate"}:
+            return "Error: publish_epic_rebase accepts only candidate"
+        from oompah.acp_tools import _exec_publish_epic_rebase_candidate
+
+        return _exec_publish_epic_rebase_candidate(
+            args.get("candidate", ""),
+            project_id,
+            task_identifier,
+            publish_handler=publish_rebase_handler,
+        )
 
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
@@ -1977,6 +2012,7 @@ class ApiAgentSession:
         validation_reuse_policy_handler: Callable[..., object] | None = None,
         project_store: Any = None,
         submission_handler: Any = None,
+        publish_rebase_handler: Any = None,
         before_transport_contact: Callable[[], str | None] | None = None,
         isolate_remote_write: bool = False,
     ):
@@ -2045,6 +2081,7 @@ class ApiAgentSession:
         self.validation_reuse_policy_handler = validation_reuse_policy_handler
         self.project_store = project_store
         self.submission_handler = submission_handler
+        self.publish_rebase_handler = publish_rebase_handler
         self.isolate_remote_write = bool(isolate_remote_write)
         # The orchestrator owns provider-contact authority, but the decisive
         # check must run in the blocking HTTP thread immediately before
@@ -2139,7 +2176,16 @@ class ApiAgentSession:
     def _tool_definitions(self) -> list[dict[str, Any]]:
         """Tool schemas to send to the API for this session."""
         def available(name: str) -> bool:
-            return name != "read_command_output" or self.command_output_store is not None
+            if name == "read_command_output":
+                return self.command_output_store is not None
+            if name == "publish_epic_rebase":
+                return bool(
+                    self.isolate_remote_write
+                    and callable(self.publish_rebase_handler)
+                    and self.project_id
+                    and self.task_identifier
+                )
+            return True
 
         if self.enabled_tools is None:
             return [
@@ -2522,6 +2568,7 @@ class ApiAgentSession:
                             ),
                             project_store=self.project_store,
                             submission_handler=self.submission_handler,
+                            publish_rebase_handler=self.publish_rebase_handler,
                             isolate_remote_write=self.isolate_remote_write,
                         )
 

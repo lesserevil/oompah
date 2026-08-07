@@ -509,18 +509,17 @@ def check_shell_command(
     action = classify_shell_command(command)
     if action is None:
         return None
-    # Truncate for the audit context (don't log full commands — may contain creds)
-    context = f"shell: {command[:120]!r}" if len(command) <= 120 else f"shell: {command[:120]!r}…"
-    denial = check_action(policy, action, context)
-    if denial is not None:
-        return denial
+    # A dynamic push guard can be stricter than the static action grant. Run
+    # it first so a task-specific fail-closed message is not hidden by the
+    # generic policy denial when that task deliberately has no shell-push
+    # grant (for example server-published epic rebases).
     if (
         action == ProtectedAction.GIT_PUSH
         and policy is not None
         and policy.shell_authority_check is not None
     ):
         try:
-            denial = policy.shell_authority_check(command)
+            dynamic_denial = policy.shell_authority_check(command)
         except Exception:  # noqa: BLE001 - changing authority must fail closed
             logger.exception(
                 "AUTHORITY_DENY: action=%r task=%r session=%r "
@@ -530,7 +529,7 @@ def check_shell_command(
                 policy.session_id,
             )
             return "Error: server could not verify current push authority"
-        if denial is not None:
+        if dynamic_denial is not None:
             logger.warning(
                 "AUTHORITY_DENY: action=%r task=%r session=%r "
                 "context='redacted' reason=dynamic_authority_revoked",
@@ -538,5 +537,10 @@ def check_shell_command(
                 policy.task_identifier,
                 policy.session_id,
             )
-            return denial
+            return dynamic_denial
+    # Truncate for the audit context (don't log full commands — may contain creds)
+    context = f"shell: {command[:120]!r}" if len(command) <= 120 else f"shell: {command[:120]!r}…"
+    denial = check_action(policy, action, context)
+    if denial is not None:
+        return denial
     return None

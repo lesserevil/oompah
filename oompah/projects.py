@@ -1807,6 +1807,26 @@ class ProjectStore:
                 self._project_locks[project_id] = threading.RLock()
             return self._project_locks[project_id]
 
+    def canonical_remote_name(self, project_id: str) -> str:
+        """Return the server-owned Git remote for a managed project.
+
+        Managed worktrees are created and maintained against ``origin``.  Keep
+        that invariant behind the project abstraction so privileged callers
+        never accept a remote name from a worker payload and future project
+        layouts can change it in one place.
+        """
+        if project_id not in self._projects:
+            raise ProjectError(f"Unknown project: {project_id}")
+        return "origin"
+
+    def canonical_remote_url(self, project_id: str) -> str:
+        """Return the server-owned URL behind the canonical Git remote."""
+        project = self.get(project_id)
+        remote_url = getattr(project, "repo_url", None)
+        if not isinstance(remote_url, str) or not remote_url.strip():
+            raise ProjectError(f"Canonical remote URL is unavailable: {project_id}")
+        return remote_url.strip()
+
     @staticmethod
     def _run_network_git(
         project: Project,

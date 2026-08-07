@@ -108,6 +108,17 @@ class EpicRebaseStateEntry:
     authority_creation_marker: str = ""
     authority_missing_since: float = 0.0
     authority_missing_observations: int = 0
+    # Two-phase evidence for the server-owned epic rebase publisher.  The
+    # worker supplies only ``authority_publish_candidate``; every other field
+    # is resolved and persisted by the server before it performs the remote
+    # compare-and-swap.  A durable ``prepared`` record lets a restarted server
+    # distinguish a lost push response from an unrelated remote advance.
+    authority_publish_state: str = ""
+    authority_publish_candidate: str | None = None
+    authority_publish_lease_head: str | None = None
+    authority_publish_target_head: str | None = None
+    authority_publish_remote_head: str | None = None
+    authority_publish_verified_at: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -141,6 +152,18 @@ class EpicRebaseStateEntry:
             d["authority_missing_since"] = self.authority_missing_since
         if self.authority_missing_observations:
             d["authority_missing_observations"] = self.authority_missing_observations
+        if self.authority_publish_state:
+            d["authority_publish_state"] = self.authority_publish_state
+        if self.authority_publish_candidate:
+            d["authority_publish_candidate"] = self.authority_publish_candidate
+        if self.authority_publish_lease_head:
+            d["authority_publish_lease_head"] = self.authority_publish_lease_head
+        if self.authority_publish_target_head:
+            d["authority_publish_target_head"] = self.authority_publish_target_head
+        if self.authority_publish_remote_head:
+            d["authority_publish_remote_head"] = self.authority_publish_remote_head
+        if self.authority_publish_verified_at:
+            d["authority_publish_verified_at"] = self.authority_publish_verified_at
         return d
 
     @classmethod
@@ -162,6 +185,22 @@ class EpicRebaseStateEntry:
             authority_creation_marker=str(d.get("authority_creation_marker", "") or ""),
             authority_missing_since=float(d.get("authority_missing_since", 0) or 0),
             authority_missing_observations=int(d.get("authority_missing_observations", 0) or 0),
+            authority_publish_state=str(d.get("authority_publish_state", "") or ""),
+            authority_publish_candidate=(
+                str(d.get("authority_publish_candidate", "")).strip() or None
+            ),
+            authority_publish_lease_head=(
+                str(d.get("authority_publish_lease_head", "")).strip() or None
+            ),
+            authority_publish_target_head=(
+                str(d.get("authority_publish_target_head", "")).strip() or None
+            ),
+            authority_publish_remote_head=(
+                str(d.get("authority_publish_remote_head", "")).strip() or None
+            ),
+            authority_publish_verified_at=float(
+                d.get("authority_publish_verified_at", 0) or 0
+            ),
         )
 
 

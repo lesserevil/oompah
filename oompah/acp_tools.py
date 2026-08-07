@@ -50,6 +50,7 @@ import asyncio
 import inspect
 import json
 import logging
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,7 @@ from oompah.authority_boundary import (
 from oompah.auditor import is_recoverable_auditor_command_denial
 from oompah.integration import task_submit_required_message
 from oompah.label_auth import label_name_to_status
+from oompah.secrets import redact_sensitive_data
 from oompah.statuses import READY_TO_INTEGRATE, canonicalize_status
 from oompah.terminal_audit import (
     ContributorIdentity,
@@ -73,6 +75,50 @@ from oompah.terminal_audit import (
 from oompah.validation_resource_lease import managed_agent_validation_owner
 
 logger = logging.getLogger(__name__)
+
+
+def _exec_publish_epic_rebase_candidate(
+    candidate: str,
+    project_id: str | None,
+    task_identifier: str | None,
+    coordination_service: Any = None,
+    *,
+    publish_handler: Any = None,
+) -> str:
+    """Publish one candidate through the session-scoped server capability.
+
+    The tool deliberately accepts only the full candidate commit.  Project and
+    task identity are bound when the server constructs the agent session, and
+    every remote/push input is resolved again by the orchestrator.
+    """
+    if not isinstance(candidate, str) or re.fullmatch(
+        r"(?:[0-9a-f]{40}|[0-9a-f]{64})",
+        candidate,
+    ) is None:
+        return "Error: candidate must be a full lowercase commit SHA"
+    if not project_id or not task_identifier:
+        return "Error: epic rebase publication requires an assigned managed task"
+    handler = (
+        publish_handler
+        if publish_handler is not None
+        else getattr(
+            coordination_service,
+            "publish_worker_epic_rebase_candidate",
+            None,
+        )
+    )
+    if not callable(handler):
+        return "Error: authoritative epic rebase publication service is unavailable"
+    try:
+        result = handler(project_id, task_identifier, candidate)
+        if inspect.isawaitable(result):
+            close = getattr(result, "close", None)
+            if callable(close):
+                close()
+            return "Error: epic rebase publication service must be synchronous"
+        return json.dumps(redact_sensitive_data(result), sort_keys=True)
+    except Exception as exc:  # noqa: BLE001 - tool failures are model-visible
+        return f"Error: {redact_sensitive_data(str(exc))}"
 
 
 def _auditor_validation_success_handler(
@@ -1238,6 +1284,7 @@ def build_tool_catalog(
     validation_reuse_policy: dict[str, Any] | None = None,
     validation_reuse_authority_check: Any = None,
     isolate_remote_write: bool = False,
+    epic_rebase_publish_enabled: bool = False,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -1588,6 +1635,31 @@ def build_tool_catalog(
         )
         return _wrap_text(response)
 
+    @tool(
+        "publish_epic_rebase",
+        "Publish the current epic-rebase worktree HEAD through the server-owned "
+        "compare-and-swap capability. Pass only the full lowercase candidate "
+        "commit SHA; project, task, remote, refs, lease, credentials, argv, cwd, "
+        "and environment are fixed by the server.",
+        {
+            "type": "object",
+            "properties": {"candidate": {"type": "string"}},
+            "required": ["candidate"],
+            "additionalProperties": False,
+        },
+    )
+    async def publish_epic_rebase(args: dict[str, Any]) -> dict[str, Any]:
+        if set(args) != {"candidate"}:
+            return _wrap_text("Error: publish_epic_rebase accepts only candidate")
+        response = await asyncio.to_thread(
+            _exec_publish_epic_rebase_candidate,
+            args.get("candidate", ""),
+            current_project_id,
+            task_identifier,
+            coordination_service,
+        )
+        return _wrap_text(response)
+
     if auditor_mode:
         return [
             read_file,
@@ -1614,7 +1686,7 @@ def build_tool_catalog(
     ]
     if read_only:
         return readable
-    return [
+    writable = [
         *readable[:1],
         write_file,
         edit_file,
@@ -1624,6 +1696,21 @@ def build_tool_catalog(
         update_project,
         update_project_by_id,
     ]
+    if (
+        isolate_remote_write
+        and epic_rebase_publish_enabled
+        and current_project_id
+        and task_identifier
+        and callable(
+            getattr(
+                coordination_service,
+                "publish_worker_epic_rebase_candidate",
+                None,
+            )
+        )
+    ):
+        writable.append(publish_epic_rebase)
+    return writable
 
 
 # ----------------------------------------------------------------------
@@ -1652,6 +1739,7 @@ def build_codex_tool_catalog(
     validation_reuse_policy: dict[str, Any] | None = None,
     validation_reuse_authority_check: Any = None,
     isolate_remote_write: bool = False,
+    epic_rebase_publish_enabled: bool = False,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -1992,6 +2080,21 @@ def build_codex_tool_catalog(
             audit_result_handler,
         )
 
+    @function_tool
+    async def publish_epic_rebase(candidate: str) -> str:
+        """Publish this epic-rebase worktree's exact candidate commit.
+
+        Project, task, remote, refs, lease, credentials, argv, cwd, and
+        environment are bound and verified by the server.
+        """
+        return await asyncio.to_thread(
+            _exec_publish_epic_rebase_candidate,
+            candidate,
+            current_project_id,
+            task_identifier,
+            coordination_service,
+        )
+
     if auditor_mode:
         return [
             read_file,
@@ -2015,7 +2118,7 @@ def build_codex_tool_catalog(
     ]
     if read_only:
         return readable
-    return [
+    writable = [
         *readable[:1],
         write_file,
         edit_file,
@@ -2025,6 +2128,21 @@ def build_codex_tool_catalog(
         update_project,
         update_project_by_id,
     ]
+    if (
+        isolate_remote_write
+        and epic_rebase_publish_enabled
+        and current_project_id
+        and task_identifier
+        and callable(
+            getattr(
+                coordination_service,
+                "publish_worker_epic_rebase_candidate",
+                None,
+            )
+        )
+    ):
+        writable.append(publish_epic_rebase)
+    return writable
 
 
 # ----------------------------------------------------------------------
@@ -2053,6 +2171,7 @@ def build_opencode_tool_catalog(
     validation_reuse_policy: dict[str, Any] | None = None,
     validation_reuse_authority_check: Any = None,
     isolate_remote_write: bool = False,
+    epic_rebase_publish_enabled: bool = False,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -2403,6 +2522,31 @@ def build_opencode_tool_catalog(
         )
         return _wrap_text(response)
 
+    @tool(
+        "publish_epic_rebase",
+        "Publish the current epic-rebase worktree HEAD through the server-owned "
+        "compare-and-swap capability. Pass only the full lowercase candidate "
+        "commit SHA; project, task, remote, refs, lease, credentials, argv, cwd, "
+        "and environment are fixed by the server.",
+        {
+            "type": "object",
+            "properties": {"candidate": {"type": "string"}},
+            "required": ["candidate"],
+            "additionalProperties": False,
+        },
+    )
+    async def publish_epic_rebase(args: dict[str, Any]) -> dict[str, Any]:
+        if set(args) != {"candidate"}:
+            return _wrap_text("Error: publish_epic_rebase accepts only candidate")
+        response = await asyncio.to_thread(
+            _exec_publish_epic_rebase_candidate,
+            args.get("candidate", ""),
+            project_id,
+            task_identifier,
+            coordination_service,
+        )
+        return _wrap_text(response)
+
     if auditor_mode:
         return [
             read_file,
@@ -2426,7 +2570,7 @@ def build_opencode_tool_catalog(
     ]
     if read_only:
         return readable
-    return [
+    writable = [
         *readable[:1],
         write_file,
         edit_file,
@@ -2436,3 +2580,18 @@ def build_opencode_tool_catalog(
         update_project,
         update_project_by_id,
     ]
+    if (
+        isolate_remote_write
+        and epic_rebase_publish_enabled
+        and project_id
+        and task_identifier
+        and callable(
+            getattr(
+                coordination_service,
+                "publish_worker_epic_rebase_candidate",
+                None,
+            )
+        )
+    ):
+        writable.append(publish_epic_rebase)
+    return writable
