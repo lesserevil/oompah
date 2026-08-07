@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: Needs Human
+status: Open
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-08-07T10:50:01.252112Z'
+updated_at: '2026-08-07T10:54:40.076183Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -607,5 +607,18 @@ created: 2026-08-07 10:49
 Needs Human — Archived audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 10:54
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #11)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 542 is merged
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
