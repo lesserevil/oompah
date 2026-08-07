@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T11:33:37.921841Z'
+updated_at: '2026-08-07T11:55:11.803624Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ author: oompah
 created: 2026-08-07 11:27
 ---
 Live recurrence #3: OOMPAH-880 was auto-filed/dispatched while direct-owner claims already fenced OOMPAH-877 and OOMPAH-878 for the same epic generation. It began a shared-worktree rebase and reached detached HEAD 063853c with unresolved index conflicts before owner takeover retired it. Remote remained 04fa; recovery refs/archive were preserved and the checkout restored. Acceptance coverage must include existing claimed rebase tasks plus scheduler ticks that create another task before prerequisite integration, and must guarantee no shared-worktree mutation by the loser.
+---
+author: oompah
+created: 2026-08-07 11:55
+---
+Live recurrence #4 while this fix is in progress: OOMPAH-881 auto-filed and launched a Claude/sonnet provider despite active direct claims on O877/O878/O880 and the same unchanged epic generation 04fa678. Owner takeover stopped it before shared-worktree mutation. Regression must cover repeated scheduler ticks continuing to mint new rebase task identifiers while earlier generation authorities are owner-fenced; task-ID uniqueness is not generation uniqueness.
 ---
 <!-- COMMENTS:END -->
