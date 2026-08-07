@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T12:22:10.898781Z'
+updated_at: '2026-08-07T12:22:41.907195Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -143,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-873
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -166,6 +166,22 @@ oompah.terminal_audit:
       selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
       ended_at: '2026-08-07T12:22:06.890364+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-909d9792ae14
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+      created_at: '2026-08-07T12:22:35.038340+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T12:22:35.038340+00:00'
+      branch_key: OOMPAH-873
+      selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+      selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
@@ -174,7 +190,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:05:44.182570+00:00'
     selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
     selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
-    updated_at: '2026-08-07T12:06:59.028274+00:00'
+    updated_at: '2026-08-07T12:22:35.038340+00:00'
   - version: 1
     audit_id: audit-cfc60f7d9673
     project_id: proj-14849f1b
@@ -212,6 +228,22 @@ oompah.terminal_audit:
     selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
     ended_at: '2026-08-07T12:22:06.890364+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-909d9792ae14
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+    created_at: '2026-08-07T12:22:35.038340+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T12:22:35.038340+00:00'
+    branch_key: OOMPAH-873
+    selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -444,5 +476,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 14m 18s
 - Log: OOMPAH-873__20260807T120712Z.jsonl
+---
+author: oompah
+created: 2026-08-07 12:22
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
