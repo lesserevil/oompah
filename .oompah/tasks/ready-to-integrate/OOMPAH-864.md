@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:38:07.460106Z'
+updated_at: '2026-08-07T19:14:24.488768Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -46,12 +46,14 @@ oompah.agent_run_id: d36cc827-aa1a-43b4-8e31-faa0cd946d39
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
-  base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  updated_at: '2026-08-06T22:36:35.682274+00:00'
+  base_sha: eb08e86b9ca20277e403222e949e7408c7badbeb
+  head_sha: 02527892c31eba7f422009e2c09e579f0c44580a
+  submitted_at: '2026-08-07T19:14:11.009313+00:00'
+  updated_at: '2026-08-07T19:14:11.009313+00:00'
 oompah.task_costs:
   total_input_tokens: 46287
   total_output_tokens: 677
