@@ -6,14 +6,18 @@ import asyncio
 import threading
 import time
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import oompah.task_handoff as task_handoff_module
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
-from oompah.orchestrator import Orchestrator, RuntimeTerminationCoordinator
+from oompah.orchestrator import (
+    Orchestrator,
+    RuntimeTerminationCoordinator,
+    RuntimeTerminationPublicationTimeout,
+)
 from oompah.statuses import IN_VALIDATION, READY_TO_INTEGRATE
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
@@ -71,6 +75,50 @@ def _entry(attempt_id: str = "attempt-1") -> RunningEntry:
         # never crossed admission is now rolled back instead of finalized.
         provider_started=True,
     )
+
+
+def test_schedule_running_termination_reports_admission(tmp_path) -> None:
+    """Callers can distinguish a created retry task from rejected admission."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        terminate = AsyncMock(return_value=True)
+        with patch.object(orch, "_terminate_running", terminate):
+            assert orch._schedule_running_termination(
+                entry.issue.id,
+                expected_entry=entry,
+            ) is True
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+        terminate.assert_awaited_once_with(
+            entry.issue.id,
+            False,
+            expected_entry=entry,
+        )
+
+    asyncio.run(scenario())
+
+
+def test_schedule_running_termination_reports_rejected_authority(tmp_path) -> None:
+    """A stale generation or closed scheduler cannot imply retry ownership."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        entry = _entry()
+        assert orch._schedule_running_termination(
+            entry.issue.id,
+            expected_entry=entry,
+        ) is False
+        orch.state.running[entry.issue.id] = entry
+        orch._termination_scheduling_closed = True
+        assert orch._schedule_running_termination(
+            entry.issue.id,
+            expected_entry=entry,
+        ) is False
+
+    asyncio.run(scenario())
 
 
 def _terminate(orch: Orchestrator) -> bool:
@@ -1011,7 +1059,7 @@ def test_foreign_retirement_fails_closed_when_owner_stops_before_callback(
             assert await asyncio.to_thread(publication_queued.wait, 3)
             stop_owner.set()
             with pytest.raises(
-                RuntimeError,
+                RuntimeTerminationPublicationTimeout,
                 match="did not acknowledge retirement child publication",
             ):
                 await asyncio.wait_for(retirement, timeout=3)
@@ -1295,7 +1343,7 @@ def test_cancelled_leader_keeps_follower_bounded_when_owner_loop_stops(
 
     assert len(results) == 2
     assert all(
-        isinstance(result, RuntimeError)
+        isinstance(result, RuntimeTerminationPublicationTimeout)
         and "did not acknowledge retirement child publication" in str(result)
         for result in results
     )

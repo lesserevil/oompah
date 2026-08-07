@@ -1015,6 +1015,16 @@ class RuntimeTerminationCoordinator:
     )
 
 
+class RuntimeTerminationPublicationTimeout(RuntimeError):
+    """The runtime owner loop did not acknowledge child publication in time.
+
+    This is a generation-scoped, retryable post-commit cleanup condition.  The
+    status mutation has already won, while the exact ``RunningEntry`` remains
+    published and can be handed back to the dispatch loop for another bounded
+    retirement attempt.  Other termination failures deliberately retain their
+    ordinary exception type and error-level observability.
+    """
+
 class ProviderStartupError(Exception):
     """A provider-level startup failure that may be retried with the next dispatch candidate.
 
@@ -7375,7 +7385,7 @@ class Orchestrator:
                 and not coordinator.child_created
                 and coordinator.task is None
             ):
-                coordinator.error = RuntimeError(
+                coordinator.error = RuntimeTerminationPublicationTimeout(
                     "runtime owner loop did not acknowledge retirement child "
                     "publication"
                 )
@@ -7391,8 +7401,13 @@ class Orchestrator:
         cleanup_workspace: bool = False,
         task_name_prefix: str = "terminate-worker",
         expected_entry: RunningEntry | None = None,
-    ) -> None:
+    ) -> bool:
         """Schedule worker retirement on the loop that owns provider sessions.
+
+        Return ``True`` only when this exact request is already owned, creates
+        the owner-loop task immediately, or is accepted by the live dispatch
+        loop for callback admission. Return ``False`` when shutdown, missing
+        runtime authority, or a closed/unavailable loop rejects the request.
 
         When ``expected_entry`` is supplied, retirement is generation-scoped:
         a replacement runtime registered before the callback runs is never
@@ -7400,31 +7415,31 @@ class Orchestrator:
         """
 
         if self._termination_scheduling_closed:
-            return
+            return False
         dispatch_loop = self._dispatch_loop
 
-        def _schedule() -> None:
+        def _schedule() -> bool:
             if self._termination_scheduling_closed:
-                return
+                return False
             entry = (
                 expected_entry
                 if expected_entry is not None
                 else self._current_running_entry(issue_id)
             )
             if entry is None:
-                return
+                return False
             scheduled_key = self._termination_owner_key(issue_id, entry)
             with self._provider_admission_lock:
                 if (
                     self._termination_scheduling_closed
                     or self._current_running_entry(issue_id) is not entry
                 ):
-                    return
+                    return False
                 if (
                     self._scheduled_termination_entries.get(scheduled_key) is entry
                     or self._terminating_worker_owners.get(scheduled_key)
                 ):
-                    return
+                    return True
                 self._scheduled_termination_entries[scheduled_key] = entry
 
             retirement_coro = self._terminate_running(
@@ -7468,10 +7483,11 @@ class Orchestrator:
                     )
 
             task.add_done_callback(_finished)
+            return True
 
         if dispatch_loop is not None and dispatch_loop.is_running():
             if self._running_loop() is dispatch_loop:
-                _schedule()
+                return _schedule()
             else:
                 try:
                     dispatch_loop.call_soon_threadsafe(_schedule)
@@ -7486,7 +7502,8 @@ class Orchestrator:
                             "callback admission issue_id=%s",
                             issue_id,
                         )
-            return
+                    return False
+            return True
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -7495,8 +7512,8 @@ class Orchestrator:
                 "issue_id=%s",
                 issue_id,
             )
-            return
-        _schedule()
+            return False
+        return _schedule()
 
     async def _drain_scheduled_terminations(self) -> None:
         """Wait until every tracked fire-and-forget retirement has finished."""
