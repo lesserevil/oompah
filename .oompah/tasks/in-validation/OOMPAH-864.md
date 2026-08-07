@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:15:02.731531Z'
+updated_at: '2026-08-07T19:15:18.341624Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -97,6 +97,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-864
     source_sha: af7a4595b3b350ea28a86a89153c56a0922a45f5
     completed_at: '2026-08-06T21:44:03.644658+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-65d635e6914f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-864
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ce0a2207d90658449c98d695024a0ad9583fed2d29c2baef08c84219b3ab3a13
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Open
+    created_at: '2026-08-07T19:15:12.823658+00:00'
+    selected_ref: 02527892c31eba7f422009e2c09e579f0c44580a
+    selected_sha: 02527892c31eba7f422009e2c09e579f0c44580a
+  attempt_history: []
 ---
 ## Summary
 
@@ -322,5 +346,17 @@ author: oompah
 created: 2026-08-07 19:14
 ---
 Preserved duplicate-preflight submission authority through owner no_duplicate resolution and restart using fail-closed reassessment for unproven working records. Restacked onto shared epic eb08e86b9; 85 focused duplicate-preflight, owner API, and integration-record tests pass under the canonical lease.
+---
+author: oompah
+created: 2026-08-07 19:15
+---
+Integration could not verify `epic-OOMPAH-763--task-OOMPAH-864`: could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-864 is at 742075be6bc166405156bcbfeb39c7d99d355530, not accepted head 02527892c31eba7f422009e2c09e579f0c44580a; refusing to reset it
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-07 19:15
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
