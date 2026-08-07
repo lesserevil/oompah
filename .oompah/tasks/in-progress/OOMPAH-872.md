@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T11:04:39.242804Z'
+updated_at: '2026-08-07T11:04:57.795969Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -522,5 +522,10 @@ created: 2026-08-07 10:55
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 11:04
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
