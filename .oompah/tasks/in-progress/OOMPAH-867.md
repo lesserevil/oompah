@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T06:37:15.441566Z'
+updated_at: '2026-08-07T06:38:15.709525Z'
 work_branch: null
 target_branch: null
 review_url: null
