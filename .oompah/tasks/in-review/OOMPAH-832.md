@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T05:01:02.410442Z'
+updated_at: '2026-08-07T05:01:11.635332Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
