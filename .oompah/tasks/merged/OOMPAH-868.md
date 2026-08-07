@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-868
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:50:17.254290Z'
+updated_at: '2026-08-07T20:51:46.820678Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -100,6 +100,26 @@ oompah.integration:
 oompah.work_branch: OOMPAH-868
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0e28120abf12
+    project_id: proj-14849f1b
+    task_id: OOMPAH-868
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 51f3fe191f53260f9a75b59920d452d246f2be744fa7c80d23291bd12e68e949
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact reviewed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a passed the
+      canonical full gate; PR #746 passed all required CI and merged as 89de987837dc38045af3c79fdd90ff0332677404.
+      This owner override finalizes already-proven merged work and avoids a redundant
+      audit.'
+    created_at: '2026-08-07T20:51:42.509476+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
