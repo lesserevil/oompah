@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-08-07T12:28:56.583808Z'
+updated_at: '2026-08-07T13:07:07.375231Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -146,6 +146,7 @@ oompah.terminal_audit:
     no-auditor-audit-99fee017001e-3: '2026-08-07T11:01:44.900646+00:00'
     no-auditor-audit-c2e4f6be07ca-3: '2026-08-07T11:42:10.324721+00:00'
     attempt-325ce0aa083b: '2026-08-07T12:23:59.864281+00:00'
+    attempt-e04c597ca699: '2026-08-07T13:07:01.449186+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-426
@@ -172,6 +173,7 @@ oompah.terminal_audit:
     evidence_fingerprint: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
     audit_ids:
     - audit-c2e4f6be07ca
+    - audit-407967100eea
     kind: result
     applied: true
     retired_at: '2026-08-07T11:42:10.324742+00:00'
@@ -224,6 +226,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T12:23:59.864306+00:00'
     applied_at: '2026-08-07T12:24:08.414738+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    audit_id: audit-407967100eea
+    attempt_id: attempt-e04c597ca699
+    target_state: Merged
+    evidence_fingerprint: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+    status: Merged
+    audit_ids:
+    - audit-407967100eea
+    applied: false
+    created_at: '2026-08-07T13:07:01.449226+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -649,7 +662,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -658,7 +671,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e04c597ca699
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -670,6 +683,9 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-426
       selected_ref: origin/main
       selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+      verdict: pass
+      completed_at: '2026-08-07T13:07:01.448942+00:00'
+      ended_at: '2026-08-07T13:07:01.448942+00:00'
     requested_by:
       version: 1
       identity: orchestrator
@@ -677,7 +693,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T11:49:50.437475+00:00'
     selected_ref: origin/main
     selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
-    updated_at: '2026-08-07T12:28:46.619137+00:00'
+    updated_at: '2026-08-07T13:07:01.448942+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0a53a873c97d
