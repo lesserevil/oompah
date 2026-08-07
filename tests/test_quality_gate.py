@@ -31,6 +31,8 @@ from oompah.quality_gate import (
     QualityGateResult,
     _SANDBOX_RUN_ROOT,
     _SANDBOX_TMP_ROOT,
+    _SANDBOX_TRUSTED_HOME_ROOT,
+    _SANDBOX_WORKER_HOME_ROOT,
     _SandboxUnavailable,
     _TrustedRuntimeCorruption,
     _editable_oompah_source,
@@ -1500,14 +1502,6 @@ def test_no_command_is_an_explicit_non_blocking_result(tmp_path):
     assert result.passed
 
 
-@pytest.mark.skipif(
-    Path("/oompah-gate/home").is_dir(),
-    reason=(
-        "The inner gate's /oompah-gate/home path is mounted by the outer bwrap "
-        "sandbox, so the 'not leaked on host' assertion cannot hold when the test "
-        "itself runs inside an outer quality-gate sandbox."
-    ),
-)
 def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
     sentinel = tmp_path / "gate-environment"
@@ -1523,11 +1517,12 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
         ' && test -z "${OOMPAH_SERVER_PASSWORD+x}"'
         ' && test -z "${OOMPAH_SERVER_PASSWORD_FILE+x}"'
         ' && test -z "${QUALITY_GATE_SENTINEL+x}"'
-        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" '
+        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" '
         f'"$HOME" "$TMPDIR" "$OOMPAH_TEST_PID_FILE" '
         f'"$OOMPAH_TEST_PID_META_FILE" "$OOMPAH_TEST_SERVER_PORT" '
         f'"$OOMPAH_TEMP_ROOT" "$OOMPAH_PYTEST_TEMP_ROOT" '
         f'"$PYTHONPYCACHEPREFIX" '
+        f'"$OOMPAH_PYTEST_WORKER_HOME_ROOT" '
         f'> {shlex.quote(str(sentinel))}'
     )
 
@@ -1539,19 +1534,67 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
 
     assert result.passed
     values = sentinel.read_text(encoding="utf-8").splitlines()
-    assert values[0] == "/home/oompah"
-    assert values[1] == "/tmp/oompah-gate"
-    assert values[2] == "/oompah-gate/lifecycle/.oompah.pid"
-    assert values[3] == "/oompah-gate/lifecycle/.oompah.pid.meta"
+    trusted_home = Path(values[0])
+    run_root = Path(values[1]).parent
+    assert trusted_home.name == "trusted-home"
+    assert run_root.name == "run"
+    assert trusted_home.parent == run_root.parent
+    assert trusted_home != run_root
+    assert values[1] == str(run_root / "tmp")
+    assert values[2] == str(run_root / "lifecycle" / ".oompah.pid")
+    assert values[3] == str(run_root / "lifecycle" / ".oompah.pid.meta")
     assert values[4].isdigit() and values[4] != "8090"
-    assert values[5] == "/tmp/oompah-gate"
-    assert values[6] == "/tmp/oompah-gate"
-    assert values[7] == "/tmp/oompah-gate/pycache"
-    runner_root = Path(os.environ.get("OOMPAH_PYTEST_RUN_ROOT", "/"))
-    if runner_root.is_relative_to(_SANDBOX_RUN_ROOT):
-        assert Path(values[0]).is_dir(), "outer gate root is not available"
-    else:
-        assert not Path(values[0]).exists(), "sandbox-visible gate root leaked on host"
+    assert values[5] == str(run_root / "tmp")
+    assert values[6] == str(run_root / "tmp")
+    assert values[7] == str(run_root / "tmp" / "pycache")
+    assert values[8] == str(trusted_home / "pytest-workers" / "session")
+    assert not trusted_home.exists(), "trusted HOME survived gate cleanup"
+    assert not run_root.parent.exists(), "gate container survived cleanup"
+
+
+def test_legacy_custom_launcher_materializes_home_for_real_test_runner(tmp_path):
+    """Three-argument launchers receive paths usable without bwrap mounts."""
+    repo = _git_repo(tmp_path)
+    runner = repo / "run-tests.sh"
+    shutil.copy2(
+        Path(__file__).resolve().parents[1] / "scripts" / "run-tests.sh",
+        runner,
+    )
+    fake_bin = repo / "fake-bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "set -eu\n"
+        'if [ "${1-}" = "-c" ]; then echo 32123; exit 0; fi\n'
+        'test -d "$HOME"\n'
+        'test -d "$OOMPAH_PYTEST_WORKER_HOME_ROOT"\n'
+        'test "$OOMPAH_PYTEST_WORKER_HOME_ROOT" = '
+        '"$HOME/pytest-workers/session"\n'
+        'mkdir -p "$OOMPAH_PYTEST_WORKER_HOME_ROOT/popen-gw0"\n'
+        "echo custom-launcher-home-materialized\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    subprocess.run(
+        ["git", "add", "run-tests.sh", "fake-bin/python"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "add runner probe"],
+        cwd=repo,
+        check=True,
+    )
+
+    result = _run(
+        _gate(tmp_path / "quality.json", repo),
+        repo,
+        'PATH="$PWD/fake-bin:$PATH" ./run-tests.sh serial tests/probe.py',
+    )
+
+    assert result.passed
+    assert "custom-launcher-home-materialized" in result.output_tail
 
 
 def test_preflight_allows_lifecycle_evolution_behind_os_boundary(tmp_path):
@@ -1660,6 +1703,7 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
     run_root = BranchQualityGate._gate_run_root()
+    trusted_home_root = BranchQualityGate._gate_trusted_home_root(run_root)
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
@@ -1673,14 +1717,55 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
         )
 
-        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+        command = BranchQualityGate._sandbox_command(
+            "true",
+            str(snapshot),
+            run_root,
+            trusted_home_root,
+        )
 
         pairs = set(zip(command, command[1:]))
+        bind_triples = {
+            tuple(command[index : index + 3])
+            for index in range(len(command) - 2)
+            if command[index] in {"--bind", "--ro-bind"}
+        }
         assert ("--tmpfs", "/") in pairs
         assert ("--ro-bind", "/") not in pairs
         assert ("/", "/") not in pairs
         assert ("--bind", str(snapshot)) in pairs
         assert (str(run_root), "/oompah-gate") in pairs
+        assert (
+            "--bind",
+            str(trusted_home_root),
+            str(_SANDBOX_TRUSTED_HOME_ROOT),
+        ) in bind_triples
+        environment = BranchQualityGate._quality_gate_environment(
+            run_root,
+            trusted_home_root,
+        )
+        assert environment["HOME"] == str(_SANDBOX_TRUSTED_HOME_ROOT)
+        assert environment["OOMPAH_PYTEST_CANDIDATE_RUN_ROOT"] == str(_SANDBOX_RUN_ROOT)
+        assert environment["OOMPAH_PYTEST_TRUSTED_HOME_ROOT"] == str(
+            _SANDBOX_TRUSTED_HOME_ROOT
+        )
+        assert environment["OOMPAH_PYTEST_WORKER_HOME_ROOT"] == str(
+            _SANDBOX_WORKER_HOME_ROOT
+        )
+        general_candidate_writable_roots = (
+            Path(str(snapshot)).resolve(),
+            _SANDBOX_RUN_ROOT,
+        )
+        guard_root = (
+            Path(environment["OOMPAH_PYTEST_WORKER_HOME_ROOT"])
+            / "popen-gw0"
+            / ".oompah"
+            / "native-validation-guards"
+        )
+        assert all(
+            guard_root != root and root not in guard_root.parents
+            for root in general_candidate_writable_roots
+        )
         assert ("--cap-add", "CAP_NET_ADMIN") in pairs
         assert 'ip link set lo up 2>/dev/null || true; exec "$@"' in command
         assert ("--tmpfs", "/tmp") in pairs
@@ -1705,11 +1790,6 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
         assert ("--ro-bind", "/etc/passwd", "/etc/passwd") not in ro_bind_triples
         runtime_prefix = Path(sys.prefix).resolve()
         if runtime_prefix != Path(sys.base_prefix).resolve():
-            bind_triples = {
-                tuple(command[index : index + 3])
-                for index in range(len(command) - 2)
-                if command[index] in {"--bind", "--ro-bind"}
-            }
             assert (
                 "--bind",
                 str(snapshot),
@@ -1721,6 +1801,7 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
                 str(runtime_prefix),
             ) in bind_triples
     finally:
+        BranchQualityGate._cleanup_gate_trusted_home_root(trusted_home_root)
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
@@ -1781,6 +1862,7 @@ def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
     run_root = BranchQualityGate._gate_run_root()
+    trusted_home_root = BranchQualityGate._gate_trusted_home_root(run_root)
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
@@ -1794,7 +1876,9 @@ def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
         )
 
-        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+        command = BranchQualityGate._sandbox_command(
+            "true", str(snapshot), run_root, trusted_home_root
+        )
 
         # Sentinels must be created as writable files in run_root.
         assert (run_root / ".uv-setup").exists(), (
@@ -1820,6 +1904,7 @@ def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(
             repo / ".venv" / ".uv-test-setup"
         ), ".uv-test-setup not bound at venv/.uv-test-setup inside the sandbox"
     finally:
+        BranchQualityGate._cleanup_gate_trusted_home_root(trusted_home_root)
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
@@ -1843,6 +1928,7 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
     run_root = BranchQualityGate._gate_run_root()
+    trusted_home_root = BranchQualityGate._gate_trusted_home_root(run_root)
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
@@ -1856,7 +1942,9 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
         )
 
-        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+        command = BranchQualityGate._sandbox_command(
+            "true", str(snapshot), run_root, trusted_home_root
+        )
 
         # Parse bind (src, dst) pairs from the flat command list.
         bind_pairs: list[tuple[str, str]] = []
@@ -1894,6 +1982,7 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
                 f"source checkout: {bind_pairs!r}"
             )
     finally:
+        BranchQualityGate._cleanup_gate_trusted_home_root(trusted_home_root)
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
@@ -1954,6 +2043,339 @@ def test_gate_reports_poisoned_runtime_without_running_candidate(tmp_path):
 
 
 @pytest.mark.parametrize(
+    ("command", "expected_status"),
+    [
+        pytest.param("true", "passed", id="success"),
+        pytest.param("exit 4", "failed", id="configuration-failure"),
+        pytest.param("kill -KILL $$", "failed", id="candidate-crash"),
+    ],
+)
+def test_gate_cleans_server_owned_trusted_home_for_every_outcome(
+    tmp_path,
+    monkeypatch,
+    command,
+    expected_status,
+):
+    repo = _git_repo(tmp_path)
+    created: list[Path] = []
+    original = BranchQualityGate._gate_trusted_home_root
+
+    def capture_trusted_home(run_root: Path) -> Path:
+        root = original(run_root)
+        created.append(root)
+        return root
+
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_gate_trusted_home_root",
+        staticmethod(capture_trusted_home),
+    )
+
+    result = _run(
+        _gate(tmp_path / "quality.json", repo),
+        repo,
+        command,
+    )
+
+    assert result.status == expected_status
+    assert len(created) == 1
+    assert not created[0].exists()
+    assert not BranchQualityGate._gate_root_owner_path(created[0]).exists()
+
+
+@pytest.mark.parametrize("failed_allocator", ["run-root", "trusted-home"])
+def test_gate_allocation_failure_releases_lease_and_generation(
+    tmp_path,
+    monkeypatch,
+    failed_allocator,
+):
+    repo = _git_repo(tmp_path)
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        poll_seconds=0.01,
+    )
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        validation_lease=lease,
+    )
+    created: list[Path] = []
+    if failed_allocator == "run-root":
+        monkeypatch.setattr(
+            gate,
+            "_gate_run_root",
+            lambda: (_ for _ in ()).throw(OSError("run-root allocation failed")),
+        )
+    else:
+        original_run_root = gate._gate_run_root
+
+        def capture_run_root() -> Path:
+            root = original_run_root()
+            created.append(root)
+            return root
+
+        monkeypatch.setattr(gate, "_gate_run_root", capture_run_root)
+        monkeypatch.setattr(
+            gate,
+            "_gate_trusted_home_root",
+            lambda _run_root: (_ for _ in ()).throw(
+                OSError("trusted-HOME allocation failed")
+            ),
+        )
+    generation = f"allocation-failure:{failed_allocator}"
+
+    result = _run(gate, repo, "true", generation=generation)
+
+    assert result.status == "error"
+    assert "allocation failed" in result.output_tail
+    assert lease.status().owner_count == 0
+    assert lease.status().waiter_count == 0
+    with BranchQualityGate._processes_lock:
+        assert generation not in BranchQualityGate._generation_run_counts
+    assert all(not root.exists() for root in created)
+    assert all(
+        not BranchQualityGate._gate_root_owner_path(root.parent).exists()
+        for root in created
+    )
+
+
+def test_gate_startup_scavenges_roots_from_dead_service_generation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    trusted_home = BranchQualityGate._gate_trusted_home_root(run_root)
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    try:
+        BranchQualityGate._forget_gate_root(container)
+        owner = json.loads(owner_path.read_text(encoding="utf-8"))
+        owner.update(
+            {
+                "pid": 2_000_000_000,
+                "process_start_ticks": 1,
+            }
+        )
+        owner_path.chmod(0o600)
+        owner_path.write_text(json.dumps(owner), encoding="utf-8")
+        owner_path.chmod(0o400)
+
+        BranchQualityGate(str(tmp_path / "scavenge-state.json"))
+
+        assert not container.exists()
+        assert not run_root.exists()
+        assert not trusted_home.exists()
+    finally:
+        if container.exists():
+            BranchQualityGate._cleanup_gate_run_root(run_root)
+        owner_path.unlink(missing_ok=True)
+
+
+def test_gate_scavenger_bounds_corrupt_or_legacy_root_lifetime(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = Path(
+        quality_gate.tempfile.mkdtemp(prefix=quality_gate._GATE_ROOT_PREFIX)
+    )
+    try:
+        old = time.time() - 10
+        os.utime(run_root, (old, old))
+        monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+
+        assert BranchQualityGate._scavenge_stale_gate_roots() >= 1
+        assert not run_root.exists()
+    finally:
+        if run_root.exists():
+            shutil.rmtree(run_root)
+
+
+def test_gate_scavenger_retains_old_root_with_exact_live_owner(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    try:
+        owner_path = BranchQualityGate._gate_root_owner_path(container)
+        owner_path.chmod(0o600)
+        owner_path.write_text("candidate-corruption", encoding="utf-8")
+        old = time.time() - 10
+        os.utime(container, (old, old))
+        os.utime(owner_path, (old, old))
+        monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+
+        BranchQualityGate._scavenge_stale_gate_roots()
+
+        assert run_root.exists()
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
+def test_gate_scavenger_retains_root_when_proc_identity_is_unknown(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    BranchQualityGate._forget_gate_root(container)
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_gate_process_identity",
+        staticmethod(lambda _pid: ("unknown", None)),
+    )
+    try:
+        BranchQualityGate._scavenge_stale_gate_roots()
+        assert run_root.exists()
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
+def test_gate_scavenger_retains_inode_swapped_before_delete(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    BranchQualityGate._forget_gate_root(container)
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    owner = json.loads(owner_path.read_text(encoding="utf-8"))
+    owner.update({"pid": 2_000_000_000, "process_start_ticks": 1})
+    owner_path.chmod(0o600)
+    owner_path.write_text(json.dumps(owner), encoding="utf-8")
+    owner_path.chmod(0o400)
+    displaced = container.with_name(f"{container.name}-displaced")
+    original_remove = BranchQualityGate._remove_stale_gate_root
+
+    def swap_before_remove(root: Path, identity: tuple[int, int]) -> bool:
+        root.rename(displaced)
+        root.mkdir(mode=0o700)
+        return original_remove(root, identity)
+
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_remove_stale_gate_root",
+        staticmethod(swap_before_remove),
+    )
+    try:
+        assert BranchQualityGate._scavenge_stale_gate_roots() == 0
+        assert container.exists()
+        assert displaced.exists()
+    finally:
+        BranchQualityGate._prepare_gate_container_removal(container)
+        BranchQualityGate._prepare_gate_container_removal(displaced)
+        shutil.rmtree(container, ignore_errors=True)
+        shutil.rmtree(displaced, ignore_errors=True)
+        owner_path.unlink(missing_ok=True)
+
+
+def test_gate_scavenger_age_bounds_orphan_owner_sidecar(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    assert BranchQualityGate._prepare_gate_container_removal(container)
+    shutil.rmtree(container)
+    old = time.time() - 10
+    os.utime(owner_path, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+
+    BranchQualityGate._scavenge_stale_gate_roots()
+
+    assert not owner_path.exists()
+
+
+def test_gate_restart_scavenges_abandoned_quarantine_and_sidecar(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    owner = json.loads(owner_path.read_text(encoding="utf-8"))
+    owner.update({"pid": 2_000_000_000, "process_start_ticks": 1})
+    owner_path.chmod(0o600)
+    owner_path.write_text(json.dumps(owner), encoding="utf-8")
+    owner_path.chmod(0o400)
+    quarantine = container.with_name(
+        f".{container.name}.scavenge-2000000000-123456789"
+    )
+    container.rename(quarantine)
+    old = time.time() - 10
+    os.utime(quarantine, (old, old))
+    os.utime(owner_path, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+    try:
+        # Same-generation memory authority wins even over backdated files.
+        assert BranchQualityGate._scavenge_stale_gate_roots() == 0
+        assert quarantine.exists()
+        assert owner_path.exists()
+
+        # A hard restart loses only the in-memory registration.  The next
+        # gate initialization recognizes and finishes the prior atomic rename.
+        BranchQualityGate._forget_gate_root(container)
+        BranchQualityGate(str(tmp_path / "restart-state.json"))
+
+        assert not quarantine.exists()
+        assert not owner_path.exists()
+    finally:
+        BranchQualityGate._forget_gate_root(container)
+        BranchQualityGate._prepare_gate_container_removal(quarantine)
+        shutil.rmtree(quarantine, ignore_errors=True)
+        owner_path.unlink(missing_ok=True)
+
+
+def test_gate_scavenger_age_bounds_quarantine_without_sidecar(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    owner_path.unlink()
+    quarantine = container.with_name(
+        f".{container.name}.scavenge-2000000000-123456789"
+    )
+    container.rename(quarantine)
+    old = time.time() - 10
+    os.utime(quarantine, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+    try:
+        assert BranchQualityGate._scavenge_stale_gate_roots() == 1
+        assert not quarantine.exists()
+    finally:
+        BranchQualityGate._prepare_gate_container_removal(quarantine)
+        shutil.rmtree(quarantine, ignore_errors=True)
+
+
+def test_gate_normal_cleanup_removes_container_and_owner_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    trusted_home = BranchQualityGate._gate_trusted_home_root(run_root)
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+
+    BranchQualityGate._cleanup_gate_trusted_home_root(trusted_home)
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    assert not container.exists()
+    assert not trusted_home.exists()
+    assert not owner_path.exists()
+
+
+@pytest.mark.parametrize(
     "metadata_payload",
     [
         {"url": "https://example.test/oompah", "dir_info": {"editable": True}},
@@ -1989,6 +2411,7 @@ def test_sandbox_command_projects_declared_editable_source_to_candidate(
     prior_worktree = tmp_path / "prior-worktree"
     prior_worktree.mkdir()
     run_root = BranchQualityGate._gate_run_root()
+    trusted_home_root = BranchQualityGate._gate_trusted_home_root(run_root)
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
@@ -2005,7 +2428,9 @@ def test_sandbox_command_projects_declared_editable_source_to_candidate(
             quality_gate, "_editable_oompah_source", lambda: prior_worktree
         )
 
-        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+        command = BranchQualityGate._sandbox_command(
+            "true", str(snapshot), run_root, trusted_home_root
+        )
 
         bind_pairs = [
             (command[index + 1], command[index + 2])
@@ -2019,6 +2444,7 @@ def test_sandbox_command_projects_declared_editable_source_to_candidate(
                 str(prior_worktree.resolve()),
             ) in bind_pairs
     finally:
+        BranchQualityGate._cleanup_gate_trusted_home_root(trusted_home_root)
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
