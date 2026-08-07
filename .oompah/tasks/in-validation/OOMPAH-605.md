@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-07T05:14:11.703378Z'
+updated_at: '2026-08-07T05:31:57.922842Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: ''
@@ -182,7 +182,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-605
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -216,7 +216,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-605
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -290,6 +290,40 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-06T20:42:11.133927+00:00'
     updated_at: '2026-08-06T20:51:19.218340+00:00'
+  - version: 1
+    audit_id: audit-c333bd267006
+    project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 744df6db79fdcd399181bb19d918c5d718f3268a90e21e00b18df356ec43877b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T05:31:53.605515+00:00'
+  - version: 1
+    audit_id: audit-d7268cd7e7db
+    project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 744df6db79fdcd399181bb19d918c5d718f3268a90e21e00b18df356ec43877b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T05:31:53.605515+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9e1fc07668b1
