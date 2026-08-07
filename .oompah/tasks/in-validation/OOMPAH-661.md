@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:59:35.171794Z'
+updated_at: '2026-08-07T16:10:58.567614Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -255,6 +255,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T15:42:22.659039+00:00'
     updated_at: '2026-07-31T15:59:33.970726+00:00'
+  - version: 1
+    audit_id: audit-008d39a440f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ccfc56a115975b3eaa2ef45895abaea2f61ecd46b8d5c0076a8692f570654451
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T16:10:54.448590+00:00'
+    selected_ref: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
+    selected_sha: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
   attempt_history: []
 ---
 ## Summary
