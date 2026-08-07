@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T09:35:09.852494Z'
+updated_at: '2026-08-07T09:36:06.281646Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -264,5 +264,10 @@ author: oompah
 created: 2026-08-07 09:35
 ---
 Verification: targeted cancellation/restart/CI-failure/owner-claim tests pass (8 passed); full quality-gate suite passes (82 passed); integration executor/record/dashboard-recovery suite passes (51 passed); validation lease suite passes when its subprocess Make uses the system binary.  was attempted twice but cannot bootstrap the task venv here because uv fails creating a transient DBus scope; gate-mode reuse also correctly rejects the service venv because it is not the candidate snapshot. Diff check and py_compile pass.
+---
+author: oompah
+created: 2026-08-07 09:36
+---
+Completion: delivered and pushed 86df4aaaf. Cancelled exact gates now retain cancellation provenance and retry the accepted head without ci-fix; genuine nonzero gates still transition to Needs CI Fix with output. Owner takeovers fence stale retry authority. The branch is clean and tracks origin/epic-OOMPAH-768--task-OOMPAH-874.
 ---
 <!-- COMMENTS:END -->
