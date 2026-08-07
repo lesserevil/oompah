@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:43:33.439659Z'
+updated_at: '2026-08-07T09:43:40.391652Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -1146,5 +1146,12 @@ created: 2026-08-07 09:41
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 09:43
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Owner recovery: PR #600 is merged and both reviewed head 741a7d88b2ad409575a0b3577564b98f57733f87 and accepted head f2b319c1182cd654112db622a0498171e508dead are ancestors of origin/main with zero target diff. Auditor attempts terminated before a verdict; OOMPAH-876 tracks transport retries without candidate exhaustion.
 ---
 <!-- COMMENTS:END -->
