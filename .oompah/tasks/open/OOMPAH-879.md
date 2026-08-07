@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T10:44:13.971187Z'
+updated_at: '2026-08-07T10:44:26.729704Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Live reproduction 2026-08-07: OOMPAH-877 already represented the required epic-O
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 10:44
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
