@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T15:20:12.235836Z'
+updated_at: '2026-08-07T16:10:48.545860Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
@@ -308,6 +308,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T15:13:51.660787+00:00'
     updated_at: '2026-07-31T15:19:53.072518+00:00'
+  - version: 1
+    audit_id: audit-a26cbe01cd64
+    project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f3568b92e70891349d14bdd170148fd399409e323472bfb22a2c4dd7f036f55
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T16:10:44.376416+00:00'
+    selected_ref: 9e4a0c877707d946a4504d664dba74811c2e0aac
+    selected_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
   attempt_history:
   - version: 1
     attempt_id: attempt-cd482e907e4c
