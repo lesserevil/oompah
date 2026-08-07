@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T06:09:06.204389Z'
+updated_at: '2026-08-07T07:11:50.788404Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -137,18 +137,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 558a6d3efaab1118e8eae4747f1255fb9e5eb8db28546a3d40d497e440bf0eed
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-1da55f47c70c
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 558a6d3efaab1118e8eae4747f1255fb9e5eb8db28546a3d40d497e440bf0eed
+      created_at: '2026-08-07T07:11:28.421830+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T07:11:28.421830+00:00'
+      branch_key: epic-OOMPAH-584
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T06:09:01.019828+00:00'
+    updated_at: '2026-08-07T07:11:28.421830+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -188,6 +202,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T05:47:30.790034+00:00'
+    branch_key: epic-OOMPAH-584
+  - version: 1
+    attempt_id: attempt-1da55f47c70c
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 558a6d3efaab1118e8eae4747f1255fb9e5eb8db28546a3d40d497e440bf0eed
+    created_at: '2026-08-07T07:11:28.421830+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T07:11:28.421830+00:00'
     branch_key: epic-OOMPAH-584
 oompah.task_costs:
   total_input_tokens: 477876
@@ -521,5 +548,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 1s
 - Log: OOMPAH-584__20260731T054736Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:11
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 07:11
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
