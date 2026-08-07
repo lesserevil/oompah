@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:53:13.756889Z'
+updated_at: '2026-08-07T13:56:04.518580Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -952,5 +952,16 @@ Understanding: This task's implementation is complete — PR #618 was merged at 
 5. But `oompah task submit` fails with HTTP 400 because the remote origin/OOMPAH-657 branch was deleted after the merge
 
 The fix: restore origin/OOMPAH-657 at the original verified head (0212dada6) so submission can proceed and the task can complete its lifecycle.
+---
+author: oompah
+created: 2026-08-07 13:56
+---
+Discovery: The task lifecycle is blocked by a missing remote branch, not a CI failure. Original head 0212dada64768ed8f89e7b27f461f121c4a42299 was merged in PR #618 on 2026-07-31 with:
+- make test: PASSED (370.5s)
+- GitHub Actions CI: PASSED (Python 3.11, 3.12, 3.13)
+- Independent audit: PASS
+- Project owner applied Merged transition
+
+Root cause of current stuck state: after merge, GitHub deleted origin/OOMPAH-657 (normal post-merge cleanup). Subsequent CI-fix agents couldn't submit because remote_head_sha was unavailable. Fix: restored origin/OOMPAH-657 at commit 0212dada6 so submission can proceed.
 ---
 <!-- COMMENTS:END -->
