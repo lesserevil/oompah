@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:24:28.093323Z'
-updated_at: '2026-08-07T14:51:12.986593Z'
+updated_at: '2026-08-07T14:51:24.764433Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -84,7 +84,18 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:51:07.269308+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-884
+    target_state: Archived
+    evidence_fingerprint: c512deef703433412f7680cc9a942a5d6448a7c71240e56356ab7abf28ed11bb
+    audit_ids:
+    - audit-514334cf0226
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:51:21.468225+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -92,7 +103,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-884
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -106,6 +117,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:33:24.384353+00:00'
     selected_ref: ca1c527440734830c17b09b49616c394008258f8
     selected_sha: ca1c527440734830c17b09b49616c394008258f8
+    updated_at: '2026-08-07T14:51:21.468190+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -166,5 +178,12 @@ author: oompah
 created: 2026-08-07 12:38
 ---
 Operator containment: direct-owner claim acquired after tracing this helper as the process that published ca1c52744. That shared head had not completed validation; the authorized OOMPAH-877 focused suite subsequently reported three failures. Keep this duplicate fenced pending OOMPAH-879 authority enforcement and OOMPAH-877 repair; do not apply its queued terminal transition.
+---
+author: oompah
+created: 2026-08-07 14:51
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
