@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T13:28:26.808657Z'
+updated_at: '2026-08-07T13:28:45.601367Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
@@ -162,6 +162,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-885ee2ef650c: '2026-08-07T13:13:15.933122+00:00'
+    no-auditor-audit-f4c6b5b0a6ae-2: '2026-08-07T13:28:33.714331+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-871
@@ -172,6 +173,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T13:13:15.933134+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    target_state: Merged
+    evidence_fingerprint: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    audit_ids:
+    - audit-f4c6b5b0a6ae
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T13:28:33.714349+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-871
@@ -185,6 +195,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:13:15.933150+00:00'
     applied_at: '2026-08-07T13:13:24.899415+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    audit_id: audit-f4c6b5b0a6ae
+    attempt_id: no-auditor-audit-f4c6b5b0a6ae-2
+    target_state: Merged
+    evidence_fingerprint: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    status: Needs Human
+    audit_ids:
+    - audit-f4c6b5b0a6ae
+    applied: true
+    created_at: '2026-08-07T13:28:33.714369+00:00'
+    applied_at: '2026-08-07T13:28:42.539661+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -248,7 +270,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-871
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -289,6 +311,20 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-07T13:28:23.536386+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-f4c6b5b0a6ae-2
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T13:28:33.714107+00:00'
+      completed_at: '2026-08-07T13:28:33.714107+00:00'
+      selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
+      selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
     requested_by:
       version: 1
       identity: lesserevil
@@ -297,7 +333,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:32:13.858961+00:00'
     selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
     selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
-    updated_at: '2026-08-07T13:21:53.134136+00:00'
+    updated_at: '2026-08-07T13:28:33.714107+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ea91da6000d7
@@ -713,5 +749,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 54s
 - Log: OOMPAH-871__20260807T132223Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:28
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
