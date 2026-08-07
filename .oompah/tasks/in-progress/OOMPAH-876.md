@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:54:01.805074Z'
+updated_at: '2026-08-07T10:02:55.343151Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-08-07 09:54
 ---
 Additional live reproduction: OOMPAH-414 reached Needs Human on Archived after the YOLO-reopen Claude/opus transport terminated (0 turns, 6 tool calls) and max attempts exhausted. No code verdict rejected the work; owner override restored terminal provenance.
+---
+author: oompah
+created: 2026-08-07 10:02
+---
+Additional stale Needs Human reproduction: OOMPAH-575 had an independent Done PASS covering 14,163 tests and an existing owner-verified Merged state, but remained Needs Human from a historical Merged audit infrastructure exhaustion while Archived was queued. Owner recovery retained the merged/archived provenance; implementation was not reopened.
 ---
 <!-- COMMENTS:END -->
