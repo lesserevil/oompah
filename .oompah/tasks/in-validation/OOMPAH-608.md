@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T11:34:19.104331Z'
+updated_at: '2026-08-07T11:35:20.276719Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/739
@@ -313,7 +313,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-effb42d511a7
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -325,6 +325,24 @@ oompah.terminal_audit:
       branch_key: OOMPAH-608
       selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
       selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+      ended_at: '2026-08-07T11:34:54.433505+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-aefa60f65cc1
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+      created_at: '2026-08-07T11:35:04.480599+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T11:35:04.480599+00:00'
+      branch_key: OOMPAH-608
+      selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+      selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: yolo-merge
@@ -333,7 +351,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T11:23:54.672924+00:00'
     selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
     selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
-    updated_at: '2026-08-07T11:28:17.468667+00:00'
+    updated_at: '2026-08-07T11:35:04.480599+00:00'
   - version: 1
     audit_id: audit-9ae24abeda54
     project_id: proj-14849f1b
@@ -424,7 +442,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-effb42d511a7
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -436,6 +454,24 @@ oompah.terminal_audit:
     branch_key: OOMPAH-608
     selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
     selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    ended_at: '2026-08-07T11:34:54.433505+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-aefa60f65cc1
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+    created_at: '2026-08-07T11:35:04.480599+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T11:35:04.480599+00:00'
+    branch_key: OOMPAH-608
+    selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    candidate_rotation_count: 1
 oompah.review_head: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
 review_head: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
 ---
@@ -940,5 +976,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 49s
 - Log: OOMPAH-608__20260807T112833Z.jsonl
+---
+author: oompah
+created: 2026-08-07 11:35
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 11:35
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
