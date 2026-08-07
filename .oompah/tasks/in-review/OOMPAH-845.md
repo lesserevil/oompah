@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,12 +12,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T05:53:37.054170Z'
+updated_at: '2026-08-07T05:53:58.068093Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
 review_number: '734'
-review_head: null
+review_head: 60a701e828d7fb5ebaa878e021639c93b0856cf7
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -107,6 +107,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/734
 oompah.review_number: '734'
 oompah.work_branch: OOMPAH-845
 oompah.target_branch: main
+oompah.review_head: 60a701e828d7fb5ebaa878e021639c93b0856cf7
 ---
 ## Summary
 
