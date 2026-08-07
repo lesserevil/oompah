@@ -419,6 +419,7 @@ def test_reconcile_recovers_exited_silent_child(tmp_path):
     orch._terminate_running.assert_awaited_once_with(
         entry.issue.id,
         cleanup_workspace=False,
+        post_retirement_retry=True,
     )
 
 
@@ -437,6 +438,7 @@ def test_reconcile_uses_command_timeout_even_when_generic_stall_disabled(tmp_pat
     orch._terminate_running.assert_awaited_once_with(
         entry.issue.id,
         cleanup_workspace=False,
+        post_retirement_retry=True,
     )
 
 

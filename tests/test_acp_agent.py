@@ -1025,6 +1025,8 @@ class TestAcpWorkerModelHandoff:
             total_tokens = 0
             total_cost_usd = None
             turn_count = 0
+            final_usage_observed = False
+            final_cost_observed = False
 
             def __init__(self, **kwargs):
                 captured.update(kwargs)
@@ -1049,6 +1051,14 @@ class TestAcpWorkerModelHandoff:
         orch._record_generated_attachments = MagicMock()
         orch._record_worker_provider_health = MagicMock()
         orch._on_worker_exit = AsyncMock()
+
+        # This unit exercises ACP model/health handoff without going through
+        # `_dispatch`, which owns the real RunningEntry/provider-start fence.
+        # Publish the fake backend task directly so the fixture reaches the
+        # transport result boundary it is asserting about.
+        orch._publish_provider_start = (
+            lambda _issue, _run_id, start: asyncio.create_task(start())
+        )
 
         async def _allow_legacy_test_targets(_issue, targets):
             return targets, None

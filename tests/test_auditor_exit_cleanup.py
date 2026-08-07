@@ -51,6 +51,7 @@ async def test_auditor_exit_releases_claimed_issue_and_branch(tmp_path):
         audit_id="audit-1",
         audit_attempt_id="attempt-1",
         branch_key="task-branch",
+        provider_started=True,
     )
     orch.state.running[issue.id] = entry
     orch.state.claimed.add(issue.id)

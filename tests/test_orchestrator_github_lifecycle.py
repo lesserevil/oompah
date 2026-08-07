@@ -144,6 +144,7 @@ def _make_project(
     p.tracker_repo = tracker_repo
     p.repo_path = repo_path
     p.repo_url = "https://github.com/acme/tasks"
+    p.paused = False
     return p
 
 
@@ -725,28 +726,31 @@ class TestRetrySchedulingGitHub:
     def test_retry_replaces_existing_timer(self, tmp_path, event_loop):
         """Calling _schedule_retry twice cancels the first timer."""
         orch = _make_orch(tmp_path)
-        event_loop.run_until_complete(asyncio.sleep(0))
 
-        orch._schedule_retry(
-            issue_id="GH_22",
-            attempt=1,
-            identifier="acme/tasks#22",
-            delay_ms=5000,
-            error="attempt1",
-            project_id="proj-gh",
-        )
-        first_handle = orch.state.retry_attempts["GH_22"].timer_handle
+        async def _schedule_both():
+            orch._schedule_retry(
+                issue_id="GH_22",
+                attempt=1,
+                identifier="acme/tasks#22",
+                delay_ms=5000,
+                error="attempt1",
+                project_id="proj-gh",
+            )
+            first = orch.state.retry_attempts["GH_22"].timer_handle
+            orch._schedule_retry(
+                issue_id="GH_22",
+                attempt=2,
+                identifier="acme/tasks#22",
+                delay_ms=5000,
+                error="attempt2",
+                project_id="proj-gh",
+            )
+            return first
 
-        orch._schedule_retry(
-            issue_id="GH_22",
-            attempt=2,
-            identifier="acme/tasks#22",
-            delay_ms=5000,
-            error="attempt2",
-            project_id="proj-gh",
-        )
+        first_handle = event_loop.run_until_complete(_schedule_both())
 
         # First timer should be cancelled
+        assert first_handle is not None
         assert first_handle.cancelled()
         # New entry is in place
         assert orch.state.retry_attempts["GH_22"].attempt == 2

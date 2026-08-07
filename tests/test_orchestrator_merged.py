@@ -2018,6 +2018,7 @@ class TestBacklogStatusReconciliation:
         orch._terminate_running.assert_awaited_once_with(
             issue.id,
             cleanup_workspace=False,
+            post_retirement_retry=True,
         )
 
     def test_reconcile_stops_auditor_after_terminal_transition(self, tmp_path):
