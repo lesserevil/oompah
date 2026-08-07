@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-663
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Canonicalize integrated-task fingerprints for owner overrides
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:41:08.089546Z'
+updated_at: '2026-08-07T15:10:31.611024Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -217,6 +217,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T14:29:26.730864+00:00'
     updated_at: '2026-07-31T14:40:33.673175+00:00'
+  - version: 1
+    audit_id: audit-4a4cb7e26353
+    project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3d1b6db636b04ddf05ead78efe67b46415b916c457633ef1cf53aaea2da5479
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T15:10:27.682732+00:00'
+    selected_ref: 3bfc42ec9e14809441868bba108fe5dccec18ab7
+    selected_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
   attempt_history:
   - version: 1
     attempt_id: attempt-6e2ab2992878
