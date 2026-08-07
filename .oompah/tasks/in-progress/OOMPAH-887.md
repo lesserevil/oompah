@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:15:54.923184Z'
+updated_at: '2026-08-07T13:18:31.374645Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.duplicate_screening:
     generation between refresh and Needs Human escalation, reproduced live on OOMPAH-779;
     its single-generation revalidation and defer-on-refresh-failure acceptance criteria
     remain unimplemented.
-oompah.agent_run_id: 8cd4224b-f3d0-4bca-8983-870f6dff27b7
+oompah.agent_run_id: e44f2ef8-503f-4bff-9311-fe4a7037a5af
 ---
 ## Summary
 
@@ -103,5 +103,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 9s
+---
+author: oompah
+created: 2026-08-07 13:18
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
