@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T16:05:47.040921Z'
+updated_at: '2026-08-07T16:07:05.284299Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-07 16:05
 ---
 Implemented server-owned epic-rebase CAS publication and pushed commit 635f91617a2187c980a362378261352d109fcf5c to task branch epic-OOMPAH-763--task-OOMPAH-879. Validation: exact regression nodes 5/5 passed; six-module matrix 679/679 passed with 2 warnings; git diff --check, py_compile, make terminal-audit-scan, and make check-secrets passed. The worker-facing tool accepts candidate SHA only; server re-resolves authority/project/remote/ref state under authority-then-project locks, verifies trusted-repo object/HEAD/target ancestry with replace refs disabled, performs exact force-with-lease CAS against the canonical remote, verifies the result, and durably supports idempotent recovery. No shared epic branch was pushed.
+---
+author: oompah
+created: 2026-08-07 16:07
+---
+Submission handoff:  returned HTTP 400 because this delegated implementation checkout is branch epic-OOMPAH-763--task-OOMPAH-879 while the task expects work branch OOMPAH-892. The committed head is pushed and exactly matches origin/epic-OOMPAH-763--task-OOMPAH-879. No unrequested branch creation, rebase, composition, shared-epic push, or terminal-status override was performed.
 ---
 <!-- COMMENTS:END -->
