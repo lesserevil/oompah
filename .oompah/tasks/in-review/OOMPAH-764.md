@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:47:00.407196Z'
+updated_at: '2026-08-07T12:52:24.589925Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
@@ -238,5 +238,10 @@ author: oompah
 created: 2026-08-07 12:40
 ---
 YOLO: Merge conflict detected on MR #742. Rebase `epic-OOMPAH-764` onto epic-OOMPAH-763 and resolve conflicts.
+---
+author: oompah
+created: 2026-08-07 12:52
+---
+In-flight workaround: restored audited Done and closed stale PR #742 after proving all three branch commits patch-equivalent in current origin/epic-OOMPAH-763. The current server still rejects the truthful nested Merged override because it cannot verify parent OOMPAH-763; OOMPAH-791 is already included in the systemic epic to remove that proof cycle.
 ---
 <!-- COMMENTS:END -->
