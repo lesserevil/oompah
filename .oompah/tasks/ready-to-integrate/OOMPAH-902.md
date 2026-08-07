@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-902
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make exact-gate sandboxes provide a hermetic operator identity
 parent: OOMPAH-763
@@ -11,13 +11,24 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T18:59:35.710911Z'
-work_branch: null
+updated_at: '2026-08-07T19:10:36.642019Z'
+work_branch: OOMPAH-902
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-902
+  base_branch: epic-OOMPAH-763
+  base_sha: a85a36baf7b3ebcb45be27823755b5694a790a49
+  head_sha: f09c0546f55c4994b8894e003874215ac3d8c816
+  submitted_at: '2026-08-07T19:10:13.929048+00:00'
+  updated_at: '2026-08-07T19:10:13.929048+00:00'
+oompah.work_branch: OOMPAH-902
 ---
 ## Summary
 
@@ -50,5 +61,10 @@ author: oompah
 created: 2026-08-07 18:59
 ---
 Correction to prior comment: the exact accepted denial text is: bwrap: No permissions to create a new namespace. The shell formatting in the prior progress message omitted that quoted phrase; code and tests were unaffected.
+---
+author: oompah
+created: 2026-08-07 19:10
+---
+Fixed exact-gate sandbox identity with immutable synthetic passwd/group/NSS data, tmpfs-backed private HOME/temp paths, and fail-closed nested-bubblewrap host-policy classification. Focused lease: 50 passed; exact-head gate: 40 passed with 11 proven host-policy skips; deployed on shared epic revision eb08e86b9.
 ---
 <!-- COMMENTS:END -->
