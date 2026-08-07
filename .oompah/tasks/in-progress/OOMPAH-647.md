@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:50:23.194395Z'
+updated_at: '2026-08-07T10:50:40.559565Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -65,7 +65,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 50781293-1e35-41d0-b771-888ca60613ca
+oompah.agent_run_id: dde81410-9388-4562-9f9b-415f544f94c8
 oompah.task_costs:
   total_input_tokens: 270373
   total_output_tokens: 55151
@@ -700,5 +700,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 23s
 - Log: OOMPAH-647__20260807T104342Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:50
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
