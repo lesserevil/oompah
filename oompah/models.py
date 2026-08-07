@@ -384,6 +384,11 @@ class RetryEntry:
     # Wall-clock due time is persisted separately from due_at_ms, which is a
     # process-local monotonic timestamp and cannot survive a restart.
     due_at_epoch_ms: float | None = None
+    # True when this entry preserves a dispatch that never reached provider
+    # admission. Replaying it retains first-dispatch routing and must not
+    # consume implementation retry budget merely because rollback was
+    # temporarily unavailable.
+    pre_admission_recovery: bool = False
     cancelled: bool = False
 
 
@@ -1518,6 +1523,13 @@ class RunningEntry:
     # that loses the admission race must be able to see that contact was
     # authorized even while durable budget persistence is completing.
     provider_contact_permitted: bool = False
+    # OOMPAH-854's lifecycle admission gate is separate from final provider
+    # contact authorization above. A pause, quiesce, or restart can invalidate
+    # this generation after local setup but before the transport start task is
+    # published; retaining the exact task then lets retirement cancel it before
+    # it can contact a provider.
+    provider_admission_generation: int | None = None
+    provider_start_task: Any = field(default=None, repr=False)
     provider_started: bool = False
     # Read-only auditors are allowed a small number of policy mistakes before
     # the attempt is failed and rotated to another independent candidate.

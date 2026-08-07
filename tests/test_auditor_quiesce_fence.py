@@ -280,6 +280,50 @@ def test_quiesce_wins_at_final_admission_and_restores_exact_attempt(tmp_path) ->
     assert audit_metrics["running"] == 0
 
 
+def test_owner_override_wins_registration_generation_barrier(tmp_path) -> None:
+    """A pre-publication override rejects the gated auditor without an attempt."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    plan = _plan()
+    store = _persisted_store(plan)
+    orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
+    _record_queued_metric(orch, plan)
+    reached_registration = threading.Event()
+    release_registration = threading.Event()
+    original_register = orch._register_running_entry
+
+    def _register(issue_id: str, entry: RunningEntry) -> bool:
+        reached_registration.set()
+        assert release_registration.wait(timeout=3)
+        return original_register(issue_id, entry)
+
+    with (
+        patch.object(orch, "_tracker_for_issue", return_value=_tracker(issue)),
+        patch.object(orch, "_audit_store", return_value=store),
+        patch.object(orch, "_register_running_entry", side_effect=_register),
+        patch.object(orch, "_run_worker", new_callable=AsyncMock) as worker,
+    ):
+        dispatch_thread, result = _run_dispatch_in_thread(orch, issue, plan)
+        assert reached_registration.wait(timeout=3)
+        # No RunningEntry exists at this point, which was the old authority
+        # gap.  The shared generation still advances and wins the final CAS.
+        orch._revoke_auditor_authority(issue.project_id, issue.identifier)
+        release_registration.set()
+        dispatch_thread.join(timeout=3)
+
+    assert not dispatch_thread.is_alive()
+    assert result == [False]
+    worker.assert_not_awaited()
+    assert issue.id not in orch.state.running
+    assert issue.id not in orch.state.claimed
+    assert plan.branch_key not in orch._audit_branch_claims
+    record = store.document.pending_chain[0]
+    assert record.request_state == RequestState.PENDING
+    assert record.attempts == []
+    assert store.document.attempt_history == []
+
+
 @pytest.mark.asyncio
 async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
     tmp_path,
@@ -398,10 +442,10 @@ def test_quiesce_waits_for_winning_running_entry_publication(tmp_path) -> None:
     quiesce_returned = threading.Event()
     original_register = orch._register_running_entry
 
-    def _register(issue_id: str, entry: RunningEntry) -> None:
+    def _register(issue_id: str, entry: RunningEntry) -> bool:
         publish_entered.set()
         assert release_publish.wait(timeout=3)
-        original_register(issue_id, entry)
+        return original_register(issue_id, entry)
 
     def _quiesce() -> None:
         quiesce_started.set()
@@ -676,6 +720,10 @@ async def test_restart_auditor_retirement_task_creation_failure_closes_coroutine
         audit_attempt_id=plan.attempt_id,
         branch_key=plan.branch_key,
         run_id="restart-retirement-creation-failure",
+        auditor_authority_generation=orch._auditor_authority_generation(
+            issue.project_id,
+            issue.identifier,
+        ),
     )
     orch._register_running_entry(issue.id, entry)
     loop = asyncio.get_running_loop()
@@ -885,6 +933,214 @@ async def test_provider_start_handshake_rechecks_fence_before_task_publication(
     assert entry.provider_started is False
 
 
+def test_global_pause_wins_final_provider_contact_admission(tmp_path) -> None:
+    """A pause after setup but before the contact CAS denies transport."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    task = MagicMock()
+    task.done.return_value = False
+    entry = RunningEntry(
+        worker_task=task,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        provider_id="provider-1",
+        model_name="model-1",
+        run_id="pause-contact-race",
+    )
+    orch.state.running[issue.id] = entry
+    entered_policy = threading.Event()
+    release_policy = threading.Event()
+    result: list[str | None] = []
+
+    def _block_policy(_entry, _candidate):
+        entered_policy.set()
+        assert release_policy.wait(timeout=3)
+        return Candidate("provider-1", "model-1"), None
+
+    with (
+        patch.object(
+            orch,
+            "_contributor_contact_authority_error",
+            side_effect=_block_policy,
+        ),
+        patch.object(
+            orch,
+            "_refresh_audit_budget_admission",
+            return_value=(None, None),
+        ),
+    ):
+        contact = threading.Thread(
+            target=lambda: result.append(
+                orch._begin_provider_contact(
+                    issue,
+                    entry.run_id,
+                    transport="API",
+                    contributor_candidate=Candidate("provider-1", "model-1"),
+                )
+            ),
+            name="provider-contact",
+        )
+        contact.start()
+        assert entered_policy.wait(timeout=3)
+        orch.pause()
+        release_policy.set()
+        contact.join(timeout=3)
+
+    assert not contact.is_alive()
+    assert result and "blocked" in (result[0] or "")
+    assert entry.provider_contact_permitted is False
+    assert entry.provider_started is False
+
+
+def test_project_pause_wins_final_provider_contact_admission(tmp_path) -> None:
+    """A project pause that wins slow setup denies its provider transport."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    task = MagicMock()
+    task.done.return_value = False
+    entry = RunningEntry(
+        worker_task=task,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        provider_id="provider-1",
+        model_name="model-1",
+        run_id="project-pause-contact-race",
+    )
+    orch.state.running[issue.id] = entry
+    project_paused = threading.Event()
+    orch.project_store.get.side_effect = lambda _project_id: SimpleNamespace(
+        paused=project_paused.is_set()
+    )
+    entered_policy = threading.Event()
+    release_policy = threading.Event()
+    result: list[str | None] = []
+
+    def _block_policy(_entry, _candidate):
+        entered_policy.set()
+        assert release_policy.wait(timeout=3)
+        return Candidate("provider-1", "model-1"), None
+
+    with (
+        patch.object(
+            orch,
+            "_contributor_contact_authority_error",
+            side_effect=_block_policy,
+        ),
+        patch.object(
+            orch,
+            "_refresh_audit_budget_admission",
+            return_value=(None, None),
+        ),
+    ):
+        contact = threading.Thread(
+            target=lambda: result.append(
+                orch._begin_provider_contact(
+                    issue,
+                    entry.run_id,
+                    transport="API",
+                    contributor_candidate=Candidate("provider-1", "model-1"),
+                )
+            ),
+            name="provider-contact",
+        )
+        contact.start()
+        assert entered_policy.wait(timeout=3)
+        project_paused.set()
+        release_policy.set()
+        contact.join(timeout=3)
+
+    assert not contact.is_alive()
+    assert result and "blocked" in (result[0] or "")
+    assert entry.provider_contact_permitted is False
+    assert entry.provider_started is False
+
+
+@pytest.mark.asyncio
+async def test_contact_permit_wins_retirement_accounting_over_unadmitted_rollback(
+    tmp_path,
+) -> None:
+    """Retirement treats a granted permit as spend-bearing before Popen."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    plan = _plan()
+    task = MagicMock()
+    task.done.return_value = True
+    entry = RunningEntry(
+        worker_task=task,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        is_auditor=True,
+        audit_id=plan.audit_id,
+        audit_attempt_id=plan.attempt_id,
+        branch_key=plan.branch_key,
+        provider_id=plan.candidate.provider_id,
+        model_name=plan.candidate.model,
+        run_id="permit-wins-retirement",
+    )
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.claimed_issues[issue.id] = issue
+    orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
+
+    with (
+        patch.object(orch, "_auditor_contact_authority_error", return_value=None),
+        patch.object(
+            orch,
+            "_refresh_audit_budget_admission",
+            return_value=(("reservation",), None),
+        ),
+        patch.object(orch, "_mark_audit_budget_started", return_value=True),
+    ):
+        assert (
+            orch._begin_provider_contact(
+                issue,
+                entry.run_id,
+                transport="API",
+            )
+            is None
+        )
+
+    assert entry.provider_contact_permitted is True
+    assert entry.provider_started is True
+
+    with (
+        patch.object(orch, "_managed_processes", return_value={}),
+        patch.object(orch, "_reconcile_audit_budget_spend", return_value=True) as reconcile,
+        patch.object(orch, "_release_audit_budget_reservation", return_value=True) as release,
+        patch.object(
+            orch,
+            "_secure_unadmitted_auditor_exit_guaranteed",
+            new_callable=AsyncMock,
+        ) as rollback,
+        patch.object(orch, "_fire_task_cost_record"),
+        patch.object(orch, "_fire_telemetry_comment"),
+    ):
+        terminated = await orch._terminate_running(
+            issue.id,
+            cleanup_workspace=False,
+        )
+
+    assert terminated is True
+    rollback.assert_not_awaited()
+    reconcile.assert_called_once_with(
+        orch._audit_reservation_key_for_issue(issue),
+        actual_cost=None,
+    )
+    release.assert_called_once_with(orch._audit_reservation_key_for_issue(issue))
+
+
 @pytest.mark.asyncio
 async def test_published_provider_start_is_visible_before_quiesce_returns(
     tmp_path,
@@ -919,7 +1175,10 @@ async def test_published_provider_start_is_visible_before_quiesce_returns(
     assert entry.provider_start_task is provider_task
     orch.quiesce()
     await asyncio.wait_for(started.wait(), timeout=3)
-    assert entry.provider_started is True
+    # Publication won before quiesce, but this dummy start function never
+    # crosses the later provider-contact callback.
+    assert entry.provider_contact_permitted is False
+    assert entry.provider_started is False
     assert issue.id in orch.state.running
     release.set()
     assert await provider_task == "started"
@@ -1385,6 +1644,16 @@ async def test_real_api_worker_routes_session_through_publication_gate(tmp_path)
             "oompah.orchestrator.render_prompt",
             return_value=SimpleNamespace(text="prompt", parts=None, elided=[]),
         ),
+        patch.object(
+            orch,
+            "_reserve_auditor_for_contributor",
+            new=AsyncMock(return_value=([target], None)),
+        ),
+        patch.object(
+            orch,
+            "_stage_work_contributor_launch",
+            new=AsyncMock(return_value=None),
+        ),
         patch("oompah.orchestrator.ApiAgentSession", return_value=session),
     ):
         with pytest.raises(asyncio.CancelledError):
@@ -1458,6 +1727,16 @@ async def test_real_acp_worker_routes_session_through_publication_gate(tmp_path)
         patch(
             "oompah.orchestrator.render_prompt",
             return_value=SimpleNamespace(text="prompt", parts=None, elided=[]),
+        ),
+        patch.object(
+            orch,
+            "_reserve_auditor_for_contributor",
+            new=AsyncMock(return_value=([target], None)),
+        ),
+        patch.object(
+            orch,
+            "_stage_work_contributor_launch",
+            new=AsyncMock(return_value=None),
         ),
         patch("oompah.acp_tools.build_tool_catalog", return_value={}),
         patch("oompah.acp_agent.AcpAgentSession", return_value=session),
