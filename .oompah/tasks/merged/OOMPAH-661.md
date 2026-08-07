@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T20:19:55.921801Z'
+updated_at: '2026-08-07T20:20:14.709336Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -210,6 +210,28 @@ oompah.terminal_audit:
       should retire the obsolete Done audit and alert.
     created_at: '2026-07-31T15:59:28.977761+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain exact merged PR #624 provenance and eliminate stale non-terminal
+      state.'
+    marked_at: '2026-08-07T20:20:05.728682+00:00'
+    updated_at: '2026-08-07T20:20:05.728682+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain exact merged PR #624 provenance and eliminate stale non-terminal
+        state.'
+      recorded_at: '2026-08-07T20:20:05.728682+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -843,5 +865,15 @@ created: 2026-08-07 18:25
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 20:20
+---
+Already merged by PR #624 with complete CI.
+---
+author: oompah
+created: 2026-08-07 20:20
+---
+Already merged by PR #624 with complete CI.
 ---
 <!-- COMMENTS:END -->
