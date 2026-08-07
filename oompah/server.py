@@ -19368,11 +19368,26 @@ async def api_list_reviews():
                 # A close/merge that overtook the fetch also wins the HTTP
                 # response and its TTL cache.  Do not send or cache the older
                 # open row merely because the remote request completed later.
+                # Preserve sibling rows that remain in the accepted cache:
+                # rejecting one stale project snapshot must not make every
+                # unrelated open review disappear for a complete TTL cycle.
+                current_cache = getattr(orch, "_reviews_cache", {}) or {}
+                accepted_review_ids = {
+                    (str(project_id), str(getattr(review, "id", "") or ""))
+                    for project_id, project_reviews in current_cache.items()
+                    for review in project_reviews or []
+                }
                 reviews = [
                     item
                     for item in reviews
-                    if str(item.get("project_id", ""))
-                    in published_project_ids
+                    if (
+                        str(item.get("project_id", "")) in published_project_ids
+                        or (
+                            str(item.get("project_id", "")),
+                            str(item.get("review", {}).get("id", "") or ""),
+                        )
+                        in accepted_review_ids
+                    )
                 ]
             _api_cache.set("reviews:all", reviews, ttl_ms=10000)
             response = JSONResponse(reviews)

@@ -13432,31 +13432,35 @@ class Orchestrator:
         else:
             reviews_by_project = await self._fetch_all_reviews_bounded()
 
-        with self._project_trackers_lock:
-            if tracker_generation != self._project_tracker_generation:
-                # Provider I/O completed under an obsolete project config.
-                # Keep the aggregate conservative and retry the dirty merged
-                # branch snapshot on the next review lane pass.
-                with self._review_lifecycle_lock:
+        # Review lifecycle is the outer authority whenever both locks are
+        # required. Existing-review adoption follows this same order before it
+        # resolves a tracker, so the review poll must never hold the tracker
+        # lock while waiting for the lifecycle barrier.
+        with self._review_lifecycle_lock:
+            with self._project_trackers_lock:
+                if tracker_generation != self._project_tracker_generation:
+                    # Provider I/O completed under an obsolete project config.
+                    # Keep the aggregate conservative and retry the dirty merged
+                    # branch snapshot on the next review lane pass.
                     self._reviews_cache = {}
-                self._unmerged_review_branches = set()
-                self._merged_branches = set()
-                self._merged_branches_dirty = True
-                return
-            if refresh_merged:
-                self._merged_branches = merged_branches
-                self._merged_branches_dirty = False
-            reviews_by_project = self._publish_review_cache_snapshot(
-                reviews_by_project,
-                observed_review_generations,
-            )
-            # Derive unmerged review branches from cached reviews.
-            self._unmerged_review_branches = {
-                r.source_branch
-                for reviews in reviews_by_project.values()
-                for r in reviews
-                if r.source_branch
-            }
+                    self._unmerged_review_branches = set()
+                    self._merged_branches = set()
+                    self._merged_branches_dirty = True
+                    return
+                if refresh_merged:
+                    self._merged_branches = merged_branches
+                    self._merged_branches_dirty = False
+                reviews_by_project = self._publish_review_cache_snapshot(
+                    reviews_by_project,
+                    observed_review_generations,
+                )
+                # Derive unmerged review branches from cached reviews.
+                self._unmerged_review_branches = {
+                    r.source_branch
+                    for reviews in reviews_by_project.values()
+                    for r in reviews
+                    if r.source_branch
+                }
         logger.debug(
             "Unmerged review branches: %s", sorted(self._unmerged_review_branches)
         )
@@ -31358,6 +31362,19 @@ class Orchestrator:
                     limit,
                 )
                 continue
+            if not reservation.acquired_new:
+                # A prior sweep already owns the create gap for this branch.
+                # The forge list can lag a successful create, so an existing
+                # committed reservation is an idempotent wait signal, never
+                # permission to issue another create request.
+                logger.info(
+                    "Deferred epic PR for %s on %s: review capacity reservation "
+                    "%s is already owned by an earlier delivery",
+                    issue.identifier,
+                    project.name,
+                    reservation.reservation_id,
+                )
+                continue
 
             title = (
                 f"{issue.identifier}: {issue.title}"
@@ -31422,39 +31439,66 @@ class Orchestrator:
                     project.name,
                 )
                 continue
-            self._commit_review_slot(reservation, created_review_id)
-
-            logger.info(
-                "Opened epic PR for %s on %s (review #%s, source=%s, target=%s)",
-                issue.identifier,
-                project.name,
-                result.id,
-                epic_branch,
-                target_branch,
-            )
-            # Persist review metadata on the epic task record (TASK-462.2).
-            try:
-                tracker = self._tracker_for_project(project_id)
-                tracker.update_issue(issue.identifier, status=IN_REVIEW)
-                self._write_review_metadata(
-                    tracker,
-                    issue.identifier,
-                    review_id=getattr(result, "id", None),
-                    review_url=getattr(result, "url", None),
-                    source_branch=epic_branch,
-                    target_branch=target_branch,
-                )
-                self._sync_epic_review_child_states(
+            # A close webhook may arrive immediately after forge creation. Its
+            # fence and this final tracker publication share one lifecycle cut:
+            # if close won, never regress the task to In Review; if publication
+            # won, close runs afterwards and owns the final terminal state.
+            review_closed_before_publication = False
+            issue_id = str(getattr(issue, "id", "") or issue.identifier)
+            with self.issue_transition_lock(issue_id).sync():
+                with self._review_lifecycle_lock:
+                    if (
+                        str(project_id),
+                        created_review_id,
+                    ) in self._closed_review_fences:
+                        review_closed_before_publication = True
+                    else:
+                        self._commit_review_slot(reservation, created_review_id)
+                        logger.info(
+                            "Opened epic PR for %s on %s "
+                            "(review #%s, source=%s, target=%s)",
+                            issue.identifier,
+                            project.name,
+                            result.id,
+                            epic_branch,
+                            target_branch,
+                        )
+                        # Persist the parent and every child state derived from
+                        # this review before releasing the close barrier.
+                        try:
+                            tracker = self._tracker_for_project(project_id)
+                            tracker.update_issue(issue.identifier, status=IN_REVIEW)
+                            self._write_review_metadata(
+                                tracker,
+                                issue.identifier,
+                                review_id=getattr(result, "id", None),
+                                review_url=getattr(result, "url", None),
+                                source_branch=epic_branch,
+                                target_branch=target_branch,
+                            )
+                            self._sync_epic_review_child_states(
+                                project_id,
+                                issue,
+                                epic_branch,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to publish review metadata for epic %s: %s",
+                                issue.identifier,
+                                exc,
+                            )
+            if review_closed_before_publication:
+                self._release_review_capacity(
                     project_id,
-                    issue,
-                    epic_branch,
+                    reservation_id=reservation.reservation_id,
                 )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to write review metadata for epic %s: %s",
+                logger.info(
+                    "Skipped stale In Review publication for epic %s because "
+                    "review #%s closed during creation",
                     issue.identifier,
-                    exc,
+                    created_review_id,
                 )
+                continue
             opened += 1
         return opened
 
@@ -34972,6 +35016,14 @@ class Orchestrator:
                 limit,
             )
             return True
+        if not reservation.acquired_new:
+            logger.info(
+                "Deferred review creation for %s: review capacity reservation "
+                "%s is already owned by an earlier delivery",
+                entry.identifier,
+                reservation.reservation_id,
+            )
+            return True
 
         # Create the review
         try:
@@ -35012,15 +35064,39 @@ class Orchestrator:
                         )
                         return False
                     return True
-                self._commit_review_slot(reservation, review_id)
-                logger.info(
-                    "Auto-created review for %s on %s (review #%s, base=%s)",
-                    entry.identifier,
-                    project.name,
-                    result.id,
-                    target_branch,
+                review_closed_before_publication = False
+                issue_id = str(
+                    getattr(entry.issue, "id", "") or entry.identifier
                 )
-                self._mark_task_in_review(entry, project_id, result)
+                with self.issue_transition_lock(issue_id).sync():
+                    with self._review_lifecycle_lock:
+                        if (
+                            str(project_id),
+                            review_id,
+                        ) in self._closed_review_fences:
+                            review_closed_before_publication = True
+                        else:
+                            self._commit_review_slot(reservation, review_id)
+                            logger.info(
+                                "Auto-created review for %s on %s "
+                                "(review #%s, base=%s)",
+                                entry.identifier,
+                                project.name,
+                                result.id,
+                                target_branch,
+                            )
+                            self._mark_task_in_review(entry, project_id, result)
+                if review_closed_before_publication:
+                    self._release_review_capacity(
+                        project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
+                    logger.info(
+                        "Skipped stale In Review publication for %s because "
+                        "review #%s closed during creation",
+                        entry.identifier,
+                        review_id,
+                    )
                 return True
             else:
                 logger.warning(

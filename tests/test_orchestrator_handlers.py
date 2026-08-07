@@ -405,6 +405,48 @@ class TestHandleReviewCheck:
         # Stale project must be gone
         assert "stale-project" not in orch._reviews_cache
 
+    def test_review_publication_uses_lifecycle_before_tracker_lock(self, tmp_path):
+        """The cache publisher must not invert adoption's lifecycle order."""
+
+        orch = _make_orchestrator(tmp_path)
+        review = _make_review("1", "feat-branch")
+        orch._fetch_all_reviews_bounded = AsyncMock(
+            return_value={"proj-1": [review]}
+        )
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
+        state = threading.local()
+        state.tracker_depth = 0
+        state.lifecycle_depth = 0
+
+        class OrderedLock:
+            def __init__(self, role: str):
+                self.role = role
+                self.lock = threading.RLock()
+
+            def __enter__(self):
+                if self.role == "lifecycle":
+                    assert state.lifecycle_depth > 0 or state.tracker_depth == 0
+                    self.lock.acquire()
+                    state.lifecycle_depth += 1
+                else:
+                    self.lock.acquire()
+                    state.tracker_depth += 1
+                return self
+
+            def __exit__(self, *_args):
+                if self.role == "lifecycle":
+                    state.lifecycle_depth -= 1
+                else:
+                    state.tracker_depth -= 1
+                self.lock.release()
+
+        orch._project_trackers_lock = OrderedLock("tracker")
+        orch._review_lifecycle_lock = OrderedLock("lifecycle")
+
+        asyncio.run(orch._handle_review_check())
+
+        assert orch._reviews_cache["proj-1"] == [review]
+
     def test_reviews_api_sync_cannot_republish_row_closed_during_fetch(
         self,
         tmp_path,
@@ -511,6 +553,86 @@ class TestHandleReviewCheck:
         assert orch._reviews_cache["proj-1"] == []
         assert orch._unmerged_review_branches == set()
         cache_set.assert_called_once_with("reviews:all", [], ttl_ms=10000)
+
+    def test_reviews_api_close_barrier_preserves_open_sibling_review(
+        self,
+        tmp_path,
+    ):
+        """A stale project fetch cannot hide reviews unrelated to the close."""
+
+        from oompah import server
+
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        closed_review = _make_review("742", "epic-OOMPAH-768")
+        open_review = _make_review("743", "OOMPAH-869")
+        orch._reviews_cache = {"proj-1": [closed_review, open_review]}
+        orch._unmerged_review_branches = {
+            closed_review.source_branch,
+            open_review.source_branch,
+        }
+
+        fetch_started = threading.Event()
+        allow_fetch_to_return = threading.Event()
+        response_holder: dict[str, object] = {}
+
+        def stale_fetch(_projects):
+            fetch_started.set()
+            assert allow_fetch_to_return.wait(timeout=5)
+            return (
+                [
+                    {
+                        "project_id": "proj-1",
+                        "project_name": project.name,
+                        "project_yolo": False,
+                        "provider": "github",
+                        "review": review.to_dict(),
+                    }
+                    for review in (closed_review, open_review)
+                ],
+                {"proj-1": [closed_review, open_review]},
+                {"proj-1"},
+            )
+
+        def run_request() -> None:
+            try:
+                response_holder["response"] = asyncio.run(
+                    server.api_list_reviews()
+                )
+            except BaseException as exc:  # pragma: no cover - surfaced below
+                response_holder["error"] = exc
+
+        with (
+            patch.object(server, "_get_orchestrator", return_value=orch),
+            patch.object(
+                server,
+                "_fetch_open_reviews_for_api",
+                side_effect=stale_fetch,
+            ),
+            patch.object(server._api_cache, "get", return_value=None),
+            patch.object(server._api_cache, "set") as cache_set,
+        ):
+            request_thread = threading.Thread(target=run_request)
+            request_thread.start()
+            assert fetch_started.wait(timeout=5)
+
+            orch.release_review_capacity(
+                "proj-1",
+                closed_review.id,
+                source_branch=closed_review.source_branch,
+            )
+            allow_fetch_to_return.set()
+            request_thread.join(timeout=5)
+
+        assert not request_thread.is_alive()
+        assert "error" not in response_holder
+        response = response_holder["response"]
+        response_reviews = json.loads(response.body)
+        assert [item["review"]["id"] for item in response_reviews] == ["743"]
+        assert orch._reviews_cache["proj-1"] == [open_review]
+        assert orch._unmerged_review_branches == {open_review.source_branch}
+        cached_reviews = cache_set.call_args.args[1]
+        assert [item["review"]["id"] for item in cached_reviews] == ["743"]
 
     def test_reviews_api_provider_failure_preserves_cache_and_capacity(
         self,
