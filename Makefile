@@ -34,6 +34,8 @@ else
 PORT := $(if $(OOMPAH_TEST_SERVER_PORT),$(OOMPAH_TEST_SERVER_PORT),0)
 endif
 LOCAL_HTTP_URL := http://127.0.0.1:$(PORT)
+_ENV_LISTENER_STARTUP_TIMEOUT := $(shell grep -E '^OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
+LISTENER_STARTUP_TIMEOUT ?= $(if $(OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS),$(OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS),$(if $(_ENV_LISTENER_STARTUP_TIMEOUT),$(_ENV_LISTENER_STARTUP_TIMEOUT),10))
 _ENV_DRAIN_TIMEOUT := $(shell grep -E '^OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 DRAIN_TIMEOUT ?= $(if $(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(if $(_ENV_DRAIN_TIMEOUT),$(_ENV_DRAIN_TIMEOUT),3600))
 RESTART_HEALTH_TIMEOUT ?= $(shell expr $(DRAIN_TIMEOUT) + 60)
@@ -243,13 +245,13 @@ start: setup
 			rm -f "$(PID_FILE)" "$(PID_META_FILE)" "$$META_TMP"; \
 			exit 1; \
 		fi; \
-		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT)..."; \
+		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT) (timeout: $(LISTENER_STARTUP_TIMEOUT)s)..."; \
 		ELAPSED=0; \
+		TIMEOUT_REACHED=0; \
 		while ! $(call port_in_use,$(PORT)); do \
-			if [ $$ELAPSED -ge 10 ]; then \
-				echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within 10 seconds"; \
-				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
-				exit 1; \
+			if [ $$ELAPSED -ge $(LISTENER_STARTUP_TIMEOUT) ]; then \
+				TIMEOUT_REACHED=1; \
+				break; \
 			fi; \
 			if ! kill -0 $$NEWPID 2>/dev/null; then \
 				echo "ERROR: oompah process $$NEWPID exited unexpectedly"; \
@@ -259,6 +261,36 @@ start: setup
 			sleep 1; \
 			ELAPSED=$$((ELAPSED + 1)); \
 		done; \
+		if [ $$TIMEOUT_REACHED -eq 1 ]; then \
+			if $(call port_in_use,$(PORT)); then \
+				echo "WARNING: oompah (pid $$NEWPID) exceeded startup timeout but listener is now active (late listener)"; \
+			else \
+				if kill -0 $$NEWPID 2>/dev/null && \
+					$(PYTHON) scripts/process_identity.py verify "$$NEWPID" "$$(pwd)" "$(PID_META_FILE)" 2>/dev/null; then \
+					echo "WARNING: oompah (pid $$NEWPID) exceeded startup timeout but process identity is verified (late listener risk); waiting..."; \
+					ELAPSED=0; \
+					EXTRA_TIMEOUT=30; \
+					while ! $(call port_in_use,$(PORT)); do \
+						if [ $$ELAPSED -ge $$EXTRA_TIMEOUT ]; then \
+							echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within $$(($(LISTENER_STARTUP_TIMEOUT) + $$EXTRA_TIMEOUT)) seconds"; \
+							rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+							exit 1; \
+						fi; \
+						if ! kill -0 $$NEWPID 2>/dev/null; then \
+							echo "ERROR: oompah process $$NEWPID exited unexpectedly"; \
+							rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+							exit 1; \
+						fi; \
+						sleep 1; \
+						ELAPSED=$$((ELAPSED + 1)); \
+					done; \
+				else \
+					echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within $(LISTENER_STARTUP_TIMEOUT) seconds"; \
+					rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+					exit 1; \
+				fi; \
+			fi; \
+		fi; \
 		if ! $(PYTHON) scripts/canonical_cli_cutover.py \
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
