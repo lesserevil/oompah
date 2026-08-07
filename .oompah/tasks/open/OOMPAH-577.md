@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T07:28:40.993497Z'
+updated_at: '2026-08-07T08:37:30.001580Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -216,6 +216,23 @@ oompah.task_costs:
     output_tokens: 549
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:07:17.755570+00:00'
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 532ed209b86faa319390dd667bedd189ce6cd0e1911519f085b6328c0ca5bb4c
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: dc23c385-137a-4f56-a809-dad4c2bcb76a
+  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
+  claimed_at: '2026-08-07T08:37:26.517101+00:00'
+  claim_expires_at: '2026-08-07T09:07:26.517101+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
