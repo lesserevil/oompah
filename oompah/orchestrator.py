@@ -3019,7 +3019,7 @@ class Orchestrator:
         """
         stale_after = getattr(self.config, "audit_stale_pending_seconds", 3600)
         max_attempts = getattr(self.config, "audit_max_attempts", 3)
-        health = build_terminal_audit_health(
+        observed_health = build_terminal_audit_health(
             observations,
             now=datetime.now(timezone.utc),
             stale_after_seconds=stale_after,
@@ -3028,8 +3028,21 @@ class Orchestrator:
             scan_error_count=scan_error_count,
         )
         if finalization_failure_count:
-            health.finalization_failure_count += max(
+            observed_health.finalization_failure_count += max(
                 0, int(finalization_failure_count)
+            )
+        if scan_complete:
+            health = observed_health
+        else:
+            # A partial scan is not authoritative evidence that facts absent
+            # from its observation set have recovered. Keep the last complete
+            # fact generation and attach the current scan status to that same
+            # bundle, so counts, ages, and alerts cannot describe different
+            # generations.
+            health = replace(
+                getattr(self, "_audit_health", TerminalAuditHealth()),
+                scan_complete=False,
+                scan_error_count=scan_error_count,
             )
         self._audit_health = health
         # Update the raw metrics so callers reading _audit_metrics still work.
@@ -3043,13 +3056,11 @@ class Orchestrator:
             "retry_exhausted_count": health.retry_exhausted_count,
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
             "stale_in_validation_count": health.stale_in_validation_count,
-            "health_scan_complete": scan_complete,
-            "health_scan_error_count": scan_error_count,
+            "health_scan_complete": health.scan_complete,
+            "health_scan_error_count": health.scan_error_count,
         })
-        # Remove stale health alerts and replace them from the current facts.
-        # A partial scan preserves existing alerts rather than clearing them.
-        if not scan_complete:
-            return
+        # Replace alerts from the exact fact bundle published above. Partial
+        # scans retain the last complete facts and add the truthful scan alert.
         self._replace_alerts_matching(
             lambda alert: str(alert.get("source", "")).startswith(
                 HEALTH_ALERT_PREFIX

@@ -338,17 +338,19 @@ def build_terminal_audit_health(
         elif record.request_state == RequestState.PENDING:
             pending += 1
             increment(observation.project_id, "pending_count")
-
-        # Age tracking — use the record's own timestamp if available
-        record_ts = _record_created_at(record)
-        issue_ts = _parse_timestamp(observation.issue_created_at)
-        ts = record_ts or issue_ts
-        if ts is not None:
-            age_s = (current_time - ts).total_seconds()
-            if age_s >= stale_after_seconds:
-                stale_pending += 1
-                increment(observation.project_id, "stale_pending_count")
-            oldest = min(oldest, ts) if oldest is not None else ts
+            # Backlog age describes only dispatchable pending work. An active
+            # auditor remains In Validation while it runs, including while it
+            # waits for the shared validation resource, but it is no longer a
+            # pending queue entry and must not keep stale backlog facts alive.
+            record_ts = _record_created_at(record)
+            issue_ts = _parse_timestamp(observation.issue_created_at)
+            ts = record_ts or issue_ts
+            if ts is not None:
+                age_s = (current_time - ts).total_seconds()
+                if age_s >= stale_after_seconds:
+                    stale_pending += 1
+                    increment(observation.project_id, "stale_pending_count")
+                oldest = min(oldest, ts) if oldest is not None else ts
 
         # Failure classification — only count unresolved failures.
         #
@@ -427,6 +429,8 @@ def terminal_audit_health_alerts(
         title: str,
         detail: str,
         action: str,
+        *,
+        action_required: bool = True,
     ) -> None:
         alerts.append(
             {
@@ -434,8 +438,10 @@ def terminal_audit_health_alerts(
                 "severity": level,
                 "source": HEALTH_ALERT_PREFIX + source,
                 "stable_id": HEALTH_ALERT_PREFIX + source,
-                "action_required": True,
-                "recovery_state": "active",
+                "action_required": action_required,
+                "recovery_state": (
+                    "active" if action_required else "automatic_recovery"
+                ),
                 "lifecycle_state": "active",
                 "status": "active",
                 "active": True,
@@ -502,16 +508,22 @@ def terminal_audit_health_alerts(
         )
 
     age = health.oldest_pending_age_seconds
-    if age is not None and age > 0 and health.stale_pending_count > 0:
+    if (
+        health.pending_count > 0
+        and age is not None
+        and age > 0
+        and health.stale_pending_count > 0
+    ):
         add(
             "backlog_age",
-            "warning",
+            "info",
             "Terminal-audit backlog is stale",
             (
                 f"The oldest pending audit is {age}s old across "
                 f"{health.pending_count} pending audit(s)."
             ),
             "Increase auditor capacity or investigate the pending audit queue.",
+            action_required=False,
         )
 
     if health.stale_in_validation_count:
