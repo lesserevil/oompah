@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T20:53:41.855255Z'
+updated_at: '2026-08-07T20:54:06.841822Z'
 work_branch: OOMPAH-646
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/613
-review_number: '613'
+review_url: ''
+review_number: ''
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -146,8 +146,8 @@ oompah.integration:
   head_sha: 38806932e609860b2c81e84253a09df515ff4e5b
   submitted_at: '2026-08-07T20:53:26.998706+00:00'
   updated_at: '2026-08-07T20:53:26.998706+00:00'
-oompah.review_url: https://github.com/lesserevil/oompah/pull/613
-oompah.review_number: '613'
+oompah.review_url: ''
+oompah.review_number: ''
 oompah.work_branch: OOMPAH-646
 oompah.target_branch: main
 oompah.terminal_audit:
@@ -412,6 +412,8 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T10:33:05.474486+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+oompah.review_head: ''
+review_head: ''
 ---
 ## Summary
 
@@ -722,5 +724,19 @@ author: oompah
 created: 2026-08-07 20:53
 ---
 Fence review lifecycle generations across webhook, cache, API, epic, and standalone reconciliation; fail closed on provider outages. Exact pushed head 38806932e609860b2c81e84253a09df515ff4e5b. Brokered affected suite 758 passed; independent review accepted.
+---
+author: oompah
+created: 2026-08-07 20:53
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/613
+Reviewed head: `355258ef0d1b1600f09cd111511f2828946e4ec7`
+Accepted submission head: `38806932e609860b2c81e84253a09df515ff4e5b`
+Source branch: `OOMPAH-646`
+Target branch: `main`
+Reason: review head 355258ef0d1b1600f09cd111511f2828946e4ec7 does not match accepted submission head 38806932e609860b2c81e84253a09df515ff4e5b
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
