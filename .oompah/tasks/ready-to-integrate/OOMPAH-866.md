@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T22:35:29.360733Z'
+updated_at: '2026-08-07T10:32:34.493089Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -44,16 +44,18 @@ oompah.duplicate_screening:
     canonical evidence is persisted on helper records but not mapped to affected child
     landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
     block.'
-oompah.agent_run_id: 8faf180a-3696-4a18-befb-e80330d8f551
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  updated_at: '2026-08-06T22:03:36.046532+00:00'
+  head_sha: f959c182795e0189da987747a1a528741aabe4c8
+  submitted_at: '2026-08-07T10:32:21.724386+00:00'
+  updated_at: '2026-08-07T10:32:21.724386+00:00'
 oompah.task_costs:
   total_input_tokens: 74
   total_output_tokens: 5691
@@ -310,5 +312,10 @@ author: oompah
 created: 2026-08-06 22:35
 ---
 Owner takeover cancelled the redundant validation waiter started by the old-server CI fixer. Preserve exact accepted head ee05a0ad8 unchanged. Its previous 16,307-pass gate failed only the OOMPAH-845 leaked-coroutine prerequisite, which is a recorded finish dependency. Do not rerun or modify this task until OOMPAH-845 is integrated and the target is refreshed.
+---
+author: oompah
+created: 2026-08-07 10:32
+---
+Bound canonical child mappings to the current durable tracker/queue range, honored OOMPAH-763 canonical candidate generations, and rejected stale, ambiguous, or superseded evidence. Focused suite: 62 passed; terminal mutation scan and secret scan passed.
 ---
 <!-- COMMENTS:END -->
