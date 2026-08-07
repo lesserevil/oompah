@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T14:47:33.230147Z'
+updated_at: '2026-08-07T14:47:41.538204Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -125,5 +125,10 @@ created: 2026-08-07 14:47
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Exact recovery head e06bec549 passed the canonical full Makefile gate with 16652 passed and zero failures, plus 20 consecutive WebSocket stress runs, and was published by exact force-with-lease from ca1c527.
+---
+author: oompah
+created: 2026-08-07 14:47
+---
+Rebased epic-OOMPAH-763 onto main, recovered the accepted fixes after duplicate-worker interference, validated exact head e06bec549, and published it with pinned CAS.
 ---
 <!-- COMMENTS:END -->
