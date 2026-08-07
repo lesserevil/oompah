@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T18:27:41.961729Z'
+updated_at: '2026-08-07T18:32:37.631805Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live deterministic regression: the exact BranchQualityGate for OOMPAH-863 at dab
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 18:32
+---
+Implementation started at exact base a85a36baf. Confirmed the outer empty-root Bubblewrap omits passwd/NSS while native validation resolves pwd.getpwuid(euid). Repair in progress: a synthetic one-entry identity database will live outside the candidate-writable bind and be mounted read-only; disposable pytest HOME/temp/cache/pycache will use the private /tmp tmpfs; nested Bubblewrap will gain a trusted capability probe that classifies host-policy permission denial fail-closed so integration tests skip explicitly rather than false-pass. No production credential or remote-write boundary will be relaxed.
+---
+<!-- COMMENTS:END -->
