@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T12:10:42.960067Z'
+updated_at: '2026-08-07T15:53:52.130918Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -559,5 +559,10 @@ author: oompah
 created: 2026-08-07 12:10
 ---
 Repair v3 is committed and pushed at exact head b5a699b31. Verification on this head: the 3 exact combined-gate regressions pass; affected modules tests/test_auditor_termination_cleanup.py, tests/test_project_locks.py, tests/test_task_handoff.py, and tests/test_task_cost_telemetry pass 201/201 in 9.48s; terminal mutation scan 8/8, secret scan, py_compile, and diff check pass. Submission is intentionally deferred until OOMPAH-877 advances the stale epic branch; this private head will then rebase onto that current epic so the next full exact gate is not wasted on a stale base.
+---
+author: oompah
+created: 2026-08-07 15:53
+---
+Direct-owner integration restacked the eight OOMPAH-854 lifecycle/retirement commits from prior head b5a699b316fa onto validated shared-epic head e06bec5490b9. Recovery ref refs/oompah/recovery/OOMPAH-854-pre-e06 preserves the old head. Three current-contract fixture regressions were repaired and pass 3/3 at new local head a2b745f2a6e5; broader focused validation and independent static review are in progress. No branch push or server resume yet.
 ---
 <!-- COMMENTS:END -->
