@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T10:06:21.259537Z'
+updated_at: '2026-08-07T10:11:03.228213Z'
 work_branch: null
 target_branch: null
 review_url: null
