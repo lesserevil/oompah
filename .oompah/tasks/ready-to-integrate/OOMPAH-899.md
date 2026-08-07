@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T18:20:14.797655Z'
+updated_at: '2026-08-07T18:20:23.084624Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
@@ -63,7 +63,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fd3dd034-0536-4be9-b23f-496bca110fcb
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 7156b2cad40b444fa758569c7dbf71a8--contributor-4256b9f40773
@@ -338,5 +338,29 @@ created: 2026-08-07 18:19
 - Fail-closed for foreign processes (identity mismatch blocks signals)
 - Fail-closed for unverified processes (no stale metadata acceptance)
 - Configuration is bounded (prevents unreasonable timeout values)
+---
+author: oompah
+created: 2026-08-07 18:20
+---
+Implemented listener startup timeout safety for late listeners
+
+- Added configurable OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS (5-120s, default 10s)
+- Replaced hard-coded 10-second deadline with identity-safe logic
+- Process identity re-verified after timeout before any lifecycle action
+- Late listeners (process exists + verified identity) are safely retained
+- Fail-closed behavior preserved: PID reuse, identity mismatch, process exit all detected
+- Comprehensive test suite added: 10 new tests, 68 total tests passing
+- All existing lifecycle semantics (restart, graceful, stop, status) remain intact
+
+Fix addresses deployment bug where slow server startup >configured-timeout would:
+- Delete PID/metadata evidence
+- Orphan the verified process
+- Prevent later lifecycle operations on the late listener
+
+After fix:
+- Configuration explicit and bounded in .env/.env.example  
+- Late listeners discovered and managed safely
+- Process identity verified before any action
+- No silent orphaning of verified processes
 ---
 <!-- COMMENTS:END -->
