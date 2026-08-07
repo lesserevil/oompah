@@ -217,6 +217,7 @@ start: setup
 			--operator-path "$(OPERATOR_PATH)" \
 			--verify-only || exit 1; \
 	else \
+		LISTENER_STARTUP_TIMEOUT=$$($(PYTHON) scripts/listener_startup_timeout.py --env-file .env) || exit 1; \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		if $(call port_in_use,$(PORT)); then \
 			echo "ERROR: Port $(PORT) is already in use. Cannot start oompah."; \
@@ -243,13 +244,13 @@ start: setup
 			rm -f "$(PID_FILE)" "$(PID_META_FILE)" "$$META_TMP"; \
 			exit 1; \
 		fi; \
-		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT)..."; \
+		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT) (timeout: $${LISTENER_STARTUP_TIMEOUT}s)..."; \
 		ELAPSED=0; \
+		TIMEOUT_REACHED=0; \
 		while ! $(call port_in_use,$(PORT)); do \
-			if [ $$ELAPSED -ge 10 ]; then \
-				echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within 10 seconds"; \
-				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
-				exit 1; \
+			if [ $$ELAPSED -ge $$LISTENER_STARTUP_TIMEOUT ]; then \
+				TIMEOUT_REACHED=1; \
+				break; \
 			fi; \
 			if ! kill -0 $$NEWPID 2>/dev/null; then \
 				echo "ERROR: oompah process $$NEWPID exited unexpectedly"; \
@@ -259,6 +260,26 @@ start: setup
 			sleep 1; \
 			ELAPSED=$$((ELAPSED + 1)); \
 		done; \
+		if [ $$TIMEOUT_REACHED -eq 1 ]; then \
+			if $(call port_in_use,$(PORT)); then \
+				echo "WARNING: oompah (pid $$NEWPID) exceeded startup timeout but listener is now active (late listener)"; \
+			elif ! kill -0 $$NEWPID 2>/dev/null; then \
+				echo "ERROR: oompah process $$NEWPID exited before opening port $(PORT)"; \
+				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+				exit 1; \
+			elif $(PYTHON) scripts/process_identity.py verify "$$NEWPID" "$$(pwd)" "$(PID_META_FILE)" 2>/dev/null; then \
+				echo "ERROR: verified oompah process $$NEWPID is still starting after $${LISTENER_STARTUP_TIMEOUT}s; retaining $(PID_FILE) and $(PID_META_FILE). Retry 'make status' or use 'make stop' for this exact process."; \
+				exit 1; \
+			else \
+				if ! kill -0 $$NEWPID 2>/dev/null; then \
+					echo "ERROR: oompah process $$NEWPID exited before opening port $(PORT)"; \
+					rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+				else \
+					echo "ERROR: PID $$NEWPID is live but no longer matches its stored identity; retaining lifecycle evidence and refusing to signal it."; \
+				fi; \
+				exit 1; \
+			fi; \
+		fi; \
 		if ! $(PYTHON) scripts/canonical_cli_cutover.py \
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
