@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T10:21:23.195009Z'
+updated_at: '2026-08-07T10:34:06.637501Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -128,6 +128,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-2ae62c68e14f: '2026-07-31T09:16:02.914959+00:00'
     attempt-10e9d1bb1126: '2026-07-31T09:44:33.134339+00:00'
+    no-auditor-audit-03669ffaeaba-2: '2026-08-07T10:33:57.140016+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Archived
+    evidence_fingerprint: df4a28d8ca0b22532179178e99ede2ea1162f45c7f925aa04f2d303f24c4983e
+    audit_ids:
+    - audit-03669ffaeaba
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T10:33:57.140025+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    audit_id: audit-03669ffaeaba
+    attempt_id: no-auditor-audit-03669ffaeaba-2
+    target_state: Archived
+    evidence_fingerprint: df4a28d8ca0b22532179178e99ede2ea1162f45c7f925aa04f2d303f24c4983e
+    status: Needs Human
+    audit_ids:
+    - audit-03669ffaeaba
+    applied: true
+    created_at: '2026-08-07T10:33:57.140036+00:00'
+    applied_at: '2026-08-07T10:34:05.399357+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -203,7 +227,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -246,6 +270,20 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T10:20:45.999691+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-07T10:21:05.999670+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-03669ffaeaba-2
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: df4a28d8ca0b22532179178e99ede2ea1162f45c7f925aa04f2d303f24c4983e
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T10:33:57.139885+00:00'
+      completed_at: '2026-08-07T10:33:57.139885+00:00'
+      selected_ref: 0957d99556f3200361fa225ba313a7b5db53daa6
+      selected_sha: 0957d99556f3200361fa225ba313a7b5db53daa6
     requested_by:
       version: 1
       identity: oompah
@@ -254,7 +292,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:47:39.887871+00:00'
     selected_ref: 0957d99556f3200361fa225ba313a7b5db53daa6
     selected_sha: 0957d99556f3200361fa225ba313a7b5db53daa6
-    updated_at: '2026-08-07T10:20:45.999691+00:00'
+    updated_at: '2026-08-07T10:33:57.139885+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2ae62c68e14f
@@ -545,5 +583,12 @@ author: oompah
 created: 2026-08-07 10:21
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-07 10:34
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
