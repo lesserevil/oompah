@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-07T05:32:41.293070Z'
+updated_at: '2026-08-07T05:32:55.233405Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: ''
@@ -59,6 +59,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T20:52:03.149329+00:00'
     applied_at: '2026-08-06T20:52:12.480029+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b465a318cd8d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a37150b9b287fd14a05647df115a9f708a9e4ebdbb9c1d98a632331f3da025
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner workaround for OOMPAH-870: accepted head f2b319c1182cd654112db622a0498171e508dead
+      is already contained in current main, passed the exact full gate in 649.0 seconds,
+      and the original implementation merged via PR 595. A zero-diff replacement review
+      cannot exist.'
+    created_at: '2026-08-07T05:32:50.042986+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
