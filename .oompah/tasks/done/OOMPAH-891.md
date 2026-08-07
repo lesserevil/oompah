@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T15:06:11.068592Z'
+updated_at: '2026-08-07T15:06:21.158356Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -64,7 +64,17 @@ oompah.terminal_audit:
       accepted the final launch boundary and the canonical brokered suite passed 911
       of 911 tests after six-node repair rerun.
     created_at: '2026-08-07T15:06:05.735603+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-891
+    target_state: Done
+    evidence_fingerprint: 8db9d788c50dd72d4df54962de0629bb01fa03cfa1985cede2c1010973b33018
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T15:06:15.717794+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -158,5 +168,17 @@ author: oompah
 created: 2026-08-07 14:29
 ---
 Independent acceptance review now passes. Both ACP and API launch paths enforce final focus-resolved provider admission before backend defaults, credential snapshots, reservations, staging, signatures, or session construction. The five-case parity matrix covers absent provider, empty or deleted provider_id, and empty or deleted model_role. Static diff checks are clean. Brokered focused validation is being queued behind the definitive shared-epic gate; no commit or push yet.
+---
+author: oompah
+created: 2026-08-07 15:06
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Validated implementation is committed at 28c0729e; independent review accepted the final launch boundary and the canonical brokered suite passed 911 of 911 tests after six-node repair rerun.
+---
+author: oompah
+created: 2026-08-07 15:06
+---
+Isolated epic-rebase workers from remote-write credentials and network/shell escape routes across API, ACP, and CLI dispatch.
 ---
 <!-- COMMENTS:END -->
