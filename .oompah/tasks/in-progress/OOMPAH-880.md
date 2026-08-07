@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:16:46.630194Z'
-updated_at: '2026-08-07T11:24:41.969445Z'
+updated_at: '2026-08-07T11:27:22.730938Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -85,5 +85,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 53s
 - Log: OOMPAH-880__20260807T112009Z.jsonl
+---
+author: oompah
+created: 2026-08-07 11:27
+---
+Direct owner takeover stopped this third premature epic-rebase task after it had already detached the shared epic checkout mid-rebase with unresolved conflicts. Origin and the epic branch ref were never changed. Recovery preserved before cleanup: refs/oompah/recovery/OOMPAH-880-pre-abort-head=063853c108af92c829c7cdd955ce72015f8a33df, ...-rebase-head=373259a41dcb92c069be02c07f0b13605bd82670, ...-onto=18e405d8e6db9549f70e032bc846ce1e4763e6f8, plus mode-0600 archive /home/shedwards/.oompah/recovery-artifacts/OOMPAH-880-pre-abort-20260807T1124Z.tar.gz (sha256 1ee83244dea73edfbbd963f9965c4130599df3387c9e4f9409bb44e2bac0e03f). After preservation, rebase --abort restored the shared checkout clean at exact local/remote epic head 04fa6781091efc6f11b952b9f1b35123facce64f. OOMPAH-877 remains the sole authorized rebase after prerequisites; OOMPAH-879 tracks the duplicate-generation bug.
 ---
 <!-- COMMENTS:END -->

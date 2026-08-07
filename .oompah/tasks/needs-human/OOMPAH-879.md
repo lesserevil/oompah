@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T10:48:16.624549Z'
+updated_at: '2026-08-07T11:27:25.154523Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-08-07 10:48
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877, OOMPAH-878. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-07 11:27
+---
+Live recurrence #3: OOMPAH-880 was auto-filed/dispatched while direct-owner claims already fenced OOMPAH-877 and OOMPAH-878 for the same epic generation. It began a shared-worktree rebase and reached detached HEAD 063853c with unresolved index conflicts before owner takeover retired it. Remote remained 04fa; recovery refs/archive were preserved and the checkout restored. Acceptance coverage must include existing claimed rebase tasks plus scheduler ticks that create another task before prerequisite integration, and must guarantee no shared-worktree mutation by the loser.
 ---
 <!-- COMMENTS:END -->
