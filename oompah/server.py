@@ -5142,6 +5142,7 @@ async def api_task_handoff(request: Request):
         "coordination-checkpoint",
         "add-label",
         "remove-label",
+        "publish-epic-rebase",
     }:
         # Intentional least-privilege denial — not a health signal.
         record_worker_403_action()
@@ -5279,6 +5280,7 @@ async def api_task_handoff(request: Request):
             "coordination-checkpoint",
             "add-label",
             "remove-label",
+            "publish-epic-rebase",
         }
         if action in mutating_actions:
             permit = acquire_task_handoff_permit(
@@ -5502,6 +5504,72 @@ async def api_task_handoff(request: Request):
             return JSONResponse(
                 {"ok": True, "integration": accepted.record.to_dict()}
             )
+
+        if action == "publish-epic-rebase":
+            allowed_fields = {
+                "action",
+                "project_id",
+                "identifier",
+                "candidate_sha",
+            }
+            if set(body) != allowed_fields:
+                record_task_handoff_failure(
+                    token, "epic rebase publication payload validation failed"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "epic rebase publication accepts only project_id, "
+                                "identifier, and candidate_sha"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            candidate = body.get("candidate_sha")
+            if not isinstance(candidate, str) or re.fullmatch(
+                r"(?:[0-9a-f]{40}|[0-9a-f]{64})",
+                candidate,
+            ) is None:
+                record_task_handoff_failure(
+                    token, "epic rebase publication payload validation failed"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "candidate_sha must be a full lowercase commit SHA"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                result = await run_mutation(
+                    lambda: _run_api_io(
+                        orch.publish_epic_rebase_candidate,
+                        project_id,
+                        identifier,
+                        candidate,
+                    )
+                )
+            except ProjectError as exc:
+                record_task_handoff_failure(
+                    token, "epic rebase publication was rejected"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "epic_rebase_publish_rejected",
+                            "message": str(exc),
+                        }
+                    },
+                    status_code=409,
+                )
+            return JSONResponse(result)
 
         if action == "set-status":
             status = body.get("status")

@@ -17,7 +17,9 @@ Covers:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
@@ -29,6 +31,7 @@ from oompah.authority_boundary import check_shell_command
 from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue, OwnerClaim
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
+from oompah.projects import ProjectError
 from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
 
 
@@ -1057,6 +1060,64 @@ def _make_rebase_helper(identifier: str, epic_identifier: str) -> Issue:
     return helper
 
 
+def _configure_publish_fixture(
+    orch: Orchestrator,
+    tmp_path,
+    *,
+    install_authority: bool = True,
+):
+    candidate = "c" * 40
+    lease_head = "a" * 40
+    target_head = "b" * 40
+    epic = _make_issue("EPIC-1", labels=["rebase-requested"])
+    helper = _make_rebase_helper("REBASE-1", epic.identifier)
+    project = _make_project()
+    project.id = helper.project_id
+    project.repo_path = str(tmp_path)
+    project.repo_url = "https://trusted.invalid/repository"
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.side_effect = lambda identifier: (
+        helper if identifier == helper.identifier else epic
+    )
+    orch.project_store.get.return_value = project
+    orch.project_store.canonical_remote_name.return_value = "origin"
+    orch.project_store.canonical_remote_url.return_value = project.repo_url
+    orch.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    orch.project_store.epic_worktree_path_for.return_value = str(tmp_path)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._resolve_parent_epic = MagicMock(return_value=epic)
+    orch._resolve_epic_target_branch = MagicMock(return_value="main")
+    orch._active_epic_rebase_siblings = MagicMock(return_value=[helper])
+
+    def local_git(_workspace, args):
+        if args == ["rev-parse", "--verify", f"{candidate}^{{commit}}"]:
+            return subprocess.CompletedProcess(args, 0, stdout=f"{candidate}\n", stderr="")
+        if args == ["rev-parse", "--verify", "HEAD^{commit}"]:
+            return subprocess.CompletedProcess(args, 0, stdout=f"{candidate}\n", stderr="")
+        if args == ["merge-base", "--is-ancestor", target_head, candidate]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected local git argv: {args!r}")
+
+    orch._epic_rebase_publish_local_git = MagicMock(side_effect=local_git)
+    orch._run_project_network_git = MagicMock(
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    )
+    if install_authority:
+        orch._epic_rebase_authorities[
+            orch._epic_rebase_authority_key(helper.project_id, epic.identifier)
+        ] = EpicRebaseStateEntry(
+            state=EpicRebaseState.REBASING.value,
+            updated_at=time.time(),
+            project_id=helper.project_id,
+            target_branch="main",
+            authority_generation="generation-1",
+            authority_task_id=helper.identifier,
+            authority_epic_head=lease_head,
+            authority_target_head=target_head,
+        )
+    return helper, epic, tracker, candidate, lease_head, target_head
+
+
 class TestEpicRebaseGenerationAuthority:
     def test_recorded_actionable_winner_outranks_newly_claimed_duplicate(
         self, tmp_path
@@ -1115,10 +1176,12 @@ class TestEpicRebaseGenerationAuthority:
 
         assert tracker.create_issue.call_count == 1
         assert all(result is created[0] for result in results)
-        assert (
-            "--force-with-lease=refs/heads/epic-EPIC-1:epic-head-1"
-            in tracker.create_issue.call_args.kwargs["description"]
+        assert "publish_epic_rebase(candidate=<full-lowercase-sha>)" in (
+            tracker.create_issue.call_args.kwargs["description"]
         )
+        assert "Do not run `git push`" in tracker.create_issue.call_args.kwargs[
+            "description"
+        ]
         assert (
             "OOMPAH-EPIC-REBASE-RESERVATION: "
             + orch._epic_rebase_creation_marker(
@@ -1342,8 +1405,40 @@ class TestEpicRebaseGenerationAuthority:
         )
 
         assert denial is not None
-        assert "epic_rebase_generation_stale" in denial
+        assert "epic_rebase_server_publish_required" in denial
         orch._epic_rebase_local_contains_target.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push origin epic-EPIC-1",
+            "git push --force origin HEAD:refs/heads/epic-EPIC-1",
+            (
+                "git push --force-with-lease=refs/heads/epic-EPIC-1:"
+                + "a" * 40
+                + " origin HEAD:refs/heads/epic-EPIC-1"
+            ),
+            "/usr/bin/git -C /workspace push origin epic-EPIC-1",
+        ],
+    )
+    def test_rebase_worker_shell_cannot_perform_any_push(
+        self, tmp_path, command
+    ):
+        orch = _make_orchestrator(tmp_path)
+        # A project-store double must use the deterministic branch-name fallback
+        # rather than leaking MagicMock operations into task classification.
+        orch.project_store.epic_branch_name.return_value = MagicMock()
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        legacy = MagicMock(
+            side_effect=AssertionError("legacy worker push admission reached")
+        )
+        orch._epic_rebase_push_denial = legacy
+
+        denial = check_shell_command(orch._agent_action_policy(helper), command)
+
+        assert denial is not None
+        assert "epic_rebase_server_publish_required" in denial
+        legacy.assert_not_called()
 
     def test_oompah_885_target_head_churn_cannot_mint_or_admit_successor(
         self, tmp_path
@@ -1877,3 +1972,1034 @@ class TestEpicRebaseGenerationAuthority:
             tracker, epic, "epic-EPIC-1", "main"
         ) is helper
         assert tracker.create_issue.call_count == 1
+
+    def test_server_publish_uses_exact_locked_cas_argv(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+
+        result = orch.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+
+        assert result == {
+            "published": True,
+            "recovered": False,
+            "candidate": candidate,
+        }
+        orch._run_project_network_git.assert_called_once_with(
+            orch.project_store.get.return_value,
+            [
+                "git",
+                "--no-replace-objects",
+                "push",
+                (
+                    "--force-with-lease="
+                    f"refs/heads/epic-EPIC-1:{lease_head}"
+                ),
+                "origin",
+                f"{candidate}:refs/heads/epic-EPIC-1",
+            ],
+            cwd=str(tmp_path),
+            timeout=60,
+            canonical_remote_url="https://trusted.invalid/repository",
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert entry.authority_publish_state == "published"
+        assert entry.authority_publish_candidate == candidate
+        assert entry.authority_publish_lease_head == lease_head
+        assert entry.authority_publish_target_head == target_head
+        assert entry.authority_publish_remote_head == candidate
+
+    def test_server_publish_never_uses_worker_config_for_privileged_push(
+        self, tmp_path
+    ):
+        trusted_repo = tmp_path / "trusted"
+        worker = tmp_path / "worker"
+        trusted_repo.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=trusted_repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Oompah"], cwd=trusted_repo, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "oompah@example.test"],
+            cwd=trusted_repo,
+            check=True,
+        )
+        (trusted_repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "base.txt"], cwd=trusted_repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=trusted_repo, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://trusted.invalid/repository"],
+            cwd=trusted_repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "extensions.worktreeConfig", "true"],
+            cwd=trusted_repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "worker", str(worker)],
+            cwd=trusted_repo,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "config",
+                "--worktree",
+                "remote.origin.pushurl",
+                "https://attacker.invalid/repository",
+            ],
+            cwd=worker,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "--worktree", "credential.helper", "!touch /should-not-run"],
+            cwd=worker,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "--worktree", "core.sshCommand", "/attacker/ssh"],
+            cwd=worker,
+            check=True,
+        )
+        worker_push_url = subprocess.run(
+            ["git", "remote", "get-url", "--push", "origin"],
+            cwd=worker,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        assert worker_push_url == (
+            "file:///OOMPAH-TEST-NETWORK-BARRIER/https/attacker.invalid/repository"
+        )
+        trusted_push_url = subprocess.run(
+            ["git", "remote", "get-url", "--push", "origin"],
+            cwd=trusted_repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        assert trusted_push_url == (
+            "file:///OOMPAH-TEST-NETWORK-BARRIER/https/trusted.invalid/repository"
+        )
+
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, worker)
+        )
+        project = orch.project_store.get.return_value
+        project.repo_path = str(trusted_repo)
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+
+        orch.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+
+        publish_call = orch._run_project_network_git.call_args
+        assert publish_call.kwargs["cwd"] == str(trusted_repo)
+        assert publish_call.args[1] == [
+            "git",
+            "--no-replace-objects",
+            "push",
+            f"--force-with-lease=refs/heads/epic-EPIC-1:{lease_head}",
+            "origin",
+            f"{candidate}:refs/heads/epic-EPIC-1",
+        ]
+        assert publish_call.kwargs["canonical_remote_url"] == (
+            "https://trusted.invalid/repository"
+        )
+        local_calls = orch._epic_rebase_publish_local_git.call_args_list
+        assert local_calls[0].args[0] == str(trusted_repo)
+        assert local_calls[1].args[0] == str(worker)
+        assert local_calls[2].args[0] == str(trusted_repo)
+
+    def test_server_publish_local_git_inspects_real_commit(self, tmp_path):
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Oompah"],
+            cwd=tmp_path,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "oompah@example.test"],
+            cwd=tmp_path,
+            check=True,
+        )
+        tracked = tmp_path / "tracked.txt"
+        tracked.write_text("candidate\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "candidate"], cwd=tmp_path, check=True)
+
+        result = Orchestrator._epic_rebase_publish_local_git(
+            str(tmp_path),
+            ["rev-parse", "--verify", "HEAD^{commit}"],
+        )
+        expected = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == expected
+
+    def test_server_publish_local_git_ignores_replace_refs(self, tmp_path):
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Oompah"], cwd=tmp_path, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "oompah@example.test"],
+            cwd=tmp_path,
+            check=True,
+        )
+        tracked = tmp_path / "tracked.txt"
+        tracked.write_text("target\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "target"], cwd=tmp_path, check=True)
+        target = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(["git", "checkout", "-q", "--orphan", "candidate"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "rm", "-q", "-rf", "."], cwd=tmp_path, check=True)
+        candidate_file = tmp_path / "candidate.txt"
+        candidate_file.write_text("candidate\n")
+        subprocess.run(["git", "add", "candidate.txt"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "candidate"], cwd=tmp_path, check=True)
+        candidate = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        candidate_tree = subprocess.run(
+            ["git", "rev-parse", f"{candidate}^{{tree}}"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        forged_candidate = subprocess.run(
+            ["git", "commit-tree", candidate_tree, "-p", target],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            input="forged ancestry\n",
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "replace", candidate, forged_candidate],
+            cwd=tmp_path,
+            check=True,
+        )
+        spoofed = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", target, candidate],
+            cwd=tmp_path,
+            check=False,
+        )
+        assert spoofed.returncode == 0
+
+        result = Orchestrator._epic_rebase_publish_local_git(
+            str(tmp_path),
+            ["merge-base", "--is-ancestor", target, candidate],
+        )
+
+        assert result.returncode != 0
+
+    def test_server_publish_local_git_sanitizes_process_git_config(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+        monkeypatch.setenv("GIT_CONFIG_KEY_0", "alias.rev-parse")
+        monkeypatch.setenv("GIT_CONFIG_VALUE_0", "!touch /should-not-run")
+        completed = subprocess.CompletedProcess([], 0, stdout="a" * 40, stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", return_value=completed) as run:
+            result = Orchestrator._epic_rebase_publish_local_git(
+                str(tmp_path),
+                ["rev-parse", "--verify", "HEAD^{commit}"],
+            )
+
+        assert result is completed
+        assert run.call_args.args[0] == [
+            "git",
+            "--no-replace-objects",
+            "rev-parse",
+            "--verify",
+            "HEAD^{commit}",
+        ]
+        env = run.call_args.kwargs["env"]
+        assert "GIT_CONFIG_COUNT" not in env
+        assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
+        assert env["GIT_CONFIG_GLOBAL"] == os.devnull
+
+    def test_server_network_git_uses_only_server_transport_controls(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("GIT_DIR", "/attacker/git-dir")
+        monkeypatch.setenv("GIT_WORK_TREE", "/attacker/worktree")
+        monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+        monkeypatch.setenv("GIT_CONFIG_KEY_0", "remote.origin.pushurl")
+        monkeypatch.setenv("GIT_CONFIG_VALUE_0", "https://attacker.invalid/repo")
+        monkeypatch.setenv("GIT_SSH_COMMAND", "/attacker/ssh")
+        monkeypatch.setenv("LD_PRELOAD", "/attacker/library.so")
+        project = type(
+            "ProjectStub",
+            (),
+            {"access_token": "server-token", "forge_kind": "github"},
+        )()
+        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        argv = [
+            "git",
+            "--no-replace-objects",
+            "push",
+            "--force-with-lease=refs/heads/epic:abc",
+            "origin",
+            "def:refs/heads/epic",
+        ]
+
+        with patch("oompah.orchestrator.subprocess.run", return_value=completed) as run:
+            result = Orchestrator._run_project_network_git(
+                project,
+                argv,
+                cwd=str(tmp_path),
+                timeout=60,
+                canonical_remote_url="https://trusted.invalid/repo",
+            )
+
+        assert result is completed
+        assert run.call_args.args[0] == argv
+        assert run.call_args.kwargs["cwd"] == str(tmp_path)
+        env = run.call_args.kwargs["env"]
+        assert "GIT_DIR" not in env
+        assert "GIT_WORK_TREE" not in env
+        assert "LD_PRELOAD" not in env
+        assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
+        config_values = {
+            env[f"GIT_CONFIG_KEY_{index}"]: env[f"GIT_CONFIG_VALUE_{index}"]
+            for index in range(int(env["GIT_CONFIG_COUNT"]))
+        }
+        assert config_values["remote.origin.url"] == "https://trusted.invalid/repo"
+        assert config_values["remote.origin.pushurl"] == (
+            "https://trusted.invalid/repo"
+        )
+        assert config_values["core.hooksPath"] == os.devnull
+        assert config_values["credential.helper"] == ""
+        assert config_values["protocol.ext.allow"] == "never"
+        assert config_values["core.sshCommand"] == (
+            "ssh -F /dev/null -oBatchMode=yes"
+        )
+
+    @pytest.mark.parametrize(
+        "candidate",
+        [
+            "HEAD",
+            "--force",
+            "https://example.test/repo",
+            "a" * 39,
+            "A" * 40,
+            "a" * 40 + ":refs/heads/main",
+        ],
+    )
+    def test_server_publish_rejects_non_full_commit_candidates(
+        self, tmp_path, candidate
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, _candidate, _lease, _target = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+
+        with pytest.raises(ValueError, match="full lowercase commit"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_server_publish_rejects_candidate_not_at_locked_head(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, _lease, _target = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        other = "d" * 40
+        orch._epic_rebase_publish_local_git.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout=f"{candidate}\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout=f"{other}\n", stderr=""),
+        ]
+
+        with pytest.raises(ProjectError, match="candidate_tampered"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    @pytest.mark.parametrize("repo_path", [None, "relative/repository"])
+    def test_server_publish_rejects_untrusted_project_repo_path(
+        self, tmp_path, repo_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, _lease, _target = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        orch.project_store.get.return_value.repo_path = repo_path
+
+        with pytest.raises(ProjectError, match="trusted_repo_missing"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_server_publish_rejects_missing_absolute_project_repo_path(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, _lease, _target = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        orch.project_store.get.return_value.repo_path = str(tmp_path / "missing")
+
+        with pytest.raises(ProjectError, match="trusted_repo_missing"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_remote_candidate_without_prepared_evidence_is_not_recovered(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, _lease, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-other", candidate, target_head)
+        )
+
+        with pytest.raises(ProjectError, match="epic_rebase_generation_stale"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_prepared_evidence_from_another_authority_is_rejected(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        entry.authority_task_id = "REBASE-OTHER"
+        entry.authority_publish_state = "prepared"
+        entry.authority_publish_candidate = candidate
+        entry.authority_publish_lease_head = lease_head
+        entry.authority_publish_target_head = target_head
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-2", candidate, target_head)
+        )
+
+        with pytest.raises(ProjectError, match="authority_revoked"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_remote_candidate_requires_exact_finalized_durable_evidence(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        entry.authority_publish_state = "published"
+        entry.authority_publish_candidate = candidate
+        entry.authority_publish_lease_head = lease_head
+        entry.authority_publish_target_head = target_head
+        entry.authority_publish_remote_head = "d" * 40
+        entry.authority_publish_verified_at = time.time()
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-2", candidate, target_head)
+        )
+
+        with pytest.raises(ProjectError, match="publish_remote_changed"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_restart_recovers_lost_publish_response_from_prepared_evidence(
+        self, tmp_path
+    ):
+        first = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(first, tmp_path)
+        )
+        entry = first._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert first._persist_epic_rebase_publish_evidence(
+            project_id=helper.project_id,
+            epic_identifier=epic.identifier,
+            entry=entry,
+            state="prepared",
+            candidate=candidate,
+            lease_head=lease_head,
+            target_head=target_head,
+            remote_head=None,
+        )
+
+        restarted = _make_orchestrator(tmp_path)
+        _configure_publish_fixture(restarted, tmp_path, install_authority=False)
+        restarted._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-2", candidate, target_head)
+        )
+
+        result = restarted.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+
+        assert result["published"] is True
+        assert result["recovered"] is True
+        restarted._run_project_network_git.assert_not_called()
+        restored = restarted._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert restored is not None
+        assert restored.authority_publish_state == "published"
+        assert restored.authority_publish_remote_head == candidate
+
+    def test_maintenance_rewrite_finalizes_lost_response_before_retry(
+        self, tmp_path
+    ):
+        first = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(first, tmp_path)
+        )
+        entry = first._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert first._persist_epic_rebase_publish_evidence(
+            project_id=helper.project_id,
+            epic_identifier=epic.identifier,
+            entry=entry,
+            state="prepared",
+            candidate=candidate,
+            lease_head=lease_head,
+            target_head=target_head,
+            remote_head=None,
+        )
+
+        restarted = _make_orchestrator(tmp_path)
+        _configure_publish_fixture(restarted, tmp_path, install_authority=False)
+        rewritten = restarted._persist_epic_rebase_authority(
+            epic=epic,
+            task=helper,
+            epic_branch="epic-EPIC-1",
+            target_branch="main",
+            generation="generation-2",
+            epic_head=candidate,
+            target_head=target_head,
+        )
+
+        assert rewritten is not None
+        assert rewritten.authority_generation == "generation-2"
+        assert rewritten.authority_publish_state == "published"
+        assert rewritten.authority_publish_candidate == candidate
+        assert rewritten.authority_publish_lease_head == lease_head
+        assert rewritten.authority_publish_remote_head == candidate
+
+        restarted._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-2", candidate, target_head)
+        )
+        restarted._active_epic_rebase_siblings.return_value = []
+        result = restarted.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+        assert result["recovered"] is True
+        restarted._run_project_network_git.assert_not_called()
+
+    def test_maintenance_rewrite_does_not_finalize_third_remote_sha(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert orch._persist_epic_rebase_publish_evidence(
+            project_id=helper.project_id,
+            epic_identifier=epic.identifier,
+            entry=entry,
+            state="prepared",
+            candidate=candidate,
+            lease_head=lease_head,
+            target_head=target_head,
+            remote_head=None,
+        )
+
+        rewritten = orch._persist_epic_rebase_authority(
+            epic=epic,
+            task=helper,
+            epic_branch="epic-EPIC-1",
+            target_branch="main",
+            generation="generation-third",
+            epic_head="d" * 40,
+            target_head=target_head,
+        )
+
+        assert rewritten is not None
+        assert rewritten.authority_publish_state == ""
+        assert rewritten.authority_publish_candidate is None
+        assert rewritten.authority_publish_remote_head is None
+
+    def test_maintenance_rewrite_does_not_transfer_publish_to_another_task(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert orch._persist_epic_rebase_publish_evidence(
+            project_id=helper.project_id,
+            epic_identifier=epic.identifier,
+            entry=entry,
+            state="prepared",
+            candidate=candidate,
+            lease_head=lease_head,
+            target_head=target_head,
+            remote_head=None,
+        )
+        successor = _make_rebase_helper("REBASE-OTHER", epic.identifier)
+
+        rewritten = orch._persist_epic_rebase_authority(
+            epic=epic,
+            task=successor,
+            epic_branch="epic-EPIC-1",
+            target_branch="main",
+            generation="generation-2",
+            epic_head=candidate,
+            target_head=target_head,
+        )
+
+        assert rewritten is not None
+        assert rewritten.authority_task_id == successor.identifier
+        assert rewritten.authority_publish_state == ""
+        assert rewritten.authority_publish_candidate is None
+
+    def test_prepared_lost_response_requires_current_active_winner(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert orch._persist_epic_rebase_publish_evidence(
+            project_id=helper.project_id,
+            epic_identifier=epic.identifier,
+            entry=entry,
+            state="prepared",
+            candidate=candidate,
+            lease_head=lease_head,
+            target_head=target_head,
+            remote_head=None,
+        )
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-2", candidate, target_head)
+        )
+        orch._active_epic_rebase_siblings.return_value = []
+
+        with pytest.raises(ProjectError, match="authority_revoked"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_target_advance_after_prepare_must_be_in_candidate(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert orch._persist_epic_rebase_publish_evidence(
+            project_id=helper.project_id,
+            epic_identifier=epic.identifier,
+            entry=entry,
+            state="prepared",
+            candidate=candidate,
+            lease_head=lease_head,
+            target_head=target_head,
+            remote_head=None,
+        )
+        advanced_target = "e" * 40
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-1", lease_head, advanced_target)
+        )
+        orch._epic_rebase_publish_local_git.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout=f"{candidate}\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout=f"{candidate}\n", stderr=""),
+            subprocess.CompletedProcess([], 1, stdout="", stderr=""),
+        ]
+
+        with pytest.raises(ProjectError, match="epic_rebase_target_not_ancestor"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_target_advance_during_push_is_not_recorded_without_ancestry(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        advanced_target = "e" * 40
+        base_local_git = orch._epic_rebase_publish_local_git.side_effect
+
+        def local_git(workspace, args):
+            if args == [
+                "merge-base",
+                "--is-ancestor",
+                advanced_target,
+                candidate,
+            ]:
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
+            return base_local_git(workspace, args)
+
+        orch._epic_rebase_publish_local_git.side_effect = local_git
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, advanced_target),
+            ]
+        )
+
+        with pytest.raises(ProjectError, match="target_advanced_during_publish"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert entry.authority_publish_state == "prepared"
+        assert entry.authority_publish_remote_head is None
+
+    def test_target_advance_during_push_is_reproved_before_success(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        advanced_target = "e" * 40
+        base_local_git = orch._epic_rebase_publish_local_git.side_effect
+
+        def local_git(workspace, args):
+            if args == [
+                "merge-base",
+                "--is-ancestor",
+                advanced_target,
+                candidate,
+            ]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            return base_local_git(workspace, args)
+
+        orch._epic_rebase_publish_local_git.side_effect = local_git
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, advanced_target),
+            ]
+        )
+
+        result = orch.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+
+        assert result["published"] is True
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, epic.identifier
+        )
+        assert entry is not None
+        assert entry.authority_publish_state == "published"
+        assert entry.authority_publish_target_head == advanced_target
+
+    def test_transport_error_with_remote_still_at_lease_can_retry(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-1", lease_head, target_head),
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+        orch._run_project_network_git.side_effect = [
+            subprocess.CompletedProcess([], 1, stdout="", stderr="transport lost"),
+            subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+        ]
+
+        with pytest.raises(ProjectError, match="publish_remote_unverified"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        result = orch.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+        assert result["published"] is True
+        assert orch._run_project_network_git.call_count == 2
+        assert (
+            orch._run_project_network_git.call_args_list[0].args[1]
+            == orch._run_project_network_git.call_args_list[1].args[1]
+        )
+
+    def test_third_remote_sha_after_push_is_a_cas_race(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        third_head = "d" * 40
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-third", third_head, target_head),
+            ]
+        )
+
+        with pytest.raises(ProjectError, match="epic_rebase_publish_cas_race"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        entry = orch._epic_rebase_authority_entry(
+            helper.project_id, "EPIC-1"
+        )
+        assert entry is not None
+        assert entry.authority_publish_state == "prepared"
+
+    def test_failed_published_persist_converges_after_restart(self, tmp_path):
+        first = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(first, tmp_path)
+        )
+        first._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+        persist = first._persist_epic_rebase_publish_evidence
+
+        def fail_published(**kwargs):
+            if kwargs["state"] == "published":
+                return False
+            return persist(**kwargs)
+
+        first._persist_epic_rebase_publish_evidence = MagicMock(
+            side_effect=fail_published
+        )
+
+        with pytest.raises(ProjectError, match="publish_evidence_persist_failed"):
+            first.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        restarted = _make_orchestrator(tmp_path)
+        _configure_publish_fixture(restarted, tmp_path, install_authority=False)
+        restarted._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-2", candidate, target_head)
+        )
+        recovered = restarted.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+        assert recovered["recovered"] is True
+        restarted._run_project_network_git.assert_not_called()
+
+    def test_publish_acquires_authority_before_project_lock(self, tmp_path):
+        from contextlib import contextmanager
+
+        orch = _make_orchestrator(tmp_path)
+        order: list[str] = []
+
+        @contextmanager
+        def authority(*_args):
+            order.append("authority-enter")
+            try:
+                yield
+            finally:
+                order.append("authority-exit")
+
+        @contextmanager
+        def project_lock(_project_id):
+            order.append("project-enter")
+            try:
+                yield
+            finally:
+                order.append("project-exit")
+
+        orch._epic_rebase_authority_transaction = authority
+        orch.project_store.project_write_lock.side_effect = project_lock
+        orch.project_store.get.return_value = None
+
+        with pytest.raises(ProjectError, match="publish_project_missing"):
+            orch.publish_epic_rebase_candidate("proj-1", "REBASE-1", "c" * 40)
+
+        assert order == [
+            "authority-enter",
+            "project-enter",
+            "project-exit",
+            "authority-exit",
+        ]
+
+    def test_authority_revocation_cannot_interleave_with_publish(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+        push_started = threading.Event()
+        release_push = threading.Event()
+        revocation_entered = threading.Event()
+
+        def blocking_push(*_args, **_kwargs):
+            push_started.set()
+            assert release_push.wait(timeout=2)
+            return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+        orch._run_project_network_git.side_effect = blocking_push
+
+        def revoke_authority():
+            with orch._epic_rebase_authority_transaction(
+                helper.project_id, epic.identifier
+            ):
+                with orch.project_store.project_write_lock(helper.project_id):
+                    revocation_entered.set()
+                    entry = orch._epic_rebase_authority_entry(
+                        helper.project_id, epic.identifier
+                    )
+                    assert entry is not None
+                    entry.authority_task_id = "REBASE-OTHER"
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            published = pool.submit(
+                orch.publish_epic_rebase_candidate,
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+            assert push_started.wait(timeout=2)
+            revoked = pool.submit(revoke_authority)
+            assert revocation_entered.wait(timeout=0.05) is False
+            release_push.set()
+            assert published.result(timeout=2)["published"] is True
+            revoked.result(timeout=2)
+
+        assert revocation_entered.is_set()
+        with pytest.raises(ProjectError, match="authority_revoked"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )

@@ -350,7 +350,11 @@ def _task_handoff_request(
         if project_id:
             payload["project_id"] = project_id
     assigned_task = os.environ.get(TASK_HANDOFF_TASK_ENV, "").strip()
-    if assigned_task and not payload.get("worker_task_identifier"):
+    if (
+        action != "publish-epic-rebase"
+        and assigned_task
+        and not payload.get("worker_task_identifier")
+    ):
         payload["worker_task_identifier"] = assigned_task
     payload["action"] = action
     return _http(
@@ -807,6 +811,36 @@ def _cmd_submit(base_url: str, args: argparse.Namespace) -> None:
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/submit"
     _http("POST", f"{base_url}{path}", data=data)
     print(f"Submitted for integration: {identifier}")
+
+
+def _cmd_publish_rebase(base_url: str, args: argparse.Namespace) -> None:
+    """Ask the server to publish one exact epic rebase commit."""
+    if _task_handoff_token() is None:
+        sys.exit(
+            "ERROR: epic rebase publication requires a live task-scoped "
+            "worker capability."
+        )
+    project_id = str(
+        getattr(args, "project", None)
+        or os.environ.get(TASK_HANDOFF_PROJECT_ENV, "")
+    ).strip()
+    if not project_id:
+        sys.exit("ERROR: --project is required for epic rebase publication.")
+    identifier = str(args.identifier or "").strip()
+    candidate = str(args.candidate or "").strip()
+    result = _task_handoff_request(
+        base_url,
+        "publish-epic-rebase",
+        {
+            "project_id": project_id,
+            "identifier": identifier,
+            "candidate_sha": candidate,
+        },
+    )
+    if result is None:  # pragma: no cover - guarded above
+        sys.exit("ERROR: task-scoped publication capability is unavailable.")
+    state = "recovered" if result.get("recovered") else "published"
+    print(f"Epic rebase {state}: {candidate}")
 
 
 def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
@@ -1306,6 +1340,24 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PROJECT_ID",
     )
 
+    # --- publish-rebase ---
+    p_publish_rebase = sub.add_parser(
+        "publish-rebase",
+        help="Publish an epic rebase candidate through the scoped server capability",
+    )
+    p_publish_rebase.add_argument("identifier", help="Epic rebase helper identifier")
+    p_publish_rebase.add_argument(
+        "--candidate",
+        required=True,
+        help="Full commit object ID at the locked shared-worktree HEAD",
+    )
+    p_publish_rebase.add_argument(
+        "--project", "--project-id",
+        dest="project",
+        default=None,
+        metavar="PROJECT_ID",
+    )
+
     # --- add-label ---
     p_add = sub.add_parser("add-label", help="Add a label to a task")
     p_add.add_argument("identifier", help="Task identifier")
@@ -1456,6 +1508,7 @@ _DISPATCH: dict[str, Any] = {
     "child-create": _cmd_child_create,
     "set-status": _cmd_set_status,
     "submit": _cmd_submit,
+    "publish-rebase": _cmd_publish_rebase,
     "add-label": _cmd_add_label,
     "remove-label": _cmd_remove_label,
     "set-dependency": _cmd_set_dependency,
@@ -1484,6 +1537,7 @@ def main(argv: list[str] | None = None) -> None:
         "comment",
         "set-status",
         "submit",
+        "publish-rebase",
         "coordinate",
         "add-label",
         "remove-label",
@@ -1524,6 +1578,7 @@ def main(argv: list[str] | None = None) -> None:
         "child-create": _cmd_child_create,
         "set-status": _cmd_set_status,
         "submit": _cmd_submit,
+        "publish-rebase": _cmd_publish_rebase,
         "add-label": _cmd_add_label,
         "remove-label": _cmd_remove_label,
         "set-dependency": _cmd_set_dependency,

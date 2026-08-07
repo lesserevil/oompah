@@ -29,7 +29,10 @@ import pytest
 
 from oompah import task_cli
 from oompah.client_auth import ClientCredentials
-from oompah.task_handoff import TASK_HANDOFF_TOKEN_ENV
+from oompah.task_handoff import (
+    TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TOKEN_ENV,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1348,6 +1351,85 @@ class TestCmdCoordinate:
 # ---------------------------------------------------------------------------
 
 
+class TestPublishRebase:
+    def test_parser_requires_full_candidate_argument(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "publish-rebase",
+                "REBASE-1",
+                "--project",
+                "proj-a",
+                "--candidate",
+                "c" * 40,
+            ]
+        )
+
+        assert args.subcommand == "publish-rebase"
+        assert args.identifier == "REBASE-1"
+        assert args.project == "proj-a"
+        assert args.candidate == "c" * 40
+
+    def test_without_capability_fails_before_any_http_fallback(self, monkeypatch):
+        monkeypatch.delenv(TASK_HANDOFF_TOKEN_ENV, raising=False)
+        args = task_cli.build_parser().parse_args(
+            [
+                "publish-rebase",
+                "REBASE-1",
+                "--project",
+                "proj-a",
+                "--candidate",
+                "c" * 40,
+            ]
+        )
+
+        with (
+            patch.object(task_cli, "_task_handoff_request") as handoff,
+            patch.object(task_cli, "_http") as generic_http,
+            pytest.raises(SystemExit, match="live task-scoped"),
+        ):
+            task_cli._cmd_publish_rebase("http://server", args)
+
+        handoff.assert_not_called()
+        generic_http.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("response", "expected"),
+        [
+            ({"published": True, "recovered": False}, "published"),
+            ({"published": True, "recovered": True}, "recovered"),
+        ],
+    )
+    def test_exact_scoped_payload_and_output(
+        self, monkeypatch, capsys, response, expected
+    ):
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "scoped")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        args = task_cli.build_parser().parse_args(
+            ["publish-rebase", "REBASE-1", "--candidate", "c" * 40]
+        )
+
+        with (
+            patch.object(
+                task_cli, "_task_handoff_request", return_value=response
+            ) as handoff,
+            patch.object(task_cli, "_http") as generic_http,
+        ):
+            task_cli._cmd_publish_rebase("http://server", args)
+
+        handoff.assert_called_once_with(
+            "http://server",
+            "publish-epic-rebase",
+            {
+                "project_id": "proj-a",
+                "identifier": "REBASE-1",
+                "candidate_sha": "c" * 40,
+            },
+        )
+        generic_http.assert_not_called()
+        assert f"Epic rebase {expected}:" in capsys.readouterr().out
+
+
 class TestBuildParser:
     def test_view_subcommand_parses(self):
         parser = task_cli.build_parser()
@@ -1652,6 +1734,21 @@ class TestMainDispatch:
     def test_main_dispatches_submit(self):
         with patch.object(task_cli, "_cmd_submit") as mock_fn:
             task_cli.main(["submit", "TASK-1", "--summary", "Done"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_publish_rebase_only_for_worker(self, monkeypatch):
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "scoped")
+        with patch.object(task_cli, "_cmd_publish_rebase") as mock_fn:
+            task_cli.main(
+                [
+                    "publish-rebase",
+                    "REBASE-1",
+                    "--project",
+                    "proj-a",
+                    "--candidate",
+                    "c" * 40,
+                ]
+            )
         mock_fn.assert_called_once()
 
     def test_main_dispatches_coordinate(self):

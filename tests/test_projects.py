@@ -62,6 +62,22 @@ def _store_with_one_project(tmp_path):
     return store, repo
 
 
+def test_canonical_remote_name_is_server_owned(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+
+    assert store.canonical_remote_name("proj-sync1") == "origin"
+    with pytest.raises(ProjectError, match="Unknown project"):
+        store.canonical_remote_name("missing-project")
+
+
+def test_canonical_remote_url_is_server_owned(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+
+    assert store.canonical_remote_url("proj-sync1") == "https://example.com/x.git"
+    with pytest.raises(ProjectError, match="unavailable"):
+        store.canonical_remote_url("missing-project")
+
+
 def test_nested_integration_target_reuses_exact_managed_branch_not_alias(tmp_path):
     store, _repo = _store_with_one_project(tmp_path)
     project = store.get("proj-sync1")

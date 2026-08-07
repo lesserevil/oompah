@@ -174,6 +174,92 @@ class TestTaskCliHandoff:
 
         assert client.post.call_args.kwargs["json"]["worker_task_identifier"] == "TASK-1"
 
+    def test_publish_rebase_payload_contains_only_server_scoped_inputs(
+        self, monkeypatch, capsys
+    ):
+        from oompah import task_cli
+
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "opaque")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        monkeypatch.setenv(TASK_HANDOFF_TASK_ENV, "REBASE-1")
+        args = task_cli.build_parser().parse_args(
+            [
+                "publish-rebase",
+                "REBASE-1",
+                "--candidate",
+                "c" * 40,
+            ]
+        )
+        with patch.object(
+            task_cli,
+            "_task_handoff_request",
+            return_value={"published": True, "recovered": False},
+        ) as request:
+            task_cli._cmd_publish_rebase("http://server", args)
+
+        request.assert_called_once_with(
+            "http://server",
+            "publish-epic-rebase",
+            {
+                "project_id": "proj-a",
+                "identifier": "REBASE-1",
+                "candidate_sha": "c" * 40,
+            },
+        )
+        assert "Epic rebase published" in capsys.readouterr().out
+
+    def test_publish_rebase_has_no_operator_http_fallback(self, monkeypatch):
+        from oompah import task_cli
+
+        monkeypatch.delenv(TASK_HANDOFF_TOKEN_ENV, raising=False)
+        args = task_cli.build_parser().parse_args(
+            [
+                "publish-rebase",
+                "REBASE-1",
+                "--project",
+                "proj-a",
+                "--candidate",
+                "c" * 40,
+            ]
+        )
+        with patch.object(task_cli, "_task_handoff_request") as request:
+            with pytest.raises(SystemExit, match="live task-scoped"):
+                task_cli._cmd_publish_rebase("http://server", args)
+        request.assert_not_called()
+
+    def test_publish_handoff_request_does_not_add_worker_context(
+        self, monkeypatch
+    ):
+        from oompah import task_cli
+
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "opaque")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        monkeypatch.setenv(TASK_HANDOFF_TASK_ENV, "REBASE-1")
+        response = MagicMock(is_success=True, status_code=200)
+        response.json.return_value = {"published": True}
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.__exit__.return_value = False
+        client.post.return_value = response
+
+        with patch("httpx.Client", return_value=client):
+            task_cli._task_handoff_request(
+                "http://server",
+                "publish-epic-rebase",
+                {
+                    "project_id": "proj-a",
+                    "identifier": "REBASE-1",
+                    "candidate_sha": "c" * 40,
+                },
+            )
+
+        assert client.post.call_args.kwargs["json"] == {
+            "project_id": "proj-a",
+            "identifier": "REBASE-1",
+            "candidate_sha": "c" * 40,
+            "action": "publish-epic-rebase",
+        }
+
     def test_spawned_cli_does_not_resolve_inherited_operator_credentials(
         self, monkeypatch
     ):
@@ -3065,6 +3151,102 @@ class TestHandoffTokenFailClosed:
         )
 
 
+class TestEpicRebasePublishHandoff:
+    def test_endpoint_accepts_only_scoped_candidate_and_honors_revocation(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        issue = Issue(
+            id="rebase-1",
+            identifier="REBASE-1",
+            title="Rebase epic-EPIC-1 onto main",
+            description="server publish",
+            state="Needs Rebase",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        project = SimpleNamespace(id="proj-a", name="project-a")
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.side_effect = (
+            lambda project_id: project if project_id == "proj-a" else None
+        )
+        orch.project_store.find_by_name.return_value = None
+        orch.project_store.list_all.return_value = [project]
+        orch.publish_epic_rebase_candidate.return_value = {
+            "published": True,
+            "recovered": False,
+            "candidate": "c" * 40,
+        }
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="REBASE-1",
+            allowed_actions={"publish-epic-rebase"},
+        )
+        revoked = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="REBASE-1",
+            allowed_actions={"publish-epic-rebase"},
+        )
+        revoke_task_handoff_token(revoked)
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                payload = {
+                    "action": "publish-epic-rebase",
+                    "project_id": "proj-a",
+                    "identifier": "REBASE-1",
+                    "candidate_sha": "c" * 40,
+                }
+                accepted = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json=payload,
+                )
+                extra_control = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={**payload, "remote": "attacker"},
+                )
+                invalid_candidate = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={**payload, "candidate_sha": "refs/heads/main"},
+                )
+                after_revoke = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: revoked},
+                    json=payload,
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            revoke_task_handoff_token(token)
+
+        assert accepted.status_code == 200
+        assert accepted.json()["published"] is True
+        orch.publish_epic_rebase_candidate.assert_called_once_with(
+            "proj-a", "REBASE-1", "c" * 40
+        )
+        assert extra_control.status_code == 400
+        assert "accepts only project_id" in extra_control.text
+        assert invalid_candidate.status_code == 400
+        assert "full lowercase commit SHA" in invalid_candidate.text
+        assert after_revoke.status_code == 401
+
+
 class TestOrchestratorHandoffTokenMint:
     """OOMPAH-593 live-path reproducer: verify Orchestrator._issue_task_handoff_token
     mints a capability whose scope and action set are exactly what a
@@ -3135,6 +3317,213 @@ class TestOrchestratorHandoffTokenMint:
             action="view",
         )
         assert allowed, f"minted token should validate for its own scope: {reason}"
+
+        publish_allowed, _reason = validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="OOMPAH-999",
+            action="publish-epic-rebase",
+        )
+        assert publish_allowed is False
+
+    def test_only_rebase_helper_grant_receives_publish_action(self, tmp_path):
+        from oompah.models import EpicRebaseStateEntry
+        from oompah.task_handoff import (
+            acquire_task_handoff_permit,
+            revoke_task_handoff_token,
+            validate_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        helper = Issue(
+            id="rebase-live",
+            identifier="REBASE-1",
+            title="Rebase epic-EPIC-1 onto main",
+            description="body",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+        orch._epic_rebase_authorities[
+            orch._epic_rebase_authority_key("proj-live", "EPIC-1")
+        ] = EpicRebaseStateEntry(
+            state="rebasing",
+            updated_at=time.time(),
+            project_id="proj-live",
+            authority_generation="generation-1",
+            authority_task_id=helper.identifier,
+            authority_epic_head="a" * 40,
+        )
+        token = orch._issue_task_handoff_token(helper)
+        assert token is not None
+        allowed, reason = validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="REBASE-1",
+            action="publish-epic-rebase",
+        )
+        assert allowed, reason
+        assert validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="REBASE-OTHER",
+            action="publish-epic-rebase",
+        )[0] is False
+        assert validate_task_handoff_token(
+            token,
+            project_id="proj-other",
+            task_identifier="REBASE-1",
+            action="publish-epic-rebase",
+        )[0] is False
+
+        permit = acquire_task_handoff_permit(
+            token,
+            project_id="proj-live",
+            task_identifier="REBASE-1",
+            action="publish-epic-rebase",
+        )
+        assert permit is not None
+        revoke_task_handoff_token(token)
+        with pytest.raises(OperationPermitDenied, match="revoked"):
+            permit.begin()
+
+    def test_spoofed_rebase_title_does_not_receive_publish_action(self, tmp_path):
+        from oompah.task_handoff import (
+            revoke_task_handoff_token,
+            validate_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        spoof = Issue(
+            id="spoof-rebase",
+            identifier="SPOOF-1",
+            title="Rebase epic-EPIC-1 onto main",
+            description="user-created lookalike",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+
+        token = orch._issue_task_handoff_token(spoof)
+        assert token is not None
+        try:
+            assert validate_task_handoff_token(
+                token,
+                project_id="proj-live",
+                task_identifier="SPOOF-1",
+                action="publish-epic-rebase",
+            )[0] is False
+        finally:
+            revoke_task_handoff_token(token)
+
+    def test_in_process_publish_bridge_uses_running_workers_active_permit(
+        self, tmp_path
+    ):
+        from oompah.projects import ProjectError
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        helper = Issue(
+            id="rebase-bridge",
+            identifier="REBASE-BRIDGE",
+            title="Rebase epic-EPIC-1 onto main",
+            description="body",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-live",
+            task_identifier=helper.identifier,
+            allowed_actions={"publish-epic-rebase"},
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=helper.identifier,
+            issue=helper,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            task_handoff_token=token,
+        )
+        orch.state.running[helper.id] = entry
+        candidate = "e" * 40
+
+        def publish(project_id, task_identifier, received_candidate):
+            # Revocation after permit.begin() cannot unwind an already-admitted
+            # external mutation, but it must fence every later call.
+            revoke_task_handoff_token(token)
+            return {
+                "published": True,
+                "recovered": False,
+                "candidate": received_candidate,
+            }
+
+        orch.publish_epic_rebase_candidate = MagicMock(side_effect=publish)
+        result = orch.publish_worker_epic_rebase_candidate(
+            "proj-live",
+            helper.identifier,
+            candidate,
+        )
+
+        assert result["published"] is True
+        orch.publish_epic_rebase_candidate.assert_called_once_with(
+            "proj-live", helper.identifier, candidate
+        )
+        with pytest.raises(ProjectError, match="capability_revoked"):
+            orch.publish_worker_epic_rebase_candidate(
+                "proj-live",
+                helper.identifier,
+                candidate,
+            )
+
+    def test_in_process_publish_bridge_rejects_lifecycle_tombstone(self, tmp_path):
+        from oompah.projects import ProjectError
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        helper = Issue(
+            id="rebase-revoked",
+            identifier="REBASE-REVOKED",
+            title="Rebase epic-EPIC-1 onto main",
+            description="body",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-live",
+            task_identifier=helper.identifier,
+            allowed_actions={"publish-epic-rebase"},
+        )
+        orch.state.running[helper.id] = RunningEntry(
+            worker_task=None,
+            identifier=helper.identifier,
+            issue=helper,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            task_handoff_token=token,
+            authority_revoked=True,
+        )
+        orch.publish_epic_rebase_candidate = MagicMock()
+        try:
+            with pytest.raises(ProjectError, match="authority_revoked"):
+                orch.publish_worker_epic_rebase_candidate(
+                    "proj-live",
+                    helper.identifier,
+                    "f" * 40,
+                )
+        finally:
+            revoke_task_handoff_token(token)
+
+        orch.publish_epic_rebase_candidate.assert_not_called()
 
     def test_orchestrator_reissues_atomically_for_same_live_entry(self, tmp_path):
         """A retry/restart replacement revokes the old worker token first."""
