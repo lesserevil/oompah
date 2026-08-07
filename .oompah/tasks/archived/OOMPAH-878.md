@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:31:15.571049Z'
-updated_at: '2026-08-07T14:48:25.454304Z'
+updated_at: '2026-08-07T14:48:34.419799Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -55,7 +55,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:48:17.409389+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-878
+    target_state: Archived
+    evidence_fingerprint: 91a6f7ec64f58d6f2bb5cd724c17c09883d2e06afa635eee03155fba8980e6a8
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:48:31.825787+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -103,5 +113,12 @@ author: oompah
 created: 2026-08-07 10:41
 ---
 Direct-owner intervention: this auto-filed rebase is a concurrent duplicate of active OOMPAH-877 for the same epic-OOMPAH-763 generation. Its worker was retired before mutation; the shared epic worktree and origin/epic-OOMPAH-763 remain clean at 04fa678. Keep this task non-dispatchable until OOMPAH-877 completes after OOMPAH-854 and OOMPAH-866 integrate, then archive it as superseded. Systemic prevention is tracked by OOMPAH-879.
+---
+author: oompah
+created: 2026-08-07 14:48
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
