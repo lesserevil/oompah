@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-08-07T16:10:48.545860Z'
+updated_at: '2026-08-07T16:11:49.773917Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
@@ -313,12 +313,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-645
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 9f3568b92e70891349d14bdd170148fd399409e323472bfb22a2c4dd7f036f55
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-99416de31a1d
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9f3568b92e70891349d14bdd170148fd399409e323472bfb22a2c4dd7f036f55
+      created_at: '2026-08-07T16:11:37.304653+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T16:11:37.304653+00:00'
+      branch_key: OOMPAH-645
+      selected_ref: 9e4a0c877707d946a4504d664dba74811c2e0aac
+      selected_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
     requested_by:
       version: 1
       identity: oompah
@@ -327,6 +342,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T16:10:44.376416+00:00'
     selected_ref: 9e4a0c877707d946a4504d664dba74811c2e0aac
     selected_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
+    updated_at: '2026-08-07T16:11:37.304653+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cd482e907e4c
@@ -354,6 +370,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T15:17:40.260993+00:00'
     branch_key: OOMPAH-645
+  - version: 1
+    attempt_id: attempt-99416de31a1d
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f3568b92e70891349d14bdd170148fd399409e323472bfb22a2c4dd7f036f55
+    created_at: '2026-08-07T16:11:37.304653+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T16:11:37.304653+00:00'
+    branch_key: OOMPAH-645
+    selected_ref: 9e4a0c877707d946a4504d664dba74811c2e0aac
+    selected_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
 ---
 ## Summary
 
@@ -945,5 +976,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 24s
 - Log: OOMPAH-645__20260731T151748Z.jsonl
+---
+author: oompah
+created: 2026-08-07 16:11
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-07 16:11
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

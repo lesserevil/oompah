@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T16:10:58.567614Z'
+updated_at: '2026-08-07T16:11:36.262904Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -149,6 +149,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-0e987255d283-0: '2026-07-31T15:43:38.196329+00:00'
+    no-auditor-audit-008d39a440f2-0: '2026-08-07T16:11:25.824139+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-661
@@ -169,6 +170,15 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-07-31T15:59:33.970763+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Archived
+    evidence_fingerprint: ccfc56a115975b3eaa2ef45895abaea2f61ecd46b8d5c0076a8692f570654451
+    audit_ids:
+    - audit-008d39a440f2
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T16:11:25.824159+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-661
@@ -183,6 +193,18 @@ oompah.terminal_audit:
     created_at: '2026-07-31T15:43:38.196347+00:00'
     applied_at: '2026-07-31T15:43:41.029231+00:00'
     retired_by_override: true
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    audit_id: audit-008d39a440f2
+    attempt_id: no-auditor-audit-008d39a440f2-0
+    target_state: Archived
+    evidence_fingerprint: ccfc56a115975b3eaa2ef45895abaea2f61ecd46b8d5c0076a8692f570654451
+    status: Needs Human
+    audit_ids:
+    - audit-008d39a440f2
+    applied: true
+    created_at: '2026-08-07T16:11:25.824177+00:00'
+    applied_at: '2026-08-07T16:11:34.733590+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-1cb26d61af6f
@@ -260,12 +282,26 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-661
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ccfc56a115975b3eaa2ef45895abaea2f61ecd46b8d5c0076a8692f570654451
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-008d39a440f2-0
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ccfc56a115975b3eaa2ef45895abaea2f61ecd46b8d5c0076a8692f570654451
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T16:11:25.823928+00:00'
+      completed_at: '2026-08-07T16:11:25.823928+00:00'
+      selected_ref: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
+      selected_sha: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
     requested_by:
       version: 1
       identity: oompah
@@ -274,6 +310,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T16:10:54.448590+00:00'
     selected_ref: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
     selected_sha: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
+    updated_at: '2026-08-07T16:11:25.823928+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -619,5 +656,12 @@ created: 2026-07-31 15:59
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Exact task head e1c6e394e6136ec8057fb41684049d9b97b4ca2e passed the configured full make test branch gate in 377.3 seconds and GitHub PR 624 merged that exact head into main as merge commit 79a27ae548ad5bc75934bc732f9572245ab61075. The Done audit failed only because every configured independent auditor candidate had contributed; the already-queued Merged transition is owner-verified and should retire the obsolete Done audit and alert.
+---
+author: oompah
+created: 2026-08-07 16:11
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
