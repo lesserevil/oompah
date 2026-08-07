@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T09:24:54.235778Z'
+updated_at: '2026-08-07T09:25:03.562338Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -166,7 +166,7 @@ oompah.terminal_audit:
       in main; prior owner override already resolved exhausted auditor transports.
       Restore the verified Merged provenance outcome pending OOMPAH-871 deployment.'
     created_at: '2026-08-07T09:24:47.083185+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-640
@@ -177,6 +177,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T09:10:07.119123+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Merged
+    evidence_fingerprint: b958a76bdf3258cb154784766f09d04bf0f0da82146059ed00a67a19210db388
+    audit_ids:
+    - audit-50ba79464bb3
+    - audit-beb713efc129
+    - audit-c63ac83352b6
+    - audit-f05d7dd4b05e
+    - audit-215e204666f2
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T09:25:00.690932+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-640
@@ -190,6 +203,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:10:07.119137+00:00'
     applied_at: '2026-08-07T09:10:15.552140+00:00'
+    retired_by_override: true
   version: 1
   pending_chain:
   - version: 1
@@ -327,7 +341,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-640
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -339,12 +353,13 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T08:12:58.036619+00:00'
+    updated_at: '2026-08-07T09:25:00.690879+00:00'
   - version: 1
     audit_id: audit-f05d7dd4b05e
     project_id: proj-14849f1b
     task_id: OOMPAH-640
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -358,12 +373,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:23:46.834324+00:00'
     selected_ref: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
     selected_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+    updated_at: '2026-08-07T09:25:00.690902+00:00'
   - version: 1
     audit_id: audit-215e204666f2
     project_id: proj-14849f1b
     task_id: OOMPAH-640
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -377,6 +393,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:23:46.834324+00:00'
     selected_ref: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
     selected_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+    updated_at: '2026-08-07T09:25:00.690915+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d7409ced47f5
@@ -834,5 +851,12 @@ author: oompah
 created: 2026-08-07 09:24
 ---
 Restore already-merged PR #608 provenance after erroneous terminal re-audit.
+---
+author: oompah
+created: 2026-08-07 09:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #608 merged; exact head 5a5f4867f passed make test and is contained in main; prior owner override already resolved exhausted auditor transports. Restore the verified Merged provenance outcome pending OOMPAH-871 deployment.
 ---
 <!-- COMMENTS:END -->
