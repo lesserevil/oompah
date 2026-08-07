@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Needs Human
+status: Done
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:41:40.337569Z'
+updated_at: '2026-08-07T09:43:33.439659Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -232,6 +232,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:41:29.895614+00:00'
     applied_at: '2026-08-07T09:41:37.537816+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1985b7049b4e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner recovery: PR #600 is merged and both reviewed head 741a7d88b2ad409575a0b3577564b98f57733f87
+      and accepted head f2b319c1182cd654112db622a0498171e508dead are ancestors of
+      origin/main with zero target diff. Auditor attempts terminated before a verdict;
+      OOMPAH-876 tracks transport retries without candidate exhaustion.'
+    created_at: '2026-08-07T09:43:26.907471+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1

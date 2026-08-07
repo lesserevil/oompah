@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:34:02.198332Z'
+updated_at: '2026-08-07T09:43:34.782196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-08-07 09:34
 ---
 Second same-cycle reproduction: OOMPAH-867 exhausted haiku, sonnet, and opus at 16m/12m/13m with zero-turn pre-verdict transport terminations, then entered Needs Human at max_attempts=3 despite exact full-gate and independent-review evidence. Owner override restored Done. This confirms the failure family is systematic rather than task-specific.
+---
+author: oompah
+created: 2026-08-07 09:43
+---
+Live reproductions on 2026-08-07: OOMPAH-581 exhausted sonnet and opus after both transports terminated before a verdict, reaching Needs Human on its Done audit; OOMPAH-870 exhausted all eligible auditor candidates after pre-verdict transport terminations, reaching Needs Human on its Merged audit. Both had authoritative merged exact-head evidence and required owner overrides. Acceptance must ensure pre-verdict transport failure does not consume substantive candidate capacity or force Needs Human.
 ---
 <!-- COMMENTS:END -->
