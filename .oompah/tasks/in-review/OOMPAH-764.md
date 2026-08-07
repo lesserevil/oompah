@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T13:59:09.947992Z'
+updated_at: '2026-08-07T14:02:08.089455Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/743
@@ -66,6 +66,25 @@ oompah.terminal_audit:
       safe deployed-server state until OOMPAH-791 can reconcile nested Merged.'
     created_at: '2026-08-07T12:56:23.688691+00:00'
     applied: true
+  - version: 1
+    override_id: override-d5150a8d5aad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f3f89f5eae500c40c1c9c48fa529db5bece3a3475378ff00c8d60e68d0d58b4a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #743 is closed; prior PR #742 was also closed because the nested epic
+      patch is already contained in epic-OOMPAH-763. All canonical children are terminal
+      and prior validation/audit evidence passed. Restore audited Done after deploying
+      OOMPAH-871 terminal-provenance fencing.'
+    created_at: '2026-08-07T14:02:05.032604+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-764
