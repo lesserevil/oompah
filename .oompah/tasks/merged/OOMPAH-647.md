@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T19:33:41.971963Z'
+updated_at: '2026-08-07T19:33:58.494643Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: ''
@@ -178,6 +178,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T10:33:36.226159+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-647
+    target_state: Merged
+    evidence_fingerprint: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
+    audit_ids:
+    - audit-c373f00a8724
+    - audit-dcbc7765d0dc
+    - audit-1244d3e98a42
+    - audit-9fb22cbede0f
+    - audit-54f3838ee199
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:33:45.947340+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-647
@@ -191,6 +204,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:33:36.226175+00:00'
     applied_at: '2026-08-07T10:33:43.480300+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-14f8f2f8e353
@@ -210,7 +224,31 @@ oompah.terminal_audit:
       Direct takeover changed lifecycle state but introduced no new revision; redundant
       re-audit is unnecessary.'
     created_at: '2026-08-07T19:33:38.128722+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain merged source head 18e405d8e6db9549f70e032bc846ce1e4763e6f8 as
+      terminal provenance; it is already on current main and no owner-authorized new
+      revision exists.
+    marked_at: '2026-08-07T19:33:56.958364+00:00'
+    updated_at: '2026-08-07T19:33:56.958364+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain merged source head 18e405d8e6db9549f70e032bc846ce1e4763e6f8 as
+        terminal provenance; it is already on current main and no owner-authorized
+        new revision exists.
+      recorded_at: '2026-08-07T19:33:56.958364+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -371,7 +409,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -400,13 +438,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:29.847300+00:00'
     selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
     selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
-    updated_at: '2026-08-07T19:25:08.839751+00:00'
+    updated_at: '2026-08-07T19:33:45.947291+00:00'
   - version: 1
     audit_id: audit-54f3838ee199
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -420,6 +458,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:29.847300+00:00'
     selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
     selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+    updated_at: '2026-08-07T19:33:45.947322+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d19fa24aa57b
@@ -968,5 +1007,17 @@ author: oompah
 created: 2026-08-07 19:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:33
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Retain the previously accepted merged revision: verified source head 18e405d8e6db9549f70e032bc846ce1e4763e6f8 is an exact ancestor of current origin/main. Direct takeover changed lifecycle state but introduced no new revision; redundant re-audit is unnecessary.
+---
+author: oompah
+created: 2026-08-07 19:33
+---
+Already integrated on main; owner override restores the verified terminal record after direct takeover.
 ---
 <!-- COMMENTS:END -->

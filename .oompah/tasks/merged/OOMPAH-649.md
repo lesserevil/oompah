@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T19:26:04.881885Z'
+updated_at: '2026-08-07T19:34:04.558460Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
@@ -189,6 +189,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:33:57.140036+00:00'
     applied_at: '2026-08-07T10:34:05.399357+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-571b0e5b48da
+    project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Retain the previously accepted merged revision: verified source head
+      c9f16e399efcbe1a0e9ac70948c8fac2d9262017 is an exact ancestor of current origin/main.
+      Direct takeover changed lifecycle state but introduced no new revision; redundant
+      re-audit is unnecessary.'
+    created_at: '2026-08-07T19:34:00.761067+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
