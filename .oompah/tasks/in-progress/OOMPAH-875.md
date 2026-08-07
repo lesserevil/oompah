@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-875
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Prevent slow scheduler lanes from starving Ready integration claims
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T09:58:43.873435Z'
+updated_at: '2026-08-07T18:24:29.907158Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null

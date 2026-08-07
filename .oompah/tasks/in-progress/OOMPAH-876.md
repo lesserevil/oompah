@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-876
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Retry auditor transport failures without consuming substantive candidate capacity
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:20:56.021988Z'
+updated_at: '2026-08-07T18:24:43.024272Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
