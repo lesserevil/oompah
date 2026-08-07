@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: Needs Human
+status: Open
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:44:32.345997Z'
+updated_at: '2026-08-07T14:53:46.725579Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -657,5 +657,19 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 13s
 - Log: OOMPAH-459__20260807T143624Z.jsonl
+---
+author: oompah
+created: 2026-08-07 14:53
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #6)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 590 is merged
+**Evidence head:** `95581aca5772d59c8c23d5b7288b92836f1abbf6`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
