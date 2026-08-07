@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T09:32:47.595163Z'
+updated_at: '2026-08-07T09:32:55.449533Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -157,7 +157,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
     audit_ids:
     - audit-e3a217648c00
-    kind: result
+    - audit-0e160a2ced7f
+    kind: override
     applied: true
     retired_at: '2026-08-07T09:30:57.300061+00:00'
   oompah.terminal_audit_result_intents:
@@ -173,6 +174,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:23:23.562295+00:00'
     applied_at: '2026-08-07T07:23:31.049768+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-845
     audit_id: audit-e3a217648c00
@@ -185,6 +187,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:30:57.300083+00:00'
     applied_at: '2026-08-07T09:31:05.741513+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-75cd2528cd3f
@@ -205,7 +208,7 @@ oompah.terminal_audit:
       so preserve verified Merged work while OOMPAH-876 repairs transport/candidate
       exhaustion and OOMPAH-871 prevents provenance reopen.'
     created_at: '2026-08-07T09:32:43.137459+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -810,5 +813,12 @@ created: 2026-08-07 09:31
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 09:32
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #734 merged at exact reviewed head 60a701e82 after a passing full make-test gate; independent static review and 215 focused tests passed serial and parallel. All three configured auditor transports terminated before a verdict, so preserve verified Merged work while OOMPAH-876 repairs transport/candidate exhaustion and OOMPAH-871 prevents provenance reopen.
 ---
 <!-- COMMENTS:END -->
