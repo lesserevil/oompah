@@ -13,11 +13,10 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-764
 labels:
-- ci-fix
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T14:32:55.931560Z'
+updated_at: '2026-08-07T14:43:24.230473Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
