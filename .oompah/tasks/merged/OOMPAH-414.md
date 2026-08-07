@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-08-07T09:56:20.180570Z'
+updated_at: '2026-08-07T09:56:33.479481Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -110,6 +110,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T09:52:39.535432+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-414
+    target_state: Merged
+    evidence_fingerprint: 9469139fdc3d69d72a8a0fe5b1fa90ccb8a1792a1d98aab2c7b224e29d929dd5
+    audit_ids:
+    - audit-07ff221474de
+    - audit-d8a38ac5ead5
+    - audit-65683f29d5de
+    - audit-08af085da090
+    - audit-3a82bfd112c1
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T09:56:31.530565+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-414
@@ -123,6 +136,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:52:39.535442+00:00'
     applied_at: '2026-08-07T09:52:49.655592+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-283ac1999e04
@@ -141,7 +155,7 @@ oompah.terminal_audit:
       evidence; restore Merged after Archived transport exhaustion. OOMPAH-876 tracks
       the systemic auditor failure.'
     created_at: '2026-08-07T09:56:12.120743+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -859,5 +873,12 @@ created: 2026-08-07 09:52
 Needs Human — Archived audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 09:56
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner recovery: current implementation is already merged with prior PASS evidence; restore Merged after Archived transport exhaustion. OOMPAH-876 tracks the systemic auditor failure.
 ---
 <!-- COMMENTS:END -->
