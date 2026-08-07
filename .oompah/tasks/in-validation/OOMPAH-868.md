@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-868
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:37:59.666877Z'
+updated_at: '2026-08-07T20:50:08.047171Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -98,6 +98,49 @@ oompah.integration:
   submitted_at: '2026-08-07T20:20:47.306905+00:00'
   updated_at: '2026-08-07T20:20:47.306905+00:00'
 oompah.work_branch: OOMPAH-868
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2a8ebe2a11a1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-868
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 51f3fe191f53260f9a75b59920d452d246f2be744fa7c80d23291bd12e68e949
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-07T20:49:56.603021+00:00'
+    selected_ref: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
+    selected_sha: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
+  - version: 1
+    audit_id: audit-6d1b45f02741
+    project_id: proj-14849f1b
+    task_id: OOMPAH-868
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 51f3fe191f53260f9a75b59920d452d246f2be744fa7c80d23291bd12e68e949
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-07T20:49:56.603021+00:00'
+    selected_ref: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
+    selected_sha: 9ef4be055115bc8bcadb695d2b918bd37f554c6a
+  attempt_history: []
 ---
 ## Summary
 
@@ -343,5 +386,15 @@ author: oompah
 created: 2026-08-07 20:37
 ---
 Direct-owner fence reacquired solely to retire a redundant server exact gate started after the already-recorded exact-head gate passed and PR #746 was opened. PR #746 CI remains active; no implementation change or accepted-head change occurred.
+---
+author: oompah
+created: 2026-08-07 20:50
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 20:50
+---
+YOLO: merged PR #746.
 ---
 <!-- COMMENTS:END -->
