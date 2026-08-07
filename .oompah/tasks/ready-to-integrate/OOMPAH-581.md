@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T04:10:45.487585Z'
+updated_at: '2026-08-07T04:11:39.021486Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -123,13 +123,14 @@ oompah.work_contributors:
     source_sha: f2b319c1182cd654112db622a0498171e508dead
     completed_at: '2026-08-07T03:56:06.580091+00:00'
 oompah.integration:
-  version: 1
+  version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-581
-  head_sha: 741a7d88b2ad409575a0b3577564b98f57733f87
-  submitted_at: '2026-07-30T04:47:42.763165+00:00'
-  updated_at: '2026-07-30T04:47:42.763165+00:00'
+  base_branch: main
+  head_sha: f2b319c1182cd654112db622a0498171e508dead
+  submitted_at: '2026-08-07T04:11:31.688856+00:00'
+  updated_at: '2026-08-07T04:11:31.688856+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/600
 oompah.review_number: '600'
 oompah.work_branch: OOMPAH-581
@@ -566,5 +567,10 @@ author: oompah
 created: 2026-08-07 04:10
 ---
 VERIFICATION COMPLETE: Full test suite confirms implementation is solid. Ran: (1) 7/7 TestEpicRepairWorkspaceCleanup tests - all PASS, (2) 94/94 test_projects.py tests - all PASS, (3) 23/23 test_storage_cleanup.py tests - all PASS, (4) 24/24 test_workspace.py tests - all PASS. Total: 148/148 focused tests PASS with zero regressions. Implementation is properly integrated in cleanup_terminal_issue method, guarded by project_write_lock, and follows fail-safe cleanup principles. No auth/access-control issues detected.
+---
+author: oompah
+created: 2026-08-07 04:11
+---
+OOMPAH-581: Prune merged epic repair workspaces verified complete. Implementation adds ProjectStore._cleanup_epic_repair_workspace_locked (oompah/projects.py:4610) to safely remove auxiliary task-style repair workspaces left by epic repair/planner runs. All guards enforced: registered path only, exact same-identifier branch, clean worktree, merged/ancestor-safe. Integrated into cleanup_terminal_issue for terminal epics only. Full test coverage with 7/7 focused tests passing plus 141+ neighboring tests. All auth/access-control checks pass: project-level write locking, no arbitrary path inference, git-based validations. Ready for delivery.
 ---
 <!-- COMMENTS:END -->
