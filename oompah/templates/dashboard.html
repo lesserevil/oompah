@@ -2695,6 +2695,7 @@ let lastRunningAgents = [];
 let currentProjects = [];
 let ownerClaimsByIssueKey = new Map();
 let httpAuthEnabled = false;  // HTTP Basic auth status from server state
+let currentWorkDecisionProjection = null;
 
 // --- Edit-state tracking ---
 // Bug fix: Track when user is inline-editing a card field so that incoming
@@ -2708,7 +2709,7 @@ let _editingDetailPanel = false; // true if user is typing in comment textarea
 // Card element cache: reuse card DOM elements across renders when issue data is unchanged.
 let _lastRenderedSnapshot = null;   // JSON fingerprint of last rendered display data
 let _lastRenderedRenderKey = null;  // view mode + swimlane state string of last render
-let _cardElementCache = new Map();  // identifier -> {fp: string, el: HTMLElement}
+let _cardElementCache = new Map();  // project_id + identifier -> {fp: string, el: HTMLElement}
 
 // --- WebSocket connection ---
 let ws = null;
@@ -2976,6 +2977,7 @@ function _applyIssuesMessage(msg) {
   if (revision !== null &&
       (revision < wsLastAppliedIssueRevision ||
        (revision === wsLastAppliedIssueRevision && revision > 0))) return;
+  applyWorkDecisionProjectionToData(msg.data, currentWorkDecisionProjection);
   if (currentProjects.length > 0) {
     renderBoard(filterByProject(msg.data));
   } else {
@@ -2994,8 +2996,8 @@ function _routeWebSocketMessage(msg) {
     _applyIssuesMessage(msg);
     _setTrackerStaleBanner(false);
   } else if (msg.type === 'activity') {
-    handleActivityPush(msg.identifier, msg.run_id, msg.entry);
-    if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
+    handleActivityPush(msg.project_id, msg.identifier, msg.run_id, msg.entry);
+    if (openDetailIdentityMatches(msg.identifier, msg.project_id)) {
       refreshOpenDetailPanel();
     }
   } else if (msg.type === 'pong') {
@@ -3172,6 +3174,7 @@ function _applyFullSyncMessage(msg) {
     }
     if (stateRevision !== null) wsLastAppliedStateRevision = stateRevision;
     try {
+      applyWorkDecisionProjectionToData(msg.issues, currentWorkDecisionProjection);
       if (currentProjects.length > 0) {
         renderBoard(filterByProject(msg.issues));
       } else {
@@ -3351,6 +3354,84 @@ function optimisticIssueKey(identifier, projectId) {
   const id = identifier || '';
   const pid = projectId || '';
   return pid ? pid + '::' + id : id;
+}
+
+function workDecisionTaskKey(projectId, taskId) {
+  return String(projectId || 'legacy') + '::' + String(taskId || '');
+}
+
+function applyWorkDecisionProjectionToData(data, projection) {
+  if (!data || !projection || !Array.isArray(projection.items)) return false;
+  const byTask = new Map();
+  const incompleteTasks = new Set(
+    (Array.isArray(projection.incomplete_tasks) ? projection.incomplete_tasks : [])
+      .filter(item => item && item.task_id)
+      .map(item => workDecisionTaskKey(item.project_id, item.task_id))
+  );
+  const incompleteProjects = new Set(
+    (Array.isArray(projection.incomplete_projects) ? projection.incomplete_projects : [])
+      .map(projectId => String(projectId || 'legacy'))
+  );
+  const unavailableProjects = new Set(
+    (Array.isArray(projection.unavailable_projects) ? projection.unavailable_projects : [])
+      .map(projectId => String(projectId || 'legacy'))
+  );
+  const projectionAvailability = String(projection.availability || '').toLowerCase();
+  const projectionDisabled = projectionAvailability === 'disabled';
+  projection.items.forEach(function(decision) {
+    if (!decision || !decision.task_id) return;
+    byTask.set(
+      workDecisionTaskKey(decision.project_id, decision.task_id),
+      decision
+    );
+  });
+  let changed = false;
+  Object.values(data).forEach(function(issues) {
+    if (!Array.isArray(issues)) return;
+    issues.forEach(function(issue) {
+      const projectId = String(issue.project_id || 'legacy');
+      const key = workDecisionTaskKey(projectId, issue.identifier);
+      let next = byTask.get(key) || null;
+      const previous = issue.work_decision || null;
+      const previousRevision = previous && previous.decision_revision;
+      let nextAvailability = next ? 'available' : 'unavailable';
+      const normalizedState = String(issue.state || issue.tracker_state || '')
+        .trim().toLowerCase().replace(/[-_]+/g, ' ');
+      if (normalizedState === 'merged' || normalizedState === 'archived') {
+        nextAvailability = 'not_applicable';
+        next = null;
+      } else if (projectionDisabled) {
+        nextAvailability = 'disabled';
+        next = null;
+      } else if (unavailableProjects.has(projectId)) {
+        nextAvailability = 'unavailable';
+        next = null;
+      } else if (incompleteTasks.has(key) ||
+               (incompleteProjects.has(projectId) && !next)) {
+        nextAvailability = 'incomplete';
+        next = null;
+      } else if (!next && !projection.source) {
+        if (projectionAvailability === 'incomplete') {
+          nextAvailability = 'incomplete';
+        } else if (projectionAvailability === 'unavailable' ||
+                   projectionAvailability === 'partial') {
+          nextAvailability = 'unavailable';
+        } else {
+          nextAvailability = 'pending';
+        }
+      }
+      const nextRevision = next && next.decision_revision;
+      const previousAvailability = issue.work_decision_availability || null;
+      if (previousRevision === nextRevision &&
+          Boolean(previous) === Boolean(next) &&
+          previousAvailability === nextAvailability) return;
+      if (next) issue.work_decision = next;
+      else delete issue.work_decision;
+      issue.work_decision_availability = nextAvailability;
+      changed = true;
+    });
+  });
+  return changed;
 }
 
 function issuePathIdentifier(identifier) {
@@ -3537,6 +3618,7 @@ function renderRunningAgentChips(running, paused) {
   container.innerHTML = visibleRunning.map(r => {
     const rawId = r.issue_identifier || '';
     const id = esc(rawId);
+    const projectId = esc(r.project_id || '');
     const runId = esc(r.run_id || '');
     const displayId = esc(displayIdentifierFor(rawId, r.project_id, r.project_name, r.display_identifier));
     const decision = r.work_decision || null;
@@ -3544,7 +3626,7 @@ function renderRunningAgentChips(running, paused) {
       ? esc((decision.reason_text || decision.reason_code || 'Workflow decision') +
         ' — owner: ' + (decision.owner || decision.responsible_owner || 'unknown'))
       : 'Workflow decision unavailable';
-    return '<span class="running-agent-chip" role="status" aria-label="' + decisionLabel + '" title="' + decisionLabel + '" onclick="openActivityPanel(&quot;' + id + '&quot;,&quot;' + runId + '&quot;)">' +
+    return '<span class="running-agent-chip" role="status" aria-label="' + decisionLabel + '" title="' + decisionLabel + '" onclick="openActivityPanel(&quot;' + id + '&quot;,&quot;' + projectId + '&quot;,&quot;' + runId + '&quot;)">' +
       '<span class="dot"></span>' +
       displayId +
       (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
@@ -3862,10 +3944,10 @@ function renderWorkDecisionSummary(decision, compact) {
   ].filter(Boolean).join(' — ');
   const label = esc(reason + '. Owner: ' + owner + '. Disposition: ' + disposition);
   if (compact) {
-    return '<span class="work-decision-chip" role="status" aria-label="' + label + '" title="' + esc(detail) + '">' +
+    return '<span class="work-decision-chip" role="note" aria-label="' + label + '" title="' + esc(detail) + '">' +
       esc(reason) + '</span>';
   }
-  return '<div class="work-decision-summary" role="status" aria-label="' + label + '">' +
+  return '<div class="work-decision-summary" role="note" aria-label="' + label + '">' +
     '<div class="work-decision-main"><strong>' + esc(reason) + '</strong></div>' +
     '<div class="work-decision-meta">Owner: ' + esc(owner) + ' · ' + esc(disposition) +
       (decision.action_required ? ' · action required' : '') + '</div>' +
@@ -3874,46 +3956,57 @@ function renderWorkDecisionSummary(decision, compact) {
     '</div>';
 }
 
-function renderTerminalAuditHealth(health, hiddenByAlert) {
+function renderWorkDecisionAvailability(availability, compact) {
+  const messages = {
+    incomplete: 'Workflow decision pending a bounded rotating or reconciliation pass',
+    unavailable: 'Workflow decision evidence is currently unavailable',
+    pending: 'Workflow decision is pending the next controller pass',
+  };
+  const message = messages[String(availability || '').toLowerCase()];
+  if (!message) return '';
+  const label = esc(message);
+  if (compact) {
+    return '<span class="work-decision-chip" role="status" aria-label="' + label +
+      '" title="' + label + '">' + label + '</span>';
+  }
+  return '<div class="work-decision-summary" role="status" aria-label="' + label + '">' +
+    '<div class="work-decision-main"><strong>' + label + '</strong></div></div>';
+}
+
+function renderTerminalAuditHealth(health, actionableAlerts) {
   // Build a compact, redacted health summary from durable numeric facts only.
   // This function deliberately does NOT render provider names, model output, or
   // exception text — those live in the alert list which is filtered server-side.
   const banner = document.getElementById('terminal-audit-health');
   const detail = document.getElementById('terminal-audit-health-detail');
   if (!banner || !detail) return;
-  if (hiddenByAlert || !health || typeof health !== 'object') {
+  const sources = new Set((Array.isArray(actionableAlerts) ? actionableAlerts : [])
+    .map(a => String(a && a.source || ''))
+    .filter(source => source.indexOf('terminal_audit_health:') === 0));
+  if (!health || typeof health !== 'object' || sources.size === 0) {
     banner.hidden = true;
     detail.textContent = '';
     return;
   }
   const parts = [];
-  if (health.policy_incompatibility_count > 0) {
+  if (sources.has('terminal_audit_health:policy_incompatibility')) {
     parts.push(
       health.policy_incompatibility_count + ' local auditor tool-policy incompatibility(s)'
     );
   }
-  if (health.launch_failure_count > 0 || health.transport_failure_count > 0) {
-    parts.push(
-      health.launch_failure_count + ' launch, ' +
-      health.transport_failure_count + ' transport failure(s)'
-    );
-  }
-  if (health.finalization_failure_count > 0) {
+  if (sources.has('terminal_audit_health:finalization_failures')) {
     parts.push(
       health.finalization_failure_count + ' uncommitted audit finalization failure(s)'
     );
   }
-  if (health.retry_exhausted_count > 0) {
+  if (sources.has('terminal_audit_health:retry_exhausted')) {
     parts.push(health.retry_exhausted_count + ' audit(s) with exhausted retries');
   }
-  if (health.oldest_pending_age_seconds != null && health.oldest_pending_age_seconds > 0) {
-    parts.push('oldest pending: ' + health.oldest_pending_age_seconds + 's');
-  }
-  if (health.stale_in_validation_count > 0) {
-    parts.push(health.stale_in_validation_count + ' stale In Validation record(s)');
-  }
-  if (!health.scan_complete) {
+  if (sources.has('terminal_audit_health:scan')) {
     parts.push('health scan incomplete');
+  }
+  if (sources.has('terminal_audit_health:metadata_quarantine')) {
+    parts.push(health.quarantined_count + ' quarantined audit record(s)');
   }
   if (parts.length > 0) {
     detail.textContent = parts.join(' · ');
@@ -3934,7 +4027,7 @@ function renderQualityGateHealth(health, hiddenByAlert) {
     return;
   }
   const status = String(health.status || 'idle');
-  if (status === 'idle') {
+  if (health.action_required !== true) {
     banner.hidden = true;
     detail.textContent = '';
     return;
@@ -3974,6 +4067,13 @@ function renderRepoHygieneHealth(health, hiddenByAlert) {
   }
 
   var healthy = health.is_healthy !== false;
+  if (healthy) {
+    panel.hidden = true;
+    inventory.innerHTML = '';
+    overdueList.innerHTML = '';
+    errorList.innerHTML = '';
+    return;
+  }
   panel.classList.toggle('degraded', !healthy);
   icon.textContent = healthy ? '\u2713' : '\u26a0';
   title.textContent = healthy ? 'Repository hygiene healthy' : 'Repository hygiene needs attention';
@@ -4021,22 +4121,26 @@ function renderRepoHygieneHealth(health, hiddenByAlert) {
 
 /**
  * Render the auth-health banner from the `auth_health` field in the state
- * snapshot.  The banner shows two plane badges (operator / worker) and, when
- * any plane is degraded, expands to show the message and recovery action.
- * Intentional policy denials remain informational and do not change the
- * worker badge status.
+ * snapshot. The banner reserves global space only when an actionable auth
+ * alert explicitly requires operator intervention. Rolling-window failures
+ * and intentional policy denials remain informational diagnostics.
  *
  * Security: only non-sensitive count/status fields from auth_health are
  * rendered.  Token values, credentials, and Authorization headers are
  * never present in the snapshot payload.
  */
-function renderAuthHealthBanner(authHealth, hiddenByAlert) {
+function renderAuthHealthBanner(authHealth, actionableAlerts) {
   var banner = document.getElementById('auth-health-banner');
   var planesEl = document.getElementById('auth-health-planes');
   var detailsEl = document.getElementById('auth-health-details');
   if (!banner || !planesEl || !detailsEl) return;
 
-  if (hiddenByAlert || !authHealth) {
+  const actionableSources = new Set(
+    (Array.isArray(actionableAlerts) ? actionableAlerts : [])
+      .map(a => String(a && a.source || ''))
+      .filter(source => source.indexOf('auth_health:') === 0)
+  );
+  if (!authHealth || actionableSources.size === 0) {
     banner.hidden = true;
     planesEl.innerHTML = '';
     detailsEl.innerHTML = '';
@@ -4133,6 +4237,19 @@ function handleStateUpdate(state) {
   // Update HTTP auth state (used by mutations to conditionally omit actor)
   httpAuthEnabled = (state.http_auth && state.http_auth.enabled) || false;
 
+  // WorkDecision revisions are state even when tracker status is unchanged.
+  // Overlay them onto current issues so cards never wait for an unrelated
+  // tracker mutation or issues-cache TTL.
+  const incomingDecisionProjection = state.work_decision_projection;
+  let decisionProjectionChanged = false;
+  if (incomingDecisionProjection && Array.isArray(incomingDecisionProjection.items)) {
+    currentWorkDecisionProjection = incomingDecisionProjection;
+    decisionProjectionChanged = applyWorkDecisionProjectionToData(
+      boardData,
+      currentWorkDecisionProjection
+    );
+  }
+
   // OOMPAH-735 and OOMPAH-741: automatic recovery and normal operating
   // status remain available in diagnostics, but only a current operator
   // action enters the alert center. Normalize at the renderer boundary so an
@@ -4159,16 +4276,13 @@ function handleStateUpdate(state) {
 
   // Dedicated diagnostics present only non-actionable facts. Their matching
   // actionable condition is already represented once in the alert center.
-  const terminalAuditHasAction = hasActionableSource('terminal_audit:') ||
-    hasActionableSource('terminal_audit_health:');
   const qualityGateHasAction = hasActionableSource('quality_gate:');
   const repoHygieneHasAction = hasActionableSource('repo_hygiene_health');
-  const authHealthHasAction = hasActionableSource('auth_health:');
   renderTerminalAuditHealth(
     state.terminal_audit_health ||
     (state.health && state.health.terminal_audit) ||
     null,
-    terminalAuditHasAction
+    actionableAlerts
   );
   renderQualityGateHealth(
     state.quality_gates ||
@@ -4183,7 +4297,7 @@ function handleStateUpdate(state) {
 
   // Authentication is status information when healthy and an alert-center
   // item when degraded, never both.
-  renderAuthHealthBanner(state.auth_health || null, authHealthHasAction);
+  renderAuthHealthBanner(state.auth_health || null, actionableAlerts);
 
   // Update agent stats
   const totals = state.agent_totals || {};
@@ -4248,9 +4362,12 @@ function handleStateUpdate(state) {
     // moves the issue between columns and self-clears once the server
     // confirms via the next "issues" push.
   }
-  if ((newDispatchAgents.length > 0 || ownerClaimsChanged) &&
+  if ((newDispatchAgents.length > 0 || ownerClaimsChanged || decisionProjectionChanged) &&
       !wsApplyingFullSync && boardData && Object.keys(boardData).length > 0) {
     renderBoard(boardData);
+  }
+  if (decisionProjectionChanged && !wsApplyingFullSync) {
+    refreshOpenDetailPanel();
   }
 
   lastRunningAgents = running;
@@ -4428,8 +4545,8 @@ function scanQuestionsFromBoard() {
       '<div class="questions-dropdown-header">Waiting for your answer</div>' +
       askingIssues.map(issue =>
         '<div class="questions-dropdown-item" role="menuitem" tabindex="0"' +
-          ' onclick="event.stopPropagation(); closeQuestionsDropdown(); openDetailPanel(\'' + esc(issue.identifier) + '\')"' +
-          ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();event.stopPropagation();closeQuestionsDropdown();openDetailPanel(\'' + esc(issue.identifier) + '\')}">' +
+          ' onclick="event.stopPropagation(); closeQuestionsDropdown(); openDetailPanel(\'' + esc(issue.identifier) + '\', \'' + esc(issue.project_id || '') + '\')"' +
+          ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();event.stopPropagation();closeQuestionsDropdown();openDetailPanel(\'' + esc(issue.identifier) + '\', \'' + esc(issue.project_id || '') + '\')}">' +
           '<span class="questions-dropdown-item-id">' + esc(issueDisplayIdentifier(issue)) + '</span>' +
           '<span class="questions-dropdown-item-title">' + esc(issue.title) + '</span>' +
         '</div>'
@@ -4976,6 +5093,7 @@ function applyOptimisticOverrides(data) {
 // Compute a stable fingerprint for an issue from all fields that affect card rendering.
 function issueFingerprint(issue) {
   return JSON.stringify({
+    project_id: issue.project_id || '',
     identifier: issue.identifier,
     title: issue.title,
     description: issue.description || '',
@@ -4988,6 +5106,8 @@ function issueFingerprint(issue) {
     duplicate_screening: issue.duplicate_screening,
     terminal_audit: issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary,
     terminal_audit_summary: issue.terminal_audit_summary,
+    work_decision: issue.work_decision,
+    work_decision_availability: issue.work_decision_availability,
     owner_claim: ownerClaimFor(issue),
     attachments: issue.attachments,
     labels: issue.labels,
@@ -5000,12 +5120,13 @@ function issueFingerprint(issue) {
 // otherwise create a new card and update the cache.
 function getOrCreateCard(issue) {
   const fp = issueFingerprint(issue);
-  const cached = _cardElementCache.get(issue.identifier);
+  const cacheKey = workDecisionTaskKey(issue.project_id, issue.identifier);
+  const cached = _cardElementCache.get(cacheKey);
   if (cached && cached.fp === fp) {
     return cached.el;
   }
   const el = createCard(issue);
-  _cardElementCache.set(issue.identifier, {fp, el});
+  _cardElementCache.set(cacheKey, {fp, el});
   return el;
 }
 
@@ -5037,14 +5158,18 @@ function restoreColumnScrollPositions(positions) {
 // the card set or order changed.  Does NOT recreate the body element itself,
 // preserving its scrollTop and its existing drop-zone event listeners.
 function reconcileColumnBody(body, issues) {
-  const newIds = issues.map(i => i.identifier);
+  const newIds = issues.map(i => workDecisionTaskKey(i.project_id, i.identifier));
   const existingCards = Array.from(body.querySelectorAll('.card'));
-  const existingIds = existingCards.map(c => c.dataset.id);
+  const existingIds = existingCards.map(c =>
+    workDecisionTaskKey(c.dataset.projectId, c.dataset.id)
+  );
 
   // Detect whether any card fingerprint has changed
   const changedFingerprints = issues.some(issue => {
     const fp = issueFingerprint(issue);
-    const cached = _cardElementCache.get(issue.identifier);
+    const cached = _cardElementCache.get(
+      workDecisionTaskKey(issue.project_id, issue.identifier)
+    );
     return !cached || cached.fp !== fp;
   });
 
@@ -5103,6 +5228,7 @@ function tryIncrementalFlatView(board, data) {
 // --- End incremental board reconciliation helpers ---
 
 function renderBoard(data) {
+  applyWorkDecisionProjectionToData(data, currentWorkDecisionProjection);
   data = normalizeBoardData(data);
   data = applyOptimisticOverrides(data);
 
@@ -5161,6 +5287,7 @@ function renderBoard(data) {
   const scrollPositions = saveColumnScrollPositions();
   const focusedEl = document.activeElement;
   const focusedDataId = focusedEl && focusedEl.dataset && focusedEl.dataset.id;
+  const focusedDataProjectId = focusedEl && focusedEl.dataset && focusedEl.dataset.projectId;
   const focusedDataField = focusedEl && focusedEl.dataset && focusedEl.dataset.field;
 
   const board = document.getElementById('board');
@@ -5181,8 +5308,10 @@ function renderBoard(data) {
   // Restore scroll positions (by data-state key) and keyboard focus.
   restoreColumnScrollPositions(scrollPositions);
   if (focusedDataId && focusedDataField) {
-    const toFocus = board.querySelector(
-      '[data-id="' + focusedDataId + '"][data-field="' + focusedDataField + '"]'
+    const toFocus = Array.from(board.querySelectorAll('[data-id][data-field]')).find(el =>
+      el.dataset.id === focusedDataId &&
+      (el.dataset.projectId || '') === (focusedDataProjectId || '') &&
+      el.dataset.field === focusedDataField
     );
     if (toFocus) toFocus.focus();
   }
@@ -5305,8 +5434,8 @@ function renderSwimlaneView(board, data) {
         <span class="swimlane-title">${esc(epic.title)}</span>
         <span class="swimlane-counts" title="Backlog / Open / In Progress / In Validation / Done">${countsStr}</span>
         <span class="swimlane-actions">
-          <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
-          <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details</button>
+          <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}', '${esc(epic.project_id || '')}')">+ Child</button>
+          <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}', '${esc(epic.project_id || '')}')">Details</button>
         </span>
       </div>
       <div class="swimlane-columns"></div>
@@ -5926,21 +6055,22 @@ function renderCardTerminalAuditSummary(audit) {
   return `<div class="terminal-audit-card-summary" role="status" aria-label="Terminal audit: ${esc(phase)} for ${esc(target)}"><strong>Audit</strong><span>${esc(phase)} · ${esc(target)}${progression}${final}</span></div>`;
 }
 
-function renderIntegrationSummary(record, queue) {
+function renderIntegrationSummary(record, queue, decision) {
   if (!record && !queue) return '';
   const source = queue || record || {};
   const state = source.state || record?.state || 'ready';
   const branch = source.task_branch ? ` · ${source.task_branch}` : '';
   const head = source.head_sha ? ` @ ${source.head_sha.slice(0, 8)}` : '';
-  const reason = source.wait_reason || source.last_error || record?.last_error || '';
   const attempts = Number.isFinite(Number(source.attempts)) ? ` · attempt ${source.attempts}` : '';
   const retryAt = source.next_retry_at ? ` · next retry ${new Date(Number(source.next_retry_at) * 1000).toLocaleString()}` : '';
-  const action = source.repair_action ? ` · repair: ${source.repair_action}` : '';
-  const detail = reason ? ` · ${reason}` : '';
+  const reason = decision && (decision.reason_text || decision.reason_code) || 'Decision pending';
+  const owner = decision && (decision.owner || decision.responsible_owner) || 'unassigned';
+  const action = decision && decision.recovery_action || '';
+  const detail = ` · ${reason} · owner: ${owner}` + (action ? ` · next: ${action}` : '');
   return `<div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
-    role="status" aria-label="Integration ${esc(state)}${esc(attempts)}"
-    title="${esc(`Integration ${state}${branch}${head}${attempts}${retryAt}${detail}${action}`)}">
-    Integration: ${esc(state)}${esc(head)}${esc(attempts)}${retryAt ? ` · ${esc(retryAt)}` : ''}${reason ? ` · ${esc(reason)}` : ''}
+    role="status" aria-label="Integration ${esc(state)}. ${esc(reason)}. Owner: ${esc(owner)}"
+    title="${esc(`Integration ${state}${branch}${head}${attempts}${retryAt}${detail}`)}">
+    Integration: ${esc(state)}${esc(head)}${esc(attempts)}${retryAt ? ` · ${esc(retryAt)}` : ''} · ${esc(reason)}
   </div>`;
 }
 
@@ -6007,7 +6137,7 @@ async function submitTerminalAuditOverride(identifier) {
       setTerminalAuditOverrideError(identifier, message);
       return false;
     }
-    await openDetailPanel(identifier);
+    await openDetailPanel(identifier, projectId);
     const data = await fetchIssues();
     if (data) renderBoard(data);
     return true;
@@ -6105,7 +6235,7 @@ function createCard(issue) {
           <span class="epic-tooltip">
             <div class="epic-tooltip-title">${esc(epic.title)}</div>
             <div class="epic-tooltip-desc">${esc(epic.description || 'No description')}</div>
-            <span class="epic-tooltip-link" onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details &rarr;</span>
+            <span class="epic-tooltip-link" onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}', '${esc(epic.project_id || '')}')">Details &rarr;</span>
           </span>
         </span>
       `;
@@ -6151,15 +6281,18 @@ function createCard(issue) {
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
     <div class="card-title" contenteditable="true" spellcheck="false"
-         data-field="title" data-id="${esc(issue.identifier)}">${esc(issue.title)}</div>
+         data-field="title" data-id="${esc(issue.identifier)}"
+         data-project-id="${esc(issue.project_id || '')}">${esc(issue.title)}</div>
     <div class="card-desc" contenteditable="true" spellcheck="false"
-         data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
-    ${renderWorkDecisionSummary(issue.work_decision, false)}
+         data-field="description" data-id="${esc(issue.identifier)}"
+         data-project-id="${esc(issue.project_id || '')}">${esc(issue.description || '')}</div>
+    ${renderWorkDecisionSummary(issue.work_decision, true) ||
+      renderWorkDecisionAvailability(issue.work_decision_availability, true)}
     ${renderCardIntakeSummary(issue)}
     ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
     ${renderCardTerminalAuditSummary(issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary)}
     <!-- Safe-projection compatibility: renderTerminalAuditSummary(issue.terminal_audit_summary). -->
-    ${renderIntegrationSummary(issue.integration, issue.integration_queue)}
+    ${renderIntegrationSummary(issue.integration, issue.integration_queue, issue.work_decision)}
     ${renderCardAttachments(issue)}
   `;
 
@@ -6170,7 +6303,7 @@ function createCard(issue) {
     identifierEl.style.cursor = 'pointer';
     identifierEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      openDetailPanel(issue.identifier);
+      openDetailPanel(issue.identifier, issue.project_id || '');
     });
   }
 
@@ -6209,7 +6342,11 @@ function createCard(issue) {
       card.draggable = false;
       // Bug fix: Track that this field is being edited so renderBoard()
       // defers DOM rebuilds until the user finishes.
-      editingState = { identifier: el.dataset.id, field: el.dataset.field };
+      editingState = {
+        identifier: el.dataset.id,
+        projectId: el.dataset.projectId || '',
+        field: el.dataset.field,
+      };
     });
     el.addEventListener('blur', async () => {
       card.draggable = true;
@@ -6370,7 +6507,10 @@ function setupDropZone(body) {
       const dropPos = parseInt(activeIndicator.dataset.position, 10);
       const colIssues = (boardData[targetState] || []).filter(i => shouldShowIssueAsWorkCard(i));
       // Exclude the dragged card from the list to compute neighbors
-      const others = colIssues.filter(i => i.identifier !== identifier);
+      const others = colIssues.filter(i =>
+        i.identifier !== identifier ||
+        String(i.project_id || '') !== String(dragState.projectId || '')
+      );
       // Clamp drop position after removing the dragged card
       const pos = Math.min(dropPos, others.length);
       const above = pos > 0 ? others[pos - 1] : null;
@@ -6387,7 +6527,10 @@ function setupDropZone(body) {
       }
       if (newPri === dragState.priority) return; // no change
       // Optimistic update
-      const issue = colIssues.find(i => i.identifier === identifier);
+      const issue = colIssues.find(i =>
+        i.identifier === identifier &&
+        String(i.project_id || '') === String(dragState.projectId || '')
+      );
       if (issue) issue.priority = newPri;
       boardData[targetState].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
       renderBoard(boardData);
@@ -6480,7 +6623,11 @@ function toggleAgentLogVerbose() {
 }
 
 function activityTitleForAgent(identifier, agent) {
-  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const agentProjectId = agent && agent.project_id ? String(agent.project_id) : '';
+  const issue = allIssuesFlat.find(i =>
+    i.identifier === identifier &&
+    (!agentProjectId || String(i.project_id || '') === agentProjectId)
+  );
   const displayIdentifier = agent
     ? displayIdentifierFor(agent.issue_identifier, agent.project_id, agent.project_name, agent.display_identifier)
     : (issue ? issueDisplayIdentifier(issue) : identifier);
@@ -6506,11 +6653,12 @@ function clearActivityPanelData(message) {
   if (summaryEl) summaryEl.textContent = message || 'Loading...';
 }
 
-function setActivityPanelIdentity(identifier, agent, runId, resetMetadata = true) {
+function setActivityPanelIdentity(identifier, projectId, agent, runId, resetMetadata = true) {
   const titleEl = document.getElementById('activity-title');
   if (titleEl) {
     titleEl.textContent = activityTitleForAgent(identifier, agent);
     titleEl.dataset.identifier = identifier;
+    titleEl.dataset.projectId = projectId || '';
     titleEl.dataset.runId = runId || '';
   }
   _activityRunId = runId || null;
@@ -6530,14 +6678,17 @@ function syncOpenActivityPanel(running) {
   const titleEl = document.getElementById('activity-title');
   if (!titleEl) return;
   const identifier = titleEl.dataset.identifier;
-  const agent = (running || []).find(r => r.issue_identifier === identifier);
+  const projectId = titleEl.dataset.projectId || '';
+  const agent = (running || []).find(r =>
+    r.issue_identifier === identifier && String(r.project_id || '') === projectId
+  );
   const currentRunId = titleEl.dataset.runId || '';
 
   if (!agent) {
     if (currentRunId) {
       _activityRequestGeneration++;
       clearActivityPanelData('Run ended. Waiting for next run...');
-      setActivityPanelIdentity(identifier, null, null);
+      setActivityPanelIdentity(identifier, projectId, null, null);
       titleEl.textContent = activityTitleForAgent(identifier, null) + ' — run ended';
     }
     return;
@@ -6549,14 +6700,14 @@ function syncOpenActivityPanel(running) {
     _activityRequestGeneration++;
     clearActivityPanelData('Loading...');
   }
-  setActivityPanelIdentity(identifier, agent, nextRunId, runChanged);
+  setActivityPanelIdentity(identifier, projectId, agent, nextRunId, runChanged);
   if (runChanged) {
     const generation = _activityRequestGeneration;
-    refreshActivity(identifier, nextRunId, generation);
+    refreshActivity(identifier, projectId, nextRunId, generation);
   }
 }
 
-async function openActivityPanel(identifier, runId) {
+async function openActivityPanel(identifier, projectId, runId) {
   // Cancel any prior agent's poll loop AND invalidate every in-flight fetch
   // before rendering the new run identity.
   _activityRequestGeneration++;
@@ -6565,9 +6716,11 @@ async function openActivityPanel(identifier, runId) {
 
   // Prefer the current state row if a stale chip was clicked after a new run
   // had already started. The old run id must never select the new run's cache.
-  const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
+  const agent = lastRunningAgents.find(r =>
+    r.issue_identifier === identifier && String(r.project_id || '') === String(projectId || '')
+  );
   const selectedRunId = agent ? (agent.run_id || '') : (runId || '');
-  setActivityPanelIdentity(identifier, agent, selectedRunId);
+  setActivityPanelIdentity(identifier, projectId, agent, selectedRunId);
   // Keep the open path explicit for the initial header paint; subsequent
   // state updates use setActivityPanelIdentity() as the same-run update path.
   const pmEl = document.getElementById('activity-provider-model');
@@ -6581,12 +6734,16 @@ async function openActivityPanel(identifier, runId) {
 
   document.getElementById('activity-overlay').classList.add('open');
   initAgentLogVerboseToggle();
-  await refreshActivity(identifier, selectedRunId, generation);
+  await refreshActivity(identifier, projectId, selectedRunId, generation);
   // Only poll if WebSocket is not connected
   if (_activityRequestGeneration === generation &&
       document.getElementById('activity-title').dataset.runId === selectedRunId &&
+      document.getElementById('activity-title').dataset.projectId === String(projectId || '') &&
       (!ws || ws.readyState !== WebSocket.OPEN)) {
-    activityPollTimer = setInterval(() => refreshActivity(identifier), 2000);
+    activityPollTimer = setInterval(
+      () => refreshActivity(identifier, projectId, selectedRunId),
+      2000
+    );
   }
 }
 
@@ -6617,7 +6774,11 @@ function closeActivityPanel() {
   _activityEntries = [];
   _activityRunId = null;
   const titleEl = document.getElementById('activity-title');
-  if (titleEl) { titleEl.dataset.identifier = ''; titleEl.dataset.runId = ''; }
+  if (titleEl) {
+    titleEl.dataset.identifier = '';
+    titleEl.dataset.projectId = '';
+    titleEl.dataset.runId = '';
+  }
   const pmEl = document.getElementById('activity-provider-model');
   if (pmEl) { pmEl.textContent = ''; pmEl.title = ''; pmEl.hidden = true; }
 }
@@ -6818,16 +6979,19 @@ function renderActivityList(entries) {
   renderActivitySummary(entries);
 }
 
-function handleActivityPush(identifier, runId, entry) {
+function handleActivityPush(projectId, identifier, runId, entry) {
   // Only update if the activity panel is open for this agent
   const overlay = document.getElementById('activity-overlay');
   if (!overlay || !overlay.classList.contains('open')) return;
   const titleEl = document.getElementById('activity-title');
   if (titleEl.dataset.identifier !== identifier) return;
+  if ((titleEl.dataset.projectId || '') !== String(projectId || '')) return;
   // A task identifier can host multiple sequential runs. Once the panel has
   // a run identity, an untagged or superseded event is not safe to display.
   const activeRunId = titleEl.dataset.runId || '';
-  if (activeRunId && (!runId || activeRunId !== runId)) return;
+  // An empty run identity means syncOpenActivityPanel observed that the run
+  // ended; late messages from that run must not repopulate the cleared panel.
+  if (!activeRunId || !runId || activeRunId !== runId) return;
   // Keep the cache in sync so toggling Verbose can re-render without a fetch.
   _activityEntries.push(entry);
   const body = document.getElementById('activity-body');
@@ -6851,11 +7015,15 @@ function handleActivityPush(identifier, runId, entry) {
 
 async function refreshActivity(
   identifier,
+  projectId,
   runId = _activityRunId || '',
   requestGeneration = _activityRequestGeneration
 ) {
   try {
-    const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/activity');
+    const res = await fetch(
+      '/api/v1/agents/' + encodeURIComponent(identifier) + '/activity?project_id=' +
+      encodeURIComponent(projectId || '')
+    );
     const data = await res.json();
     // Discard the response if the operator switched to another agent
     // while the fetch was in flight — otherwise we'd render this
@@ -6864,6 +7032,8 @@ async function refreshActivity(
     if (!titleEl ||
         requestGeneration !== _activityRequestGeneration ||
         titleEl.dataset.identifier !== identifier ||
+        (titleEl.dataset.projectId || '') !== String(projectId || '') ||
+        String(data.project_id || '') !== String(projectId || '') ||
         (titleEl.dataset.runId || '') !== (runId || '') ||
         (data.run_id || '') !== (runId || '')) return;
 
@@ -6883,7 +7053,14 @@ async function refreshActivity(
 
 // --- Detail panel ---
 let _openDetailIdentifier = null;
+let _openDetailProjectId = null;
 let _detailRefreshTimer = null;
+
+function openDetailIdentityMatches(identifier, projectId) {
+  if (!_openDetailIdentifier) return false;
+  return workDecisionTaskKey(_openDetailProjectId, _openDetailIdentifier) ===
+    workDecisionTaskKey(projectId, identifier);
+}
 
 function refreshOpenDetailPanel() {
   if (!_openDetailIdentifier) return;
@@ -6902,7 +7079,9 @@ function refreshOpenDetailPanel() {
     if (stillFocused && stillFocused.classList.contains('detail-editable')) return;
     const ci = document.getElementById('comment-input');
     if (ci && document.activeElement === ci) return;
-    if (_openDetailIdentifier) openDetailPanel(_openDetailIdentifier);
+    if (_openDetailIdentifier) {
+      openDetailPanel(_openDetailIdentifier, _openDetailProjectId || '');
+    }
   }, 500);
 }
 
@@ -6938,7 +7117,7 @@ function renderReleasePicksSection(picksData, identifier, projectId) {
     html += `
       <div class="release-pick-backport-of">
         <span style="font-size:0.72rem;color:var(--text-muted);">Backport of</span>
-        <span class="release-pick-task-link" onclick="openDetailPanel('${esc(backportOf.source)}')">${esc(backportOf.source)}</span>
+        <span class="release-pick-task-link" onclick="openDetailPanel('${esc(backportOf.source)}', '${esc(projectId || '')}')">${esc(backportOf.source)}</span>
         <span class="release-pick-status release-pick-status-${esc(backportOf.status)}">${esc(backportOf.status.replace(/_/g, ' '))}</span>
       </div>
     `;
@@ -6949,7 +7128,7 @@ function renderReleasePicksSection(picksData, identifier, projectId) {
     for (const entry of backports) {
       const nextAction = releasePickNextAction(entry.status);
       const taskLink = entry.task_id
-        ? `<span class="release-pick-task-link" onclick="openDetailPanel('${esc(entry.task_id)}')">${esc(entry.task_id)}</span>`
+        ? `<span class="release-pick-task-link" onclick="openDetailPanel('${esc(entry.task_id)}', '${esc(projectId || '')}')">${esc(entry.task_id)}</span>`
         : '';
       // Render PR link with state-aware styling:
       //   pr_open   -> open PR (active link)
@@ -7109,7 +7288,7 @@ function renderEpicReleaseAddendumsSection(addendumData, identifier, projectId, 
         if (childCount > 0) {
           childListHtml = '<ul class="epic-addendum-child-list">' +
             (entry.included_child_ids || []).map(cid =>
-              `<li><span onclick="openDetailPanel('${esc(cid)}')" style="cursor:pointer;text-decoration:underline;color:var(--accent);">${esc(cid)}</span></li>`
+              `<li><span onclick="openDetailPanel('${esc(cid)}', '${esc(projectId || '')}')" style="cursor:pointer;text-decoration:underline;color:var(--accent);">${esc(cid)}</span></li>`
             ).join('') +
             '</ul>';
         }
@@ -7371,7 +7550,9 @@ async function submitAddReleaseBranchesDialog() {
 
     closeAddReleaseBranchesDialog();
     // Refresh the detail panel so the new addendum rows appear in 'open' state
-    if (_openDetailIdentifier) await openDetailPanel(_openDetailIdentifier);
+    if (_openDetailIdentifier) {
+      await openDetailPanel(_openDetailIdentifier, _openDetailProjectId || '');
+    }
 
   } catch (_e) {
     errorDiv.textContent = 'Network error — could not queue release addendums.';
@@ -7400,14 +7581,14 @@ function intakeActorLogin() {
   return (localStorage.getItem('oompah_intake_actor') || '').trim();
 }
 
-function setIntakeActorLogin(identifier) {
+function setIntakeActorLogin(identifier, projectId = '') {
   const current = intakeActorLogin();
   const actor = prompt('GitHub login', current);
   if (actor === null) return;
   const clean = actor.trim();
   if (clean) localStorage.setItem('oompah_intake_actor', clean);
   else localStorage.removeItem('oompah_intake_actor');
-  if (identifier) openDetailPanel(identifier);
+  if (identifier) openDetailPanel(identifier, projectId);
 }
 
 function renderIntakeActions(detail) {
@@ -7433,7 +7614,7 @@ function renderIntakeActions(detail) {
     <div class="detail-field intake-actions">
       <div class="intake-actions-header">
         <div class="detail-field-label">Intake</div>
-        <button class="intake-actor-button" onclick="setIntakeActorLogin('${esc(detail.identifier)}')">${esc(actorLabel)}</button>
+        <button class="intake-actor-button" onclick="setIntakeActorLogin('${esc(detail.identifier)}', '${esc(detail.project_id || '')}')">${esc(actorLabel)}</button>
       </div>
       ${buttons.length > 0
         ? `<div class="intake-actions-buttons">${buttons.join('')}</div>`
@@ -7460,7 +7641,7 @@ async function archiveIssueFromDetail(identifier) {
   if (!confirm('Archive this task as will not do / cancelled?')) return;
   const ok = await updateIssue(identifier, {status: 'Archived', project_id: projectId});
   if (!ok) return;
-  await openDetailPanel(identifier);
+  await openDetailPanel(identifier, projectId);
   const data = await fetchIssues();
   if (data) renderBoard(data);
 }
@@ -7521,13 +7702,24 @@ async function performIntakeAction(identifier, action) {
     showBoardError(messageText);
     return;
   }
-  await openDetailPanel(identifier);
+  await openDetailPanel(identifier, projectId);
   const data = await fetchIssues();
   if (data) renderBoard(data);
 }
 
-async function openDetailPanel(identifier) {
+async function openDetailPanel(identifier, requestedProjectId = '') {
+  const rememberedProjectId = identifier === _openDetailIdentifier
+    ? (_openDetailProjectId || '') : '';
+  const preferredProjectId = String(
+    requestedProjectId || rememberedProjectId || selectedProjectFilterValue() || ''
+  );
+  const issue = allIssuesFlat.find(i =>
+    i.identifier === identifier &&
+    (!preferredProjectId || String(i.project_id || '') === preferredProjectId)
+  );
+  let projectId = preferredProjectId || (issue && issue.project_id) || '';
   _openDetailIdentifier = identifier;
+  _openDetailProjectId = projectId;
   const panel = document.getElementById('detail-panel');
   const body = document.getElementById('detail-panel-body');
   const isRefresh = panel.classList.contains('open');
@@ -7536,8 +7728,6 @@ async function openDetailPanel(identifier) {
   }
   panel.classList.add('open');
 
-  const issue = allIssuesFlat.find(i => i.identifier === identifier);
-  const projectId = issue && issue.project_id ? issue.project_id : '';
   // When auth is enabled, omit actor so server derives from authenticated principal.
   // When auth is disabled, send actor for backward compatibility.
   const detailParams = {project_id: projectId};
@@ -7555,14 +7745,26 @@ async function openDetailPanel(identifier) {
   try {
     res = await fetch(issueApiUrl(identifier, '/detail', detailParams));
   } catch (err) {
+    if (!openDetailIdentityMatches(identifier, projectId)) return;
     body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load: network error</div>';
     return;
   }
+  if (!openDetailIdentityMatches(identifier, projectId)) return;
   if (!res.ok) {
     body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load</div>';
     return;
   }
   const detail = await res.json();
+  if (!openDetailIdentityMatches(identifier, projectId)) return;
+  const responseProjectId = String(detail.project_id || projectId || '');
+  if (projectId && responseProjectId && responseProjectId !== projectId) {
+    body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load: project identity mismatch</div>';
+    return;
+  }
+  if (!projectId && responseProjectId) {
+    projectId = responseProjectId;
+    _openDetailProjectId = responseProjectId;
+  }
   // Settle the release-picks promise (already in-flight; degrade gracefully).
   let _rpData = null;
   try {
@@ -7575,6 +7777,7 @@ async function openDetailPanel(identifier) {
     const _raRes = await _raFetch;
     if (_raRes && _raRes.ok) { _raData = await _raRes.json(); }
   } catch (_e) {}
+  if (!openDetailIdentityMatches(identifier, projectId)) return;
   const detailDisplayIdentifier = issueDisplayIdentifier(detail);
   document.getElementById('detail-panel-title').textContent = detailDisplayIdentifier;
   body.dataset.projectId = detail.project_id || '';
@@ -7595,7 +7798,8 @@ async function openDetailPanel(identifier) {
       <div class="detail-field-label">State</div>
       <div class="detail-field-value">${esc(detail.state)}</div>
     </div>
-    ${renderWorkDecisionSummary(detail.work_decision, false)}
+    ${renderWorkDecisionSummary(detail.work_decision, false) ||
+      renderWorkDecisionAvailability(detail.work_decision_availability, false)}
     <div class="detail-field">
       <div class="detail-field-label">Priority</div>
       <div class="detail-field-value"><span class="priority-badge ${pClass}">P${detail.priority ?? 4}</span></div>
@@ -7615,7 +7819,7 @@ async function openDetailPanel(identifier) {
     </div>
   `;
   // Asynchronously fetch + render after the detail HTML is in the DOM.
-  setTimeout(() => loadIssueAttachments(detail.identifier), 0);
+  setTimeout(() => loadIssueAttachments(detail.identifier, detail.project_id || ''), 0);
 
   html += renderIntakeSummary(detail.intake_summary);
   html += `
@@ -7639,7 +7843,7 @@ async function openDetailPanel(identifier) {
     <div class="detail-field">
       <div class="detail-field-label">Integration</div>
       <div class="detail-field-value">
-        ${renderIntegrationSummary(detail.integration, detail.integration_queue) || 'Not submitted'}
+        ${renderIntegrationSummary(detail.integration, detail.integration_queue, detail.work_decision) || 'Not submitted'}
       </div>
     </div>
   `;
@@ -7678,7 +7882,7 @@ async function openDetailPanel(identifier) {
         <div class="detail-field">
           <div class="detail-field-label">Parent Epic</div>
           <div class="detail-field-value">
-            <span class="epic-badge" style="cursor:pointer" onclick="openDetailPanel('${esc(epic.identifier)}')">${esc(epicDisplayIdentifier)}</span>
+            <span class="epic-badge" style="cursor:pointer" onclick="openDetailPanel('${esc(epic.identifier)}', '${esc(epic.project_id || detail.project_id || '')}')">${esc(epicDisplayIdentifier)}</span>
             ${esc(epic.title)}
           </div>
         </div>
@@ -7707,7 +7911,7 @@ async function openDetailPanel(identifier) {
               ? '<span class="branch-context-badge branch-context-merged" title="Epic merged — now on target branch">to target</span>'
               : '';
             return `
-            <li onclick="openDetailPanel('${esc(c.identifier)}')">
+            <li onclick="openDetailPanel('${esc(c.identifier)}', '${esc(c.project_id || detail.project_id || '')}')">
               <span>${esc(displayIdentifierFor(c.identifier, c.project_id || detail.project_id, c.project_name || detail.project_name, c.display_identifier))} ${esc(c.title)}</span>
               <span style="display:inline-flex;align-items:center;gap:0.25rem;">
                 <span class="detail-child-state">${esc(c.state)}</span>${ctxBadge}
@@ -7719,7 +7923,7 @@ async function openDetailPanel(identifier) {
     `;
 
     html += `
-      <button onclick="openCreateDialogForEpic('${esc(detail.id)}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
+      <button onclick="openCreateDialogForEpic('${esc(detail.id)}', '${esc(detail.project_id || '')}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
     `;
   } else if (isSwimlaneParent(detail)) {
     html += `
@@ -7727,7 +7931,7 @@ async function openDetailPanel(identifier) {
         <div class="detail-field-label">Children</div>
         <div class="detail-field-value" style="color:var(--text-muted)">No children yet</div>
       </div>
-      <button onclick="openCreateDialogForEpic('${esc(detail.id)}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
+      <button onclick="openCreateDialogForEpic('${esc(detail.id)}', '${esc(detail.project_id || '')}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
     `;
   }
 
@@ -7801,9 +8005,9 @@ async function submitComment(identifier) {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
+  const projectId = document.getElementById('detail-panel-body').dataset.projectId;
   let res;
   try {
-    const projectId = document.getElementById('detail-panel-body').dataset.projectId;
     res = await fetch(issueApiUrl(identifier, '/comments'), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -7826,16 +8030,26 @@ async function submitComment(identifier) {
   }
   input.value = '';
   // Reload detail panel to show new comment
-  await openDetailPanel(identifier);
+  await openDetailPanel(identifier, projectId);
 }
 
 function closeDetailPanel() {
   _openDetailIdentifier = null;
+  _openDetailProjectId = null;
   document.getElementById('detail-panel').classList.remove('open');
 }
 
 // --- Create dialog ---
 let createParentId = null;
+let createParentProjectId = null;
+
+function createParentIssue() {
+  if (!createParentId) return null;
+  return allIssuesFlat.find(i =>
+    i.id === createParentId &&
+    (!createParentProjectId || String(i.project_id || '') === String(createParentProjectId))
+  ) || null;
+}
 
 function populateProjectSelect(selectedId) {
   const row = document.getElementById('create-project-row');
@@ -7896,7 +8110,7 @@ function updateGitHubFieldsVisibility() {
   if (projectSel && projectSel.value) {
     projectId = projectSel.value;
   } else if (createParentId) {
-    const epic = allIssuesFlat.find(i => i.id === createParentId);
+    const epic = createParentIssue();
     if (epic && epic.project_id) projectId = epic.project_id;
   } else {
     const sel = document.getElementById('project-filter');
@@ -7939,6 +8153,7 @@ function updateGitHubFieldsVisibility() {
 
 function openCreateDialog() {
   createParentId = null;
+  createParentProjectId = null;
   document.getElementById('create-dialog-title').textContent = 'Create Issue';
   document.getElementById('create-dialog').classList.add('open');
   document.getElementById('create-title').value = '';
@@ -7962,9 +8177,10 @@ function openCreateDialog() {
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
 
-function openCreateDialogForEpic(epicId) {
+function openCreateDialogForEpic(epicId, projectId = '') {
   createParentId = epicId;
-  const epic = allIssuesFlat.find(i => i.id === epicId);
+  createParentProjectId = String(projectId || '');
+  const epic = createParentIssue();
   document.getElementById('create-dialog-title').textContent =
     epic ? `Create Child of ${issueDisplayIdentifier(epic)}` : 'Create Child';
   document.getElementById('create-dialog').classList.add('open');
@@ -7991,6 +8207,7 @@ function openCreateDialogForEpic(epicId) {
 function closeCreateDialog() {
   document.getElementById('create-dialog').classList.remove('open');
   createParentId = null;
+  createParentProjectId = null;
   dismissEnhancePreview();
 }
 
@@ -8021,7 +8238,7 @@ async function refreshEnhanceButtonVisibility() {
   if (projectSel && projectSel.value) {
     projectId = projectSel.value;
   } else if (createParentId) {
-    const epic = allIssuesFlat.find(i => i.id === createParentId);
+    const epic = createParentIssue();
     if (epic && epic.project_id) projectId = epic.project_id;
   } else {
     const sel = document.getElementById('project-filter');
@@ -8067,7 +8284,7 @@ async function enhanceCreateDialog() {
     const projectSel = document.getElementById('create-project-select');
     if (projectSel && projectSel.value) body.project_id = projectSel.value;
     if (!body.project_id && createParentId) {
-      const epic = allIssuesFlat.find(i => i.id === createParentId);
+      const epic = createParentIssue();
       if (epic && epic.project_id) body.project_id = epic.project_id;
     }
     if (!body.project_id) {
@@ -8161,7 +8378,7 @@ async function submitCreateDialog() {
     }
     // Fallback: if no project selector (single-project mode), use the parent epic's project
     if (!body.project_id && createParentId) {
-      const epic = allIssuesFlat.find(i => i.id === createParentId);
+      const epic = createParentIssue();
       if (epic && epic.project_id) body.project_id = epic.project_id;
     }
     // Last resort: selected project filter
@@ -8196,12 +8413,12 @@ async function submitCreateDialog() {
       body: JSON.stringify(body),
     });
     if (res.ok) {
+      const parentEpic = createParentIssue();
       closeCreateDialog();
       await refreshBoard();
       // Re-open detail panel if we were creating a child
-      if (createParentId) {
-        const epic = allIssuesFlat.find(i => i.id === createParentId);
-        if (epic) openDetailPanel(epic.identifier);
+      if (parentEpic) {
+        openDetailPanel(parentEpic.identifier, parentEpic.project_id || '');
       }
     }
   } finally {
@@ -8261,43 +8478,51 @@ function renderCardAttachments(issue) {
   return html;
 }
 
-// Per-identifier cache of rich attachment records keyed by the path-list
+// Per-project task cache of rich attachment records keyed by the path-list
 // signature. The WebSocket already pushes issue.attachments (path list)
 // on every issues broadcast; if that list matches what we last fetched
 // rich records for, skip the network round-trip and re-render from cache.
-const _attachmentCache = {}; // { identifier: {sig, records} }
+const _attachmentCache = {}; // { "project::identifier": {sig, records} }
 
-async function loadIssueAttachments(identifier) {
+async function loadIssueAttachments(identifier, requestedProjectId = '') {
   const root = document.getElementById('detail-attachments-' + identifier);
   if (!root) return;
   const body = root.querySelector('.detail-attachments-body');
 
   // Compute a signature from the WS-driven path list. If unchanged
   // since the last fetch, render from cache.
-  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const projectId = String(requestedProjectId || _openDetailProjectId || '');
+  const issue = allIssuesFlat.find(i =>
+    i.identifier === identifier &&
+    (!projectId || String(i.project_id || '') === projectId)
+  );
+  const cacheKey = workDecisionTaskKey(projectId || (issue && issue.project_id), identifier);
   const paths = (issue && Array.isArray(issue.attachments)) ? issue.attachments : [];
   const sig = paths.slice().sort().join('|');
-  const cached = _attachmentCache[identifier];
+  const cached = _attachmentCache[cacheKey];
   if (cached && cached.sig === sig) {
+    if (!openDetailIdentityMatches(identifier, projectId)) return;
     _renderAttachmentBody(body, cached.records);
-    _wireAttachmentDropZone(root, identifier);
+    _wireAttachmentDropZone(root, identifier, projectId);
     return;
   }
 
   try {
-    const projectId = issue && issue.project_id ? issue.project_id : '';
     const res = await fetch(issueApiUrl(identifier, '/attachments', {project_id: projectId}));
     if (!res.ok) {
+      if (!openDetailIdentityMatches(identifier, projectId)) return;
       body.textContent = res.status === 503 ? 'Attachments are disabled for this server.' : '(none)';
       return;
     }
     const records = await res.json();
-    _attachmentCache[identifier] = {sig, records};
+    if (!openDetailIdentityMatches(identifier, projectId)) return;
+    _attachmentCache[cacheKey] = {sig, records};
     _renderAttachmentBody(body, records);
   } catch (e) {
+    if (!openDetailIdentityMatches(identifier, projectId)) return;
     body.textContent = 'Failed to load attachments';
   }
-  _wireAttachmentDropZone(root, identifier);
+  _wireAttachmentDropZone(root, identifier, projectId);
 }
 
 function _renderAttachmentBody(body, records) {
@@ -8338,10 +8563,15 @@ function _renderAttachmentRow(rec) {
   `;
 }
 
-function _wireAttachmentDropZone(root, identifier) {
+function _wireAttachmentDropZone(root, identifier, requestedProjectId = '') {
   const drop = root.querySelector('.detail-attachments-drop');
   if (!drop) return;
-  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const projectId = String(requestedProjectId || _openDetailProjectId || '');
+  const issue = allIssuesFlat.find(i =>
+    i.identifier === identifier &&
+    (!projectId || String(i.project_id || '') === projectId)
+  );
+  const cacheKey = workDecisionTaskKey(projectId || (issue && issue.project_id), identifier);
   drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
   drop.addEventListener('drop', async e => {
@@ -8352,7 +8582,6 @@ function _wireAttachmentDropZone(root, identifier) {
       const fd = new FormData();
       fd.append('file', file);
       try {
-        const projectId = issue && issue.project_id ? issue.project_id : '';
         const r = await fetch(issueApiUrl(identifier, '/attachments', {project_id: projectId}), {
           method: 'POST', body: fd,
         });
@@ -8366,8 +8595,8 @@ function _wireAttachmentDropZone(root, identifier) {
     }
     // Local-action mutation: bust the cache before re-fetching so the
     // new file shows up even though the WS state hasn't propagated yet.
-    delete _attachmentCache[identifier];
-    loadIssueAttachments(identifier);
+    delete _attachmentCache[cacheKey];
+    loadIssueAttachments(identifier, projectId);
   });
   // Wire up delete buttons.
   root.querySelectorAll('.attachment-delete').forEach(btn => {
@@ -8377,8 +8606,8 @@ function _wireAttachmentDropZone(root, identifier) {
       if (!confirm(`Remove ${path.split('/').pop()}?`)) return;
       const r = await fetch('/api/v1/attachments/' + encodeURI(path) + force, { method: 'DELETE' });
       if (r.ok) {
-        delete _attachmentCache[identifier];
-        loadIssueAttachments(identifier);
+        delete _attachmentCache[cacheKey];
+        loadIssueAttachments(identifier, projectId);
       }
       else alert('Delete failed: ' + r.status);
     });
@@ -9327,7 +9556,9 @@ async function submitAddReleasePicksDialog() {
 
     closeAddReleasePicksDialog();
     // Refresh detail panel if it's currently showing this issue
-    if (_openDetailIdentifier) await openDetailPanel(_openDetailIdentifier);
+    if (_openDetailIdentifier) {
+      await openDetailPanel(_openDetailIdentifier, _openDetailProjectId || '');
+    }
 
   } catch (_e) {
     errorDiv.textContent = 'Network error — could not add release picks.';

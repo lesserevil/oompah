@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 import pytest
 
@@ -13,6 +14,7 @@ from oompah.workflow_jobs import (
     WorkflowJobCorruptionError,
     WorkflowJobIdempotencyConflict,
     WorkflowJobLeaseLost,
+    WorkflowJobPublicationError,
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
@@ -608,3 +610,160 @@ def test_json_checkpoints_reject_nonportable_values(store):
             phase="bad",
             checkpoint={"not-json": {1, 2}},
         )
+
+
+def test_publication_rollback_cannot_erase_separate_connection_writer(tmp_path):
+    path = str(tmp_path / "publication.sqlite3")
+    publisher = WorkflowJobStore(path)
+    writer = WorkflowJobStore(path)
+    staged = threading.Event()
+    writer_started = threading.Event()
+    release = threading.Event()
+
+    def abandoned_publication():
+        with publisher.publication_transaction():
+            assert publisher.allocate_snapshot_generation() == 1
+            staged.set()
+            assert release.wait(timeout=2)
+
+    def concurrent_enqueue():
+        writer_started.set()
+        return writer.enqueue(spec(key="concurrent:g1"))
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            publication = pool.submit(abandoned_publication)
+            assert staged.wait(timeout=2)
+            concurrent_write = pool.submit(concurrent_enqueue)
+            assert writer_started.wait(timeout=2)
+            with pytest.raises(FutureTimeoutError):
+                concurrent_write.result(timeout=0.05)
+            release.set()
+            publication.result(timeout=2)
+            concurrent_job = concurrent_write.result(timeout=2)
+
+        assert publisher.get(concurrent_job.job_id).idempotency_key == "concurrent:g1"
+        # The abandoned producer generation rolled back, while the separate
+        # writer committed after the SQLite write lock was released.
+        assert publisher.allocate_snapshot_generation() == 1
+    finally:
+        publisher.close()
+        writer.close()
+
+
+def test_publication_commit_and_rollback_failures_are_explicit(store, monkeypatch):
+    original_rollback = store._rollback_publication_locked
+    monkeypatch.setattr(
+        store,
+        "_commit_publication_locked",
+        lambda: (_ for _ in ()).throw(OSError("commit failed")),
+    )
+    with pytest.raises(WorkflowJobPublicationError) as commit_failure:
+        with store.publication_transaction() as publication:
+            store.allocate_snapshot_generation()
+            publication.commit()
+    assert commit_failure.value.rollback_failed is False
+    assert store.allocate_snapshot_generation() == 1
+
+    monkeypatch.setattr(
+        store,
+        "_rollback_publication_locked",
+        lambda: (_ for _ in ()).throw(OSError("rollback failed")),
+    )
+    with pytest.raises(WorkflowJobPublicationError) as rollback_failure:
+        with store.publication_transaction() as publication:
+            store.allocate_snapshot_generation()
+            publication.commit()
+    assert rollback_failure.value.rollback_failed is True
+    with pytest.raises(WorkflowJobStoreError, match="operator recovery"):
+        with store.publication_transaction():
+            pass
+    monkeypatch.setattr(store, "_rollback_publication_locked", original_rollback)
+    original_rollback()
+    store._publication_broken = False
+
+
+@pytest.mark.parametrize("operation", ("renew", "checkpoint", "complete", "fail"))
+def test_delayed_worker_ack_uses_post_lock_time_and_rejects_expired_lease(
+    store,
+    clock,
+    operation,
+):
+    store.enqueue(spec())
+    running = store.claim_next(lease_owner="worker-a", lease_seconds=10)
+    assert running is not None
+    acknowledgement_started = threading.Event()
+
+    def delayed_acknowledgement():
+        acknowledgement_started.set()
+        if operation == "renew":
+            return store.renew(
+                running.job_id,
+                running.lease_token,
+                lease_seconds=10,
+            )
+        if operation == "checkpoint":
+            return store.checkpoint(
+                running.job_id,
+                running.lease_token,
+                phase="working",
+                checkpoint={"step": 1},
+            )
+        if operation == "complete":
+            return store.complete(running.job_id, running.lease_token)
+        return store.fail(
+            running.job_id,
+            running.lease_token,
+            category=WorkflowFailureCategory.TRANSIENT,
+            error="retry",
+            retryable=True,
+        )
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    store._lock.acquire()  # noqa: SLF001 - deliberate lock-wait regression
+    try:
+        acknowledgement = pool.submit(delayed_acknowledgement)
+        assert acknowledgement_started.wait(timeout=2)
+        clock.advance(20)
+    finally:
+        store._lock.release()  # noqa: SLF001
+    try:
+        with pytest.raises(WorkflowJobLeaseLost):
+            acknowledgement.result(timeout=2)
+    finally:
+        pool.shutdown(wait=True)
+
+
+def test_delayed_claim_uses_post_lock_time_for_retry_eligibility(store, clock):
+    store.enqueue(spec())
+    running = claim(store)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="retry",
+        retryable=True,
+        retry_delay_seconds=10,
+    )
+    claim_started = threading.Event()
+
+    def delayed_claim():
+        claim_started.set()
+        return store.claim_next(lease_owner="worker-b", lease_seconds=30)
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    store._lock.acquire()  # noqa: SLF001 - deliberate lock-wait regression
+    try:
+        future = pool.submit(delayed_claim)
+        assert claim_started.wait(timeout=2)
+        clock.advance(20)
+    finally:
+        store._lock.release()  # noqa: SLF001
+    try:
+        claimed = future.result(timeout=2)
+    finally:
+        pool.shutdown(wait=True)
+
+    assert claimed is not None
+    assert claimed.job_id == running.job_id

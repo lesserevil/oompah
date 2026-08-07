@@ -6,7 +6,8 @@ import hashlib
 import json
 import threading
 from copy import deepcopy
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -237,6 +238,10 @@ class ShadowEvaluationResult:
     state: ShadowComparisonState | None
     diagnostic: Mapping[str, Any] | None
     reason: str
+    # The authoritative decision is carried outside the size-bounded
+    # diagnostic envelope. Diagnostics may collapse to identity-only metadata
+    # at 1024 bytes; publication must never lose the policy result with it.
+    decision: WorkDecision | None = None
 
 
 @dataclass(slots=True)
@@ -263,6 +268,11 @@ class WorkflowShadowEvaluator:
             raise ValueError("max_diagnostic_bytes must be at least 1024")
         self.max_diagnostic_bytes = int(max_diagnostic_bytes)
         self._lock = threading.RLock()
+        # Production publication stages into a private evaluator. This lock
+        # serializes those stages without participating in the config/decision
+        # authority lock order, so reload never waits on a lock held by a
+        # producer that is itself waiting to publish.
+        self._publication_lock = threading.Lock()
         self._records: dict[tuple[str, str], _DiagnosticRecord] = {}
         self._listeners: list[Callable[[Mapping[str, Any]], None]] = []
         self._evaluated_count = 0
@@ -280,11 +290,103 @@ class WorkflowShadowEvaluator:
         with self._lock:
             self._mode = normalized
 
+    def reconfigure(self, *, mode: str, max_diagnostic_bytes: int) -> None:
+        """Atomically update runtime policy without dropping diagnostics."""
+
+        normalized = normalize_workflow_engine_mode(mode)
+        if max_diagnostic_bytes < 1024:
+            raise ValueError("max_diagnostic_bytes must be at least 1024")
+        with self._lock:
+            self._mode = normalized
+            self.max_diagnostic_bytes = int(max_diagnostic_bytes)
+
     def add_listener(self, listener: Callable[[Mapping[str, Any]], None]) -> None:
         if not callable(listener):
             raise TypeError("listener must be callable")
         with self._lock:
             self._listeners.append(listener)
+
+    @contextmanager
+    def publication_transaction(self) -> Iterator[Any]:
+        """Stage registry updates without holding the live registry lock.
+
+        The yielded token exposes an isolated ``evaluator`` and a ``commit``
+        method. A sweep evaluates only against that private registry. On
+        commit, changed task records and metric deltas are merged into the live
+        registry; without commit the live registry was never touched. This
+        avoids both compensating rollback and the shadow-lock/decision-lock
+        inversion with configuration reload.
+        """
+
+        class _ShadowPublication:
+            committed = False
+            notify = False
+
+            def commit(inner_self, *, notify: bool = False) -> None:
+                inner_self.committed = True
+                inner_self.notify = bool(notify)
+
+        transaction = _ShadowPublication()
+        listeners: tuple[Callable[[Mapping[str, Any]], None], ...] = ()
+        summary: dict[str, Any] | None = None
+        with self._publication_lock:
+            with self._lock:
+                baseline_records = deepcopy(self._records)
+                baseline_evaluated = self._evaluated_count
+                baseline_stale = self._stale_rejected_count
+                baseline_resolved = self._resolved_count
+                staged = WorkflowShadowEvaluator(
+                    mode=self._mode,
+                    evaluator=self._evaluator,
+                    max_diagnostic_bytes=self.max_diagnostic_bytes,
+                )
+                staged._records = deepcopy(baseline_records)
+                staged._evaluated_count = baseline_evaluated
+                staged._stale_rejected_count = baseline_stale
+                staged._resolved_count = baseline_resolved
+                staged._last_evaluated_at = self._last_evaluated_at
+                transaction.evaluator = staged
+            yield transaction
+            if transaction.committed:
+                with self._lock, staged._lock:
+                    changed_keys = {
+                        key
+                        for key in set(baseline_records) | set(staged._records)
+                        if staged._records.get(key) != baseline_records.get(key)
+                    }
+                    for key in changed_keys:
+                        staged_record = staged._records.get(key)
+                        current_record = self._records.get(key)
+                        if staged_record is None:
+                            self._records.pop(key, None)
+                        elif (
+                            current_record is None
+                            or current_record.generation <= staged_record.generation
+                        ):
+                            self._records[key] = deepcopy(staged_record)
+                    self._evaluated_count += max(
+                        0, staged._evaluated_count - baseline_evaluated
+                    )
+                    self._stale_rejected_count += max(
+                        0, staged._stale_rejected_count - baseline_stale
+                    )
+                    self._resolved_count += max(
+                        0, staged._resolved_count - baseline_resolved
+                    )
+                    if staged._last_evaluated_at is not None:
+                        self._last_evaluated_at = max(
+                            self._last_evaluated_at or staged._last_evaluated_at,
+                            staged._last_evaluated_at,
+                        )
+                    if transaction.notify:
+                        listeners = tuple(self._listeners)
+                        summary = self._summary_locked()
+        if summary is not None:
+            for listener in listeners:
+                try:
+                    listener(summary)
+                except Exception:
+                    pass
 
     @staticmethod
     def _mismatches(
@@ -324,6 +426,7 @@ class WorkflowShadowEvaluator:
         *,
         snapshot_generation: int,
         now: datetime | None = None,
+        notify_listeners: bool = True,
     ) -> ShadowEvaluationResult:
         """Evaluate and compare without invoking any mutation-capable object."""
 
@@ -333,7 +436,7 @@ class WorkflowShadowEvaluator:
         with self._lock:
             if self._mode == "off":
                 return ShadowEvaluationResult(
-                    False, False, None, None, "workflow shadow evaluation is off"
+                    False, False, None, None, "workflow shadow evaluation is off", None
                 )
         decision = self._evaluator(task, facts, now=now)
         legacy = tuple(projections)
@@ -358,6 +461,7 @@ class WorkflowShadowEvaluator:
                     previous.state,
                     dict(previous.diagnostic),
                     "stale snapshot generation rejected",
+                    None,
                 )
 
             divergence: WorkflowDivergence | None = None
@@ -423,7 +527,7 @@ class WorkflowShadowEvaluator:
             )
             self._evaluated_count += 1
             self._last_evaluated_at = observed_at
-            if changed:
+            if changed and notify_listeners:
                 listeners = tuple(self._listeners)
             summary = self._summary_locked()
         for listener in listeners:
@@ -437,6 +541,7 @@ class WorkflowShadowEvaluator:
             state,
             dict(diagnostic),
             "shadow comparison recorded",
+            decision,
         )
 
     def diagnostic(self, project_id: str, task_id: str) -> dict[str, Any] | None:

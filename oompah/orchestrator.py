@@ -252,7 +252,6 @@ from oompah.work_decision import PermittedAction, WorkDecision
 from oompah.work_decision_projection import (
     operator_actionable_alerts,
     project_work_decision,
-    project_work_decision_payload,
     work_decision_alert,
 )
 from oompah.workflow_facts import (
@@ -262,7 +261,7 @@ from oompah.workflow_facts import (
     WorkflowFacts,
 )
 from oompah.workflow_controller import UniversalTotalityLivenessController
-from oompah.workflow_jobs import WorkflowJobStore
+from oompah.workflow_jobs import WorkflowJobPublicationError, WorkflowJobStore
 from oompah.workflow_shadow import (
     LegacyWorkflowProjection,
     WorkflowShadowEvaluator,
@@ -1456,6 +1455,25 @@ def _yolo_error_fingerprint(project_id: str, msg: str) -> str:
     return hashlib.sha1(f"{project_id}|{normalized}".encode("utf-8")).hexdigest()[:12]
 
 
+@dataclass(frozen=True, slots=True)
+class _WorkDecisionPublication:
+    accepted: bool
+    changed: bool
+    rejection: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _AuditCandidateScan:
+    """One bounded-dispatch discovery result with explicit authority state."""
+
+    candidates: tuple[Issue, ...]
+    scan_error_count: int = 0
+
+    @property
+    def scan_complete(self) -> bool:
+        return self.scan_error_count == 0
+
+
 class Orchestrator:
     # Gate outcomes are lifecycle telemetry, not a durable task history. Keep
     # enough recent rows for operators to diagnose a concurrent interruption,
@@ -1556,11 +1574,25 @@ class Orchestrator:
         # infer ownership or alert severity from running/retry maps.
         self._work_decisions_lock = threading.RLock()
         self._work_decisions: dict[tuple[str, str], WorkDecision] = {}
+        self._work_decision_source: str | None = None
         self._work_decision_generation = 0
+        # Configuration reloads can cycle through source modes (for example
+        # enforce -> shadow -> enforce) while an older sweep is still running.
+        # Generations are producer-local, so source + generation alone cannot
+        # fence that ABA race. Every sweep captures this monotonic epoch and a
+        # publication is accepted only while the captured epoch is current.
+        self._work_decision_publication_epoch = 1
         self._work_decision_updated_at: str | None = None
+        self._work_decision_unavailable_projects: set[str] = set()
+        self._work_decision_incomplete_projects: set[str] = set()
+        self._work_decision_incomplete_keys: set[tuple[str, str]] = set()
+        self._work_decision_incomplete_reason: str | None = None
+        self._work_decision_snapshot_complete = False
         self._workflow_shadow_generation = 0
         self._workflow_shadow_generation_lock = threading.Lock()
+        self._workflow_shadow_scan_cursor = 0
         self._workflow_shadow_future: asyncio.Future[Any] | None = None
+        self._workflow_controller_future: asyncio.Future[Any] | None = None
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self._audit_rollback_fallback_path = (
             f"{self._state_path}.unadmitted-audit-rollbacks.json"
@@ -1580,6 +1612,52 @@ class Orchestrator:
         self._audit_budget_lock = threading.RLock()
         self._audit_budget_reservations: dict[str, dict[str, Any]] = {}
         self._audit_budget_authority_error: str | None = None
+        persisted_decision_availability = self._load_state().get(
+            "work_decision_availability", {}
+        )
+        if isinstance(persisted_decision_availability, dict):
+            persisted_unavailable = persisted_decision_availability.get(
+                "unavailable_projects", ()
+            )
+            if isinstance(persisted_unavailable, (list, tuple, set)):
+                self._work_decision_unavailable_projects = {
+                    str(project_id)
+                    for project_id in persisted_unavailable
+                    if str(project_id or "").strip()
+                }
+            persisted_incomplete = persisted_decision_availability.get(
+                "incomplete_tasks", ()
+            )
+            if isinstance(persisted_incomplete, (list, tuple)):
+                self._work_decision_incomplete_keys = {
+                    (
+                        str(item.get("project_id") or "legacy"),
+                        str(item.get("task_id") or "").strip(),
+                    )
+                    for item in persisted_incomplete
+                    if isinstance(item, dict)
+                    and str(item.get("task_id") or "").strip()
+                }
+            persisted_incomplete_projects = persisted_decision_availability.get(
+                "incomplete_projects", ()
+            )
+            if isinstance(persisted_incomplete_projects, (list, tuple, set)):
+                self._work_decision_incomplete_projects = {
+                    str(project_id)
+                    for project_id in persisted_incomplete_projects
+                    if str(project_id or "").strip()
+                }
+            reason = persisted_decision_availability.get("incomplete_reason")
+            if isinstance(reason, str) and reason.strip():
+                self._work_decision_incomplete_reason = reason.strip()
+            if persisted_decision_availability.get("shadow_scan_cursor_version") == 1:
+                try:
+                    persisted_cursor = int(
+                        persisted_decision_availability.get("shadow_scan_cursor", 0)
+                    )
+                except (TypeError, ValueError):
+                    persisted_cursor = 0
+                self._workflow_shadow_scan_cursor = max(0, persisted_cursor)
         # Terminal-audit enforcement is initialized at the start of ``run``
         # once all project trackers are available.  Its state lives inside the
         # existing service-state document so unrelated service state remains
@@ -1667,6 +1745,8 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
+        self._project_trackers_lock = threading.RLock()
+        self._project_tracker_generation = 1
         # Terminal transition staging is a long-lived orchestrator service.
         # Pass the project-aware factory so metadata and tracker writes never
         # fall back to the unscoped management tracker in managed mode.
@@ -1994,6 +2074,9 @@ class Orchestrator:
             "exhaustion_count": 0,
             "pending_count": 0,
             "in_progress_count": 0,
+            "discovered_candidate_count": 0,
+            "scanned_candidate_count": 0,
+            "candidate_scan_complete": True,
             "launch_failure_count": 0,
             "transport_failure_count": 0,
             "policy_incompatibility_count": 0,
@@ -2157,9 +2240,9 @@ class Orchestrator:
         # Per-project semaphores for bounded concurrency. Created on-demand
         # when a project is first refreshed.
         self._project_semaphores: dict[str, asyncio.Semaphore] = {}
-        # Per-project stale caches with timestamps. Keyed by project_id.
-        # Each cache entry is a tuple of (data, timestamp_ms).
-        self._stale_caches: dict[str, dict[str, tuple[Any, float]]] = {}
+        # Per-project stale caches with timestamps and tracker authority.
+        # Each cache entry is a tuple of (data, timestamp_ms, generation).
+        self._stale_caches: dict[str, dict[str, tuple[Any, float, int]]] = {}
         # Per-project refresh metrics for diagnostics.
         # project_id -> {operation: {last_duration_ms, timeout_count, success_count, last_error}}
         self._project_refresh_metrics: dict[str, dict[str, dict[str, Any]]] = {}
@@ -2259,30 +2342,54 @@ class Orchestrator:
         ttl_ms = self.config.project_stale_cache_ttl_ms
         if ttl_ms <= 0:
             return None
-        with self._stale_cache_lock:
-            project_cache = self._stale_caches.get(project_id, {})
-            if operation in project_cache:
-                data, timestamp_ms = project_cache[operation]
-                age_ms = (time.time() * 1000) - timestamp_ms
-                if age_ms <= ttl_ms:
-                    logger.debug(
-                        "Using stale cache for project %s operation %s (age=%.0fms)",
-                        project_id, operation, age_ms
-                    )
-                    return data
-                else:
-                    # Expired - remove it
+        with self._project_trackers_lock:
+            generation = self._project_tracker_generation
+            with self._stale_cache_lock:
+                project_cache = self._stale_caches.get(project_id, {})
+                if operation in project_cache:
+                    data, timestamp_ms, cached_generation = project_cache[operation]
+                    age_ms = (time.time() * 1000) - timestamp_ms
+                    if cached_generation == generation and age_ms <= ttl_ms:
+                        logger.debug(
+                            "Using stale cache for project %s operation %s "
+                            "(age=%.0fms)",
+                            project_id,
+                            operation,
+                            age_ms,
+                        )
+                        return data
+                    # Expired or produced by an older tracker configuration.
                     del project_cache[operation]
                     if not project_cache:
                         self._stale_caches.pop(project_id, None)
         return None
 
-    def _set_stale_cache(self, project_id: str, operation: str, data: Any) -> None:
-        """Store fresh data in the stale cache for a project operation."""
-        with self._stale_cache_lock:
-            if project_id not in self._stale_caches:
-                self._stale_caches[project_id] = {}
-            self._stale_caches[project_id][operation] = (data, time.time() * 1000)
+    def _set_stale_cache(
+        self,
+        project_id: str,
+        operation: str,
+        data: Any,
+        *,
+        expected_generation: int | None = None,
+    ) -> bool:
+        """Store data only while its tracker authority remains current."""
+
+        with self._project_trackers_lock:
+            generation = self._project_tracker_generation
+            if (
+                expected_generation is not None
+                and expected_generation != generation
+            ):
+                return False
+            with self._stale_cache_lock:
+                if project_id not in self._stale_caches:
+                    self._stale_caches[project_id] = {}
+                self._stale_caches[project_id][operation] = (
+                    data,
+                    time.time() * 1000,
+                    generation,
+                )
+        return True
 
     def _record_refresh_metric(
         self,
@@ -2318,6 +2425,7 @@ class Orchestrator:
         coro_factory,
         *,
         timeout_ms: int | None = None,
+        expected_generation: int | None = None,
     ) -> tuple[Any, bool]:
         """Run a project-scoped refresh operation with bounded concurrency and timeout.
 
@@ -2326,6 +2434,8 @@ class Orchestrator:
             operation: Operation name for metrics/cache (e.g. "candidates", "reviews").
             coro_factory: Async callable that returns the fresh data.
             timeout_ms: Override timeout in milliseconds (None = use config default).
+            expected_generation: Tracker authority captured with the refresh
+                inputs. When omitted, capture the current generation here.
 
         Returns:
             Tuple of (data, is_fresh) where is_fresh is True if data came from
@@ -2334,6 +2444,12 @@ class Orchestrator:
         timeout_ms = timeout_ms or self.config.project_refresh_timeout_ms
         semaphore = self._get_project_semaphore(project_id)
         start = time.monotonic()
+        with self._project_trackers_lock:
+            tracker_generation = (
+                self._project_tracker_generation
+                if expected_generation is None
+                else expected_generation
+            )
 
         # If timeout is 0, disable timeout entirely
         has_timeout = timeout_ms > 0
@@ -2349,8 +2465,23 @@ class Orchestrator:
         try:
             data = await _run_with_semaphore()
             duration_ms = (time.monotonic() - start) * 1000
+            if not self._set_stale_cache(
+                project_id,
+                operation,
+                data,
+                expected_generation=tracker_generation,
+            ):
+                error = "tracker configuration changed during refresh"
+                self._record_refresh_metric(
+                    project_id,
+                    operation,
+                    duration_ms,
+                    False,
+                    error,
+                )
+                stale = self._get_stale_cache(project_id, operation)
+                return stale if stale is not None else [], False
             self._record_refresh_metric(project_id, operation, duration_ms, True)
-            self._set_stale_cache(project_id, operation, data)
             return data, True
         except asyncio.TimeoutError:
             duration_ms = (time.monotonic() - start) * 1000
@@ -2482,6 +2613,8 @@ class Orchestrator:
                     "persisted store. Delete the agent.profiles "
                     "section from WORKFLOW.md to clear this warning."
                 ),
+                "action": "Delete the obsolete agent.profiles block from WORKFLOW.md.",
+                "action_required": True,
             }
         self._replace_alert_source("profile_drift", alert)
 
@@ -3047,7 +3180,7 @@ class Orchestrator:
         """
         stale_after = getattr(self.config, "audit_stale_pending_seconds", 3600)
         max_attempts = getattr(self.config, "audit_max_attempts", 3)
-        health = build_terminal_audit_health(
+        observed_health = build_terminal_audit_health(
             observations,
             now=datetime.now(timezone.utc),
             stale_after_seconds=stale_after,
@@ -3056,8 +3189,21 @@ class Orchestrator:
             scan_error_count=scan_error_count,
         )
         if finalization_failure_count:
-            health.finalization_failure_count += max(
+            observed_health.finalization_failure_count += max(
                 0, int(finalization_failure_count)
+            )
+        if scan_complete:
+            health = observed_health
+        else:
+            # A bounded/failed scan is not authoritative evidence that facts
+            # absent from its partial observation set have recovered.  Retain
+            # the last complete fact generation and attach the current scan
+            # status to that same bundle so the API cannot expose new partial
+            # counts beside alerts derived from an older generation.
+            health = replace(
+                getattr(self, "_audit_health", TerminalAuditHealth()),
+                scan_complete=False,
+                scan_error_count=scan_error_count,
             )
         self._audit_health = health
         # Update the raw metrics so callers reading _audit_metrics still work.
@@ -3071,13 +3217,12 @@ class Orchestrator:
             "retry_exhausted_count": health.retry_exhausted_count,
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
             "stale_in_validation_count": health.stale_in_validation_count,
-            "health_scan_complete": scan_complete,
-            "health_scan_error_count": scan_error_count,
+            "health_scan_complete": health.scan_complete,
+            "health_scan_error_count": health.scan_error_count,
         })
-        # Remove stale health alerts and replace them from the current facts.
-        # A partial scan preserves existing alerts rather than clearing them.
-        if not scan_complete:
-            return
+        # Replace alerts from the exact fact bundle published above. Partial
+        # scans preserve the last complete facts and add their truthful
+        # scan-incomplete condition without mixing alert generations.
         self._replace_alerts_matching(
             lambda alert: str(alert.get("source", "")).startswith(
                 HEALTH_ALERT_PREFIX
@@ -4909,7 +5054,6 @@ class Orchestrator:
         ``/api/v1/agent-profiles`` takes effect on the next dispatch
         without requiring a WORKFLOW.md edit (oompah-zlz_2-xaj).
         """
-        self.config = config
         # Reload the agent profile store from disk and overwrite
         # config.agent_profiles with what the JSON store has, so:
         #  - WORKFLOW.md changes still take effect (config carries fresh
@@ -4918,27 +5062,18 @@ class Orchestrator:
         #    (the API handler writes to the store, then calls reload).
         # Skip when the JSON file is missing AND the config has profiles
         # (WORKFLOW.md-only legacy mode).
+        store_profiles: list[AgentProfile] = []
         try:
             self.agent_profile_store._load()
             store_profiles = self.agent_profile_store.list_all()
-            if store_profiles:
-                self.config.agent_profiles = store_profiles
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("reload_config: agent profile store reload failed: %s", exc)
-        self._prompt_template = prompt_template
-        self.state.poll_interval_ms = config.poll_interval_ms
-        self.state.max_concurrent_agents = config.max_concurrent_agents
-        self._branch_quality_gate.timeout_seconds = (
-            config.quality_gate_timeout_seconds
-        )
-        self.workflow_shadow.set_mode(config.workflow_engine_mode)
-        self.workflow_shadow.max_diagnostic_bytes = (
-            config.workflow_diagnostic_max_bytes
-        )
-        self.tracker = self._new_tracker()
-        # Clear cached per-project trackers so they pick up new state config
-        self._project_trackers.clear()
-        self.workspace_mgr = WorkspaceManager(
+
+        # Build every replaceable dependency before the cutover. A construction
+        # failure therefore leaves the old runtime intact rather than publishing
+        # a new mode/epoch around old tracker dependencies.
+        next_tracker = self._new_tracker(config=config)
+        next_workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
                 "after_create": config.hooks_after_create,
@@ -4948,9 +5083,86 @@ class Orchestrator:
             },
             hooks_timeout_ms=config.hooks_timeout_ms,
         )
-        # Reset last full sync so the new full_sync_interval_ms takes effect
-        # immediately rather than waiting for the old interval to expire.
-        self._last_full_sync = 0.0
+        next_controller = UniversalTotalityLivenessController(
+            store=self.workflow_job_store,
+            decision_limit=config.workflow_shadow_scan_limit,
+            facts_provider=self._collect_universal_workflow_facts,
+        )
+
+        # Mode, epoch, and every dependency used by a producer become visible as
+        # one authority cut. Sweeps capture this bundle under the same lock and
+        # an older captured epoch cannot publish after the cutover.
+        with self._work_decisions_lock:
+            next_publication_epoch = self._work_decision_publication_epoch + 1
+            # Durability is the commit point for this authority cut. Publishing
+            # the new config or clearing the old cache first would let readers
+            # observe a state that a restart cannot recover. A failed replace
+            # therefore leaves the exact old public and durable cut intact.
+            saved = self._save_state(
+                work_decision_availability={
+                    "source": None,
+                    "complete": False,
+                    "unavailable_projects": [],
+                    "incomplete_projects": [],
+                    "incomplete_tasks": [],
+                    "incomplete_reason": None,
+                    "publication_epoch": next_publication_epoch,
+                    "updated_at": None,
+                    "shadow_scan_cursor_version": 1,
+                    "shadow_scan_cursor": self._workflow_shadow_scan_cursor,
+                }
+            )
+            if saved is False:
+                logger.error(
+                    "Config reload aborted: workflow decision authority cut "
+                    "could not be persisted"
+                )
+                raise RuntimeError(
+                    "configuration reload aborted because workflow decision "
+                    "availability could not be persisted"
+                )
+            if store_profiles:
+                config.agent_profiles = store_profiles
+            with self._project_trackers_lock:
+                self.config = config
+                self._project_tracker_generation += 1
+                self._project_trackers.clear()
+                with self._stale_cache_lock:
+                    self._stale_caches.clear()
+                self._reviews_cache = {}
+                self._unmerged_review_branches = set()
+                self._merged_branches = set()
+                self._merged_branches_dirty = True
+            # Keep the diagnostic registry and its listeners while making its
+            # authority mode part of the same cut as config, tracker, and epoch.
+            self.workflow_shadow.reconfigure(
+                mode=config.workflow_engine_mode,
+                max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
+            )
+            self.workflow_controller = next_controller
+            self.tracker = next_tracker
+            self.workspace_mgr = next_workspace_mgr
+            self._prompt_template = prompt_template
+            self.state.poll_interval_ms = config.poll_interval_ms
+            self.state.max_concurrent_agents = config.max_concurrent_agents
+            self._branch_quality_gate.timeout_seconds = (
+                config.quality_gate_timeout_seconds
+            )
+            self._work_decision_publication_epoch = next_publication_epoch
+            # Tracker/config changes can alter evidence without changing source
+            # mode. Publish an explicit unavailable cut until the newly captured
+            # producer bundle completes its first pass.
+            self._work_decisions.clear()
+            self._work_decision_source = None
+            self._work_decision_generation = 0
+            self._work_decision_updated_at = None
+            self._work_decision_unavailable_projects.clear()
+            self._work_decision_incomplete_projects.clear()
+            self._work_decision_incomplete_keys.clear()
+            self._work_decision_incomplete_reason = None
+            self._work_decision_snapshot_complete = False
+            # Reset last full sync so the new interval takes effect immediately.
+            self._last_full_sync = 0.0
         # File-watcher reload supersedes any pending API-path profile swap —
         # the new ServiceConfig already carries the authoritative profile list.
         with self._pending_profiles_lock:
@@ -4960,6 +5172,16 @@ class Orchestrator:
         # the drift) updates the dashboard banner immediately
         # (oompah-zlz_2-hye).
         self._arm_profile_drift_alert()
+        # Expose the unavailable cut immediately, then wake the dispatcher so
+        # the new producer fills it without waiting for the old polling period.
+        self._notify_observers()
+        self._set_refresh_requested()
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={"reason": "workflow_config_reloaded"},
+            )
+        )
         logger.info(
             "Config reloaded poll_interval_ms=%d full_sync_interval_ms=%d max_agents=%d",
             config.poll_interval_ms,
@@ -7388,7 +7610,10 @@ class Orchestrator:
         return self._restart_requested
 
     def _new_tracker(
-        self, cwd: str | None = None,
+        self,
+        cwd: str | None = None,
+        *,
+        config: ServiceConfig | None = None,
     ) -> TrackerProtocol:
         """Construct a tracker adapter for the configured tracker.kind.
 
@@ -7398,7 +7623,8 @@ class Orchestrator:
         that as a configuration error (``validate_dispatch_config`` will have
         already reported it during startup).
         """
-        kind = self.config.tracker_kind
+        tracker_config = config or self.config
+        kind = tracker_config.tracker_kind
         factory = ADAPTER_REGISTRY.get(kind)
         if factory is None:
             registered = sorted(ADAPTER_REGISTRY)
@@ -7412,13 +7638,18 @@ class Orchestrator:
                 not self._has_managed_projects()
             )
         return factory(
-            active_states=self.config.tracker_active_states,
-            terminal_states=self.config.tracker_terminal_states,
+            active_states=tracker_config.tracker_active_states,
+            terminal_states=tracker_config.tracker_terminal_states,
             cwd=cwd,
             **extra,
         )
 
-    def _new_tracker_for_project(self, project: "Project") -> TrackerProtocol:
+    def _new_tracker_for_project(
+        self,
+        project: "Project",
+        *,
+        config: ServiceConfig | None = None,
+    ) -> TrackerProtocol:
         """Construct a tracker adapter scoped to a specific project.
 
         Resolves the tracker backend using the project's own ``tracker_kind``
@@ -7434,11 +7665,12 @@ class Orchestrator:
         # Prefer the project-level kind when it is an explicit non-empty string;
         # fall back to the global service kind for projects that have not been
         # configured (tracker_kind is None or has not been set at all).
+        tracker_config = config or self.config
         _project_kind = project.tracker_kind
         kind: str = (
             _project_kind
             if isinstance(_project_kind, str) and _project_kind
-            else self.config.tracker_kind
+            else tracker_config.tracker_kind
         )
         factory = ADAPTER_REGISTRY.get(kind)
         if factory is None:
@@ -7506,8 +7738,8 @@ class Orchestrator:
                 if getattr(project, "state_branch_shadow_write", False) is True:
                     extra["state_branch_shadow_write"] = True
         tracker = factory(
-            active_states=self.config.tracker_active_states,
-            terminal_states=self.config.tracker_terminal_states,
+            active_states=tracker_config.tracker_active_states,
+            terminal_states=tracker_config.tracker_terminal_states,
             cwd=project.repo_path,
             **extra,
         )
@@ -7663,19 +7895,224 @@ class Orchestrator:
         readable name do not need to resolve it to the internal ID first.
         The tracker cache is always keyed by canonical ID.
         """
-        if project_id in self._project_trackers:
-            return self._project_trackers[project_id]
-        project = self.project_store.get(project_id)
+        lock = getattr(self, "_project_trackers_lock", None)
+        if lock is None:
+            # Compatibility for small test embedders built with ``__new__``.
+            lock = threading.RLock()
+            self._project_trackers_lock = lock
+        while True:
+            with lock:
+                generation = int(
+                    getattr(self, "_project_tracker_generation", 1)
+                )
+                cached = self._project_trackers.get(project_id)
+                if cached is not None:
+                    return cached
+                tracker_config = self.config
+            project = self.project_store.get(project_id)
+            if not project:
+                # Fall back to name-based lookup for callers that supply a
+                # human-readable project name instead of the internal ID.
+                project = self.project_store.find_by_name(project_id)
+            if not project:
+                raise ProjectError(f"Unknown project: {project_id}")
+            tracker = self._new_tracker_for_project(
+                project, config=tracker_config
+            )
+            # Construction can perform network/filesystem discovery. Fence its
+            # cache publication so a config reload that cleared the old
+            # generation cannot be undone by a slow old-config factory.
+            with lock:
+                if generation != int(
+                    getattr(self, "_project_tracker_generation", 1)
+                ):
+                    continue
+                cached = self._project_trackers.get(project.id)
+                if cached is not None:
+                    return cached
+                self._project_trackers[project.id] = tracker
+                return tracker
+
+    def update_project_tracker_configuration(
+        self,
+        project_id: str,
+        **fields: Any,
+    ) -> Any | None:
+        """Update tracker-affecting project config as one decision-authority cut.
+
+        Tracker construction deliberately happens outside ``_project_trackers_lock``.
+        Consequently a project mutation must update the project store while holding
+        that lock, advance the tracker generation, and advance the WorkDecision
+        publication epoch while holding the outer decision lock.  This ordering
+        ensures that neither an old tracker factory nor an already-running workflow
+        sweep can publish after the project configuration becomes authoritative.
+
+        The affected project's cached decisions are withdrawn until a sweep using
+        the new tracker completes. Other projects retain their last accepted rows.
+        """
+
+        project = str(project_id or "").strip()
         if not project:
-            # Fall back to name-based lookup for callers that supply a
-            # human-readable project name instead of the internal ID.
-            project = self.project_store.find_by_name(project_id)
-        if not project:
-            raise ProjectError(f"Unknown project: {project_id}")
-        tracker = self._new_tracker_for_project(project)
-        # Always cache by canonical ID so subsequent lookups hit the fast path.
-        self._project_trackers[project.id] = tracker
-        return tracker
+            raise ValueError("project_id is required")
+        with self._work_decisions_lock:
+            with self._project_trackers_lock:
+                # Avoid writing a pending authority cut for an unknown project.
+                # The project store is protected by this same tracker-config
+                # lock for orchestrator-mediated mutations, so this preflight
+                # remains valid through the update below.
+                if self.project_store.get(project) is None:
+                    return None
+                next_epoch = self._work_decision_publication_epoch + 1
+                next_decisions = {
+                    key: decision
+                    for key, decision in self._work_decisions.items()
+                    if key[0] != project
+                }
+                next_unavailable = set(self._work_decision_unavailable_projects)
+                next_unavailable.add(project)
+                next_incomplete_keys = {
+                    key
+                    for key in self._work_decision_incomplete_keys
+                    if key[0] != project
+                }
+                next_incomplete_projects = {
+                    value
+                    for value in self._work_decision_incomplete_projects
+                    if value != project
+                }
+                next_incomplete_reason = (
+                    self._work_decision_incomplete_reason
+                    if next_incomplete_keys or next_incomplete_projects
+                    else None
+                )
+                next_updated_at = datetime.now(timezone.utc).isoformat()
+                availability_payload = {
+                    "source": self._work_decision_source,
+                    "complete": False,
+                    "unavailable_projects": sorted(next_unavailable),
+                    "incomplete_projects": sorted(next_incomplete_projects),
+                    "incomplete_tasks": [
+                        {"project_id": key_project, "task_id": task_id}
+                        for key_project, task_id in sorted(next_incomplete_keys)
+                    ],
+                    "incomplete_reason": next_incomplete_reason,
+                    "publication_epoch": next_epoch,
+                    "updated_at": next_updated_at,
+                    "shadow_scan_cursor_version": 1,
+                    "shadow_scan_cursor": self._workflow_shadow_scan_cursor,
+                }
+                previous_availability_payload = {
+                    "source": self._work_decision_source,
+                    "complete": self._work_decision_snapshot_complete,
+                    "unavailable_projects": sorted(
+                        self._work_decision_unavailable_projects
+                    ),
+                    "incomplete_projects": sorted(
+                        self._work_decision_incomplete_projects
+                    ),
+                    "incomplete_tasks": [
+                        {"project_id": key_project, "task_id": task_id}
+                        for key_project, task_id in sorted(
+                            self._work_decision_incomplete_keys
+                        )
+                    ],
+                    "incomplete_reason": self._work_decision_incomplete_reason,
+                    "publication_epoch": self._work_decision_publication_epoch,
+                    "updated_at": self._work_decision_updated_at,
+                    "shadow_scan_cursor_version": 1,
+                    "shadow_scan_cursor": self._workflow_shadow_scan_cursor,
+                }
+
+                # Persist the unavailable cut before changing the project. A
+                # restart can then never recover the old decision authority
+                # around a new tracker configuration.
+                saved = self._save_state(
+                    work_decision_availability=availability_payload
+                )
+                if saved is False:
+                    logger.error(
+                        "Project tracker configuration change for %s aborted: "
+                        "its pending workflow-decision availability cut could "
+                        "not be persisted",
+                        project,
+                    )
+                    raise RuntimeError(
+                        "project tracker configuration change aborted because "
+                        "workflow decision availability could not be persisted"
+                    )
+
+                try:
+                    updated_project = self.project_store.update(project, **fields)
+                except Exception:
+                    try:
+                        restored = self._save_state(
+                            work_decision_availability=(
+                                previous_availability_payload
+                            )
+                        )
+                    except Exception:  # noqa: BLE001 - preserve original failure
+                        logger.exception(
+                            "Prior workflow decision availability restoration "
+                            "raised after project configuration update failed"
+                        )
+                        restored = False
+                    if restored is False:
+                        logger.critical(
+                            "Project tracker configuration update failed for %s "
+                            "and the prior workflow-decision availability cut "
+                            "could not be restored",
+                            project,
+                        )
+                        raise RuntimeError(
+                            "project tracker configuration update and workflow "
+                            "decision availability rollback both failed"
+                        )
+                    raise
+                if updated_project is None:
+                    restored = self._save_state(
+                        work_decision_availability=previous_availability_payload
+                    )
+                    if restored is False:
+                        raise RuntimeError(
+                            "project disappeared during tracker configuration "
+                            "update and workflow decision availability rollback "
+                            "failed"
+                        )
+                    return None
+
+                self._project_tracker_generation += 1
+                self._project_trackers.pop(project, None)
+                with self._stale_cache_lock:
+                    self._stale_caches.pop(project, None)
+                reviews_cache = getattr(self, "_reviews_cache", None)
+                if isinstance(reviews_cache, dict):
+                    reviews_cache.pop(project, None)
+                self._unmerged_review_branches = set()
+                self._merged_branches = set()
+                self._merged_branches_dirty = True
+
+            self._work_decision_publication_epoch = next_epoch
+            self._work_decisions = next_decisions
+            self._work_decision_unavailable_projects = next_unavailable
+            self._work_decision_incomplete_keys = next_incomplete_keys
+            self._work_decision_incomplete_projects = next_incomplete_projects
+            self._work_decision_incomplete_reason = next_incomplete_reason
+            self._work_decision_snapshot_complete = False
+            self._work_decision_updated_at = next_updated_at
+
+        self._branch_indexes.pop(project, None)
+        self._notify_observers()
+        self._set_refresh_requested()
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={
+                    "reason": "project_tracker_configuration_changed",
+                    "project_id": project,
+                },
+            )
+        )
+        return updated_project
 
     def _provenance_suppression_status(
         self,
@@ -8644,10 +9081,13 @@ class Orchestrator:
         Also clears the per-project branch-to-issue index so that the next
         ``_resolve_task_for_branch`` call rebuilds it from fresh issue data.
         """
-        trackers = [
-            self.tracker,
-            *self._project_trackers.values(),
-        ]
+        lock = getattr(self, "_project_trackers_lock", None)
+        if lock is None:
+            project_trackers = tuple(self._project_trackers.values())
+        else:
+            with lock:
+                project_trackers = tuple(self._project_trackers.values())
+        trackers = [self.tracker, *project_trackers]
         for tracker in trackers:
             inval = getattr(tracker, "invalidate_read_cache", None)
             if callable(inval):
@@ -9404,8 +9844,10 @@ class Orchestrator:
                 * self.config.dispatch_loop_stale_factor
             )
         alert = {
-            "level": "error",
+            "level": "info",
             "source": source,
+            "action_required": False,
+            "recovery_state": "restart_requested",
             "title": "Orchestrator dispatch loop is stale",
             "message": (
                 f"The dispatch loop has not completed a tick in "
@@ -9417,10 +9859,8 @@ class Orchestrator:
         }
         was_armed = bool(self._replace_alert_source(source, alert))
         # A stale-loop alert is an operational health signal with an
-        # in-process recovery path, not an unhandled backend failure.  Keep
-        # the dashboard alert at error severity, but log the first occurrence
-        # as a warning so ErrorWatcher (which files ERROR+ records) does not
-        # create a task for a condition the supervisor is already handling.
+        # in-process recovery path, not an unhandled backend failure. Keep it
+        # informational until the controller proves recovery exhausted.
         log = logger.debug if was_armed else logger.warning
         log(
             "Dispatch loop stale: no tick completed in %.0fs "
@@ -10028,6 +10468,10 @@ class Orchestrator:
                             "Review the repository hygiene inventory and resolve "
                             "overdue artifacts or cleanup errors."
                         ),
+                        "action": (
+                            "Review the listed overdue artifacts or cleanup errors; "
+                            "preserve dirty and unmerged work."
+                        ),
                     }
                 )
             self._replace_alert_source("repo_hygiene_health", alert)
@@ -10319,6 +10763,11 @@ class Orchestrator:
         await self._restore_persisted_retries()
         if restart_recovery_pending:
             self._schedule_restart_issue_recovery_for_resume()
+        if self.config.workflow_engine_mode == "enforce":
+            recovered = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self.workflow_controller.recover_startup
+            )
+            logger.info("Universal workflow controller startup recovery: %s", recovered)
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
         logger.info(
             "Orchestrator starting event-driven loop "
@@ -10575,6 +11024,7 @@ class Orchestrator:
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,
                 self._workflow_shadow_future,
+                self._workflow_controller_future,
             )
             if future is not None
         ]
@@ -10766,6 +11216,21 @@ class Orchestrator:
             },
         }
 
+    def _collect_universal_workflow_facts(self, task: Issue):
+        """Collect one project-scoped facts snapshot for the enforcing controller."""
+
+        project_id = str(task.project_id or "legacy")
+        tracker = (
+            self._tracker_for_project(project_id) if task.project_id else self.tracker
+        )
+        collector = WorkflowFactCollector(
+            project_id=project_id,
+            tracker=tracker,
+            sources=self._workflow_shadow_sources(task),
+            integration_queue=self.integration_queue,
+        )
+        return collector.collect(task.identifier)
+
     def _legacy_workflow_projections(
         self, issue: Issue
     ) -> tuple[LegacyWorkflowProjection, ...]:
@@ -10926,29 +11391,307 @@ class Orchestrator:
             )
         return tuple(projections)
 
-    def _cache_work_decisions(
-        self, decisions: tuple[WorkDecision, ...] | list[WorkDecision], generation: int
-    ) -> None:
-        """Publish the latest bounded controller answers atomically."""
+    def _publish_work_decisions(
+        self,
+        decisions: tuple[WorkDecision, ...] | list[WorkDecision],
+        generation: int,
+        *,
+        source: str,
+        live_keys: set[tuple[str, str]],
+        publication_epoch: int,
+        failed_projects: set[str] | None = None,
+        scan_complete: bool = True,
+        incomplete_keys: set[tuple[str, str]] | None = None,
+        incomplete_reason: str | None = None,
+        shadow_scan_cursor: int | None = None,
+        producer_transaction: Any | None = None,
+    ) -> _WorkDecisionPublication:
+        """Publish one generation-fenced decision snapshot.
 
-        now = datetime.now(timezone.utc).isoformat()
-        with self._work_decisions_lock:
-            for decision in decisions:
-                key = (str(decision.project_id or "legacy"), decision.task_id)
-                self._work_decisions[key] = decision
-            self._work_decision_generation = max(
-                self._work_decision_generation, int(generation)
+        Enforce mode accepts only the liveness controller's decisions. Shadow
+        mode may expose the pure evaluator's diagnostics, but those values can
+        never race an enforce-mode result into the same public cache.  The
+        complete set of nonterminal identities is supplied independently of
+        the bounded evaluation window, so terminal/deleted tasks are pruned
+        even while a scan is truncated. A project whose tracker read failed
+        keeps its previous rows because that sweep has no authoritative live
+        set for the project. The publication epoch rejects work captured before
+        any intervening configuration reload, including source-mode ABA.
+
+        Returns an accepted/changed result. When a producer transaction is
+        supplied, this method commits it after availability persistence and
+        before exposing the matching in-memory projection; every rejection
+        leaves the caller's context to roll it back. Generation bookkeeping
+        alone does not force an issues refresh.
+        """
+
+        normalized_source = str(source or "").strip().lower()
+        snapshot_generation = int(generation)
+        if snapshot_generation < 1:
+            raise ValueError("work-decision generation must be positive")
+        captured_epoch = int(publication_epoch)
+        if captured_epoch < 1:
+            raise ValueError("work-decision publication epoch must be positive")
+        normalized_shadow_cursor = (
+            int(shadow_scan_cursor) if shadow_scan_cursor is not None else None
+        )
+        if normalized_shadow_cursor is not None and normalized_shadow_cursor < 0:
+            raise ValueError("shadow scan cursor must be nonnegative")
+
+        normalized_live_keys = {
+            (str(project_id or "legacy"), str(task_id).strip())
+            for project_id, task_id in live_keys
+            if str(task_id or "").strip()
+        }
+        incoming = {
+            (str(decision.project_id or "legacy"), decision.task_id): decision
+            for decision in decisions
+        }
+        if any(key not in normalized_live_keys for key in incoming):
+            raise ValueError("work decisions must belong to the live snapshot")
+        preserved_projects = {
+            str(project_id or "legacy") for project_id in (failed_projects or set())
+        }
+        omitted_keys = normalized_live_keys - set(incoming)
+        explicit_incomplete_keys = {
+            (str(project_id or "legacy"), str(task_id).strip())
+            for project_id, task_id in (incomplete_keys or set())
+            if str(task_id or "").strip()
+        }
+        if any(key not in normalized_live_keys for key in explicit_incomplete_keys):
+            raise ValueError("incomplete work decisions must belong to the live snapshot")
+        next_incomplete_keys = omitted_keys | explicit_incomplete_keys
+        if not scan_complete and not next_incomplete_keys:
+            # A producer that declares its pass incomplete cannot make an
+            # otherwise total-looking set actionable. This also covers
+            # reconciliation truncation reported without omitted decisions.
+            next_incomplete_keys = set(normalized_live_keys)
+        next_incomplete_projects = {key[0] for key in next_incomplete_keys}
+        effective_complete = (
+            bool(scan_complete)
+            and not omitted_keys
+            and not explicit_incomplete_keys
+        )
+        if not effective_complete and not incomplete_reason:
+            incomplete_reason = (
+                f"bounded {normalized_source} scan evaluated {len(incoming)} of "
+                f"{len(normalized_live_keys)} live tasks; omitted tasks will be "
+                "evaluated by rotating future sweeps"
             )
-            self._work_decision_updated_at = now
+        normalized_incomplete_reason = (
+            str(incomplete_reason).strip()
+            if not effective_complete and str(incomplete_reason or "").strip()
+            else None
+        )
+
+        with self._work_decisions_lock:
+            if captured_epoch != self._work_decision_publication_epoch:
+                return _WorkDecisionPublication(False, False, "stale_epoch")
+            configured_mode = str(self.config.workflow_engine_mode or "off").lower()
+            expected_source = (
+                "controller"
+                if configured_mode == "enforce"
+                else "shadow"
+                if configured_mode == "shadow"
+                else None
+            )
+            if normalized_source != expected_source:
+                return _WorkDecisionPublication(False, False, "wrong_source")
+            if (
+                self._work_decision_source == normalized_source
+                and snapshot_generation <= self._work_decision_generation
+            ):
+                return _WorkDecisionPublication(False, False, "stale_generation")
+            previous = dict(self._work_decisions)
+            previous_unavailable = set(
+                getattr(self, "_work_decision_unavailable_projects", set())
+            )
+            previous_complete = bool(
+                getattr(self, "_work_decision_snapshot_complete", False)
+            )
+            previous_incomplete_keys = set(
+                getattr(self, "_work_decision_incomplete_keys", set())
+            )
+            previous_incomplete_projects = set(
+                getattr(self, "_work_decision_incomplete_projects", set())
+            )
+            previous_incomplete_reason = getattr(
+                self, "_work_decision_incomplete_reason", None
+            )
+            previous_source = self._work_decision_source
+            previous_availability_payload = {
+                "source": previous_source,
+                "complete": previous_complete,
+                "unavailable_projects": sorted(previous_unavailable),
+                "incomplete_projects": sorted(previous_incomplete_projects),
+                "incomplete_tasks": [
+                    {"project_id": project_id, "task_id": task_id}
+                    for project_id, task_id in sorted(previous_incomplete_keys)
+                ],
+                "incomplete_reason": previous_incomplete_reason,
+                "publication_epoch": self._work_decision_publication_epoch,
+                "updated_at": self._work_decision_updated_at,
+                "shadow_scan_cursor_version": 1,
+                "shadow_scan_cursor": int(
+                    getattr(self, "_workflow_shadow_scan_cursor", 0)
+                ),
+            }
+            if self._work_decision_source != normalized_source:
+                updated: dict[tuple[str, str], WorkDecision] = {}
+            else:
+                updated = {
+                    key: decision
+                    for key, decision in self._work_decisions.items()
+                    if key in normalized_live_keys or key[0] in preserved_projects
+                }
+            updated.update(incoming)
+            snapshot_complete = effective_complete and not preserved_projects
+            changed = (
+                updated != previous
+                or preserved_projects != previous_unavailable
+                or next_incomplete_keys != previous_incomplete_keys
+                or next_incomplete_projects != previous_incomplete_projects
+                or normalized_incomplete_reason != previous_incomplete_reason
+                or snapshot_complete != previous_complete
+                or normalized_source != previous_source
+            )
+            next_updated_at = self._work_decision_updated_at
+            if changed:
+                next_updated_at = datetime.now(timezone.utc).isoformat()
+            availability_payload = {
+                "source": normalized_source,
+                "complete": snapshot_complete,
+                "unavailable_projects": sorted(preserved_projects),
+                "incomplete_projects": sorted(next_incomplete_projects),
+                "incomplete_tasks": [
+                    {"project_id": project_id, "task_id": task_id}
+                    for project_id, task_id in sorted(next_incomplete_keys)
+                ],
+                "incomplete_reason": normalized_incomplete_reason,
+                "publication_epoch": captured_epoch,
+                "updated_at": next_updated_at,
+                "shadow_scan_cursor_version": 1,
+                "shadow_scan_cursor": (
+                    normalized_shadow_cursor
+                    if normalized_shadow_cursor is not None
+                    else int(getattr(self, "_workflow_shadow_scan_cursor", 0))
+                ),
+            }
+            # Persist only availability, not policy/evidence payloads. Keep the
+            # authority lock through the state-file replace so a reload cannot
+            # make an older producer durable after its epoch cut, and a reload's
+            # pending state cannot overwrite a newer accepted publication.
+            if hasattr(self, "_state_io_lock"):
+                saved = self._save_state(
+                    work_decision_availability=availability_payload
+                )
+                if saved is False:
+                    logger.error(
+                        "Rejected workflow decision publication because its "
+                        "availability cut could not be persisted"
+                    )
+                    return _WorkDecisionPublication(
+                        False, False, "persistence_failed"
+                    )
+            if producer_transaction is not None:
+                try:
+                    # This is the durable commit point. It occurs after the
+                    # recoverable availability write but before any in-memory
+                    # public projection becomes visible. The job store keeps
+                    # its SQLite transaction open until this call.
+                    producer_transaction.commit()
+                except Exception as exc:
+                    logger.exception(
+                        "Rejected workflow decision publication because its "
+                        "durable producer cut could not commit"
+                    )
+                    try:
+                        restored = self._save_state(
+                            work_decision_availability=previous_availability_payload
+                        )
+                    except Exception:  # noqa: BLE001 - preserve explicit failure state
+                        logger.exception(
+                            "Prior workflow decision availability restoration raised"
+                        )
+                        restored = False
+                    rollback_failed = (
+                        isinstance(exc, WorkflowJobPublicationError)
+                        and exc.rollback_failed
+                    )
+                    if restored is False:
+                        logger.critical(
+                            "Workflow decision durable commit failed and the "
+                            "prior availability cut could not be restored"
+                        )
+                        return _WorkDecisionPublication(
+                            False,
+                            False,
+                            (
+                                "durable_commit_and_store_rollback_failed"
+                                if rollback_failed
+                                else "durable_commit_state_rollback_failed"
+                            ),
+                        )
+                    return _WorkDecisionPublication(
+                        False,
+                        False,
+                        (
+                            "durable_commit_rollback_failed"
+                            if rollback_failed
+                            else "durable_commit_failed"
+                        ),
+                    )
+            self._work_decisions = updated
+            self._work_decision_source = normalized_source
+            self._work_decision_generation = snapshot_generation
+            self._work_decision_unavailable_projects = preserved_projects
+            self._work_decision_incomplete_projects = next_incomplete_projects
+            self._work_decision_incomplete_keys = next_incomplete_keys
+            self._work_decision_incomplete_reason = normalized_incomplete_reason
+            self._work_decision_snapshot_complete = snapshot_complete
+            self._work_decision_updated_at = next_updated_at
+            if normalized_shadow_cursor is not None:
+                self._workflow_shadow_scan_cursor = normalized_shadow_cursor
+        return _WorkDecisionPublication(True, changed)
+
+    def _cache_work_decisions(
+        self,
+        decisions: tuple[WorkDecision, ...] | list[WorkDecision],
+        generation: int,
+        *,
+        source: str,
+        live_keys: set[tuple[str, str]],
+        publication_epoch: int,
+        failed_projects: set[str] | None = None,
+        scan_complete: bool = True,
+        incomplete_keys: set[tuple[str, str]] | None = None,
+        incomplete_reason: str | None = None,
+        shadow_scan_cursor: int | None = None,
+    ) -> bool:
+        """Compatibility wrapper returning only public projection change."""
+
+        return self._publish_work_decisions(
+            decisions,
+            generation,
+            source=source,
+            live_keys=live_keys,
+            publication_epoch=publication_epoch,
+            failed_projects=failed_projects,
+            scan_complete=scan_complete,
+            incomplete_keys=incomplete_keys,
+            incomplete_reason=incomplete_reason,
+            shadow_scan_cursor=shadow_scan_cursor,
+        ).changed
 
     def work_decision_projection(
         self, project_id: str | None, task_id: str, task: Issue | None = None
     ) -> dict[str, Any] | None:
-        """Return one read-only why-not-progressing projection.
+        """Return one immutable why-not-progressing projection.
 
-        A shadow diagnostic is used as a compatibility fallback during the
-        staged controller rollout.  Both sources contain the same evaluator
-        decision and are serialized through the same public projection.
+        ``task`` remains in the signature for API compatibility, but reads
+        never evaluate policy, mutate controller metrics, or manufacture a
+        fresh evidence revision. A cache miss is explicitly unavailable until
+        the configured bounded decision producer publishes it.
         """
 
         project = str(project_id or "legacy")
@@ -10956,151 +11699,173 @@ class Orchestrator:
         if not identifier:
             return None
         with self._work_decisions_lock:
+            if project in getattr(
+                self, "_work_decision_unavailable_projects", set()
+            ):
+                return None
+            if (project, identifier) in getattr(
+                self, "_work_decision_incomplete_keys", set()
+            ):
+                return None
             decision = self._work_decisions.get((project, identifier))
-        if decision is not None:
-            return project_work_decision(decision)
-        diagnostic = self.workflow_shadow.diagnostic(project, identifier)
-        if isinstance(diagnostic, dict):
-            raw_decision = diagnostic.get("decision")
-            if isinstance(raw_decision, dict):
-                try:
-                    return project_work_decision_payload(raw_decision)
-                except (TypeError, ValueError):
-                    logger.debug(
-                        "Ignoring invalid cached workflow decision for %s/%s",
-                        project,
-                        identifier,
-                    )
-        if task is None:
-            return None
-        # Before the first bounded controller pass, expose a conservative
-        # status/evidence answer instead of making the board guess. Missing
-        # external facts deliberately become informational recovery, never a
-        # warning; the next controller pass replaces this fallback.
-        project_value = str(task.project_id or project or "legacy")
-        collected_at = datetime.now(timezone.utc).isoformat()
-        observations = {
-            FactDomain.TASK: FactObservation.known(
-                FactDomain.TASK,
-                {
-                    "identifier": task.identifier,
-                    "project_id": project_value,
-                    "status": task.state,
-                },
-                observed_at=collected_at,
-                source="projection_fallback",
-            ),
-            FactDomain.DEPENDENCIES: FactObservation.known(
-                FactDomain.DEPENDENCIES,
-                {
-                    "finish": [
-                        {
-                            "identifier": item.identifier or item.id,
-                            "status": canonicalize_status(item.state),
-                        }
-                        for item in (task.blocked_by or [])
-                    ],
-                    "hard_start": [
-                        {
-                            "identifier": item.identifier or item.id,
-                            "status": canonicalize_status(item.state),
-                        }
-                        for item in (task.start_blocked_by or [])
-                    ],
-                },
-                observed_at=collected_at,
-                source="projection_fallback",
-            ),
-            FactDomain.INTEGRATION: FactObservation.known(
-                FactDomain.INTEGRATION,
-                (
-                    task.integration.to_dict()
-                    if getattr(task, "integration", None) is not None
-                    else {"state": "none"}
-                ),
-                observed_at=collected_at,
-                source="projection_fallback",
-            ),
-            FactDomain.LANDING: FactObservation.known(
-                FactDomain.LANDING,
-                {"evidence_revisions": []},
-                observed_at=collected_at,
-                source="projection_fallback",
-            ),
-            FactDomain.RETRY_BUDGET: FactObservation.known(
-                FactDomain.RETRY_BUDGET,
-                {"attempts": 0, "max_attempts": 5},
-                observed_at=collected_at,
-                source="projection_fallback",
-            ),
-            FactDomain.CONFIG: FactObservation.known(
-                FactDomain.CONFIG, {}, observed_at=collected_at, source="projection_fallback"
-            ),
-        }
-        for domain in (
-            FactDomain.CONTAINMENT,
-            FactDomain.TERMINAL_AUDIT,
-            FactDomain.REVIEW_CI,
-            FactDomain.IMPLEMENTATION_AUTHORITY,
-        ):
-            observations[domain] = FactObservation.missing(
-                domain, observed_at=collected_at, source="projection_fallback"
+        return project_work_decision(decision) if decision is not None else None
+
+    def work_decision_availability(
+        self, project_id: str | None, task_id: str | None = None
+    ) -> str:
+        """Return the explicit cache-read state for one project or live task."""
+
+        project = str(project_id or "legacy")
+        identifier = str(task_id or "").strip()
+        with self._work_decisions_lock:
+            mode = str(self.config.workflow_engine_mode or "off").lower()
+            source = self._work_decision_source
+            unavailable = project in getattr(
+                self, "_work_decision_unavailable_projects", set()
             )
-        try:
-            fallback = self.workflow_controller.evaluate(
-                (task,),
-                facts_by_task={task.identifier: WorkflowFacts(
-                    project_value, task.identifier, collected_at, observations
-                )},
-                now=datetime.fromisoformat(collected_at),
+            incomplete_projects = getattr(
+                self, "_work_decision_incomplete_projects", set()
             )
-        except Exception:
-            return None
-        return project_work_decision(fallback[0]) if fallback else None
+            incomplete_keys = getattr(self, "_work_decision_incomplete_keys", set())
+            has_decision = (project, identifier) in self._work_decisions
+        if mode == "off":
+            return "disabled"
+        if unavailable:
+            return "unavailable"
+        if identifier and (project, identifier) in incomplete_keys:
+            return "incomplete"
+        if identifier and has_decision:
+            return "available"
+        if project in incomplete_projects:
+            return "incomplete"
+        if source is None:
+            return "pending"
+        if identifier:
+            return "unavailable"
+        return "available"
+
+    def work_decision_snapshot(
+        self,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Return projection metadata/items and matching alerts atomically."""
+
+        with self._work_decisions_lock:
+            incomplete_keys = set(
+                getattr(self, "_work_decision_incomplete_keys", set())
+            )
+            values = tuple(
+                decision
+                for key, decision in self._work_decisions.items()
+                if key not in incomplete_keys
+                and key[0]
+                not in getattr(self, "_work_decision_unavailable_projects", set())
+            )
+            source = self._work_decision_source
+            generation = self._work_decision_generation
+            publication_epoch = self._work_decision_publication_epoch
+            updated_at = self._work_decision_updated_at
+            unavailable_projects = tuple(
+                sorted(getattr(self, "_work_decision_unavailable_projects", set()))
+            )
+            complete = bool(
+                getattr(self, "_work_decision_snapshot_complete", False)
+            )
+            incomplete_projects = tuple(
+                sorted(getattr(self, "_work_decision_incomplete_projects", set()))
+            )
+            incomplete_reason = getattr(
+                self, "_work_decision_incomplete_reason", None
+            )
+            configured_mode = str(self.config.workflow_engine_mode or "off").lower()
+        if configured_mode == "off":
+            availability = "disabled"
+        elif source is None and unavailable_projects:
+            availability = "unavailable"
+        elif source is None and (incomplete_projects or incomplete_reason):
+            availability = "incomplete"
+        elif source is None:
+            availability = "pending"
+        elif unavailable_projects:
+            availability = "partial"
+        elif incomplete_projects or incomplete_reason:
+            availability = "incomplete"
+        else:
+            availability = "ready"
+        ordered = tuple(
+            sorted(values, key=lambda item: (item.project_id, item.task_id))
+        )
+        items = [
+            project_work_decision(decision)
+            for decision in ordered
+        ]
+        alerts = [
+            alert
+            for decision in ordered
+            if (alert := work_decision_alert(decision)) is not None
+        ]
+        return (
+            {
+                "schema_version": 1,
+                "source": source,
+                "snapshot_generation": generation,
+                "publication_epoch": publication_epoch,
+                "updated_at": updated_at,
+                "complete": complete and availability == "ready",
+                "availability": availability,
+                "unavailable_projects": list(unavailable_projects),
+                "incomplete_projects": list(incomplete_projects),
+                "incomplete_tasks": [
+                    {"project_id": project_id, "task_id": task_id}
+                    for project_id, task_id in sorted(incomplete_keys)
+                ],
+                "incomplete_reason": incomplete_reason,
+                "items": items,
+            },
+            alerts,
+        )
 
     def work_decision_projections(self) -> list[dict[str, Any]]:
         """Return a stable, redacted copy of all cached task decisions."""
 
-        with self._work_decisions_lock:
-            values = tuple(self._work_decisions.values())
-        return [
-            project_work_decision(decision)
-            for decision in sorted(
-                values, key=lambda item: (item.project_id, item.task_id)
-            )
-        ]
+        snapshot, _alerts = self.work_decision_snapshot()
+        return list(snapshot["items"])
 
     def work_decision_alerts(self) -> list[dict[str, Any]]:
         """Return only operator-actionable alerts derived from decisions."""
 
-        with self._work_decisions_lock:
-            values = tuple(self._work_decisions.values())
-        return [
-            alert
-            for decision in values
-            if (alert := work_decision_alert(decision)) is not None
-        ]
+        _snapshot, alerts = self.work_decision_snapshot()
+        return alerts
 
     def _run_workflow_shadow_sweep(self) -> dict[str, Any]:
         """Boundedly compare fresh facts with every legacy consumer projection."""
 
-        if self.workflow_shadow.mode == "off":
+        with self._work_decisions_lock:
+            publication_epoch = self._work_decision_publication_epoch
+            sweep_mode = str(self.config.workflow_engine_mode or "off").lower()
+            scan_limit = self.config.workflow_shadow_scan_limit
+            shadow_evaluator = self.workflow_shadow
+            shadow_scan_cursor = self._workflow_shadow_scan_cursor
+            projects = list(self.project_store.list_all())
+            tracker_project_ids = (
+                [str(project.id) for project in projects]
+                if projects
+                else ["legacy"]
+            )
+            legacy_tracker = getattr(self, "tracker", None)
+        if sweep_mode == "off":
             return {"evaluated": 0, "changed": 0, "mode": "off"}
         with self._workflow_shadow_generation_lock:
             self._workflow_shadow_generation += 1
             generation = self._workflow_shadow_generation
-        projects = list(self.project_store.list_all())
-        tracker_projects: list[tuple[str, TrackerProtocol]] = []
-        if projects:
-            tracker_projects.extend(
-                (str(project.id), self._tracker_for_project(project.id))
-                for project in projects
-            )
-        else:
-            tracker_projects.append(("legacy", self.tracker))
         candidates: list[tuple[str, TrackerProtocol, Issue]] = []
-        for project_id, tracker in tracker_projects:
+        failed_projects: set[str] = set()
+        for project_id in tracker_project_ids:
             try:
+                tracker = (
+                    legacy_tracker
+                    if project_id == "legacy" and not projects
+                    else self._tracker_for_project(project_id)
+                )
                 issues = list(tracker.fetch_all_issues())
             except Exception as exc:  # noqa: BLE001 - isolate shadow sources
                 logger.debug(
@@ -11108,9 +11873,10 @@ class Orchestrator:
                     project_id,
                     type(exc).__name__,
                 )
+                failed_projects.add(str(project_id or "legacy"))
                 continue
             for issue in issues:
-                if canonicalize_status(issue.state) in TERMINAL_STATUSES:
+                if canonicalize_status(issue.state) in LIFECYCLE_FINAL_STATUSES:
                     continue
                 scoped = (
                     issue
@@ -11119,53 +11885,143 @@ class Orchestrator:
                 )
                 candidates.append((project_id, tracker, scoped))
         candidates.sort(key=lambda item: (item[0], item[2].identifier))
+        bounded_limit = max(1, int(scan_limit))
+        with self._workflow_shadow_generation_lock:
+            candidate_count = len(candidates)
+            scan_offset = (
+                int(shadow_scan_cursor)
+                % candidate_count
+                if candidate_count
+                else 0
+            )
+            truncated = candidate_count > bounded_limit
+            if truncated:
+                rotated = candidates[scan_offset:] + candidates[:scan_offset]
+                scan_window = rotated[:bounded_limit]
+                next_scan_offset = (
+                    scan_offset + len(scan_window)
+                ) % candidate_count
+            else:
+                scan_window = candidates
+                next_scan_offset = 0
         evaluated = 0
         changed = 0
-        for project_id, tracker, issue in candidates[
-            : self.config.workflow_shadow_scan_limit
-        ]:
-            try:
-                collector = WorkflowFactCollector(
-                    project_id=project_id,
-                    tracker=tracker,
-                    sources=self._workflow_shadow_sources(issue),
+        projected_decisions: list[WorkDecision] = []
+        live_keys = {
+            (str(project_id or "legacy"), issue.identifier)
+            for project_id, _tracker, issue in candidates
+        }
+        shadow_context = (
+            shadow_evaluator.publication_transaction()
+            if isinstance(shadow_evaluator, WorkflowShadowEvaluator)
+            else contextlib.nullcontext(None)
+        )
+        with shadow_context as shadow_transaction:
+            evaluation_target = (
+                shadow_transaction.evaluator
+                if shadow_transaction is not None
+                and hasattr(shadow_transaction, "evaluator")
+                else shadow_evaluator
+            )
+            for project_id, tracker, issue in scan_window:
+                try:
+                    collector = WorkflowFactCollector(
+                        project_id=project_id,
+                        tracker=tracker,
+                        sources=self._workflow_shadow_sources(issue),
+                        integration_queue=self.integration_queue,
+                    )
+                    facts = collector.collect(issue.identifier)
+                    evaluate_kwargs: dict[str, Any] = {
+                        "snapshot_generation": generation
+                    }
+                    if isinstance(shadow_evaluator, WorkflowShadowEvaluator):
+                        evaluate_kwargs["notify_listeners"] = False
+                    result = evaluation_target.evaluate(
+                        issue,
+                        facts,
+                        self._legacy_workflow_projections(issue),
+                        **evaluate_kwargs,
+                    )
+                    result_decision = getattr(result, "decision", None)
+                    if isinstance(result_decision, WorkDecision):
+                        projected_decisions.append(result_decision)
+                    elif result.diagnostic:
+                        # Compatibility for external/test evaluators that
+                        # predate the decision field. Production never derives
+                        # authority from the size-bounded diagnostic envelope.
+                        raw_decision = result.diagnostic.get("decision")
+                        if isinstance(raw_decision, dict):
+                            try:
+                                projected_decisions.append(
+                                    WorkDecision.from_dict(raw_decision)
+                                )
+                            except (TypeError, ValueError):
+                                logger.debug(
+                                    "Workflow shadow decision was not cacheable for %s/%s",
+                                    project_id,
+                                    issue.identifier,
+                                )
+                    evaluated += int(result.accepted)
+                    changed += int(result.changed)
+                except Exception as exc:  # noqa: BLE001 - diagnostics cannot stop work
+                    logger.debug(
+                        "Workflow shadow evaluation failed project=%s task=%s error=%s",
+                        project_id,
+                        issue.identifier,
+                        type(exc).__name__,
+                    )
+            incomplete_reason = None
+            if truncated or len(projected_decisions) < len(scan_window):
+                incomplete_reason = (
+                    f"bounded shadow scan published {len(projected_decisions)} decisions "
+                    f"from a rotating {len(scan_window)}-task window across "
+                    f"{len(candidates)} live tasks; omitted tasks will be evaluated "
+                    "by future sweeps"
                 )
-                facts = collector.collect(issue.identifier)
-                result = self.workflow_shadow.evaluate(
-                    issue,
-                    facts,
-                    self._legacy_workflow_projections(issue),
-                    snapshot_generation=generation,
-                )
-                if result.diagnostic:
-                    raw_decision = result.diagnostic.get("decision")
-                    if isinstance(raw_decision, dict):
-                        try:
-                            self._cache_work_decisions(
-                                [WorkDecision.from_dict(raw_decision)], generation
-                            )
-                        except (TypeError, ValueError):
-                            logger.debug(
-                                "Workflow shadow decision was not cacheable for %s/%s",
-                                project_id,
-                                issue.identifier,
-                            )
-                evaluated += int(result.accepted)
-                changed += int(result.changed)
-            except Exception as exc:  # noqa: BLE001 - diagnostics cannot stop work
-                logger.debug(
-                    "Workflow shadow evaluation failed project=%s task=%s error=%s",
-                    project_id,
-                    issue.identifier,
-                    type(exc).__name__,
-                )
-        if changed:
+            publication = self._publish_work_decisions(
+                projected_decisions,
+                generation,
+                source="shadow",
+                publication_epoch=publication_epoch,
+                failed_projects=failed_projects,
+                live_keys=live_keys,
+                scan_complete=not truncated,
+                incomplete_reason=incomplete_reason,
+                shadow_scan_cursor=next_scan_offset,
+            )
+            if publication.accepted and shadow_transaction is not None:
+                shadow_transaction.commit(notify=bool(changed))
+        if not publication.accepted:
+            with self._workflow_shadow_generation_lock:
+                if self._workflow_shadow_generation == generation:
+                    self._workflow_shadow_generation -= 1
+        if publication.accepted and publication.changed:
+            # WorkDecision is part of board/detail issue payloads, so a content
+            # revision must invalidate and rebroadcast both snapshots.
+            self._notify_observers()
+        elif publication.accepted and changed:
             self._notify_state_only()
         return {
             "evaluated": evaluated,
-            "changed": changed,
-            "mode": self.workflow_shadow.mode,
+            "changed": changed if publication.accepted else 0,
+            "mode": sweep_mode,
             "snapshot_generation": generation,
+            "publication_epoch": publication_epoch,
+            "truncated": truncated,
+            "scan_limit": bounded_limit,
+            "scan_offset": scan_offset,
+            "next_scan_offset": next_scan_offset,
+            "live_tasks": len(candidates),
+            "omitted_tasks": len(
+                live_keys
+                - {
+                    (str(decision.project_id or "legacy"), decision.task_id)
+                    for decision in projected_decisions
+                }
+            ),
+            "publication_accepted": publication.accepted,
+            "publication_rejection": publication.rejection,
         }
 
     def _run_workflow_controller_sweep(self) -> dict[str, Any]:
@@ -11176,20 +12032,28 @@ class Orchestrator:
         their individual cutovers replace them with leased workflow workers.
         """
 
-        if self.config.workflow_engine_mode != "enforce":
-            return {"evaluated": 0, "mode": self.config.workflow_engine_mode}
-        projects = list(self.project_store.list_all())
-        tracker_projects: list[tuple[str, TrackerProtocol]] = []
-        if projects:
-            tracker_projects.extend(
-                (str(project.id), self._tracker_for_project(project.id))
-                for project in projects
+        with self._work_decisions_lock:
+            publication_epoch = self._work_decision_publication_epoch
+            sweep_mode = str(self.config.workflow_engine_mode or "off").lower()
+            controller = self.workflow_controller
+            projects = list(self.project_store.list_all())
+            tracker_project_ids = (
+                [str(project.id) for project in projects]
+                if projects
+                else ["legacy"]
             )
-        else:
-            tracker_projects.append(("legacy", self.tracker))
+            legacy_tracker = getattr(self, "tracker", None)
+        if sweep_mode != "enforce":
+            return {"evaluated": 0, "mode": sweep_mode}
         candidates: list[Issue] = []
-        for project_id, tracker in tracker_projects:
+        failed_projects: set[str] = set()
+        for project_id in tracker_project_ids:
             try:
+                tracker = (
+                    legacy_tracker
+                    if project_id == "legacy" and not projects
+                    else self._tracker_for_project(project_id)
+                )
                 issues = list(tracker.fetch_all_issues())
             except Exception as exc:  # noqa: BLE001 - one project cannot stall the pass
                 logger.debug(
@@ -11197,6 +12061,7 @@ class Orchestrator:
                     project_id,
                     type(exc).__name__,
                 )
+                failed_projects.add(str(project_id or "legacy"))
                 continue
             for issue in issues:
                 if canonicalize_status(issue.state) in LIFECYCLE_FINAL_STATUSES:
@@ -11205,10 +12070,62 @@ class Orchestrator:
                     issue if issue.project_id else replace(issue, project_id=project_id)
                 )
         candidates.sort(key=lambda item: (str(item.project_id or ""), item.identifier))
+        live_keys = {
+            (str(item.project_id or "legacy"), item.identifier)
+            for item in candidates
+        }
         try:
-            result = self.workflow_controller.full_sync(
-                candidates, facts=self._collect_universal_workflow_facts
-            )
+            if isinstance(controller, UniversalTotalityLivenessController):
+                # Fact providers may touch trackers, forges, and other bounded
+                # stores. Resolve them before opening the workflow-job SQLite
+                # publication transaction so active lease heartbeats never wait
+                # behind arbitrary external I/O.
+                prepared = controller.prepare(
+                    candidates, facts=self._collect_universal_workflow_facts
+                )
+                controller_context = controller.publication_transaction()
+            else:
+                prepared = None
+                controller_context = contextlib.nullcontext(None)
+            with controller_context as controller_transaction:
+                result = (
+                    controller.publish_prepared(prepared)
+                    if prepared is not None
+                    else controller.full_sync(
+                        candidates, facts=self._collect_universal_workflow_facts
+                    )
+                )
+                reconciliation_truncated = bool(
+                    getattr(result.reconciliation, "truncated", False)
+                )
+                incomplete_keys = live_keys if reconciliation_truncated else set()
+                incomplete_reason = None
+                if result.truncated:
+                    if reconciliation_truncated:
+                        incomplete_reason = (
+                            "controller recovery reconciliation reached its bounded work "
+                            "limit; no task decision is actionable until a complete pass "
+                            "durably reconciles the generation"
+                        )
+                    else:
+                        incomplete_reason = (
+                            f"bounded controller scan evaluated {len(result.decisions)} of "
+                            f"{len(candidates)} live tasks at limit "
+                            f"{getattr(controller, 'decision_limit', 'unknown')}; omitted "
+                            "tasks will be evaluated by rotating future sweeps"
+                        )
+                publication = self._publish_work_decisions(
+                    result.decisions,
+                    result.snapshot_generation,
+                    source="controller",
+                    publication_epoch=publication_epoch,
+                    failed_projects=failed_projects,
+                    live_keys=live_keys,
+                    scan_complete=not result.truncated,
+                    incomplete_keys=incomplete_keys,
+                    incomplete_reason=incomplete_reason,
+                    producer_transaction=controller_transaction,
+                )
         except Exception as exc:  # noqa: BLE001 - next safety pass retries
             logger.exception("Universal workflow controller sweep failed")
             return {
@@ -11216,29 +12133,40 @@ class Orchestrator:
                 "mode": "enforce",
                 "error": type(exc).__name__,
             }
-        self._cache_work_decisions(result.decisions, result.snapshot_generation)
-        if not result.truncated:
-            live_keys = {
-                (str(item.project_id or "legacy"), item.task_id)
-                for item in result.decisions
-            }
-            with self._work_decisions_lock:
-                for key in tuple(self._work_decisions):
-                    if key not in live_keys:
-                        self._work_decisions.pop(key, None)
-        if result.decisions or not result.truncated:
-            # Decision severity transitions (including alert clearing) are
-            # state changes even when tracker status did not change.
-            self._notify_state_only()
+        if publication.accepted and publication.changed:
+            # Decision severity/ownership/reason transitions are issue payload
+            # changes even when tracker status did not change.
+            self._notify_observers()
+        publication_jobs_created = (
+            result.reconciliation.jobs_created if publication.accepted else 0
+        )
+        publication_jobs_replayed = (
+            result.reconciliation.jobs_replayed if publication.accepted else 0
+        )
+        publication_jobs_superseded = (
+            result.reconciliation.jobs_superseded if publication.accepted else 0
+        )
         return {
             "evaluated": len(result.decisions),
             "action_required": len(result.action_required),
-            "jobs_created": result.reconciliation.jobs_created,
-            "jobs_replayed": result.reconciliation.jobs_replayed,
-            "jobs_superseded": result.reconciliation.jobs_superseded,
+            "jobs_created": publication_jobs_created,
+            "jobs_replayed": publication_jobs_replayed,
+            "jobs_superseded": publication_jobs_superseded,
             "truncated": result.truncated,
+            "scan_limit": getattr(controller, "decision_limit", None),
+            "live_tasks": len(candidates),
+            "omitted_tasks": len(
+                live_keys
+                - {
+                    (str(decision.project_id or "legacy"), decision.task_id)
+                    for decision in result.decisions
+                }
+            ),
             "snapshot_generation": result.snapshot_generation,
+            "publication_epoch": publication_epoch,
             "mode": "enforce",
+            "publication_accepted": publication.accepted,
+            "publication_rejection": publication.rejection,
         }
 
     async def _tick(self) -> None:
@@ -11406,6 +12334,23 @@ class Orchestrator:
             self._workflow_shadow_future = (
                 asyncio.get_running_loop().run_in_executor(
                     self._tick_pool, self._run_workflow_shadow_sweep
+                )
+            )
+
+        # Enforce mode adds the universal totality/liveness controller to the
+        # same bounded maintenance lane. The durable scheduler is the only
+        # mutation-capable path here; tracker statuses remain owned by their
+        # domain cutovers until those workers are installed.
+        if (
+            self.config.workflow_engine_mode == "enforce"
+            and (
+                self._workflow_controller_future is None
+                or self._workflow_controller_future.done()
+            )
+        ):
+            self._workflow_controller_future = (
+                asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool, self._run_workflow_controller_sweep
                 )
             )
 
@@ -11653,26 +12598,41 @@ class Orchestrator:
         Merged branches are cached across ticks and only re-fetched when
         ``_merged_branches_dirty`` is set (by webhooks or first tick).
         """
-        self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
+        with self._project_trackers_lock:
+            tracker_generation = self._project_tracker_generation
+            refresh_merged = self._merged_branches_dirty
+            # Reset per tick — shared by PR branches + YOLO.
+            self._reviews_cache = {}
 
-        if self._merged_branches_dirty:
+        if refresh_merged:
             reviews_by_project, merged_branches = await asyncio.gather(
                 self._fetch_all_reviews_bounded(),
                 self._fetch_all_merged_branches_bounded(),
             )
-            self._merged_branches = merged_branches
-            self._merged_branches_dirty = False
         else:
             reviews_by_project = await self._fetch_all_reviews_bounded()
 
-        self._reviews_cache = reviews_by_project
-        # Derive unmerged review branches from cached reviews
-        self._unmerged_review_branches = {
-            r.source_branch
-            for reviews in reviews_by_project.values()
-            for r in reviews
-            if r.source_branch
-        }
+        with self._project_trackers_lock:
+            if tracker_generation != self._project_tracker_generation:
+                # Provider I/O completed under an obsolete project config.
+                # Keep the aggregate conservative and retry the dirty merged
+                # branch snapshot on the next review lane pass.
+                self._reviews_cache = {}
+                self._unmerged_review_branches = set()
+                self._merged_branches = set()
+                self._merged_branches_dirty = True
+                return
+            if refresh_merged:
+                self._merged_branches = merged_branches
+                self._merged_branches_dirty = False
+            self._reviews_cache = reviews_by_project
+            # Derive unmerged review branches from cached reviews.
+            self._unmerged_review_branches = {
+                r.source_branch
+                for reviews in reviews_by_project.values()
+                for r in reviews
+                if r.source_branch
+            }
         logger.debug(
             "Unmerged review branches: %s", sorted(self._unmerged_review_branches)
         )
@@ -11697,18 +12657,21 @@ class Orchestrator:
         async with self._dispatch_lane_lock:
             return await self._handle_dispatch_needed_locked()
 
-    def _fetch_audit_candidates(self) -> list[Issue]:
-        """Fetch persisted ``In Validation`` tasks for the priority lane."""
+    def _fetch_audit_candidates(self) -> _AuditCandidateScan:
+        """Fetch ``In Validation`` tasks and retain per-scope scan authority."""
 
         projects = self.project_store.list_all()
         if not projects:
             try:
-                return list(self.tracker.fetch_issues_by_states([IN_VALIDATION]))
+                return _AuditCandidateScan(
+                    tuple(self.tracker.fetch_issues_by_states([IN_VALIDATION]))
+                )
             except Exception as exc:  # noqa: BLE001 - a scan must not stop work
                 logger.warning("Audit candidate scan failed: %s", exc)
-                return []
+                return _AuditCandidateScan((), scan_error_count=1)
 
         result: list[Issue] = []
+        scan_error_count = 0
         for project in projects:
             try:
                 tracker = self._tracker_for_project(project.id)
@@ -11717,12 +12680,15 @@ class Orchestrator:
                     issue.project_id = str(project.id)
                 result.extend(issues)
             except Exception as exc:  # noqa: BLE001 - isolate projects
+                scan_error_count += 1
                 logger.warning(
                     "Audit candidate scan failed for project %s: %s",
                     project.id,
                     type(exc).__name__,
                 )
-        return result
+        return _AuditCandidateScan(
+            tuple(result), scan_error_count=scan_error_count
+        )
 
     def _audit_store(self, issue: Issue) -> TerminalAuditMetadataStore:
         project_id = str(issue.project_id or "legacy")
@@ -12918,11 +13884,11 @@ class Orchestrator:
         if self._available_slots() <= 0:
             return {"audit_dispatch": 0.0, "audit_scan": 0.0}
 
-        candidates = await asyncio.get_running_loop().run_in_executor(
+        candidate_scan = await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._fetch_audit_candidates
         )
         candidates = sorted(
-            candidates,
+            candidate_scan.candidates,
             key=lambda issue: (
                 -(
                     self.config.audit_priority
@@ -12933,20 +13899,27 @@ class Orchestrator:
                 issue.identifier,
             ),
         )
+        discovered_candidate_count = len(candidates)
         limit = self.config.audit_lane_scan_limit
-        if limit > 0:
+        truncated = limit > 0 and discovered_candidate_count > limit
+        if truncated:
             candidates = candidates[:limit]
-        metrics["pending_count"] = len(candidates)
+        # Candidate discovery is current lane telemetry.  ``pending_count`` is
+        # reserved for the authoritative TerminalAuditHealth generation and
+        # can intentionally retain last-complete facts during a partial scan.
+        metrics["discovered_candidate_count"] = discovered_candidate_count
         dispatched = 0
         # Health-scan state: one observation per In Validation issue.
         observations: list[AuditHealthObservation] = []
         _audit_scan_error_count: int = 0
+        processed_candidate_count = 0
 
         for issue in candidates:
             if self._dispatch_is_blocked(issue):
                 continue
             if self._available_slots() <= 0:
                 break
+            processed_candidate_count += 1
             try:
                 store = self._audit_store(issue)
                 document = await asyncio.get_running_loop().run_in_executor(
@@ -12974,6 +13947,7 @@ class Orchestrator:
                         finalization_failure_count=finalization_failure_count,
                     )
                 )
+                observation_index = len(observations) - 1
                 if record is None:
                     continue
                 selector, selector_error = await self._prepare_audit_selector(issue)
@@ -13046,9 +14020,13 @@ class Orchestrator:
                     if not recovered_persisted:
                         # A result/override won after the scan snapshot was
                         # read.  Re-read on the next scan; never launch from
-                        # the stale recovery object.
+                        # or publish the stale recovery object.
+                        observations.pop(observation_index)
                         continue
                     record = recovery.record
+                    observations[observation_index] = replace(
+                        observations[observation_index], record=record
+                    )
                 if not recovery.ready:
                     if recovery.reason and "already running" in recovery.reason:
                         metrics["in_progress_count"] += 1
@@ -13178,7 +14156,14 @@ class Orchestrator:
                 if not plan_persisted:
                     # PASS/override may have retired this identity between
                     # the candidate read and the launch fence.
+                    observations.pop(observation_index)
                     continue
+                # The crash-safe metadata write is the lifecycle authority for
+                # health publication.  Publish the durable IN_PROGRESS record,
+                # not the PENDING snapshot read before launch.
+                observations[observation_index] = replace(
+                    observations[observation_index], record=persisted
+                )
                 self._audit_branch_claims[branch_key] = plan.attempt_id
                 try:
                     admitted = await self._dispatch(
@@ -13238,13 +14223,23 @@ class Orchestrator:
         )
         metrics["last_dispatched_count"] = dispatched
         # Rebuild health metrics and alerts from the durable audit observations.
-        # A scan that processed all candidates (no early slot exhaustion) is
-        # considered complete for alert-clearing purposes.
-        scan_complete = self._available_slots() > 0 or not candidates
+        # Filling the final slot while processing the final candidate is still
+        # a complete scan.  Only an early break leaves unobserved candidates.
+        scan_error_count = (
+            candidate_scan.scan_error_count + _audit_scan_error_count
+        )
+        scan_complete = (
+            candidate_scan.scan_complete
+            and not truncated
+            and processed_candidate_count == len(candidates)
+            and scan_error_count == 0
+        )
+        metrics["scanned_candidate_count"] = processed_candidate_count
+        metrics["candidate_scan_complete"] = scan_complete
         self._refresh_terminal_audit_health(
             observations,
-            scan_complete=scan_complete and _audit_scan_error_count == 0,
-            scan_error_count=_audit_scan_error_count,
+            scan_complete=scan_complete,
+            scan_error_count=scan_error_count,
         )
         return {
             "audit_scan": (time.monotonic() - started) * 1000,
@@ -13572,7 +14567,12 @@ class Orchestrator:
                     f"Blocked integration task {task_id} has no active retry "
                     f"or actionable human reason: {reason}."
                 ),
-            },
+                "action": (
+                    "Inspect the accepted integration record and restore either "
+                    "a bounded retry or a concrete operator-owned repair."
+                ),
+                "action_required": True,
+            }
         )
 
     def _clear_integration_delivery_alert(
@@ -14029,9 +15029,16 @@ class Orchestrator:
             {
                 "level": "warning",
                 "source": source,
+                "project_id": project_id,
+                "task_id": task_id,
                 "message": message,
                 "recovery_action": recovery_action,
-            },
+                "action": (
+                    f"Supply the required evidence and rearm {target_state} "
+                    "with audit_retry_evidence_addendum."
+                ),
+                "action_required": True,
+            }
         )
 
     def _clear_integrated_audit_recovery_alert(
@@ -14075,8 +15082,10 @@ class Orchestrator:
             self._replace_alert_source(
                 scan_source,
                 {
-                    "level": "warning",
+                    "level": "info",
                     "source": scan_source,
+                    "action_required": False,
+                    "recovery_state": "next_scan",
                     "message": (
                         f"Could not audit blocked integration rows for "
                         f"project {project_id}: {exc}"
@@ -14797,8 +15806,10 @@ class Orchestrator:
             self._replace_alert_source(
                 source,
                 {
-                    "level": "warning",
+                    "level": "info",
                     "source": source,
+                    "action_required": False,
+                    "recovery_state": "repair_selected",
                     "message": (
                         "Container dependency cycle detected: "
                         f"{cycle.message_path}. Affected Ready rows: "
@@ -15859,7 +16870,12 @@ class Orchestrator:
                         f"Standalone Ready task {task_id} has no active delivery: "
                         f"{reason}."
                     ),
-                },
+                    "action": (
+                        "Inspect the accepted submission and restore a valid "
+                        "integration or review delivery path."
+                    ),
+                    "action_required": True,
+                }
             )
             return True
 
@@ -19588,8 +20604,10 @@ class Orchestrator:
         alert = None
         if degraded:
             alert = {
-                "level": "warning",
+                "level": "info",
                 "source": source,
+                "action_required": False,
+                "recovery_state": "controller_reassessment",
                 "message": (
                     f"Integration queue has {ready_count} Ready row(s), "
                     f"including an eligible row waiting {oldest_age_seconds:.0f}s "
@@ -20715,7 +21733,13 @@ class Orchestrator:
                 # Replace any existing auto-update alert
                 self._replace_alert_source(
                     "auto_update",
-                    {"level": "warning", "source": "auto_update", "message": msg},
+                    {
+                        "level": "warning",
+                        "source": "auto_update",
+                        "message": msg,
+                        "action": "Inspect the managed checkout and repair the failed Git operation.",
+                        "action_required": True,
+                    }
                 )
                 return
 
@@ -20729,7 +21753,13 @@ class Orchestrator:
             logger.debug("Auto-update check failed: %s", exc)
             self._replace_alert_source(
                 "auto_update",
-                {"level": "warning", "source": "auto_update", "message": msg},
+                {
+                    "level": "warning",
+                    "source": "auto_update",
+                    "message": msg,
+                    "action": "Inspect the managed checkout and repair the failed Git operation.",
+                    "action_required": True,
+                }
             )
 
     def _fetch_all_candidates(self) -> list[Issue]:
@@ -27890,7 +28920,7 @@ class Orchestrator:
             ):
                 continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
-                self._clear_stuck_epic_alert(issue.identifier)
+                self._clear_stuck_epic_alert(issue.identifier, issue.project_id)
                 continue  # already closed
             self._epic_auto_close_check(issue)
 
@@ -27915,13 +28945,13 @@ class Orchestrator:
         """
         # Condition 4: don't reanimate a manually-closed epic.
         if _is_terminal_state(epic.state, self.config.tracker_terminal_states):
-            self._clear_stuck_epic_alert(epic.identifier)
+            self._clear_stuck_epic_alert(epic.identifier, epic.project_id)
             return False
 
         # Edge case: epic with no children — never auto-close.
         children = self._fetch_epic_children(epic)
         if not children:
-            self._clear_stuck_epic_alert(epic.identifier)
+            self._clear_stuck_epic_alert(epic.identifier, epic.project_id)
             return False
 
         # Condition 1: every child in a terminal state.
@@ -27932,7 +28962,7 @@ class Orchestrator:
         if non_terminal_children:
             # Clear any previous stuck alert — work is still in
             # progress, so it's not stuck yet.
-            self._clear_stuck_epic_alert(epic.identifier)
+            self._clear_stuck_epic_alert(epic.identifier, epic.project_id)
             return False
 
         # Conditions 2 + 3: per-child branch-merge check.
@@ -28089,7 +29119,7 @@ class Orchestrator:
         ):
             # Epic branch hasn't merged to its target yet — still pending,
             # not stuck.
-            self._clear_stuck_epic_alert(epic.identifier)
+            self._clear_stuck_epic_alert(epic.identifier, epic.project_id)
             return False
 
         # All conditions hold — request close via coordinator.
@@ -28119,7 +29149,7 @@ class Orchestrator:
                         exc,
                     )
 
-            self._clear_stuck_epic_alert(epic.identifier)
+            self._clear_stuck_epic_alert(epic.identifier, epic.project_id)
             logger.info(
                 "Auto-closed epic %s — all %d children closed and merged to %s",
                 epic.identifier,
@@ -28145,10 +29175,12 @@ class Orchestrator:
 
         Triggered when every child is closed but at least one child
         has an unmerged branch — Condition 2 of the auto-close gate
-        fails. The alert is keyed on ``source='stuck_epic'`` and the
-        epic identifier, so re-arming is idempotent.
+        fails. The alert is keyed on ``source='stuck_epic'``, project, and
+        epic identifier, so re-arming is idempotent without cross-project
+        collisions.
         """
-        source = f"stuck_epic:{epic.identifier}"
+        project_id = str(epic.project_id or "legacy")
+        source = f"stuck_epic:{project_id}:{epic.identifier}"
         details: list[str] = []
         for child, review, evidence_reason in unmerged:
             if evidence_reason:
@@ -28175,14 +29207,29 @@ class Orchestrator:
             {
                 "level": "warning",
                 "source": source,
+                "project_id": epic.project_id,
+                "epic_identifier": epic.identifier,
                 "message": message,
-            },
+                "action": (
+                    "Open the affected child reviews and restore a valid merge "
+                    "or integration path before rolling up the epic."
+                ),
+                "action_required": True,
+            }
         )
 
-    def _clear_stuck_epic_alert(self, epic_identifier: str) -> None:
+    def _clear_stuck_epic_alert(
+        self,
+        epic_identifier: str,
+        project_id: str | None = None,
+    ) -> None:
         """Drop any ``stuck_epic`` alert previously armed for this epic."""
-        source = f"stuck_epic:{epic_identifier}"
-        if self._replace_alert_source(source):
+        source = f"stuck_epic:{str(project_id or 'legacy')}:{epic_identifier}"
+        legacy_source = f"stuck_epic:{epic_identifier}"
+        if self._replace_alerts_matching(
+            lambda alert: alert.get("source") in {source, legacy_source},
+            [],
+        ):
             logger.debug(
                 "Cleared stuck_epic alert for %s",
                 epic_identifier,
@@ -28250,7 +29297,7 @@ class Orchestrator:
             if target_branch.startswith("epic-"):
                 # Epic branches never synchronize directly with each other.
                 # Their shared work reaches other epics after it lands on main.
-                self._clear_epic_stale_alert(issue.identifier)
+                self._clear_epic_stale_alert(issue.identifier, issue.project_id)
                 logger.debug(
                     "Skipping epic-to-epic staleness action for %s: %s -> %s",
                     issue.identifier,
@@ -28276,7 +29323,7 @@ class Orchestrator:
                     issue.identifier,
                     exc,
                 )
-                self._clear_epic_stale_alert(issue.identifier)
+                self._clear_epic_stale_alert(issue.identifier, issue.project_id)
                 # If rebase has been in-flight for too long, mark failed
                 if current_state == EpicRebaseState.REBASING and entry:
                     if time.time() - entry.updated_at > rebase_timeout_s:
@@ -28314,7 +29361,7 @@ class Orchestrator:
                         )
                         self._mark_rebase_failed(issue.identifier, project_id=project_id)
             else:
-                self._clear_epic_stale_alert(issue.identifier)
+                self._clear_epic_stale_alert(issue.identifier, issue.project_id)
                 if current_state == EpicRebaseState.REBASING:
                     # Rebase succeeded — epic is no longer stale
                     self._set_epic_rebase_state(
@@ -28350,7 +29397,8 @@ class Orchestrator:
         in ``epic_rebase_states``.  It does not warrant an alert until an
         actionable rebase has failed.
         """
-        source = f"epic_stale:{epic.identifier}"
+        project_id = str(epic.project_id or "legacy")
+        source = f"epic_stale:{project_id}:{epic.identifier}"
         target_branch = target_branch or project.default_branch or "main"
 
         rebase_state = self._get_epic_rebase_state(epic.identifier)
@@ -28398,7 +29446,8 @@ class Orchestrator:
                 "commits_behind": result.commits_behind,
                 "synchronization_policy": "action_required",
                 "synchronization_reason": "rebase_failed",
-            },
+                "action_required": True,
+            }
         )
         logger.info(
             "Armed failed-rebase alert for %s: %d commits behind, "
@@ -28408,10 +29457,18 @@ class Orchestrator:
             len(result.shared_files),
         )
 
-    def _clear_epic_stale_alert(self, epic_identifier: str) -> None:
+    def _clear_epic_stale_alert(
+        self,
+        epic_identifier: str,
+        project_id: str | None = None,
+    ) -> None:
         """Drop any ``epic_stale`` alert previously armed for this epic."""
-        source = f"epic_stale:{epic_identifier}"
-        if self._replace_alert_source(source):
+        source = f"epic_stale:{str(project_id or 'legacy')}:{epic_identifier}"
+        legacy_source = f"epic_stale:{epic_identifier}"
+        if self._replace_alerts_matching(
+            lambda alert: alert.get("source") in {source, legacy_source},
+            [],
+        ):
             logger.debug(
                 "Cleared epic_stale alert for %s",
                 epic_identifier,
@@ -29570,8 +30627,10 @@ class Orchestrator:
         self._replace_alert_source(
             source,
             {
-                "level": "warning",
+                "level": "info",
                 "source": source,
+                "action_required": False,
+                "recovery_state": "next_scan",
                 "message": (
                     f"Epic {epic.identifier} synchronization is paused: {error}. "
                     "This is retryable; no default-branch rebase, push, or helper "
@@ -30020,7 +31079,10 @@ class Orchestrator:
                 self._epic_rebase_states.update(removed_states)
                 removed_states = []
         for epic_id, entry in removed_states:
-            self._clear_epic_stale_alert(epic_id)
+            self._clear_epic_stale_alert(
+                epic_id,
+                getattr(entry, "project_id", None),
+            )
             logger.debug(
                 "Pruned stale epic rebase state for %s (was %s)",
                 epic_id,
@@ -31189,46 +32251,42 @@ class Orchestrator:
         if not projects:
             return {}
 
-        previous_cache = {
-            str(project_id): list(reviews or [])
-            for project_id, reviews in (
-                getattr(self, "_reviews_cache", {}) or {}
-            ).items()
-        }
-
-        def _cached_reviews(project_id: str) -> list:
-            return list(previous_cache.get(str(project_id), []))
-
-        def _has_warm_reviews_cache(project_id: str) -> bool:
-            return str(project_id) in previous_cache
-
-        def _fetch_for_project(project) -> tuple[str, list]:
+        def _fetch_for_project(project) -> tuple[str, list, int]:
             project_id = str(project.id)
+            with self._project_trackers_lock:
+                tracker_generation = self._project_tracker_generation
+                reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+                has_warm_cache = project_id in reviews_cache
+                cached_reviews = list(reviews_cache.get(project_id, []) or [])
+                repo_url = project.repo_url
+                access_token = project.access_token
+                project_name = project.name
             # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id) and _has_warm_reviews_cache(
-                project_id
-            ):
-                return (project_id, _cached_reviews(project_id))
+            if self.is_webhook_healthy(project_id) and has_warm_cache:
+                return (project_id, cached_reviews, tracker_generation)
             provider = detect_provider(
-                project.repo_url, access_token=project.access_token
+                repo_url, access_token=access_token
             )
             if not provider:
-                return (project_id, _cached_reviews(project_id))
-            slug = extract_repo_slug(project.repo_url)
+                return (project_id, cached_reviews, tracker_generation)
+            slug = extract_repo_slug(repo_url)
             try:
                 reviews = provider.list_open_reviews(slug)
-                return (project_id, reviews)
+                return (project_id, reviews, tracker_generation)
             except Exception as exc:
                 logger.debug(
-                    "Failed to fetch open reviews for %s: %s", project.name, exc
+                    "Failed to fetch open reviews for %s: %s", project_name, exc
                 )
-                return (project_id, _cached_reviews(project_id))
+                return (project_id, cached_reviews, tracker_generation)
 
-        result: dict[str, list] = {}
         with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
-            for pid, reviews in pool.map(_fetch_for_project, projects):
-                result[pid] = reviews
-        return result
+            results = list(pool.map(_fetch_for_project, projects))
+        with self._project_trackers_lock:
+            current_generation = self._project_tracker_generation
+            return {
+                pid: reviews if generation == current_generation else []
+                for pid, reviews, generation in results
+            }
 
     async def _fetch_all_reviews_bounded(self) -> dict[str, list]:
         """Fetch open reviews using bounded per-project concurrency with timeout and stale-cache fallback.
@@ -31241,50 +32299,57 @@ class Orchestrator:
         if not projects:
             return {}
 
-        previous_cache = {
-            str(project_id): list(reviews or [])
-            for project_id, reviews in (
-                getattr(self, "_reviews_cache", {}) or {}
-            ).items()
-        }
-
-        def _cached_reviews(project_id: str) -> list:
-            return list(previous_cache.get(str(project_id), []))
-
-        def _has_warm_reviews_cache(project_id: str) -> bool:
-            return str(project_id) in previous_cache
-
-        async def _fetch_one_project(project) -> tuple[str, list]:
+        async def _fetch_one_project(project) -> tuple[str, list, int]:
             project_id = str(project.id)
+            with self._project_trackers_lock:
+                tracker_generation = self._project_tracker_generation
+                reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+                has_warm_cache = project_id in reviews_cache
+                cached_reviews = list(reviews_cache.get(project_id, []) or [])
+                repo_url = project.repo_url
+                access_token = project.access_token
+                project_name = project.name
             # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id) and _has_warm_reviews_cache(
-                project_id
-            ):
-                return (project_id, _cached_reviews(project_id))
+            if self.is_webhook_healthy(project_id) and has_warm_cache:
+                with self._project_trackers_lock:
+                    current = tracker_generation == self._project_tracker_generation
+                return (
+                    project_id,
+                    cached_reviews if current else [],
+                    tracker_generation,
+                )
 
             async def _coro() -> list:
                 provider = detect_provider(
-                    project.repo_url, access_token=project.access_token
+                    repo_url, access_token=access_token
                 )
                 if not provider:
-                    return _cached_reviews(project_id)
-                slug = extract_repo_slug(project.repo_url)
+                    return cached_reviews
+                slug = extract_repo_slug(repo_url)
                 try:
                     return provider.list_open_reviews(slug)
                 except Exception as exc:
                     logger.debug(
-                        "Failed to fetch open reviews for %s: %s", project.name, exc
+                        "Failed to fetch open reviews for %s: %s", project_name, exc
                     )
-                    return _cached_reviews(project_id)
+                    return cached_reviews
 
             data, _ = await self._run_bounded_refresh(
-                project_id, "reviews", _coro
+                project_id,
+                "reviews",
+                _coro,
+                expected_generation=tracker_generation,
             )
-            return (project_id, data)
+            return (project_id, data, tracker_generation)
 
         # Run all project fetches concurrently with bounded concurrency
         results = await asyncio.gather(*[_fetch_one_project(p) for p in projects])
-        return {pid: reviews for pid, reviews in results}
+        with self._project_trackers_lock:
+            current_generation = self._project_tracker_generation
+            return {
+                pid: reviews if generation == current_generation else []
+                for pid, reviews, generation in results
+            }
 
     @staticmethod
     def _coerce_branch_set(branches: Any) -> set[str]:
@@ -31310,34 +32375,72 @@ class Orchestrator:
         if not projects:
             return set()
 
-        def _fetch_for_project(project) -> set[str]:
+        def _fetch_for_project(project) -> tuple[set[str], int]:
             project_id = str(project.id)
-            cached = self._get_stale_cache(project_id, "merged_branches")
+            with self._project_trackers_lock:
+                tracker_generation = self._project_tracker_generation
+                repo_url = project.repo_url
+                access_token = project.access_token
+                project_name = project.name
+                cached = self._get_stale_cache(project_id, "merged_branches")
             # Skip polling for webhook-healthy projects only after the cache
             # has been populated at least once in this process.
             if self.is_webhook_healthy(project_id) and cached is not None:
-                return self._coerce_branch_set(cached)
+                with self._project_trackers_lock:
+                    if tracker_generation == self._project_tracker_generation:
+                        return self._coerce_branch_set(cached), tracker_generation
+                return (
+                    self._coerce_branch_set(
+                        self._get_stale_cache(project_id, "merged_branches")
+                    ),
+                    tracker_generation,
+                )
             provider = detect_provider(
-                project.repo_url, access_token=project.access_token
+                repo_url, access_token=access_token
             )
             if not provider:
-                return self._coerce_branch_set(cached)
-            slug = extract_repo_slug(project.repo_url)
+                return (
+                    self._coerce_branch_set(
+                        self._get_stale_cache(project_id, "merged_branches")
+                    ),
+                    tracker_generation,
+                )
+            slug = extract_repo_slug(repo_url)
             try:
                 branches = self._coerce_branch_set(provider.list_merged_branches(slug))
-                self._set_stale_cache(project_id, "merged_branches", branches)
-                return branches
+                if not self._set_stale_cache(
+                    project_id,
+                    "merged_branches",
+                    branches,
+                    expected_generation=tracker_generation,
+                ):
+                    return (
+                        self._coerce_branch_set(
+                            self._get_stale_cache(project_id, "merged_branches")
+                        ),
+                        tracker_generation,
+                    )
+                return branches, tracker_generation
             except Exception as exc:
                 logger.debug(
-                    "Failed to fetch merged branches for %s: %s", project.name, exc
+                    "Failed to fetch merged branches for %s: %s", project_name, exc
                 )
-                return self._coerce_branch_set(cached)
+                return (
+                    self._coerce_branch_set(
+                        self._get_stale_cache(project_id, "merged_branches")
+                    ),
+                    tracker_generation,
+                )
 
-        result: set[str] = set()
         with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
-            for branches in pool.map(_fetch_for_project, projects):
-                result |= branches
-        return result
+            results = list(pool.map(_fetch_for_project, projects))
+        merged: set[str] = set()
+        with self._project_trackers_lock:
+            current_generation = self._project_tracker_generation
+            for branches, generation in results:
+                if generation == current_generation:
+                    merged |= branches
+        return merged
 
     async def _fetch_all_merged_branches_bounded(self) -> set[str]:
         """Fetch merged branches using bounded per-project concurrency with timeout and stale-cache fallback.
@@ -31350,39 +32453,55 @@ class Orchestrator:
         if not projects:
             return set()
 
-        async def _fetch_one_project(project) -> set[str]:
+        async def _fetch_one_project(project) -> tuple[set[str], int]:
             project_id = str(project.id)
-            cached = self._get_stale_cache(project_id, "merged_branches")
+            with self._project_trackers_lock:
+                tracker_generation = self._project_tracker_generation
+                repo_url = project.repo_url
+                access_token = project.access_token
+                project_name = project.name
+                cached = self._get_stale_cache(project_id, "merged_branches")
             # Skip polling for webhook-healthy projects only after the cache
             # has been populated at least once in this process.
             if self.is_webhook_healthy(project_id) and cached is not None:
-                return self._coerce_branch_set(cached)
+                with self._project_trackers_lock:
+                    current = tracker_generation == self._project_tracker_generation
+                return (
+                    self._coerce_branch_set(cached) if current else set(),
+                    tracker_generation,
+                )
 
             async def _coro() -> set[str]:
                 provider = detect_provider(
-                    project.repo_url, access_token=project.access_token
+                    repo_url, access_token=access_token
                 )
                 if not provider:
                     return self._coerce_branch_set(cached)
-                slug = extract_repo_slug(project.repo_url)
+                slug = extract_repo_slug(repo_url)
                 try:
                     return self._coerce_branch_set(provider.list_merged_branches(slug))
                 except Exception as exc:
                     logger.debug(
-                        "Failed to fetch merged branches for %s: %s", project.name, exc
+                        "Failed to fetch merged branches for %s: %s", project_name, exc
                     )
                     return self._coerce_branch_set(cached)
 
             data, _ = await self._run_bounded_refresh(
-                project_id, "merged_branches", _coro
+                project_id,
+                "merged_branches",
+                _coro,
+                expected_generation=tracker_generation,
             )
-            return self._coerce_branch_set(data)
+            return self._coerce_branch_set(data), tracker_generation
 
         # Run all project fetches concurrently with bounded concurrency
         results = await asyncio.gather(*[_fetch_one_project(p) for p in projects])
         merged: set[str] = set()
-        for branches in results:
-            merged |= branches
+        with self._project_trackers_lock:
+            current_generation = self._project_tracker_generation
+            for branches, generation in results:
+                if generation == current_generation:
+                    merged |= branches
         return merged
 
     def _reset_orphaned_in_progress(self, candidates: list[Issue]) -> None:
@@ -32992,6 +34111,7 @@ class Orchestrator:
                     {
                         "level": "error",
                         "source": auth_alert_source,
+                        "action_required": True,
                         "title": (
                             f"GitHub intake authentication failure for project "
                             f"{project_name!r}"
@@ -33004,7 +34124,11 @@ class Orchestrator:
                             "OOMPAH_GITHUB_TOKEN / GitHub App credentials that "
                             "cover this repository."
                         ),
-                    },
+                        "action": (
+                            "Configure a repository-scoped GitHub credential for "
+                            f"project {project_name!r}."
+                        ),
+                    }
                 )
             except Exception as exc:  # noqa: BLE001
                 metrics["errors"] += 1
@@ -35748,7 +36872,12 @@ class Orchestrator:
                 "level": "warning",
                 "source": source,
                 "message": instruction,
-            },
+                "action": (
+                    "Restore authoritative delivery evidence or explicitly "
+                    "archive the task with a superseding disposition."
+                ),
+                "action_required": True,
+            }
         )
         if self._tracker_comment_matches(
             tracker, issue.identifier, instruction
@@ -36264,7 +37393,7 @@ class Orchestrator:
                 result.reason if result else "coordinator error",
             )
         else:
-            self._clear_stuck_epic_alert(epic.identifier)
+            self._clear_stuck_epic_alert(epic.identifier, epic.project_id)
             logger.info(
                 "Staged epic %s as Merged via coordinator (branch %s merged to main)",
                 epic.identifier,
@@ -46036,7 +47165,12 @@ class Orchestrator:
                     current_entry.session.last_event = activity_entry.kind
                     current_entry.session.last_timestamp = datetime.now(timezone.utc)
                 # Broadcast activity entry to WS clients
-                self._notify_activity(issue.identifier, activity_entry, run_id=run_id)
+                self._notify_activity(
+                    issue.project_id,
+                    issue.identifier,
+                    activity_entry,
+                    run_id=run_id,
+                )
                 # Only broadcast state (lightweight), not issues (expensive)
                 # Issues are only re-fetched on state changes (dispatch, close, etc.)
                 self._notify_state_only()
@@ -46933,6 +48067,7 @@ class Orchestrator:
 
                     # 3. Push to WS clients exactly the same way api_agent does.
                     self._notify_activity(
+                        issue.project_id,
                         issue.identifier,
                         activity,
                         run_id=run_id,
@@ -50314,8 +51449,10 @@ class Orchestrator:
             self._replace_alert_source(
                 "rate_limit",
                 {
-                    "level": "warning",
+                    "level": "info",
                     "source": "rate_limit",
+                    "action_required": False,
+                    "recovery_state": "backoff",
                     "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
                 },
             )
@@ -50441,8 +51578,10 @@ class Orchestrator:
                 self._replace_alert_source(
                     "rate_limit",
                     {
-                        "level": "warning",
+                        "level": "info",
                         "source": "rate_limit",
+                        "action_required": False,
+                        "recovery_state": "backoff",
                         "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
                     },
                 )
@@ -50688,13 +51827,23 @@ class Orchestrator:
                 continue
             if not _is_credential_error(retry.error):
                 continue
-            source = f"cred_error:{retry.identifier}"
+            source = (
+                f"cred_error:{str(retry.project_id or 'legacy')}:"
+                f"{retry.identifier}"
+            )
             context = self._credential_alert_context(retry)
             alerts.append(
                 {
                     "level": "error",
                     "source": source,
+                    "project_id": retry.project_id,
+                    "task_id": retry.identifier,
                     "message": self._format_credential_alert_message(retry, context),
+                    "action": (
+                        "Configure the named provider credential in the Providers "
+                        "page; the task retry will resume automatically."
+                    ),
+                    "action_required": True,
                     "context": context,
                 }
             )
@@ -54537,7 +55686,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 stats["legacy"] = self.tracker.read_stats()
             except Exception:  # noqa: BLE001
                 pass
-        for project_id, tracker in getattr(self, "_project_trackers", {}).items():
+        tracker_lock = getattr(self, "_project_trackers_lock", None)
+        project_trackers = getattr(self, "_project_trackers", {})
+        if tracker_lock is None:
+            tracker_items = tuple(project_trackers.items())
+        else:
+            with tracker_lock:
+                tracker_items = tuple(project_trackers.items())
+        for project_id, tracker in tracker_items:
             if not hasattr(tracker, "read_stats"):
                 continue
             try:
@@ -54578,7 +55734,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             status = "failed"
         else:
             status = "idle"
-        return {"status": status, "active": active, "recent": outcomes}
+        return {
+            "status": status,
+            "active": active,
+            "recent": outcomes,
+            # A running/failed exact-head gate remains owned by task-local
+            # retry/repair. WorkDecision escalates only after that bounded
+            # recovery is unavailable or exhausted.
+            "action_required": False,
+        }
 
     @staticmethod
     def _quality_gate_dashboard_alerts(
@@ -54852,8 +56016,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         validation_resource_action_required = (
             validation_resource_state.get("status") == "action_required"
         )
-        work_decisions = self.work_decision_projections()
-        decision_alerts = self.work_decision_alerts()
+        work_decision_projection, decision_alerts = self.work_decision_snapshot()
+        work_decisions = list(work_decision_projection["items"])
+        audit_health = getattr(self, "_audit_health", TerminalAuditHealth())
+        audit_health_payload = audit_health.to_dict()
         raw_alerts = (
             self._alerts_snapshot()
             + self._quality_gate_dashboard_alerts(quality_gate_state)
@@ -54914,12 +56080,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "tool_liveness": tool_liveness_totals,
             "retrying": retry_rows,
             "work_decisions": work_decisions,
-            "work_decision_projection": {
-                "schema_version": 1,
-                "snapshot_generation": self._work_decision_generation,
-                "updated_at": self._work_decision_updated_at,
-                "items": work_decisions,
-            },
+            "work_decision_projection": work_decision_projection,
             "owner_claims": owner_claim_rows,
             "agent_totals": {
                 "input_tokens": totals.input_tokens,
@@ -54985,18 +56146,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "quality_gates": quality_gate_state,
             "validation_resources": validation_resource_state,
             "workflow_jobs": self.workflow_job_store.health_snapshot(),
+            "workflow_controller": self.workflow_controller.health_snapshot(),
             "workflow_shadow": self.workflow_shadow.summary(),
-            "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            "terminal_audit_health": audit_health_payload,
             "health": {
                 "status": (
                     "degraded"
-                    if getattr(
-                        self, "_audit_health", TerminalAuditHealth()
-                    ).degraded
+                    if audit_health.degraded
                     or validation_resource_action_required
                     else "healthy"
                 ),
-                "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+                "terminal_audit": dict(audit_health_payload),
                 "quality_gates": quality_gate_state,
                 "validation_resources": validation_resource_state,
             },
@@ -55310,6 +56470,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
     def _notify_activity(
         self,
+        project_id: str | None,
         identifier: str,
         entry: Any,
         *,
@@ -55321,6 +56482,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         _activity_observers callbacks for backward compatibility.
         """
         payload = {
+            "project_id": project_id,
             "identifier": identifier,
             "run_id": run_id,
             "entry": entry.to_dict() if hasattr(entry, "to_dict") else str(entry),
@@ -55331,10 +56493,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         for observer in self._activity_observers:
             try:
                 try:
-                    observer(identifier, entry, run_id)
+                    observer(project_id, identifier, entry, run_id)
                 except TypeError:
-                    # Third-party observers registered before run_id was
-                    # added still receive the original two arguments.
-                    observer(identifier, entry)
+                    try:
+                        # Compatibility with the run-id-aware callback shape.
+                        observer(identifier, entry, run_id)
+                    except TypeError:
+                        # Third-party observers registered before run_id was
+                        # added still receive the original two arguments.
+                        observer(identifier, entry)
             except Exception:
                 pass

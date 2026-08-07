@@ -15,11 +15,9 @@ reactive ``_maybe_auto_close_parent_epic`` worker-exit hook.
 
 from __future__ import annotations
 
+import fnmatch
 import subprocess
 from unittest.mock import MagicMock, patch
-import fnmatch
-
-from oompah.terminal_audit import TargetState
 
 import pytest
 
@@ -28,6 +26,8 @@ from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
+from oompah.terminal_audit import TargetState
+from oompah.work_decision_projection import operator_actionable_alerts
 
 
 # --------------------------------------------------------------------- helpers
@@ -207,7 +207,7 @@ class TestAllChildrenTerminal:
         assert "child-3 (merged via PR #33)" in reason
         # No stuck_epic alert was raised.
         assert all(
-            a.get("source") != f"stuck_epic:{epic.identifier}" for a in orch._alerts
+            a.get("source") != f"stuck_epic:{epic.project_id}:{epic.identifier}" for a in orch._alerts
         )
 
     def test_non_terminal_child_blocks_close(self, tmp_path):
@@ -288,7 +288,7 @@ class TestMergeCheck:
         alerts_for_epic = [
             a
             for a in orch._alerts
-            if a.get("source") == f"stuck_epic:{epic.identifier}"
+            if a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
         msg = alerts_for_epic[0]["message"]
@@ -328,7 +328,7 @@ class TestMergeCheck:
         alerts_for_epic = [
             a
             for a in orch._alerts
-            if a.get("source") == f"stuck_epic:{epic.identifier}"
+            if a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
 
@@ -532,7 +532,7 @@ class TestMergeCheck:
         alert = next(
             alert
             for alert in orch._alerts
-            if alert.get("source") == "stuck_epic:epic-1"
+            if alert.get("source") == "stuck_epic:proj-1:epic-1"
         )
         assert "child-1" in alert["message"]
         assert "integrated" not in alert["message"]
@@ -826,6 +826,32 @@ class TestAutoCloseCompletedEpicsSweep:
 
 
 class TestStuckEpicAlertLifecycle:
+    def test_equal_identifiers_are_deduplicated_per_project(self, tmp_path):
+        orch = _make_orch(tmp_path, project=_make_project("project-a"))
+        unmerged = [
+            (
+                _make_issue("child-1", branch_name="child-1"),
+                None,
+                "branch cannot be verified",
+            )
+        ]
+        epic_a = _make_issue("EPIC-1", issue_type="epic", project_id="project-a")
+        epic_b = _make_issue("EPIC-1", issue_type="epic", project_id="project-b")
+
+        orch._arm_stuck_epic_alert(epic_a, unmerged, "main")
+        orch._arm_stuck_epic_alert(epic_b, unmerged, "main")
+        orch._arm_stuck_epic_alert(epic_a, unmerged, "main")
+
+        projected = operator_actionable_alerts(orch._alerts)
+        assert {alert["source"] for alert in projected} == {
+            "stuck_epic:project-a:EPIC-1",
+            "stuck_epic:project-b:EPIC-1",
+        }
+        orch._clear_stuck_epic_alert("EPIC-1", "project-a")
+        assert [alert["source"] for alert in orch._alerts] == [
+            "stuck_epic:project-b:EPIC-1"
+        ]
+
     def test_rearming_does_not_duplicate(self, tmp_path):
         """Two calls to the gate with the same stuck state → one alert."""
         project = _make_project()
@@ -855,7 +881,7 @@ class TestStuckEpicAlertLifecycle:
         alerts_for_epic = [
             a
             for a in orch._alerts
-            if a.get("source") == f"stuck_epic:{epic.identifier}"
+            if a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
 
@@ -884,7 +910,7 @@ class TestStuckEpicAlertLifecycle:
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
             orch._epic_auto_close_check(epic)
         assert any(
-            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}" for a in orch._alerts
         )
 
         # Now the child is reopened (back to in_progress) → re-running
@@ -896,7 +922,7 @@ class TestStuckEpicAlertLifecycle:
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
             orch._epic_auto_close_check(epic)
         assert not any(
-            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}" for a in orch._alerts
         )
 
     def test_mark_epic_merged_clears_stale_alert(self, tmp_path):
@@ -1126,7 +1152,7 @@ class TestEpicBranchGate:
         assert closed is False
         tracker.close_issue.assert_not_called()
         assert not any(
-            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}" for a in orch._alerts
         )
 
     def test_child_merged_directly_to_main_is_landed_bypass(self, tmp_path):
@@ -1173,7 +1199,7 @@ class TestEpicBranchGate:
         assert closed is False
         tracker.close_issue.assert_not_called()
         assert not any(
-            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}" for a in orch._alerts
         )
 
     def test_child_merged_to_unrelated_branch_is_stuck(self, tmp_path):
@@ -1209,7 +1235,7 @@ class TestEpicBranchGate:
         alerts_for_epic = [
             a
             for a in orch._alerts
-            if a.get("source") == f"stuck_epic:{epic.identifier}"
+            if a.get("source") == f"stuck_epic:{epic.project_id}:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
 

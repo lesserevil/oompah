@@ -398,11 +398,12 @@ class TestOrchestratorEventBus:
             def to_dict(self):
                 return {"kind": "tool_call", "summary": "test"}
 
-        orch._notify_activity("abc-1", FakeActivity())
+        orch._notify_activity("project-a", "abc-1", FakeActivity())
         assert len(received) == 1
         et, payload = received[0]
         assert et == EventType.AGENT_ACTIVITY
         assert payload["identifier"] == "abc-1"
+        assert payload["project_id"] == "project-a"
         assert "entry" in payload
 
     def test_legacy_observers_still_called(self, tmp_path):
@@ -429,7 +430,7 @@ class TestOrchestratorEventBus:
         class FakeActivity:
             def to_dict(self): return {}
 
-        orch._notify_activity("xyz-2", FakeActivity())
+        orch._notify_activity("project-a", "xyz-2", FakeActivity())
         assert legacy_calls == ["xyz-2"]
 
     def test_event_bus_handler_error_does_not_prevent_legacy_observers(self, tmp_path):

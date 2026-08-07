@@ -11,6 +11,12 @@ from oompah.work_decision_projection import (
     project_work_decision_payload,
     work_decision_alert,
 )
+from oompah.auth_health import OperatorAuthHealth, WorkerAuthHealth
+from oompah.terminal_audit_health import (
+    TerminalAuditHealth,
+    terminal_audit_health_alerts,
+)
+from oompah.terminal_audit_observability import AuditAlertCondition
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.workflow_reasons import AlertSeverity
 
@@ -93,6 +99,7 @@ def test_normal_recovery_never_becomes_global_warning() -> None:
             {
                 "level": "warning",
                 "source": "missing-marker",
+                "action": "Should not be enough without action_required.",
             },
         ]
     ) == []
@@ -100,8 +107,18 @@ def test_normal_recovery_never_becomes_global_warning() -> None:
 
 def test_actionable_alerts_do_not_merge_distinct_source_less_alerts() -> None:
     alerts = [
-        {"level": "warning", "action_required": True, "message": "first"},
-        {"level": "warning", "action_required": True, "message": "second"},
+        {
+            "level": "warning",
+            "action_required": True,
+            "message": "first",
+            "action": "Repair first",
+        },
+        {
+            "level": "warning",
+            "action_required": True,
+            "message": "second",
+            "action": "Repair second",
+        },
     ]
 
     assert operator_actionable_alerts(alerts) == alerts
@@ -127,9 +144,87 @@ def test_actionable_alert_severity_transitions_and_clears() -> None:
 
 
 def test_projection_does_not_include_secrets_from_decision_values() -> None:
-    decision = _decision(action_required=True, level=AlertSeverity.WARNING)
+    original = _decision(action_required=True, level=AlertSeverity.WARNING)
+    decision = WorkDecision(
+        **{
+            **original.to_dict(),
+            "unmet_prerequisites": (
+                UnmetPrerequisite(
+                    "operator.action_required",
+                    "TASK-1",
+                    "Authorization: Bearer very-secret-token",
+                ),
+            ),
+            "permitted_actions": original.permitted_actions,
+            "durable_jobs": original.durable_jobs,
+            "decision_revision": None,
+        }
+    )
     projection = project_work_decision(decision)
     serialized = str(projection)
     assert "Authorization:" not in serialized
     assert "Bearer " not in serialized
-    assert "password" not in serialized.lower()
+    assert "very-secret-token" not in serialized
+    assert "[REDACTED]" in serialized
+
+
+def test_action_required_without_concrete_instruction_fails_closed() -> None:
+    assert operator_actionable_alerts(
+        [
+            {
+                "level": "warning",
+                "source": "broken-producer",
+                "action_required": True,
+                "message": "Something needs attention",
+            }
+        ]
+    ) == []
+
+
+def test_transient_auth_observations_are_informational_and_self_clear() -> None:
+    now = [0.0]
+    operator = OperatorAuthHealth(now=lambda: now[0])
+    worker = WorkerAuthHealth(now=lambda: now[0])
+    operator.record_401()
+    worker.record_minted()
+    worker.record_401()
+
+    observed = [operator.build_alert(), worker.build_alert()]
+    assert all(alert is not None for alert in observed)
+    assert all(alert["level"] == "info" for alert in observed if alert)
+    assert all(alert["action_required"] is False for alert in observed if alert)
+    assert operator_actionable_alerts(alert for alert in observed if alert) == []
+
+    now[0] = 901.0
+    assert operator.build_alert(window_seconds=900) is None
+    assert worker.build_alert(window_seconds=900) is None
+
+
+def test_terminal_audit_retry_rotation_is_info_until_recovery_is_exhausted() -> None:
+    rotating = terminal_audit_health_alerts(
+        TerminalAuditHealth(launch_failure_count=1, transport_failure_count=1)
+    )
+    assert len(rotating) == 1
+    assert rotating[0]["level"] == "info"
+    assert rotating[0]["action_required"] is False
+    assert operator_actionable_alerts(rotating) == []
+
+    exhausted = terminal_audit_health_alerts(
+        TerminalAuditHealth(retry_exhausted_count=1)
+    )
+    assert exhausted[0]["action_required"] is True
+    assert operator_actionable_alerts(exhausted) == exhausted
+
+
+def test_actionable_terminal_audit_condition_crosses_global_alert_boundary() -> None:
+    alert = AuditAlertCondition(
+        "no_independent_candidate",
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        "No independent auditor is available.",
+        "Configure an independent auditor and retry the audit.",
+    ).to_alert()
+
+    assert alert["action_required"] is True
+    assert operator_actionable_alerts([alert]) == [alert]

@@ -338,17 +338,19 @@ def build_terminal_audit_health(
         elif record.request_state == RequestState.PENDING:
             pending += 1
             increment(observation.project_id, "pending_count")
-
-        # Age tracking — use the record's own timestamp if available
-        record_ts = _record_created_at(record)
-        issue_ts = _parse_timestamp(observation.issue_created_at)
-        ts = record_ts or issue_ts
-        if ts is not None:
-            age_s = (current_time - ts).total_seconds()
-            if age_s >= stale_after_seconds:
-                stale_pending += 1
-                increment(observation.project_id, "stale_pending_count")
-            oldest = min(oldest, ts) if oldest is not None else ts
+            # Backlog age describes only dispatchable pending work.  An active
+            # auditor remains In Validation while it runs (including while it
+            # waits for the shared validation resource), but it is no longer a
+            # pending queue entry and must not keep stale backlog facts alive.
+            record_ts = _record_created_at(record)
+            issue_ts = _parse_timestamp(observation.issue_created_at)
+            ts = record_ts or issue_ts
+            if ts is not None:
+                age_s = (current_time - ts).total_seconds()
+                if age_s >= stale_after_seconds:
+                    stale_pending += 1
+                    increment(observation.project_id, "stale_pending_count")
+                oldest = min(oldest, ts) if oldest is not None else ts
 
         # Failure classification — only count unresolved failures.
         #
@@ -427,6 +429,8 @@ def terminal_audit_health_alerts(
         title: str,
         detail: str,
         action: str,
+        *,
+        action_required: bool,
     ) -> None:
         alerts.append(
             {
@@ -446,13 +450,19 @@ def terminal_audit_health_alerts(
                 "detail": detail,
                 "remediation": action,
                 "action": action,
+                "action_required": action_required,
+                "recovery_state": (
+                    "operator_action_required"
+                    if action_required
+                    else "automatic_recovery"
+                ),
             }
         )
 
     if health.launch_failure_count or health.transport_failure_count:
         add(
             "launch_failures",
-            "error",
+            "info",
             "Terminal-audit auditor launches are failing",
             (
                 f"{health.launch_failure_count} launch failure(s) and "
@@ -460,6 +470,7 @@ def terminal_audit_health_alerts(
                 "recorded for pending audits."
             ),
             "Restore an available auditor transport; retries will continue automatically.",
+            action_required=False,
         )
 
     if health.policy_incompatibility_count:
@@ -472,6 +483,7 @@ def terminal_audit_health_alerts(
                 "stopped by the local read-only tool policy."
             ),
             "Update the auditor tool catalog or prompt contract; this is not a provider transport outage.",
+            action_required=True,
         )
 
     if health.finalization_failure_count:
@@ -487,6 +499,7 @@ def terminal_audit_health_alerts(
                 "Restore tracker writes or restart audit enforcement; do not "
                 "infer an outcome from a comment alone."
             ),
+            action_required=True,
         )
 
     if health.retry_exhausted_count:
@@ -499,31 +512,39 @@ def terminal_audit_health_alerts(
                 "configured auditor attempts."
             ),
             "Add a healthy independent auditor or route the affected records to operator review.",
+            action_required=True,
         )
 
     age = health.oldest_pending_age_seconds
-    if age is not None and age > 0 and health.stale_pending_count > 0:
+    if (
+        health.pending_count > 0
+        and age is not None
+        and age > 0
+        and health.stale_pending_count > 0
+    ):
         add(
             "backlog_age",
-            "warning",
+            "info",
             "Terminal-audit backlog is stale",
             (
                 f"The oldest pending audit is {age}s old across "
                 f"{health.pending_count} pending audit(s)."
             ),
             "Increase auditor capacity or investigate the pending audit queue.",
+            action_required=False,
         )
 
     if health.stale_in_validation_count:
         add(
             "stale_validation",
-            "warning",
+            "info",
             "In Validation records are stale",
             (
                 f"{health.stale_in_validation_count} record(s) have remained "
                 "In Validation beyond the health threshold."
             ),
             "Check the audit queue and recover or requeue the affected records.",
+            action_required=False,
         )
 
     if not health.scan_complete:
@@ -533,6 +554,7 @@ def terminal_audit_health_alerts(
             "Terminal-audit health scan is incomplete",
             "Current audit health could not be fully confirmed.",
             "Restore tracker access before treating the queue as healthy.",
+            action_required=True,
         )
 
     if health.quarantined_count:
@@ -542,6 +564,7 @@ def terminal_audit_health_alerts(
             "Terminal-audit metadata is quarantined",
             f"{health.quarantined_count} audit record(s) require operator attention.",
             "Repair the quarantined metadata before resuming terminal transitions.",
+            action_required=True,
         )
 
     return alerts

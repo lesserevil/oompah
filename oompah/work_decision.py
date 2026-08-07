@@ -56,10 +56,12 @@ SATISFIED_DEPENDENCY_STATUSES = frozenset({DONE, MERGED, ARCHIVED})
 _FIXED_DECISION_REASON_CODES = frozenset(
     {
         "coordination.policy_denied",
+        "controller.evaluation_failed",
         "dispatch.dependencies_blocked",
         "dispatch.eligible",
         "duplicate.investigating",
         "duplicate.recovery_scheduled",
+        "evidence.conflicting_task_facts",
         "evidence.dependencies_malformed",
         "evidence.project_or_task_mismatch",
         "evidence.task_fact_identity_mismatch",
@@ -69,6 +71,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "intake.awaiting_decision",
         "integration.active",
         "integration.dependencies_blocked",
+        "integration.gate_blocked",
         "integration.live_claim_precedes_history",
         "integration.queued",
         "integration.required_base_missing",
@@ -76,10 +79,16 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "landing.evidence_unknown",
         "landing.target_evidence_missing",
         "landing.waiting",
+        "graph.impossible",
+        "liveness.reassessment_overdue",
         "maintenance.publication_proven",
         "operator.action_required",
+        "ownership.conflict",
+        "ownership.impossible",
         "prioritization.awaiting_owner",
         "requestor.answer_required",
+        "retry.exhausted",
+        "automation.unavailable",
         "review.ci_fix_required",
         "review.monitoring",
         "review.rebase_required",
@@ -624,6 +633,24 @@ def _validation_decision(
             action=PermittedAction.RETRY_AUDIT,
             job="terminal_audit_recovery",
         )
+    # Quarantined or unsafe evidence cannot be automatically retried: the
+    # metadata is corrupt or the audit found an unsafe archive condition.
+    if bool(value.get("quarantined")) or bool(value.get("unsafe")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="operator.action_required",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    str(value.get("action_code") or "audit.evidence_unsafe"),
+                    "terminal_audit",
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
+        )
     if bool(value.get("action_required")):
         return _decision(
             task,
@@ -722,6 +749,17 @@ def _integration_decision(
             prerequisites=finish + hard_start,
             actions=(PermittedAction.WAIT_DEPENDENCY,),
         )
+    # A current exact live claim outranks a historical action-required fact.
+    if bool(value.get("live_claim_precedes_history")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="integration.live_claim_precedes_history",
+            owner=WorkflowOwner.INTEGRATOR,
+            actions=(PermittedAction.CLAIM_INTEGRATION,),
+            durable_jobs=("historical_audit_replay_batch", "integration_attempt"),
+        )
     if bool(value.get("action_required")):
         return _decision(
             task,
@@ -737,16 +775,6 @@ def _integration_decision(
             ),
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
-        )
-    if bool(value.get("live_claim_precedes_history")):
-        return _decision(
-            task,
-            facts,
-            disposition=TaskDisposition.OWNED,
-            reason_code="integration.live_claim_precedes_history",
-            owner=WorkflowOwner.INTEGRATOR,
-            actions=(PermittedAction.CLAIM_INTEGRATION,),
-            durable_jobs=("historical_audit_replay_batch", "integration_attempt"),
         )
     if value.get("mode") == "standalone" and value.get("state") == "ready":
         return _decision(
@@ -777,6 +805,25 @@ def _integration_decision(
             actions=(PermittedAction.CLAIM_INTEGRATION,),
             alert=AlertSeverity.INFO,
             durable_jobs=("integration_recovery",),
+        )
+    # A blocked exact-head gate is authoritative unless an explicit
+    # same-generation retry has been forced by the repair path.
+    if value.get("state") == "blocked" and not bool(value.get("retry_forced")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="integration.gate_blocked",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "integration.gate_blocked",
+                    task.task_id,
+                    str(value.get("last_error") or "gate_blocked"),
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
         )
     return _decision(
         task,

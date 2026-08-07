@@ -16,7 +16,8 @@ import sqlite3
 import threading
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -26,6 +27,50 @@ WORKFLOW_JOB_SCHEMA_VERSION = 3
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _INITIALIZE_LOCK = threading.Lock()
+
+
+class _PublicationTransaction:
+    """Explicit commit token for one live SQLite publication transaction."""
+
+    def __init__(self, store: "WorkflowJobStore") -> None:
+        self._store = store
+        self.committed = False
+        self.closed = False
+
+    def commit(self) -> None:
+        if self.closed:
+            raise WorkflowJobStoreError("workflow publication transaction is closed")
+        try:
+            self._store._commit_publication_locked()
+        except Exception as commit_error:
+            try:
+                self._store._rollback_publication_locked()
+            except Exception as rollback_error:
+                self.closed = True
+                self._store._publication_broken = True
+                raise WorkflowJobPublicationError(
+                    "workflow publication commit failed and rollback also failed",
+                    rollback_failed=True,
+                ) from rollback_error
+            self.closed = True
+            raise WorkflowJobPublicationError(
+                "workflow publication commit failed; transaction was rolled back"
+            ) from commit_error
+        self.committed = True
+        self.closed = True
+
+    def rollback(self) -> None:
+        if self.closed:
+            return
+        try:
+            self._store._rollback_publication_locked()
+        except Exception as exc:
+            self.closed = True
+            self._store._publication_broken = True
+            raise WorkflowJobPublicationError(
+                "workflow publication rollback failed", rollback_failed=True
+            ) from exc
+        self.closed = True
 
 
 def _required_text(value: object, name: str) -> str:
@@ -137,6 +182,9 @@ class WorkflowJobSpec:
     expected_head_sha: str | None = None
     priority: int = 100
     max_attempts: int = 5
+    # Stable policy reason carried with recovery work. It is stored inside
+    # the immutable spec payload so old SQLite rows remain readable.
+    reason_code: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -161,6 +209,7 @@ class WorkflowJobSpec:
         object.__setattr__(
             self, "expected_head_sha", _optional_text(self.expected_head_sha)
         )
+        object.__setattr__(self, "reason_code", _optional_text(self.reason_code))
         if isinstance(self.priority, bool):
             raise ValueError("priority must be an integer")
         object.__setattr__(self, "priority", int(self.priority))
@@ -169,7 +218,7 @@ class WorkflowJobSpec:
         object.__setattr__(self, "max_attempts", int(self.max_attempts))
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "project_id": self.project_id,
             "task_id": self.task_id,
             "generation": self.generation,
@@ -181,6 +230,9 @@ class WorkflowJobSpec:
             "priority": self.priority,
             "max_attempts": self.max_attempts,
         }
+        if self.reason_code is not None:
+            payload["reason_code"] = self.reason_code
+        return payload
 
     @property
     def revision(self) -> str:
@@ -216,6 +268,7 @@ class WorkflowJob:
     created_at: float
     updated_at: float
     completed_at: float | None
+    reason_code: str | None = None
 
     @property
     def is_active(self) -> bool:
@@ -256,6 +309,7 @@ class WorkflowJob:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,
+            "reason_code": self.reason_code,
         }
 
 
@@ -302,6 +356,14 @@ class WorkflowScheduleWrite:
 
 class WorkflowJobStoreError(RuntimeError):
     """Base class for workflow-job persistence errors."""
+
+
+class WorkflowJobPublicationError(WorkflowJobStoreError):
+    """A staged workflow publication could not commit or roll back cleanly."""
+
+    def __init__(self, message: str, *, rollback_failed: bool = False) -> None:
+        super().__init__(message)
+        self.rollback_failed = bool(rollback_failed)
 
 
 class WorkflowJobIdempotencyConflict(WorkflowJobStoreError):
@@ -429,6 +491,8 @@ class WorkflowJobStore:
         self._clock = clock
         self._id_factory = id_factory or (lambda: f"workflow-job-{uuid.uuid4().hex}")
         self._lock = threading.RLock()
+        self._publication_transaction_active = False
+        self._publication_broken = False
         self._conn = sqlite3.connect(self.path, check_same_thread=False, timeout=10)
         self._conn.row_factory = sqlite3.Row
         with _INITIALIZE_LOCK, self._lock:
@@ -469,6 +533,47 @@ class WorkflowJobStore:
         with self._lock:
             self._conn.close()
 
+    @contextmanager
+    def publication_transaction(self) -> Iterator[_PublicationTransaction]:
+        """Stage a complete controller cut in one SQLite transaction.
+
+        ``BEGIN IMMEDIATE`` prevents a separate connection from interleaving a
+        write while generation/window cursors, schedule cursors, jobs, and job
+        events are assembled. An uncommitted cut uses SQLite rollback, never a
+        whole-database restore that could erase another connection's work.
+        Commit and rollback failures are surfaced explicitly.
+        """
+
+        with self._lock:
+            if self._publication_broken:
+                raise WorkflowJobStoreError(
+                    "workflow publication store requires operator recovery"
+                )
+            if self._publication_transaction_active:
+                raise WorkflowJobStoreError(
+                    "nested workflow publication transactions are not supported"
+                )
+            self._conn.execute("BEGIN IMMEDIATE")
+            self._publication_transaction_active = True
+            transaction = _PublicationTransaction(self)
+            try:
+                yield transaction
+            except BaseException:
+                transaction.rollback()
+                raise
+            finally:
+                try:
+                    if not transaction.closed:
+                        transaction.rollback()
+                finally:
+                    self._publication_transaction_active = False
+
+    def _commit_publication_locked(self) -> None:
+        self._conn.commit()
+
+    def _rollback_publication_locked(self) -> None:
+        self._conn.rollback()
+
     @property
     def schema_version(self) -> int:
         with self._lock:
@@ -495,13 +600,17 @@ class WorkflowJobStore:
         """Return a process-independent, monotonically increasing scan fence."""
 
         with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
+            managed = not self._publication_transaction_active
+            if managed:
+                self._conn.execute("BEGIN IMMEDIATE")
             try:
                 value = self._next_counter_locked("workflow_snapshot_generation")
-                self._conn.commit()
+                if managed:
+                    self._conn.commit()
                 return value
             except Exception:
-                self._conn.rollback()
+                if managed:
+                    self._conn.rollback()
                 raise
 
     def allocate_decision_window(self, *, total: int, limit: int) -> int:
@@ -512,7 +621,9 @@ class WorkflowJobStore:
         bounded = _bounded_limit(limit)
         count = int(total)
         with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
+            managed = not self._publication_transaction_active
+            if managed:
+                self._conn.execute("BEGIN IMMEDIATE")
             try:
                 row = self._conn.execute(
                     """
@@ -529,10 +640,12 @@ class WorkflowJobStore:
                     """,
                     (str(next_offset),),
                 )
-                self._conn.commit()
+                if managed:
+                    self._conn.commit()
                 return offset
             except Exception:
-                self._conn.rollback()
+                if managed:
+                    self._conn.rollback()
                 raise
 
     @staticmethod
@@ -592,7 +705,9 @@ class WorkflowJobStore:
         snapshot = int(snapshot_generation)
         timestamp = float(self._clock() if now is None else now)
         with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
+            managed = not self._publication_transaction_active
+            if managed:
+                self._conn.execute("BEGIN IMMEDIATE")
             try:
                 existing = self._conn.execute(
                     """
@@ -604,7 +719,8 @@ class WorkflowJobStore:
                 if existing is not None:
                     previous_snapshot = int(existing["snapshot_generation"])
                     if snapshot < previous_snapshot:
-                        self._conn.commit()
+                        if managed:
+                            self._conn.commit()
                         return self._schedule_cursor_from_row(
                             existing, changed=False, accepted=False
                         )
@@ -613,7 +729,8 @@ class WorkflowJobStore:
                             raise WorkflowJobStoreError(
                                 "one snapshot generation produced conflicting decisions"
                             )
-                        self._conn.commit()
+                        if managed:
+                            self._conn.commit()
                         return self._schedule_cursor_from_row(existing, changed=False)
                     changed = str(existing["decision_revision"]) != revision
                     job_generation = (
@@ -653,10 +770,12 @@ class WorkflowJobStore:
                     (project, task),
                 ).fetchone()
                 assert row is not None
-                self._conn.commit()
+                if managed:
+                    self._conn.commit()
                 return self._schedule_cursor_from_row(row, changed=changed)
             except Exception:
-                self._conn.rollback()
+                if managed:
+                    self._conn.rollback()
                 raise
 
     @staticmethod
@@ -669,6 +788,7 @@ class WorkflowJobStore:
             raise WorkflowJobCorruptionError(
                 "unknown workflow job state/category"
             ) from exc
+        spec_payload = _decode_json_object(row["spec_json"], "workflow job spec") or {}
         return WorkflowJob(
             job_id=str(row["job_id"]),
             enqueue_sequence=int(row["enqueue_sequence"]),
@@ -707,6 +827,7 @@ class WorkflowJobStore:
             completed_at=(
                 float(row["completed_at"]) if row["completed_at"] is not None else None
             ),
+            reason_code=_optional_text(spec_payload.get("reason_code")),
         )
 
     @staticmethod
@@ -897,7 +1018,9 @@ class WorkflowJobStore:
             raise WorkflowJobStoreError("scheduled job specs contain duplicate keys")
         timestamp = float(self._clock() if now is None else now)
         with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
+            managed = not self._publication_transaction_active
+            if managed:
+                self._conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._conn.execute(
                     """
@@ -911,7 +1034,8 @@ class WorkflowJobStore:
                     or int(cursor["snapshot_generation"]) != snapshot
                     or str(cursor["job_generation"]) != generation
                 ):
-                    self._conn.commit()
+                    if managed:
+                        self._conn.commit()
                     return WorkflowScheduleWrite(
                         project,
                         task,
@@ -977,7 +1101,8 @@ class WorkflowJobStore:
                         now=timestamp,
                     )
                     superseded += 1
-                self._conn.commit()
+                if managed:
+                    self._conn.commit()
                 return WorkflowScheduleWrite(
                     project,
                     task,
@@ -989,7 +1114,8 @@ class WorkflowJobStore:
                     superseded=superseded,
                 )
             except Exception:
-                self._conn.rollback()
+                if managed:
+                    self._conn.rollback()
                 raise
 
     def list_jobs(
@@ -1198,7 +1324,6 @@ class WorkflowJobStore:
         owner = _required_text(lease_owner, "lease_owner")
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
-        timestamp = float(self._clock() if now is None else now)
         bounded_recovery = _bounded_limit(recovery_limit)
         clauses = [
             "(candidate.state = ? OR (candidate.state = ? "
@@ -1214,7 +1339,7 @@ class WorkflowJobStore:
         values: list[object] = [
             WorkflowJobState.QUEUED.value,
             WorkflowJobState.RETRY_WAIT.value,
-            timestamp,
+            0.0,
         ]
         for column, value in (
             ("project_id", project_id),
@@ -1241,6 +1366,8 @@ class WorkflowJobStore:
         )
         lease_token = uuid.uuid4().hex
         with self._lock:
+            timestamp = float(self._clock() if now is None else now)
+            values[2] = timestamp
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._recover_expired_locked(now=timestamp, limit=bounded_recovery)
@@ -1333,8 +1460,12 @@ class WorkflowJobStore:
     ) -> WorkflowJob:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
-        timestamp = float(self._clock() if now is None else now)
         with self._lock:
+            # Resolve implicit time only after acquiring the serialization lock.
+            # A heartbeat that waited behind another short transaction must not
+            # validate against its pre-wait timestamp and write a renewal that is
+            # already expired when it becomes visible.
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -1362,11 +1493,11 @@ class WorkflowJobStore:
         checkpoint: Mapping[str, Any],
         now: float | None = None,
     ) -> WorkflowJob:
-        timestamp = float(self._clock() if now is None else now)
         clean_checkpoint = _json_object(checkpoint, "checkpoint")
         assert clean_checkpoint is not None
         normalized_phase = _required_text(phase, "phase")
         with self._lock:
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -1403,9 +1534,9 @@ class WorkflowJobStore:
         result_transition: Mapping[str, Any] | None = None,
         now: float | None = None,
     ) -> WorkflowJob:
-        timestamp = float(self._clock() if now is None else now)
         result = _json_object(result_transition, "result_transition")
         with self._lock:
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._owned_row_locked(job_id, lease_token, now=timestamp)
@@ -1451,12 +1582,12 @@ class WorkflowJobStore:
         retry_delay_seconds: float = 0,
         now: float | None = None,
     ) -> WorkflowJob:
-        timestamp = float(self._clock() if now is None else now)
         failure = WorkflowFailureCategory(category)
         message = _required_text(error, "error")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
         with self._lock:
+            timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 owned = self._owned_row_locked(job_id, lease_token, now=timestamp)

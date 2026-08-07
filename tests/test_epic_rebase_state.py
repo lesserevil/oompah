@@ -33,6 +33,7 @@ from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue, OwnerCla
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError
 from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
+from oompah.work_decision_projection import operator_actionable_alerts
 
 
 def _make_issue(
@@ -827,6 +828,46 @@ class TestSnapshot:
 
 
 class TestEpicStaleAlert:
+    def test_equal_identifiers_are_deduplicated_per_project(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._epic_rebase_states["TASK-465"] = EpicRebaseStateEntry(
+            state="failed",
+            updated_at=time.time(),
+            project_id="project-a",
+        )
+        result = StalenessResult(
+            stale=True,
+            commits_behind=6,
+            shared_files=(),
+            threshold=5,
+        )
+
+        orch._arm_epic_stale_alert(
+            _make_issue("TASK-465", project_id="project-a"),
+            _make_project(),
+            result,
+        )
+        orch._arm_epic_stale_alert(
+            _make_issue("TASK-465", project_id="project-b"),
+            _make_project(),
+            result,
+        )
+        orch._arm_epic_stale_alert(
+            _make_issue("TASK-465", project_id="project-a"),
+            _make_project(),
+            result,
+        )
+
+        projected = operator_actionable_alerts(orch._alerts)
+        assert {alert["source"] for alert in projected} == {
+            "epic_stale:project-a:TASK-465",
+            "epic_stale:project-b:TASK-465",
+        }
+        orch._clear_epic_stale_alert("TASK-465", "project-a")
+        assert [alert["source"] for alert in orch._alerts] == [
+            "epic_stale:project-b:TASK-465"
+        ]
+
     def test_normal_staleness_does_not_create_an_alert(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         issue = _make_issue("TASK-465")
@@ -860,7 +901,7 @@ class TestEpicStaleAlert:
 
         alert = next(
             a for a in orch._alerts
-            if a.get("source") == "epic_stale:TASK-465"
+            if a.get("source") == "epic_stale:proj-1:TASK-465"
         )
         assert "last rebase run failed" in alert["action"]
         assert "finish or retry the rebase" in alert["action"]

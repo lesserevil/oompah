@@ -27,6 +27,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.models import AgentProfile, ModelProvider, RetryEntry
 from oompah.orchestrator import DispatchTarget, Orchestrator, _is_credential_error
+from oompah.work_decision_projection import operator_actionable_alerts
 
 
 # ---------------------------------------------------------------------------
@@ -233,13 +234,47 @@ class TestGetSnapshotCredentialAlerts:
             issue_id="issue-1",
             identifier="TASK-389",
             error="Missing credentials",
+            project_id="proj-1",
         )
         snapshot = orch.get_snapshot()
         cred_alerts = [
             a for a in snapshot["alerts"]
             if a.get("source", "").startswith("cred_error:")
         ]
-        assert cred_alerts[0]["source"] == "cred_error:TASK-389"
+        assert cred_alerts[0]["source"] == "cred_error:proj-1:TASK-389"
+        assert cred_alerts[0]["project_id"] == "proj-1"
+        assert cred_alerts[0]["task_id"] == "TASK-389"
+
+    def test_equal_identifiers_in_different_projects_do_not_deduplicate(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        _add_retry(
+            orch,
+            issue_id="issue-a",
+            identifier="TASK-1",
+            project_id="project-a",
+            error="Missing credentials",
+        )
+        _add_retry(
+            orch,
+            issue_id="issue-b",
+            identifier="TASK-1",
+            project_id="project-b",
+            error="Missing credentials",
+        )
+
+        alerts = orch._credential_error_alerts()
+
+        projected = operator_actionable_alerts(alerts)
+        assert {alert["source"] for alert in projected} == {
+            "cred_error:project-a:TASK-1",
+            "cred_error:project-b:TASK-1",
+        }
+        assert {alert["project_id"] for alert in alerts} == {
+            "project-a",
+            "project-b",
+        }
 
     def test_non_credential_error_produces_no_cred_alert(self, tmp_path):
         orch = _make_orchestrator(tmp_path)

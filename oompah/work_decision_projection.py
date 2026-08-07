@@ -44,6 +44,24 @@ def recovery_action(decision: WorkDecision) -> str | None:
     return _humanize(decision.permitted_actions[0].value)
 
 
+def _collapse_redacted_strings(original: Any, redacted: Any) -> Any:
+    """Remove credential framing when a public string required redaction."""
+
+    if isinstance(original, str) and isinstance(redacted, str):
+        return "[REDACTED]" if redacted != original else redacted
+    if isinstance(original, Mapping) and isinstance(redacted, Mapping):
+        return {
+            key: _collapse_redacted_strings(original.get(key), value)
+            for key, value in redacted.items()
+        }
+    if isinstance(original, (list, tuple)) and isinstance(redacted, (list, tuple)):
+        return [
+            _collapse_redacted_strings(source, value)
+            for source, value in zip(original, redacted, strict=False)
+        ]
+    return redacted
+
+
 def project_work_decision(decision: WorkDecision) -> dict[str, Any]:
     """Serialize a decision for every read consumer.
 
@@ -73,7 +91,10 @@ def project_work_decision(decision: WorkDecision) -> dict[str, Any]:
             and raw["alert_level"] in {AlertSeverity.WARNING.value, AlertSeverity.CRITICAL.value}
         ),
     }
-    redacted = redact_sensitive_data(projection)
+    redacted = _collapse_redacted_strings(
+        projection,
+        redact_sensitive_data(projection),
+    )
     return redacted if isinstance(redacted, dict) else {
         "projection_schema_version": PROJECTION_SCHEMA_VERSION,
         "project_id": decision.project_id,
@@ -160,6 +181,17 @@ def operator_actionable_alerts(alerts: Iterable[Mapping[str, Any]]) -> list[dict
             continue
         level = str(alert.get("level") or "").lower()
         if alert.get("action_required") is not True or level not in _GLOBAL_ALERT_LEVELS:
+            continue
+        action = str(
+            alert.get("action")
+            or alert.get("remediation")
+            or alert.get("recovery_action")
+            or ""
+        ).strip()
+        if not action:
+            # ``action_required`` without an executable instruction is not a
+            # truthful operator handoff. Keep it in compatibility telemetry,
+            # but fail closed at the global-warning boundary.
             continue
         source = str(alert.get("source") or "")
         if source and source in seen:

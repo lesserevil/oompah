@@ -255,6 +255,8 @@ def test_diagnostic_size_is_fail_closed_and_bounded():
 
     assert result.diagnostic["truncated"] is True
     assert len(json.dumps(result.diagnostic).encode()) < 1024
+    assert result.decision is not None
+    assert result.decision.task_id == "OOMPAH-1"
 
 
 def test_projection_can_assert_only_the_field_a_consumer_owns():

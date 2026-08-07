@@ -198,6 +198,6 @@ def test_dashboard_uses_display_identifier_for_visible_task_labels(dashboard_scr
 
 def test_dashboard_keeps_raw_identifier_for_actions(dashboard_script):
     assert "card.dataset.id = issue.identifier;" in dashboard_script
-    assert "openDetailPanel(issue.identifier);" in dashboard_script
+    assert "openDetailPanel(issue.identifier, issue.project_id || '');" in dashboard_script
     assert "e.dataTransfer.setData('text/plain', issue.identifier);" in dashboard_script
     assert "data-id=\"${esc(issue.identifier)}\"" in dashboard_script
