@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T07:10:00.458189Z'
+updated_at: '2026-08-07T20:52:29.429838Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-06 07:10
 ---
 Independent static review ACCEPTED rebased head 434081feff8b99c07b7d7d6d7a15bc577e61c488 with no blockers. The review traced the OOMPAH-831 conflict resolutions and confirmed submission/inspection plus project-aware validation semantics are both retained across API and ACP backends, with proportionate coverage. No tests were run; focused validation is queued behind the active authoritative exact gate.
+---
+author: oompah
+created: 2026-08-07 20:52
+---
+Exact composition candidate ae92d0ee89a163b70a15d39003617529f66b455b is pushed on origin/OOMPAH-843 atop required OOMPAH-831 lineage base 0e0056375918977c9b0b2d59524ce8ae68ceee40. Validation: 42 deadline regressions and 1,659 broad focused tests passed; compile/static/diff checks green; independent exact-head review ACCEPT; remote parity 0/0 and clean. Holding for composition through epic OOMPAH-763, not a standalone main PR.
 ---
 <!-- COMMENTS:END -->

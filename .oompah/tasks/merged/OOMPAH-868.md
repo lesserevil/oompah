@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:51:52.193445Z'
+updated_at: '2026-08-07T20:52:24.642365Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -132,6 +132,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T20:51:50.766970+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain terminal merged provenance for exact reviewed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a,
+      PR #746, merge commit 89de987837dc38045af3c79fdd90ff0332677404, full gate, and
+      all green CI.'
+    marked_at: '2026-08-07T20:52:23.186098+00:00'
+    updated_at: '2026-08-07T20:52:23.186098+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain terminal merged provenance for exact reviewed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a,
+        PR #746, merge commit 89de987837dc38045af3c79fdd90ff0332677404, full gate,
+        and all green CI.'
+      recorded_at: '2026-08-07T20:52:23.186098+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
