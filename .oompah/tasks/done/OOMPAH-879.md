@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T17:28:24.411968Z'
+updated_at: '2026-08-07T17:28:39.737375Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -107,6 +107,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T17:28:22.974983+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain the reviewed exact-gate owner override as immutable terminal provenance
+      after successful exact-CAS shared-epic publication.
+    marked_at: '2026-08-07T17:28:35.562875+00:00'
+    updated_at: '2026-08-07T17:28:35.562875+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain the reviewed exact-gate owner override as immutable terminal
+        provenance after successful exact-CAS shared-epic publication.
+      recorded_at: '2026-08-07T17:28:35.562875+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
