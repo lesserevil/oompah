@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T11:22:29.725735Z'
+updated_at: '2026-08-07T11:23:10.320610Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -709,5 +709,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 24s
 - Log: OOMPAH-643__20260807T111407Z.jsonl
+---
+author: oompah
+created: 2026-08-07 11:23
+---
+Direct owner claim taken to contain a live OOMPAH-846 broker-bypass reproduction. This single scheduler run had three simultaneous unleased full make test/pytest -n4 trees (12 xdist workers) while OOMPAH-854 owned the canonical capacity-1 exact gate and OOMPAH-846 waited. All three unleased process trees retired through owner takeover; the canonical OOMPAH-854 gate remains active. Keep OOMPAH-643 fenced until OOMPAH-846 deploys or an owner explicitly resumes it.
 ---
 <!-- COMMENTS:END -->
