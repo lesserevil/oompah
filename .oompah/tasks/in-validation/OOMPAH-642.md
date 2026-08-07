@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: Needs Human
+status: In Validation
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-08-07T09:10:53.499694Z'
+updated_at: '2026-08-07T09:25:32.632553Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -234,7 +234,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-642
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -298,6 +298,25 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T08:13:03.968667+00:00'
     updated_at: '2026-08-07T09:10:41.535849+00:00'
+  - version: 1
+    audit_id: audit-149098a5859a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-642
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c20735c9c1a8ae04785f1b164a700ba0ac386f697f1ef56c79cf935527d5f31
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-08-07T09:25:23.170910+00:00'
+    selected_ref: af6e423391f3756f99900cf4263cbb6f4d3d07de
+    selected_sha: af6e423391f3756f99900cf4263cbb6f4d3d07de
   attempt_history:
   - version: 1
     attempt_id: attempt-3755ea18f7aa
@@ -595,5 +614,15 @@ created: 2026-08-07 09:10
 Needs Human — Archived audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-07 09:25
+---
+Owner recovery: PR #609 is merged, exact head af6e42339 passed the full gate, and independent audits already PASSed both Done and Merged. The current Archived audit failed only before review began and represents provenance cleanup, not implementation. Restoring terminal Archived provenance; OOMPAH-871 prevents the recurring reopen/re-audit.
+---
+author: oompah
+created: 2026-08-07 09:25
+---
+Archive the already merged, independently audited PR #609 task after transport-only re-audit failure.
 ---
 <!-- COMMENTS:END -->
