@@ -654,6 +654,15 @@ class TestYoloNotifyConflictEpicBranch:
     def test_epic_branch_conflict_helper_marks_epic_rebasing(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        # Exact-generation rebase admission requires the managed branch name
+        # and a resolved remote generation.  A bare MagicMock project store
+        # supplies another MagicMock for both, which is not a valid managed
+        # project contract and used to fail while assembling generation
+        # evidence before this YOLO behavior could be exercised.
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-1", "a" * 40, "b" * 40)
+        )
         orch._set_epic_rebase_state = MagicMock()
         provider = MagicMock()
         provider.rebase_review.return_value = (False, "merge conflicts")
