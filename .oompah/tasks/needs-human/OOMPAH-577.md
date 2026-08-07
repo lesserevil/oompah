@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T07:22:47.805778Z'
+updated_at: '2026-08-07T07:28:36.523194Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -296,5 +296,18 @@ created: 2026-08-07 07:22
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 07:28
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #12)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 588 is merged
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->

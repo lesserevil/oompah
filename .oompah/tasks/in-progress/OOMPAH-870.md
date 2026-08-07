@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T07:25:50.106980Z'
+updated_at: '2026-08-07T07:28:31.236016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-08-07 07:25
 ---
 Understanding: The Ready integration path needs a durable zero-diff fast-path after the exact accepted-head gate. I will trace review staging, containment validation, terminal audit/landing, and alert publication; add regression tests for valid containment, stale/mismatched heads, idempotent replay, and no forge warning; then run focused checks.
+---
+author: oompah
+created: 2026-08-07 07:28
+---
+Discovery: The affected path is Orchestrator._reconcile_standalone_ready_to_integrate_tasks in oompah/orchestrator.py. It validates the submitted branch/head and runs the exact quality gate, but when no live review remains it unconditionally reserves capacity and calls create_review; a valid accepted head already contained by the target therefore gets a forge no-review retry warning. Existing merged/Done reconciliation has containment helpers, but this Ready path lacks an accepted-generation containment CAS and durable terminal handoff. I am tracing coordinator and metadata contracts to preserve stale-generation fences and legacy In Review behavior.
 ---
 <!-- COMMENTS:END -->
