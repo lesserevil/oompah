@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:55:31.879600Z'
+updated_at: '2026-08-07T14:55:44.417319Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -105,6 +105,28 @@ oompah.terminal_audit:
       work or authority.
     created_at: '2026-08-07T14:55:08.163490+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain superseded duplicate archival after canonical rebase e06bec549;
+      do not reopen or redispatch this obsolete generation.
+    marked_at: '2026-08-07T14:55:42.762812+00:00'
+    updated_at: '2026-08-07T14:55:42.762812+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain superseded duplicate archival after canonical rebase e06bec549;
+        do not reopen or redispatch this obsolete generation.
+      recorded_at: '2026-08-07T14:55:42.762812+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
