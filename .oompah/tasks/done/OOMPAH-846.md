@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T16:23:07.207419Z'
+updated_at: '2026-08-07T16:23:19.980375Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -134,7 +134,17 @@ oompah.terminal_audit:
       checks pass, and the owner is finalizing the verified systemic enforcement fix
       while preserving the terminal audit ledger.
     created_at: '2026-08-07T16:23:01.859760+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-846
+    target_state: Done
+    evidence_fingerprint: 9aae64ba2f498223bac2e5a5ad669f05205a716acb1aee100b2471f9e45f2658
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T16:23:11.942261+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -362,5 +372,17 @@ Final implementation evidence for exact pushed head fbe3923669925f6208298607677f
 - Two independent read-only security reviews ACCEPTED the final fail-closed ancestry design and deterministic controls.
 
 The task branch is linear atop e06bec549 and pushed; terminal provenance should retain this exact head and evidence.
+---
+author: oompah
+created: 2026-08-07 16:23
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Two independent security reviews accepted the fail-closed repair at pushed head fbe3923669925f6208298607677f67877d503c86; canonical broker validation is green (907/907 full matrix and 135/135 corrected-control module), secret/diff checks pass, and the owner is finalizing the verified systemic enforcement fix while preserving the terminal audit ledger.
+---
+author: oompah
+created: 2026-08-07 16:23
+---
+Completed universal validation-resource enforcement and closed the native guard lifecycle, authority, retirement, and opaque-process provenance races at fbe3923669925f6208298607677f67877d503c86.
 ---
 <!-- COMMENTS:END -->
