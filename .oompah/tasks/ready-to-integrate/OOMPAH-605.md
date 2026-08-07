@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-07T00:00:13.991378Z'
+updated_at: '2026-08-07T00:00:56.191384Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: ''
@@ -2627,6 +2627,20 @@ This review remains historical evidence. The accepted submission will continue t
 ---
 author: oompah
 created: 2026-08-06 23:59
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/593
+Reviewed head: `cfe2916c5174b42f88a1f72f45f4f6d0104b3a47`
+Accepted submission head: `f2b319c1182cd654112db622a0498171e508dead`
+Source branch: `OOMPAH-605`
+Target branch: `main`
+Reason: review head cfe2916c5174b42f88a1f72f45f4f6d0104b3a47 does not match accepted submission head f2b319c1182cd654112db622a0498171e508dead
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 00:00
 ---
 Superseded review preserved during standalone Ready reconciliation.
 
