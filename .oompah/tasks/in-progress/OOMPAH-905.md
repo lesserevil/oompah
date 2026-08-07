@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-905
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Age validation-resource waiters so strict priority cannot starve focused repair
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-07T19:44:43.282351Z'
-updated_at: '2026-08-07T19:44:43.282351Z'
+updated_at: '2026-08-07T19:45:20.839421Z'
 work_branch: null
 target_branch: null
 review_url: null
