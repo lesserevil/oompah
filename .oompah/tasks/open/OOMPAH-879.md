@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-879
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Prevent concurrent duplicate epic-rebase tasks for one epic generation
 parent: OOMPAH-763
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T13:41:56.512162Z'
+updated_at: '2026-08-07T13:47:08.850028Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
