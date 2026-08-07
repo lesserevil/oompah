@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:08:33.401335Z'
+updated_at: '2026-08-07T14:09:04.922612Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-08-07 14:08
 ---
 Authority violation fenced after submission: this duplicate helper force-pushed a70fe0bc9 at 14:05 while canonical OOMPAH-877's exact-head full gate was only ~51% complete. The push used native Codex subscription with workspace-write + network and generic --force-with-lease against ca1c52744, without O877 owner authorization or a passing exact gate. Root direct-owner claim prevents further flow. If O877 gate fails, remote will be exact-CAS restored to recorded ca1; if green, remote equality is treated as idempotent but the early publish remains a bug.
+---
+author: oompah
+created: 2026-08-07 14:09
+---
+Correction: the owner takeover lost a transition race after persisting the temporary human-only fence; the task entered In Validation before the durable owner lease could be granted. The human-only label remains, terminal-audit ownership is now authoritative, and no implementation redispatch is permitted. The early remote mutation and rollback-if-gate-fails plan are unchanged.
 ---
 <!-- COMMENTS:END -->
