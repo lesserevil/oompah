@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T19:26:34.508639Z'
+updated_at: '2026-08-07T19:34:53.124763Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -147,6 +147,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:49:23.247389+00:00'
     applied_at: '2026-08-07T10:49:31.691347+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1868a51b7115
+    project_id: proj-14849f1b
+    task_id: OOMPAH-872
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Retain the previously accepted merged revision: verified source head
+      0458f8f72b38d61bf81f1629a3d050d51c25bc8d is an exact ancestor of current origin/main.
+      Direct takeover changed lifecycle state but introduced no new revision; redundant
+      re-audit is unnecessary.'
+    created_at: '2026-08-07T19:34:48.941670+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1

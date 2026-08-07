@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T19:34:09.888643Z'
+updated_at: '2026-08-07T19:34:44.623815Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
@@ -44,8 +44,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 51019
-  total_output_tokens: 18073
+  total_input_tokens: 51034
+  total_output_tokens: 18262
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -53,8 +53,8 @@ oompah.task_costs:
       output_tokens: 4544
       cost_usd: 0.0
     unknown:
-      input_tokens: 97
-      output_tokens: 12869
+      input_tokens: 112
+      output_tokens: 13058
       cost_usd: 0.0
     sonnet:
       input_tokens: 60
@@ -121,6 +121,12 @@ oompah.task_costs:
     output_tokens: 368
     cost_usd: 0.0
     recorded_at: '2026-08-07T11:27:23.690121+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 15
+    output_tokens: 189
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T19:34:31.164440+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-649__20260731T072014Z
@@ -223,6 +229,30 @@ oompah.terminal_audit:
       re-audit is unnecessary.'
     created_at: '2026-08-07T19:34:00.761067+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain merged source head c9f16e399efcbe1a0e9ac70948c8fac2d9262017 as
+      terminal provenance; it is already on current main and no owner-authorized new
+      revision exists.
+    marked_at: '2026-08-07T19:34:43.131185+00:00'
+    updated_at: '2026-08-07T19:34:43.131185+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain merged source head c9f16e399efcbe1a0e9ac70948c8fac2d9262017 as
+        terminal provenance; it is already on current main and no owner-authorized
+        new revision exists.
+      recorded_at: '2026-08-07T19:34:43.131185+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -999,5 +1029,20 @@ created: 2026-08-07 19:34
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Retain the previously accepted merged revision: verified source head c9f16e399efcbe1a0e9ac70948c8fac2d9262017 is an exact ancestor of current origin/main. Direct takeover changed lifecycle state but introduced no new revision; redundant re-audit is unnecessary.
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 7
+- Tokens: 15 in / 189 out [204 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 37s
+- Log: OOMPAH-649__20260807T192609Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Already integrated on main; owner override restores the verified terminal record after direct takeover.
 ---
 <!-- COMMENTS:END -->

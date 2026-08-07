@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T19:34:21.959453Z'
+updated_at: '2026-08-07T19:34:38.556598Z'
 work_branch: OOMPAH-902
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-902
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -84,6 +84,22 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-07T19:34:20.337197+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-d4d162645a2e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+      created_at: '2026-08-07T19:34:25.422016+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T19:34:25.422016+00:00'
+      branch_key: OOMPAH-902
+      selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
+      selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-cli
@@ -92,7 +108,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:11:12.986284+00:00'
     selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
     selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
-    updated_at: '2026-08-07T19:17:47.090787+00:00'
+    updated_at: '2026-08-07T19:34:25.422016+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bd594e4191e6
@@ -131,6 +147,22 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T19:34:20.337197+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-d4d162645a2e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+    created_at: '2026-08-07T19:34:25.422016+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T19:34:25.422016+00:00'
+    branch_key: OOMPAH-902
+    selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
+    selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 65
   total_output_tokens: 1120
@@ -247,5 +279,15 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 26s
 - Log: OOMPAH-902__20260807T191800Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
