@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T08:34:26.666965Z'
+updated_at: '2026-08-07T08:37:47.787826Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-08-07 08:34
 ---
 Understanding (continuation): I am resuming the preserved attempt #1 changes. I will audit the repository-identity and explicit management-project authority rules, reconcile the recovery snapshot with the branch, run focused resolver and neighboring fail-closed tests, fix any gaps, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-07 08:37
+---
+Discovery (continuation): the preserved resolver is in the right startup path, but audit found two fail-closed gaps: the scp-style regex can consume http:// and git:// URLs, producing inconsistent canonical identities, and a runtime clone can currently match configured repo_url even when the registered project checkout cannot provide repository evidence. I will restrict scp parsing to true scheme-less syntax, normalize standard ports, require valid matching checkout identity for Git runtimes, and add regression coverage.
 ---
 <!-- COMMENTS:END -->
