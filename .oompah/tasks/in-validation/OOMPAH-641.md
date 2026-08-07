@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T10:51:38.655358Z'
+updated_at: '2026-08-07T10:52:51.232503Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -259,12 +259,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-641
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-5df322c28a86
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+      created_at: '2026-08-07T10:52:43.212165+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T10:52:43.212165+00:00'
+      branch_key: OOMPAH-641
+      selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+      selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
     requested_by:
       version: 1
       identity: yolo-merge
@@ -273,6 +288,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:51:28.198397+00:00'
     selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
     selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    updated_at: '2026-08-07T10:52:43.212165+00:00'
   - version: 1
     audit_id: audit-aa2204db9e01
     project_id: proj-14849f1b
@@ -319,6 +335,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T06:58:41.648484+00:00'
     branch_key: OOMPAH-641
+  - version: 1
+    attempt_id: attempt-5df322c28a86
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+    created_at: '2026-08-07T10:52:43.212165+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T10:52:43.212165+00:00'
+    branch_key: OOMPAH-641
+    selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 oompah.review_head: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 review_head: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 ---
@@ -658,5 +689,10 @@ author: oompah
 created: 2026-08-07 10:51
 ---
 YOLO: merged PR #738.
+---
+author: oompah
+created: 2026-08-07 10:52
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
