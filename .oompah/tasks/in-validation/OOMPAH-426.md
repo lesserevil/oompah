@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-30T23:05:11.072055Z'
+updated_at: '2026-08-07T08:43:11.951066Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -83,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -180,6 +180,25 @@ oompah.terminal_audit:
     previous_state: In Validation
     created_at: '2026-07-30T22:31:59.622558+00:00'
     updated_at: '2026-07-30T23:04:56.632814+00:00'
+  - version: 1
+    audit_id: audit-ced9f6230e09
+    project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bf44d364f900e1fb8bf6937ef794490226147dc789b6377da1e04a87ce8da92f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T08:43:03.179376+00:00'
+    selected_ref: origin/main
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
   attempt_history:
   - version: 1
     attempt_id: attempt-0a53a873c97d
