@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T17:53:01.126572Z'
+updated_at: '2026-08-07T17:53:11.496838Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
@@ -124,5 +124,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 2s
 - Log: OOMPAH-886__20260807T175152Z.jsonl
+---
+author: oompah
+created: 2026-08-07 17:53
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
