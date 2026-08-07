@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-31T06:33:12.184377Z'
+updated_at: '2026-08-07T07:11:06.673868Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -178,6 +178,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T06:18:40.660301+00:00'
     updated_at: '2026-07-31T06:32:56.163279+00:00'
+  - version: 1
+    audit_id: audit-aa7a871256ae
+    project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6697438b242a070fec98b4a57cb295327d27a09cae3b98730aafece647a8859a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T07:11:01.356889+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-084f1d7c63d1
