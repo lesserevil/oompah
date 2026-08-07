@@ -1195,6 +1195,45 @@ def _issue_display_fields(
     }
 
 
+def _set_management_tracker_resolution_alert(
+    orch: Orchestrator,
+    diagnostic: str | None,
+) -> None:
+    """Expose management-tracker startup failures in the state snapshot.
+
+    Error-task filing is intentionally disabled when resolution is unsafe, but
+    operators still need the exact identity/path diagnostic to repair the
+    registration.  Keep this alert process-local and replace it on each
+    startup wiring attempt so a successful restart clears stale state.
+    """
+
+    alerts = getattr(orch, "_alerts", None)
+    if not isinstance(alerts, list):
+        return
+    source = "management_tracker_resolution"
+    orch._alerts = [alert for alert in alerts if alert.get("source") != source]
+    if diagnostic:
+        orch._alerts.append(
+            {
+                "level": "error",
+                "source": source,
+                "title": "Operational error filing is disabled",
+                "message": (
+                    "No safe Oompah management project could be resolved for "
+                    "the service checkout. Backend/frontend error tasks will "
+                    "not be filed until the repository registration is fixed."
+                ),
+                "detail": diagnostic,
+                "action": (
+                    "Ensure exactly one registered project has the service "
+                    "checkout's canonical repository identity, then restart "
+                    "the service."
+                ),
+                "action_required": True,
+            }
+        )
+
+
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
     global _agent_profile_store, _role_store, _provider_store
@@ -1294,13 +1333,17 @@ def set_orchestrator(orch: Orchestrator) -> None:
         # Register globally so retry recovery for any source project can close
         # its corresponding operational error task.
         orch.register_error_watcher(_error_watcher, project_id=None)
-    except Exception:
+    except Exception as exc:
         _error_watcher = None
+        _set_management_tracker_resolution_alert(orch, str(exc))
         logger.warning(
             "error watcher: no safe management tracker; backend/frontend "
-            "error task creation is disabled",
+            "error task creation is disabled: %s",
+            exc,
             exc_info=True,
         )
+    else:
+        _set_management_tracker_resolution_alert(orch, None)
 
     # Project log watcher manager: watches log files for projects that set log_path.
     # Each project gets its own ErrorWatcher backed by the project's tracker so
