@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T10:41:02.424918Z'
+updated_at: '2026-08-07T10:43:11.572864Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -308,5 +308,10 @@ author: oompah
 created: 2026-08-07 10:41
 ---
 Second live regression recorded at 2026-08-07 10:34Z: OOMPAH-643's server-managed Codex/luna session launched an unleased full make test below its sandbox: server -> Codex exec -> codex-linux-sandbox -> /bin/bash -c PATH=... /usr/bin/make test -> scripts/run-tests.sh parallel -> pytest -n4 (parent PID 3909665 plus four xdist children). OOMPAH-854 was the sole canonical broker owner; no O643 owner/waiter existed. No process was terminated. The O846 provider-boundary implementation covers this exact form by using the absolute Bash BASH_ENV boundary before it evaluates PATH=/... /usr/bin/make test; contextual classification marks it heavyweight/opaque before the absolute Make child can start. Added an explicit held-gate regression for that exact route in addition to the O577 scripts/run-tests.sh serial path.
+---
+author: oompah
+created: 2026-08-07 10:43
+---
+Correction to the prior focused-test note: the O577 regression invocation is durably queued behind OOMPAH-854's exact gate at the canonical capacity=1 broker. An earlier tool status returned before the queued child had acquired the lease; do not read that as a completed pass. The queue itself is the expected non-bypass behavior. Final pass/fail will be posted after O854 releases and the child runs.
 ---
 <!-- COMMENTS:END -->
