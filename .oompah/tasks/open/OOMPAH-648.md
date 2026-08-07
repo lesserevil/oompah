@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T19:36:00.743023Z'
+updated_at: '2026-08-07T19:37:15.714069Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -24,17 +24,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: origin/OOMPAH-648 does not match accepted head ca51c22b90785daec5d4dd7f0e29dc22045957cc
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 1490c3f7-c84e-4b51-a2c3-0305bd11341e
+  claim_owner: c9ddd8c2-e01f-4883-8c85-4ffaf1d4d3b9
+  claimed_at: '2026-08-07T19:36:57.300453+00:00'
+  claim_expires_at: '2026-08-07T20:06:57.300453+00:00'
   retry_count: 1
-  retry_after: '2026-08-07T19:36:54.666601+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 87c907a6-fe18-4f39-853a-bdf2c7111f1f
+oompah.agent_run_id: 0e675d7b-aefe-4ae1-b6e9-81cb86ba98d0
 oompah.task_costs:
   total_input_tokens: 26033567
   total_output_tokens: 68369
@@ -173,6 +173,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-648
+    source_sha: null
+    completed_at: ''
+  - run_id: d32cfefda072492ea660441b1e499c00--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-648
     source_sha: null
@@ -968,5 +976,19 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 39s
+---
+author: oompah
+created: 2026-08-07 19:37
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 19:37
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 8s
 ---
 <!-- COMMENTS:END -->
