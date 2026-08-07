@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:40:42.216289Z'
+updated_at: '2026-08-07T10:40:46.225081Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
