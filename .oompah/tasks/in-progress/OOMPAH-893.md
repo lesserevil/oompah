@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:32:41.182836Z'
-updated_at: '2026-08-07T13:41:45.199820Z'
+updated_at: '2026-08-07T13:41:53.911017Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -39,3 +39,11 @@ This task was auto-filed because epic OOMPAH-763 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 13:41
+---
+Fenced as duplicate epic-rebase helper recurrence #10 for the same unresolved epic-OOMPAH-763 generation. Direct-owner claim prevents scheduler execution while canonical OOMPAH-877 repairs four final-gate failures and OOMPAH-879/O891/O892 implement single-writer, credential-isolated server-owned CAS publishing. Do not implement or publish from this duplicate.
+---
+<!-- COMMENTS:END -->
