@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T10:49:34.743069Z'
+updated_at: '2026-08-07T10:55:06.388626Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -508,5 +508,19 @@ created: 2026-08-07 10:49
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 10:55
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #11)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 737 is merged
+**Evidence head:** `0458f8f72b38d61bf81f1629a3d050d51c25bc8d`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
