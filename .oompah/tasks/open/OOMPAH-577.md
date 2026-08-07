@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T08:38:10.438718Z'
+updated_at: '2026-08-07T08:44:40.485566Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -201,13 +201,17 @@ oompah.terminal_audit:
       OOMPAH-577 (tried: origin/OOMPAH-577)'
     next_retry_at: '2026-08-07T07:10:49.385204+00:00'
 oompah.task_costs:
-  total_input_tokens: 22
-  total_output_tokens: 549
+  total_input_tokens: 32
+  total_output_tokens: 3084
   total_cost_usd: 0.0
   by_model:
     unknown:
       input_tokens: 22
       output_tokens: 549
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 10
+      output_tokens: 2535
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -216,24 +220,72 @@ oompah.task_costs:
     output_tokens: 549
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:07:17.755570+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2535
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T08:44:29.586474+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 532ed209b86faa319390dd667bedd189ce6cd0e1911519f085b6328c0ca5bb4c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T08:44:29.588247+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: dc23c385-137a-4f56-a809-dad4c2bcb76a
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T08:37:26.517101+00:00'
-  claim_expires_at: '2026-08-07T09:07:26.517101+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Scanned all 36 included candidates; no active non-terminal\
+    \ task describes the same TerminalTransitionCoordinator changed-evidence-retry\
+    \ behavior. All similar tasks (OOMPAH-217 through OOMPAH-227, covering handoff\
+    \ workflows, safety limits, worktree reconciliation, and release delivery) are\
+    \ archived/completed and address distinct problems. The referenced trigger OOMPAH-483\
+    \ is not in the supplied corpus. OOMPAH-577's current Open status reflects stale\
+    \ audit state, not duplication with another live task.\n# Duplicate Investigation:\
+    \ OOMPAH-577\n\nI'll analyze OOMPAH-577 against the supplied project task corpus\
+    \ to determine if it's a duplicate of any existing active task.\n\n## Analysis\n\
+    \n**Current Task (OOMPAH-577):**\n- Status: Open\n- Title: \"Allow a changed integrated\
+    \ head to retry a failed completed terminal audit\"\n- Description: Update TerminalTransitionCoordinator\
+    \ so a completed audit record only rejects identical stale requests; when evidence\
+    \ fingerprint changes after failed audit and new work, preserve old record as\
+    \ Superseded and enqueue fresh Pending record\n- Key fact: Implementation merged\
+    \ to main as commit 70fa1de48 (PR #588) on 2026-07-30; work is complete but task\
+    \ status is stale\n\n**Corpus Review:**\nScanning all 36 included candidates in\
+    \ the provided corpus:\n- All candidates except OOMPAH-577 itself are in terminal\
+    \ states (Archived, Done, or Merged)\n- Closest related/similar tasks: OOMPAH-217\
+    \ (handoff workflow), OOMPAH-218 (incomplete-session safety), OOMPAH-219 (shared-worktree\
+    \ reconciliation), OOMPAH-210/211 (GitHub check-run access, comment delivery)\
+    \ \u2014 all completed/archived\n- Referenced trigger OOMPAH-483 is not included\
+    \ in the corpus\n- No structural required-peer matches (corpus metadata: `required_peer_count:\
+    \ 0, omitted_required_peer_count: 0`)\n\n**Key Observation:**\nOOMPAH-577's unusual\
+    \ status (Open after implementation merged) appears to be a stale-state issue,\
+    \ not a duplicate. The task was implemented, merged, passed live verification,\
+    \ then entered \"Needs Human\" during terminal audit (awaiting auditor), was reopened\
+    \ by watchdog as actionable, and is now in duplicate screening \u2014 but this\
+    \ represents a single task's lifecycle with lingering audit/state issues, not\
+    \ a duplicate of another task.\n\n---\n\nFocus handoff: duplicate_detector\n\n\
+    Duplicate preflight verdict: no_duplicate\n\nMatches: none\n\nEvidence: Scanned\
+    \ all 36 included candidates; no active non-terminal task describes the same TerminalTransitionCoordinator\
+    \ changed-evidence-retry behavior. All similar t"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 08d26941-db35-4983-9c4f-351832aefa66
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-577__20260807T083821Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-577
+    source_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    completed_at: '2026-08-07T08:44:29.606369+00:00'
 ---
 ## Summary
 
@@ -337,5 +389,15 @@ author: oompah
 created: 2026-08-07 08:38
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-07 08:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.5K out [2.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 38s
+- Log: OOMPAH-577__20260807T083821Z.jsonl
 ---
 <!-- COMMENTS:END -->
