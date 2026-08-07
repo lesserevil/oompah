@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T13:52:53.490672Z'
+updated_at: '2026-08-07T13:53:20.513048Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -25,13 +25,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: de6ef4e0-9ffb-4255-b4e4-c17912381d19
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T13:52:28.985843+00:00'
-  claim_expires_at: '2026-08-07T14:22:28.985843+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: 'git worktree add failed: fatal: invalid reference: origin/epic-OOMPAH-763--task-OOMPAH-879'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-07T13:55:10.535986+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -86,5 +86,14 @@ author: oompah
 created: 2026-08-07 13:52
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 13:53
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 27s
 ---
 <!-- COMMENTS:END -->
