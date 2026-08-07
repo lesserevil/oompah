@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-08-07T11:41:14.580832Z'
+updated_at: '2026-08-07T11:41:56.544183Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -460,7 +460,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -504,7 +504,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-355fd771cdd2
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -517,6 +517,8 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T11:41:55.102525+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: orchestrator
@@ -711,7 +713,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-355fd771cdd2
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -724,6 +726,8 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T11:41:55.102525+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
