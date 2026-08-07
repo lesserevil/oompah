@@ -2941,14 +2941,134 @@ def test_combined_tree_gate_failure_uses_transition_service(tmp_path):
 
         assert issue.integration.state == "blocked"
         assert issue.integration.head_sha == "a" * 40
+        assert issue.integration.gate_outcome == "ci_failure"
         assert issue.state == NEEDS_CI_FIX
         tracker.update_issue.assert_called_once_with(
             issue.identifier, status=NEEDS_CI_FIX
         )
         row = orchestrator.integration_queue.get(project.id, issue.identifier)
         assert row is not None and row.state == "blocked"
+        assert "combined-tree gate failed at exact head" in tracker.add_comment.call_args.args[1]
     finally:
         _close(orchestrator)
+
+
+def test_cancelled_exact_gate_stays_ready_and_recovers_once_after_restart(tmp_path):
+    """Scheduling preemption preserves the exact accepted head without CI fix."""
+
+    issue = _issue(state=READY_TO_INTEGRATE, integration_state="ready")
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+
+    def set_metadata(identifier, key, value):
+        assert identifier == issue.identifier
+        assert key == "oompah.integration"
+        issue.integration = IntegrationRecord.from_dict(value)
+
+    tracker.set_metadata_field.side_effect = set_metadata
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="gate-generation-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        orchestrator._route_integration_failure(
+            claimed,
+            IntegrationExecutionResult(
+                status="interrupted",
+                message=(
+                    "Combined-tree quality gate cancelled by operator:alice: "
+                    "critical-path preemption"
+                ),
+                expected_epic_sha="b" * 40,
+                rebased_task_sha="a" * 40,
+                quality=QualityGateResult(
+                    status="interrupted",
+                    head_sha="a" * 40,
+                    command="make test",
+                    cancellation={
+                        "cancelled_by": "operator:alice",
+                        "reason": "critical-path preemption",
+                    },
+                ),
+            ),
+        )
+
+        assert issue.state == READY_TO_INTEGRATE
+        assert issue.integration.state == "ready"
+        assert issue.integration.head_sha == "a" * 40
+        assert issue.integration.gate_outcome == "cancelled_retryable"
+        assert issue.integration.gate_cancellation == {
+            "cancelled_by": "operator:alice",
+            "reason": "critical-path preemption",
+        }
+        tracker.update_issue.assert_not_called()
+        assert all("ci-fix" not in str(call) for call in tracker.method_calls)
+        retry_alert = next(
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == f"integration_retry:{project.id}:{issue.identifier}"
+        )
+        assert retry_alert["level"] == "info"
+        assert retry_alert["action_required"] is False
+        assert retry_alert["gate_outcome"] == "cancelled_retryable"
+
+        # The state API/WebSocket snapshot explicitly projects a cancellation
+        # as retryable with its operator provenance, not a failed gate.
+        orchestrator._remember_quality_gate_result(
+            project.id,
+            issue.identifier,
+            QualityGateResult(
+                status="interrupted",
+                head_sha="a" * 40,
+                command="make test",
+                cancellation=dict(issue.integration.gate_cancellation or {}),
+            ),
+        )
+        snapshot = orchestrator.get_snapshot()
+        gate_snapshot = snapshot["quality_gates"]
+        assert gate_snapshot["status"] == "interrupted_for_retry"
+        assert gate_snapshot["recent"] == [
+            {
+                "project_id": project.id,
+                "task_id": issue.identifier,
+                "status": "interrupted",
+                "head_sha": "a" * 40,
+                "command": "make test",
+                "cached": False,
+                "cancellation": issue.integration.gate_cancellation,
+            }
+        ]
+        projected_alert = next(
+            alert
+            for alert in snapshot["alerts"]
+            if alert.get("source") == f"integration_retry:{project.id}:{issue.identifier}"
+        )
+        assert projected_alert["gate_outcome"] == "cancelled_retryable"
+        assert projected_alert["action_required"] is False
+
+        _close(orchestrator)
+        orchestrator = None
+        orchestrator, project, tracker = _make_harness(tmp_path, issue)
+        orchestrator._sync_ready_integration_submissions()
+        rows = orchestrator.integration_queue.items(project_id=project.id)
+        assert len(rows) == 1
+        assert rows[0].state == "ready"
+        assert rows[0].head_sha == "a" * 40
+    finally:
+        if orchestrator is not None:
+            _close(orchestrator)
 
 
 def test_retire_preserves_blocked_row_when_watchdog_reopens_task(tmp_path):

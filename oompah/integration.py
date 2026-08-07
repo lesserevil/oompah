@@ -617,6 +617,14 @@ class IntegrationRecord:
     # "conflict", "auth_failed", "rate_limited", "overloaded", "timeout",
     # "provider_unavailable", "missing_credentials", or None.
     repair_failure_reason: str | None = None
+    # Exact gate cancellation is scheduling evidence, not a failed test
+    # result.  Keep the distinction durable so restart reconciliation cannot
+    # reinterpret a deliberately withdrawn gate as a CI repair request.
+    gate_outcome: str | None = None
+    # Service-authored provenance copied from the validation lease tombstone.
+    # This is intentionally small, string-only metadata suitable for tracker
+    # projections and comments.
+    gate_cancellation: dict[str, str] | None = None
     # Canonical landing evidence for conflict-resolved epic child rebases.
     # Only set by oompah service in complete_direct_epic_maintenance_submission.
     # Must pass cryptographic fingerprint validation and freshness checks.
@@ -674,6 +682,17 @@ class IntegrationRecord:
             # Only include evidence if it parsed successfully (fail-closed)
             if parsed is not None:
                 landing_evidence = parsed.to_dict()
+
+        raw_cancellation = value.get("gate_cancellation")
+        cancellation = (
+            {
+                str(key): str(item).strip()
+                for key, item in raw_cancellation.items()
+                if str(key).strip() and str(item).strip()
+            }
+            if isinstance(raw_cancellation, Mapping)
+            else None
+        )
         
         # Always store as current version when loading (migration v1 -> v2)
         return cls(
@@ -692,6 +711,8 @@ class IntegrationRecord:
             dependency_heads=dependency_heads,
             backoff_until=_optional_text(value.get("backoff_until")),
             repair_failure_reason=_optional_text(value.get("repair_failure_reason")),
+            gate_outcome=_optional_text(value.get("gate_outcome")),
+            gate_cancellation=cancellation,
             canonical_landing_evidence=landing_evidence,
         )
 
@@ -715,6 +736,7 @@ class IntegrationRecord:
             "last_error",
             "backoff_until",
             "repair_failure_reason",
+            "gate_outcome",
         ):
             value = getattr(self, key)
             if value is not None:
@@ -723,6 +745,8 @@ class IntegrationRecord:
             result["dependency_heads"] = dict(self.dependency_heads)
         if self.canonical_landing_evidence is not None:
             result["canonical_landing_evidence"] = dict(self.canonical_landing_evidence)
+        if self.gate_cancellation is not None:
+            result["gate_cancellation"] = dict(self.gate_cancellation)
         return result
 
 

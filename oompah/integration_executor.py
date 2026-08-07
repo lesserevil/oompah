@@ -918,9 +918,15 @@ def execute_integration(
     )
     if not quality.passed:
         if quality.status == "interrupted":
+            provenance = quality.cancellation or {}
+            actor = str(provenance.get("cancelled_by") or "scheduler")
+            reason = str(provenance.get("reason") or "authority withdrawn")
             return IntegrationExecutionResult(
                 status="interrupted",
-                message="Combined-tree quality gate interrupted by service shutdown",
+                message=(
+                    "Combined-tree quality gate cancelled by "
+                    f"{actor}: {reason}"
+                ),
                 expected_epic_sha=expected_epic_sha,
                 rebased_task_sha=rebased_sha,
                 quality=quality,
