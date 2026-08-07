@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T04:50:34.264179Z'
+updated_at: '2026-08-07T05:15:32.388213Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: cfcbbbbf-8508-468c-aaca-4083c6af28c8
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46994
   total_output_tokens: 17458
@@ -100,9 +100,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-845
-  head_sha: 7bb2362fca5099d2456c10d64a4b4026d32e1f5f
-  submitted_at: '2026-08-06T21:23:34.286175+00:00'
-  updated_at: '2026-08-06T21:23:34.286175+00:00'
+  head_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+  submitted_at: '2026-08-07T05:15:21.876585+00:00'
+  updated_at: '2026-08-07T05:15:21.876585+00:00'
 ---
 ## Summary
 
@@ -371,5 +371,10 @@ author: oompah
 created: 2026-08-07 04:50
 ---
 Direct-owner acceleration: claimed OOMPAH-845 and preserved old head 7bb2362fc at archive/OOMPAH-845-pre-restack-20260807T0449Z. Restacked only the three contiguous O845 commits onto current origin/main 7daf26e68; new head is 100454635. git range-diff reports all three patches exactly equivalent, the worktree is clean, commit trailers are canonical, diff check passes, and make check-secrets passes. Focused serial/parallel validation is waiting behind the already-running exact OOMPAH-612 full gate; no force-push or submission will occur before that validation passes.
+---
+author: oompah
+created: 2026-08-07 05:15
+---
+Restacked the three accepted O845 patches plus main-compatible resource cleanup onto current main; exact range-diff is patch-equivalent, independent static review accepted, 215 focused tests pass serial and 215 pass with four workers, check-secrets/diff checks pass, and exact head 60a701e82 is pushed.
 ---
 <!-- COMMENTS:END -->
