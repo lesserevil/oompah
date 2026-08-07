@@ -474,8 +474,62 @@ def _other_binding_targets(node: ast.AST) -> list[ast.AST]:
     return []
 
 
+def _could_resolve_dispatch_target(tree: ast.Module) -> bool:
+    """Cheaply reject trees that cannot construct the guarded target name."""
+
+    pieces: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr == _TARGET:
+            return True
+        if isinstance(node, ast.keyword) and node.arg == _TARGET:
+            return True
+        if isinstance(node, ast.Name) and node.id in {_TARGET, _HELPER}:
+            return True
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            pieces.add(node.value.casefold())
+
+    # Track every prefix of the target that can be the current suffix after
+    # concatenating any observed string fragments. Reusing and reordering
+    # fragments is intentionally conservative: false positives cost the full
+    # analysis, while a false negative would weaken the static guard.
+    reachable = {0}
+    changed = True
+    while changed:
+        changed = False
+        for prefix_length in tuple(reachable):
+            for piece in pieces:
+                combined = _TARGET[:prefix_length] + piece
+                if _TARGET in combined:
+                    return True
+                next_length = max(
+                    (
+                        length
+                        for length in range(1, len(_TARGET))
+                        if combined.endswith(_TARGET[:length])
+                    ),
+                    default=0,
+                )
+                if next_length not in reachable:
+                    reachable.add(next_length)
+                    changed = True
+    return False
+
+
 def _dispatch_replacement_violations(source: str, filename: str) -> list[str]:
-    tree = ast.parse(source, filename=filename)
+    # Parse every file before filtering so malformed input retains the prior
+    # fail-closed SyntaxError behavior. Avoid repeatedly walking unrelated
+    # test-module ASTs through every resolver below; under a saturated full
+    # gate that needless whole-corpus work can exceed the global test timeout.
+    tree = compile(
+        source,
+        filename,
+        "exec",
+        flags=ast.PyCF_ONLY_AST,
+        dont_inherit=True,
+    )
+    assert isinstance(tree, ast.Module)
+    if not _could_resolve_dispatch_target(tree):
+        return []
     receivers, aliases = _dispatch_context(tree)
     operation_names, module_names = _patch_bindings(tree)
     helper_aliases = _helper_aliases(tree)
@@ -539,6 +593,50 @@ def test_tick_dispatch_replacements_use_faithful_helper() -> None:
         "_handle_dispatch_needed replacements must be direct tick_dispatch_mock "
         f"calls; violations: {', '.join(violations)}"
     )
+
+
+def test_unrelated_valid_source_skips_ast_parse(monkeypatch) -> None:
+    def unexpected_ast_parse(*_args, **_kwargs):
+        raise AssertionError("unrelated source reached ast.parse")
+
+    monkeypatch.setattr(ast, "parse", unexpected_ast_parse)
+
+    assert _dispatch_replacement_violations("value = 1", "irrelevant.py") == []
+
+
+def test_invalid_grammar_preserves_fail_closed_syntax_error() -> None:
+    with pytest.raises(SyntaxError):
+        _dispatch_replacement_violations("value value\n", "invalid.py")
+
+
+def test_prefilter_detects_decoded_f_string_target() -> None:
+    source = (
+        "from unittest.mock import AsyncMock, patch\n"
+        "with patch(f'\\x5fhandle_dispatch_needed', "
+        "AsyncMock(return_value=None)):\n"
+        "    pass\n"
+    )
+    assert _dispatch_replacement_violations(source, "fstring.py") == [
+        "fstring.py:2:dynamic-replacement",
+        "fstring.py:1:missing-helper-import",
+    ]
+
+
+def test_prefilter_preserves_arbitrarily_split_target_detection() -> None:
+    source = (
+        "from unittest.mock import AsyncMock, patch\n"
+        "first = '_han'\n"
+        "second = 'dle_dis'\n"
+        "third = 'patch_nee'\n"
+        "fourth = 'ded'\n"
+        "target = first + second + third + fourth\n"
+        "with patch(target, AsyncMock(return_value=None)):\n"
+        "    pass\n"
+    )
+    assert _dispatch_replacement_violations(source, "split.py") == [
+        "split.py:7:dynamic-replacement",
+        "split.py:1:missing-helper-import",
+    ]
 
 
 def _source(body: str) -> str:
