@@ -2688,6 +2688,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "Auditor capacity was restored.",
                 self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
@@ -2745,6 +2746,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "Auditor capacity was restored.",
                 self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
