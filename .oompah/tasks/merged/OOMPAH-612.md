@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-07T05:32:55.233405Z'
+updated_at: '2026-08-07T05:33:06.015849Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: ''
@@ -46,6 +46,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-06T20:52:03.149314+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Merged
+    evidence_fingerprint: 94a37150b9b287fd14a05647df115a9f708a9e4ebdbb9c1d98a632331f3da025
+    audit_ids:
+    - audit-f361fb3dd5c8
+    - audit-f49ea3036489
+    - audit-7d91f741b0a4
+    - audit-7c7b94e9b81c
+    - audit-644e2f5e42f7
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T05:33:02.722260+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-612
@@ -59,6 +72,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T20:52:03.149329+00:00'
     applied_at: '2026-08-06T20:52:12.480029+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-b465a318cd8d
@@ -78,7 +92,7 @@ oompah.terminal_audit:
       and the original implementation merged via PR 595. A zero-diff replacement review
       cannot exist.'
     created_at: '2026-08-07T05:32:50.042986+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -199,7 +213,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -211,12 +225,13 @@ oompah.terminal_audit:
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-07T05:32:37.085809+00:00'
+    updated_at: '2026-08-07T05:33:02.722194+00:00'
   - version: 1
     audit_id: audit-644e2f5e42f7
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -228,6 +243,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-07T05:32:37.085809+00:00'
+    updated_at: '2026-08-07T05:33:02.722227+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b5e2b06fe84
@@ -638,5 +654,12 @@ Target branch: `main`
 Reason: review head 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22 does not match accepted submission head f2b319c1182cd654112db622a0498171e508dead
 
 This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 05:33
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner workaround for OOMPAH-870: accepted head f2b319c1182cd654112db622a0498171e508dead is already contained in current main, passed the exact full gate in 649.0 seconds, and the original implementation merged via PR 595. A zero-diff replacement review cannot exist.
 ---
 <!-- COMMENTS:END -->
