@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-903
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=OOMPAH-648'
 parent: null
@@ -11,13 +11,38 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:58:05.057419Z'
-updated_at: '2026-08-07T20:12:32.163251Z'
+updated_at: '2026-08-07T20:34:15.558422Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c37690678527
+    project_id: proj-14849f1b
+    task_id: OOMPAH-903
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c7e6b945872f4b4d87bcb66e80199d721f56d88cfc423912b364d90173ae43f3
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Incident root cause was stale watchdog reopening of already-merged OOMPAH-648,
+      followed by correct accepted-head mismatch fencing. OOMPAH-871 PR #741 merged
+      exact head 158a2d03f0651b955666ba31c25b3fb412973ccd as 41b1477682c6460a1bb55356ac44c799c9fa783a
+      with all three CI jobs green; OOMPAH-648 is restored to Merged and retained
+      as terminal provenance, preventing recurrence.'
+    created_at: '2026-08-07T20:34:11.811878+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
