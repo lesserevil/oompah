@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T20:41:23.213398Z'
+updated_at: '2026-08-07T20:53:41.855255Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -61,7 +61,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 57514f82-4116-43ed-be88-0dc5568705d2
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-646__20260731T065633Z
@@ -141,9 +141,11 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-646
-  head_sha: 355258ef0d1b1600f09cd111511f2828946e4ec7
-  submitted_at: '2026-07-31T08:02:14.140071+00:00'
-  updated_at: '2026-07-31T08:02:14.140071+00:00'
+  base_branch: main
+  base_sha: e731c3d985d368bedcf71f9e031c8c7de87de218
+  head_sha: 38806932e609860b2c81e84253a09df515ff4e5b
+  submitted_at: '2026-08-07T20:53:26.998706+00:00'
+  updated_at: '2026-08-07T20:53:26.998706+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/613
 oompah.review_number: '613'
 oompah.work_branch: OOMPAH-646
@@ -715,5 +717,10 @@ author: oompah
 created: 2026-08-07 20:41
 ---
 Direct repair is complete and pushed on branch OOMPAH-646 at exact head 38806932e609860b2c81e84253a09df515ff4e5b, based on current origin/main e731c3d985d368bedcf71f9e031c8c7de87de218. Review lifecycle generation fences now prevent close/merge webhooks from being overtaken by stale scheduler, standalone, epic, webhook, or /api/v1/reviews cache publication. Only generation-current authoritative live-open/reopen observations can adopt capacity; successful authoritative empty listings reconcile stale reservations. The API publication path holds the lifecycle barrier through response filtering and TTL publication. Provider-swallowed transport failures fail closed and preserve cache/capacity. Regressions cover close + stale cache + reconciliation + later reopen, concurrent sweeps, API close-during-fetch, and swallowed provider outages. Final brokered affected suite: 758 passed. terminal-audit scan: 10/10 allowlisted. Secret scan, diff check, and py_compile passed. Independent reviewer ACCEPTED with no remaining correctness blocker. Recovery refs preserve bb78d0a0b, e6147efa0, and 38806932e. Per instruction, task was not submitted and no PR was opened.
+---
+author: oompah
+created: 2026-08-07 20:53
+---
+Fence review lifecycle generations across webhook, cache, API, epic, and standalone reconciliation; fail closed on provider outages. Exact pushed head 38806932e609860b2c81e84253a09df515ff4e5b. Brokered affected suite 758 passed; independent review accepted.
 ---
 <!-- COMMENTS:END -->
