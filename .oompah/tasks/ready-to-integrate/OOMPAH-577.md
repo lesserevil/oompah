@@ -11,13 +11,13 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T10:19:51.755999Z'
+updated_at: '2026-08-07T12:23:29.671730Z'
 work_branch: OOMPAH-577
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/588
+review_url: ''
 review_number: '588'
 merged_at: null
-oompah.review_url: https://github.com/lesserevil/oompah/pull/588
+oompah.review_url: ''
 oompah.review_number: '588'
 oompah.work_branch: OOMPAH-577
 oompah.target_branch: main
@@ -653,5 +653,19 @@ Run #4 [attempt=4, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 8s
 - Log: OOMPAH-577__20260807T100727Z.jsonl
+---
+author: oompah
+created: 2026-08-07 12:23
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/588
+Reviewed head: `7fc9aa8ae3b26f8e65466053f06bf7190d78c832`
+Accepted submission head: `a96f06a7c7d1525e8c50f6aaebe763cbea36d3df`
+Source branch: `OOMPAH-577`
+Target branch: `main`
+Reason: review head 7fc9aa8ae3b26f8e65466053f06bf7190d78c832 does not match accepted submission head a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
