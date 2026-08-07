@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-07T19:49:42.194201Z'
+updated_at: '2026-08-07T19:50:19.960449Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -50,13 +50,17 @@ oompah.integration:
   submitted_at: '2026-08-07T19:19:44.675410+00:00'
   updated_at: '2026-08-07T19:19:44.675410+00:00'
 oompah.task_costs:
-  total_input_tokens: 45841
-  total_output_tokens: 297
+  total_input_tokens: 46123
+  total_output_tokens: 368
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 45841
       output_tokens: 297
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 282
+      output_tokens: 71
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +69,12 @@ oompah.task_costs:
     output_tokens: 297
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:43:24.760382+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 282
+    output_tokens: 71
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T19:50:02.603905+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-851__20260806T044259Z
@@ -243,5 +253,20 @@ created: 2026-08-07 19:49
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Direct operator review accepted this test-contract-only change after all 651 affected tests passed both xdist4 and serial, with check-secrets and diff checks green, and the exact commits were integrated on shared epic 42f98aaed. The terminal auditor's redundant full suite has spent over 16 minutes with all four workers blocked in jbd2_log_wait_commit and is starving OOMPAH-859 near its lease timeout; the combined systemic epic will receive the required full exact gate after composition.
+---
+author: oompah
+created: 2026-08-07 19:50
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 16
+- Tokens: 282 in / 71 out [353 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 27m 42s
+- Log: OOMPAH-851__20260807T192233Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:50
+---
+Tick-test timing contracts integrated; 651 affected tests pass both parallel and serial. Redundant I/O-stalled terminal full suite overridden pending the combined epic full gate.
 ---
 <!-- COMMENTS:END -->
