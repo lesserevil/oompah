@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T10:03:09.471935Z'
+updated_at: '2026-08-07T10:09:39.986240Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -217,7 +217,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -226,7 +226,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-42c415e03edf
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -238,6 +238,8 @@ oompah.terminal_audit:
       branch_key: OOMPAH-646
       selected_ref: 355258ef0d1b1600f09cd111511f2828946e4ec7
       selected_sha: 355258ef0d1b1600f09cd111511f2828946e4ec7
+      ended_at: '2026-08-07T10:09:38.414799+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah
@@ -293,7 +295,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-42c415e03edf
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -305,6 +307,8 @@ oompah.terminal_audit:
     branch_key: OOMPAH-646
     selected_ref: 355258ef0d1b1600f09cd111511f2828946e4ec7
     selected_sha: 355258ef0d1b1600f09cd111511f2828946e4ec7
+    ended_at: '2026-08-07T10:09:38.414799+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
