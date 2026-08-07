@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T05:28:52.666078Z'
+updated_at: '2026-08-07T05:30:54.604506Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/733
@@ -275,7 +275,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-576
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -300,6 +300,23 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T02:46:41.864256+00:00'
     updated_at: '2026-08-07T02:48:42.166572+00:00'
+  - version: 1
+    audit_id: audit-c05a58f031d7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-576
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7e73e4a0bd4ea001006d879ea3f8d221060351f1b7cd3c767ce59a6230ea5d36
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-07T05:30:49.155443+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-558c6911dda7
