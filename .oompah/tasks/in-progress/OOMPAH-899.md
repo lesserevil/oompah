@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T18:03:57.965849Z'
+updated_at: '2026-08-07T18:19:21.898617Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -223,5 +224,62 @@ created: 2026-08-07 18:03
 - Makefile structure validation
 
 **All tests pass:** 10/10 new tests + 23/23 makefile structure tests + 6/6 PID tests = 39 passing tests
+---
+author: oompah
+created: 2026-08-07 18:19
+---
+**Implementation:** Made the following changes to resolve OOMPAH-899:
+
+**Files modified:**
+
+1. **.env.example** (5 new lines)
+   - Added OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS documentation
+   - Documented bounded range (5-120 seconds)
+   - Default value: 10 seconds (preserves existing behavior)
+   - Explains late-listener identity-safe behavior
+
+2. **Makefile** (2 sections, ~50 lines changed)
+   - Added LISTENER_STARTUP_TIMEOUT variable reading from .env
+   - Replaced hard-coded 10 with configurable $(LISTENER_STARTUP_TIMEOUT)
+   - New logic after timeout:
+     * Check if process still running
+     * Re-verify owned process identity via process_identity.py
+     * If match: give grace period (30s) for late listener
+     * If mismatch/exited: delete PID/metadata (fail-closed)
+   - Clear warning messages distinguish late listeners from failures
+
+3. **tests/test_listener_startup_timeout.py** (new file, 340 lines)
+   - TestListenerStartupTimeoutConfiguration (4 tests)
+     * Configuration in Makefile
+     * Documentation in .env.example  
+     * Bounded range validation
+     * Default value verification
+   - TestLateListenerScenario (1 test)
+     * Process identity preservation during startup
+     * Metadata not deleted for live processes
+   - TestGenuineStartupFailure (2 tests)
+     * Non-existent process fails closed
+     * PID reuse/identity mismatch fails closed
+   - TestMakefileStartTimeout (3 tests)
+     * Uses configurable variable, not hard-coded 10
+     * Re-verifies identity after timeout
+     * Preserves PID conditionally based on identity
+
+**Behavior changes:**
+- Before: Timeout at 10s → delete PID/metadata → orphan process
+- After: Timeout at OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS → verify identity → conditionally delete based on process state
+
+**Fail-closed preservation:**
+- PID reuse detection still works (different start_time)
+- Process group/session changes still detected
+- Working directory changes still detected
+- Foreign processes on the port still fail safely
+- Metadata mismatch still blocks lifecycle operations
+
+**Compatibility:**
+- Default 10-second timeout matches existing behavior
+- No changes to stop/restart/graceful/status semantics
+- Test/gate isolation with private PID files still works
+- All existing tests pass (23 makefile + 6 PID + 10 new = 39 tests)
 ---
 <!-- COMMENTS:END -->

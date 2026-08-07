@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: Needs Human
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T18:18:21.814255Z'
+updated_at: '2026-08-07T18:19:18.484899Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -27,13 +27,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 5b5588b9-9e23-41a3-889c-beaebba182f9
-  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
-  claimed_at: '2026-08-07T18:17:55.528048+00:00'
-  claim_expires_at: '2026-08-07T18:47:55.528048+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: origin/OOMPAH-658 does not match accepted head 6e27fb150b7bd711c98c7aa5c94e355200dfa325
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-07T18:22:18.408133+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -1416,5 +1416,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=— -> Claude/opus]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 14s
+---
+author: oompah
+created: 2026-08-07 18:19
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-658/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
