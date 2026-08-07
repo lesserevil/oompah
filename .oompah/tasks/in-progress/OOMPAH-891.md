@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-891
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Isolate epic-rebase workers from all remote-write credentials
 parent: OOMPAH-879
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T13:30:11.042474Z'
+updated_at: '2026-08-07T13:32:50.043972Z'
 work_branch: null
 target_branch: null
 review_url: null
