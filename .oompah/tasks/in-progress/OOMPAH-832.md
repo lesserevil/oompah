@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T08:59:55.800359Z'
+updated_at: '2026-08-07T09:00:06.420852Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -485,5 +485,10 @@ created: 2026-08-07 08:44
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 09:00
+---
+Owner recovery: this already-merged task was reopened by stale watchdog/reconciliation evidence. Restaging the authoritative Merged transition with the expanded verdict-capable auditor pool; no implementation work is authorized. OOMPAH-871 fixes the systemic terminal-provenance reopen path.
 ---
 <!-- COMMENTS:END -->
