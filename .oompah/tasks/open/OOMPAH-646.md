@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T10:46:10.188240Z'
+updated_at: '2026-08-07T10:46:17.976815Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -21,14 +21,41 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ad2aa296cf5b31202b919567153cf47160ef31ccc0944637a9e9c0a879ad1bbc
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T10:45:59.911006+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 03f8a2eb-18f1-4405-9f20-deeac7681487
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T10:42:28.384386+00:00'
-  claim_expires_at: '2026-08-07T11:12:28.384386+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Duplicate preflight verdict: no_duplicate\nMatches: none\n\
+    Looking at OOMPAH-646 and the provided task corpus, I need to determine whether\
+    \ this issue describes the same underlying problem as any existing active task.\n\
+    \n## Analysis\n\n**OOMPAH-646 Core Problem:**\n- Live regression where max_in_flight_prs=1\
+    \ constraint was violated\n- PR #608 (OOMPAH-640) remained open and green\n- Later\
+    \ reconciliation created PR #609 (OOMPAH-642) anyway\n- Issue spans across successive\
+    \ reconciliation sweeps and webhook timing\n- Requires durable review-slot reservation\
+    \ system with compare-and-swap leases\n- Must prevent stale cache from permitting\
+    \ second review when forge still reports one open\n\n**Task Characteristics:**\n\
+    - Specific to review capacity serialization across timing boundaries\n- Involves\
+    \ concurrent reconciliation and webhook operations\n- Requires persistent reservation\
+    \ state across restarts\n- Acceptance: exactly one of two Ready branches owns\
+    \ an open PR until merge/close\n\n**Corpus Review:**\nI examined all 33 similarity\
+    \ candidates included in the corpus:\n\n- **OOMPAH-1 to OOMPAH-18**: Various bug\
+    \ fixes and documentation (CI, tracker, release docs) \u2014 unrelated\n- **OOMPAH-156\u2013\
+    OOMPAH-194**: Release-branch addendums, epic workflow standardization, migration\
+    \ work \u2014 different feature area\n- **OOMPAH-187**: Dashboard in-flight filter\
+    \ visibility \u2014 unrelated to review capacity\n- **OOMPAH-203**: Auto-update\
+    \ restart filtering \u2014 unrelated\n\nNone of these tasks address review capacity\
+    \ management, durability across sweeps, or the specific regression described in\
+    \ OOMPAH-646. The corpus notes 565 omitted similarity candidates, but the selection\
+    \ diagnostic shows no omitted required peers, suggesting the inclusion strategy\
+    \ captured the most relevant tasks.\n\nThe task description references OOMPAH-598\
+    \ as a predecessor that \"fixed same-sweep local reservation\" \u2014 this suggests\
+    \ OOMPAH-646 is a continuation addressing the cross-sweep timing gap, not a duplicate\
+    \ of prior work.\n\n---\n\n**Focus handoff: duplicate_detector**\n\n**Duplicate\
+    \ preflight verdict: no_duplicate**"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
