@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T06:28:34.343985Z'
+updated_at: '2026-08-07T08:32:54.858871Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -224,5 +224,10 @@ FAILED tests/test_terminal_audit_workspace_recovery.py::test_workspace_failure_e
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-07 08:32
+---
+Post-OOMPAH-867 restart submission: server and canonical CLI are healthy at c22debc4e. Repaired exact branch head 04fa6781091efc6f11b952b9f1b35123facce64f is clean, pushed, independently accepted, and passed its modified-module canonical leased validation (211 serial and 211 xdist4) plus the five original gate failures. Submitting now for an uninterrupted exact branch gate.
 ---
 <!-- COMMENTS:END -->
