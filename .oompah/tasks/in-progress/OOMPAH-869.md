@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T07:23:00.819187Z'
+updated_at: '2026-08-07T07:23:55.732573Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -287,5 +287,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 45s
 - Log: OOMPAH-869__20260807T071312Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:23
+---
+Owner workaround: the 05:45 comment records that exact gate generation 8c6215cf was deliberately cancelled after 57s for scheduling preemption, not a product-test failure. Retired the erroneous CI-fixer dispatch and preserved exact pushed head 519ec2e492dec109ab008ad3617a5489928f2a30. It will be resubmitted unchanged for a clean exact gate after the OOMPAH-867 restart and behind the systemic OOMPAH-865 gate.
 ---
 <!-- COMMENTS:END -->

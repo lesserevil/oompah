@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T07:10:49.551077Z'
+updated_at: '2026-08-07T07:24:12.452100Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -175,7 +175,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f2dbc8673586
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -185,13 +185,29 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:06:21.534804+00:00'
       branch_key: OOMPAH-575
+      ended_at: '2026-08-07T07:23:45.144874+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-3c098a00efde
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+      created_at: '2026-08-07T07:24:01.912788+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T07:24:01.912788+00:00'
+      branch_key: OOMPAH-575
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:06:07.644926+00:00'
-    updated_at: '2026-07-31T06:06:21.534804+00:00'
+    updated_at: '2026-08-07T07:24:01.912788+00:00'
   - version: 1
     audit_id: audit-3f0f5b312547
     project_id: proj-14849f1b
@@ -230,7 +246,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-f2dbc8673586
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -240,6 +256,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T06:06:21.534804+00:00'
     branch_key: OOMPAH-575
+    ended_at: '2026-08-07T07:23:45.144874+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-3c098a00efde
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    created_at: '2026-08-07T07:24:01.912788+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T07:24:01.912788+00:00'
+    branch_key: OOMPAH-575
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -592,5 +624,15 @@ created: 2026-07-31 06:08
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Reapply verified Merged after a stale standalone quality-gate completion raced and incorrectly regressed the terminal owner override; no gate is now active and branch equals main.
+---
+author: oompah
+created: 2026-08-07 07:24
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 07:24
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

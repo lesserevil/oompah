@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T07:22:04.361542Z'
+updated_at: '2026-08-07T07:24:16.344669Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -137,7 +137,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -146,7 +146,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1da55f47c70c
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -156,6 +156,8 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T07:11:28.421830+00:00'
       branch_key: epic-OOMPAH-584
+      ended_at: '2026-08-07T07:24:09.432220+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah
@@ -206,7 +208,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-1da55f47c70c
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -216,6 +218,8 @@ oompah.terminal_audit:
     model: haiku
     started_at: '2026-08-07T07:11:28.421830+00:00'
     branch_key: epic-OOMPAH-584
+    ended_at: '2026-08-07T07:24:09.432220+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
   total_input_tokens: 478018
   total_output_tokens: 8487
