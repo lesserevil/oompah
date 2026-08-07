@@ -263,7 +263,10 @@ from oompah.workflow_facts import (
     WorkflowFactCollector,
     WorkflowFacts,
 )
-from oompah.workflow_controller import UniversalTotalityLivenessController
+from oompah.workflow_controller import (
+    UniversalTotalityLivenessController,
+    WorkflowProjectionPublicationRejected,
+)
 from oompah.workflow_jobs import (
     WorkflowJobPublicationError,
     WorkflowJobState,
@@ -1468,6 +1471,20 @@ class _WorkDecisionPublication:
     accepted: bool
     changed: bool
     rejection: str | None = None
+    _commit_memory: Callable[[], None] | None = field(
+        default=None, repr=False, compare=False
+    )
+    _rollback: Callable[[], None] | None = field(
+        default=None, repr=False, compare=False
+    )
+
+    def commit_memory(self) -> None:
+        if self._commit_memory is not None:
+            self._commit_memory()
+
+    def rollback(self) -> None:
+        if self._rollback is not None:
+            self._rollback()
 
 
 @dataclass(frozen=True, slots=True)
@@ -5227,26 +5244,64 @@ class Orchestrator:
         )
         # Mode, epoch, and every dependency used by a producer become visible as
         # one authority cut. Sweeps capture this bundle under the same lock and
-        # an older captured epoch cannot publish after the cutover.
-        with self._work_decisions_lock:
+        # an older captured epoch cannot publish after the cutover. The public
+        # caller already holds liveness authority; acquire the store before the
+        # WorkDecision lock to preserve the same global publication order used
+        # by controller sweeps: liveness -> store -> decision -> state I/O.
+        controller = self.workflow_controller
+        store_authority = (
+            controller.store.snapshot_authority_guard()
+            if isinstance(controller, UniversalTotalityLivenessController)
+            else contextlib.nullcontext()
+        )
+        with store_authority, self._work_decisions_lock:
             next_publication_epoch = self._work_decision_publication_epoch + 1
+            pending_availability = {
+                "source": None,
+                "complete": False,
+                "unavailable_projects": [],
+                "incomplete_projects": [],
+                "incomplete_tasks": [],
+                "incomplete_reason": None,
+                "publication_epoch": next_publication_epoch,
+                "updated_at": None,
+                "shadow_scan_cursor_version": 1,
+                "shadow_scan_cursor": self._workflow_shadow_scan_cursor,
+            }
+            previous_availability = {
+                "source": self._work_decision_source,
+                "complete": self._work_decision_snapshot_complete,
+                "unavailable_projects": sorted(
+                    self._work_decision_unavailable_projects
+                ),
+                "incomplete_projects": sorted(
+                    self._work_decision_incomplete_projects
+                ),
+                "incomplete_tasks": [
+                    {"project_id": project_id, "task_id": task_id}
+                    for project_id, task_id in sorted(
+                        self._work_decision_incomplete_keys
+                    )
+                ],
+                "incomplete_reason": self._work_decision_incomplete_reason,
+                "publication_epoch": self._work_decision_publication_epoch,
+                "updated_at": self._work_decision_updated_at,
+                "shadow_scan_cursor_version": 1,
+                "shadow_scan_cursor": self._workflow_shadow_scan_cursor,
+            }
+            previous_liveness_state = (
+                controller.liveness_state()
+                if isinstance(
+                    controller, UniversalTotalityLivenessController
+                )
+                else None
+            )
             # Durability is the commit point for this authority cut. Publishing
             # the new config or clearing the old cache first would let readers
             # observe a state that a restart cannot recover. A failed replace
             # therefore leaves the exact old public and durable cut intact.
             saved = self._save_state(
-                work_decision_availability={
-                    "source": None,
-                    "complete": False,
-                    "unavailable_projects": [],
-                    "incomplete_projects": [],
-                    "incomplete_tasks": [],
-                    "incomplete_reason": None,
-                    "publication_epoch": next_publication_epoch,
-                    "updated_at": None,
-                    "shadow_scan_cursor_version": 1,
-                    "shadow_scan_cursor": self._workflow_shadow_scan_cursor,
-                }
+                work_decision_availability=pending_availability
             )
             if saved is False:
                 logger.error(
@@ -5257,6 +5312,44 @@ class Orchestrator:
                     "configuration reload aborted because workflow decision "
                     "availability could not be persisted"
                 )
+            # Keep the accepted controller instance. Its liveness lock is the
+            # outer reload fence; reconfiguration invalidates older scans and
+            # restores its exact prior runtime state if the liveness save
+            # fails. Because the pending epoch is already durable, compensate
+            # both state-file keys before allowing that failure to escape.
+            if isinstance(controller, UniversalTotalityLivenessController):
+                try:
+                    controller.reconfigure_liveness(
+                        max_task_records=(
+                            config.workflow_liveness_max_task_records
+                        ),
+                        max_project_records=(
+                            config.workflow_liveness_max_project_records
+                        ),
+                        snapshot_stale_seconds=(
+                            config.workflow_liveness_snapshot_stale_seconds
+                        ),
+                        slo_seconds=config.workflow_liveness_slo_seconds,
+                        persist_liveness_state=(
+                            self._persist_workflow_liveness_state
+                        ),
+                    )
+                except Exception:
+                    restored = self._save_state(
+                        work_decision_availability=previous_availability,
+                        workflow_liveness=previous_liveness_state,
+                    )
+                    if restored is False:
+                        logger.critical(
+                            "Config reload liveness persistence failed and "
+                            "the prior workflow authority cut could not be "
+                            "restored"
+                        )
+                        raise RuntimeError(
+                            "configuration reload failed and prior workflow "
+                            "authority could not be restored"
+                        )
+                    raise
             if store_profiles:
                 config.agent_profiles = store_profiles
             with self._project_trackers_lock:
@@ -5275,23 +5368,6 @@ class Orchestrator:
                 mode=config.workflow_engine_mode,
                 max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
             )
-            # Keep the accepted controller instance: its liveness lock is the
-            # reload fence held by ``reload_config`` and its durable generation
-            # invalidation prevents a pre-reload scan from publishing later.
-            if isinstance(
-                self.workflow_controller, UniversalTotalityLivenessController
-            ):
-                self.workflow_controller.reconfigure_liveness(
-                    max_task_records=config.workflow_liveness_max_task_records,
-                    max_project_records=config.workflow_liveness_max_project_records,
-                    snapshot_stale_seconds=(
-                        config.workflow_liveness_snapshot_stale_seconds
-                    ),
-                    slo_seconds=config.workflow_liveness_slo_seconds,
-                )
-                self._persist_workflow_liveness_state(
-                    self.workflow_controller.liveness_state()
-                )
             self.tracker = next_tracker
             self.workspace_mgr = next_workspace_mgr
             self._prompt_template = prompt_template
@@ -11674,6 +11750,7 @@ class Orchestrator:
         incomplete_reason: str | None = None,
         shadow_scan_cursor: int | None = None,
         producer_transaction: Any | None = None,
+        defer_memory: bool = False,
     ) -> _WorkDecisionPublication:
         """Publish one generation-fenced decision snapshot.
 
@@ -11687,7 +11764,10 @@ class Orchestrator:
         set for the project. The publication epoch rejects work captured before
         any intervening configuration reload, including source-mode ABA.
 
-        Returns an accepted/changed result. When a producer transaction is
+        Returns an accepted/changed result. ``defer_memory`` stages only the
+        durable availability cut and returns non-failing commit plus
+        compensating rollback callbacks for the controller's snapshot
+        publication protocol. When a producer transaction is
         supplied, this method commits it after availability persistence and
         before exposing the matching in-memory projection; every rejection
         leaves the caller's context to roll it back. Generation bookkeeping
@@ -11788,6 +11868,11 @@ class Orchestrator:
                 self, "_work_decision_incomplete_reason", None
             )
             previous_source = self._work_decision_source
+            previous_generation = self._work_decision_generation
+            previous_updated_at = self._work_decision_updated_at
+            previous_shadow_cursor = int(
+                getattr(self, "_workflow_shadow_scan_cursor", 0)
+            )
             previous_availability_payload = {
                 "source": previous_source,
                 "complete": previous_complete,
@@ -11910,18 +11995,84 @@ class Orchestrator:
                             else "durable_commit_failed"
                         ),
                     )
-            self._work_decisions = updated
-            self._work_decision_source = normalized_source
-            self._work_decision_generation = snapshot_generation
-            self._work_decision_unavailable_projects = preserved_projects
-            self._work_decision_incomplete_projects = next_incomplete_projects
-            self._work_decision_incomplete_keys = next_incomplete_keys
-            self._work_decision_incomplete_reason = normalized_incomplete_reason
-            self._work_decision_snapshot_complete = snapshot_complete
-            self._work_decision_updated_at = next_updated_at
-            if normalized_shadow_cursor is not None:
-                self._workflow_shadow_scan_cursor = normalized_shadow_cursor
-        return _WorkDecisionPublication(True, changed)
+            memory_committed = False
+
+            def commit_memory() -> None:
+                nonlocal memory_committed
+                with self._work_decisions_lock:
+                    if memory_committed:
+                        return
+                    self._work_decisions = dict(updated)
+                    self._work_decision_source = normalized_source
+                    self._work_decision_generation = snapshot_generation
+                    self._work_decision_unavailable_projects = set(
+                        preserved_projects
+                    )
+                    self._work_decision_incomplete_projects = set(
+                        next_incomplete_projects
+                    )
+                    self._work_decision_incomplete_keys = set(next_incomplete_keys)
+                    self._work_decision_incomplete_reason = (
+                        normalized_incomplete_reason
+                    )
+                    self._work_decision_snapshot_complete = snapshot_complete
+                    self._work_decision_updated_at = next_updated_at
+                    if normalized_shadow_cursor is not None:
+                        self._workflow_shadow_scan_cursor = normalized_shadow_cursor
+                    memory_committed = True
+
+            def rollback() -> None:
+                nonlocal memory_committed
+                with self._work_decisions_lock:
+                    restoration_error: Exception | None = None
+                    try:
+                        if hasattr(self, "_state_io_lock"):
+                            restored = self._save_state(
+                                work_decision_availability=(
+                                    previous_availability_payload
+                                )
+                            )
+                            if restored is False:
+                                raise OSError(
+                                    "prior workflow decision availability was "
+                                    "not restored"
+                                )
+                    except Exception as exc:
+                        restoration_error = exc
+                    # Memory is a separate compensator. Restore it even when
+                    # the state-file compensator fails, then surface that
+                    # durable failure so the job store fences the generation.
+                    self._work_decisions = dict(previous)
+                    self._work_decision_source = previous_source
+                    self._work_decision_generation = previous_generation
+                    self._work_decision_unavailable_projects = set(
+                        previous_unavailable
+                    )
+                    self._work_decision_incomplete_projects = set(
+                        previous_incomplete_projects
+                    )
+                    self._work_decision_incomplete_keys = set(
+                        previous_incomplete_keys
+                    )
+                    self._work_decision_incomplete_reason = (
+                        previous_incomplete_reason
+                    )
+                    self._work_decision_snapshot_complete = previous_complete
+                    self._work_decision_updated_at = previous_updated_at
+                    self._workflow_shadow_scan_cursor = previous_shadow_cursor
+                    memory_committed = False
+                    if restoration_error is not None:
+                        raise restoration_error
+
+            publication = _WorkDecisionPublication(
+                True,
+                changed,
+                _commit_memory=commit_memory,
+                _rollback=rollback,
+            )
+            if not defer_memory:
+                publication.commit_memory()
+        return publication
 
     def _cache_work_decisions(
         self,
@@ -12384,7 +12535,55 @@ class Orchestrator:
                 (str(item.project_id or "legacy"), item.identifier)
                 for item in candidates
             }
+
+            def publish_projection(
+                controller_result: Any, *, defer_memory: bool
+            ) -> _WorkDecisionPublication:
+                reconciliation_truncated = bool(
+                    getattr(controller_result.reconciliation, "truncated", False)
+                )
+                incomplete_keys = live_keys if reconciliation_truncated else set()
+                incomplete_reason = None
+                if controller_result.truncated:
+                    if reconciliation_truncated:
+                        incomplete_reason = (
+                            "controller recovery reconciliation reached its bounded "
+                            "work limit; no task decision is actionable until a "
+                            "complete pass durably reconciles the generation"
+                        )
+                    else:
+                        incomplete_reason = (
+                            "bounded controller scan evaluated "
+                            f"{len(controller_result.decisions)} of "
+                            f"{len(candidates)} live tasks at limit "
+                            f"{getattr(controller, 'decision_limit', 'unknown')}; "
+                            "omitted tasks will be evaluated by rotating future sweeps"
+                        )
+                return self._publish_work_decisions(
+                    controller_result.decisions,
+                    controller_result.snapshot_generation,
+                    source="controller",
+                    publication_epoch=publication_epoch,
+                    failed_projects=set(source_errors),
+                    live_keys=live_keys,
+                    scan_complete=not controller_result.truncated,
+                    incomplete_keys=incomplete_keys,
+                    incomplete_reason=incomplete_reason,
+                    defer_memory=defer_memory,
+                )
+
             if isinstance(controller, UniversalTotalityLivenessController):
+                staged_publications: list[_WorkDecisionPublication] = []
+
+                def stage_projection(
+                    controller_result: Any,
+                ) -> _WorkDecisionPublication:
+                    staged = publish_projection(
+                        controller_result, defer_memory=True
+                    )
+                    staged_publications.append(staged)
+                    return staged
+
                 result = controller.full_sync(
                     candidates,
                     facts=self._collect_universal_workflow_facts,
@@ -12397,6 +12596,21 @@ class Orchestrator:
                     persist_liveness_state=(
                         self._persist_workflow_liveness_state
                     ),
+                    publish_projection=stage_projection,
+                )
+                publication = (
+                    staged_publications[-1]
+                    if staged_publications
+                    else _WorkDecisionPublication(
+                        False,
+                        False,
+                        (
+                            "stale_epoch"
+                            if publication_epoch
+                            != self._work_decision_publication_epoch
+                            else "stale_generation"
+                        ),
+                    )
                 )
             else:
                 # Compatibility for injected/test controllers that expose the
@@ -12405,36 +12619,22 @@ class Orchestrator:
                 result = controller.full_sync(
                     candidates, facts=self._collect_universal_workflow_facts
                 )
-            reconciliation_truncated = bool(
-                getattr(result.reconciliation, "truncated", False)
-            )
-            incomplete_keys = live_keys if reconciliation_truncated else set()
-            incomplete_reason = None
-            if result.truncated:
-                if reconciliation_truncated:
-                    incomplete_reason = (
-                        "controller recovery reconciliation reached its bounded work "
-                        "limit; no task decision is actionable until a complete pass "
-                        "durably reconciles the generation"
-                    )
+                if bool(getattr(result, "accepted", True)):
+                    publication = publish_projection(result, defer_memory=False)
                 else:
-                    incomplete_reason = (
-                        f"bounded controller scan evaluated {len(result.decisions)} of "
-                        f"{len(candidates)} live tasks at limit "
-                        f"{getattr(controller, 'decision_limit', 'unknown')}; omitted "
-                        "tasks will be evaluated by rotating future sweeps"
+                    publication = _WorkDecisionPublication(
+                        False, False, "stale_generation"
                     )
-            publication = self._publish_work_decisions(
-                result.decisions,
-                result.snapshot_generation,
-                source="controller",
-                publication_epoch=publication_epoch,
-                failed_projects=set(source_errors),
-                live_keys=live_keys,
-                scan_complete=not result.truncated,
-                incomplete_keys=incomplete_keys,
-                incomplete_reason=incomplete_reason,
-            )
+        except WorkflowProjectionPublicationRejected as exc:
+            return {
+                "evaluated": 0,
+                "mode": "enforce",
+                "error": type(exc).__name__,
+                "snapshot_generation": generation,
+                "accepted": False,
+                "publication_accepted": False,
+                "publication_rejection": exc.reason,
+            }
         except Exception as exc:  # noqa: BLE001 - next safety pass retries
             logger.exception("Universal workflow controller sweep failed")
             if isinstance(exc, OSError) and str(exc) == (

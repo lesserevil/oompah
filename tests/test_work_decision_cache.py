@@ -713,6 +713,83 @@ def test_failed_reload_persistence_keeps_prior_runtime_and_sends_no_notification
     orchestrator._post_event.assert_not_called()
 
 
+def test_failed_reload_liveness_save_restores_pending_epoch_and_runtime_authority(
+    tmp_path,
+) -> None:
+    state_path = tmp_path / "service_state.json"
+    config = orchestrator_module.ServiceConfig(
+        workspace_root=str(tmp_path / "workspace-a")
+    )
+    config.workflow_engine_mode = "enforce"
+    orchestrator = Orchestrator(
+        config,
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    assert orchestrator._cache_work_decisions(
+        [_decision("TASK-1")],
+        1,
+        source="controller",
+        live_keys={("project-a", "TASK-1")},
+        publication_epoch=orchestrator._work_decision_publication_epoch,
+    )
+    orchestrator._persist_workflow_liveness_state(
+        orchestrator.workflow_controller.liveness_state()
+    )
+    previous_snapshot = orchestrator.work_decision_snapshot()
+    previous_epoch = orchestrator._work_decision_publication_epoch
+    previous_tracker = orchestrator.tracker
+    previous_workspace_mgr = orchestrator.workspace_mgr
+    previous_prompt = orchestrator._prompt_template
+    previous_liveness = orchestrator.workflow_controller.liveness_state()
+    previous_policy = orchestrator.workflow_controller.liveness_policy
+    previous_store = orchestrator.workflow_job_store.health_snapshot()
+    previous_durable = json.loads(state_path.read_text(encoding="utf-8"))
+    orchestrator._notify_observers = Mock()
+    orchestrator._set_refresh_requested = Mock()
+    orchestrator._post_event = Mock()
+    orchestrator.agent_profile_store._load = Mock()
+    orchestrator.agent_profile_store.list_all = Mock(return_value=[])
+    orchestrator._persist_workflow_liveness_state = Mock(
+        side_effect=OSError("injected liveness persistence failure")
+    )
+    replacement = orchestrator_module.ServiceConfig(
+        workspace_root=str(tmp_path / "workspace-b")
+    )
+    replacement.workflow_engine_mode = "shadow"
+    replacement.workflow_liveness_max_task_records = (
+        config.workflow_liveness_max_task_records + 1
+    )
+    replacement.workflow_liveness_slo_seconds = dict(
+        config.workflow_liveness_slo_seconds
+    )
+    replacement.workflow_liveness_slo_seconds["dispatch_latency"] += 1
+
+    with pytest.raises(OSError, match="injected liveness persistence failure"):
+        orchestrator.reload_config(replacement, "replacement prompt")
+
+    assert orchestrator.config is config
+    assert orchestrator.tracker is previous_tracker
+    assert orchestrator.workspace_mgr is previous_workspace_mgr
+    assert orchestrator._prompt_template == previous_prompt
+    assert orchestrator.workflow_shadow.mode == "enforce"
+    assert orchestrator._work_decision_publication_epoch == previous_epoch
+    assert orchestrator.work_decision_snapshot() == previous_snapshot
+    assert orchestrator.workflow_controller.liveness_policy is previous_policy
+    assert orchestrator.workflow_controller.liveness_state() == previous_liveness
+    assert orchestrator.workflow_job_store.health_snapshot() == previous_store
+    restored = json.loads(state_path.read_text(encoding="utf-8"))
+    assert restored["work_decision_availability"] == previous_durable[
+        "work_decision_availability"
+    ]
+    assert restored["workflow_liveness"] == previous_durable[
+        "workflow_liveness"
+    ]
+    orchestrator._notify_observers.assert_not_called()
+    orchestrator._set_refresh_requested.assert_not_called()
+    orchestrator._post_event.assert_not_called()
+
+
 def test_real_shadow_publication_failure_rolls_back_registry_cursor_and_notifications(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -816,10 +893,101 @@ def test_real_controller_publication_failure_rolls_back_jobs_metrics_and_generat
 
     assert result["publication_accepted"] is False
     assert result["publication_rejection"] == "persistence_failed"
-    assert controller.health_snapshot() == previous_controller
-    assert orchestrator.workflow_job_store.health_snapshot() == previous_store
+    current_controller = controller.health_snapshot()
+    assert current_controller["controller"] == previous_controller["controller"]
+    assert current_controller["liveness"] == previous_controller["liveness"]
+    current_store = orchestrator.workflow_job_store.health_snapshot()
+    assert current_store["captured_snapshot_generation"] == (
+        previous_store["captured_snapshot_generation"] + 1
+    )
+    assert {
+        key: value
+        for key, value in current_store.items()
+        if key != "captured_snapshot_generation"
+    } == {
+        key: value
+        for key, value in previous_store.items()
+        if key != "captured_snapshot_generation"
+    }
     assert orchestrator.work_decision_snapshot() == previous_snapshot
     assert (state_path.read_bytes() if state_path.exists() else None) == previous_state
+    orchestrator._notify_observers.assert_not_called()
+    orchestrator._notify_state_only.assert_not_called()
+
+
+def test_rejected_controller_pass_never_publishes_or_prunes_cached_decisions(
+    tmp_path,
+) -> None:
+    config = orchestrator_module.ServiceConfig(
+        workspace_root=str(tmp_path / "workspace")
+    )
+    config.workflow_engine_mode = "enforce"
+    orchestrator = Orchestrator(
+        config,
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    tracker = Mock()
+    tracker.fetch_all_issues.return_value = [
+        Issue(
+            id="task-1",
+            identifier="TASK-1",
+            title="Task 1",
+            state="Open",
+            project_id="project-a",
+        )
+    ]
+    orchestrator.project_store = Mock()
+    orchestrator.project_store.list_all.return_value = [
+        SimpleNamespace(id="project-a")
+    ]
+    orchestrator._tracker_for_project = Mock(return_value=tracker)
+    assert orchestrator._cache_work_decisions(
+        [_decision("TASK-1"), _decision("TASK-2")],
+        1,
+        source="controller",
+        live_keys={
+            ("project-a", "TASK-1"),
+            ("project-a", "TASK-2"),
+        },
+        publication_epoch=orchestrator._work_decision_publication_epoch,
+    )
+    before = orchestrator.work_decision_snapshot()
+    rejected_controller = Mock()
+    rejected_controller.begin_scan.return_value = 2
+    rejected_controller.full_sync.return_value = SimpleNamespace(
+        accepted=False,
+        decisions=(
+            _decision(
+                "TASK-1",
+                reason="implementation.recovery_scheduled",
+            ),
+        ),
+        snapshot_generation=2,
+        action_required=(),
+        reconciliation=SimpleNamespace(
+            snapshot_accepted=False,
+            jobs_created=1,
+            jobs_replayed=0,
+            jobs_superseded=1,
+            truncated=False,
+        ),
+        truncated=False,
+    )
+    orchestrator.workflow_controller = rejected_controller
+    orchestrator._notify_observers = Mock()
+    orchestrator._notify_state_only = Mock()
+
+    result = orchestrator._run_workflow_controller_sweep()
+
+    assert result["accepted"] is False
+    assert result["publication_accepted"] is False
+    assert result["publication_rejection"] == "stale_generation"
+    assert orchestrator.work_decision_snapshot() == before
+    assert set(orchestrator._work_decisions) == {
+        ("project-a", "TASK-1"),
+        ("project-a", "TASK-2"),
+    }
     orchestrator._notify_observers.assert_not_called()
     orchestrator._notify_state_only.assert_not_called()
 
@@ -850,6 +1018,36 @@ def test_commit_and_state_restore_failure_is_reported_without_publication() -> N
     assert result.rejection == "durable_commit_and_store_rollback_failed"
     assert orchestrator.work_decision_projection("project-a", "TASK-1") is None
     assert orchestrator._work_decision_generation == 0
+
+
+def test_staged_projection_rollback_restores_memory_when_state_restore_fails() -> None:
+    orchestrator = _orchestrator(mode="enforce")
+    assert orchestrator._cache_work_decisions(
+        [_decision("TASK-1")],
+        1,
+        source="controller",
+        live_keys={("project-a", "TASK-1")},
+        publication_epoch=orchestrator._work_decision_publication_epoch,
+    )
+    previous_snapshot = orchestrator.work_decision_snapshot()
+    orchestrator._state_io_lock = threading.RLock()
+    orchestrator._save_state = Mock(side_effect=[True, False])
+    publication = orchestrator._publish_work_decisions(
+        [_decision("TASK-1", reason="implementation.recovery_scheduled")],
+        2,
+        source="controller",
+        live_keys={("project-a", "TASK-1")},
+        publication_epoch=orchestrator._work_decision_publication_epoch,
+        defer_memory=True,
+    )
+    publication.commit_memory()
+    assert orchestrator._work_decision_generation == 2
+
+    with pytest.raises(OSError, match="availability was not restored"):
+        publication.rollback()
+
+    assert orchestrator.work_decision_snapshot() == previous_snapshot
+    assert orchestrator._work_decision_generation == 1
 
 
 def test_real_shadow_aba_rolls_back_old_registry_without_extra_notification(
@@ -981,8 +1179,14 @@ def test_real_controller_aba_rolls_back_old_scheduler_and_durable_store(
 
     assert result["publication_accepted"] is False
     assert result["publication_rejection"] == "stale_epoch"
-    assert original_controller.health_snapshot() == previous_controller
-    assert orchestrator.workflow_job_store.health_snapshot() == previous_store
+    current_controller = original_controller.health_snapshot()
+    assert current_controller["controller"] == previous_controller["controller"]
+    current_store = orchestrator.workflow_job_store.health_snapshot()
+    assert current_store["captured_snapshot_generation"] == 2
+    assert current_store["accepted_snapshot_generation"] == 1
+    assert current_store["published_snapshot_generation"] == 0
+    assert current_store["states"] == previous_store["states"]
+    assert current_store["snapshot_membership_count"] == 0
     assert orchestrator.work_decision_snapshot()[0]["availability"] == "pending"
     orchestrator._notify_observers.assert_called_once_with()
     orchestrator._notify_state_only.assert_not_called()
@@ -1187,6 +1391,7 @@ def test_controller_full_coverage_overrides_small_recovery_job_limit(
         side_effect=lambda issue: _done_facts(issue)
     )
     orchestrator._notify_observers = Mock()
+    orchestrator._notify_state_only = Mock()
 
     first_result = orchestrator._run_workflow_controller_sweep()
     first_snapshot, _alerts = orchestrator.work_decision_snapshot()

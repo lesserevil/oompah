@@ -590,6 +590,7 @@ def test_reconciliation_is_bounded_and_deterministic(store):
     assert converged.jobs_materialized == 3
     assert converged.schedules_required == 3
     assert converged.schedules_materialized == 3
+    assert converged.truncated is False
     assert [job.task_id for job in store.list_jobs()] == [
         "OOMPAH-1",
         "OOMPAH-2",

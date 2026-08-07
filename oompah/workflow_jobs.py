@@ -1351,6 +1351,20 @@ class WorkflowJobStore:
                         f"VALUES ({', '.join('?' for _ in columns)})",
                         [tuple(row[column] for column in columns) for row in rows],
                     )
+                # Reconciliation accepts a generation before its independently
+                # committed membership, cursor, and job writes begin.  Once a
+                # later publication step fails, restoring those rows is not
+                # enough: leaving the accepted marker at ``snapshot`` would
+                # make the generation look current before a retry publishes a
+                # new liveness/WorkDecision cut.  Return acceptance to the last
+                # published generation so managed jobs remain unclaimable and
+                # the same capture can be re-accepted for a versioned failure
+                # publication.
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO schema_meta(key, value) "
+                    "VALUES('workflow_snapshot_accepted_generation', ?)",
+                    (str(published),),
+                )
                 self._conn.commit()
                 return True
             except Exception:

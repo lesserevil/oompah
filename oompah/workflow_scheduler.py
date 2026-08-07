@@ -365,10 +365,10 @@ class WorkflowJobScheduler:
             raise ValueError("snapshot_generation must be a positive integer")
         generation = int(snapshot_generation)
         all_decisions = self._ordered_decisions(decisions)
-        truncated = len(all_decisions) > self.decision_limit
+        bounded_window = len(all_decisions) > self.decision_limit
         if not self.snapshot_generation_is_current(generation):
             return self._rejected_result(
-                generation, all_decisions, truncated=truncated
+                generation, all_decisions, truncated=bounded_window
             )
         if (authoritative_project_ids is None) != (expected_identities is None):
             raise ValueError(
@@ -389,11 +389,11 @@ class WorkflowJobScheduler:
             )
             if not membership.accepted:
                 return self._rejected_result(
-                    generation, all_decisions, truncated=truncated
+                    generation, all_decisions, truncated=bounded_window
                 )
             membership_superseded = membership.jobs_superseded
         selected = all_decisions
-        if truncated:
+        if bounded_window:
             offset = self.store.allocate_decision_window(
                 total=len(all_decisions),
                 limit=self.decision_limit,
@@ -444,15 +444,22 @@ class WorkflowJobScheduler:
             superseded += write.superseded
         if not self.snapshot_generation_is_current(generation):
             return self._rejected_result(
-                generation, all_decisions, truncated=truncated
+                generation, all_decisions, truncated=bounded_window
             )
         schedules_materialized, jobs_materialized = (
             self._materialized_totals(all_decisions)
         )
         if not self.snapshot_generation_is_current(generation):
             return self._rejected_result(
-                generation, all_decisions, truncated=truncated
+                generation, all_decisions, truncated=bounded_window
             )
+        jobs_required = sum(
+            len(decision.durable_jobs) for decision in all_decisions
+        )
+        truncated = (
+            schedules_materialized < len(all_decisions)
+            or jobs_materialized < jobs_required
+        )
         result = WorkflowReconcileResult(
             snapshot_generation=generation,
             snapshot_accepted=True,
@@ -462,9 +469,7 @@ class WorkflowJobScheduler:
             jobs_created=created,
             jobs_replayed=replayed,
             jobs_superseded=superseded,
-            jobs_required=sum(
-                len(decision.durable_jobs) for decision in all_decisions
-            ),
+            jobs_required=jobs_required,
             jobs_materialized=jobs_materialized,
             schedules_required=len(all_decisions),
             schedules_materialized=schedules_materialized,

@@ -82,6 +82,14 @@ class WorkflowFactsProvider(Protocol):
     def collect(self, task_id: str) -> WorkflowFacts: ...
 
 
+class WorkflowProjectionPublicationRejected(RuntimeError):
+    """The canonical decision projection rejected a controller generation."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = _required_text(reason, "projection rejection reason")
+        super().__init__(self.reason)
+
+
 FactsSource = Mapping[Any, WorkflowFacts] | Callable[[Issue | Mapping[str, Any]], WorkflowFacts]
 
 
@@ -877,6 +885,7 @@ class UniversalTotalityLivenessController:
         persist_liveness_state: Callable[
             [Mapping[str, Any]], None
         ] | None = None,
+        publish_projection: Callable[[ControllerPass], Any] | None = None,
     ) -> ControllerPass:
         """Prepare outside the authority lock, then atomically publish once."""
 
@@ -1046,7 +1055,10 @@ class UniversalTotalityLivenessController:
                         snapshot_generation=generation,
                     )
 
+                projection_publication: Any | None = None
+
                 def publish() -> WorkflowSnapshotPublication:
+                    nonlocal projection_publication
                     if not full_coverage:
                         return WorkflowSnapshotPublication(
                             rollback_authority=rollback_authority
@@ -1055,9 +1067,28 @@ class UniversalTotalityLivenessController:
                     prior_state = self.liveness.to_state()
 
                     def rollback() -> None:
-                        self.liveness.restore_transaction_checkpoint(checkpoint)
+                        rollback_errors: list[Exception] = []
+                        if projection_publication is not None:
+                            try:
+                                projection_publication.rollback()
+                            except Exception as exc:
+                                rollback_errors.append(exc)
+                        try:
+                            self.liveness.restore_transaction_checkpoint(checkpoint)
+                        except Exception as exc:
+                            rollback_errors.append(exc)
                         if persist_liveness_state is not None:
-                            persist_liveness_state(prior_state)
+                            try:
+                                persist_liveness_state(prior_state)
+                            except Exception as exc:
+                                rollback_errors.append(exc)
+                        if len(rollback_errors) == 1:
+                            raise rollback_errors[0]
+                        if rollback_errors:
+                            raise ExceptionGroup(
+                                "workflow snapshot compensators failed",
+                                rollback_errors,
+                            )
 
                     try:
                         self.liveness.observe(
@@ -1085,6 +1116,30 @@ class UniversalTotalityLivenessController:
                             persist_liveness_state(
                                 self.liveness.to_state()
                             )
+                        if publish_projection is not None:
+                            projection_publication = publish_projection(result)
+                            if not bool(
+                                getattr(projection_publication, "accepted", False)
+                            ):
+                                raise WorkflowProjectionPublicationRejected(
+                                    str(
+                                        getattr(
+                                            projection_publication,
+                                            "rejection",
+                                            None,
+                                        )
+                                        or "projection_rejected"
+                                    )
+                                )
+                            # Publish cache memory before returning control to
+                            # the job-store transaction. A waiting worker can
+                            # observe the committed generation as soon as that
+                            # transaction releases its authority guard, so the
+                            # matching canonical projection must already be
+                            # visible. The publication rollback below restores
+                            # both memory and durable availability if the
+                            # SQLite marker commit subsequently fails.
+                            projection_publication.commit_memory()
                     except Exception:
                         rollback()
                         raise
@@ -1093,11 +1148,20 @@ class UniversalTotalityLivenessController:
                         rollback_authority=rollback_authority,
                     )
 
-                published, _ = self.store.publish_snapshot_generation(
-                    generation,
-                    publish,
-                    rollback_authority=rollback_authority,
-                )
+                try:
+                    published, _ = self.store.publish_snapshot_generation(
+                        generation,
+                        publish,
+                        rollback_authority=rollback_authority,
+                    )
+                except Exception:
+                    # Keep the accepted in-memory handoff until the caller has
+                    # a chance to publish a versioned scan failure.  Durable
+                    # compensation reset store acceptance to the prior
+                    # published generation, so record_liveness_scan_failure()
+                    # will re-accept this capture only when no newer scan has
+                    # superseded it.
+                    raise
                 if not published:
                     self._inflight_generations.discard(generation)
                     return self._rejected_pass(generation, decisions)
@@ -1144,6 +1208,7 @@ class UniversalTotalityLivenessController:
         persist_liveness_state: Callable[
             [Mapping[str, Any]], None
         ] | None = None,
+        publish_projection: Callable[[ControllerPass], Any] | None = None,
     ) -> ControllerPass:
         """Run the bounded correctness pass used as the liveness safety net."""
 
@@ -1158,6 +1223,7 @@ class UniversalTotalityLivenessController:
             full_coverage=True,
             snapshot_generation=snapshot_generation,
             persist_liveness_state=persist_liveness_state,
+            publish_projection=publish_projection,
         )
 
     def begin_scan(self) -> int:
@@ -1188,24 +1254,54 @@ class UniversalTotalityLivenessController:
         max_project_records: int,
         snapshot_stale_seconds: int,
         slo_seconds: Mapping[str, int] | None = None,
+        persist_liveness_state: Callable[
+            [Mapping[str, Any]], None
+        ] | None = None,
     ) -> None:
-        """Apply live liveness settings without losing persisted task ages."""
+        """Apply live liveness settings without losing persisted task ages.
+
+        When supplied, ``persist_liveness_state`` participates in the policy
+        cut.  A persistence failure restores the exact prior tracker limits,
+        policy, records, and counters before the liveness lock is released.
+        The durable scan-generation bump follows persistence, so a rejected
+        state-file write does not disturb the prior job authority.
+        """
 
         with self._liveness_lock:
-            self.invalidate_inflight_scans()
-            self._inflight_generations.clear()
+            checkpoint = self.liveness.transaction_checkpoint()
+            previous_policy = self._liveness_policy
+            previous_limits = (
+                self.liveness.max_task_records,
+                self.liveness.max_project_records,
+                self.liveness.snapshot_stale_seconds,
+            )
             replacement = (
                 build_liveness_policy(slo_seconds)
                 if slo_seconds is not None
                 else self._liveness_policy
             )
-            self.liveness.reconfigure(
-                max_task_records=max_task_records,
-                max_project_records=max_project_records,
-                snapshot_stale_seconds=snapshot_stale_seconds,
-                policy=replacement,
-            )
-            self._liveness_policy = replacement
+            try:
+                self.liveness.reconfigure(
+                    max_task_records=max_task_records,
+                    max_project_records=max_project_records,
+                    snapshot_stale_seconds=snapshot_stale_seconds,
+                    policy=replacement,
+                )
+                self._liveness_policy = replacement
+                if persist_liveness_state is not None:
+                    persist_liveness_state(self.liveness.to_state())
+                self.invalidate_inflight_scans()
+                self._inflight_generations.clear()
+            except Exception:
+                self.liveness.reconfigure(
+                    max_task_records=previous_limits[0],
+                    max_project_records=previous_limits[1],
+                    snapshot_stale_seconds=previous_limits[2],
+                    policy=previous_policy,
+                )
+                self.liveness.restore_transaction_checkpoint(checkpoint)
+                self._liveness_policy = previous_policy
+                raise
 
     def record_liveness_scan_failure(
         self,
@@ -1228,19 +1324,17 @@ class UniversalTotalityLivenessController:
         generation = int(generation)
         with self._liveness_lock:
             current_health = self.liveness.snapshot()
-            accepted_by_reconcile = generation in self._inflight_generations
             self._inflight_generations.discard(generation)
             if (
                 current_health.snapshot_generation is not None
                 and generation <= current_health.snapshot_generation
             ):
                 return current_health
-            if accepted_by_reconcile:
-                if not self.scheduler.snapshot_generation_is_current(
-                    generation
-                ):
-                    return current_health
-            else:
+            if not self.scheduler.snapshot_generation_is_current(generation):
+                # A failed publication compensates acceptance back to the last
+                # published marker. Re-accept the same capture only if it is
+                # still the newest allocation; a reload/new scan makes this
+                # fail closed without publishing stale failure authority.
                 if not self.scheduler.accept_snapshot_generation(generation):
                     return current_health
 
@@ -1310,6 +1404,7 @@ TotalityLivenessController = UniversalTotalityLivenessController
 __all__ = [
     "ControllerEscalation",
     "ControllerPass",
+    "WorkflowProjectionPublicationRejected",
     "UniversalTotalityLivenessController",
     "UniversalWorkflowController",
     "TotalityLivenessController",

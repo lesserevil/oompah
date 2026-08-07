@@ -25,7 +25,11 @@ from oompah.workflow_facts import (
     REQUIRED_FACT_DOMAINS,
     WorkflowFacts,
 )
-from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowJobState,
+    WorkflowJobStore,
+    WorkflowJobStoreError,
+)
 from oompah.workflow_reasons import AlertSeverity
 from oompah.workflow_scheduler import WorkflowJobScheduler
 
@@ -426,6 +430,140 @@ def test_publish_failure_rolls_back_observe_before_versioned_failure_commit(
         if job.job_id in before_jobs
     )
     assert controller.health_snapshot()["controller"]["passes"] == 1
+
+
+def test_managed_job_claim_waits_for_projection_publication_and_memory_commit(
+    controller,
+):
+    task = issue("In Validation")
+    memory_commit_started = Event()
+    release_memory_commit = Event()
+    memory_committed = Event()
+    projection_rolled_back = Event()
+    worker_store = WorkflowJobStore(controller.store.path)
+
+    class ProjectionPublication:
+        accepted = True
+        rejection = None
+
+        def commit_memory(self):
+            memory_commit_started.set()
+            assert release_memory_commit.wait(timeout=5)
+            memory_committed.set()
+
+        def rollback(self):
+            projection_rolled_back.set()
+
+    def publish_projection(_result):
+        return ProjectionPublication()
+
+    def claim_after_publication():
+        claimed = worker_store.claim_next(
+            lease_owner="projection-order-worker",
+            lease_seconds=60,
+        )
+        return memory_committed.is_set(), claimed
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            publication = pool.submit(
+                controller.full_sync,
+                (task,),
+                facts=fact_map(task),
+                publish_projection=publish_projection,
+            )
+            assert memory_commit_started.wait(timeout=5)
+            claim = pool.submit(claim_after_publication)
+            try:
+                with pytest.raises(FutureTimeoutError):
+                    claim.result(timeout=0.05)
+            finally:
+                release_memory_commit.set()
+
+            result = publication.result(timeout=5)
+            memory_was_committed, claimed = claim.result(timeout=5)
+
+        assert result.accepted
+        assert memory_was_committed is True
+        assert claimed is not None
+        assert claimed.task_id == task.identifier
+        assert projection_rolled_back.is_set() is False
+    finally:
+        worker_store.close()
+
+
+def test_projection_rollback_failure_still_restores_prior_liveness(controller):
+    persisted: dict = {}
+    task = issue("In Validation")
+
+    def persist(state):
+        persisted.clear()
+        persisted.update(dict(state))
+
+    controller.full_sync(
+        (task,), facts=fact_map(task), persist_liveness_state=persist
+    )
+    before_health = controller.liveness_snapshot().to_dict()
+    before_state = controller.liveness_state()
+    generation = controller.begin_scan()
+    projection_committed = Event()
+    projection_rollback_attempted = Event()
+
+    class ProjectionPublication:
+        accepted = True
+        rejection = None
+
+        def commit_memory(self):
+            projection_committed.set()
+
+        def rollback(self):
+            projection_rollback_attempted.set()
+            raise OSError("projection rollback failed")
+
+    connection = controller.store._conn
+
+    class FailPublishedGenerationInsertOnce:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.failed = False
+
+        def execute(self, sql, *args, **kwargs):
+            if (
+                not self.failed
+                and "workflow_snapshot_published_generation" in str(sql)
+                and "INSERT" in str(sql)
+            ):
+                self.failed = True
+                raise sqlite3.OperationalError("injected published insert failure")
+            return self.wrapped.execute(sql, *args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+    controller.store._conn = FailPublishedGenerationInsertOnce(connection)
+
+    with pytest.raises(
+        WorkflowJobStoreError,
+        match="compensating rollback also failed",
+    ):
+        controller.full_sync(
+            (task,),
+            facts=fact_map(task),
+            now=NOW + timedelta(seconds=1),
+            snapshot_generation=generation,
+            persist_liveness_state=persist,
+            publish_projection=lambda _result: ProjectionPublication(),
+        )
+
+    assert projection_committed.is_set()
+    assert projection_rollback_attempted.is_set()
+    assert controller.liveness_snapshot().to_dict() == before_health
+    assert controller.liveness_state() == before_state
+    assert persisted == before_state
+    store_health = controller.store.health_snapshot()
+    assert store_health["accepted_snapshot_generation"] == store_health[
+        "published_snapshot_generation"
+    ]
 
 
 def test_reconciliation_failure_restores_partial_durable_authority(
