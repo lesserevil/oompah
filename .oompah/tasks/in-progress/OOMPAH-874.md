@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T08:36:25.642458Z'
+updated_at: '2026-08-07T08:36:37.688557Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 56s
 - Log: OOMPAH-874__20260807T073145Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:36
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
