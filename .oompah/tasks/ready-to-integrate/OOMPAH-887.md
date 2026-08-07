@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:37:16.714506Z'
-work_branch: null
+updated_at: '2026-08-07T22:38:28.509776Z'
+work_branch: OOMPAH-887
 target_branch: null
 review_url: null
 review_number: null
@@ -47,7 +47,18 @@ oompah.duplicate_screening:
     generation between refresh and Needs Human escalation, reproduced live on OOMPAH-779;
     its single-generation revalidation and defer-on-refresh-failure acceptance criteria
     remain unimplemented.
-oompah.agent_run_id: e44f2ef8-503f-4bff-9311-fe4a7037a5af
+oompah.agent_run_id: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-887
+  base_branch: epic-OOMPAH-763
+  base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+  head_sha: 8bd96dd5389d6d3c13004f27365eb5f080fb8be6
+  submitted_at: '2026-08-07T22:38:05.572128+00:00'
+  updated_at: '2026-08-07T22:38:05.572128+00:00'
+oompah.work_branch: OOMPAH-887
 ---
 ## Summary
 
@@ -137,5 +148,10 @@ author: oompah
 created: 2026-08-07 22:37
 ---
 Direct implementation complete on pushed branch OOMPAH-887-direct at exact commit 8bd96dd5389d6d3c13004f27365eb5f080fb8be6 (base 3a1928d6bb7d7b47a48a90a7d0e0a56e147bb96c). Done-child reconciliation now freezes one target/candidate remote advertisement, threads immutable commit IDs through durable, trusted-completion, canonical-mapping, and branch containment proofs, retries once when the generation moves, and revalidates immediately before both Merged and Needs Human mutations. Deterministic coverage includes the OOMPAH-779/OOMPAH-765/OOMPAH-763 topology, exact and patch-equivalent containment, restart from stale refs, both stale escalation and stale promotion movement races, genuine unlanded work, and refresh failure. Evidence: brokered focused suite 122 passed; python compilation and git diff checks passed; make check-secrets passed. Branch is clean and matches origin.
+---
+author: oompah
+created: 2026-08-07 22:38
+---
+Implemented exact-generation Done-child landing reconciliation at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6; 122 focused tests and secret/static checks pass.
 ---
 <!-- COMMENTS:END -->
