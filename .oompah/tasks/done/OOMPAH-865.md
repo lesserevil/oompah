@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T10:15:53.334832Z'
+updated_at: '2026-08-07T10:16:03.786819Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -112,7 +112,7 @@ oompah.terminal_audit:
     evidence_fingerprint: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
     audit_ids:
     - audit-690fb40503ee
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-08-07T10:14:25.953389+00:00'
   oompah.terminal_audit_result_intents:
@@ -128,6 +128,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:14:25.953402+00:00'
     applied_at: '2026-08-07T10:14:34.507133+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-8c3fcf2edf24
@@ -147,7 +148,7 @@ oompah.terminal_audit:
       and 211 xdist4), plus all five prior gate failures. All three configured auditor
       transports terminated before verdict; OOMPAH-876 tracks candidate exhaustion.'
     created_at: '2026-08-07T10:15:48.138939+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -479,5 +480,12 @@ created: 2026-08-07 10:14
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 10:15
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Owner recovery: exact integrated head 04fa6781091efc6f11b952b9f1b35123facce64f passed independent review and brokered modified-module validation (211 serial and 211 xdist4), plus all five prior gate failures. All three configured auditor transports terminated before verdict; OOMPAH-876 tracks candidate exhaustion.
 ---
 <!-- COMMENTS:END -->
