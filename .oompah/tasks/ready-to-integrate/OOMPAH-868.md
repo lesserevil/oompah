@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:44:09.985666Z'
+updated_at: '2026-08-07T04:20:51.177116Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 14m 25s
 - Log: OOMPAH-868__20260806T232941Z.jsonl
+---
+author: oompah
+created: 2026-08-07 04:20
+---
+Exact dedicated-runner evidence from run 31129704050: 15,759 passed / 14 failed in 23m47s. The runner is root, invalidating unreadable/read-only permission cases; its system node cannot resolve node:assert/strict; Python 3.13 reports chmod follow_symlinks unavailable; verbose output contributed sustained jbd2 journal waits. Scope must therefore include a non-root hermetic test identity, supported Node provisioning/version assertion, Python 3.13 storage-cleanup portability, bounded console output, and shared validation-broker admission. Preserve complete failure logs as artifacts.
 ---
 <!-- COMMENTS:END -->

@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T23:04:51.666076Z'
+updated_at: '2026-08-07T04:20:47.688899Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -213,5 +213,10 @@ author: oompah
 created: 2026-08-06 23:04
 ---
 Acceleration update: GitHub did not create a pull_request CI run for corrected head 231d2b8a7e44089a3ab3ad9676e3656883c607b1. Dispatched dedicated CI workflow run 31129704050 against the exact branch head to avoid another passive hosted-run wait.
+---
+author: oompah
+created: 2026-08-07 04:20
+---
+Dedicated CI run 31129704050 tested exact corrected head 231d2b8a7 and produced 15,759 passed, 14 skipped, 1 xfailed, 14 failed on Python 3.13. None of the 14 is the O740 subprocess-timeout regression: two permission tests fail because the self-hosted runner executes as root; five XDG/runtime permission tests fail for the same reason; five dashboard/full-sync tests fail because system node lacks node:assert/strict; two storage cleanup tests hit Python 3.13 NotImplementedError for chmod(..., follow_symlinks=False). This runner is not an equivalent hosted matrix environment, so no O740 product/test mutation will be made to mask it. Dedicated-runner compatibility is tracked in OOMPAH-868. The corrected dashboard timeout tests already pass focused serial/parallel and had independent static acceptance.
 ---
 <!-- COMMENTS:END -->

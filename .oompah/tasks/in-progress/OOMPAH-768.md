@@ -24,7 +24,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-06T23:25:46.588989Z'
+updated_at: '2026-08-07T04:20:57.011446Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,5 +190,10 @@ author: oompah
 created: 2026-08-06 23:25
 ---
 Composition repair checkpoint: initial 3,280-test focused gate was 3,261 passed / 18 failed. First repair rerun reduced this to 6 passed / 12 failed; second-order fixes are now applied across stale duplicate projection, restart commit fencing, startup-queued event loss, alert-lock legacy restore, null-mode identity, reparent target authority, and audit recovery/coalescence. Current uncommitted scratch diff SHA256 0584257e585225eab04a16fca3b395a4243ce3eadb058e2c25952cc8925138b6; AST and diff checks pass. Exact rerun is paused while dedicated CI consumes the box outside the validation lease.
+---
+author: oompah
+created: 2026-08-07 04:20
+---
+Composition validation checkpoint at uncommitted repair diff SHA256 2a51a3f406fcb7ae21413c5780c990a8d27b3f997268b3a19cb66f0d35fd3ca3: exact 19 regression cases pass serial and parallel; all 60 changed test modules pass 3,279 plus 1 expected failure serial (72.20s) and parallel (20.42s). Final independent static review is active. Canonical refs remain untouched.
 ---
 <!-- COMMENTS:END -->
