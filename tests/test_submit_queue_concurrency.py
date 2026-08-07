@@ -85,6 +85,11 @@ class _DispatchTracker:
         self.children_requested_for.append(parent_id)
         return []
 
+    def get_metadata(self, _identifier: str) -> dict[str, object]:
+        """Expose the unmarked metadata shape used by provenance fencing."""
+
+        return {}
+
 
 def _make_project(
     tmp_path,
