@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-899
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make lifecycle startup timeout safe for late listeners
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T18:20:08.032443Z'
+updated_at: '2026-08-07T18:20:14.797655Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
