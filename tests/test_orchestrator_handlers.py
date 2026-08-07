@@ -4911,6 +4911,53 @@ class TestRateLimitAlertIncludesProviderAndModel:
 
 
 class TestNeedsHumanTransitions:
+    def test_unresolved_merge_conflict_exit_releases_exact_runtime(self, tmp_path):
+        """A requeued resolver must not remain as a phantom running agent."""
+
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "TASK-1",
+            state="Needs Rebase",
+            project_id="proj-1",
+            labels=["merge-conflict"],
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.claimed.add(issue.id)
+        orch.state.claimed_issues[issue.id] = issue
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._fire_work_contributor_record = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        with (
+            patch.object(orch, "_finish_epic_review_repair", return_value=None),
+            patch.object(orch, "_review_conflict_remains", return_value=True),
+        ):
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status="Needs Rebase",
+            priority="0",
+            **{"add-label": "merge-conflict"},
+        )
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        assert issue.id not in orch.state.claimed_issues
+        assert issue.id not in orch.state.completed
+
     def test_normal_exit_in_validation_does_not_schedule_implementation_retry(
         self, tmp_path
     ):

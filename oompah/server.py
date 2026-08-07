@@ -141,11 +141,11 @@ from oompah.validation_resource_lease import (
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
-    acquire_task_handoff_permit,
+    acquire_task_handoff_permit_classified,
     OperationPermit,
     OperationPermitDenied,
     record_task_handoff_failure,
-    validate_task_handoff_token,
+    validate_task_handoff_token_classified,
 )
 from oompah.auth_health import (
     record_operator_401,
@@ -5736,11 +5736,13 @@ async def api_task_handoff(request: Request):
             status_code=400,
         )
 
-    allowed, reason = validate_task_handoff_token(
-        token,
-        project_id=project_id,
-        task_identifier=identifier,
-        action=action,
+    allowed, reason, temporary_suspension_denial = (
+        validate_task_handoff_token_classified(
+            token,
+            project_id=project_id,
+            task_identifier=identifier,
+            action=action,
+        )
     )
     orch = None
     if not allowed and reason == "task handoff capability is scoped to another project":
@@ -5754,11 +5756,13 @@ async def api_task_handoff(request: Request):
         except (ProjectError, RuntimeError):
             pass
         else:
-            allowed, reason = validate_task_handoff_token(
-                token,
-                project_id=project_id,
-                task_identifier=identifier,
-                action=action,
+            allowed, reason, temporary_suspension_denial = (
+                validate_task_handoff_token_classified(
+                    token,
+                    project_id=project_id,
+                    task_identifier=identifier,
+                    action=action,
+                )
             )
     if not allowed:
         # Expired and explicitly revoked grants are authentication failures;
@@ -5801,12 +5805,14 @@ async def api_task_handoff(request: Request):
         # Do not expose whether a token exists for another task/project. A
         # verified policy denial is expected exploration and must not poison
         # the worker-exit failure reconciler either.
-        if not expected_policy_denial:
+        if not expected_policy_denial and not temporary_suspension_denial:
             record_task_handoff_failure(token, "task handoff scope validation failed")
 
         # Count by auth-plane failure type for health signals. Expected
         # cross-task policy denials are informational, like action denials.
-        if status_code == 401:
+        if temporary_suspension_denial:
+            pass
+        elif status_code == 401:
             record_worker_401()
         elif expected_policy_denial:
             record_worker_403_policy()
@@ -5861,14 +5867,20 @@ async def api_task_handoff(request: Request):
             "remove-label",
         }
         if action in mutating_actions:
-            permit = acquire_task_handoff_permit(
-                token,
-                project_id=project_id,
-                task_identifier=identifier,
-                action=action,
+            permit, permit_suspension_denial = (
+                acquire_task_handoff_permit_classified(
+                    token,
+                    project_id=project_id,
+                    task_identifier=identifier,
+                    action=action,
+                )
             )
             if permit is None:
-                _still_allowed, permit_reason = validate_task_handoff_token(
+                (
+                    _still_allowed,
+                    permit_reason,
+                    validation_suspension_denial,
+                ) = validate_task_handoff_token_classified(
                     token,
                     project_id=project_id,
                     task_identifier=identifier,
@@ -5877,10 +5889,14 @@ async def api_task_handoff(request: Request):
                 permit_reason = permit_reason or (
                     "task handoff capability was revoked before the operation started"
                 )
-                record_task_handoff_failure(
-                    token, "task handoff capability authorization failed"
+                temporary_suspension_denial = (
+                    permit_suspension_denial or validation_suspension_denial
                 )
-                record_worker_401()
+                if not temporary_suspension_denial:
+                    record_task_handoff_failure(
+                        token, "task handoff capability authorization failed"
+                    )
+                    record_worker_401()
                 return JSONResponse(
                     {
                         "error": {
@@ -6313,8 +6329,11 @@ async def api_task_handoff(request: Request):
 
         return await run_mutation(apply_label_mutation)
     except OperationPermitDenied as exc:
-        record_task_handoff_failure(token, "task handoff capability revoked before mutation")
-        record_worker_401()
+        if not exc.temporary_suspension:
+            record_task_handoff_failure(
+                token, "task handoff capability revoked before mutation"
+            )
+            record_worker_401()
         return JSONResponse(
             {
                 "error": {

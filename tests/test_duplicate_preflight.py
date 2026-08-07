@@ -181,6 +181,12 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     # Orchestrator is constructed via __new__ without __init__.
     orch._retry_authority_lock = threading.RLock()
     orch._retry_dispatching = {}
+    orch._retry_schedule_builders = {}
+    orch._post_retirement_retry_tokens = {}
+    orch._retry_schedule_epochs = {}
+    orch._retry_timer_arming_tokens = {}
+    orch._retry_timer_generations = {}
+    orch._revoked_authority_generations = {}
     orch._persisted_retry_entries = []
     orch._dispatch_loop = None
     orch._termination_scheduling_closed = False
@@ -190,8 +196,12 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch.request_refresh = MagicMock()
     orch._provider_admission_lock = threading.RLock()
     orch._provider_admission_generation = 0
+    orch._terminating_worker_owners = {}
     orch._termination_pending_baselines = {}
+    orch._termination_handoff_fences = {}
     orch._termination_child_owned_keys = set()
+    orch._scheduled_termination_entries = {}
+    orch._dispatch_loop = None
     orch.project_store = MagicMock()
     orch.project_store.get.return_value = None
     return orch

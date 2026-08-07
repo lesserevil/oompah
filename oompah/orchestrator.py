@@ -282,10 +282,14 @@ from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
+    TaskHandoffFence,
     consume_task_handoff_failure,
     issue_task_handoff_token,
     revoke_task_handoff_token,
+    restore_task_handoff_token,
     start_task_handoff_lease,
+    suspend_task_handoff_token,
+    wait_for_task_handoff_operations,
 )
 from oompah.auth_health import (
     auth_health_alerts,
@@ -941,6 +945,29 @@ class DispatchEvent:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class RuntimeTerminationCoordinator:
+    """Cross-loop result and monotonic requirements for one exact runtime."""
+
+    entry: RunningEntry
+    cleanup_workspace: bool = False
+    post_retirement_retry: bool = False
+    cleanup_satisfied: bool = False
+    retry_satisfied: bool = False
+    starting: bool = False
+    child_created: bool = False
+    completed: bool = False
+    result: bool | None = None
+    error: BaseException | None = None
+    task: asyncio.Task[Any] | None = None
+    owner_loop: asyncio.AbstractEventLoop | None = None
+    handoff_fence: TaskHandoffFence | None = None
+    completion_event: threading.Event = field(
+        default_factory=threading.Event,
+        repr=False,
+    )
+
+
 class ProviderStartupError(Exception):
     """A provider-level startup failure that may be retried with the next dispatch candidate.
 
@@ -1436,6 +1463,36 @@ class Orchestrator:
         self._retry_snapshot_version = 0
         self._retry_persistence_failed = False
         self._retry_dispatching: dict[str, RetryEntry] = {}
+        # A retry can be armed from an API/maintenance thread while the
+        # dispatch loop owns timer creation.  Keep a per-entry publication
+        # token so a delayed cross-thread callback cannot install a stale
+        # timer after a newer arm or cancellation has taken ownership.
+        self._retry_timer_arming_tokens: dict[str, tuple[RetryEntry, object]] = {}
+        # The handle alone is not sufficient callback authority: a due
+        # callback can validate its handle, release this lock, and only then
+        # get a coroutine turn after a replacement arm.  Retain one exact
+        # (entry, generation) token through the handle's lifetime so the
+        # coroutine can atomically reject that stale callback before it moves
+        # a replacement retry into ``_retry_dispatching``.
+        self._retry_timer_generations: dict[str, tuple[RetryEntry, object]] = {}
+        # Every schedule/cancel transition advances this per-issue epoch.  A
+        # retry is assembled outside the authority lock, so the epoch closes
+        # the remove/build/install gap: a cancellation that observes no
+        # currently-published entry still wins over that stale builder.
+        self._retry_schedule_epochs: dict[str, int] = {}
+        # Source entries are temporarily removed while their replacement
+        # authority is reconstructed.  Retain an exact cancellation target
+        # for that build window so an API cancellation can still tombstone the
+        # old generation instead of merely advancing an anonymous epoch.
+        self._retry_schedule_builders: dict[str, RetryEntry | RunningEntry] = {}
+        # A successful forced retirement removes its exact RunningEntry before
+        # the watchdog can construct the replacement retry.  That narrow gap
+        # needs an explicit, one-shot capability: accepting an arbitrary
+        # removed entry here would let a stale exit callback revive cancelled
+        # work.  The value is (retired entry, opaque token, schedule epoch).
+        self._post_retirement_retry_tokens: dict[
+            str, tuple[RunningEntry, object, int]
+        ] = {}
         # Generation tombstones close the gap after a retry has been selected
         # or a worker has been registered but before its provider/workspace
         # setup completes.  They are process-local by design: accepted
@@ -2001,6 +2058,14 @@ class Orchestrator:
         self._termination_pending_baselines: dict[
             tuple[str, str, int], bool
         ] = {}
+        # Concurrent parents retiring one exact runtime share a single,
+        # reversible bearer-admission fence.  It can be restored only after
+        # the final parent fails before publishing a cleanup child; otherwise
+        # one failed parent could reopen a handoff while another still relies
+        # on the same runtime retirement fence.
+        self._termination_handoff_fences: dict[
+            tuple[str, str, int], TaskHandoffFence | None
+        ] = {}
         self._termination_child_owned_keys: set[tuple[str, str, int]] = set()
         # Retain the entry as the value as well as encoding its process-local
         # identity in the key.  That strong reference prevents ``id(entry)``
@@ -2489,7 +2554,7 @@ class Orchestrator:
             # only known rows were waiting on a long retry backoff.  Pre-empt
             # the timer for one discovery scan; due-at fencing in the ledger
             # still prevents the failed rows from retrying early.
-            timer.cancel()
+            self._cancel_timer_threadsafe(timer)
             self._terminal_lifecycle_timer = None
         future = self._terminal_lifecycle_future
         if future is not None and not future.done():
@@ -3755,10 +3820,8 @@ class Orchestrator:
                 preserved_recovery_ids.add(retry_iid)
                 timer = retry.timer_handle
                 if timer is not None and not self._retry_timer_cancelled(timer):
-                    try:
-                        timer.cancel()
-                    except Exception:
-                        pass
+                    self._cancel_retry_timer_threadsafe(timer)
+                self._clear_retry_timer_authority(retry)
                 retry.timer_handle = None
                 self.state.retry_attempts[retry.issue_id] = retry
 
@@ -4239,19 +4302,25 @@ class Orchestrator:
         token: object,
         *,
         restore_unstarted_entry: RunningEntry | None = None,
-    ) -> None:
-        """Release only the callback-suppression lease held by one parent."""
+    ) -> TaskHandoffFence | None:
+        """Release one exact retirement lease and return a safe rollback fence.
+
+        A bearer fence is returned only to the last parent when no child owns
+        cleanup.  A parent whose task creation failed while another parent is
+        still constructing its child must not reopen handoff admission.
+        """
 
         with self._provider_admission_lock:
             owners = self._terminating_worker_owners.get(key)
             if owners is None:
-                return
+                return None
             owners.discard(token)
             if not owners:
                 self._terminating_worker_owners.pop(key, None)
                 baseline = self._termination_pending_baselines.pop(key, None)
                 child_owned = key in self._termination_child_owned_keys
                 self._termination_child_owned_keys.discard(key)
+                handoff_fence = self._termination_handoff_fences.pop(key, None)
                 if (
                     restore_unstarted_entry is not None
                     and not child_owned
@@ -4260,6 +4329,8 @@ class Orchestrator:
                     is restore_unstarted_entry
                 ):
                     restore_unstarted_entry.retirement_pending = baseline
+                    return handoff_fence
+            return None
 
     def _termination_owned(self, issue_id: str, entry: RunningEntry) -> bool:
         """Return whether any parent is retiring this exact runtime."""
@@ -4267,6 +4338,412 @@ class Orchestrator:
         key = self._termination_owner_key(issue_id, entry)
         with self._provider_admission_lock:
             return bool(self._terminating_worker_owners.get(key))
+
+    def _termination_requirements(
+        self,
+        coordinator: RuntimeTerminationCoordinator | None,
+        *,
+        cleanup_workspace: bool,
+        post_retirement_retry: bool,
+    ) -> tuple[bool, bool]:
+        """Read the latest monotonic requirements for a retirement child."""
+
+        if coordinator is None:
+            return cleanup_workspace, post_retirement_retry
+        with self._provider_admission_lock:
+            return (
+                coordinator.cleanup_workspace,
+                coordinator.post_retirement_retry,
+            )
+
+    def _cleanup_retired_workspace(self, entry: RunningEntry) -> None:
+        """Apply the workspace portion of an exact retirement request."""
+
+        project_id = entry.issue.project_id if entry.issue else None
+        try:
+            if project_id:
+                workspace_identifier = (
+                    self._audit_workspace_identifier(
+                        entry.identifier,
+                        entry.audit_attempt_id or "unknown",
+                    )
+                    if entry.is_auditor
+                    else entry.identifier
+                )
+                self.project_store.remove_worktree(project_id, workspace_identifier)
+            else:
+                self.workspace_mgr.remove_workspace(entry.identifier)
+        except Exception as exc:  # noqa: BLE001 - cleanup remains best effort
+            logger.warning(
+                "Workspace cleanup failed issue_identifier=%s error=%s",
+                entry.identifier,
+                exc,
+            )
+
+    def _satisfy_termination_requirements(
+        self,
+        issue_id: str,
+        coordinator: RuntimeTerminationCoordinator,
+    ) -> bool:
+        """Close late requirement upgrades before publishing a true result.
+
+        The caller is the sole coordinator child.  Requirement reads and the
+        final completion publication share ``_provider_admission_lock`` with
+        parent registration, so no stronger concurrent parent can slip into
+        the entry-removal/result window.
+        """
+
+        entry = coordinator.entry
+        with self._provider_admission_lock:
+            replacement = self._current_running_entry(issue_id)
+            if replacement is not None and replacement is not entry:
+                return False
+            with self._retry_authority_lock:
+                authorization = self._post_retirement_retry_tokens.get(issue_id)
+                if authorization is not None and authorization[0] is not entry:
+                    return False
+            if coordinator.cleanup_workspace and not coordinator.cleanup_satisfied:
+                self._cleanup_retired_workspace(entry)
+                coordinator.cleanup_satisfied = True
+            if (
+                coordinator.post_retirement_retry
+                and not coordinator.retry_satisfied
+            ):
+                with self._retry_authority_lock:
+                    authorization = self._post_retirement_retry_tokens.get(issue_id)
+                    if authorization is not None and authorization[0] is entry:
+                        coordinator.retry_satisfied = True
+                    else:
+                        coordinator.retry_satisfied = bool(
+                            self._publish_post_retirement_retry_token(issue_id, entry)
+                        )
+                if not coordinator.retry_satisfied:
+                    return False
+            return True
+
+    async def _run_termination_coordinator(
+        self,
+        issue_id: str,
+        coordinator: RuntimeTerminationCoordinator,
+        *,
+        perform_retirement: bool,
+    ) -> None:
+        """Run or upgrade the sole child for one exact runtime generation."""
+
+        try:
+            result = True
+            if perform_retirement:
+                cleanup_requested, retry_requested = (
+                    self._termination_requirements(
+                        coordinator,
+                        cleanup_workspace=False,
+                        post_retirement_retry=False,
+                    )
+                )
+                # The coordinator owns the admission fence, so it must drain
+                # mutations admitted before that fence before delegating the
+                # retirement transaction.  Keeping this ordering here also
+                # prevents an alternate/mocked transaction implementation
+                # from accidentally inspecting stale handoff state.
+                result = await self._drain_termination_handoff_operations(
+                    issue_id,
+                    coordinator,
+                )
+                if result:
+                    result = await self._terminate_running_once(
+                        issue_id,
+                        cleanup_requested,
+                        expected_entry=coordinator.entry,
+                        post_retirement_retry=retry_requested,
+                        coordinator=coordinator,
+                    )
+            while result:
+                result = self._satisfy_termination_requirements(
+                    issue_id,
+                    coordinator,
+                )
+                with self._provider_admission_lock:
+                    requirements_satisfied = (
+                        (
+                            not coordinator.cleanup_workspace
+                            or coordinator.cleanup_satisfied
+                        )
+                        and (
+                            not coordinator.post_retirement_retry
+                            or coordinator.retry_satisfied
+                        )
+                    )
+                    if result and requirements_satisfied:
+                        coordinator.result = True
+                        coordinator.completed = True
+                        coordinator.starting = False
+                        coordinator.completion_event.set()
+                        return
+                    if not result:
+                        break
+                # A stronger parent registered after the preceding satisfy
+                # pass but before completion publication. Loop until the
+                # requirement union and the published result are one atomic
+                # observation.
+            with self._provider_admission_lock:
+                coordinator.result = False
+                coordinator.completed = True
+                coordinator.starting = False
+                coordinator.completion_event.set()
+        except BaseException as exc:
+            with self._provider_admission_lock:
+                coordinator.error = exc
+                coordinator.completed = True
+                coordinator.starting = False
+                coordinator.completion_event.set()
+
+    async def _drain_termination_handoff_operations(
+        self,
+        issue_id: str,
+        coordinator: RuntimeTerminationCoordinator,
+    ) -> bool:
+        """Drain mutations admitted before this runtime's retirement fence."""
+
+        entry = coordinator.entry
+        timeout_seconds = max(
+            1.0,
+            max(self.config.worker_termination_timeout_ms, 0) / 1000.0,
+        )
+        drained = await asyncio.to_thread(
+            wait_for_task_handoff_operations,
+            coordinator.handoff_fence,
+            timeout_seconds=timeout_seconds,
+        )
+        if not drained:
+            logger.error(
+                "Retaining worker because an admitted task-handoff mutation "
+                "did not finish before retirement timeout issue_id=%s "
+                "identifier=%s",
+                issue_id,
+                entry.identifier,
+            )
+            self._notify_observers()
+        return drained
+
+    async def _await_termination_coordinator(
+        self,
+        coordinator: RuntimeTerminationCoordinator,
+    ) -> tuple[bool, bool]:
+        """Observe one cross-loop result while deferring caller cancellation."""
+
+        interrupted = False
+        while True:
+            with self._provider_admission_lock:
+                if coordinator.completed:
+                    error = coordinator.error
+                    result = bool(coordinator.result)
+                    break
+                completion_event = coordinator.completion_event
+            # This waiter is deliberately an executor Future rather than an
+            # asyncio Task.  Retirement callers may run on a foreign loop,
+            # and Task creation is part of the coordinator's separately
+            # fenced publication protocol; observing the cross-loop event
+            # must not look like (or contend with) another retirement child.
+            waiter = asyncio.get_running_loop().run_in_executor(
+                None,
+                completion_event.wait,
+            )
+            interrupted = (
+                await self._await_guaranteed_cleanup(waiter)
+                or interrupted
+            )
+        if error is not None:
+            raise error
+        return result, interrupted
+
+    def _termination_child_finished(
+        self,
+        coordinator: RuntimeTerminationCoordinator,
+        child: asyncio.Task[Any],
+    ) -> None:
+        """Publish failures when a coordinator child never enters its body."""
+
+        with self._provider_admission_lock:
+            # A completed coordinator may be reopened for a failed retry or a
+            # late monotonic requirement before this callback receives its
+            # turn.  Never let the callback from that prior generation
+            # publish into the newly-created child.
+            if coordinator.completed or coordinator.task is not child:
+                return
+            if child.cancelled():
+                error: BaseException = asyncio.CancelledError()
+            else:
+                error = child.exception() or RuntimeError(
+                    "retirement coordinator exited without publishing a result"
+                )
+            coordinator.error = error
+            coordinator.completed = True
+            coordinator.starting = False
+            coordinator.completion_event.set()
+
+    def _termination_owner_loop(
+        self,
+        entry: RunningEntry,
+    ) -> asyncio.AbstractEventLoop | None:
+        """Return the live loop that owns one runtime's async resources.
+
+        The HTTP service and scheduler deliberately run on different threads.
+        A worker task is the strongest ownership evidence; the dispatch loop
+        is the fallback for setup-only entries whose worker task has not been
+        published yet.  Only test doubles and single-loop embedders fall back
+        to the caller's current loop.
+        """
+
+        worker_task = getattr(entry, "worker_task", None)
+        get_loop = getattr(worker_task, "get_loop", None)
+        if callable(get_loop):
+            try:
+                worker_loop = get_loop()
+                if worker_loop is not None and worker_loop.is_running() is True:
+                    return worker_loop
+            except (RuntimeError, AttributeError):
+                pass
+        dispatch_loop = self._dispatch_loop
+        if dispatch_loop is not None and dispatch_loop.is_running():
+            return dispatch_loop
+        return self._running_loop()
+
+    async def _publish_termination_child(
+        self,
+        issue_id: str,
+        coordinator: RuntimeTerminationCoordinator,
+        *,
+        perform_retirement: bool,
+        owner_key: tuple[str, str, int],
+        owner_token: object,
+    ) -> bool:
+        """Publish the sole retirement child on its runtime owner loop.
+
+        Foreign HTTP/UI callers may register and wait for the coordinator,
+        but they must never cancel or await scheduler-loop tasks themselves.
+        Completion is exposed exclusively through the coordinator fields
+        guarded by ``_provider_admission_lock``.  The return value reports
+        whether caller cancellation was deferred while publication ownership
+        was resolving.
+        """
+
+        interrupted = False
+        owner_loop = self._termination_owner_loop(coordinator.entry)
+        if owner_loop is None or not owner_loop.is_running():
+            with self._provider_admission_lock:
+                coordinator.error = RuntimeError(
+                    "retirement requires a live runtime owner event loop"
+                )
+                coordinator.completed = True
+                coordinator.starting = False
+                coordinator.completion_event.set()
+            return interrupted
+        with self._provider_admission_lock:
+            coordinator.owner_loop = owner_loop
+
+        def _create_on_owner_loop() -> None:
+            with self._provider_admission_lock:
+                if (
+                    coordinator.completed
+                    or coordinator.child_created
+                    or not coordinator.starting
+                ):
+                    return
+                retirement_coroutine = self._run_termination_coordinator(
+                    issue_id,
+                    coordinator,
+                    perform_retirement=perform_retirement,
+                )
+                try:
+                    retirement_task = owner_loop.create_task(
+                        retirement_coroutine,
+                        name=f"retire-runtime-{issue_id}",
+                    )
+                except BaseException as exc:
+                    retirement_coroutine.close()
+                    if not coordinator.child_created:
+                        coordinator.error = exc
+                        coordinator.completed = True
+                        coordinator.starting = False
+                        coordinator.completion_event.set()
+                    return
+                coordinator.task = retirement_task
+                coordinator.child_created = True
+                retirement_task.add_done_callback(
+                    lambda child: self._termination_child_finished(
+                        coordinator,
+                        child,
+                    )
+                )
+                # The owner loop cannot start the newly-created task until this
+                # callback returns. Keep validation, publication, revocation,
+                # and ownership transfer atomic with the timeout observer.
+                revoke_task_handoff_token(
+                    getattr(coordinator.entry, "task_handoff_token", None)
+                )
+                self._mark_termination_child_owned(owner_key, owner_token)
+
+        if self._running_loop() is owner_loop:
+            _create_on_owner_loop()
+            return interrupted
+        publication_done = threading.Event()
+
+        def _publish_on_owner_loop() -> None:
+            try:
+                _create_on_owner_loop()
+            finally:
+                publication_done.set()
+
+        try:
+            owner_loop.call_soon_threadsafe(_publish_on_owner_loop)
+        except (RuntimeError, ValueError) as exc:
+            with self._provider_admission_lock:
+                coordinator.error = exc
+                coordinator.completed = True
+                coordinator.starting = False
+                coordinator.completion_event.set()
+            return interrupted
+
+        # Accepting a threadsafe callback is not proof that a loop which is
+        # concurrently stopping will ever execute it.  Bound that handshake
+        # without blocking the caller's event loop, then fail closed only if
+        # this exact generation still lacks a child.
+        current = asyncio.current_task()
+        while True:
+            try:
+                publication_acknowledged = await asyncio.to_thread(
+                    publication_done.wait,
+                    1.0,
+                )
+                break
+            except asyncio.CancelledError:
+                if current is not None and current.cancelling():
+                    # Once the callback has been accepted by the owner loop,
+                    # cancellation cannot let this parent restore the runtime
+                    # while that callback still has authority to create the
+                    # child.  Consume the edge now and propagate it only after
+                    # the coordinator reaches a bounded terminal result.
+                    interrupted = True
+                    current.uncancel()
+                    continue
+                raise
+        if publication_acknowledged:
+            return interrupted
+        with self._provider_admission_lock:
+            if (
+                not coordinator.completed
+                and coordinator.starting
+                and not coordinator.child_created
+                and coordinator.task is None
+            ):
+                coordinator.error = RuntimeError(
+                    "runtime owner loop did not acknowledge retirement child "
+                    "publication"
+                )
+                coordinator.completed = True
+                coordinator.starting = False
+                coordinator.completion_event.set()
+        return interrupted
 
     def _schedule_running_termination(
         self,
@@ -4476,8 +4953,23 @@ class Orchestrator:
                 and retry.timer_handle is None
                 and self._retry_dispatching.get(issue_id) is not retry
             ]
+        all_timers_armed = True
         for retry in suspended_recoveries:
-            self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+            all_timers_armed = (
+                self._arm_retry_entry(
+                    retry,
+                    self._backoff_delay(retry.attempt),
+                    require_current=True,
+                )
+                and all_timers_armed
+            )
+        if not all_timers_armed:
+            logger.error(
+                "Resume remains fenced because an implementation retry timer "
+                "could not be armed on a live event loop"
+            )
+            self._notify_observers()
+            return False
         if suspended_recoveries and not self._persist_retry_entries():
             logger.error(
                 "Resume remains fenced because rearmed implementation retry "
@@ -5743,6 +6235,21 @@ class Orchestrator:
             if current is None or (expected is not None and current is not expected):
                 return False
             self.state.running.pop(issue_id, None)
+            return True
+
+    def _remove_running_entry_and_claims(
+        self,
+        issue_id: str,
+        expected: RunningEntry,
+    ) -> bool:
+        """Atomically release one exact runtime and its scheduler claim."""
+
+        with self._retry_authority_lock:
+            if self.state.running.get(issue_id) is not expected:
+                return False
+            self.state.running.pop(issue_id, None)
+            self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
             return True
 
     def _worker_authority_current(
@@ -7938,12 +8445,14 @@ class Orchestrator:
         # Cancel retry timers
         for issue_id, retry in list(self.state.retry_attempts.items()):
             if retry.timer_handle and not retry.timer_handle.cancelled():
-                retry.timer_handle.cancel()
+                self._cancel_retry_timer_threadsafe(retry.timer_handle)
+            with self._retry_authority_lock:
+                self._clear_retry_timer_authority(retry)
         if (
             self._terminal_lifecycle_timer is not None
             and not self._terminal_lifecycle_timer.cancelled()
         ):
-            self._terminal_lifecycle_timer.cancel()
+            self._cancel_timer_threadsafe(self._terminal_lifecycle_timer)
             self._terminal_lifecycle_timer = None
         self._terminal_lifecycle_rediscovery_pending = False
         # Terminate active quality gate process groups before shutdown
@@ -43291,7 +43800,11 @@ class Orchestrator:
             )
             self._notify_observers()
             return
-        self._remove_running_entry(issue_id, entry)
+        # Keep the exact running owner published until any retry decision
+        # below has reserved its replacement epoch.  In particular, an API
+        # cancellation that arrives while worker-exit bookkeeping is in
+        # progress must be able to revoke this entry instead of racing an
+        # already-removed source into a fresh retry.
         # The task-handoff registry contains only actionable failures of the
         # assigned task. Verified read-only peer denials are deliberately kept
         # out of it, so they cannot overwrite a successful own-task submit at
@@ -43362,6 +43875,7 @@ class Orchestrator:
             tokens_str = f" ({entry.session.total_tokens} tokens)"
 
         if getattr(entry, "duplicate_preflight", False):
+            self._remove_running_entry(issue_id, entry)
             await self._handle_duplicate_preflight_exit(entry, reason, error)
             return
 
@@ -43369,6 +43883,7 @@ class Orchestrator:
             # Auditors never enter the ordinary worker completion state
             # machine: a normal exit is meaningful only when the structured
             # result tool has already completed the durable audit record.
+            self._remove_running_entry(issue_id, entry)
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
             # The transport attempt begins only on the provider task's first
@@ -43431,11 +43946,13 @@ class Orchestrator:
             return
 
         if actionable_handoff_failure or self._is_task_handoff_failure(error):
+            self._remove_running_entry(issue_id, entry)
             self._hold_after_task_handoff_failure(entry, issue_id, project_id)
             return
 
         if reason == "ask_question":
             # Agent asked a question — post it and move the issue to Needs Answer
+            self._remove_running_entry(issue_id, entry)
             self.state.claimed.discard(issue_id)
             self.state.stall_counts.pop(issue_id, None)
             question_text = error or "Agent has a question (no text provided)"
@@ -43623,6 +44140,11 @@ class Orchestrator:
                                     payload={"reason": reason},
                                 )
                             )
+                            # Runtime removal is normally the final exact-CAS
+                            # step below.  This branch returns early so the
+                            # unresolved review can be redispatched; release
+                            # only this completed generation before returning.
+                            self._remove_running_entry_and_claims(issue_id, entry)
                             return
                         logger.info(
                             "Merge-conflict agent completed for %s — "
@@ -44127,6 +44649,7 @@ class Orchestrator:
                 payload={"reason": reason},
             )
         )
+        self._remove_running_entry(issue_id, entry)
 
     def _is_rate_limited(self) -> bool:
         """Check if we're in a rate-limit cooldown period."""
@@ -44952,6 +45475,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             ),
             pre_admission_recovery=True,
         )
+        # Publish the new owner before any arm/recovery path can yield.  From
+        # here onward cancellation sees (and tombstones) this exact entry;
+        # rearming only ever operates on a currently published owner.
+        with self._retry_authority_lock:
+            self.state.retry_attempts[retry.issue_id] = retry
         # Arm before doing any more tracker I/O. If immediate rollback itself
         # fails or is interrupted, process-local recovery remains live as well
         # as being represented in the service-state journal.
@@ -45231,6 +45759,52 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         except Exception:
             return False
 
+    def _cancel_timer_threadsafe(self, timer: Any) -> None:
+        """Cancel a timer on its owner loop without touching loop internals.
+
+        ``TimerHandle.cancel`` is not a cross-thread operation.  Retry
+        authority can be withdrawn by an HTTP/API thread while its timer is
+        owned by the dispatch loop, so publish the cancellation back to that
+        loop whenever it is live.  Lightweight test doubles generally do not
+        expose a real loop and retain the direct best-effort path.
+        """
+
+        try:
+            timer_loop = getattr(timer, "_loop", None)
+            is_running = getattr(timer_loop, "is_running", None)
+            if (
+                timer_loop is not None
+                and callable(is_running)
+                and is_running() is True
+                and self._running_loop() is not timer_loop
+            ):
+                timer_loop.call_soon_threadsafe(timer.cancel)
+            else:
+                timer.cancel()
+        except Exception:
+            pass
+
+    def _cancel_retry_timer_threadsafe(self, timer: Any) -> None:
+        """Backward-compatible retry-specific spelling for timer cancellation."""
+
+        self._cancel_timer_threadsafe(timer)
+
+    def _clear_retry_timer_authority(self, retry: RetryEntry) -> None:
+        """Forget pending and armed timer generations owned by ``retry``.
+
+        The caller must hold ``_retry_authority_lock``.  Identity checks are
+        essential because an old in-flight dispatch entry and a replacement
+        retry can briefly share an issue id.
+        """
+
+        issue_id = retry.issue_id
+        arming = self._retry_timer_arming_tokens.get(issue_id)
+        if arming is not None and arming[0] is retry:
+            self._retry_timer_arming_tokens.pop(issue_id, None)
+        generation = self._retry_timer_generations.get(issue_id)
+        if generation is not None and generation[0] is retry:
+            self._retry_timer_generations.pop(issue_id, None)
+
     @staticmethod
     def _decode_retry_snapshot(
         raw: Any,
@@ -45477,11 +46051,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         retry.identifier,
                         exc,
                     )
-                    self._retain_or_arm_pre_admission_recovery(
-                        retry,
-                        self._backoff_delay(retry.attempt),
-                        issue=None,
-                    )
+                    with self._retry_authority_lock:
+                        existing = self.state.retry_attempts.get(retry.issue_id)
+                        retain = existing is None or existing is retry
+                        if retain:
+                            self.state.retry_attempts[retry.issue_id] = retry
+                    if retain:
+                        self._retain_or_arm_pre_admission_recovery(
+                            retry,
+                            self._backoff_delay(retry.attempt),
+                            issue=None,
+                        )
                 else:
                     logger.warning(
                         "Discarding persisted retry for %s after refresh failure: %s",
@@ -45525,13 +46105,114 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 continue
             due_epoch = float(retry.due_at_epoch_ms or now_ms)
             delay_ms = max(0, int(due_epoch - now_ms))
-            self._retain_or_arm_pre_admission_recovery(
-                retry,
-                delay_ms,
-                issue=issue,
-            )
+            # ``_arm_retry_entry(require_current=True)`` is intentionally a
+            # CAS against the published owner.  Persisted entries live in a
+            # private startup list until this fresh tracker read validates
+            # them, so publish this exact generation immediately before
+            # arming it.  A newer process-local owner wins and the replay is
+            # discarded instead of overwriting that authority.
+            with self._retry_authority_lock:
+                existing = self.state.retry_attempts.get(retry.issue_id)
+                retain = existing is None or existing is retry
+                if retain:
+                    self.state.retry_attempts[retry.issue_id] = retry
+            if retain:
+                self._retain_or_arm_pre_admission_recovery(
+                    retry,
+                    delay_ms,
+                    issue=issue,
+                )
         # Replace the startup snapshot only after validation is complete.
         self._persist_retry_entries()
+
+    def _publish_post_retirement_retry_token(
+        self,
+        issue_id: str,
+        entry: RunningEntry,
+    ) -> object | None:
+        """Publish one retry capability after exact runtime retirement.
+
+        The caller must have removed ``entry`` from ``state.running`` while
+        holding the retirement/admission fence.  The retry authority lock
+        serializes this capability with API cancellation and replacement
+        retry construction.
+        """
+
+        with self._retry_authority_lock:
+            if (
+                getattr(entry, "authority_revoked", False)
+                or self._current_running_entry(issue_id) is entry
+            ):
+                return None
+            existing = self._post_retirement_retry_tokens.get(issue_id)
+            if existing is not None:
+                # Never let a late retirement overwrite a newer exact
+                # generation's one-shot authority. Repeated publication for
+                # the same entry is idempotent and retains its original epoch.
+                return existing[1] if existing[0] is entry else None
+            token = object()
+            self._post_retirement_retry_tokens[issue_id] = (
+                entry,
+                token,
+                self._retry_schedule_epochs.get(issue_id, 0),
+            )
+            return token
+
+    def _post_retirement_retry_token_for(
+        self,
+        issue_id: str,
+        entry: RunningEntry,
+    ) -> object | None:
+        """Return the exact unconsumed capability for a retired worker."""
+
+        with self._retry_authority_lock:
+            authorization = self._post_retirement_retry_tokens.get(issue_id)
+            if authorization is None or authorization[0] is not entry:
+                return None
+            return authorization[1]
+
+    def _restore_interrupted_post_retirement_retry(
+        self,
+        issue_id: str,
+        entry: RunningEntry,
+    ) -> bool:
+        """Publish the exact retry before propagating late caller cancellation.
+
+        ``_terminate_running`` deliberately shields provider cleanup from its
+        caller's cancellation.  The last cleanup transaction may therefore
+        have removed the runtime and minted its one-shot retry capability
+        when the caller resumes with cancellation pending.  Do not expose an
+        In Progress task with neither a runtime nor a retry to the next tick:
+        synchronously convert that exact capability into a durable retry
+        before the caller observes ``CancelledError``.  A real authority
+        cancellation still wins because it removes the token/advances the
+        schedule epoch before this helper can install anything.
+        """
+
+        token = self._post_retirement_retry_token_for(issue_id, entry)
+        if token is None:
+            with self._retry_authority_lock:
+                retry = self.state.retry_attempts.get(issue_id)
+                builder = self._retry_schedule_builders.get(issue_id)
+                return bool(
+                    (retry is not None and not retry.cancelled)
+                    or builder is entry
+                )
+        attempt = (entry.retry_attempt or 0) + 1
+        self._schedule_retry(
+            issue_id,
+            attempt,
+            entry.identifier,
+            self._backoff_delay(attempt),
+            "retry restored after interrupted retirement",
+            project_id=(entry.issue.project_id if entry.issue else None),
+            context_entry=entry,
+            authority_issue=entry.issue,
+            post_retirement_retry_token=token,
+        )
+        with self._retry_authority_lock:
+            retry = self.state.retry_attempts.get(issue_id)
+            return bool(retry is not None and not retry.cancelled)
 
     def _cancel_retry_for_issue(
         self,
@@ -45556,7 +46237,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         cancelled = 0
         terminate_entries: dict[str, RunningEntry] = {}
         with self._retry_authority_lock:
-            candidates: list[tuple[str, RetryEntry]] = []
+            candidates: list[tuple[str, RetryEntry | RunningEntry]] = []
+            retired_candidates: list[tuple[str, RunningEntry]] = []
             for key, entry in list(self.state.retry_attempts.items()):
                 if issue_id and key != issue_id and entry.issue_id != issue_id:
                     continue
@@ -45574,33 +46256,107 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     continue
                 if (key, entry) not in candidates:
                     candidates.append((key, entry))
+            for key, entry in list(self._retry_schedule_builders.items()):
+                entry_issue_id = getattr(entry, "issue_id", None) or getattr(
+                    getattr(entry, "issue", None), "id", None
+                )
+                entry_project_id = getattr(entry, "project_id", None) or getattr(
+                    getattr(entry, "issue", None), "project_id", None
+                )
+                if issue_id and key != issue_id and entry_issue_id != issue_id:
+                    continue
+                if identifier and entry.identifier != identifier and key != identifier:
+                    continue
+                if project_id and entry_project_id and entry_project_id != project_id:
+                    continue
+                if (key, entry) not in candidates:
+                    candidates.append((key, entry))
+            for key, (entry, _token, _epoch) in list(
+                self._post_retirement_retry_tokens.items()
+            ):
+                entry_issue_id = getattr(entry.issue, "id", None)
+                if issue_id and key != issue_id and entry_issue_id != issue_id:
+                    continue
+                if identifier and entry.identifier != identifier and key != identifier:
+                    continue
+                entry_project_id = getattr(entry.issue, "project_id", None)
+                if project_id and entry_project_id and entry_project_id != project_id:
+                    continue
+                retired_candidates.append((key, entry))
             for key, entry in candidates:
-                entry.cancelled = True
-                if entry.authority_generation:
+                entry_issue_id = getattr(entry, "issue_id", None) or getattr(
+                    getattr(entry, "issue", None), "id", key
+                )
+                generation = getattr(entry, "authority_generation", None)
+                if isinstance(entry, RetryEntry):
+                    entry.cancelled = True
+                else:
+                    # A removed RunningEntry is visible here only while it is
+                    # constructing its one authorized post-retirement retry.
+                    # Tombstone that exact source so the stale builder cannot
+                    # turn an identifier-only cancellation into new work.
+                    entry.authority_revoked = True
+                    entry.authority_revocation_reason = reason
+                if generation:
                     self._revoked_authority_generations.setdefault(
-                        entry.authority_generation,
+                        generation,
                         reason,
                     )
                     logger.info(
                         "Implementation authority generation revoked issue_id=%s "
                         "identifier=%s generation=%s reason=%s",
-                        entry.issue_id,
+                        entry_issue_id,
                         entry.identifier,
-                        entry.authority_generation[:16],
+                        generation[:16],
                         reason,
                     )
-                timer = entry.timer_handle
+                timer = getattr(entry, "timer_handle", None)
                 if timer is not None and not self._retry_timer_cancelled(timer):
-                    try:
-                        timer.cancel()
-                    except Exception:
-                        pass
+                    self._cancel_retry_timer_threadsafe(timer)
+                if isinstance(entry, RetryEntry):
+                    self._clear_retry_timer_authority(entry)
                 self.state.retry_attempts.pop(key, None)
                 if self._retry_dispatching.get(key) is entry:
                     self._retry_dispatching.pop(key, None)
-                self.state.claimed.discard(entry.issue_id)
-                self.state.claimed_issues.pop(entry.issue_id, None)
+                if self._retry_schedule_builders.get(key) is entry:
+                    self._retry_schedule_builders.pop(key, None)
+                self.state.claimed.discard(entry_issue_id)
+                self.state.claimed_issues.pop(entry_issue_id, None)
                 cancelled += 1
+
+            # A completed retirement can leave only this one-shot capability
+            # visible while the watchdog builds its replacement RetryEntry.
+            # Treat it as cancellation authority in its own right; otherwise
+            # identifier-only status updates could miss the empty maps and
+            # allow the old worker to revive work after it was retired.
+            for key, entry in retired_candidates:
+                authorization = self._post_retirement_retry_tokens.get(key)
+                if authorization is None or authorization[0] is not entry:
+                    continue
+                self._post_retirement_retry_tokens.pop(key, None)
+                entry.authority_revoked = True
+                entry.authority_revocation_reason = reason
+                generation = getattr(entry, "authority_generation", None)
+                if generation:
+                    self._revoked_authority_generations.setdefault(generation, reason)
+                cancelled += 1
+
+            # Cancellation is an authority transition even when a scheduler
+            # has temporarily removed an old entry while constructing its
+            # replacement.  Do not let that builder republish afterwards.
+            cancelled_keys = {str(issue_id)} if issue_id else {
+                str(
+                    getattr(entry, "issue_id", None)
+                    or getattr(getattr(entry, "issue", None), "id", _key)
+                )
+                for _key, entry in candidates
+            }
+            cancelled_keys.update(key for key, _entry in retired_candidates)
+            for cancelled_key in cancelled_keys:
+                if cancelled_key:
+                    self._retry_schedule_epochs[cancelled_key] = (
+                        self._retry_schedule_epochs.get(cancelled_key, 0) + 1
+                    )
 
             # A retry can win the final CAS and register a RunningEntry before
             # the submission arrives.  Revoke that exact run as well; the
@@ -45678,55 +46434,267 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         if retry.pre_admission_recovery and self._dispatch_is_blocked(issue):
             with self._retry_authority_lock:
+                if self.state.retry_attempts.get(retry.issue_id) is not retry:
+                    return
                 timer = retry.timer_handle
                 if timer is not None and not self._retry_timer_cancelled(timer):
-                    try:
-                        timer.cancel()
-                    except Exception:
-                        pass
+                    self._cancel_retry_timer_threadsafe(timer)
+                self._clear_retry_timer_authority(retry)
                 retry.timer_handle = None
                 retry.cancelled = False
                 self.state.retry_attempts[retry.issue_id] = retry
             return
-        self._arm_retry_entry(retry, delay_ms)
+        self._arm_retry_entry(retry, delay_ms, require_current=True)
 
-    def _arm_retry_entry(self, retry: RetryEntry, delay_ms: int) -> None:
-        """Install an already-validated retry entry and its timer."""
+    def _arm_retry_entry(
+        self,
+        retry: RetryEntry,
+        delay_ms: int,
+        *,
+        require_current: bool = False,
+        expected_schedule_epoch: int | None = None,
+        clear_authority_tombstone: bool = False,
+        expected_context_entry: RunningEntry | None = None,
+        allow_retired_context_entry: bool = False,
+    ) -> bool:
+        """Install an already-validated retry entry on a live owner loop.
+
+        Retry timers mutate orchestrator state when they fire, so merely
+        manufacturing an event loop in a synchronous caller is not a valid
+        fallback: that loop is never driven and silently strands the retry.
+        Prefer the dispatch loop whenever it is live, publish timer creation
+        through ``call_soon_threadsafe`` from foreign threads, and fence
+        provider admission if no live loop can own the timer.
+        """
+        delay_seconds = max(delay_ms, 0) / 1000.0
+        arming_token = object()
+        timer_generation = object()
         with self._retry_authority_lock:
+            if require_current and self.state.retry_attempts.get(retry.issue_id) is not retry:
+                return False
+            if (
+                expected_schedule_epoch is not None
+                and self._retry_schedule_epochs.get(retry.issue_id, 0)
+                != expected_schedule_epoch
+            ):
+                return False
+            if expected_context_entry is not None:
+                if (
+                    getattr(expected_context_entry, "authority_revoked", False)
+                    or (
+                        getattr(expected_context_entry, "authority_generation", None)
+                        in self._revoked_authority_generations
+                    )
+                ):
+                    return False
+                if allow_retired_context_entry:
+                    # The one authorized removed-runtime path retains its
+                    # exact source in _retry_schedule_builders until this
+                    # final publication.  A replacement running entry or a
+                    # cancellation that removed the builder wins instead.
+                    if (
+                        self.state.running.get(retry.issue_id) is not None
+                        or self._retry_schedule_builders.get(retry.issue_id)
+                        is not expected_context_entry
+                    ):
+                        return False
+                elif self.state.running.get(retry.issue_id) is not expected_context_entry:
+                    return False
             previous_timer = retry.timer_handle
             if previous_timer is not None and not self._retry_timer_cancelled(
                 previous_timer
             ):
-                try:
-                    previous_timer.cancel()
-                except Exception:
-                    pass
+                self._cancel_retry_timer_threadsafe(previous_timer)
             due_at_ms = time.monotonic() * 1000 + max(delay_ms, 0)
             retry.due_at_ms = due_at_ms
             retry.due_at_epoch_ms = time.time() * 1000 + max(delay_ms, 0)
             retry.cancelled = False
-            # Normal dispatches run on the orchestrator loop, but recovery
-            # journal repair can be invoked synchronously by an operator.
-            # Python 3.14 no longer manufactures a current loop for that
-            # caller, so prefer the live dispatch loop and retain the legacy
-            # current-loop fallback for standalone/synchronous callers.
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                dispatch_loop = getattr(self, "_dispatch_loop", None)
-                if dispatch_loop is not None and dispatch_loop.is_running():
-                    loop = dispatch_loop
-                else:
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-            retry.timer_handle = loop.call_later(
-                max(delay_ms, 0) / 1000.0,
-                lambda: asyncio.create_task(self._on_retry_timer(retry.issue_id)),
-            )
+            retry.timer_handle = None
             self.state.retry_attempts[retry.issue_id] = retry
+            # The retry entry is now the exact published replacement for the
+            # epoch reserved by its scheduler.  Clearing earlier lets a stale
+            # builder erase the cancellation tombstone while it is still
+            # reconstructing tracker/workspace authority.
+            if clear_authority_tombstone and retry.authority_generation:
+                self._revoked_authority_generations.pop(
+                    retry.authority_generation,
+                    None,
+                )
+            self._retry_timer_arming_tokens[retry.issue_id] = (retry, arming_token)
+            self._retry_timer_generations[retry.issue_id] = (retry, timer_generation)
+
+        def _install_timer(loop: asyncio.AbstractEventLoop) -> bool:
+            """Run only on ``loop`` and install the latest exact timer."""
+
+            with self._retry_authority_lock:
+                if (
+                    self.state.retry_attempts.get(retry.issue_id) is not retry
+                    or retry.cancelled
+                    or self._retry_timer_arming_tokens.get(retry.issue_id)
+                    != (retry, arming_token)
+                    or self._retry_timer_generations.get(retry.issue_id)
+                    != (retry, timer_generation)
+                ):
+                    return False
+                armed = False
+                try:
+                    timer: asyncio.TimerHandle | None = None
+
+                    def _fire_exact_timer() -> None:
+                        # A timed-out foreign-thread publication can request
+                        # cancellation after this callback was queued.  Check
+                        # exact ownership before allowing it to create work.
+                        with self._retry_authority_lock:
+                            if (
+                                self.state.retry_attempts.get(retry.issue_id)
+                                is not retry
+                                or retry.cancelled
+                                or retry.timer_handle is not timer
+                                or self._retry_timer_generations.get(retry.issue_id)
+                                != (retry, timer_generation)
+                            ):
+                                return
+                        loop.create_task(
+                            self._on_retry_timer(
+                                retry.issue_id,
+                                expected_retry=retry,
+                                expected_timer=timer,
+                                expected_timer_generation=timer_generation,
+                            )
+                        )
+
+                    timer = loop.call_later(delay_seconds, _fire_exact_timer)
+                    retry.timer_handle = timer
+                    armed = True
+                except (RuntimeError, ValueError) as exc:
+                    logger.warning(
+                        "Could not arm implementation retry timer issue_id=%s: %s",
+                        retry.issue_id,
+                        exc,
+                    )
+                    retry.timer_handle = None
+                    return False
+                finally:
+                    if armed and (
+                        self._retry_timer_arming_tokens.get(retry.issue_id)
+                        == (retry, arming_token)
+                    ):
+                        self._retry_timer_arming_tokens.pop(retry.issue_id, None)
+            return True
+
+        dispatch_loop = getattr(self, "_dispatch_loop", None)
+        running_loop = self._running_loop()
+        loop = (
+            dispatch_loop
+            if dispatch_loop is not None and dispatch_loop.is_running()
+            else running_loop
+        )
+
+        if loop is None or not loop.is_running():
+            return self._fail_closed_retry_timer_arming(
+                retry,
+                arming_token,
+                timer_generation,
+                "no live event loop is available to drive the retry timer",
+            )
+
+        if running_loop is loop:
+            if _install_timer(loop):
+                return True
+            return self._fail_closed_retry_timer_arming(
+                retry,
+                arming_token,
+                timer_generation,
+                "the live event loop rejected retry timer installation",
+            )
+
+        # ``call_later`` is not thread-safe.  Publish its creation to the
+        # dispatch loop and wait for the callback to prove either a real
+        # timer handle or a fail-closed result.  The bounded wait also catches
+        # a loop that claimed to be live but is no longer advancing.
+        publication_done = threading.Event()
+        publication_result = {"armed": False}
+
+        def _publish_timer() -> None:
+            try:
+                publication_result["armed"] = _install_timer(loop)
+            finally:
+                publication_done.set()
+
+        try:
+            loop.call_soon_threadsafe(_publish_timer)
+        except (RuntimeError, ValueError) as exc:
+            return self._fail_closed_retry_timer_arming(
+                retry,
+                arming_token,
+                timer_generation,
+                f"could not publish retry timer to dispatch loop: {exc}",
+            )
+        if publication_done.wait(timeout=1.0) and publication_result["armed"]:
+            return True
+        return self._fail_closed_retry_timer_arming(
+            retry,
+            arming_token,
+            timer_generation,
+            "dispatch loop did not confirm retry timer installation",
+        )
+
+    def _fail_closed_retry_timer_arming(
+        self,
+        retry: RetryEntry,
+        arming_token: object,
+        timer_generation: object,
+        reason: str,
+    ) -> bool:
+        """Retain retry authority while closing admission after timer failure."""
+
+        with self._retry_authority_lock:
+            owns_arming = (
+                self.state.retry_attempts.get(retry.issue_id) is retry
+                and not retry.cancelled
+                and self._retry_timer_arming_tokens.get(retry.issue_id)
+                == (retry, arming_token)
+                and self._retry_timer_generations.get(retry.issue_id)
+                == (retry, timer_generation)
+            )
+            if not owns_arming:
+                # A newer arm/cancellation won while a foreign-thread
+                # callback was pending. Do not let the stale caller fence a
+                # healthy replacement; report whether that winner has a real
+                # timer so callers can make a truthful resume decision.
+                return bool(
+                    self.state.retry_attempts.get(retry.issue_id) is retry
+                    and not retry.cancelled
+                    and retry.timer_handle is not None
+                    and not self._retry_timer_cancelled(retry.timer_handle)
+                )
+            if self._retry_timer_arming_tokens.get(retry.issue_id) == (
+                retry,
+                arming_token,
+            ):
+                self._retry_timer_arming_tokens.pop(retry.issue_id, None)
+            # A cross-thread publication can race this failure path.  Cancel
+            # only the exact timer it installed; the retry itself remains a
+            # visible durable owner for an operator's later resume.
+            timer = retry.timer_handle
+            if timer is not None and not self._retry_timer_cancelled(timer):
+                self._cancel_retry_timer_threadsafe(timer)
+            if self.state.retry_attempts.get(retry.issue_id) is retry:
+                retry.timer_handle = None
+                retry.cancelled = False
+                self._clear_retry_timer_authority(retry)
+
+        with self._provider_admission_lock:
+            self._quiesced = True
+            self._provider_admission_generation += 1
+        logger.critical(
+            "Implementation retry retained without a driven timer; provider "
+            "admission is quiesced issue_id=%s identifier=%s reason=%s",
+            retry.issue_id,
+            retry.identifier,
+            reason,
+        )
+        return False
 
     def _backoff_delay(self, attempt: int) -> int:
         """Compute exponential backoff delay."""
@@ -45749,25 +46717,110 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         context_entry: RunningEntry | None = None,
         context_retry: RetryEntry | None = None,
         authority_issue: Issue | None = None,
+        post_retirement_retry_token: object | None = None,
     ) -> None:
         """Schedule a retry timer for an issue."""
         # Replace the old generation atomically.  A second failure may arrive
         # after the first timer became due, so also withdraw an in-flight
         # dispatch claim for this task before creating the replacement.
         with self._retry_authority_lock:
+            retired_source: RunningEntry | None = None
+            # A retry may be rebuilt after an awaited tracker refresh, or by
+            # a worker-exit callback after provider cleanup.  The source must
+            # still be the exact published authority when it reserves its
+            # replacement epoch.  Matching an issue id is not enough: a
+            # submission/cancellation or a newer worker can own that id by
+            # the time this callback resumes.
+            if context_retry is not None:
+                retry_is_current = (
+                    self.state.retry_attempts.get(issue_id) is context_retry
+                    or self._retry_dispatching.get(issue_id) is context_retry
+                )
+                if not retry_is_current or context_retry.cancelled:
+                    return
+            if context_entry is not None:
+                if getattr(context_entry, "authority_revoked", False):
+                    return
+                if self.state.running.get(issue_id) is not context_entry:
+                    # Forced retirement deliberately removes the exact worker
+                    # before the watchdog rebuilds its retry.  That is the
+                    # sole removed-entry case allowed here, and only a
+                    # one-shot capability created by that exact retirement
+                    # can authorize it.  Ordinary stale exits remain denied.
+                    authorization = self._post_retirement_retry_tokens.get(
+                        issue_id
+                    )
+                    if (
+                        self.state.running.get(issue_id) is not None
+                        or
+                        post_retirement_retry_token is None
+                        or authorization is None
+                        or authorization[0] is not context_entry
+                        or authorization[1] is not post_retirement_retry_token
+                        or authorization[2]
+                        != self._retry_schedule_epochs.get(issue_id, 0)
+                    ):
+                        return
+                    # Do not consume the one-shot capability until its exact
+                    # construction authority is published below.  Between
+                    # token consumption and RetryEntry publication an
+                    # identifier-only status update otherwise sees nothing
+                    # to cancel and a stale builder can revive the task.
+                    retired_source = context_entry
+                entry_generation = getattr(
+                    context_entry,
+                    "authority_generation",
+                    None,
+                )
+                if (
+                    entry_generation
+                    and entry_generation in self._revoked_authority_generations
+                ):
+                    return
+            # Reserve before the potentially slow authority reconstruction
+            # below.  A cancellation during that reconstruction advances the
+            # epoch and makes this builder permanently stale.
+            schedule_epoch = self._retry_schedule_epochs.get(issue_id, 0) + 1
+            self._retry_schedule_epochs[issue_id] = schedule_epoch
             existing = self.state.retry_attempts.pop(issue_id, None)
             if existing is not None:
                 existing.cancelled = True
                 if existing.timer_handle and not self._retry_timer_cancelled(
                     existing.timer_handle
                 ):
-                    existing.timer_handle.cancel()
+                    self._cancel_retry_timer_threadsafe(existing.timer_handle)
+                self._clear_retry_timer_authority(existing)
             dispatching = self._retry_dispatching.pop(issue_id, None)
             if dispatching is not None:
                 if existing is None:
                     existing = dispatching
                 dispatching.cancelled = True
             context_retry = context_retry or existing
+            source_retry = context_retry or dispatching
+            # A live worker-exit callback reconstructs retry authority out of
+            # lock too.  It must remain addressable by identifier-only
+            # cancellation throughout that window, rather than relying on a
+            # later running-entry scan that can race its publication.
+            source_builder = context_entry or source_retry or retired_source
+            if source_builder is not None:
+                # Publish an exact cancellation target before consuming a
+                # post-retirement capability.  API cancellation can then
+                # tombstone this removed runtime, advance its epoch, and
+                # make the out-of-lock construction permanently stale.
+                self._retry_schedule_builders[issue_id] = source_builder
+            if retired_source is not None:
+                authorization = self._post_retirement_retry_tokens.get(issue_id)
+                if (
+                    authorization is None
+                    or authorization[0] is not retired_source
+                    or authorization[1] is not post_retirement_retry_token
+                ):
+                    # A cancellation/replacement won before publication. The
+                    # builder is merely diagnostic now and must not proceed.
+                    if self._retry_schedule_builders.get(issue_id) is source_builder:
+                        self._retry_schedule_builders.pop(issue_id, None)
+                    return
+                self._post_retirement_retry_tokens.pop(issue_id, None)
 
         agent_profile_name = (
             getattr(context_entry, "agent_profile_name", None)
@@ -45871,12 +46924,6 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             work_branch=work_branch,
             head_sha=head_sha,
         )
-        # An explicit post-rejection retry creates a fresh authority even if
-        # older tracker fields happen to reproduce the same digest.  Do not
-        # let a historical cancellation tombstone suppress that intentional
-        # retry forever.
-        with self._retry_authority_lock:
-            self._revoked_authority_generations.pop(authority_generation, None)
         retry_project_id = (
             project_id
             or getattr(failed_issue, "project_id", None)
@@ -45918,7 +46965,28 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 and context_entry is None
             ),
         )
-        self._arm_retry_entry(retry, delay_ms)
+        # A cancellation during construction advances the reservation epoch,
+        # even if the old owner had already been removed from the map.
+        self._arm_retry_entry(
+            retry,
+            delay_ms,
+            expected_schedule_epoch=schedule_epoch,
+            clear_authority_tombstone=True,
+            expected_context_entry=context_entry,
+            allow_retired_context_entry=retired_source is not None,
+        )
+        # A cancellation can invalidate the schedule epoch while authority is
+        # being reconstructed.  In that case _arm_retry_entry intentionally
+        # did not publish this retry, so it must not emit/persist a phantom
+        # replacement event.
+        with self._retry_authority_lock:
+            if (
+                source_builder is not None
+                and self._retry_schedule_builders.get(issue_id) is source_builder
+            ):
+                self._retry_schedule_builders.pop(issue_id, None)
+            if self.state.retry_attempts.get(issue_id) is not retry:
+                return
         self._persist_retry_entries()
         # Emit retry scheduled event on EventBus
         self.event_bus.emit(
@@ -45933,7 +47001,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             },
         )
 
-    async def _on_retry_timer(self, issue_id: str) -> None:
+    async def _on_retry_timer(
+        self,
+        issue_id: str,
+        *,
+        expected_retry: RetryEntry | None = None,
+        expected_timer: asyncio.TimerHandle | None = None,
+        expected_timer_generation: object | None = None,
+    ) -> None:
         """Handle retry timer expiration.
 
         Posts a RETRY_FIRED event to wake the dispatch loop, then immediately
@@ -45945,6 +47020,20 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             retry = self.state.retry_attempts.get(issue_id)
             if retry is None or retry.cancelled:
                 return
+            if expected_retry is not None:
+                # The timer callback may have run just before a concurrent
+                # rearm, then yielded before this coroutine begins.  Treat
+                # (entry, handle, generation) as one CAS: do not let that
+                # stale coroutine consume a replacement timer or dispatch the
+                # replacement retry early.
+                if (
+                    retry is not expected_retry
+                    or retry.timer_handle is not expected_timer
+                    or expected_timer_generation is None
+                    or self._retry_timer_generations.get(issue_id)
+                    != (retry, expected_timer_generation)
+                ):
+                    return
             # Keep the entry visible while the fresh authority read is in
             # flight.  API cancellation can therefore revoke this exact
             # generation instead of racing a popped dictionary entry.
@@ -45953,6 +47042,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # may install a replacement timer; keeping the old handle would
             # make that recovery look already armed.
             retry.timer_handle = None
+            if expected_retry is not None:
+                self._retry_timer_generations.pop(issue_id, None)
 
         # Wake the dispatch loop — even if we handle dispatch directly below,
         # the loop should run a tick to pick up any other work that appeared.
@@ -46415,7 +47506,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         elapsed_ms,
                     )
                 terminated = await self._terminate_running(
-                    issue_id, cleanup_workspace=False
+                    issue_id,
+                    cleanup_workspace=False,
+                    post_retirement_retry=True,
                 )
                 if getattr(entry, "duplicate_preflight", False) or not terminated:
                     # Preflight claims are released by termination and become
@@ -46431,6 +47524,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     tool_timeout_reason or "stall timeout",
                     project_id=entry.issue.project_id if entry.issue else None,
                     context_entry=entry,
+                    post_retirement_retry_token=(
+                        self._post_retirement_retry_token_for(issue_id, entry)
+                    ),
                 )
 
         # Part B: Tracker state refresh
@@ -46550,9 +47646,63 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     # an accepted handoff into an implementation retry.
                     running_entry.issue = issue
                     continue
-                # No trusted handoff evidence: retain the existing recovery
-                # behavior below and retry the worker after a normal Open
-                # state revert.
+                # No trusted handoff evidence: this explicit ``elif`` cannot
+                # fall through to the generic state-revert branch below.
+                # Perform the same exact retirement/retry transfer here so an
+                # externally reopened task is not silently left ownerless.
+                logger.warning(
+                    "Reconcile: no longer in_progress issue_id=%s state=%s — "
+                    "terminating agent",
+                    issue_id,
+                    issue.state,
+                )
+                terminated = await self._terminate_running(
+                    issue_id,
+                    cleanup_workspace=False,
+                    post_retirement_retry=True,
+                )
+                if terminated and state_norm in active_norms:
+                    reopen_count = self._increment_reopen_count(
+                        issue_id,
+                        running_entry.focus_name,
+                    )
+                    if reopen_count >= 3:
+                        logger.warning(
+                            "Reconcile: issue %s reverted to %s %d times — "
+                            "marking completed to stop loop",
+                            running_entry.identifier,
+                            state_norm,
+                            reopen_count,
+                        )
+                        self.state.completed.add(issue_id)
+                    else:
+                        delay = self._backoff_delay(reopen_count)
+                        logger.info(
+                            "Reconcile: scheduling retry for %s in %dms (%d/3)",
+                            running_entry.identifier,
+                            delay,
+                            reopen_count,
+                        )
+                        self._schedule_retry(
+                            issue_id,
+                            attempt=reopen_count,
+                            identifier=running_entry.identifier,
+                            delay_ms=delay,
+                            error=f"state reverted to {state_norm}",
+                            project_id=(
+                                running_entry.issue.project_id
+                                if running_entry.issue
+                                else None
+                            ),
+                            context_entry=running_entry,
+                            authority_issue=issue,
+                            post_retirement_retry_token=(
+                                self._post_retirement_retry_token_for(
+                                    issue_id,
+                                    running_entry,
+                                )
+                            ),
+                        )
             elif state_norm in terminal_norms:
                 logger.info(
                     "Reconcile: terminal state issue_id=%s state=%s",
@@ -46600,7 +47750,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     issue.state,
                 )
                 terminated = await self._terminate_running(
-                    issue_id, cleanup_workspace=False
+                    issue_id,
+                    cleanup_workspace=False,
+                    post_retirement_retry=True,
                 )
                 # If state reverted to an active state (e.g. open), mark as claimed
                 # with a cooldown to prevent immediate re-dispatch loops
@@ -46635,6 +47787,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             else None,
                             context_entry=running_entry,
                             authority_issue=issue,
+                            post_retirement_retry_token=(
+                                self._post_retirement_retry_token_for(
+                                    issue_id,
+                                    running_entry,
+                                )
+                            ),
                         )
 
     _ARCHIVE_DAYS = 7
@@ -46846,6 +48004,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         cleanup_workspace: bool,
         *,
         expected_entry: RunningEntry | None = None,
+        post_retirement_retry: bool = False,
     ) -> bool:
         """Retire one exact runtime without exposing cancellation gaps.
 
@@ -46858,63 +48017,152 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         event-loop turn.
         """
 
-        entry = (
-            expected_entry
-            if expected_entry is not None
-            else self._current_running_entry(issue_id)
-        )
+        entry = expected_entry or self._current_running_entry(issue_id)
         if entry is None:
             return True
-        # Publish both fences before the child receives its first event-loop
-        # turn.  Provider admission uses this same lock, so it cannot reopen
-        # the exact runtime between the parent deciding to retire it and the
-        # child beginning durable cleanup.
+        owner_key = self._termination_owner_key(issue_id, entry)
+        leader = False
+        perform_retirement = False
+        # Publish the exact coordinator, requirement union, and both fences in
+        # one admission transaction.  Importantly, look up an existing
+        # coordinator before rejecting a no-longer-current entry: a concurrent
+        # parent may have captured this exact generation immediately before
+        # its peer committed removal.
         with self._provider_admission_lock:
-            if self._current_running_entry(issue_id) is not entry:
-                return True
-            owner_key, owner_token = self._acquire_termination_owner(
-                issue_id,
-                entry,
-            )
-            entry.retirement_pending = True
-            # Do not leave a captured worker's bearer usable while the
-            # retirement child waits for its first event-loop turn. A
-            # replacement can take the runtime-map slot in that interval,
-            # causing the child to return before it reaches its former
-            # revocation point. Revocation is idempotent and explicitly
-            # scoped to the captured entry, never to a replacement token.
-            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
-        child_creation_failed = False
-        try:
-            retirement_coroutine = self._terminate_running_once(
-                issue_id,
-                cleanup_workspace,
-                expected_entry=entry,
-            )
-            try:
-                retirement_task = asyncio.get_running_loop().create_task(
-                    retirement_coroutine,
-                    name=f"retire-runtime-{issue_id}",
+            coordinator = getattr(entry, "_termination_coordinator", None)
+            if (
+                coordinator is not None
+                and (
+                    not isinstance(coordinator, RuntimeTerminationCoordinator)
+                    or coordinator.entry is not entry
                 )
-            except BaseException:
-                child_creation_failed = True
-                retirement_coroutine.close()
-                raise
-            self._mark_termination_child_owned(owner_key, owner_token)
-            interrupted = await self._await_guaranteed_cleanup(retirement_task)
-            retired = bool(retirement_task.result())
+            ):
+                coordinator = None
+            if coordinator is None:
+                if self._current_running_entry(issue_id) is not entry:
+                    return True
+                coordinator = RuntimeTerminationCoordinator(entry=entry)
+                # Keep completed authority on the exact entry rather than in
+                # a process-wide map. A delayed parent holding that entry can
+                # still upgrade its request, while ordinary retired entries
+                # remain garbage-collectable instead of leaking forever.
+                setattr(entry, "_termination_coordinator", coordinator)
+                perform_retirement = True
+            coordinator.cleanup_workspace = (
+                coordinator.cleanup_workspace or cleanup_workspace
+            )
+            coordinator.post_retirement_retry = (
+                coordinator.post_retirement_retry or post_retirement_retry
+            )
+            requirements_satisfied = (
+                (not coordinator.cleanup_workspace or coordinator.cleanup_satisfied)
+                and (
+                    not coordinator.post_retirement_retry
+                    or coordinator.retry_satisfied
+                )
+            )
+            if coordinator.completed and coordinator.error is None:
+                if coordinator.result and requirements_satisfied:
+                    result = bool(coordinator.result)
+                    return result
+                current_entry = self._current_running_entry(issue_id)
+                if not coordinator.result and current_entry is not entry:
+                    # A failed retirement is retryable only while its exact
+                    # runtime remains published.  Absence or replacement is
+                    # not authority to replay cleanup for a stale generation.
+                    return False
+                coordinator.completed = False
+                coordinator.result = None
+                coordinator.error = None
+                coordinator.starting = True
+                coordinator.child_created = False
+                coordinator.task = None
+                coordinator.completion_event.clear()
+                leader = True
+                # A successful child is reopened only to satisfy a late
+                # monotonic upgrade after removal.  A failed child retaining
+                # the exact runtime must retry the full retirement transaction.
+                perform_retirement = current_entry is entry
+            elif coordinator.completed and coordinator.error is not None:
+                if self._current_running_entry(issue_id) is not entry:
+                    raise coordinator.error
+                coordinator.completed = False
+                coordinator.result = None
+                coordinator.error = None
+                coordinator.starting = True
+                coordinator.child_created = False
+                coordinator.task = None
+                coordinator.completion_event.clear()
+                leader = True
+                perform_retirement = True
+            elif not coordinator.starting and not coordinator.child_created:
+                coordinator.starting = True
+                leader = True
+                perform_retirement = True
+
+            owner_key, owner_token = self._acquire_termination_owner(issue_id, entry)
+            if self._current_running_entry(issue_id) is entry:
+                entry.retirement_pending = True
+            if owner_key not in self._termination_handoff_fences:
+                self._termination_handoff_fences[owner_key] = (
+                    suspend_task_handoff_token(
+                        getattr(entry, "task_handoff_token", None)
+                    )
+                )
+            if coordinator.handoff_fence is None:
+                coordinator.handoff_fence = self._termination_handoff_fences[
+                    owner_key
+                ]
+        try:
+            interrupted = False
+            if leader:
+                interrupted = await self._publish_termination_child(
+                    issue_id,
+                    coordinator,
+                    perform_retirement=perform_retirement,
+                    owner_key=owner_key,
+                    owner_token=owner_token,
+                )
+            retired, wait_interrupted = await self._await_termination_coordinator(
+                coordinator
+            )
+            interrupted = interrupted or wait_interrupted
             if interrupted:
+                if retired and coordinator.post_retirement_retry:
+                    restored = self._restore_interrupted_post_retirement_retry(
+                        issue_id,
+                        entry,
+                    )
+                    if not restored:
+                        logger.error(
+                            "Interrupted retirement left no publishable retry "
+                            "issue_id=%s identifier=%s",
+                            issue_id,
+                            entry.identifier,
+                        )
                 raise asyncio.CancelledError
             return retired
         finally:
             # This owner always executes, including when the newly-created
             # child is cancelled before its coroutine body starts.  Its opaque
             # lease cannot clear a concurrent parent's exact-runtime fence.
-            self._release_termination_owner(
+            handoff_fence = self._release_termination_owner(
                 owner_key,
                 owner_token,
-                restore_unstarted_entry=(entry if child_creation_failed else None),
+                restore_unstarted_entry=(
+                    entry if not coordinator.child_created else None
+                ),
             )
+            if handoff_fence is not None:
+                restore_task_handoff_token(handoff_fence)
+            with self._provider_admission_lock:
+                if (
+                    not coordinator.child_created
+                    and not self._terminating_worker_owners.get(owner_key)
+                    and getattr(entry, "_termination_coordinator", None)
+                    is coordinator
+                ):
+                    setattr(entry, "_termination_coordinator", None)
 
     async def _terminate_running_once(
         self,
@@ -46922,6 +48170,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         cleanup_workspace: bool,
         *,
         expected_entry: RunningEntry,
+        post_retirement_retry: bool = False,
+        coordinator: RuntimeTerminationCoordinator | None = None,
     ) -> bool:
         """Terminate a running worker and optionally clean its workspace.
 
@@ -47310,49 +48560,60 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         exc,
                     )
 
-            if cleanup_workspace and not recovery_publication_pending:
-                try:
-                    if project_id:
-                        workspace_identifier = (
-                            self._audit_workspace_identifier(
-                                entry.identifier,
-                                entry.audit_attempt_id or "unknown",
-                            )
-                            if entry.is_auditor
-                            else entry.identifier
-                        )
-                        self.project_store.remove_worktree(
-                            project_id, workspace_identifier
-                        )
-                    else:
-                        self.workspace_mgr.remove_workspace(entry.identifier)
-                except Exception as exc:
-                    logger.warning(
-                        "Workspace cleanup failed issue_identifier=%s error=%s",
-                        entry.identifier,
-                        exc,
-                    )
+            cleanup_requested, _retry_requested = self._termination_requirements(
+                coordinator,
+                cleanup_workspace=cleanup_workspace,
+                post_retirement_retry=post_retirement_retry,
+            )
+            if cleanup_requested and not recovery_publication_pending:
+                self._cleanup_retired_workspace(entry)
+            if cleanup_requested and coordinator is not None:
+                # A pending recovery publication deliberately wins over
+                # destructive cleanup. That is still the satisfied semantic
+                # for this retirement: a late coordinator pass must not erase
+                # the worktree that recovery retained intentionally.
+                with self._provider_admission_lock:
+                    coordinator.cleanup_satisfied = True
 
             # Every yielding cleanup step is complete. Keep the exact runtime
             # and claim visible until this final non-yielding commit so direct
             # child cancellation (for example loop shutdown) remains
             # recoverable by a replacement safe-stop owner.
             with self._provider_admission_lock:
-                if self._current_running_entry(issue_id) is not entry:
-                    return _termination_result(True)
-                if not self._remove_running_entry(issue_id, entry):
-                    return _termination_result(True)
-                self.state.claimed.discard(issue_id)
-                self.state.claimed_issues.pop(issue_id, None)
-                if entry.is_auditor and getattr(entry, "provider_started", False):
-                    self._release_audit_branch_claim(
-                        entry.branch_key,
-                        entry.audit_attempt_id,
+                # Publish a post-retirement retry capability in the same
+                # authority transaction as exact removal.  If cancellation
+                # wins before this point it revokes the still-running entry;
+                # if it wins afterwards it sees and removes the capability.
+                # There is no empty-map window in which it can be forgotten.
+                with self._retry_authority_lock:
+                    if self.state.running.get(issue_id) is not entry:
+                        return _termination_result(True)
+                    self.state.running.pop(issue_id, None)
+                    self.state.claimed.discard(issue_id)
+                    self.state.claimed_issues.pop(issue_id, None)
+                    if entry.is_auditor and getattr(entry, "provider_started", False):
+                        self._release_audit_branch_claim(
+                            entry.branch_key,
+                            entry.audit_attempt_id,
+                        )
+                    # The exact entry is no longer published. Clear the transient
+                    # fence only as the last part of this non-yielding retirement
+                    # commit; a revoked authority tombstone remains historical.
+                    entry.retirement_pending = False
+                    _cleanup_requested, retry_requested = (
+                        self._termination_requirements(
+                            coordinator,
+                            cleanup_workspace=cleanup_workspace,
+                            post_retirement_retry=post_retirement_retry,
+                        )
                     )
-                # The exact entry is no longer published. Clear the transient
-                # fence only as the last part of this non-yielding retirement
-                # commit; a revoked authority tombstone remains historical.
-                entry.retirement_pending = False
+                    if retry_requested:
+                        retry_token = self._publish_post_retirement_retry_token(
+                            issue_id,
+                            entry,
+                        )
+                        if coordinator is not None:
+                            coordinator.retry_satisfied = retry_token is not None
 
             elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
             self.state.agent_totals.seconds_running += elapsed
@@ -47371,7 +48632,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "Terminated running issue_id=%s issue_identifier=%s cleanup=%s",
                 issue_id,
                 entry.identifier,
-                cleanup_workspace,
+                cleanup_requested,
             )
             self._notify_observers()
             self._post_event(
