@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:33:11.107263Z'
+updated_at: '2026-08-07T09:34:02.198332Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-07 09:33
 ---
 Additional live reproduction: OOMPAH-845's Merged audit consumed haiku, sonnet, and opus; each transport terminated before producing a structured verdict (17m, 12m, 14m), then the audit exhausted max_attempts=3 and entered Needs Human despite merged exact-head gate evidence. Owner override restored Merged. Regression coverage should include repeated pre-verdict transport termination across the whole configured pool and prove candidate capacity is not substantively consumed.
+---
+author: oompah
+created: 2026-08-07 09:34
+---
+Second same-cycle reproduction: OOMPAH-867 exhausted haiku, sonnet, and opus at 16m/12m/13m with zero-turn pre-verdict transport terminations, then entered Needs Human at max_attempts=3 despite exact full-gate and independent-review evidence. Owner override restored Done. This confirms the failure family is systematic rather than task-specific.
 ---
 <!-- COMMENTS:END -->
