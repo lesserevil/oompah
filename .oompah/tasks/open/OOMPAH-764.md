@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: Needs Rebase
+status: Open
 priority: 0
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T13:56:23.013312Z'
+updated_at: '2026-08-07T13:58:51.247567Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/743
@@ -335,5 +335,19 @@ author: oompah
 created: 2026-08-07 13:46
 ---
 YOLO: Merge conflict detected on MR #743. Rebase `epic-OOMPAH-764` onto epic-OOMPAH-763 and resolve conflicts.
+---
+author: oompah
+created: 2026-08-07 13:58
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #31)
+
+**State audited:** `Needs Rebase`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current SCM evidence shows the stalled branch/rebase condition is resolved.
+**Evidence head:** `73f5aeb26fc91f62a0bd9ac5ba544582b761f811`
+**Evidence result:** `rebase_resolved`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
