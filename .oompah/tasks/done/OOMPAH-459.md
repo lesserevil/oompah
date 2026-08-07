@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T15:17:08.703018Z'
+updated_at: '2026-08-07T17:38:26.417614Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -277,7 +277,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -372,7 +372,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -404,6 +404,44 @@ oompah.terminal_audit:
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     updated_at: '2026-08-07T15:16:34.205005+00:00'
+  - version: 1
+    audit_id: audit-54b1e92558a0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e0217179809dfdb570b685ac4b2b8fd0bfdd5c35331a2957b363d2d71087f42c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T17:38:24.884665+00:00'
+    selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+  - version: 1
+    audit_id: audit-78c11c13e933
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e0217179809dfdb570b685ac4b2b8fd0bfdd5c35331a2957b363d2d71087f42c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T17:38:24.884665+00:00'
+    selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
   attempt_history:
   - version: 1
     attempt_id: attempt-3ae4bc120dca
