@@ -12,8 +12,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T05:00:39.151937Z'
-work_branch: null
+updated_at: '2026-08-07T05:00:47.212360Z'
+work_branch: OOMPAH-832
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/732
 review_number: '732'
@@ -88,6 +88,7 @@ oompah.integration:
   updated_at: '2026-08-06T19:15:11.772065+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/732
 oompah.review_number: '732'
+oompah.work_branch: OOMPAH-832
 ---
 ## Summary
 
