@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Open
+status: In Progress
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T08:39:21.998938Z'
+updated_at: '2026-08-07T08:46:20.605176Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a89db5be-47e1-411a-97e3-95fa5903d30c
+oompah.agent_run_id: ad60c565-7250-40a0-bc8e-6e8ec0e46ff2
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-607__20260730T181838Z
@@ -684,5 +684,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 41s
 - Log: OOMPAH-607__20260807T083739Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:46
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
