@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:43:34.606211Z'
+updated_at: '2026-08-07T04:46:34.352524Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,24 @@ Implementation: Replaced wall-clock timing with deterministic synchronization in
 9. Added signal import for SIGTERM
 
 All 139 tests pass serially and in parallel.
+---
+author: oompah
+created: 2026-08-07 04:46
+---
+Verification: All tests pass with deterministic synchronization implementation:
+- test_restart_observes_child_that_inherited_kernel_fence: PASS (10x run)
+- All 139 tests in test_validation_resource_lease.py: PASS
+- All tests in parallel (64 workers): PASS
+- Related fence/FD tests (release_preserves_owner, expired_detached_descendant): PASS
+
+Acceptance criteria verified:
+✓ No fixed sleep used as proof child remains alive
+✓ Test deterministically observes owner_count==1 before blocking acquire
+✓ Acquire times out (0.1s) while inherited descriptor held
+✓ Acquire succeeds (1s timeout) after explicit child release
+✓ No child process leaks (child terminated via killpg)
+✓ No lease owner leaks (owner_count verified at each step)
+
+Branch committed and pushed to origin/OOMPAH-869.
 ---
 <!-- COMMENTS:END -->
