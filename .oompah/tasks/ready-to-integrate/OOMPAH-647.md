@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T12:48:03.657404Z'
+updated_at: '2026-08-07T12:48:09.270105Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: ''
@@ -424,6 +424,8 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T10:33:28.570956+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+oompah.review_head: ''
+review_head: ''
 ---
 ## Summary
 
