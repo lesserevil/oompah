@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:53:53.616805Z'
+updated_at: '2026-08-07T10:54:12.630468Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -65,7 +65,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: dde81410-9388-4562-9f9b-415f544f94c8
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 270373
   total_output_tokens: 55151
@@ -155,9 +155,9 @@ oompah.integration:
   task_branch: OOMPAH-647
   base_branch: main
   base_sha: d48b971c58b8622e9c63de4923db08b755b5434b
-  head_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
-  submitted_at: '2026-07-31T07:25:16.774548+00:00'
-  updated_at: '2026-07-31T07:25:34.003940+00:00'
+  head_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+  submitted_at: '2026-08-07T10:53:56.176662+00:00'
+  updated_at: '2026-08-07T10:53:56.176662+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/612
 oompah.review_number: '612'
 oompah.work_branch: OOMPAH-647
@@ -735,5 +735,10 @@ author: oompah
 created: 2026-08-07 10:53
 ---
 Completion: restored and force-pushed the OOMPAH-647 branch as a clean rebase of main (18e405d8). No conflicts or branch-only changes remained, and the remote review diff is empty.
+---
+author: oompah
+created: 2026-08-07 10:54
+---
+Rebased cleanly onto main and force-pushed the issue branch
 ---
 <!-- COMMENTS:END -->
