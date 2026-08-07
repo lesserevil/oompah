@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-08-07T08:53:32.942633Z'
+updated_at: '2026-08-07T09:10:53.499694Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -135,6 +135,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-3755ea18f7aa: '2026-07-31T07:09:05.865527+00:00'
     attempt-5ab8adfc54cb: '2026-07-31T07:12:24.763684+00:00'
+    infrastructure-exhausted-audit-bdfc9e5e99cb-3: '2026-08-07T09:10:41.535995+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-642
+    target_state: Archived
+    evidence_fingerprint: 5eef731bde068d42a18dc4712e3fdeb9713ba45a408c260ef096592d0f13ba6b
+    audit_ids:
+    - audit-bdfc9e5e99cb
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:10:41.536007+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-642
+    audit_id: audit-bdfc9e5e99cb
+    attempt_id: infrastructure-exhausted-audit-bdfc9e5e99cb-3
+    target_state: Archived
+    evidence_fingerprint: 5eef731bde068d42a18dc4712e3fdeb9713ba45a408c260ef096592d0f13ba6b
+    status: Needs Human
+    audit_ids:
+    - audit-bdfc9e5e99cb
+    applied: true
+    created_at: '2026-08-07T09:10:41.536024+00:00'
+    applied_at: '2026-08-07T09:10:50.436427+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -210,7 +234,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-642
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -255,13 +279,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T08:53:31.488187+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T08:54:11.488169+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-bdfc9e5e99cb-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5eef731bde068d42a18dc4712e3fdeb9713ba45a408c260ef096592d0f13ba6b
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T09:10:41.535849+00:00'
+      completed_at: '2026-08-07T09:10:41.535849+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T08:13:03.968667+00:00'
-    updated_at: '2026-08-07T08:53:31.488187+00:00'
+    updated_at: '2026-08-07T09:10:41.535849+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3755ea18f7aa
@@ -552,5 +588,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 5s
 - Log: OOMPAH-642__20260731T070947Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:10
+---
+Needs Human — Archived audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
