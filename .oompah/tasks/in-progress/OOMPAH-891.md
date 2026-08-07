@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T14:07:04.359445Z'
+updated_at: '2026-08-07T14:09:13.417249Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -115,5 +115,10 @@ author: oompah
 created: 2026-08-07 14:07
 ---
 Final isolation hardening: OpenCode is now fail-closed for every isolated shared-epic rebase mode before any auth bootstrap or subprocess launch; the rebase profile selector excludes it, alongside Codex subscription CLI. Static compilation and diff checks pass. Broker remains owned by OOMPAH-877 (with OOMPAH-846 queued), so focused tests remain correctly deferred.
+---
+author: oompah
+created: 2026-08-07 14:09
+---
+Selector correction: an initially matched ACP profile is no longer assumed safe. Shared-epic rebase dispatch reroutes both OpenCode and Codex-subscription ACP profiles to a proven bridged callback profile; OpenCode runtime remains fail-closed before auth bootstrap or Popen. Static checks pass; focused tests still await broker capacity.
 ---
 <!-- COMMENTS:END -->
