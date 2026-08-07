@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T13:54:22.348748Z'
+updated_at: '2026-08-07T14:01:38.932578Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -100,5 +100,10 @@ author: oompah
 created: 2026-08-07 13:54
 ---
 Root renewed direct-owner fence after implementation agent completion so the server cannot dispatch this security-sensitive task while independent review blockers are repaired. Current unbrokered validation is withdrawn; brokered review awaits a complete filesystem/network capability boundary.
+---
+author: oompah
+created: 2026-08-07 14:01
+---
+Implemented the reviewed capability-boundary redesign on OOMPAH-879: direct rebase shells now run in Bubblewrap with unshared network/user/pid namespaces, no provider-runtime or task-handoff mount, private HOME/TMP, linked-worktree Git metadata, and sanitized local Git config. Legacy CLI and Codex subscription CLI are fail-closed for isolated rebase work; API/bridged ACP tool calls retain server-mediated task operations. Added regression coverage; static compilation and diff checks pass. Focused tests remain queued behind the active validation broker and independent re-review is requested.
 ---
 <!-- COMMENTS:END -->
