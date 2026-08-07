@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T08:56:23.780096Z'
+updated_at: '2026-08-07T08:56:40.169292Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -412,5 +412,15 @@ author: oompah
 created: 2026-08-07 08:52
 ---
 Owner recovery: the watchdog incorrectly reopened this merged task after auditor infrastructure exhaustion. PR #736 is merged at exact accepted head aaaebbfa5152e9942a1decd9ef2d319573ca0493. Added verdict-capable independent auditor candidates and restaging the authoritative Merged transition; no implementation work is authorized. OOMPAH-876 tracks the transport/candidate classification defect, and OOMPAH-871 tracks terminal provenance reopen suppression.
+---
+author: oompah
+created: 2026-08-07 08:56
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 08:56
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
