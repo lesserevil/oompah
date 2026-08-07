@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T06:08:56.525620Z'
+updated_at: '2026-08-07T07:10:05.009110Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -56,7 +56,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2d156054d52d
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,13 +66,29 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:06:20.213169+00:00'
       branch_key: OOMPAH-577
+      ended_at: '2026-08-07T07:09:55.501113+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-f6ea0cf6c239
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 48fe0a0413a694bb96d0f317a7f6440aac564b1f9b3fac497a37a0bb5095d8cd
+      created_at: '2026-08-07T07:10:03.150107+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T07:10:03.150107+00:00'
+      branch_key: OOMPAH-577
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Review
     created_at: '2026-07-31T06:06:13.348111+00:00'
-    updated_at: '2026-07-31T06:06:20.213169+00:00'
+    updated_at: '2026-08-07T07:10:03.150107+00:00'
   - version: 1
     audit_id: audit-534d62772883
     project_id: proj-14849f1b
@@ -111,7 +127,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-2d156054d52d
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -121,6 +137,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T06:06:20.213169+00:00'
     branch_key: OOMPAH-577
+    ended_at: '2026-08-07T07:09:55.501113+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-f6ea0cf6c239
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 48fe0a0413a694bb96d0f317a7f6440aac564b1f9b3fac497a37a0bb5095d8cd
+    created_at: '2026-08-07T07:10:03.150107+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T07:10:03.150107+00:00'
+    branch_key: OOMPAH-577
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 22
   total_output_tokens: 549
