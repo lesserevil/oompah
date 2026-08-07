@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:55:13.294011Z'
+updated_at: '2026-08-07T14:55:21.488203Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -63,6 +63,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T14:26:10.193693+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-896
+    target_state: Archived
+    evidence_fingerprint: e54ebcb93c5551eb5c0a5a21c91790a02f594e1b6c745c42f80811ecc9b8f28c
+    audit_ids:
+    - audit-81a537d63f9c
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:55:18.430202+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-896
@@ -76,6 +85,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:26:10.193710+00:00'
     applied_at: '2026-08-07T14:26:28.679250+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-b32866952530
@@ -94,7 +104,7 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:55:08.163490+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -336,5 +346,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 54s
 - Log: OOMPAH-896__20260807T142102Z.jsonl
+---
+author: oompah
+created: 2026-08-07 14:55
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
