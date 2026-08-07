@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-08-07T12:27:57.594775Z'
+updated_at: '2026-08-07T12:28:14.596246Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -36,8 +36,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: fc45554e-d0f5-4f0a-b99f-edb1a44f941b
 oompah.task_costs:
-  total_input_tokens: 497457
-  total_output_tokens: 7851
+  total_input_tokens: 497659
+  total_output_tokens: 14707
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -45,8 +45,8 @@ oompah.task_costs:
       output_tokens: 2796
       cost_usd: 0.0
     unknown:
-      input_tokens: 58
-      output_tokens: 5055
+      input_tokens: 260
+      output_tokens: 11911
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 1120
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:55:55.316732+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 202
+    output_tokens: 6856
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T12:28:10.964395+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-654__20260731T103119Z
@@ -471,5 +477,15 @@ Safe evidence:
 - branch_merged_to_main: true
 - commit_trailer_present: true
 - critical_test_passed: test_pid_meta_ignored_but_unrelated_meta_visible
+---
+author: oompah
+created: 2026-08-07 12:28
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 65, Tool calls: 24
+- Tokens: 202 in / 6.9K out [7.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 31m 29s
+- Log: OOMPAH-654__20260807T115657Z.jsonl
 ---
 <!-- COMMENTS:END -->

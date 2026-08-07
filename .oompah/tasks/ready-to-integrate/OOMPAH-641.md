@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T12:27:31.362633Z'
+updated_at: '2026-08-07T12:28:19.279995Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -42,13 +42,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: c48f5890-f093-4e25-8dd2-4c07484301eb
 oompah.task_costs:
-  total_input_tokens: 1057234
-  total_output_tokens: 29771
+  total_input_tokens: 1057816
+  total_output_tokens: 29898
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1057170
-      output_tokens: 25866
+      input_tokens: 1057752
+      output_tokens: 25993
       cost_usd: 0.0
     unknown:
       input_tokens: 64
@@ -97,6 +97,12 @@ oompah.task_costs:
     output_tokens: 469
     cost_usd: 0.0
     recorded_at: '2026-08-07T11:26:35.978204+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 582
+    output_tokens: 127
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T12:28:13.288924+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-641__20260731T060717Z
@@ -872,5 +878,15 @@ author: oompah
 created: 2026-08-07 12:27
 ---
 Finished shared-epic pre-PR and reconciliation hardening: All four requirements implemented and tested. (1) _ensure_review_exists blocks per-child PR creation even with stale work_branch by normalizing identities before routing. (2) Fails closed when parent_id absent but parent resolvable via 'parent_id or parent_epic' check. (3) _create_workspace_for_issue corrects in-memory work/branch identity before persistence attempt. (4) Independently-merged reconciliation detects EXOCOMP-57-style stale own-branch children. Acceptance: all 4 regressions covered with dedicated tests, 19/19 epic strategy tests pass, 7/7 independently-merged tests pass including EXOCOMP-57, terminal mutation scan passes, full test suite 15865 passed.
+---
+author: oompah
+created: 2026-08-07 12:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 30
+- Tokens: 582 in / 127 out [709 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 48m 11s
+- Log: OOMPAH-641__20260807T114020Z.jsonl
 ---
 <!-- COMMENTS:END -->
