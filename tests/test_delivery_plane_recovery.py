@@ -1311,18 +1311,40 @@ def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
         side_effect=execute_live_item
     )
 
+    audit_started = asyncio.Event()
+    release_audit = asyncio.Event()
+
     async def record_audit(item):
         events.append(f"audit:{item.task_id}")
+        audit_started.set()
+        await release_audit.wait()
 
     orchestrator._stage_integrated_task_audit = record_audit
     orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator._terminal_audit_started = True
+    post_refresh = mock.MagicMock()
+    orchestrator._post_dispatch_refresh = post_refresh
+
+    async def scenario() -> None:
+        # Historical replay owns its independent future and is deliberately
+        # blocked on the first of 200 durable integrated rows.
+        assert orchestrator._ensure_integration_audit_lane() is True
+        await asyncio.wait_for(audit_started.wait(), timeout=1)
+
+        # The prompt lane must still claim and durably integrate independent
+        # Ready work before the historical replay is allowed to advance.
+        claim_pass = asyncio.create_task(orchestrator._process_integration_queues())
+        await asyncio.wait_for(claim_pass, timeout=1)
+        assert "claim" in events
+        assert orchestrator._integration_audit_future is not None
+        assert not orchestrator._integration_audit_future.done()
+
+        release_audit.set()
+        await asyncio.wait_for(orchestrator._integration_audit_future, timeout=2)
+
     try:
-        asyncio.run(orchestrator._process_integration_queues())
-        assert events[0] == "claim"
-        assert events[1] == "audit:LIVE-READY"
-        assert orchestrator._maintenance_status["integration_queue"][
-            "audit_replayed"
-        ] == 32
+        asyncio.run(scenario())
         assert orchestrator.integration_queue.items(
             states=("integrating",),
         ) == []
@@ -1337,6 +1359,10 @@ def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
         assert projection.dependencies == ()
         assert projection.unresolved == ()
         assert projection.unreachable == ()
+        integrated = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert integrated is not None
+        assert integrated.state == "integrated"
+        post_refresh.assert_called_once_with()
     finally:
         _close(orchestrator)
 

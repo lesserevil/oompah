@@ -253,6 +253,7 @@ def _shutdown_test_orchestrator_pools():
             orch._maintenance_future,
             orch._epic_maintenance_future,
             orch._integration_future,
+            orch._integration_audit_future,
             orch._standalone_delivery_future,
             orch._terminal_lifecycle_future,
         ):
@@ -277,6 +278,7 @@ async def _await_tick_background(orch: Orchestrator) -> None:
         for future in (
             orch._maintenance_future,
             orch._epic_maintenance_future,
+            orch._integration_audit_future,
             orch._standalone_delivery_future,
         )
         if future is not None
