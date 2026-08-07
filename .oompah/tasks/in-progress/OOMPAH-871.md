@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T08:45:37.691221Z'
+updated_at: '2026-08-07T09:15:53.503319Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-08-07 08:45
 ---
 Direct-owner takeover after three server attempts ended without a valid submission. Preserving recovery checkpoint 77a9cf08 and repairing the independent-review blockers: authenticated owner entry points, central terminal mutation fencing, fail-closed marker lookup, payload-safe malformed metadata handling, and production-path tests.
+---
+author: oompah
+created: 2026-08-07 09:15
+---
+Direct-owner repair update: implemented authenticated project-owner retain/new-revision API and CLI controls, centralized every managed tracker status writer behind a durable provenance-suppression facade, made malformed/unreadable metadata fail closed without payload leakage, and added restart/race/API/CLI regressions. Two independent static reviews completed; the second accepted after the raw-tracker bypass and nested actor log leakage were removed. Focused validation is queued behind the active exact gate.
 ---
 <!-- COMMENTS:END -->
