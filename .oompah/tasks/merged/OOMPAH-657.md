@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T19:31:59.149815Z'
+updated_at: '2026-08-07T19:32:09.556152Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -229,7 +229,7 @@ oompah.terminal_audit:
       is solely candidate exhaustion on a redundant post-merge audit; no new revision
       exists.'
     created_at: '2026-08-07T19:31:51.546988+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-657
@@ -249,6 +249,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T19:27:29.234642+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Merged
+    evidence_fingerprint: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+    audit_ids:
+    - audit-6e9bfb54bf88
+    - audit-d890e34298d5
+    - audit-ed465995092d
+    - audit-cda420acdd59
+    - audit-669199e560db
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:32:07.052485+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-657
@@ -262,6 +275,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:12:48.855063+00:00'
     applied_at: '2026-08-07T13:12:57.216302+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-657
     audit_id: audit-cda420acdd59
@@ -275,6 +289,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T19:27:29.234660+00:00'
     applied_at: '2026-08-07T19:27:39.425549+00:00'
+    retired_by_override: true
   version: 1
   pending_chain:
   - version: 1
@@ -418,7 +433,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-657
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -432,6 +447,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:48.940022+00:00'
     selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
     selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+    updated_at: '2026-08-07T19:32:07.052446+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d3c89591d481
@@ -1189,5 +1205,12 @@ created: 2026-08-07 19:31
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 19:32
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Retain previously independently audited merged revision: PR #618 merged verified source head 0212dada64768ed8f89e7b27f461f121c4a42299 as 3316ec40933d1c387619d534e607a3b0100df7dc after exact make test and green Python 3.11/3.12/3.13 CI. Current Needs Human is solely candidate exhaustion on a redundant post-merge audit; no new revision exists.
 ---
 <!-- COMMENTS:END -->
