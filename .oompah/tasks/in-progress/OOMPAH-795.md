@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T11:51:00.822801Z'
+updated_at: '2026-08-07T18:38:38.572978Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-08-06 09:37
 ---
 Fresh independent static review rejected the latest repair for three remaining races: project-scoped config changes do not atomically fence in-flight decision publication and migration invalidation can cache old config under a new generation; the new SQLite publication transaction spans slow fact collection and can block heartbeats until a pre-lock renewal timestamp is already expired; and tracker read-stats iteration is unlocked while reload clears the dict. Repair is active with real config-migration, blocked-facts/lease, and reload/snapshot concurrency coverage; no validation or submission until another independent review accepts it.
+---
+author: oompah
+created: 2026-08-07 18:38
+---
+Direct repair update: fixed the final rejected durability cut so availability persistence is a precondition of tracker mutation, failed project-store updates restore the prior durable availability, and no failed cut advances epoch/cache/notifications. Independent review then found a slow old-config refresh could republish stale cache data after the cut; stale entries and refresh publication are now fenced by tracker generation, with late results rejected. New direct/API/rollback/barrier regressions plus the complete work-decision cache suite pass (43/43). Awaiting final independent static acceptance before the broader affected-suite gate.
 ---
 <!-- COMMENTS:END -->
