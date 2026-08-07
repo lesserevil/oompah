@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-08-07T15:18:48.929509Z'
+updated_at: '2026-08-07T15:19:05.188466Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -39,8 +39,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8d63f73f-78c2-4e47-97e1-e15c730c90cd
 oompah.task_costs:
-  total_input_tokens: 3664260
-  total_output_tokens: 10353
+  total_input_tokens: 3664510
+  total_output_tokens: 18953
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -48,8 +48,8 @@ oompah.task_costs:
       output_tokens: 9236
       cost_usd: 0.0
     unknown:
-      input_tokens: 37
-      output_tokens: 1117
+      input_tokens: 287
+      output_tokens: 9717
       cost_usd: 0.0
   runs:
   - profile: default
@@ -76,6 +76,12 @@ oompah.task_costs:
     output_tokens: 942
     cost_usd: 0.0
     recorded_at: '2026-07-31T14:41:06.292324+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 250
+    output_tokens: 8600
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T15:19:01.950857+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-663__20260731T140033Z
@@ -589,5 +595,15 @@ Safe evidence:
 - acceptance_criteria: First override succeeds without restaging; no duplicate request needed; stale evidence rejected with 409; all paths use canonical computation
 - working_tree: clean
 - commit_trailer: Generated with https://github.com/lesserevil/oompah
+---
+author: oompah
+created: 2026-08-07 15:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 65, Tool calls: 30
+- Tokens: 250 in / 8.6K out [8.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 51s
+- Log: OOMPAH-663__20260807T151223Z.jsonl
 ---
 <!-- COMMENTS:END -->
