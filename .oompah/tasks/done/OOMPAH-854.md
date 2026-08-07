@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T16:19:47.057868Z'
+updated_at: '2026-08-07T16:19:55.720573Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -143,7 +143,18 @@ oompah.terminal_audit:
     reason: Direct-owner implementation was independently reviewed and passed the
       exact focused lifecycle gates at pushed head e0c71eb465b0c0db430baf6382e1327e5a9aa5bd.
     created_at: '2026-08-07T16:19:41.363686+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-854
+    target_state: Done
+    evidence_fingerprint: bdd4ff9f8a687d8460608b62ae884139b8b0c0a384a05468bb10db24506f3e42
+    audit_ids:
+    - audit-ee9988f727c9
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T16:19:54.191206+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -151,7 +162,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-854
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -180,7 +191,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T16:19:02.229224+00:00'
     selected_ref: 357149ce04f89835e85a063d914625dc751e71c1
     selected_sha: 357149ce04f89835e85a063d914625dc751e71c1
-    updated_at: '2026-08-07T16:19:37.858462+00:00'
+    updated_at: '2026-08-07T16:19:54.191174+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-12609662cf8a
@@ -657,5 +668,17 @@ author: oompah
 created: 2026-08-07 16:19
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 16:19
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 16:19
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation was independently reviewed and passed the exact focused lifecycle gates at pushed head e0c71eb465b0c0db430baf6382e1327e5a9aa5bd.
 ---
 <!-- COMMENTS:END -->
