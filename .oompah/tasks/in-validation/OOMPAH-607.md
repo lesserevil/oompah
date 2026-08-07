@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Progress
+status: In Validation
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T09:20:06.552290Z'
+updated_at: '2026-08-07T09:21:04.430323Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: ''
@@ -211,7 +211,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -272,7 +272,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -314,6 +314,44 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:10:52.852119+00:00'
+  - version: 1
+    audit_id: audit-079b588f5dba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 220324ec55419cf72474495c63cbd567b0cc52d39bbdfdf4f1a03a717b0495b7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T09:21:00.886620+00:00'
+    selected_ref: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+  - version: 1
+    audit_id: audit-2e1fb970924e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 220324ec55419cf72474495c63cbd567b0cc52d39bbdfdf4f1a03a717b0495b7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T09:21:00.886620+00:00'
+    selected_ref: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
   attempt_history:
   - version: 1
     attempt_id: attempt-3d919736a8a3
