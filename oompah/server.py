@@ -61,6 +61,7 @@ from oompah.agent_profile_store import (
 )
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.dashboard_alerts import normalize_alerts
 from oompah.ipc import OrchestratorIPC, get_ipc
 from oompah.issue_enhancer import (
     EnhancementResult,
@@ -140,6 +141,7 @@ from oompah.task_handoff import (
 )
 from oompah.auth_health import (
     record_operator_401,
+    record_operator_success,
     record_worker_401,
     record_worker_403_scope,
     record_worker_403_action,
@@ -735,6 +737,9 @@ class _BasicAuthMiddleware:
                 authenticated_scope[_AUTH_PRINCIPAL_SCOPE_CAPABILITY] = (
                     _resolve_authenticated_principal(authenticated_username)
                 )
+                # OOMPAH-857: Record successful operator authentication to
+                # invalidate stale auth-failure warnings when credentials recover.
+                record_operator_success()
                 if _is_mcp_transport_scope(scope):
                     # Preserve authentication provenance for this request
                     # only.  The key/value identity is server-private and is
@@ -777,6 +782,9 @@ class _BasicAuthMiddleware:
                 ws_scope[_AUTH_PRINCIPAL_SCOPE_CAPABILITY] = (
                     _resolve_authenticated_principal(ws_authenticated_username)
                 )
+                # OOMPAH-857: Record successful operator authentication to
+                # invalidate stale auth-failure warnings when credentials recover.
+                record_operator_success()
                 await self._app(ws_scope, receive, send)
                 return
 
@@ -4286,6 +4294,12 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """
     # Create a copy to avoid mutating cached snapshots
     enriched = dict(snapshot)
+    # Cached snapshots may have been produced by an older scheduler during a
+    # rolling upgrade, and the unavailable-state fallback is assembled here.
+    # Normalize once more at the API/WebSocket boundary so every client sees
+    # the same redacted contract even in those paths.
+    if isinstance(enriched.get("alerts"), list):
+        enriched["alerts"] = normalize_alerts(enriched["alerts"])
     enriched["build_id"] = dict(_BUILD_ID)
     enriched["service_instance_id"] = _INSTANCE_ID
     enriched["http_auth"] = _http_auth_reload_status()

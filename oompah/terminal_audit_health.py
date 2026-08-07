@@ -416,10 +416,10 @@ def build_terminal_audit_health(
 
 def terminal_audit_health_alerts(
     health: TerminalAuditHealth,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Return stable, redacted alerts for the current health facts."""
 
-    alerts: list[dict[str, str]] = []
+    alerts: list[dict[str, Any]] = []
 
     def add(
         source: str,
@@ -431,9 +431,20 @@ def terminal_audit_health_alerts(
         alerts.append(
             {
                 "level": level,
+                "severity": level,
                 "source": HEALTH_ALERT_PREFIX + source,
+                "stable_id": HEALTH_ALERT_PREFIX + source,
+                "action_required": True,
+                "recovery_state": "active",
+                "lifecycle_state": "active",
+                "status": "active",
+                "active": True,
+                "recovered": False,
+                "summary": title,
                 "title": title,
+                "message": title,
                 "detail": detail,
+                "remediation": action,
                 "action": action,
             }
         )

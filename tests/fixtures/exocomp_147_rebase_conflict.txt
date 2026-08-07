@@ -1,0 +1,10 @@
+From github.com/example/exocomp
+ * branch            epic-EXOCOMP-140 -> FETCH_HEAD
+Rebasing (1/1)
+Auto-merging oompah/orchestrator.py
+CONFLICT (content): Merge conflict in oompah/orchestrator.py
+error: could not apply 4f6a9d1... EXOCOMP-147: preserve integration state
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+Could not apply 4f6a9d1... EXOCOMP-147: preserve integration state

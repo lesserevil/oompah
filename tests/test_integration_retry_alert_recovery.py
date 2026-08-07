@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from oompah.integration_queue import IntegrationQueueItem
@@ -594,11 +595,14 @@ def test_route_integration_failure_conflict_starts_as_awaiting_repair(tmp_path):
         state="Ready to Integrate",
     )
     orch._tracker_for_project = MagicMock(return_value=tracker)
+    transcript = (
+        Path(__file__).parent / "fixtures" / "exocomp_147_rebase_conflict.txt"
+    ).read_text(encoding="utf-8")
     orch._route_integration_failure(
         claimed,
         IntegrationExecutionResult(
             status="conflict",
-            message="rebase conflict on foo.py",
+            message=transcript,
             expected_epic_sha="b" * 40,
         ),
     )
@@ -609,6 +613,11 @@ def test_route_integration_failure_conflict_starts_as_awaiting_repair(tmp_path):
     assert alert["recovery_state"] == "awaiting_repair"
     assert alert["action_required"] is False
     assert alert["level"] == "info"
-    # Diagnostics preserved.
+    # The producer emits compact presentation fields and keeps the bounded,
+    # sanitized transcript separate for the explicit details view.
     assert alert["failing_step"] == "task rebase"
-    assert "rebase conflict" in alert["error"]
+    assert "\n" not in alert["title"]
+    assert "\n" not in alert["summary"]
+    assert "\n" not in alert["message"]
+    assert "CONFLICT" in alert["diagnostic"]
+    assert "EXOCOMP-147" in alert["error"]
