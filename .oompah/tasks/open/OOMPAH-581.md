@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T07:23:03.029562Z'
+updated_at: '2026-08-07T07:29:06.483029Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -912,5 +912,19 @@ created: 2026-08-07 07:22
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 07:29
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #12)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 600 is merged
+**Evidence head:** `f2b319c1182cd654112db622a0498171e508dead`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
