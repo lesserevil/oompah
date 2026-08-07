@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-08-07T12:27:44.994668Z'
+updated_at: '2026-08-07T12:27:57.594775Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -121,8 +121,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-f00169c6e096
-    applied: false
+    applied: true
     created_at: '2026-08-07T12:27:38.224127+00:00'
+    applied_at: '2026-08-07T12:27:54.497388+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -450,5 +451,25 @@ author: oompah
 created: 2026-08-07 11:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 12:27
+---
+Audit PASS — Archived
+
+OOMPAH-654 fix verified: .gitignore patterns (*.pid.meta, *.pid.meta.tmp.*) prevent service lifecycle metadata from dirtying git status. Comprehensive regression test added with 6 cases including critical unrelated-*.meta visibility check. All 14,272 tests pass. Merged to main via PR #617. Clean working tree and proper commit attribution. Acceptance criteria satisfied.
+
+Safe evidence:
+- commit_hash: b64cbc85adca310a10f767692302e004343f14cd
+- merge_commit: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
+- pr_number: 617
+- gitignore_patterns_added: *.pid.meta and *.pid.meta.tmp.*
+- test_file_added: tests/test_pid_meta_gitignore.py (6 test cases, 187 lines)
+- test_results: 14,272 passed (including all regression tests)
+- git_diff_check: clean (exit 0)
+- working_tree_status: clean
+- branch_merged_to_main: true
+- commit_trailer_present: true
+- critical_test_passed: test_pid_meta_ignored_but_unrelated_meta_visible
 ---
 <!-- COMMENTS:END -->
