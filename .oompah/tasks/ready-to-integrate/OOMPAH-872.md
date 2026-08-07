@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T08:49:15.411144Z'
+updated_at: '2026-08-07T08:49:20.588324Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-08-07 08:48
 ---
 Completion: delivered identity-safe operational tracker resolution at commit 0458f8f72. The production service clone can now select the one configured Oompah project across clone/mirror/worktree paths; ambiguous, foreign, invalid, or missing evidence disables filing and emits a redacted actionable alert. Focused suites pass 192/192, the dedicated resolver suite passes 12/12 after final alert-snapshot coverage, secret scanning passes, and origin/OOMPAH-872 is synchronized.
+---
+author: oompah
+created: 2026-08-07 08:49
+---
+Resolved operational management-project selection with canonical repository identity checks, fail-closed ambiguity/foreign handling, actionable startup alerts, and clone/mirror/worktree/restart regression coverage. Focused tests: 192 passed; final resolver suite: 12 passed.
 ---
 <!-- COMMENTS:END -->
