@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T23:01:57.193519Z'
+updated_at: '2026-08-07T23:02:16.429619Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -50,17 +50,14 @@ oompah.duplicate_screening:
 oompah.agent_run_id: null
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: OOMPAH-887
   base_branch: epic-OOMPAH-763
   base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-  head_sha: 6324701418ca2d3a18b5576286dfb28c9d979445
-  submitted_at: '2026-08-07T22:58:46.882639+00:00'
-  updated_at: '2026-08-07T23:00:27.233025+00:00'
-  last_error: 'could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-887
-    is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head 6324701418ca2d3a18b5576286dfb28c9d979445;
-    refusing to reset it'
+  head_sha: 5403e4b196cfae75cc7333d69b062d66c33fef8e
+  submitted_at: '2026-08-07T23:01:58.350697+00:00'
+  updated_at: '2026-08-07T23:01:58.350697+00:00'
 oompah.work_branch: OOMPAH-887
 ---
 ## Summary
@@ -207,5 +204,10 @@ author: oompah
 created: 2026-08-07 23:01
 ---
 Final-CAS open-review race fixed at replacement exact head 5403e4b196cfae75cc7333d69b062d66c33fef8e on canonical OOMPAH-887. The earlier post-disposition cache check remains, and a second cache fence now runs after the final remote generation-current probe immediately before child promotion. Deterministic regression publishes an open OOMPAH-779 review during current-check #2 and proves no child transition occurs. Evidence: brokered full affected modules: 274 passed in 8.54s; py_compile, git diff --check, critical Ruff E9/F63/F7, and make check-secrets passed. Worktree is clean and exact head equals origin/OOMPAH-887.
+---
+author: oompah
+created: 2026-08-07 23:02
+---
+Closed open-review publication during final generation CAS at exact head 5403e4b196cfae75cc7333d69b062d66c33fef8e; 274 affected tests pass.
 ---
 <!-- COMMENTS:END -->
