@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:47:48.811930Z'
+updated_at: '2026-08-07T19:48:10.630387Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -58,13 +58,17 @@ oompah.integration:
     is at 742075be6bc166405156bcbfeb39c7d99d355530, not accepted head 02527892c31eba7f422009e2c09e579f0c44580a;
     refusing to reset it'
 oompah.task_costs:
-  total_input_tokens: 46287
-  total_output_tokens: 677
+  total_input_tokens: 46340
+  total_output_tokens: 1313
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46287
       output_tokens: 677
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 53
+      output_tokens: 636
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +83,12 @@ oompah.task_costs:
     output_tokens: 390
     cost_usd: 0.0
     recorded_at: '2026-08-06T21:44:03.640502+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 53
+    output_tokens: 636
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T19:48:01.703875+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-864__20260806T181414Z
@@ -131,6 +141,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T19:47:47.415543+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain integrated OOMPAH-864 repair 02527892c (epic cherry-pick 6df7dcbe1)
+      as terminal provenance; no new revision exists.
+    marked_at: '2026-08-07T19:48:09.192616+00:00'
+    updated_at: '2026-08-07T19:48:09.192616+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain integrated OOMPAH-864 repair 02527892c (epic cherry-pick 6df7dcbe1)
+        as terminal provenance; no new revision exists.
+      recorded_at: '2026-08-07T19:48:09.192616+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -438,5 +470,20 @@ created: 2026-08-07 19:47
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Direct operator review accepted OOMPAH-864's fail-closed duplicate-preflight authority repair at 02527892c31eba7f422009e2c09e579f0c44580a: independent race review accepted it, 85 focused duplicate/owner/integration tests passed after restack, static checks passed, and it is integrated on shared epic commit 6df7dcbe1. The queued redundant auditor is starving older focused repair waiters.
+---
+author: oompah
+created: 2026-08-07 19:48
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 26
+- Tokens: 53 in / 636 out [689 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 31m 33s
+- Log: OOMPAH-864__20260807T191642Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:48
+---
+Duplicate-preflight submission-authority repair integrated after independent race review and focused validation.
 ---
 <!-- COMMENTS:END -->
