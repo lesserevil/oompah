@@ -14,6 +14,7 @@ import asyncio
 import json
 import threading
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -21,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
+from oompah.models import Issue
 from oompah.server import app
 
 
@@ -414,6 +416,76 @@ class TestFullSyncCoalescing:
 
 class TestFullSyncRaceSafety:
     """Revision watermarks in the response must match the actual payload."""
+
+    @pytest.mark.asyncio
+    async def test_full_sync_state_matches_generation_bound_detail(self):
+        """Gap recovery cannot install a derived lane over canonical detail state."""
+        ws = _make_ws_mock()
+        parent = Issue(
+            id="OOMPAH-768",
+            identifier="OOMPAH-768",
+            title="Canonical epic",
+            description="",
+            state="In Progress",
+            issue_type="epic",
+        )
+        child = Issue(
+            id="OOMPAH-768.1",
+            identifier="OOMPAH-768.1",
+            title="Completed child",
+            description="",
+            state="Done",
+            issue_type="task",
+            parent_id="OOMPAH-768",
+        )
+        tracker = MagicMock()
+        tracker.state_branch_enabled = True
+        tracker.supports_generation_bound_reads = True
+        tracker.fetch_all_issues_with_generation.return_value = (
+            [parent, child],
+            "commit-current:9",
+        )
+        tracker.fetch_issue_detail_with_generation.return_value = (
+            parent,
+            "commit-current:9",
+        )
+        tracker.fetch_issue_detail.return_value = parent
+        tracker.get_state_branch_generation.return_value = "commit-current:9"
+        project = SimpleNamespace(id="proj-1", name="project-1", paused=False)
+        orch = MagicMock()
+        orch.project_store.list_all.return_value = [project]
+        orch._tracker_for_project.return_value = tracker
+
+        with _reset_protocol_state(), _isolated_ws_clients(ws), _reset_fullsync_state():
+            server_module._register_ws(ws)
+            await server_module._ensure_issues_snapshot_refresh(
+                orch, force=True, broadcast=False
+            )
+            assert await server_module._wait_for_issues_snapshot_refresh(
+                timeout_ms=2000
+            )
+            detail, detail_generation = (
+                server_module._fetch_tracker_issue_detail_with_generation(
+                    tracker, "OOMPAH-768"
+                )
+            )
+            with patch.object(
+                server_module,
+                "_read_state_snapshot_with_revision",
+                return_value=({"running": []}, 1),
+            ):
+                await server_module._handle_full_sync(ws, orch)
+
+        payload = json.loads(ws.send_text.call_args.args[0])
+        assert payload["type"] == "full_sync"
+        assert detail is not None
+        assert detail_generation == "commit-current:9"
+        assert payload["issues"]["In Progress"][0]["identifier"] == "OOMPAH-768"
+        assert payload["issues"]["In Progress"][0]["state"] == detail.state
+        assert all(
+            row["identifier"] != "OOMPAH-768"
+            for row in payload["issues"]["Done"]
+        )
 
     @pytest.mark.asyncio
     async def test_issue_revision_matches_snapshot_generation(self):

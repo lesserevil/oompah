@@ -291,6 +291,12 @@ class OompahMarkdownTracker:
     reads and writes use the default branch in the project's main checkout.
     """
 
+    # The server uses this capability marker before calling the optional
+    # generation-bound read methods below.  A marker avoids accidentally
+    # treating permissive proxy objects (notably mocks) as implementations of
+    # the extension interface.
+    supports_generation_bound_reads = True
+
     def __init__(
         self,
         *,
@@ -622,12 +628,31 @@ class OompahMarkdownTracker:
     def fetch_all_issues(self) -> list[Issue]:
         return [self._normalize_record(rec) for rec in self._read_records()]
 
+    def fetch_all_issues_with_generation(self) -> tuple[list[Issue], str | None]:
+        """Return issues and the exact state-branch generation they represent.
+
+        Normalization and generation capture share the repository mutation
+        lock.  A status-file move therefore cannot occur after the records are
+        read but before their generation is sampled.
+        """
+        with self._write_lock:
+            issues = self.fetch_all_issues()
+            return issues, self._state_branch_generation_locked()
+
     def fetch_all_issues_enriched(self) -> list[Issue]:
         return self.fetch_all_issues()
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         rec = self._read_record(identifier)
         return self._normalize_record(rec) if rec else None
+
+    def fetch_issue_detail_with_generation(
+        self, identifier: str
+    ) -> tuple[Issue | None, str | None]:
+        """Return one issue and the exact state-branch generation it represents."""
+        with self._write_lock:
+            issue = self.fetch_issue_detail(identifier)
+            return issue, self._state_branch_generation_locked()
 
     def fetch_children(self, epic_id: str) -> list[Issue]:
         needle = self._lookup_id(epic_id)
@@ -754,12 +779,22 @@ class OompahMarkdownTracker:
             meta["updated_at"] = _now_iso()
             new_status = canonicalize_status(str(meta.get("status") or old_status))
             new_path = self._path_for(str(meta["id"]), new_status)
-            _write_markdown(new_path, meta, body)
-            if new_path != path and path.exists():
+            if new_path == path:
+                _write_markdown(path, meta, body)
+            else:
+                # Persist the new record at the currently authoritative path,
+                # then atomically rename that inode into its canonical status
+                # directory.  Readers outside this process can observe the old
+                # path or the new path, but never the former copy-plus-unlink
+                # window where both status files existed simultaneously.
+                _write_markdown(path, meta, body)
+                new_path.parent.mkdir(parents=True, exist_ok=True)
                 try:
-                    path.unlink()
+                    path.replace(new_path)
                 except OSError as exc:
-                    raise TrackerError(f"Cannot remove moved native task {path}: {exc}") from exc
+                    raise TrackerError(
+                        f"Cannot move native task {path} to {new_path}: {exc}"
+                    ) from exc
             self.invalidate_read_cache()
             self._commit_and_push(f"Update oompah task {meta['id']}")
         # Mandatory flush for terminal/In Review transitions (design § 5.3).
@@ -1116,12 +1151,21 @@ class OompahMarkdownTracker:
         """
         if not self.state_branch_enabled:
             return None
+        with self._write_lock:
+            return self._state_branch_generation_locked()
+
+    def _state_branch_generation_locked(self) -> str | None:
+        """Return the local source generation while the mutation lock is held."""
+        if not self.state_branch_enabled:
+            return None
         try:
             state_root = self._get_state_root()
             result = self._git(["rev-parse", "HEAD"], check=False, cwd=state_root)
             commit = result.stdout.strip() if result.returncode == 0 else "unavailable"
         except Exception:  # noqa: BLE001 — callers will mark the read stale
             commit = "unavailable"
+        if not commit or commit == "unavailable":
+            return "unavailable"
         return f"{commit}:{_repo_read_generation(self._repo_lock_key)}"
 
     def list_corrupt_stubs(self) -> list[dict[str, Any]]:

@@ -87,9 +87,11 @@ def _issue(
     )
 
 
-def _orch_with_issues(issues):
+def _orch_with_issues(issues, *, state_branch_enabled: bool = False):
     project = SimpleNamespace(id="proj-1", name="project-1")
     tracker = MagicMock()
+    tracker.state_branch_enabled = state_branch_enabled
+    tracker.supports_generation_bound_reads = False
     tracker.fetch_all_issues.return_value = list(issues)
     orch = MagicMock()
     orch.project_store.list_all.return_value = [project]
@@ -132,18 +134,19 @@ def test_fetch_all_issues_keeps_merged_epic_terminal_status():
     assert by_id["TASK-1"].state == "Merged"
 
 
-def test_fetch_all_issues_rolls_up_non_terminal_epic_status():
+def test_fetch_all_issues_keeps_authoritative_non_terminal_epic_status():
     orch = _orch_with_issues(
         [
-            _issue("TASK-1", "Backlog", issue_type="epic"),
+            _issue("TASK-1", "In Progress", issue_type="epic"),
             _issue("TASK-1.1", "Done", parent_id="TASK-1"),
-        ]
+        ],
+        state_branch_enabled=True,
     )
 
     issues = server_module._fetch_all_issues(orch)
 
     by_id = {issue.identifier: issue for issue in issues}
-    assert by_id["TASK-1"].state == "Done"
+    assert by_id["TASK-1"].state == "In Progress"
 
 
 def test_fetch_all_issues_does_not_downgrade_review_epic_to_done():
@@ -252,6 +255,8 @@ async def _reset_issue_snapshot() -> None:
                 "duration_ms": None,
                 "issue_count": 0,
                 "error": None,
+                "source_generations": {},
+                "invalidated": False,
             }
         )
     if task is not None and not task.done():
@@ -288,6 +293,114 @@ async def test_api_issues_waits_briefly_for_fast_first_snapshot(monkeypatch):
         assert "_meta" not in data
         assert response.headers["x-oompah-issues-count"] == "1"
         assert response.headers["x-oompah-issues-snapshot-age-ms"] is not None
+    finally:
+        await _reset_issue_snapshot()
+
+
+@pytest.mark.asyncio
+async def test_api_issues_returns_503_instead_of_invalidated_board(monkeypatch):
+    """A full REST snapshot must never fall back to known-stale task lanes."""
+    await _reset_issue_snapshot()
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = []
+    try:
+        server_module._set_issues_snapshot(
+            {"Done": [{"identifier": "OOMPAH-768", "state": "Done"}]},
+            duration_ms=1.0,
+            orch_id=id(orch),
+        )
+        server_module._invalidate_issue_caches(schedule_broadcast=False)
+
+        async def _no_refresh(*_args, **_kwargs):
+            return None
+
+        async def _timeout(*_args, **_kwargs):
+            return False
+
+        monkeypatch.setattr(server_module, "_get_orchestrator", lambda: orch)
+        monkeypatch.setattr(server_module, "_ensure_issues_snapshot_refresh", _no_refresh)
+        monkeypatch.setattr(server_module, "_wait_for_issues_snapshot_refresh", _timeout)
+
+        response = await server_module.api_issues(_Request())
+        body = json.loads(response.body)
+
+        assert response.status_code == 503
+        assert body["error"]["code"] == "snapshot_unavailable"
+        assert response.headers["x-oompah-issues-stale"] == "true"
+    finally:
+        await _reset_issue_snapshot()
+
+
+@pytest.mark.asyncio
+async def test_refresh_retries_immediately_after_snapshot_error(monkeypatch):
+    """A failed refresh does not suppress recovery until the normal TTL."""
+    await _reset_issue_snapshot()
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = []
+
+    def _fetch(_orch, *, include_source_generations=False):
+        board = {"In Progress": [{"identifier": "TASK-1", "state": "In Progress"}]}
+        return (board, {}) if include_source_generations else board
+
+    monkeypatch.setattr(server_module, "_fetch_and_serialize_issues", _fetch)
+    try:
+        assert server_module._set_issues_snapshot(
+            {"Open": [{"identifier": "TASK-1", "state": "Open"}]},
+            duration_ms=1.0,
+            orch_id=id(orch),
+        )
+        with server_module._issues_snapshot_lock:
+            server_module._issues_snapshot["error"] = "transient read failure"
+
+        await server_module._ensure_issues_snapshot_refresh(orch)
+        assert await server_module._wait_for_issues_snapshot_refresh(timeout_ms=2000)
+
+        payload = server_module._issues_snapshot_payload(orch=orch, allow_empty=False)
+        assert payload is not None
+        assert payload["In Progress"][0]["identifier"] == "TASK-1"
+        with server_module._issues_snapshot_lock:
+            assert server_module._issues_snapshot["error"] is None
+    finally:
+        await _reset_issue_snapshot()
+
+
+@pytest.mark.asyncio
+async def test_refresh_validates_tracker_sources_outside_snapshot_lock(monkeypatch):
+    """Refresh checks preserve the tracker-to-snapshot mutation lock order."""
+    await _reset_issue_snapshot()
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.get_state_branch_generation.return_value = "commit-a:1"
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    try:
+        assert server_module._set_issues_snapshot(
+            {"Open": [{"identifier": "TASK-1", "state": "Open"}]},
+            duration_ms=1.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "commit-a:1"},
+            source_authority=orch,
+        )
+
+        checked = []
+
+        def _sources_match(_orch, _generations):
+            is_owned = getattr(server_module._issues_snapshot_lock, "_is_owned")
+            assert not is_owned()
+            checked.append(True)
+            return True
+
+        monkeypatch.setattr(
+            server_module, "_issues_snapshot_sources_match", _sources_match
+        )
+
+        await server_module._ensure_issues_snapshot_refresh(orch)
+
+        assert checked == [True]
+        with server_module._issues_snapshot_lock:
+            assert server_module._issues_refresh_task is None
     finally:
         await _reset_issue_snapshot()
 
@@ -371,20 +484,219 @@ def test_generation_bound_snapshot_rejects_newer_project_state():
         _clear_issue_snapshot_sync()
 
 
-def test_unavailable_generation_preserves_stale_snapshot_instead_of_empty_fresh_lane():
-    """An unavailable state-branch read is explicitly stale, never fresh empty."""
+def test_fetch_all_issues_uses_native_generation_bound_read():
+    """The list object and reported source generation come from one tracker read."""
+    issue = _issue("OOMPAH-768", "In Progress", issue_type="epic")
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.supports_generation_bound_reads = True
+    tracker.fetch_all_issues_with_generation.return_value = (
+        [issue],
+        "commit-current:7",
+    )
+    tracker.get_state_branch_generation.return_value = "commit-current:7"
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+
+    issues, generations = server_module._fetch_all_issues(
+        orch, include_source_generations=True
+    )
+
+    assert [(item.identifier, item.state) for item in issues] == [
+        ("OOMPAH-768", "In Progress")
+    ]
+    assert generations == {"proj-1": "commit-current:7"}
+    tracker.fetch_all_issues.assert_not_called()
+
+
+def test_unstable_fallback_read_is_never_stamped_with_newer_generation():
+    """Adapters without an atomic extension fail closed after bounded retries."""
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.supports_generation_bound_reads = False
+    tracker.fetch_all_issues.side_effect = [
+        [_issue("TASK-1", "Open")],
+        [_issue("TASK-1", "In Progress")],
+        [_issue("TASK-1", "Done")],
+    ]
+    tracker.get_state_branch_generation.side_effect = [
+        "commit-a:1",
+        "commit-b:2",
+        "commit-c:3",
+        "commit-d:4",
+    ]
+
+    issues, generation = server_module._fetch_tracker_issues_with_generation(tracker)
+
+    assert issues[0].state == "Done"
+    assert generation == "unavailable"
+    assert tracker.fetch_all_issues.call_count == 3
+
+
+def test_generation_bound_state_branch_with_missing_generation_fails_closed():
+    """An atomic extension cannot mark state-branch data fresh without a revision."""
+    issue = _issue("TASK-1", "In Progress")
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.supports_generation_bound_reads = True
+    tracker.fetch_all_issues_with_generation.return_value = ([issue], None)
+    tracker.fetch_issue_detail_with_generation.return_value = (issue, None)
+
+    issues, list_generation = server_module._fetch_tracker_issues_with_generation(
+        tracker
+    )
+    detail, detail_generation = (
+        server_module._fetch_tracker_issue_detail_with_generation(tracker, "TASK-1")
+    )
+
+    assert issues == [issue]
+    assert detail is issue
+    assert list_generation == detail_generation == "unavailable"
+
+
+def test_raced_snapshot_candidate_does_not_advance_data_revision():
+    """A mutation during serialization cannot attach its revision to old data."""
+    _clear_issue_snapshot_sync()
+    try:
+        assert server_module._set_issues_snapshot(
+            {"Open": [{"identifier": "TASK-1", "state": "Open"}]},
+            duration_ms=1.0,
+        )
+        with server_module._issues_snapshot_lock:
+            old_data = server_module._issues_snapshot["data"]
+            old_data_revision = server_module._issues_snapshot["data_revision"]
+        _, _, expected_revision = server_module._protocol_values()
+
+        server_module._invalidate_issue_caches(schedule_broadcast=False)
+        accepted = server_module._set_issues_snapshot(
+            {"Done": [{"identifier": "TASK-1", "state": "Done"}]},
+            duration_ms=2.0,
+            expected_issue_revision=expected_revision,
+        )
+
+        assert accepted is False
+        with server_module._issues_snapshot_lock:
+            assert server_module._issues_snapshot["data"] is old_data
+            assert server_module._issues_snapshot["data_revision"] == old_data_revision
+            assert server_module._issues_snapshot["invalidated"] is True
+        assert server_module._issues_snapshot_payload(allow_empty=False) is None
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+def test_external_source_race_reserves_revision_for_eventual_board():
+    """A generation change without a callback cannot reuse the old watermark."""
     _clear_issue_snapshot_sync()
     tracker = MagicMock()
     tracker.state_branch_enabled = True
-    tracker.get_state_branch_generation.return_value = "unavailable"
+    tracker.get_state_branch_generation.return_value = "commit-a:1"
     project = SimpleNamespace(id="proj-1", name="project-1")
     orch = MagicMock()
     orch.project_store.list_all.return_value = [project]
     orch._tracker_for_project.return_value = tracker
     try:
-        server_module._set_issues_snapshot(
+        assert server_module._set_issues_snapshot(
+            {"Open": [{"identifier": "TASK-1", "state": "Open"}]},
+            duration_ms=1.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "commit-a:1"},
+            source_authority=orch,
+        )
+        with server_module._issues_snapshot_lock:
+            old_data_revision = server_module._issues_snapshot["data_revision"]
+
+        tracker.get_state_branch_generation.return_value = "commit-b:2"
+        assert not server_module._set_issues_snapshot(
+            {"Open": [{"identifier": "TASK-1", "state": "Open"}]},
+            duration_ms=2.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "commit-a:1"},
+            source_authority=orch,
+        )
+        assert server_module._set_issues_snapshot(
+            {"In Progress": [{"identifier": "TASK-1", "state": "In Progress"}]},
+            duration_ms=3.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "commit-b:2"},
+            source_authority=orch,
+        )
+
+        with server_module._issues_snapshot_lock:
+            assert server_module._issues_snapshot["data_revision"] > old_data_revision
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+@pytest.mark.asyncio
+async def test_paused_project_refreshes_after_api_tracker_mutation(monkeypatch):
+    """Project pause gates dispatch, not authoritative API snapshot refreshes."""
+    await _reset_issue_snapshot()
+    monkeypatch.setattr(server_module, "_ws_clients", set())
+    project = SimpleNamespace(id="proj-paused", name="paused", paused=True)
+    current_issue = [_issue("TASK-1", "Open")]
+    current_generation = ["commit-a:1"]
+    callbacks = []
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.supports_generation_bound_reads = True
+    tracker.fetch_all_issues_with_generation.side_effect = lambda: (
+        list(current_issue),
+        current_generation[0],
+    )
+    tracker.get_state_branch_generation.side_effect = lambda: current_generation[0]
+    tracker.add_read_change_callback.side_effect = callbacks.append
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+
+    try:
+        await server_module._ensure_issues_snapshot_refresh(orch, force=True)
+        assert await server_module._wait_for_issues_snapshot_refresh(timeout_ms=2000)
+        first = server_module._issues_snapshot_payload(orch=orch, allow_empty=False)
+        assert first is not None
+        assert first["Open"][0]["state"] == "Open"
+
+        current_issue[:] = [_issue("TASK-1", "In Progress")]
+        current_generation[0] = "commit-b:2"
+        assert callbacks
+        callbacks[0]()  # same synchronous invalidation used by PATCH mutations
+
+        await server_module._ensure_issues_snapshot_refresh(orch)
+        assert await server_module._wait_for_issues_snapshot_refresh(timeout_ms=2000)
+        refreshed = server_module._issues_snapshot_payload(
+            orch=orch, allow_empty=False
+        )
+        assert refreshed is not None
+        assert refreshed["In Progress"][0]["state"] == "In Progress"
+        assert refreshed["Open"] == []
+    finally:
+        await _reset_issue_snapshot()
+
+
+def test_unavailable_generation_preserves_stale_snapshot_instead_of_empty_fresh_lane():
+    """An unavailable state-branch read is explicitly stale, never fresh empty."""
+    _clear_issue_snapshot_sync()
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.get_state_branch_generation.return_value = "commit-a:1"
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    try:
+        assert server_module._set_issues_snapshot(
             {"Needs Human": [{"identifier": "OOMPAH-655", "project_id": "proj-1"}]},
             duration_ms=1.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "commit-a:1"},
+            source_authority=orch,
+        )
+        tracker.get_state_branch_generation.return_value = "unavailable"
+        assert not server_module._set_issues_snapshot(
+            {"Done": [{"identifier": "OOMPAH-655", "project_id": "proj-1"}]},
+            duration_ms=2.0,
             orch_id=id(orch),
             source_generations={"proj-1": "unavailable"},
             source_authority=orch,

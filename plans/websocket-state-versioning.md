@@ -96,7 +96,9 @@ payload (not a later revision from a concurrent mutation):
 The browser can atomically replace all server-owned dashboard state from this
 single message and resume incremental processing from the watermarks it
 carries. Project filtering remains a client concern; the `issues` board is
-unfiltered.
+unfiltered. For a generation-bound native state branch, the issues payload is
+sent only when it was built from the same source generation reported by the
+snapshot cache; list-only state derivation is not applied.
 
 Duplicate requests while one is in flight are silently coalesced: only one
 assembly runs per connection at a time. On a transient failure the server
@@ -107,7 +109,9 @@ returns a retryable error instead of closing the connection:
 ```
 
 The client schedules a retry after a short delay and tries again on the same
-connection.
+connection. The server returns this error, rather than a successful response
+containing its last known board, when an issue mutation invalidates the cached
+snapshot or races its reconstruction.
 
 ## Client recovery
 
