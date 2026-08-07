@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T17:53:11.496838Z'
+updated_at: '2026-08-07T17:53:20.626924Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
@@ -52,6 +52,14 @@ oompah.work_contributors:
     model_id: gpt-5.6-luna
     focus: general
     source_branch: OOMPAH-886
+    source_sha: null
+    completed_at: ''
+  - run_id: 837fcb836918483888e7b6e4ccde98f8--contributor-57ff1a86c984
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: general
+    source_branch: epic-OOMPAH-763--task-OOMPAH-886
     source_sha: null
     completed_at: ''
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-886
