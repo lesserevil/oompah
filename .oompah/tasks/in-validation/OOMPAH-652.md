@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-08-07T11:02:21.700107Z'
+updated_at: '2026-08-07T11:02:37.613499Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
@@ -614,5 +614,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 22s
 - Log: OOMPAH-652__20260731T102603Z.jsonl
+---
+author: oompah
+created: 2026-08-07 11:02
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
