@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T18:32:37.631805Z'
+updated_at: '2026-08-07T18:53:18.730603Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-07 18:32
 ---
 Implementation started at exact base a85a36baf. Confirmed the outer empty-root Bubblewrap omits passwd/NSS while native validation resolves pwd.getpwuid(euid). Repair in progress: a synthetic one-entry identity database will live outside the candidate-writable bind and be mounted read-only; disposable pytest HOME/temp/cache/pycache will use the private /tmp tmpfs; nested Bubblewrap will gain a trusted capability probe that classifies host-policy permission denial fail-closed so integration tests skip explicitly rather than false-pass. No production credential or remote-write boundary will be relaxed.
+---
+author: oompah
+created: 2026-08-07 18:53
+---
+Implemented and committed local review candidate 48e884c039097e683f0a47810bff8037fd0eea5f (not pushed/submitted). Security repair: BranchQualityGate now creates a synthetic one-entry passwd/group/nsswitch sidecar outside the candidate-writable /oompah-gate bind, validates ownership/modes, and mounts only those files read-only at /etc; HOME is a private /home tmpfs path and pytest temp/XDG/pycache are private /tmp tmpfs paths. Rebase sandbox now runs a trusted namespace probe and classifies the exact observed Debian/AppArmor 'No permissions to create a new namespace' result as host-policy unavailable while production remains fail-closed; integration tests skip only that classification and static tests retain credential/network fencing assertions. Focused leased tests: 44 passed (changed quality-gate checks, full credential-isolation module, exact original test_native_validation_deep_root_uses_random_protected_socket); scoped ruff passed; make check-secrets passed. Final exact-head BranchQualityGate at 48e884c: 31 passed, 11 skipped in 3.66s for the credential-isolation module plus the original native failure. The skips are the proven nested-bwrap host-policy paths; pwd/getpwuid and fail-closed classifier regressions passed. Full make test intentionally not run pending review.
 ---
 <!-- COMMENTS:END -->
