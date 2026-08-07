@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-07T19:50:19.960449Z'
+updated_at: '2026-08-07T19:50:27.938850Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -121,6 +121,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T19:49:40.436011+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain integrated test-contract commits through shared epic 42f98aaed
+      as terminal provenance; no new revision exists and combined epic exact validation
+      remains scheduled.
+    marked_at: '2026-08-07T19:50:26.471940+00:00'
+    updated_at: '2026-08-07T19:50:26.471940+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain integrated test-contract commits through shared epic 42f98aaed
+        as terminal provenance; no new revision exists and combined epic exact validation
+        remains scheduled.
+      recorded_at: '2026-08-07T19:50:26.471940+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
