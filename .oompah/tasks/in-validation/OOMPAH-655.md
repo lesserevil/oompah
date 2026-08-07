@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T17:09:20.228833Z'
+updated_at: '2026-08-07T17:12:35.888737Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -340,6 +340,25 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T16:58:51.486423+00:00'
     updated_at: '2026-07-31T17:08:54.908216+00:00'
+  - version: 1
+    audit_id: audit-e5015007a113
+    project_id: proj-14849f1b
+    task_id: OOMPAH-655
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e378abeeb75adec2e9f2128f1150561431d286bb3914b043653f863a4180ddb8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T17:12:30.791306+00:00'
+    selected_ref: 8da703b5f921db6987355ccc3bce10d3ac0b7881
+    selected_sha: 8da703b5f921db6987355ccc3bce10d3ac0b7881
   attempt_history:
   - version: 1
     attempt_id: attempt-40523fd1dc9a
