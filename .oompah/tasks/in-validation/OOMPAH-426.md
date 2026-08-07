@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-08-07T09:54:43.198413Z'
+updated_at: '2026-08-07T10:27:07.826180Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -159,7 +159,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,7 +193,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -311,6 +311,42 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     updated_at: '2026-08-07T09:51:35.486107+00:00'
+  - version: 1
+    audit_id: audit-99fee017001e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: In Review
+    created_at: '2026-08-07T10:26:59.449946+00:00'
+    selected_ref: origin/main
+    selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
+  - version: 1
+    audit_id: audit-c2e4f6be07ca
+    project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: In Review
+    created_at: '2026-08-07T10:26:59.449946+00:00'
+    selected_ref: origin/main
+    selected_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
   attempt_history:
   - version: 1
     attempt_id: attempt-0a53a873c97d
