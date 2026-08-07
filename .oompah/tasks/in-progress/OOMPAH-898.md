@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:17:57.854034Z'
-updated_at: '2026-08-07T14:26:54.573812Z'
+updated_at: '2026-08-07T14:27:03.021896Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -40,3 +40,11 @@ This task was auto-filed because epic OOMPAH-763 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 14:27
+---
+Fenced as recurrence 13 of the duplicate epic-rebase authority bug. The project is paused and a direct-owner claim prevents dispatch. Canonical recovery remains OOMPAH-877 against the protected local head; remote epic-OOMPAH-763 remains ca1c527. Do not launch or mutate the shared epic worktree. Permanent repair is tracked by OOMPAH-879 with OOMPAH-891 and OOMPAH-892.
+---
+<!-- COMMENTS:END -->
