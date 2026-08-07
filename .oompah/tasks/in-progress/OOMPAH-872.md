@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T07:18:10.575447Z'
+updated_at: '2026-08-07T07:26:08.599298Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ff07f68d-dc6f-44df-aa79-b602c3d02214
+oompah.agent_run_id: 8c5fcabf-5ae6-40af-9a88-12f8dddb6bbc
 oompah.task_costs:
   total_input_tokens: 47922
   total_output_tokens: 212
@@ -103,5 +103,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 47s
 - Log: OOMPAH-872__20260807T071650Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:26
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-07 07:26
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T07:21:28.381062Z'
+updated_at: '2026-08-07T07:26:12.781908Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1be8d429-6ceb-4b7f-b928-1b0678cecb43
+oompah.agent_run_id: c836d4a9-4d98-4bb9-a3c4-be7c1c59a3a7
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2181

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T07:25:24.190095Z'
+updated_at: '2026-08-07T07:25:50.106980Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-07 07:25
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 07:25
+---
+Understanding: The Ready integration path needs a durable zero-diff fast-path after the exact accepted-head gate. I will trace review staging, containment validation, terminal audit/landing, and alert publication; add regression tests for valid containment, stale/mismatched heads, idempotent replay, and no forge warning; then run focused checks.
 ---
 <!-- COMMENTS:END -->
