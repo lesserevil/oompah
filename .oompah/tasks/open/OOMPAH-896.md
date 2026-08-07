@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:26:32.767222Z'
+updated_at: '2026-08-07T14:27:45.011500Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -170,13 +170,13 @@ oompah.terminal_audit:
     selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 206
-  total_output_tokens: 51
+  total_input_tokens: 218
+  total_output_tokens: 4442
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 206
-      output_tokens: 51
+      input_tokens: 218
+      output_tokens: 4442
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -185,6 +185,12 @@ oompah.task_costs:
     output_tokens: 51
     cost_usd: 0.0
     recorded_at: '2026-08-07T14:19:36.873716+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 12
+    output_tokens: 4391
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T14:27:39.617425+00:00'
 ---
 ## Summary
 
@@ -301,5 +307,15 @@ created: 2026-08-07 14:26
 Audit FAIL — incomplete. Routing task to Open.
 
 [REDACTED]
+---
+author: oompah
+created: 2026-08-07 14:27
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 16, Tool calls: 9
+- Tokens: 12 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 54s
+- Log: OOMPAH-896__20260807T142102Z.jsonl
 ---
 <!-- COMMENTS:END -->
