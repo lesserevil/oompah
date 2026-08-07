@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-659
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Defer standalone full gates until finish dependencies are satisfied
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-07-31T13:45:15.127292Z'
+updated_at: '2026-08-07T14:08:22.808103Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -247,6 +247,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T13:40:11.909583+00:00'
     updated_at: '2026-07-31T13:44:54.451197+00:00'
+  - version: 1
+    audit_id: audit-506a7bd5874f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-659
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae42e3ca1d0805bf39c4394639c2b01a024f43615c74047831fc2a56b4538bc2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T14:08:18.986638+00:00'
+    selected_ref: cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
+    selected_sha: cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
   attempt_history:
   - version: 1
     attempt_id: attempt-f1bf3af95a07

@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-896
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:08:00.902400Z'
+updated_at: '2026-08-07T14:08:17.380050Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -48,6 +49,30 @@ oompah.integration:
     rebase_task_id: OOMPAH-896
     created_at_utc: '2026-08-07T14:07:55.798945+00:00'
     evidence_fingerprint: 9c51809ea6ace0bb3d2092c8a585c233fdf9e043012657e1f09ee337ac75a93a
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-81a537d63f9c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-896
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 051a0ab5bb043639fde33dad25b74633af1fcda826d603aee9dc3a17cc519ab7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-epic-maintenance
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T14:08:11.947050+00:00'
+    selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+    selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+  attempt_history: []
 ---
 ## Summary
 
@@ -112,5 +137,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 52s
 - Log: OOMPAH-896__20260807T140348Z.jsonl
+---
+author: oompah
+created: 2026-08-07 14:08
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
