@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T15:16:39.690182Z'
+updated_at: '2026-08-07T15:16:46.722894Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -175,8 +175,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-d0d4c70ac281
-    applied: false
+    applied: true
     created_at: '2026-08-07T15:16:34.205350+00:00'
+    applied_at: '2026-08-07T15:16:43.902585+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -841,5 +842,31 @@ author: oompah
 created: 2026-08-07 15:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 15:16
+---
+Audit PASS — Done
+
+OOMPAH-459 epic successfully completed and merged. Terminal transition coordinator fully integrated as single entry point for all terminal states (Done/Merged/Archived). Terminal mutation scanner enforces allowlist. Automatic transitions route through auditing. Epic repair workflow allows recovery from failed audits. All child tasks complete. Full test suite passes with 13684 tests passing.
+
+Safe evidence:
+- merged_commit: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+- merge_commit: 6be5c8910de817b74a940d02d8e2ff70981363e3
+- pull_request: 590
+- merge_date: 2026-07-29T23:14:51Z
+- test_result: pass
+- test_count: 13684 passed, 7 skipped
+- test_duration: 247 seconds
+- coordinator_methods[0]: request_transition
+- coordinator_methods[1]: apply_audit_result
+- coordinator_methods[2]: override_transition
+- terminal_mutation_scan: 6 identified, 6 explicitly allowlisted
+- key_implementation[0]: Terminal transition coordinator: single entry point for all terminal states
+- key_implementation[1]: Terminal mutation scanner: enforces static allowlist of 6 sites
+- key_implementation[2]: Epic repair workflow: reopen with audit:repair-needed label and permit one repair run
+- key_implementation[3]: Automatic transitions: epic rollup, release picks route through coordinator
+- key_implementation[4]: Agent/API routing: stage In Validation via request_transition
+- key_implementation[5]: Owner overrides: available with audit trail via override_transition
 ---
 <!-- COMMENTS:END -->
