@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T11:55:26.142292Z'
+updated_at: '2026-08-07T12:04:12.487186Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-07 11:55
 ---
 Additional live reproduction on 2026-08-07: OOMPAH-881 was auto-filed and dispatched for the same epic-OOMPAH-763 stale generation while OOMPAH-877, OOMPAH-878, and OOMPAH-880 already had active direct-owner claims. O881 reached a live Claude/sonnet provider (run c07d6c38901e49a58b9b9d1a4e5c7443) and announced it was about to run rebase. An authenticated direct-owner claim 0d873a86e39a4b7087e3374f3286f163 retired it before mutation; shared epic stayed clean at 04fa6781091efc6f11b952b9f1b35123facce64f. Acceptance must fence duplicate auto-file and dispatch across active direct-owner claims for every existing duplicate, not merely running rows.
+---
+author: oompah
+created: 2026-08-07 12:04
+---
+Fifth live duplicate reproduction: OOMPAH-882 auto-filed/dispatched between OOMPAH-877 clean preflight and its authorized rebase command, despite active direct-owner claims on O877/O878/O880/O881. O882 began the exact 04fa678 to c9f16e3 rebase and stopped step 9/78 before operator containment. Claim 6344dd46defe4c9ba2ac75d3a90761e3 retired it; recovery refs/archive and exact SHA evidence are recorded on O882. Acceptance must make duplicate-generation filing plus dispatch atomic with existing task/owner claims; a preflight-only fence is demonstrably insufficient.
 ---
 <!-- COMMENTS:END -->
