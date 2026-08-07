@@ -1939,7 +1939,79 @@ def _tracker_source_generation(tracker: object) -> str | None:
         generation = getter()
     except Exception:  # noqa: BLE001 — degraded reads must be stale-marked
         return "unavailable"
-    return generation if isinstance(generation, str) and generation else "unavailable"
+    if not isinstance(generation, str) or not generation:
+        return "unavailable"
+    if generation == "unavailable" or generation.startswith("unavailable:"):
+        return "unavailable"
+    return generation
+
+
+def _fetch_tracker_issues_with_generation(
+    tracker: object,
+) -> tuple[list[Any], str | None]:
+    """Read a tracker list together with the generation that produced it.
+
+    Native Markdown trackers provide a lock-bound extension method.  Other
+    adapters retain the historical interface; when such an adapter exposes a
+    source generation, bounded optimistic retries prevent an unstable read
+    from being advertised as current.
+    """
+    if getattr(tracker, "supports_generation_bound_reads", False) is True:
+        fetch_bound = getattr(tracker, "fetch_all_issues_with_generation", None)
+        if callable(fetch_bound):
+            issues, generation = fetch_bound()
+            if generation is None:
+                if getattr(tracker, "state_branch_enabled", False) is True:
+                    generation = "unavailable"
+            elif (
+                not isinstance(generation, str)
+                or not generation
+                or generation == "unavailable"
+                or generation.startswith("unavailable:")
+            ):
+                generation = "unavailable"
+            return list(issues), generation
+
+    generation_before = _tracker_source_generation(tracker)
+    issues: list[Any] = []
+    for _attempt in range(3):
+        issues = list(tracker.fetch_all_issues())  # type: ignore[attr-defined]
+        generation_after = _tracker_source_generation(tracker)
+        if generation_before == generation_after:
+            return issues, generation_after
+        generation_before = generation_after
+    return issues, "unavailable" if generation_before is not None else None
+
+
+def _fetch_tracker_issue_detail_with_generation(
+    tracker: object, identifier: str
+) -> tuple[Any | None, str | None]:
+    """Read one issue together with the generation that produced it."""
+    if getattr(tracker, "supports_generation_bound_reads", False) is True:
+        fetch_bound = getattr(tracker, "fetch_issue_detail_with_generation", None)
+        if callable(fetch_bound):
+            issue, generation = fetch_bound(identifier)
+            if generation is None:
+                if getattr(tracker, "state_branch_enabled", False) is True:
+                    generation = "unavailable"
+            elif (
+                not isinstance(generation, str)
+                or not generation
+                or generation == "unavailable"
+                or generation.startswith("unavailable:")
+            ):
+                generation = "unavailable"
+            return issue, generation
+
+    generation_before = _tracker_source_generation(tracker)
+    issue = None
+    for _attempt in range(3):
+        issue = tracker.fetch_issue_detail(identifier)  # type: ignore[attr-defined]
+        generation_after = _tracker_source_generation(tracker)
+        if generation_before == generation_after:
+            return issue, generation_after
+        generation_before = generation_after
+    return issue, "unavailable" if generation_before is not None else None
 
 
 def _wire_tracker_issue_cache_invalidation(tracker: object, project_id: str | None) -> None:
@@ -2674,13 +2746,46 @@ def _issues_snapshot_payload(
     orch: "Orchestrator | None" = None,
     include_meta: bool = False,
 ) -> dict[str, Any] | None:
-    epoch, _, _ = _protocol_values()
-    with _issues_snapshot_lock:
-        data = _issues_snapshot.get("data")
-        snapshot_orch_id = _issues_snapshot.get("orch_id")
-        snapshot_epoch = _issues_snapshot.get("epoch")
-        source_generations = _issues_snapshot.get("source_generations") or {}
-        invalidated = bool(_issues_snapshot.get("invalidated"))
+    payload, _revision = _read_issues_snapshot_payload(
+        filter_project=filter_project,
+        allow_empty=allow_empty,
+        orch=orch,
+        include_meta=include_meta,
+    )
+    return payload
+
+
+def _read_issues_snapshot_payload(
+    *,
+    filter_project: str | None,
+    allow_empty: bool,
+    orch: "Orchestrator | None",
+    include_meta: bool,
+) -> tuple[dict[str, Any] | None, int]:
+    """Copy a stable snapshot payload without holding tracker and cache locks.
+
+    Source-generation checks may take a tracker repository lock.  Taking that
+    lock while holding ``_issues_snapshot_lock`` would invert the mutation
+    callback order.  Instead, capture a cache token, validate source authority
+    without the cache lock, then re-check the token before copying data.
+    """
+    for _attempt in range(3):
+        epoch, _, current_issue_revision = _protocol_values()
+        with _issues_snapshot_lock:
+            raw_data = _issues_snapshot.get("data")
+            snapshot_orch_id = _issues_snapshot.get("orch_id")
+            snapshot_epoch = _issues_snapshot.get("epoch")
+            source_generations = dict(
+                _issues_snapshot.get("source_generations") or {}
+            )
+            invalidated = bool(_issues_snapshot.get("invalidated"))
+            created = float(_issues_snapshot.get("created_at_monotonic") or 0.0)
+            created_wall = _issues_snapshot.get("created_at_wall")
+            duration_ms = _issues_snapshot.get("duration_ms")
+            snapshot_error = _issues_snapshot.get("error")
+            data_revision = int(_issues_snapshot.get("data_revision") or 0)
+
+        data = raw_data
         if snapshot_epoch != epoch:
             data = None
         if (
@@ -2690,36 +2795,59 @@ def _issues_snapshot_payload(
             and snapshot_orch_id != id(orch)
         ):
             data = None
-        nowm = time.monotonic()
-        created = float(_issues_snapshot.get("created_at_monotonic") or 0.0)
-        age_ms = (nowm - created) * 1000 if created else None
-        snapshot_error = _issues_snapshot.get("error")
+        age_ms = (time.monotonic() - created) * 1000 if created else None
         snapshot_stale = (
             invalidated
             or bool(snapshot_error)
             or age_ms is None
             or age_ms >= _ISSUES_SNAPSHOT_STALE_MS
         )
-    source_stale = False
-    if orch is not None and source_generations:
-        source_stale = not _issues_snapshot_sources_match(orch, source_generations)
-    if data is None and not allow_empty:
-        return None
-    if source_stale and not allow_empty:
-        return None
-    with _issues_snapshot_lock:
-        payload = _copy_issue_board(data or _empty_issue_board(), filter_project)
-        if include_meta:
-            payload["_meta"] = {
-                "snapshot_age_ms": round(age_ms, 0) if age_ms is not None else None,
-                "snapshot_created_at": _issues_snapshot.get("created_at_wall"),
-                "refreshing": _snapshot_refreshing_locked(),
-                "last_refresh_ms": _issues_snapshot.get("duration_ms"),
-                "issue_count": _issue_count_from_board(data or {}),
-                "error": snapshot_error,
-                "stale": snapshot_stale or source_stale,
-            }
-        return payload
+        source_stale = False
+        if orch is not None and source_generations:
+            source_stale = not _issues_snapshot_sources_match(
+                orch, source_generations
+            )
+
+        with _issues_snapshot_lock:
+            unchanged = (
+                _issues_snapshot.get("data") is raw_data
+                and _issues_snapshot.get("orch_id") == snapshot_orch_id
+                and _issues_snapshot.get("epoch") == snapshot_epoch
+                and dict(_issues_snapshot.get("source_generations") or {})
+                == source_generations
+                and bool(_issues_snapshot.get("invalidated")) == invalidated
+                and _issues_snapshot.get("error") == snapshot_error
+                and int(_issues_snapshot.get("data_revision") or 0)
+                == data_revision
+            )
+            if not unchanged:
+                continue
+            if data is None and not allow_empty:
+                return None, current_issue_revision
+            # ``allow_empty`` is retained for diagnostics/headers, which need
+            # the last known board even when it is stale.  Authoritative REST
+            # and WebSocket paths pass False and never publish invalid data.
+            if (
+                invalidated or bool(snapshot_error) or source_stale
+            ) and not allow_empty:
+                return None, current_issue_revision
+            payload = _copy_issue_board(data or _empty_issue_board(), filter_project)
+            if include_meta:
+                payload["_meta"] = {
+                    "snapshot_age_ms": (
+                        round(age_ms, 0) if age_ms is not None else None
+                    ),
+                    "snapshot_created_at": created_wall,
+                    "refreshing": _snapshot_refreshing_locked(),
+                    "last_refresh_ms": duration_ms,
+                    "issue_count": _issue_count_from_board(data or {}),
+                    "error": snapshot_error,
+                    "stale": snapshot_stale or source_stale,
+                }
+            return payload, data_revision
+
+    _, _, current_issue_revision = _protocol_values()
+    return None, current_issue_revision
 
 
 def _issues_snapshot_payload_with_revision(
@@ -2729,20 +2857,12 @@ def _issues_snapshot_payload_with_revision(
     orch: "Orchestrator | None" = None,
 ) -> tuple[dict[str, Any] | None, int]:
     """Return an issue payload and the revision that belongs to that payload."""
-    # Keep the payload and its data revision under the same lock.  This is the
-    # important stale-data fence: an invalidation racing a send cannot cause an
-    # older board to be labelled with the newly-current revision.
-    with _issues_snapshot_lock:
-        payload = _issues_snapshot_payload(
-            filter_project=filter_project,
-            allow_empty=allow_empty,
-            orch=orch,
-        )
-        if payload is None:
-            _, _, revision = _protocol_values()
-        else:
-            revision = int(_issues_snapshot.get("data_revision") or 0)
-        return payload, revision
+    return _read_issues_snapshot_payload(
+        filter_project=filter_project,
+        allow_empty=allow_empty,
+        orch=orch,
+        include_meta=False,
+    )
 
 
 def _issues_snapshot_headers(orch: "Orchestrator | None" = None) -> dict[str, str]:
@@ -2773,7 +2893,8 @@ def _set_issues_snapshot(
     orch_id: int | None = None,
     source_generations: dict[str, str | None] | None = None,
     source_authority: "Orchestrator | None" = None,
-) -> None:
+    expected_issue_revision: int | None = None,
+) -> bool:
     captured_generations = dict(source_generations or {})
     source_valid = not captured_generations or (
         source_authority is not None
@@ -2781,6 +2902,23 @@ def _set_issues_snapshot(
     )
     epoch, _, _ = _protocol_values()
     with _issues_snapshot_lock:
+        _, _, current_issue_revision = _protocol_values()
+        revision_raced = (
+            expected_issue_revision is not None
+            and current_issue_revision != expected_issue_revision
+        )
+        if not source_valid or revision_raced:
+            # Do not replace the last coherent board or advance its data
+            # revision with an object assembled across a mutation boundary.
+            # A server mutation callback already advanced the revision when
+            # ``revision_raced`` is true.  An external source-generation
+            # change has no callback, so reserve its revision here before the
+            # next accepted board adopts it.
+            if not revision_raced:
+                _advance_issue_revision()
+            _issues_snapshot["invalidated"] = True
+            _issues_snapshot["duration_ms"] = round(duration_ms, 3)
+            return False
         was_invalidated = bool(_issues_snapshot.get("invalidated"))
         if _issues_snapshot.get("epoch") != epoch:
             was_invalidated = False
@@ -2797,11 +2935,11 @@ def _set_issues_snapshot(
         _issues_snapshot["issue_count"] = _issue_count_from_board(data)
         _issues_snapshot["error"] = error
         _issues_snapshot["source_generations"] = captured_generations
-        # A mutation that races serialization must leave the resulting board
-        # stale-marked; it will be retried on the next read rather than being
-        # advertised as a fresh view of the newer generation.
-        _issues_snapshot["invalidated"] = not source_valid
+        # The candidate passed both the source-generation and server-revision
+        # fences, so it can replace the prior invalidated board.
+        _issues_snapshot["invalidated"] = False
     _api_cache.set("issues:all", data, ttl_ms=60_000)
+    return True
 
 
 def _issues_snapshot_sources_match(
@@ -2809,10 +2947,12 @@ def _issues_snapshot_sources_match(
 ) -> bool:
     """Return whether every project still has the snapshot's source generation."""
     current = _current_tracker_source_generations(orch)
-    for project_id, generation in source_generations.items():
-        if generation == "unavailable" or current.get(project_id) != generation:
-            return False
-    return True
+    if set(current) != set(source_generations):
+        return False
+    return all(
+        generation != "unavailable" and current.get(project_id) == generation
+        for project_id, generation in source_generations.items()
+    )
 
 
 def _current_tracker_source_generations(orch: "Orchestrator") -> dict[str, str | None]:
@@ -2886,6 +3026,21 @@ async def _ensure_issues_snapshot_refresh(
         existing = _issues_refresh_task
         if existing is not None and not existing.done():
             return
+        observed_source_generations = dict(
+            _issues_snapshot.get("source_generations") or {}
+        )
+
+    # Generation reads may take a native tracker's repository lock.  Never
+    # take that lock while holding the snapshot lock: lifecycle mutations
+    # notify cache invalidation in the opposite tracker -> snapshot order.
+    observed_sources_match = not observed_source_generations or (
+        _issues_snapshot_sources_match(orch, observed_source_generations)
+    )
+
+    with _issues_snapshot_lock:
+        existing = _issues_refresh_task
+        if existing is not None and not existing.done():
+            return
         created = float(_issues_snapshot.get("created_at_monotonic") or 0.0)
         snapshot_orch_id = _issues_snapshot.get("orch_id")
         if snapshot_orch_id is not None and snapshot_orch_id != id(orch):
@@ -2893,14 +3048,20 @@ async def _ensure_issues_snapshot_refresh(
         age_ms = (time.monotonic() - created) * 1000 if created else None
         source_generations = _issues_snapshot.get("source_generations") or {}
         invalidated = bool(_issues_snapshot.get("invalidated"))
+        snapshot_error = _issues_snapshot.get("error")
         # Force refresh when any tracker checkpoint or exact source generation
         # is newer than the snapshot.
         if not force and created:
             force = _any_tracker_checkpoint_newer_than(orch, created)
         if not force and invalidated:
             force = True
+        if not force and snapshot_error:
+            force = True
         if not force and source_generations:
-            force = not _issues_snapshot_sources_match(orch, source_generations)
+            force = (
+                source_generations != observed_source_generations
+                or not observed_sources_match
+            )
         if (
             not force
             and created
@@ -2913,6 +3074,11 @@ async def _ensure_issues_snapshot_refresh(
             global _issues_refresh_task
             start = time.monotonic()
             try:
+                # Capture the server revision immediately before source I/O.
+                # A mutation callback that fires while the board is assembled
+                # advances this value and causes _set_issues_snapshot to reject
+                # the cross-generation candidate.
+                _, _, expected_issue_revision = _protocol_values()
                 loop = asyncio.get_event_loop()
                 try:
                     result = await loop.run_in_executor(
@@ -2936,30 +3102,32 @@ async def _ensure_issues_snapshot_refresh(
                     result = (board, _current_tracker_source_generations(orch))
                 duration_ms = (time.monotonic() - start) * 1000
                 board, source_generations = result
-                _set_issues_snapshot(
+                accepted = _set_issues_snapshot(
                     board,
                     duration_ms=duration_ms,
                     orch_id=id(orch),
                     source_generations=source_generations,
                     source_authority=orch,
+                    expected_issue_revision=expected_issue_revision,
                 )
                 if duration_ms > 1000:
                     logger.warning(
                         "Issues snapshot refresh slow: refresh=%.0fms issues=%d",
                         duration_ms,
-                        _issue_count_from_board(result),
+                        _issue_count_from_board(board),
                     )
-                if broadcast and _ws_clients:
+                if accepted and broadcast and _ws_clients:
                     payload, revision = _issues_snapshot_payload_with_revision(
-                        allow_empty=True, orch=orch
+                        allow_empty=False, orch=orch
                     )
-                    await _broadcast(
-                        {
-                            "type": "issues",
-                            "data": payload,
-                            "issue_revision": revision,
-                        }
-                    )
+                    if payload is not None:
+                        await _broadcast(
+                            {
+                                "type": "issues",
+                                "data": payload,
+                                "issue_revision": revision,
+                            }
+                        )
             except Exception as exc:
                 duration_ms = (time.monotonic() - start) * 1000
                 logger.debug("issues snapshot refresh failed: %s", exc)
@@ -2968,15 +3136,16 @@ async def _ensure_issues_snapshot_refresh(
                     _issues_snapshot["duration_ms"] = round(duration_ms, 3)
                 if broadcast and _ws_clients:
                     payload, revision = _issues_snapshot_payload_with_revision(
-                        allow_empty=True, orch=orch
+                        allow_empty=False, orch=orch
                     )
-                    await _broadcast(
-                        {
-                            "type": "issues",
-                            "data": payload,
-                            "issue_revision": revision,
-                        }
-                    )
+                    if payload is not None:
+                        await _broadcast(
+                            {
+                                "type": "issues",
+                                "data": payload,
+                                "issue_revision": revision,
+                            }
+                        )
             finally:
                 with _issues_snapshot_lock:
                     _issues_refresh_task = None
@@ -3818,16 +3987,17 @@ async def websocket_endpoint(ws: WebSocket):
         orch = _get_orchestrator()
         await _send_ws(ws, _current_state_message())
         payload, issue_revision = _issues_snapshot_payload_with_revision(
-            allow_empty=True, orch=orch
+            allow_empty=False, orch=orch
         )
-        await _send_ws(
-            ws,
-            {
-                "type": "issues",
-                "data": payload,
-                "issue_revision": issue_revision,
-            },
-        )
+        if payload is not None:
+            await _send_ws(
+                ws,
+                {
+                    "type": "issues",
+                    "data": payload,
+                    "issue_revision": issue_revision,
+                },
+            )
         await _ensure_issues_snapshot_refresh(orch, broadcast=True)
 
         # Keep connection alive, handle client messages
@@ -3910,8 +4080,8 @@ async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
         state_data = _enrich_state_snapshot(state_snapshot)
 
         # 2. Try to get a fresh issues snapshot before reading it.  Use a
-        #    short wait so the client is not blocked indefinitely on a slow
-        #    rebuild; stale data with allow_empty=True is still returned.
+        #    bounded wait so the client is not blocked indefinitely on a slow
+        #    rebuild; an unavailable fresh snapshot becomes a retryable error.
         await _ensure_issues_snapshot_refresh(orch, broadcast=False)
         await _wait_for_issues_snapshot_refresh(timeout_ms=3000)
 
@@ -3921,8 +4091,10 @@ async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
         #    a concurrent invalidation cannot stamp the old board with the
         #    new revision.
         issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
-            allow_empty=True, orch=orch
+            allow_empty=False, orch=orch
         )
+        if issues_payload is None:
+            raise RuntimeError("fresh issue snapshot is unavailable")
 
         # 4. Stamp the current epoch so the client can verify the watermarks
         #    belong to this process lifetime.
@@ -5806,8 +5978,17 @@ async def api_issues(request: Request):
                 filter_project=filter_project, allow_empty=False, orch=orch
             )
         if payload is None:
-            payload = _issues_snapshot_payload(
-                filter_project=filter_project, allow_empty=True, orch=orch
+            duration_ms = (time.monotonic() - t_start) * 1000
+            _record_api_latency("/api/v1/issues", duration_ms, ok=False)
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "snapshot_unavailable",
+                        "message": "A fresh issue snapshot is not available yet.",
+                    }
+                },
+                status_code=503,
+                headers=_issues_snapshot_headers(orch),
             )
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/issues", duration_ms)
@@ -6808,9 +6989,8 @@ def _fetch_all_issues(
     projects = orch.project_store.list_all()
     if not projects:
         # No projects configured — legacy mode
-        issues = orch.tracker.fetch_all_issues()
+        issues, generation = _fetch_tracker_issues_with_generation(orch.tracker)
         if include_source_generations:
-            generation = _tracker_source_generation(orch.tracker)
             return issues, ({"__legacy__": generation} if generation is not None else {})
         return issues
 
@@ -6822,42 +7002,30 @@ def _fetch_all_issues(
         try:
             tracker = orch._tracker_for_project(project.id)
             _wire_tracker_issue_cache_invalidation(tracker, str(project.id))
-            generation_before = _tracker_source_generation(tracker)
-            issues = tracker.fetch_all_issues()
-            generation_after = _tracker_source_generation(tracker)
-            # A direct mutation may race the list read.  Retry once when the
-            # source epoch changed so the board cannot be stamped with the
-            # post-mutation generation while containing pre-mutation issues.
-            if generation_before != generation_after:
-                generation_before = generation_after
-                issues = tracker.fetch_all_issues()
-                generation_after = _tracker_source_generation(tracker)
+            issues, generation = _fetch_tracker_issues_with_generation(tracker)
             for issue in issues:
                 issue.project_id = project.id
-            for issue in issues:
-                # Display-only: reflect the epic-branch status for shared-
-                # epic children (their default-branch copy lags until the
-                # epic lands), so the board shows Done/Merged in the right
-                # column instead of a stale Open/In-Progress. See
-                # _effective_display_status.
-                issue.state = _effective_display_status(orch, issue)
-            issue_by_id = {issue.id: issue for issue in issues}
-            for issue in issues:
-                parent_id = (issue.parent_id or "").strip()
-                parent = issue_by_id.get(parent_id) if parent_id else None
-                if parent and canonicalize_status(parent.state) == PROPOSED:
-                    issue.state = PROPOSED
-            # Roll each epic up to a state derived from its children's
-            # (now-enriched) states, so the board shows the epic in the
-            # column that matches its children — Done (ready to merge) when
-            # all children are done, In Progress while any are active, etc.
-            # See epic_rollup_state. Same-project list, so ids are unique.
-            child_states: dict[str, list[str]] = {}
-            for issue in issues:
-                if issue.parent_id:
-                    child_states.setdefault(issue.parent_id, []).append(issue.state)
-            for issue in issues:
-                if (issue.issue_type or "").strip().lower() == "epic":
+            # The board is a serialization of tracker authority, not a second
+            # lifecycle engine for generation-bound state branches.  A detail
+            # read from that generation must report the same state.  Preserve
+            # the historical derived-display behavior for adapters without a
+            # state-branch authority/revision contract.
+            if getattr(tracker, "state_branch_enabled", False) is not True:
+                for issue in issues:
+                    issue.state = _effective_display_status(orch, issue)
+                issue_by_id = {issue.id: issue for issue in issues}
+                for issue in issues:
+                    parent_id = (issue.parent_id or "").strip()
+                    parent = issue_by_id.get(parent_id) if parent_id else None
+                    if parent and canonicalize_status(parent.state) == PROPOSED:
+                        issue.state = PROPOSED
+                child_states: dict[str, list[str]] = {}
+                for issue in issues:
+                    if issue.parent_id:
+                        child_states.setdefault(issue.parent_id, []).append(issue.state)
+                for issue in issues:
+                    if (issue.issue_type or "").strip().lower() != "epic":
+                        continue
                     current_status = canonicalize_status(issue.state)
                     if current_status in {MERGED, ARCHIVED}:
                         continue
@@ -6872,7 +7040,7 @@ def _fetch_all_issues(
                         continue
                     if rolled:
                         issue.state = rolled
-            return issues, generation_after
+            return issues, generation
         except StateBranchMissingError as exc:
             # State branch not yet bootstrapped — expected configuration
             # condition, not a runtime fault.  Degrade gracefully so
@@ -13345,14 +13513,33 @@ async def api_issue_full_detail(identifier: str, request: Request):
             )
         # Use the resolved project_id (may differ from query param if it was None)
         project_id = resolved_project_id
+        _wire_tracker_issue_cache_invalidation(tracker, project_id)
+        if getattr(tracker, "state_branch_enabled", False) is True:
+            # Re-read through the generation-bound native extension.  The
+            # initial lookup resolves project ownership; this read binds the
+            # response object and its cache generation under one tracker lock.
+            issue, detail_generation = _fetch_tracker_issue_detail_with_generation(
+                tracker, resolved_identifier
+            )
+            if issue is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "issue_not_found",
+                            "message": f"Issue {resolved_identifier} not found",
+                        }
+                    },
+                    status_code=404,
+                )
+        else:
+            detail_generation = _tracker_source_generation(tracker)
+
         # Native Markdown tracker records do not persist their managed-project
         # identity on each task.  Attach the authoritative identity resolved
         # above before computing project-aware summaries such as duplicate
         # screening; otherwise a current fingerprint is falsely shown as stale.
         if project_id:
             issue.project_id = project_id
-        _wire_tracker_issue_cache_invalidation(tracker, project_id)
-        detail_generation = _tracker_source_generation(tracker)
         project_names = _project_names_by_id(orch)
         project_name = project_names.get(project_id or "")
         # Prefer the tracker's own display_identifier when set; otherwise use

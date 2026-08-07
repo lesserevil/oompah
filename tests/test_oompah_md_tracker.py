@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1449,6 +1450,38 @@ class TestAtomicWrite:
 
 class TestAtomicReadDuringStatusMoves:
     """Native reads must not mistake a status-file move for corruption."""
+
+    def test_status_transition_relocates_one_updated_file_atomically(self, tmp_path):
+        """A lifecycle move uses one rename, never a copy-then-unlink window."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Atomic lifecycle rename", initial_status=OPEN)
+        root = tmp_path / "repo"
+        old_path = root / ".oompah" / "tasks" / "open" / f"{issue.identifier}.md"
+        new_path = (
+            root
+            / ".oompah"
+            / "tasks"
+            / "ready-to-integrate"
+            / f"{issue.identifier}.md"
+        )
+        original_replace = Path.replace
+        rename_observations: list[tuple[bool, bool, str]] = []
+
+        def observe_replace(path: Path, target: Path):
+            target_path = Path(target)
+            if path == old_path and target_path == new_path:
+                rename_observations.append(
+                    (path.exists(), target_path.exists(), _frontmatter(path)["status"])
+                )
+            return original_replace(path, target_path)
+
+        with patch.object(Path, "replace", new=observe_replace):
+            tracker.update_issue(issue.identifier, status=READY_TO_INTEGRATE)
+
+        assert rename_observations == [(True, False, READY_TO_INTEGRATE)]
+        assert not old_path.exists()
+        assert new_path.exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == READY_TO_INTEGRATE
 
     @pytest.mark.parametrize(
         ("start_status", "end_status", "start_dir", "end_dir"),

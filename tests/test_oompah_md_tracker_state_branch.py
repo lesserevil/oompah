@@ -24,12 +24,14 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterator
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 import yaml
 
+from oompah import server as server_module
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.statuses import BACKLOG, DONE, IN_PROGRESS, IN_REVIEW, OPEN
 from oompah.tracker import TrackerError, TrackerStateBranchFetchError, TrackerStateBranchMissingError
@@ -300,6 +302,81 @@ class TestStateBranchTrackerIntegration:
         assert restarted.get_state_branch_generation().split(":", 1)[0] == (
             after_checkpoint.split(":", 1)[0]
         )
+
+    def test_generation_bound_list_matches_detail_after_status_file_move(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """List and detail expose the same canonical state and generation."""
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=False,
+        )
+        issue = tracker.create_issue(
+            "Generation-bound lifecycle write",
+            issue_type="epic",
+            initial_status=OPEN,
+        )
+        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+
+        issues, list_generation = tracker.fetch_all_issues_with_generation()
+        detail, detail_generation = tracker.fetch_issue_detail_with_generation(
+            issue.identifier
+        )
+
+        listed = next(item for item in issues if item.identifier == issue.identifier)
+        assert detail is not None
+        assert listed.state == detail.state == IN_PROGRESS
+        assert list_generation == detail_generation
+        assert list_generation == tracker.get_state_branch_generation()
+
+    def test_forced_server_snapshot_matches_detail_after_lifecycle_write(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """A completed child cannot move its canonical active epic to Done."""
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=False,
+        )
+        epic = tracker.create_issue(
+            "Canonical active epic",
+            issue_type="epic",
+            initial_status=IN_PROGRESS,
+        )
+        tracker.create_issue(
+            "Completed child",
+            parent=epic.identifier,
+            initial_status=DONE,
+        )
+        # Exercise the same status-file lifecycle write that invalidates a
+        # previously cached board in production.
+        tracker.update_issue(epic.identifier, status=OPEN)
+        tracker.update_issue(epic.identifier, status=IN_PROGRESS)
+
+        project = SimpleNamespace(id="proj-1", name="project-1", paused=False)
+        orch = MagicMock()
+        orch.project_store.list_all.return_value = [project]
+        orch._tracker_for_project.return_value = tracker
+
+        board, source_generations = server_module._fetch_and_serialize_issues(
+            orch, include_source_generations=True
+        )
+        detail, detail_generation = tracker.fetch_issue_detail_with_generation(
+            epic.identifier
+        )
+
+        assert detail is not None
+        assert board["In Progress"][0]["identifier"] == epic.identifier
+        assert board["In Progress"][0]["state"] == detail.state == IN_PROGRESS
+        assert all(
+            row["identifier"] != epic.identifier for row in board["Done"]
+        )
+        assert source_generations == {"proj-1": detail_generation}
 
     def test_read_change_callback_runs_for_direct_write_and_checkpoint(
         self, state_branch_repo: tuple[Path, str]

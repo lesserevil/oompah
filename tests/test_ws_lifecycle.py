@@ -359,8 +359,9 @@ class TestOnOrchestratorChange:
                         return_value=True,
                     ):
                         with patch.object(
-                            server_module, "_issues_snapshot_payload",
-                            return_value=fresh_board,
+                            server_module,
+                            "_issues_snapshot_payload_with_revision",
+                            return_value=(fresh_board, 17),
                         ):
                             with patch.object(
                                 server_module, "_get_orchestrator",
@@ -388,6 +389,7 @@ class TestOnOrchestratorChange:
             if message.get("type") == "issues"
         ]
         assert len(issue_messages) == 1
+        assert issue_messages[0]["issue_revision"] == 17
         assert issue_messages[0]["type"] == "issues"
         assert issue_messages[0]["data"] == fresh_board
         assert "issue_revision" in issue_messages[0]

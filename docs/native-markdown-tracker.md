@@ -78,6 +78,23 @@ With sync disabled, oompah writes files without committing or pushing them.
 
 Native tracker projects use `.oompah/tasks` as the task source of truth.
 
+## API Snapshot Consistency
+
+For state-branch projects, issue detail, `GET /api/v1/issues`, issue WebSocket
+messages, and WebSocket `full_sync` responses use the same generation-bound
+task read. The list endpoints do not derive or roll up a different task state;
+for example, an `In Progress` epic remains in that lane even when every child
+is `Done`.
+
+If a state-branch mutation races snapshot construction, oompah discards that
+candidate and refreshes again. It does not publish the older task object with
+the newer snapshot revision. `GET /api/v1/issues` returns HTTP 503 with error
+code `snapshot_unavailable` when a fresh snapshot cannot be produced within
+the bounded request wait. A WebSocket full-sync request returns the retryable
+`full_sync_error` message with the same code. Clients should retry rather than
+installing a stale board. Pausing a project affects dispatch only; tracker
+mutations continue to invalidate and refresh these API snapshots.
+
 ## Concurrency and Single-Instance Requirement
 
 Oompah serializes all git writes through a per–git-repository lock. Every

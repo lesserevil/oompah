@@ -644,10 +644,22 @@ class TestFaultInjectionWithRealProtocol:
             prior_orch = server_module._orchestrator
             server_module._orchestrator = mock_orch
             try:
-                with patch.object(
-                    server_module,
-                    "_ensure_issues_snapshot_refresh",
-                    new_callable=AsyncMock,
+                with (
+                    patch.object(
+                        server_module,
+                        "_ensure_issues_snapshot_refresh",
+                        new_callable=AsyncMock,
+                    ),
+                    # The refresh is intentionally disabled so wire replay is
+                    # deterministic.  Supply an explicitly authoritative
+                    # bootstrap instead of relying on another test's global
+                    # issue snapshot; unavailable snapshots are correctly not
+                    # emitted after OOMPAH-873.
+                    patch.object(
+                        server_module,
+                        "_issues_snapshot_payload_with_revision",
+                        return_value=({"Open": []}, 1),
+                    ),
                 ):
                     client = TestClient(app, raise_server_exceptions=False)
                     with client.websocket_connect("/ws") as ws:
@@ -660,10 +672,10 @@ class TestFaultInjectionWithRealProtocol:
                         assert duplicate_issues["issue_revision"] == first_issues["issue_revision"]
                         assert duplicate_issues["data"] == first_issues["data"]
 
-                        # Model the dashboard's delivery watermark at the commit
-                        # boundary: the replay is at or below the applied
-                        # sequence, so the authoritative client-visible board
-                        # remains the first snapshot.
+                        # Model the dashboard's delivery watermark at the
+                        # commit boundary: the replay is at or below the
+                        # applied sequence, so the authoritative client-visible
+                        # board remains the first snapshot.
                         applied_issues = first_issues["data"]
                         last_delivery_seq = first_issues["delivery_seq"]
                         if duplicate_issues["delivery_seq"] > last_delivery_seq:
