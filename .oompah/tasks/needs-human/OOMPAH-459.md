@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:43:44.119197Z'
+updated_at: '2026-08-07T14:43:50.502829Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -119,8 +119,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-8e8577f8905a
-    applied: false
+    applied: true
     created_at: '2026-08-07T14:43:37.180326+00:00'
+    applied_at: '2026-08-07T14:43:49.102805+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -633,5 +634,12 @@ author: oompah
 created: 2026-08-07 14:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 14:43
+---
+Needs Human — Merged audit requires operator input.
+
+Audit evidence is clear: PR #590 merged, head 95581aca5 in main, gate passed 291s, all children Done. However the scheduler consistently rejects pass verdicts for this audit_id with 'audit scheduler rejected result'. attempt_id matches. Operator should inspect audit state and re-arm if audit-8e8577f8905a is stale.
 ---
 <!-- COMMENTS:END -->
