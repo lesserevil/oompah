@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:36:19.569670Z'
+updated_at: '2026-08-07T14:43:44.119197Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -77,6 +77,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     infrastructure-exhausted-audit-2f8a02a3fbeb-3: '2026-08-07T14:20:03.985054+00:00'
+    attempt-1aec9a7c7ff4: '2026-08-07T14:43:37.180293+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
@@ -87,6 +88,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T14:20:03.985061+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Merged
+    evidence_fingerprint: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    audit_ids:
+    - audit-8e8577f8905a
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T14:43:37.180309+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
@@ -100,6 +110,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:20:03.985071+00:00'
     applied_at: '2026-08-07T14:20:11.409370+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    audit_id: audit-8e8577f8905a
+    attempt_id: attempt-1aec9a7c7ff4
+    target_state: Merged
+    evidence_fingerprint: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    status: Needs Human
+    audit_ids:
+    - audit-8e8577f8905a
+    applied: false
+    created_at: '2026-08-07T14:43:37.180326+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -193,7 +214,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,7 +240,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1aec9a7c7ff4
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -232,6 +253,10 @@ oompah.terminal_audit:
       selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
       selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
       candidate_rotation_count: 1
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      completed_at: '2026-08-07T14:43:37.180074+00:00'
+      ended_at: '2026-08-07T14:43:37.180074+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -240,7 +265,7 @@ oompah.terminal_audit:
     created_at: '2026-07-31T13:36:44.630895+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
-    updated_at: '2026-08-07T14:36:10.978414+00:00'
+    updated_at: '2026-08-07T14:43:37.180074+00:00'
   - version: 1
     audit_id: audit-9cce4c37ec04
     project_id: proj-14849f1b
