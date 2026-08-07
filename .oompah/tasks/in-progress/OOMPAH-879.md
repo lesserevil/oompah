@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T13:56:52.361722Z'
+updated_at: '2026-08-07T14:08:44.772596Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-07 13:54
 ---
 Recurrence #11 observed as OOMPAH-895 after canonical OOMPAH-877 final full gate began. Root applied direct-owner takeover immediately. Extend generation regression through O895, including the case where a duplicate reaches scheduler claim/In Progress before the canonical helper publishes.
+---
+author: oompah
+created: 2026-08-07 14:08
+---
+Recurrence #12 / decisive capability evidence: OOMPAH-896 launched after service restart, native Codex subscription (, network_access_enabled=true), and ran  at 14:05, moving remote ca1c52744 -> a70fe0bc9 while canonical O877 full gate was only ~51%. Root fenced O896 after submission. O891 must exclude this backend and sandbox all worker command paths; O892 must be the sole server-owned exact-CAS publisher after gate/authority revalidation.
 ---
 <!-- COMMENTS:END -->
