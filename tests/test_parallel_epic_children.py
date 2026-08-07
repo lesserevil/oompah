@@ -24,6 +24,7 @@ from oompah.projects import ProjectError, ProjectStore
 from oompah.roles import Candidate
 from oompah.server import _integration_queue_summary
 from oompah.terminal_audit import (
+    ContributorIdentity,
     EvidenceFingerprint,
     RequestState,
     TargetState,
@@ -1002,6 +1003,7 @@ def _audit_record(
     *,
     target: TargetState = TargetState.ARCHIVED,
     previous_state: str | None = "Merged",
+    requested_by: ContributorIdentity | None = None,
 ) -> TerminalAuditRecord:
     return TerminalAuditRecord(
         audit_id="audit-1",
@@ -1014,6 +1016,7 @@ def _audit_record(
         ),
         request_state=RequestState.PENDING,
         previous_state=previous_state,
+        requested_by=requested_by,
     )
 
 
@@ -1104,6 +1107,36 @@ def test_archived_auditor_fails_closed_without_merged_evidence(tmp_path):
         for call in orchestrator.project_store.resolve_audit_revision.call_args_list
     ]
     assert revisions == ["origin/epic-EPIC-OLD"]
+
+
+def test_aged_done_auto_archive_late_binding_uses_persisted_provenance(tmp_path):
+    """A legacy unbound retention record keeps its auto-archive authority."""
+    project = _make_project_record(epic_strategy="shared")
+    project.default_branch = "main"
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.resolve_audit_revision.side_effect = [
+        ProjectError(
+            "terminal audit revision is unavailable: origin/epic-EPIC-OLD"
+        ),
+        "d" * 40,
+    ]
+    child = _make_issue(identifier="TASK-1", project_id=project.id)
+    child.work_branch = "epic-EPIC-OLD"
+    record = _audit_record(
+        child,
+        previous_state="Done",
+        requested_by=ContributorIdentity("oompah", "auto_archive"),
+    )
+
+    bound = orchestrator._bind_audit_record_revision(child, record)
+
+    assert bound.selected_ref == "origin/main"
+    assert bound.selected_sha == "d" * 40
+    assert [
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
+    ] == ["origin/epic-EPIC-OLD", "origin/main"]
 
 
 def test_auditor_never_substitutes_default_for_unreachable_immutable_head(tmp_path):

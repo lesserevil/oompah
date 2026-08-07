@@ -100,6 +100,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    archive_default_branch_fallback_authorized,
     build_revision_candidate_list,
     compute_issue_evidence_fingerprint,
 )
@@ -760,6 +761,9 @@ class TerminalTransitionCoordinator:
         issue: Issue,
         target: TargetState,
         project_id: str,
+        *,
+        previous_state: str | None,
+        archive_default_branch_authorized: bool = False,
     ) -> AuditRevisionBinding | None:
         """Resolve request-time repository authority when the store supports it.
 
@@ -784,8 +788,9 @@ class TerminalTransitionCoordinator:
             issue,
             project_id,
             target_state=target,
-            previous_state=issue.state or None,
+            previous_state=previous_state,
             default_branch=project.default_branch,
+            archive_default_branch_authorized=archive_default_branch_authorized,
         )
         unavailable: list[str] = []
         for candidate in candidates.candidates:
@@ -816,6 +821,7 @@ class TerminalTransitionCoordinator:
         project_id: str,
         fingerprint: EvidenceFingerprint,
         *,
+        trigger_identity: ContributorIdentity,
         coalesce_pending_target: bool = False,
     ) -> AuditRevisionBinding | None:
         """Reuse durable authority before resolving a new request binding."""
@@ -860,6 +866,11 @@ class TerminalTransitionCoordinator:
                     matching.selected_sha or "",
                 )
 
+        # If an active record needs a late legacy binding, its persisted
+        # provenance—not a fresh coalescing caller—decides whether the aged
+        # Done auto-archive exception can use the default branch.
+        binding_authority_record = matching
+
         # A current immutable SHA can prove that an exact completed row still
         # names the request's authority without touching the repository. A
         # branch-backed completion cannot: resolve it again so
@@ -889,8 +900,14 @@ class TerminalTransitionCoordinator:
                     issue,
                     project_id,
                     target_state=target,
-                    previous_state=issue.state or None,
+                    previous_state=completed.previous_state,
                     default_branch=project.default_branch,
+                    archive_default_branch_authorized=(
+                        archive_default_branch_fallback_authorized(
+                            completed.previous_state,
+                            completed.requested_by,
+                        )
+                    ),
                 )
                 if (
                     candidates.immutable_shas_available
@@ -902,7 +919,37 @@ class TerminalTransitionCoordinator:
                         completed.selected_ref,
                         completed.selected_sha,
                     )
-        return self._resolve_revision_binding(issue, target, project_id)
+        if binding_authority_record is not None:
+            binding_previous_state = binding_authority_record.previous_state
+            archive_default_branch_authorized = (
+                archive_default_branch_fallback_authorized(
+                    binding_authority_record.previous_state,
+                    binding_authority_record.requested_by,
+                )
+            )
+        elif completed is not None:
+            binding_previous_state = completed.previous_state
+            archive_default_branch_authorized = (
+                archive_default_branch_fallback_authorized(
+                    completed.previous_state,
+                    completed.requested_by,
+                )
+            )
+        else:
+            binding_previous_state = issue.state or None
+            archive_default_branch_authorized = (
+                archive_default_branch_fallback_authorized(
+                    issue.state or None,
+                    trigger_identity,
+                )
+            )
+        return self._resolve_revision_binding(
+            issue,
+            target,
+            project_id,
+            previous_state=binding_previous_state,
+            archive_default_branch_authorized=archive_default_branch_authorized,
+        )
 
     # ------------------------------------------------------------------
     # Public API — request_transition
@@ -968,6 +1015,7 @@ class TerminalTransitionCoordinator:
                     requested_target,
                     project_id,
                     evidence_fingerprint,
+                    trigger_identity=trigger_identity,
                 )
             except Exception as exc:  # noqa: BLE001 - fail closed before mutation
                 return TransitionResult(success=False, reason=str(exc))
@@ -1073,6 +1121,7 @@ class TerminalTransitionCoordinator:
                     requested_target,
                     project_id,
                     evidence_fingerprint,
+                    trigger_identity=trigger_identity,
                     coalesce_pending_target=coalesce_pending_target,
                 )
             except Exception as exc:  # noqa: BLE001 - fail closed before mutation
@@ -1287,12 +1336,30 @@ class TerminalTransitionCoordinator:
                     else record
                     for record in chain
                 ]
+                # A rearm is owned by ``authorized_actor`` (recorded in the
+                # durable history below), but a legacy unbound retention audit
+                # must retain its original automatic-retention provenance.  It
+                # is the narrow authority that permits the later binder to
+                # witness origin/main for an aged Done task.  Do not carry
+                # arbitrary prior requesters forward.
+                retained_provenance = (
+                    exhausted.requested_by
+                    if (
+                        exhausted.selected_ref is None
+                        and exhausted.selected_sha is None
+                        and archive_default_branch_fallback_authorized(
+                            exhausted.previous_state,
+                            exhausted.requested_by,
+                        )
+                    )
+                    else authorized_actor
+                )
                 fresh = _make_record(
                     project_id,
                     current_issue.identifier,
                     requested_target,
                     exhausted.evidence_fingerprint,
-                    authorized_actor,
+                    retained_provenance,
                     exhausted.previous_state,
                     now,
                     selected_ref=exhausted.selected_ref,

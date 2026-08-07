@@ -15,6 +15,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    archive_default_branch_fallback_authorized,
     build_revision_candidate_list,
     compute_evidence_fingerprint,
     compute_issue_evidence_fingerprint,
@@ -588,6 +589,114 @@ class TestRevisionCandidateList:
         )
 
         assert list(candidates.iter_for_workspace())[-1] == "origin/main"
+
+    def test_archived_done_auto_archive_default_branch_is_last_candidate(self) -> None:
+        """Aged Done auto-archive retention binds the canonical default branch."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Tracker-only maintenance task",
+            description="Description",
+            issue_type="task",
+        )
+
+        authorized = archive_default_branch_fallback_authorized(
+            "Done",
+            ContributorIdentity("oompah", "auto_archive"),
+        )
+        assert authorized is True
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Done",
+            default_branch="main",
+            archive_default_branch_authorized=authorized,
+        )
+
+        assert list(candidates.iter_for_workspace()) == ["origin/main"]
+
+    def test_archived_done_non_auto_archive_does_not_default_to_main(self) -> None:
+        """A generic archive request cannot turn Done into landing evidence."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Tracker-only maintenance task",
+            description="Description",
+            issue_type="task",
+        )
+
+        authorized = archive_default_branch_fallback_authorized(
+            "Done",
+            ContributorIdentity("operator", "api"),
+        )
+        assert authorized is False
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Done",
+            default_branch="main",
+            archive_default_branch_authorized=authorized,
+        )
+
+        assert list(candidates.iter_for_workspace()) == []
+
+    @pytest.mark.parametrize(
+        "source",
+        ["github_intake", "release_pick_migration", "stalled_task_watchdog"],
+    )
+    def test_archived_open_automated_dispositions_do_not_default_to_main(
+        self,
+        source: str,
+    ) -> None:
+        """External or supersession archive triggers cannot retire abandoned work."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Unintegrated task",
+            description="Description",
+            issue_type="task",
+        )
+
+        authorized = archive_default_branch_fallback_authorized(
+            "Open",
+            ContributorIdentity("oompah", source),
+        )
+        assert authorized is False
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Open",
+            default_branch="main",
+            archive_default_branch_authorized=authorized,
+        )
+
+        assert list(candidates.iter_for_workspace()) == []
+
+    def test_archived_merged_default_branch_remains_last_candidate(self) -> None:
+        """Already-merged retention retains the established default fallback."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Merged task",
+            description="Description",
+            issue_type="task",
+        )
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Merged",
+            default_branch="main",
+        )
+
+        assert list(candidates.iter_for_workspace()) == ["origin/main"]
 
     def test_invalid_recorded_immutable_revision_fails_closed(self) -> None:
         issue = Issue(

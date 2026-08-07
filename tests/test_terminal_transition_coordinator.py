@@ -40,7 +40,7 @@ from oompah.terminal_transition_coordinator import (
     TransitionResult,
     _build_new_entries,
 )
-from oompah.statuses import IN_VALIDATION, DONE, MERGED, ARCHIVED
+from oompah.statuses import ARCHIVED, DONE, IN_VALIDATION, MERGED, NEEDS_HUMAN
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +340,161 @@ def test_request_persists_canonical_revision_before_tracker_refresh() -> None:
     assert document.pending_chain[0].selected_ref == "origin/epic-OOMPAH-768"
     assert document.pending_chain[0].selected_sha == sha
     assert initial_resolve_calls == ["origin/epic-OOMPAH-768"]
+    assert project_store.resolve_calls == []
+
+
+def test_aged_done_auto_archive_binds_main_before_coalesced_retry() -> None:
+    """The retention exception is bound once from its original provenance."""
+    tracker = _MemoryTracker()
+    sha = "d" * 40
+    project_store = _RevisionLockStore({"origin/main": sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = _issue(DONE)
+    fingerprint = _fingerprint()
+
+    initial = coordinator.request_transition_sync(
+        issue,
+        TargetState.ARCHIVED,
+        ContributorIdentity("oompah", "auto_archive"),
+        PROJECT_ID,
+        fingerprint,
+        coalesce_pending_target=True,
+    )
+    repeated = coordinator.request_transition_sync(
+        issue,
+        TargetState.ARCHIVED,
+        ContributorIdentity("operator", "api"),
+        PROJECT_ID,
+        fingerprint,
+        coalesce_pending_target=True,
+    )
+    record = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        PROJECT_ID,
+    ).read(TASK_ID).pending_chain[0]
+
+    assert initial.success is True
+    assert repeated.success is True
+    assert repeated.coalesced is True
+    assert record.requested_by == ContributorIdentity("oompah", "auto_archive")
+    assert record.selected_ref == "origin/main"
+    assert record.selected_sha == sha
+    assert project_store.resolve_calls == ["origin/main"]
+
+
+@pytest.mark.parametrize(
+    ("record_state", "current_state"),
+    [
+        (RequestState.PENDING, IN_VALIDATION),
+        (RequestState.COMPLETED, NEEDS_HUMAN),
+    ],
+)
+def test_aged_done_auto_archive_legacy_record_uses_persisted_state_for_binding(
+    record_state: RequestState,
+    current_state: str,
+) -> None:
+    """Late binding survives staging/restart without trusting current status."""
+    tracker = _MemoryTracker()
+    sha = "d" * 40
+    project_store = _RevisionLockStore({"origin/main": sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    fingerprint = _fingerprint()
+    _seed_metadata(
+        tracker,
+        [
+            TerminalAuditRecord(
+                audit_id="audit-legacy-retention",
+                project_id=PROJECT_ID,
+                task_id=TASK_ID,
+                target_state=TargetState.ARCHIVED,
+                evidence_fingerprint=fingerprint,
+                request_state=record_state,
+                previous_state=DONE,
+                requested_by=ContributorIdentity("oompah", "auto_archive"),
+                created_at="2026-07-01T00:00:00+00:00",
+            )
+        ],
+    )
+
+    binding = coordinator._request_revision_binding(
+        TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
+        _issue(current_state),
+        TargetState.ARCHIVED,
+        PROJECT_ID,
+        fingerprint,
+        trigger_identity=ContributorIdentity("project-owner", "api"),
+    )
+
+    assert binding is not None
+    assert binding.selected_ref == "origin/main"
+    assert binding.selected_sha == sha
+    assert project_store.resolve_calls == ["origin/main"]
+
+
+@pytest.mark.parametrize(
+    ("record_state", "current_state"),
+    [
+        (RequestState.PENDING, IN_VALIDATION),
+        (RequestState.COMPLETED, NEEDS_HUMAN),
+    ],
+)
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        ContributorIdentity("project-owner", "api"),
+        ContributorIdentity("oompah", "stalled_task_watchdog"),
+    ],
+)
+def test_legacy_done_archive_non_retention_provenance_cannot_bind_main(
+    record_state: RequestState,
+    current_state: str,
+    provenance: ContributorIdentity,
+) -> None:
+    """Only persisted automatic-retention provenance can witness main."""
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore({"origin/main": "d" * 40})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    fingerprint = _fingerprint()
+    _seed_metadata(
+        tracker,
+        [
+            TerminalAuditRecord(
+                audit_id="audit-non-retention",
+                project_id=PROJECT_ID,
+                task_id=TASK_ID,
+                target_state=TargetState.ARCHIVED,
+                evidence_fingerprint=fingerprint,
+                request_state=record_state,
+                previous_state=DONE,
+                requested_by=provenance,
+                created_at="2026-07-01T00:00:00+00:00",
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="no permitted revision"):
+        coordinator._request_revision_binding(
+            TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
+            _issue(current_state),
+            TargetState.ARCHIVED,
+            PROJECT_ID,
+            fingerprint,
+            trigger_identity=ContributorIdentity("project-owner", "api"),
+        )
+
     assert project_store.resolve_calls == []
 
 
@@ -2369,6 +2524,99 @@ class TestRetryFailedAudit:
             "clear_actionable_alert",
             (PROJECT_ID, TASK_ID, exhausted.audit_id),
         ) in metrics.calls
+
+    def test_owner_rearm_retains_unbound_auto_archive_provenance(self) -> None:
+        """A recovery owner is recorded without losing retention authority."""
+        tracker = _MemoryTracker()
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            previous_state=DONE,
+            requested_by=ContributorIdentity("oompah", "auto_archive"),
+            selected_ref=None,
+            selected_sha=None,
+        )
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False)
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Auditor capacity was restored.",
+                self._owner_project(),
+            )
+        )
+
+        document = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        fresh = document.pending_chain[-1]
+        history = document.unknown_fields["oompah.terminal_audit_rearm_history"]
+        assert result.success is True
+        assert fresh.requested_by == ContributorIdentity("oompah", "auto_archive")
+        assert history[-1]["actor"] == ContributorIdentity(
+            "project-owner", "api"
+        ).to_dict()
+
+        sha = "d" * 40
+        project_store = _RevisionLockStore({"origin/main": sha})
+        binding_coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        binding = binding_coordinator._request_revision_binding(
+            TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
+            _issue(IN_VALIDATION),
+            TargetState.ARCHIVED,
+            PROJECT_ID,
+            fresh.evidence_fingerprint,
+            trigger_identity=ContributorIdentity("project-owner", "api"),
+        )
+
+        assert binding is not None
+        assert binding.selected_ref == "origin/main"
+        assert binding.selected_sha == sha
+
+    def test_owner_rearm_bound_auto_archive_uses_owner_provenance(self) -> None:
+        """A pinned retention audit needs no inherited late-binding authority."""
+        tracker = _MemoryTracker()
+        sha = "d" * 40
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            previous_state=DONE,
+            requested_by=ContributorIdentity("oompah", "auto_archive"),
+            selected_ref="origin/main",
+            selected_sha=sha,
+        )
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False)
+        owner = ContributorIdentity("project-owner", "api")
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                owner,
+                PROJECT_ID,
+                "Auditor capacity was restored.",
+                self._owner_project(),
+            )
+        )
+
+        document = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        fresh = document.pending_chain[-1]
+        history = document.unknown_fields["oompah.terminal_audit_rearm_history"]
+
+        assert result.success is True
+        assert fresh.requested_by == owner
+        assert fresh.selected_ref == "origin/main"
+        assert fresh.selected_sha == sha
+        assert history[-1]["actor"] == owner.to_dict()
 
     def test_retry_is_idempotent_after_fresh_record_is_pending(self) -> None:
         tracker = _MemoryTracker()

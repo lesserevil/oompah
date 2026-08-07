@@ -177,6 +177,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    archive_default_branch_fallback_authorized,
     build_revision_candidate_list,
     compute_issue_evidence_fingerprint,
 )
@@ -17777,6 +17778,12 @@ class Orchestrator:
                 target_state=record.target_state,
                 previous_state=record.previous_state,
                 default_branch=project.default_branch,
+                archive_default_branch_authorized=(
+                    archive_default_branch_fallback_authorized(
+                        record.previous_state,
+                        record.requested_by,
+                    )
+                ),
             )
         except ValueError as exc:
             raise ProjectError(str(exc)) from exc

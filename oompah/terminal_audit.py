@@ -224,6 +224,26 @@ class ContributorIdentity:
         )
 
 
+def archive_default_branch_fallback_authorized(
+    previous_state: str | None,
+    requested_by: ContributorIdentity | None,
+) -> bool:
+    """Return whether an aged Done retention audit may witness ``origin/main``.
+
+    This deliberately recognizes only the durable provenance written by
+    :func:`oompah.archived_audit_requests.request_archived_audit` for the
+    automatic-retention sweep.  An ``Archived`` target by itself is not
+    authority to treat the default branch as evidence for active, external, or
+    superseded work.
+    """
+
+    return (
+        str(previous_state or "").strip().casefold() == "done"
+        and str(getattr(requested_by, "source", None) or "").strip().casefold()
+        == "auto_archive"
+    )
+
+
 @dataclass(frozen=True)
 class EvidenceFingerprint:
     """Versioned SHA-256 digest of the accepted terminal-audit evidence."""
@@ -633,6 +653,8 @@ def build_revision_candidate_list(
     target_state: TargetState | None = None,
     previous_state: str | None = None,
     default_branch: str | None = None,
+    *,
+    archive_default_branch_authorized: bool = False,
 ) -> RevisionCandidateList:
     """Build ordered revision candidates for terminal-audit resolution.
 
@@ -653,8 +675,12 @@ def build_revision_candidate_list(
         The terminal state being audited (used to determine if default-branch
         fallback is allowed).
     previous_state : str, optional
-        The issue's previous state (used to determine if default-branch fallback
-        is allowed for ARCHIVED audits).
+        Retained for request compatibility and audit diagnostics.
+    archive_default_branch_authorized : bool, optional
+        Whether a retained ``Done`` task was explicitly authorized by the
+        automatic-retention path to use the canonical default branch.  This is
+        durable audit provenance, not a generic consequence of requesting an
+        ``Archived`` transition.
 
     Returns
     -------
@@ -715,8 +741,20 @@ def build_revision_candidate_list(
         _append_branch(branch)
 
     previous = str(previous_state or "").strip().casefold()
+    # The default branch is a landing witness, never a substitute for missing
+    # task evidence.  Merged work already has the lifecycle authority for that
+    # witness.  An Archived audit normally needs the same already-merged
+    # authority; the one additional retention case is an aged Done task whose
+    # request was explicitly made by the auto-archive path.  Other Archived
+    # requests (for example external closure, release-pick replacement, or a
+    # watchdog disposition) can originate from active/unintegrated work and
+    # must fail closed without a task/epic/immutable revision.
     default_fallback_allowed = target_state == TargetState.MERGED or (
-        target_state == TargetState.ARCHIVED and previous in {"merged", "archived"}
+        target_state == TargetState.ARCHIVED
+        and (
+            previous in {"merged", "archived"}
+            or (previous == "done" and archive_default_branch_authorized)
+        )
     )
     if default_fallback_allowed:
         _append_branch(default_branch)
@@ -1249,6 +1287,7 @@ __all__ = [
     "AuditRecord",
     "AuditRevisionBinding",
     "AuditVerdict",
+    "archive_default_branch_fallback_authorized",
     "ContributorIdentity",
     "EvidenceFingerprint",
     "FailureClassification",
