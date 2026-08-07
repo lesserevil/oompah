@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T09:34:38.149834Z'
+updated_at: '2026-08-07T09:42:44.296591Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -167,6 +167,7 @@ oompah.terminal_audit:
     created_at: '2026-07-31T06:08:37.323574+00:00'
   applied_result_attempts:
     attempt-3c098a00efde: '2026-08-07T07:46:26.636014+00:00'
+    infrastructure-exhausted-audit-3f0f5b312547-3: '2026-08-07T09:42:42.904431+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-575
@@ -177,6 +178,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T07:46:26.636026+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    evidence_fingerprint: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    audit_ids:
+    - audit-3f0f5b312547
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:42:42.904447+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-575
@@ -190,6 +200,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:46:26.636043+00:00'
     applied_at: '2026-08-07T07:46:35.319399+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    audit_id: audit-3f0f5b312547
+    attempt_id: infrastructure-exhausted-audit-3f0f5b312547-3
+    target_state: Merged
+    evidence_fingerprint: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    status: Needs Human
+    audit_ids:
+    - audit-3f0f5b312547
+    applied: false
+    created_at: '2026-08-07T09:42:42.904466+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -247,7 +268,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -292,13 +313,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T09:34:36.756204+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T09:35:16.756189+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-3f0f5b312547-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T09:42:42.904302+00:00'
+      completed_at: '2026-08-07T09:42:42.904302+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:06:07.644926+00:00'
-    updated_at: '2026-08-07T09:34:36.756204+00:00'
+    updated_at: '2026-08-07T09:42:42.904302+00:00'
   - version: 1
     audit_id: audit-f297117f1fd8
     project_id: proj-14849f1b
