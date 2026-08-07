@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:43:40.391652Z'
+updated_at: '2026-08-07T09:43:44.616378Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -192,7 +192,12 @@ oompah.terminal_audit:
     audit_ids:
     - audit-92362c1c4018
     - audit-995a3dbfef87
-    kind: result
+    - audit-76320220fb0e
+    - audit-263be5fb2c13
+    - audit-d7244a8797ac
+    - audit-c2ccc4272c2f
+    - audit-1ed4580274d8
+    kind: override
     applied: true
     retired_at: '2026-08-07T07:22:52.281249+00:00'
   oompah.terminal_audit_result_intents:
@@ -208,6 +213,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T03:48:38.735810+00:00'
     applied_at: '2026-08-07T03:48:47.245154+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-581
     audit_id: audit-92362c1c4018
@@ -220,6 +226,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:22:52.281270+00:00'
     applied_at: '2026-08-07T07:23:01.629589+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-581
     audit_id: audit-995a3dbfef87
@@ -232,6 +239,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:41:29.895614+00:00'
     applied_at: '2026-08-07T09:41:37.537816+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-1985b7049b4e
@@ -251,7 +259,7 @@ oompah.terminal_audit:
       origin/main with zero target diff. Auditor attempts terminated before a verdict;
       OOMPAH-876 tracks transport retries without candidate exhaustion.'
     created_at: '2026-08-07T09:43:26.907471+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -473,7 +481,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -487,6 +495,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:58:37.605256+00:00'
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
+    updated_at: '2026-08-07T09:43:43.035760+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680

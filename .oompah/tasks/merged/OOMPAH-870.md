@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: Needs Human
+status: Merged
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T09:42:12.413604Z'
+updated_at: '2026-08-07T09:43:51.880076Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -159,6 +159,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:42:02.927232+00:00'
     applied_at: '2026-08-07T09:42:09.423382+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6351eccbb20f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-870
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner recovery: PR #736 is merged as 39285e9c3 and exact implementation
+      head aaaebbfa5 is contained in origin/main. All configured auditor transports
+      terminated before a verdict; OOMPAH-876 tracks the systemic retry defect.'
+    created_at: '2026-08-07T09:43:48.175336+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
