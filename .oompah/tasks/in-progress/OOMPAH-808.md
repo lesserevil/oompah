@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-808
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Fence nested-epic dispatch until prerequisite code is reachable
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T18:05:05.791458Z'
+updated_at: '2026-08-07T20:15:22.150280Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
