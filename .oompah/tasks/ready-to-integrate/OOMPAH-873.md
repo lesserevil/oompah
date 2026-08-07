@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T13:44:51.115114Z'
+updated_at: '2026-08-07T15:03:14.037674Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -656,5 +656,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 24s
 - Log: OOMPAH-873__20260807T134042Z.jsonl
+---
+author: oompah
+created: 2026-08-07 15:03
+---
+Fresh production reproduction for acceptance coverage: after owner-overriding OOMPAH-877/878/880/881/882/884/885/888/890/893/895/897/898 to terminal and releasing their direct claims, each task-specific owner-claim GET reported active=false, while GET /api/v1/state continued listing eight released claims as active owner_claims. This is an exact stale full-state projection versus fresh detail read and should clear through OOMPAH-873 reconciliation/full-sync without manual restart.
 ---
 <!-- COMMENTS:END -->
