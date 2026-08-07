@@ -1,544 +1,1272 @@
-"""Health and alert lifecycle tests for workflow liveness SLO metrics."""
+"""Authoritative workflow liveness projection and alert contracts."""
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from oompah.work_decision import PermittedAction, UnmetPrerequisite, WorkDecision
+from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.workflow_facts import (
+    FactDomain,
+    FactObservation,
+    REQUIRED_FACT_DOMAINS,
+    WorkflowFacts,
+)
 from oompah.workflow_liveness_metrics import (
-    DEFAULT_LIVENESS_THRESHOLDS_SECONDS,
-    DEFAULT_MAX_DISTINCT_VIOLATIONS,
-    DEFAULT_MAX_ESCALATIONS,
-    WorkflowLivenessHealth,
-    WorkflowLivenessObservation,
-    build_workflow_liveness_health,
+    DecisionLivenessFacts,
+    WorkflowLivenessTracker,
     workflow_liveness_health_alerts,
 )
+from oompah.workflow_reasons import AlertSeverity, LIVENESS_SLOS
 
-NOW = datetime(2026, 7, 30, 12, 0, 0, tzinfo=timezone.utc)
+
+NOW = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
 
 
-def _obs(
+def _revision(label: str) -> str:
+    return hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _decision(
     task_id: str = "TASK-1",
     *,
-    project_id: str | None = "project-1",
+    project_id: str = "project-a",
     status: str = "Open",
-    status_entered_at: datetime | str | None = None,
-    created_at: datetime | str | None = None,
-    last_progress_at: datetime | str | None = None,
-    actively_working: bool = False,
-    recovery_needed: bool = False,
-    reassessment_count: int = 0,
-    recovery_count: int = 0,
-) -> WorkflowLivenessObservation:
-    return WorkflowLivenessObservation(
+    disposition: TaskDisposition = TaskDisposition.RUNNABLE,
+    reason_code: str = "dispatch.eligible",
+    owner: WorkflowOwner = WorkflowOwner.DISPATCHER,
+    evidence_revision: str = "evidence-1",
+    deadline: datetime | None = None,
+    action_required: bool = False,
+    alert_level: AlertSeverity = AlertSeverity.NONE,
+    durable_jobs: tuple[str, ...] = (),
+) -> WorkDecision:
+    return WorkDecision(
         project_id=project_id,
-        task_identifier=task_id,
-        current_status=status,
-        status_entered_at=status_entered_at or NOW,
-        created_at=created_at or NOW,
-        last_progress_at=last_progress_at or NOW,
-        actively_working=actively_working,
-        recovery_needed=recovery_needed,
-        reassessment_count=reassessment_count,
-        recovery_count=recovery_count,
+        task_id=task_id,
+        status=status,
+        disposition=disposition,
+        reason_code=reason_code,
+        responsible_owner=owner,
+        unmet_prerequisites=(),
+        evidence_revision=_revision(evidence_revision),
+        next_reassessment_at=(deadline or (NOW + timedelta(minutes=2))).isoformat(),
+        permitted_actions=(PermittedAction.CLAIM_IMPLEMENTATION,),
+        action_required=action_required,
+        alert_level=alert_level,
+        durable_jobs=durable_jobs,
     )
 
 
-# ---------------------------------------------------------------------------
-# Empty backlog and healthy states
-# ---------------------------------------------------------------------------
+def _action_required(
+    task_id: str = "TASK-1",
+    *,
+    project_id: str = "project-a",
+    alert_level: AlertSeverity = AlertSeverity.WARNING,
+) -> WorkDecision:
+    return WorkDecision(
+        project_id=project_id,
+        task_id=task_id,
+        status="Needs Human",
+        disposition=TaskDisposition.ACTION_REQUIRED,
+        reason_code="operator.action_required",
+        responsible_owner=WorkflowOwner.OPERATOR,
+        unmet_prerequisites=(
+            UnmetPrerequisite("operator.action", task_id),
+        ),
+        evidence_revision=_revision("operator-evidence"),
+        next_reassessment_at=(NOW + timedelta(minutes=15)).isoformat(),
+        permitted_actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+        action_required=True,
+        alert_level=alert_level,
+    )
 
 
-class TestEmptyBacklogIsHealthy:
-    """An empty observation list must be healthy and quiet."""
-
-    def test_empty_backlog_is_healthy(self):
-        """No observations = no violations = healthy."""
-        health = build_workflow_liveness_health([], now=NOW)
-        assert health.healthy
-        assert not health.degraded
-        assert health.violation_count == 0
-        assert health.active_recovery_count == 0
-        alerts = workflow_liveness_health_alerts(health)
-        assert alerts == []
-
-    def test_empty_backlog_task_counts_are_zero(self):
-        """Empty backlog has zero task counts."""
-        health = build_workflow_liveness_health([], now=NOW)
-        assert health.task_count_by_status == {}
-        assert health.projects == {}
+def _recovery(task_id: str = "TASK-1") -> WorkDecision:
+    return WorkDecision(
+        project_id="project-a",
+        task_id=task_id,
+        status="In Validation",
+        disposition=TaskDisposition.RETRY_SCHEDULED,
+        reason_code="validation.retry_scheduled",
+        responsible_owner=WorkflowOwner.AUDITOR,
+        unmet_prerequisites=(),
+        evidence_revision=_revision("retry-evidence"),
+        next_reassessment_at=(NOW + timedelta(minutes=10)).isoformat(),
+        permitted_actions=(PermittedAction.RETRY_AUDIT,),
+        action_required=False,
+        alert_level=AlertSeverity.INFO,
+        durable_jobs=("audit_recovery",),
+    )
 
 
-class TestHealthyTasksNoViolations:
-    """Tasks within SLO thresholds must not violate."""
+def _observe(
+    tracker: WorkflowLivenessTracker,
+    decisions: tuple[WorkDecision, ...],
+    *,
+    expected: tuple[tuple[str, str], ...] | None = None,
+    generation: int = 1,
+    now: datetime = NOW,
+    source_scan_complete: bool = True,
+    decision_facts: dict[tuple[str, str], DecisionLivenessFacts] | None = None,
+    source_errors: dict[str, str] | None = None,
+    reconciliation_complete: bool = True,
+    required_recovery_count: int = 0,
+    materialized_recovery_count: int = 0,
+):
+    identities = expected or tuple(
+        (decision.project_id, decision.task_id) for decision in decisions
+    )
+    return tracker.observe(
+        decisions,
+        expected_identities=identities,
+        snapshot_generation=generation,
+        source_scan_complete=source_scan_complete,
+        reconciliation_complete=reconciliation_complete,
+        required_recovery_count=required_recovery_count,
+        materialized_recovery_count=materialized_recovery_count,
+        decision_facts=decision_facts,
+        source_errors=source_errors,
+        now=now,
+    )
 
-    def test_recent_open_task_is_healthy(self):
-        """Task just entered Open status stays within SLO."""
-        obs = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(minutes=5))
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.healthy
-        assert health.violations_by_status == {}
-        assert health.task_count_by_status["open"] == 1
 
-    def test_task_near_threshold_but_not_exceeded(self):
-        """Task near threshold but not exceeding stays healthy."""
-        threshold = DEFAULT_LIVENESS_THRESHOLDS_SECONDS["open"]  # 3600s = 1 hour
-        obs = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(seconds=threshold - 60))
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.healthy
-        assert health.violations_by_status == {}
+def test_empty_complete_coverage_is_healthy_and_quiet():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
 
-    def test_actively_working_task_ignores_slo(self):
-        """Actively working tasks don't violate SLO even when old."""
-        # 5 hours old, but actively working
-        obs = _obs(
-            "TASK-1",
-            status="Open",
-            status_entered_at=NOW - timedelta(hours=5),
-            actively_working=True,
+    health = _observe(tracker, ())
+
+    assert health.healthy
+    assert health.scan_complete
+    assert health.total_nonterminal_count == 0
+    assert workflow_liveness_health_alerts(health) == []
+
+
+def test_exact_authoritative_deadline_is_healthy_then_one_second_late_is_not():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    decision = _decision(deadline=NOW)
+
+    boundary = _observe(tracker, (decision,))
+    overdue = tracker.snapshot(now=NOW + timedelta(seconds=1))
+
+    assert boundary.healthy
+    assert boundary.tasks[0].deadline_seconds_remaining == 0
+    assert boundary.tasks[0].reassessment_lateness_seconds == 0
+    assert not overdue.healthy
+    assert overdue.status == "overdue"
+    assert overdue.tasks[0].reassessment_lateness_seconds == 1
+    # A timer becoming due is not an operator warning until the controller
+    # emits an explicit action-required decision.
+    assert workflow_liveness_health_alerts(overdue) == []
+
+
+def test_unchanged_evidence_refresh_does_not_renew_reassessment_deadline():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    first = _decision(deadline=NOW + timedelta(seconds=120))
+    refreshed = _decision(deadline=NOW + timedelta(seconds=180))
+
+    _observe(tracker, (first,))
+    second = _observe(
+        tracker,
+        (refreshed,),
+        generation=2,
+        now=NOW + timedelta(seconds=60),
+    )
+    overdue = tracker.snapshot(now=NOW + timedelta(seconds=121))
+
+    assert second.tasks[0].last_progress_at == NOW.isoformat()
+    assert second.tasks[0].next_reassessment_at == (
+        NOW + timedelta(seconds=120)
+    ).isoformat()
+    assert overdue.status == "overdue"
+    assert overdue.tasks[0].deadline_lateness_seconds == 1
+
+
+def test_owned_without_real_job_or_lease_uses_reassessment_deadline():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    owned = _decision(
+        status="In Review",
+        disposition=TaskDisposition.OWNED,
+        reason_code="review.monitoring",
+        owner=WorkflowOwner.REVIEW_MONITOR,
+        deadline=NOW + timedelta(seconds=10),
+    )
+
+    initial = _observe(tracker, (owned,))
+    overdue = tracker.snapshot(now=NOW + timedelta(seconds=11))
+
+    assert not initial.tasks[0].active_job
+    assert initial.tasks[0].deadline_kind == "reassessment"
+    assert overdue.tasks[0].overdue
+    assert overdue.status == "overdue"
+
+
+def test_review_monitor_projects_only_explicit_durable_job_evidence():
+    decision = _decision(
+        status="In Review",
+        disposition=TaskDisposition.OWNED,
+        reason_code="review.monitoring",
+        owner=WorkflowOwner.REVIEW_MONITOR,
+    )
+    observations = {
+        domain: FactObservation.missing(
+            domain,
+            observed_at=NOW.isoformat(),
+            source="test",
         )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.healthy
-        assert health.violations_by_status == {}
+        for domain in REQUIRED_FACT_DOMAINS
+    }
+    observations[FactDomain.REVIEW_CI] = FactObservation.known(
+        FactDomain.REVIEW_CI,
+        {
+            "review_id": "review-1",
+            "job_id": "review-job-1",
+            "actively_working": True,
+        },
+        observed_at=NOW.isoformat(),
+        source="workflow_job_store",
+    )
+    facts = WorkflowFacts(
+        "project-a", "TASK-1", NOW.isoformat(), observations
+    )
 
-    def test_multiple_healthy_tasks_by_status(self):
-        """Multiple tasks across different statuses stay healthy."""
-        obs_list = [
-            _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(minutes=5)),
-            _obs("TASK-2", status="Ready", status_entered_at=NOW - timedelta(minutes=10)),
-            _obs("TASK-3", status="In Validation", status_entered_at=NOW - timedelta(minutes=15)),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        assert health.healthy
-        assert health.task_count_by_status["open"] == 1
-        assert health.task_count_by_status["ready"] == 1
-        assert health.task_count_by_status["in_validation"] == 1
+    projected = DecisionLivenessFacts.from_workflow_facts(decision, facts)
+
+    assert projected.active_job
+    assert projected.active_job_id == "review-job-1"
 
 
-# ---------------------------------------------------------------------------
-# SLO violations
-# ---------------------------------------------------------------------------
+def test_reconciliation_truncation_with_unmaterialized_recovery_fails_closed():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    recovery = _recovery()
+
+    health = _observe(
+        tracker,
+        (recovery,),
+        reconciliation_complete=False,
+        required_recovery_count=1,
+        materialized_recovery_count=0,
+    )
+
+    assert not health.scan_complete
+    assert health.status == "incomplete"
+    assert not health.reconciliation_complete
+    assert health.current_divergence_count == 1
 
 
-class TestSloViolations:
-    """Tasks exceeding SLO thresholds must be flagged."""
+def test_projection_uses_contract_slo_and_authoritative_deadline_kind():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    open_health = _observe(tracker, (_decision(),))
 
-    def test_open_task_exceeds_one_hour_threshold(self):
-        """Task in Open for > 1 hour violates SLO."""
-        # 2 hours old
-        obs = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=2))
-        health = build_workflow_liveness_health([obs], now=NOW)
+    assert open_health.tasks[0].slo_key == "dispatch_latency"
+    assert open_health.tasks[0].slo_seconds == LIVENESS_SLOS[
+        "dispatch_latency"
+    ].max_reassessment_seconds
+    assert open_health.tasks[0].deadline_kind == "reassessment"
+
+    recovery_health = _observe(
+        tracker,
+        (_recovery(),),
+        generation=2,
+        decision_facts={
+            ("project-a", "TASK-1"): DecisionLivenessFacts(
+                retry_due_at=(NOW + timedelta(minutes=4)).isoformat(),
+                recovery_attempt=2,
+            )
+        },
+    )
+    assert recovery_health.tasks[0].deadline_kind == "retry"
+    assert recovery_health.tasks[0].retry_due_at == (
+        NOW + timedelta(minutes=4)
+    ).isoformat()
+    assert recovery_health.tasks[0].recovery_attempt == 2
+
+
+def test_normal_owned_and_recovery_decisions_are_healthy_without_warnings():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    owned = WorkDecision(
+        project_id="project-a",
+        task_id="TASK-owned",
+        status="In Progress",
+        disposition=TaskDisposition.OWNED,
+        reason_code="implementation.active",
+        responsible_owner=WorkflowOwner.IMPLEMENTER,
+        unmet_prerequisites=(),
+        evidence_revision=_revision("lease-evidence"),
+        next_reassessment_at=(NOW + timedelta(minutes=15)).isoformat(),
+        permitted_actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
+        action_required=False,
+        alert_level=AlertSeverity.NONE,
+    )
+
+    health = _observe(
+        tracker,
+        (owned, _recovery("TASK-retry")),
+        decision_facts={
+            ("project-a", "TASK-owned"): DecisionLivenessFacts(
+                active_job=True, active_job_id="implementation-job"
+            ),
+            ("project-a", "TASK-retry"): DecisionLivenessFacts(
+                retry_due_at=(NOW + timedelta(minutes=10)).isoformat()
+            ),
+        },
+    )
+
+    assert health.healthy
+    assert health.owned_count == 1
+    assert health.recovery_count == 1
+    assert {item.deadline_kind for item in health.tasks} == {"active_job", "retry"}
+    assert workflow_liveness_health_alerts(health) == []
+
+
+def test_active_job_is_not_false_overdue_when_reassessment_timer_passes():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    owned = WorkDecision(
+        project_id="project-a",
+        task_id="TASK-owned",
+        status="In Progress",
+        disposition=TaskDisposition.OWNED,
+        reason_code="implementation.active",
+        responsible_owner=WorkflowOwner.IMPLEMENTER,
+        unmet_prerequisites=(),
+        evidence_revision=_revision("live-process"),
+        next_reassessment_at=(NOW + timedelta(seconds=10)).isoformat(),
+        permitted_actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
+        action_required=False,
+        alert_level=AlertSeverity.NONE,
+    )
+
+    _observe(
+        tracker,
+        (owned,),
+        decision_facts={
+            ("project-a", "TASK-owned"): DecisionLivenessFacts(
+                active_job=True, active_job_id="implementation-job"
+            )
+        },
+    )
+    health = tracker.snapshot(now=NOW + timedelta(seconds=11))
+
+    assert health.tasks[0].active_job
+    assert health.tasks[0].reassessment_lateness_seconds == 1
+    assert health.tasks[0].deadline_kind == "active_job"
+    assert not health.tasks[0].overdue
+    assert health.healthy
+
+
+def test_actual_lease_expiry_controls_owned_task_overdue_health():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    owned = WorkDecision(
+        project_id="project-a",
+        task_id="TASK-owned",
+        status="In Progress",
+        disposition=TaskDisposition.OWNED,
+        reason_code="implementation.active",
+        responsible_owner=WorkflowOwner.DIRECT_OWNER,
+        unmet_prerequisites=(),
+        evidence_revision=_revision("claim"),
+        next_reassessment_at=(NOW + timedelta(minutes=15)).isoformat(),
+        permitted_actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
+        action_required=False,
+        alert_level=AlertSeverity.NONE,
+    )
+    lease_deadline = NOW + timedelta(seconds=20)
+
+    _observe(
+        tracker,
+        (owned,),
+        decision_facts={
+            ("project-a", "TASK-owned"): DecisionLivenessFacts(
+                lease_expires_at=lease_deadline.isoformat()
+            )
+        },
+    )
+    health = tracker.snapshot(now=lease_deadline + timedelta(seconds=1))
+
+    assert health.tasks[0].deadline_kind == "lease"
+    assert health.tasks[0].effective_deadline_at == lease_deadline.isoformat()
+    assert health.tasks[0].deadline_lateness_seconds == 1
+    assert health.status == "overdue"
+
+
+def test_real_lease_bounds_active_job_when_both_are_present():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    owned = _decision(
+        status="In Progress",
+        disposition=TaskDisposition.OWNED,
+        reason_code="implementation.active",
+        owner=WorkflowOwner.IMPLEMENTER,
+    )
+    lease = NOW + timedelta(seconds=10)
+
+    initial = _observe(
+        tracker,
+        (owned,),
+        decision_facts={
+            ("project-a", "TASK-1"): DecisionLivenessFacts(
+                active_job=True,
+                active_job_id="implementation-job",
+                lease_expires_at=lease.isoformat(),
+            )
+        },
+    )
+    overdue = tracker.snapshot(now=lease + timedelta(seconds=1))
+
+    assert initial.tasks[0].deadline_kind == "lease"
+    assert overdue.tasks[0].overdue
+
+
+def test_only_action_required_decisions_create_dashboard_warning():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+
+    health = _observe(
+        tracker,
+        (_recovery("TASK-retry"), _action_required("TASK-human")),
+    )
+    alerts = workflow_liveness_health_alerts(health)
+
+    assert health.status == "action_required"
+    assert health.action_required_count == 1
+    assert len(alerts) == 1
+    assert alerts[0]["source"] == "workflow_liveness:action_required"
+    assert alerts[0]["level"] == "warning"
+    assert alerts[0]["action_required"] is True
+    assert alerts[0]["tasks"] == ["project-a/TASK-human"]
+
+
+def test_critical_action_required_decision_preserves_controller_severity():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+
+    health = _observe(
+        tracker,
+        (_action_required(alert_level=AlertSeverity.CRITICAL),),
+    )
+
+    assert workflow_liveness_health_alerts(health)[0]["level"] == "critical"
+
+
+def test_reassessment_recovery_and_escalation_events_survive_refreshes():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    identity = (("project-a", "TASK-1"),)
+
+    first = _observe(tracker, (_recovery(),), expected=identity)
+    second = _observe(
+        tracker,
+        (_recovery(),),
+        expected=identity,
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+    )
+    escalated = _observe(
+        tracker,
+        (_action_required(),),
+        expected=identity,
+        generation=3,
+        now=NOW + timedelta(seconds=2),
+    )
+
+    assert first.recovery_count == 1
+    assert second.recovery_count == 1
+    assert second.reassessment_count == 2
+    assert escalated.recovery_count == 1
+    assert escalated.escalation_count == 1
+    assert escalated.tasks[0].reassessment_count == 3
+
+
+def test_progress_timestamps_track_evidence_and_semantic_changes_correctly():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    identity = (("project-a", "TASK-1"),)
+    initial = _observe(tracker, (_decision(),), expected=identity)
+    unchanged = _observe(
+        tracker,
+        (_decision(deadline=NOW + timedelta(minutes=3)),),
+        expected=identity,
+        generation=2,
+        now=NOW + timedelta(seconds=10),
+    )
+    refreshed = _observe(
+        tracker,
+        (_decision(evidence_revision="evidence-2"),),
+        expected=identity,
+        generation=3,
+        now=NOW + timedelta(seconds=20),
+    )
+    changed = _observe(
+        tracker,
+        (
+            _decision(
+                status="In Review",
+                disposition=TaskDisposition.OWNED,
+                reason_code="review.monitoring",
+                owner=WorkflowOwner.REVIEW_MONITOR,
+                evidence_revision="review-evidence",
+            ),
+        ),
+        expected=identity,
+        generation=4,
+        now=NOW + timedelta(seconds=30),
+    )
+
+    assert unchanged.tasks[0].first_observed_at == initial.tasks[0].first_observed_at
+    assert unchanged.tasks[0].last_progress_at == initial.tasks[0].last_progress_at
+    assert refreshed.tasks[0].first_observed_at == initial.tasks[0].first_observed_at
+    assert refreshed.tasks[0].last_progress_at == (
+        NOW + timedelta(seconds=20)
+    ).isoformat()
+    assert changed.tasks[0].first_observed_at == (
+        NOW + timedelta(seconds=30)
+    ).isoformat()
+    assert changed.tasks[0].decision_age_seconds == 0
+
+
+def test_cross_generation_partial_windows_never_claim_complete_coverage():
+    tracker = WorkflowLivenessTracker(max_task_records=4, clock=lambda: NOW)
+    decisions = tuple(_decision(f"TASK-{number}") for number in range(4))
+    expected = tuple(
+        (decision.project_id, decision.task_id) for decision in decisions
+    )
+
+    first = _observe(tracker, decisions[:2], expected=expected)
+    second = _observe(
+        tracker,
+        decisions[2:],
+        expected=expected,
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert not first.scan_complete
+    assert first.status == "incomplete"
+    complete = _observe(
+        tracker,
+        decisions,
+        expected=expected,
+        generation=3,
+        now=NOW + timedelta(seconds=2),
+    )
+
+    assert not second.scan_complete
+    assert second.status == "incomplete"
+    assert second.missing_decision_count == 2
+    assert complete.scan_complete
+    assert complete.healthy
+    assert complete.tracked_task_count == 4
+
+
+def test_source_scan_failure_is_fail_closed_and_never_invents_warning():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    healthy = _observe(tracker, (_decision(),))
+    incomplete = _observe(
+        tracker,
+        (_decision(),),
+        generation=2,
+        source_scan_complete=False,
+        source_errors={"project-b": "TimeoutError"},
+        now=NOW + timedelta(seconds=1),
+    )
+    failed = tracker.record_scan_failure(
+        "tracker timeout", now=NOW + timedelta(seconds=2)
+    )
+
+    assert healthy.healthy
+    assert incomplete.status == "incomplete"
+    assert not incomplete.scan_complete
+    assert incomplete.source_error_count == 1
+    assert incomplete.projects["project-b"]["source_error"] == "TimeoutError"
+    assert failed.status == "incomplete"
+    assert failed.last_error == "tracker timeout"
+    assert workflow_liveness_health_alerts(failed) == []
+
+
+def test_failed_project_keeps_last_known_attribution_until_fresh_scan():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    initial = (
+        _decision("TASK-a", project_id="project-a"),
+        _decision("TASK-b", project_id="project-b"),
+    )
+    _observe(tracker, initial)
+
+    partial = _observe(
+        tracker,
+        (initial[0],),
+        generation=2,
+        source_scan_complete=False,
+        source_errors={"project-b": "TimeoutError"},
+        now=NOW + timedelta(seconds=1),
+    )
+    recovered = _observe(
+        tracker,
+        (initial[0],),
+        generation=3,
+        now=NOW + timedelta(seconds=2),
+    )
+
+    assert {item.project_id for item in partial.tasks} == {
+        "project-a",
+        "project-b",
+    }
+    assert partial.projects["project-b"]["source_error"] == "TimeoutError"
+    assert not partial.scan_complete
+    assert {item.project_id for item in recovered.tasks} == {"project-a"}
+    assert recovered.healthy
+
+
+def test_task_cardinality_cap_is_enforced_and_action_required_is_retained():
+    tracker = WorkflowLivenessTracker(max_task_records=2, clock=lambda: NOW)
+    decisions = (
+        _decision("TASK-normal-1"),
+        _decision("TASK-normal-2"),
+        _action_required("TASK-human"),
+    )
+
+    health = _observe(tracker, decisions)
+
+    assert health.tracked_task_count == 2
+    assert health.omitted_task_count == 1
+    assert not health.scan_complete
+    assert any(item.task_id == "TASK-human" for item in health.tasks)
+    assert health.action_required_count == 1
+
+
+def test_over_cap_replaces_rows_outside_current_membership():
+    tracker = WorkflowLivenessTracker(max_task_records=2, clock=lambda: NOW)
+    _observe(
+        tracker,
+        (_decision("OLD-1"), _decision("OLD-2")),
+    )
+
+    current = (
+        _decision("NEW-1"),
+        _decision("NEW-2"),
+        _decision("NEW-3"),
+    )
+    health = _observe(
+        tracker,
+        current,
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert {item.task_id for item in health.tasks} <= {
+        "NEW-1",
+        "NEW-2",
+        "NEW-3",
+    }
+    assert health.tracked_task_count == 2
+    assert health.omitted_task_count == 1
+    assert not health.scan_complete
+
+
+def test_live_reconfigure_enforces_smaller_cap_and_new_stale_threshold():
+    tracker = WorkflowLivenessTracker(
+        max_task_records=3,
+        snapshot_stale_seconds=100,
+        clock=lambda: NOW,
+    )
+    _observe(
+        tracker,
+        tuple(_decision(f"TASK-{number}") for number in range(3)),
+    )
+
+    tracker.reconfigure(
+        max_task_records=2,
+        max_project_records=1,
+        snapshot_stale_seconds=5,
+    )
+    health = tracker.snapshot(now=NOW + timedelta(seconds=6))
+
+    assert health.tracked_task_count == 2
+    assert health.omitted_task_count == 1
+    assert health.stale
+    assert not health.scan_complete
+    assert health.to_dict()["limits"] == {
+        "max_task_records": 2,
+        "max_project_records": 1,
+        "snapshot_stale_seconds": 5,
+    }
+
+
+def test_project_cardinality_cap_is_enforced_after_exact_aggregation():
+    tracker = WorkflowLivenessTracker(
+        max_task_records=10,
+        max_project_records=2,
+        clock=lambda: NOW,
+    )
+    decisions = tuple(
+        _decision(f"TASK-{number}", project_id=f"project-{number}")
+        for number in range(3)
+    )
+
+    health = _observe(tracker, decisions)
+
+    assert health.scan_complete
+    assert len(health.projects) == 2
+    assert health.omitted_project_count == 1
+
+
+def test_source_error_attribution_is_bounded_without_losing_global_count():
+    tracker = WorkflowLivenessTracker(
+        max_project_records=2,
+        clock=lambda: NOW,
+    )
+
+    health = _observe(
+        tracker,
+        (),
+        source_scan_complete=False,
+        source_errors={
+            "project-a": "TimeoutError",
+            "project-b": "TrackerError",
+            "project-c": "PermissionError",
+        },
+    )
+
+    assert health.source_error_count == 3
+    assert len(health.source_errors) == 2
+    assert health.omitted_source_error_count == 1
+    assert health.divergence_count == 3
+    assert health.status == "incomplete"
+
+
+def test_cumulative_events_survive_terminal_removal_cap_eviction_and_restart():
+    tracker = WorkflowLivenessTracker(max_task_records=1, clock=lambda: NOW)
+    _observe(tracker, (_recovery("TASK-recovery"),))
+    _observe(
+        tracker,
+        (_action_required("TASK-human"), _decision("TASK-normal")),
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+    )
+    state = tracker.to_state()
+    restored = WorkflowLivenessTracker(
+        max_task_records=1,
+        clock=lambda: NOW + timedelta(seconds=2),
+    )
+    restored.restore(state, now=NOW + timedelta(seconds=2))
+    health = restored.snapshot(now=NOW + timedelta(seconds=2))
+
+    assert health.recovery_count == 1
+    assert health.escalation_count == 1
+    assert state["cumulative"]["recovery_count"] == 1
+    assert state["cumulative"]["escalation_count"] == 1
+
+
+def test_failed_source_omission_truth_survives_restart():
+    tracker = WorkflowLivenessTracker(
+        max_project_records=1,
+        clock=lambda: NOW,
+    )
+    failed = _observe(
+        tracker,
+        (),
+        source_scan_complete=False,
+        source_errors={
+            "project-a": "TimeoutError",
+            "project-b": "PermissionError",
+            "project-c": "TrackerError",
+        },
+    )
+    restored = WorkflowLivenessTracker(
+        max_project_records=1,
+        clock=lambda: NOW + timedelta(seconds=1),
+    )
+    restored.restore(tracker.to_state(), now=NOW + timedelta(seconds=1))
+    after_restart = restored.snapshot(now=NOW + timedelta(seconds=1))
+
+    assert failed.source_error_count == 3
+    assert failed.omitted_project_count == 2
+    assert after_restart.source_error_count == 3
+    assert after_restart.omitted_source_error_count == 2
+    assert after_restart.omitted_project_count == 2
+    assert after_restart.divergence_count == failed.divergence_count
+
+
+def test_failed_project_membership_above_task_cap_survives_partial_scan_restart():
+    tracker = WorkflowLivenessTracker(
+        max_task_records=2,
+        clock=lambda: NOW,
+    )
+    project_tasks = tuple(
+        _decision(f"TASK-{number}", project_id="project-large")
+        for number in range(5)
+    )
+    initial = _observe(tracker, project_tasks, generation=1)
+    partial = _observe(
+        tracker,
+        (),
+        generation=2,
+        source_scan_complete=False,
+        source_errors={"project-large": "TimeoutError"},
+        now=NOW + timedelta(seconds=1),
+    )
+    restored = WorkflowLivenessTracker(
+        max_task_records=2,
+        clock=lambda: NOW + timedelta(seconds=2),
+    )
+    restored.restore(tracker.to_state(), now=NOW + timedelta(seconds=2))
+    after_restart = restored.snapshot(now=NOW + timedelta(seconds=2))
+
+    assert initial.total_nonterminal_count == 5
+    assert initial.omitted_task_count == 3
+    assert partial.total_nonterminal_count == 5
+    assert partial.omitted_task_count == 3
+    assert partial.projects["project-large"]["task_count"] == 5
+    assert partial.projects["project-large"]["tracked_task_count"] == 2
+    assert partial.projects["project-large"]["omitted_task_count"] == 3
+    assert after_restart.total_nonterminal_count == 5
+    assert after_restart.omitted_task_count == 3
+    assert restored.to_state()["project_task_counts"] == {
+        "project-large": 5
+    }
+
+
+def test_bounded_event_ledger_prevents_recount_beyond_record_cap_after_restart():
+    tracker = WorkflowLivenessTracker(max_task_records=1, clock=lambda: NOW)
+    recoveries = tuple(_recovery(f"TASK-recovery-{index}") for index in range(12))
+    escalations = tuple(
+        _action_required(f"TASK-human-{index}") for index in range(12)
+    )
+    for generation, decision in enumerate(
+        (*recoveries, *escalations), start=1
+    ):
+        _observe(
+            tracker,
+            (decision,),
+            generation=generation,
+            now=NOW + timedelta(seconds=generation),
+        )
+    restored = WorkflowLivenessTracker(
+        max_task_records=1,
+        clock=lambda: NOW + timedelta(seconds=25),
+    )
+    restored.restore(tracker.to_state(), now=NOW + timedelta(seconds=25))
+    final = None
+    for generation, decision in enumerate(
+        (*recoveries, *escalations), start=25
+    ):
+        final = _observe(
+            restored,
+            (decision,),
+            generation=generation,
+            now=NOW + timedelta(seconds=generation),
+        )
+
+    assert final is not None
+    assert final.recovery_count == 12
+    assert final.escalation_count == 12
+    ledger = restored.to_state()["event_signature_ledger"]
+    assert ledger["bit_count"] == 32_768
+    assert len(ledger["bits"]) == 8_192
+
+
+def test_missing_nested_state_stays_fail_closed_across_restart_without_recount():
+    first = WorkflowLivenessTracker(clock=lambda: NOW)
+    first.restore(None, now=NOW)
+    sentinel = first.to_state()
+
+    assert sentinel["history_corrupt"]
+    assert set(sentinel["event_signature_ledger"]["bits"]) == {"f"}
+    assert first.snapshot(now=NOW).status == "incomplete"
+
+    restarted = WorkflowLivenessTracker(clock=lambda: NOW)
+    restarted.restore(sentinel, now=NOW)
+    health = _observe(restarted, (_recovery(),), generation=1, now=NOW)
+
+    assert health.status == "overdue"
+    assert not health.healthy
+    assert health.recovery_count == 0
+    assert health.tasks[0].recovery_count == 0
+    assert health.tasks[0].last_progress_at == "1970-01-01T00:00:00+00:00"
+    assert not restarted.to_state()["history_corrupt"]
+    assert set(restarted.to_state()["event_signature_ledger"]["bits"]) == {"f"}
+
+
+def test_wrong_schema_and_corrupt_nested_records_use_conservative_progress():
+    valid = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(valid, (_recovery(),))
+    corrupt_records = valid.to_state()
+    corrupt_records["records"] = [{"task_id": "truncated"}]
+
+    for raw in (
+        "not-a-mapping",
+        {"schema_version": 4},
+        corrupt_records,
+    ):
+        restored = WorkflowLivenessTracker(clock=lambda: NOW)
+        restored.restore(raw, now=NOW)
+        health = _observe(restored, (_recovery(),), generation=2, now=NOW)
+
+        assert health.status == "overdue"
         assert not health.healthy
-        assert health.degraded
-        assert health.violations_by_status["open"] == 1
-        assert health.violation_count == 1
-
-    def test_ready_task_exceeds_30_minute_threshold(self):
-        """Task in Ready for > 30 minutes violates SLO."""
-        # 60 minutes old
-        obs = _obs("TASK-1", status="Ready", status_entered_at=NOW - timedelta(minutes=60))
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert not health.healthy
-        assert health.violations_by_status["ready"] == 1
-
-    def test_in_validation_exceeds_2_hour_threshold(self):
-        """Task in In Validation for > 2 hours violates SLO."""
-        obs = _obs(
-            "TASK-1",
-            status="In Validation",
-            status_entered_at=NOW - timedelta(hours=3),
+        assert health.recovery_count == 0
+        assert health.tasks[0].recovery_count == 0
+        assert health.tasks[0].last_progress_at == (
+            "1970-01-01T00:00:00+00:00"
         )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert not health.healthy
-        assert health.violations_by_status["in_validation"] == 1
-
-    def test_multiple_violations_same_status(self):
-        """Multiple tasks violating same status SLO are counted."""
-        obs_list = [
-            _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=2)),
-            _obs("TASK-2", status="Open", status_entered_at=NOW - timedelta(hours=3)),
-            _obs("TASK-3", status="Open", status_entered_at=NOW - timedelta(minutes=30)),  # healthy
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        assert not health.healthy
-        assert health.violations_by_status["open"] == 2
-        assert health.task_count_by_status["open"] == 3
-
-    def test_violations_across_multiple_statuses(self):
-        """Violations in different statuses are tracked separately."""
-        obs_list = [
-            _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=2)),
-            _obs("TASK-2", status="Ready", status_entered_at=NOW - timedelta(minutes=45)),
-            _obs("TASK-3", status="In Validation", status_entered_at=NOW - timedelta(hours=3)),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        assert not health.healthy
-        assert health.violations_by_status["open"] == 1
-        assert health.violations_by_status["ready"] == 1
-        assert health.violations_by_status["in_validation"] == 1
-        assert health.violation_count == 3
-
-    def test_oldest_violation_age_is_tracked(self):
-        """Oldest violation is recorded for trend detection."""
-        obs_list = [
-            _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=2)),
-            _obs("TASK-2", status="Open", status_entered_at=NOW - timedelta(hours=5)),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        # Oldest is 5 hours = 18000 seconds
-        assert health.oldest_violation_age_seconds == 5 * 3600
-        assert health.oldest_violation_age_seconds == 18000
 
 
-# ---------------------------------------------------------------------------
-# Fake-clock and timestamp handling
-# ---------------------------------------------------------------------------
+def test_corrupt_persisted_authority_revisions_cannot_renew_liveness_slo():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    decision = _decision()
+    _observe(original, (decision,))
 
+    for field, corrupt_value in (
+        ("semantic_revision", "0" * 63),
+        ("evidence_revision", ["0" * 64]),
+    ):
+        state = original.to_state()
+        state["records"][0][field] = corrupt_value
+        restored = WorkflowLivenessTracker(clock=lambda: NOW)
 
-class TestFakeClockBoundaries:
-    """Metrics must work with fake clocks for deterministic testing."""
-
-    def test_exact_threshold_boundary_not_violated(self):
-        """Task exactly at threshold is not violated."""
-        threshold = DEFAULT_LIVENESS_THRESHOLDS_SECONDS["open"]  # 3600s
-        exactly_at_threshold = NOW - timedelta(seconds=threshold)
-        obs = _obs("TASK-1", status="Open", status_entered_at=exactly_at_threshold)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.healthy
-        assert health.violations_by_status == {}
-
-    def test_one_second_past_threshold_is_violated(self):
-        """Task one second past threshold violates SLO."""
-        threshold = DEFAULT_LIVENESS_THRESHOLDS_SECONDS["open"]
-        just_past_threshold = NOW - timedelta(seconds=threshold + 1)
-        obs = _obs("TASK-1", status="Open", status_entered_at=just_past_threshold)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert not health.healthy
-        assert health.violations_by_status["open"] == 1
-
-    def test_custom_thresholds_respected(self):
-        """Custom thresholds override defaults."""
-        custom_thresholds = {"open": 600}  # 10 minutes
-        # Task is 15 minutes old
-        obs = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(minutes=15))
-        health = build_workflow_liveness_health(
-            [obs],
-            now=NOW,
-            thresholds_seconds=custom_thresholds,
+        restored.restore(state, now=NOW)
+        before_scan = restored.snapshot(now=NOW)
+        before_state = restored.to_state()
+        refreshed = _observe(
+            restored,
+            (decision,),
+            generation=2,
+            now=NOW + timedelta(days=30),
         )
-        assert not health.healthy
-        assert health.violations_by_status["open"] == 1
-        assert health.liveness_thresholds_seconds["open"] == 600
 
-    def test_missing_timestamp_is_skipped(self):
-        """Observations with missing timestamps are skipped."""
-        obs = WorkflowLivenessObservation(
-            project_id="project-1",
-            task_identifier="TASK-1",
-            current_status="Open",
-            status_entered_at=None,
-            created_at=None,
-            last_progress_at=None,
+        assert before_scan.status == "incomplete"
+        assert before_scan.tasks == ()
+        assert before_state["history_corrupt"]
+        assert before_state["history_incomplete"]
+        assert restored.to_state()["event_signature_ledger"]["bits"] == "f" * 8192
+        assert refreshed.status == "overdue"
+        assert refreshed.tasks[0].last_progress_at == (
+            "1970-01-01T00:00:00+00:00"
         )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        # No violations because we couldn't determine age
-        assert health.violations_by_status == {}
-
-    def test_iso8601_string_timestamps_parsed(self):
-        """ISO-8601 string timestamps are parsed correctly."""
-        iso_time = "2026-07-30T11:00:00+00:00"
-        obs = _obs("TASK-1", status="Open", status_entered_at=iso_time)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        # 1 hour old = violates 1 hour threshold
-        assert health.violations_by_status["open"] == 1
 
 
-# ---------------------------------------------------------------------------
-# Progress and recovery
-# ---------------------------------------------------------------------------
+def test_corrupt_incoming_evidence_cannot_renew_liveness_slo():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    decision = _decision(deadline=NOW + timedelta(seconds=60))
+    _observe(tracker, (decision,))
+    corrupt = WorkDecision(
+        project_id=decision.project_id,
+        task_id=decision.task_id,
+        status=decision.status,
+        disposition=decision.disposition,
+        reason_code=decision.reason_code,
+        responsible_owner=decision.responsible_owner,
+        unmet_prerequisites=decision.unmet_prerequisites,
+        evidence_revision="corrupt-adapter-revision",
+        next_reassessment_at=(NOW + timedelta(days=1)).isoformat(),
+        permitted_actions=decision.permitted_actions,
+        action_required=decision.action_required,
+        alert_level=decision.alert_level,
+        durable_jobs=decision.durable_jobs,
+        recommended_status=decision.recommended_status,
+    )
 
-
-class TestProgressResets:
-    """Progress updates must reset SLO timers."""
-
-    def test_last_progress_at_resets_slo_timer(self):
-        """Using last_progress_at for SLO instead of status_entered_at."""
-        # Status entered 3 hours ago
-        status_entered = NOW - timedelta(hours=3)
-        # But progress was 10 minutes ago
-        last_progress = NOW - timedelta(minutes=10)
-        obs = _obs(
-            "TASK-1",
-            status="Open",
-            status_entered_at=status_entered,
-            last_progress_at=last_progress,
+    with pytest.raises(ValueError, match="decision evidence_revision"):
+        _observe(
+            tracker,
+            (corrupt,),
+            generation=2,
+            now=NOW + timedelta(seconds=30),
         )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        # Should use status_entered as it's more recent? No, use status_entered for status SLO
-        # But code prefers status_entered > last_progress > created
-        # Let me re-check: we use status_entered if available
-        # So this will still violate. Let me test what's intended...
-        # Actually looking at code, we prefer status_entered. Let me test a case where
-        # status_entered is recent but we've been waiting.
-        pass
 
-    def test_actively_working_during_violation_ignores_slo(self):
-        """Tasks actively being worked don't violate even if old."""
-        obs = _obs(
-            "TASK-1",
-            status="Open",
-            status_entered_at=NOW - timedelta(hours=5),
-            actively_working=True,
-        )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.violations_by_status == {}
-
-    def test_recent_progress_on_old_task_still_healthy(self):
-        """Recent progress on old task keeps it from violating."""
-        # Task created long ago but progress is recent
-        created = NOW - timedelta(days=30)
-        last_progress = NOW - timedelta(minutes=5)
-        obs = _obs(
-            "TASK-1",
-            status="Open",
-            created_at=created,
-            status_entered_at=NOW - timedelta(hours=2),  # 2 hours in Open
-            last_progress_at=last_progress,
-        )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        # Status entered 2 hours ago violates, but let's verify this is the intended behavior
-        # Based on code, status_entered_at determines violation, not last_progress_at
-        assert health.violations_by_status["open"] == 1
+    overdue = tracker.snapshot(now=NOW + timedelta(seconds=61))
+    assert overdue.status == "overdue"
+    assert overdue.tasks[0].last_progress_at == NOW.isoformat()
 
 
-class TestRecoveryTracking:
-    """Recovery operations must be tracked and visible."""
+def test_evicted_history_cannot_renew_unchanged_deadline_after_restart_and_expansion():
+    original = WorkflowLivenessTracker(max_task_records=2, clock=lambda: NOW)
+    initial = (
+        _decision("TASK-a", deadline=NOW + timedelta(minutes=2)),
+        _decision("TASK-b", deadline=NOW + timedelta(minutes=2)),
+    )
+    _observe(original, initial, generation=1, now=NOW)
 
-    def test_recovery_needed_task_marks_degraded(self):
-        """Task needing recovery marks health as degraded."""
-        obs = _obs("TASK-1", status="Open", recovery_needed=True)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.degraded
-        assert health.recovery_needed_count == 1
+    reduced = WorkflowLivenessTracker(max_task_records=1, clock=lambda: NOW)
+    reduced.restore(original.to_state(), now=NOW)
+    reduced_state = reduced.to_state()
+    assert reduced_state["history_incomplete"]
 
-    def test_active_recovery_in_progress_is_counted(self):
-        """Recovery operations in progress are counted separately."""
-        obs = _obs(
-            "TASK-1",
-            status="Open",
-            recovery_needed=True,
-            actively_working=True,  # Actively being recovered
-        )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.active_recovery_count == 1
-        assert health.recovery_needed_count == 1
+    later = NOW + timedelta(days=30)
+    expanded = WorkflowLivenessTracker(max_task_records=2, clock=lambda: later)
+    expanded.restore(reduced_state, now=later)
+    refreshed = (
+        _decision("TASK-a", deadline=later + timedelta(minutes=2)),
+        _decision("TASK-b", deadline=later + timedelta(minutes=2)),
+    )
+    health = _observe(expanded, refreshed, generation=2, now=later)
 
-    def test_recovery_needed_without_active_work(self):
-        """Recovery needed but not actively working is different state."""
-        obs = _obs("TASK-1", status="Open", recovery_needed=True, actively_working=False)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.recovery_needed_count == 1
-        assert health.active_recovery_count == 0
-
-    def test_multiple_recoveries_in_progress(self):
-        """Multiple parallel recoveries are tracked."""
-        obs_list = [
-            _obs("TASK-1", recovery_needed=True, actively_working=True),
-            _obs("TASK-2", recovery_needed=True, actively_working=True),
-            _obs("TASK-3", recovery_needed=True, actively_working=False),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        assert health.active_recovery_count == 2
-        assert health.recovery_needed_count == 3
+    assert health.status == "overdue"
+    assert all(item.overdue for item in health.tasks)
+    assert any(
+        item.last_progress_at == "1970-01-01T00:00:00+00:00"
+        for item in health.tasks
+    )
+    assert not expanded.to_state()["history_incomplete"]
 
 
-# ---------------------------------------------------------------------------
-# Restart and reconstruction
-# ---------------------------------------------------------------------------
+def test_cold_restore_applies_priority_before_smaller_record_cap():
+    original = WorkflowLivenessTracker(max_task_records=3, clock=lambda: NOW)
+    _observe(
+        original,
+        (
+            _decision("AAA-normal"),
+            _decision("BBB-normal"),
+            _action_required("ZZZ-action"),
+        ),
+        generation=1,
+    )
+    restored = WorkflowLivenessTracker(max_task_records=1, clock=lambda: NOW)
+
+    restored.restore(original.to_state(), now=NOW)
+    health = restored.snapshot(now=NOW)
+
+    assert health.tracked_task_count == 1
+    assert health.tasks[0].task_id == "ZZZ-action"
+    assert health.tasks[0].action_required
 
 
-class TestRestartTimestampHandling:
-    """Restart scenarios must preserve causality and ordering."""
+def test_stale_snapshot_generation_cannot_replace_newer_liveness_state():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    accepted = _observe(
+        tracker,
+        (_decision("TASK-current"),),
+        generation=2,
+    )
+    restored = WorkflowLivenessTracker(
+        clock=lambda: NOW + timedelta(seconds=1)
+    )
+    restored.restore(tracker.to_state(), now=NOW + timedelta(seconds=1))
+    before_rejected = restored.snapshot(now=NOW + timedelta(seconds=1))
+    rejected = _observe(
+        restored,
+        (_action_required("TASK-stale"),),
+        generation=1,
+        now=NOW + timedelta(seconds=1),
+        source_scan_complete=False,
+        source_errors={"project-stale": "TimeoutError"},
+        reconciliation_complete=False,
+        required_recovery_count=1,
+        materialized_recovery_count=0,
+    )
 
-    def test_restart_with_fresh_timestamp(self):
-        """After restart, updated timestamps reflect new timing."""
-        # Task was old before restart
-        old_time = NOW - timedelta(hours=10)
-        # After restart, we see it with a fresh reference
-        obs_before = _obs(
-            "TASK-1",
-            status="Open",
-            status_entered_at=old_time,
-        )
-        health_before = build_workflow_liveness_health([obs_before], now=NOW)
-        assert health_before.violations_by_status["open"] == 1
-
-        # After restart, if timestamp is updated to now
-        obs_after = _obs("TASK-1", status="Open", status_entered_at=NOW)
-        health_after = build_workflow_liveness_health([obs_after], now=NOW)
-        assert health_after.violations_by_status == {}
-
-    def test_post_restart_reconstruction_window(self):
-        """Post-restart has a short grace period for state reconstruction."""
-        # This is handled by having separate post_restart threshold
-        # Tasks being reconstructed after restart can be marked as actively_working
-        # which exempts them from SLO
-        obs = _obs(
-            "TASK-1",
-            status="Open",
-            status_entered_at=NOW - timedelta(hours=5),
-            actively_working=True,  # Marked as being reconstructed
-        )
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.violations_by_status == {}
+    assert rejected.to_dict() == before_rejected.to_dict()
+    assert rejected.snapshot_generation == 2
+    assert rejected.observed_at == accepted.observed_at
+    assert [item.task_id for item in rejected.tasks] == ["TASK-current"]
+    assert rejected.escalation_count == 0
 
 
-# ---------------------------------------------------------------------------
-# Cardinality bounds and deduplication
-# ---------------------------------------------------------------------------
+def test_restored_ages_are_safe_but_health_requires_fresh_coverage():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(original, (_decision(),))
+    state = original.to_state()
+    restarted_at = NOW + timedelta(seconds=30)
+    restored = WorkflowLivenessTracker(clock=lambda: restarted_at)
+
+    restored.restore(state, now=restarted_at)
+    before_scan = restored.snapshot(now=restarted_at)
+    after_scan = _observe(
+        restored,
+        (_decision(),),
+        generation=2,
+        now=restarted_at,
+    )
+
+    assert before_scan.restored
+    assert not before_scan.scan_complete
+    assert before_scan.status == "incomplete"
+    assert before_scan.tasks[0].decision_age_seconds == 30
+    assert not after_scan.restored
+    assert after_scan.scan_complete
+    assert after_scan.tasks[0].first_observed_at == NOW.isoformat()
 
 
-class TestCardinalityBounds:
-    """Metrics must stay bounded even with many distinct violations."""
+def test_future_persisted_progress_timestamps_are_clamped_on_restart():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(original, (_decision(),))
+    state = original.to_state()
+    future = (NOW + timedelta(hours=1)).isoformat()
+    state["records"][0]["first_observed_at"] = future
+    state["records"][0]["last_progress_at"] = future
+    state["records"][0]["last_observed_at"] = future
+    restored = WorkflowLivenessTracker(clock=lambda: NOW)
 
-    def test_max_distinct_violations_tracked(self):
-        """Configuration caps the distinct violations tracked."""
-        # Create more violations than the cap
-        obs_list = [
-            _obs(f"TASK-{i}", status="Open", status_entered_at=NOW - timedelta(hours=2))
-            for i in range(150)
-        ]
-        health = build_workflow_liveness_health(
-            obs_list,
-            now=NOW,
-            max_distinct_violations=100,
-        )
-        assert health.max_distinct_violations == 100
-        # All violations are still counted, just the config is tracked
-        assert health.violation_count == 150
+    restored.restore(state, now=NOW)
+    task = restored.snapshot(now=NOW).tasks[0]
 
-    def test_escalation_count_bounded(self):
-        """Escalation count respects max_escalations configuration."""
-        health = build_workflow_liveness_health(
-            [],
-            now=NOW,
-            max_escalations=50,
-        )
-        assert health.max_escalations == 50
-
-    def test_status_normalization_in_aggregation(self):
-        """Status names are normalized for aggregation."""
-        # Test case-insensitive status handling
-        obs_list = [
-            _obs("TASK-1", status="Open"),
-            _obs("TASK-2", status="open"),
-            _obs("TASK-3", status="OPEN"),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        # All should aggregate to the same key
-        assert sum(health.task_count_by_status.values()) == 3
+    assert task.first_observed_at == NOW.isoformat()
+    assert task.last_progress_at == NOW.isoformat()
+    assert task.last_observed_at == NOW.isoformat()
+    assert task.decision_age_seconds == 0
 
 
-# ---------------------------------------------------------------------------
-# Health and alert integration
-# ---------------------------------------------------------------------------
+def test_restart_reconstruction_has_persisted_bounded_deadline():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(original, (_decision(),))
+    restarted = WorkflowLivenessTracker(clock=lambda: NOW)
+    restarted.restore(original.to_state(), now=NOW)
+    deadline = NOW + timedelta(
+        seconds=LIVENESS_SLOS["restart_convergence"].max_reassessment_seconds
+    )
+
+    overdue = restarted.snapshot(now=deadline + timedelta(seconds=1))
+    persisted = restarted.to_state()
+    restarted_again = WorkflowLivenessTracker(
+        clock=lambda: deadline + timedelta(seconds=2)
+    )
+    restarted_again.restore(
+        persisted,
+        now=deadline + timedelta(seconds=2),
+    )
+    repeated = restarted_again.snapshot(now=deadline + timedelta(seconds=2))
+
+    assert overdue.status == "restart_overdue"
+    assert overdue.restart_reconstruction_pending
+    assert overdue.restart_lateness_seconds == 1
+    assert repeated.restart_started_at == NOW.isoformat()
+    assert repeated.restart_deadline_at == deadline.isoformat()
+    assert repeated.restart_lateness_seconds == 2
 
 
-class TestHealthAlerts:
-    """Health alerts must be actionable and comprehensive."""
+def test_malformed_persisted_restart_timestamps_fail_closed_without_exceptions():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(original, (_decision(),))
+    restarted_at = NOW + timedelta(seconds=1)
 
-    def test_no_alerts_when_healthy(self):
-        """Healthy state produces no alerts."""
-        obs = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(minutes=5))
-        health = build_workflow_liveness_health([obs], now=NOW)
-        alerts = workflow_liveness_health_alerts(health)
-        assert alerts == []
+    for field in ("restart_started_at", "restart_deadline_at"):
+        state = original.to_state()
+        state["restart_reconstruction_pending"] = True
+        state["restart_started_at"] = NOW.isoformat()
+        state["restart_deadline_at"] = (NOW + timedelta(minutes=5)).isoformat()
+        state[field] = {"not": "a timestamp"}
+        restored = WorkflowLivenessTracker(clock=lambda: restarted_at)
 
-    def test_alert_for_slo_violation_by_status(self):
-        """Each status with violations gets an alert."""
-        obs_list = [
-            _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=2)),
-            _obs("TASK-2", status="Ready", status_entered_at=NOW - timedelta(minutes=45)),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        alerts = workflow_liveness_health_alerts(health)
-        sources = [a["source"] for a in alerts]
-        assert "liveness:slo_violation_open" in sources
-        assert "liveness:slo_violation_ready" in sources
+        restored.restore(state, now=restarted_at)
+        health = restored.snapshot(now=restarted_at)
+        overdue = restored.snapshot(now=restarted_at + timedelta(seconds=1))
 
-    def test_recovery_needed_alert(self):
-        """Recovery needed tasks generate alert."""
-        obs = _obs("TASK-1", recovery_needed=True)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        alerts = workflow_liveness_health_alerts(health)
-        sources = [a["source"] for a in alerts]
-        assert "liveness:recovery_needed" in sources
-        recovery_alert = [a for a in alerts if a["source"] == "liveness:recovery_needed"][0]
-        assert recovery_alert["count"] == 1
+        assert health.status == "incomplete"
+        assert health.last_error == "workflow liveness restart timestamps are corrupt"
+        assert health.restart_started_at == restarted_at.isoformat()
+        assert health.restart_deadline_at == restarted_at.isoformat()
+        assert overdue.status == "restart_overdue"
 
-    def test_recovery_in_progress_alert(self):
-        """Active recovery operations are alerted."""
-        obs = _obs("TASK-1", recovery_needed=True, actively_working=True)
-        health = build_workflow_liveness_health([obs], now=NOW)
-        alerts = workflow_liveness_health_alerts(health)
-        sources = [a["source"] for a in alerts]
-        assert "liveness:recovery_in_progress" in sources
+    empty_state = original.to_state()
+    empty_state["records"] = []
+    empty_state["observed_at"] = None
+    empty_state["total_nonterminal_count"] = 0
+    empty_state["project_task_counts"] = {}
+    empty_state["restart_started_at"] = "not-a-timestamp"
+    empty = WorkflowLivenessTracker(clock=lambda: restarted_at)
 
-    def test_aged_violation_alert(self):
-        """Very old violations get trend alert."""
-        # 3 hours old
-        obs = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=3))
-        health = build_workflow_liveness_health([obs], now=NOW)
-        alerts = workflow_liveness_health_alerts(health)
-        aged_alerts = [a for a in alerts if a["source"] == "liveness:aged_violation"]
-        assert len(aged_alerts) > 0
-        assert aged_alerts[0]["age_minutes"] == 180
+    empty.restore(empty_state, now=restarted_at)
+    empty_health = empty.snapshot(now=restarted_at)
 
-    def test_alert_severity_escalates_with_count(self):
-        """Alert severity increases with violation count."""
-        # Single violation
-        obs1 = _obs("TASK-1", status="Open", status_entered_at=NOW - timedelta(hours=2))
-        health1 = build_workflow_liveness_health([obs1], now=NOW)
-        alerts1 = workflow_liveness_health_alerts(health1)
-        alert1 = [a for a in alerts1 if "open" in a["source"]][0]
-        assert alert1["severity"] == "warning"
-
-        # Many violations
-        obs_list = [
-            _obs(f"TASK-{i}", status="Open", status_entered_at=NOW - timedelta(hours=2))
-            for i in range(10)
-        ]
-        health_many = build_workflow_liveness_health(obs_list, now=NOW)
-        alerts_many = workflow_liveness_health_alerts(health_many)
-        alert_many = [a for a in alerts_many if "open" in a["source"]][0]
-        assert alert_many["severity"] == "critical"
+    assert empty_health.status == "incomplete"
+    assert empty.to_state()["history_corrupt"]
+    assert empty_health.restart_deadline_at == restarted_at.isoformat()
 
 
-# ---------------------------------------------------------------------------
-# Project summaries
-# ---------------------------------------------------------------------------
+def test_snapshot_fails_closed_when_valid_restored_state_is_mutated_corrupt():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(original, (_decision(),))
+    restarted_at = NOW + timedelta(seconds=1)
+    restored = WorkflowLivenessTracker(clock=lambda: restarted_at)
+    restored.restore(original.to_state(), now=restarted_at)
+
+    # Simulate a partially failed reload after a valid root restored.  The
+    # snapshot/read path, used during startup health publication, must be as
+    # defensive as restore itself.
+    restored._restart_deadline_at = "not-a-timestamp"  # noqa: SLF001
+    health = restored.snapshot(now=restarted_at)
+
+    assert health.status == "incomplete"
+    assert health.last_error == "workflow liveness restart timestamps are corrupt"
+    assert health.restart_deadline_at == restarted_at.isoformat()
 
 
-class TestProjectSummaries:
-    """Project-level aggregations must be accurate."""
+def test_configured_restart_deadline_and_convergence_counter_are_persisted():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    decision = _decision()
+    _observe(original, (decision,))
+    restarted = WorkflowLivenessTracker(
+        slo_seconds={"restart_convergence": 30},
+        clock=lambda: NOW + timedelta(seconds=1),
+    )
+    restarted.restore(original.to_state(), now=NOW + timedelta(seconds=1))
 
-    def test_per_project_violation_counts(self):
-        """Violations are grouped by project."""
-        obs_list = [
-            _obs("TASK-1", project_id="project-a", status="Open", status_entered_at=NOW - timedelta(hours=2)),
-            _obs("TASK-2", project_id="project-a", status="Open", status_entered_at=NOW - timedelta(minutes=10)),
-            _obs("TASK-3", project_id="project-b", status="Ready", status_entered_at=NOW - timedelta(minutes=45)),
-        ]
-        health = build_workflow_liveness_health(obs_list, now=NOW)
-        assert health.projects["project-a"]["open"] == 2
-        assert health.projects["project-b"]["ready"] == 1
+    assert restarted.snapshot().restart_deadline_at == (
+        NOW + timedelta(seconds=31)
+    ).isoformat()
+    converged = _observe(
+        restarted,
+        (decision,),
+        generation=2,
+        now=NOW + timedelta(seconds=2),
+    )
+    persisted = restarted.to_state()
 
-    def test_null_project_id_still_counted(self):
-        """Tasks with no project are still aggregated."""
-        obs = _obs("TASK-1", project_id=None, status="Open", status_entered_at=NOW - timedelta(hours=2))
-        health = build_workflow_liveness_health([obs], now=NOW)
-        assert health.task_count_by_status["open"] == 1
-        # No project key added for None project_id
-        assert None not in health.projects
+    assert converged.restart_convergence_count == 1
+    assert persisted["cumulative"]["restart_convergence_count"] == 1
+
+
+def test_live_slo_reload_reanchors_to_progress_not_reload_time():
+    tracker = WorkflowLivenessTracker(
+        slo_seconds={"dispatch_latency": 120},
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    _observe(tracker, (_decision(deadline=NOW + timedelta(seconds=120)),))
+    original_epoch = tracker.snapshot().policy_epoch
+
+    tracker.reconfigure(
+        max_task_records=256,
+        max_project_records=64,
+        snapshot_stale_seconds=10_000,
+        slo_seconds={"dispatch_latency": 30},
+    )
+    health = tracker.snapshot(now=NOW + timedelta(seconds=31))
+
+    assert health.tasks[0].slo_seconds == 30
+    assert health.policy_epoch != original_epoch
+    assert health.tasks[0].policy_epoch == health.policy_epoch
+    assert health.tasks[0].next_reassessment_at == (
+        NOW + timedelta(seconds=30)
+    ).isoformat()
+    assert health.status == "overdue"
+
+
+def test_snapshot_staleness_fails_health_closed_without_warning():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10,
+        clock=lambda: NOW,
+    )
+    _observe(tracker, (_decision(),))
+
+    health = tracker.snapshot(now=NOW + timedelta(seconds=11))
+
+    assert health.stale
+    assert not health.scan_complete
+    assert health.status == "incomplete"
+    assert workflow_liveness_health_alerts(health) == []

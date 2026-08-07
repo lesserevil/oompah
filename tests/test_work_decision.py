@@ -553,14 +553,19 @@ def test_decomposed_rollup_waits_then_becomes_runnable():
     assert empty.disposition is TaskDisposition.RETRY_SCHEDULED
 
 
-def test_duplicate_investigator_requires_a_live_lease():
+def test_duplicate_investigator_requires_its_own_live_authority():
     issue = _issue(DUPLICATE_CANDIDATE)
     active = _facts(
         issue,
         overrides={
-            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
-                FactDomain.IMPLEMENTATION_AUTHORITY,
-                {"lease_expires_at": (NOW + timedelta(minutes=1)).isoformat()},
+            FactDomain.DUPLICATE_INVESTIGATION: _known(
+                FactDomain.DUPLICATE_INVESTIGATION,
+                {
+                    "owner_id": "duplicate-worker",
+                    "lease_expires_at": (
+                        NOW + timedelta(minutes=1)
+                    ).isoformat(),
+                },
             )
         },
     )
@@ -836,3 +841,22 @@ def test_evaluation_is_deterministic_for_same_facts_and_explicit_time():
     assert first == second
     assert first.decision_revision == second.decision_revision
     assert first.reason_code in KNOWN_DECISION_REASON_CODES
+
+
+def test_custom_runtime_slo_controls_decision_deadline_without_global_mutation():
+    current = _issue(OPEN)
+    facts = _facts(current)
+
+    configured = evaluate_task(
+        current,
+        facts,
+        now=NOW,
+        liveness_slo_seconds={"dispatch_latency": 17},
+    )
+    default = evaluate_task(current, facts, now=NOW)
+
+    assert configured.next_reassessment_at == (
+        NOW + timedelta(seconds=17)
+    ).isoformat()
+    assert default.next_reassessment_at != configured.next_reassessment_at
+    assert default.decision_revision != configured.decision_revision

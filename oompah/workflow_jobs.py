@@ -16,13 +16,14 @@ import sqlite3
 import threading
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
 
-WORKFLOW_JOB_SCHEMA_VERSION = 3
+WORKFLOW_JOB_SCHEMA_VERSION = 5
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _INITIALIZE_LOCK = threading.Lock()
@@ -213,6 +214,7 @@ class WorkflowJob:
     checkpoint: dict[str, Any] | None
     result_transition: dict[str, Any] | None
     superseded_by_generation: str | None
+    workflow_managed: bool
     created_at: float
     updated_at: float
     completed_at: float | None
@@ -253,6 +255,7 @@ class WorkflowJob:
             "checkpoint": self.checkpoint,
             "result_transition": self.result_transition,
             "superseded_by_generation": self.superseded_by_generation,
+            "workflow_managed": self.workflow_managed,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,
@@ -284,6 +287,7 @@ class WorkflowScheduleCursor:
     job_generation: str
     changed: bool
     accepted: bool = True
+    materialized: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +302,43 @@ class WorkflowScheduleWrite:
     created: int = 0
     replayed: int = 0
     superseded: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowSnapshotMembershipWrite:
+    """Result of replacing authoritative membership for one full snapshot."""
+
+    snapshot_generation: int
+    accepted: bool
+    members: int = 0
+    cursors_retired: int = 0
+    jobs_superseded: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowSnapshotAuthority:
+    """Pre-publication durable authority for one reversible scan scope.
+
+    Job events deliberately remain append-only, so a failed publication is
+    represented by compensating events while the current cursor, membership,
+    and managed-job authority is restored exactly to this checkpoint.
+    """
+
+    project_ids: tuple[str, ...]
+    identities: tuple[tuple[str, str], ...]
+    full_project_scope: bool
+    cursors: tuple[dict[str, Any], ...]
+    memberships: tuple[dict[str, Any], ...]
+    jobs: tuple[dict[str, Any], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowSnapshotPublication:
+    """Publication result with external and durable compensation operations."""
+
+    result: Any = None
+    rollback: Callable[[], None] | None = None
+    rollback_authority: Callable[[], None] | None = None
 
 
 class WorkflowJobStoreError(RuntimeError):
@@ -393,6 +434,7 @@ CREATE TABLE IF NOT EXISTS workflow_schedule_cursors (
     snapshot_generation INTEGER NOT NULL,
     decision_revision TEXT NOT NULL,
     job_generation TEXT NOT NULL,
+    materialized_job_generation TEXT,
     updated_at REAL NOT NULL,
     PRIMARY KEY(project_id, task_id)
 );
@@ -405,12 +447,32 @@ CREATE INDEX IF NOT EXISTS workflow_schedule_generation_idx
     ON workflow_schedule_cursors(snapshot_generation, project_id, task_id);
 """
 
+_CREATE_V5_OBJECTS = """
+CREATE TABLE IF NOT EXISTS workflow_snapshot_membership (
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    snapshot_generation INTEGER NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY(project_id, task_id)
+);
+CREATE INDEX IF NOT EXISTS workflow_snapshot_membership_generation_idx
+    ON workflow_snapshot_membership(snapshot_generation, project_id, task_id);
+"""
+
 _V2_COLUMNS: dict[str, str] = {
     "expected_evidence_revision": "TEXT",
     "expected_head_sha": "TEXT",
     "checkpoint_json": "TEXT",
     "result_transition_json": "TEXT",
     "superseded_by_generation": "TEXT",
+}
+
+_V4_SCHEDULE_COLUMNS: dict[str, str] = {
+    "materialized_job_generation": "TEXT",
+}
+
+_V5_JOB_COLUMNS: dict[str, str] = {
+    "workflow_managed": "INTEGER NOT NULL DEFAULT 0",
 }
 
 
@@ -437,6 +499,13 @@ class WorkflowJobStore:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._initialize()
 
+    @contextmanager
+    def snapshot_authority_guard(self) -> Iterator[None]:
+        """Serialize snapshot authority publication with worker mutations."""
+
+        with self._lock:
+            yield
+
     def _initialize(self) -> None:
         self._conn.executescript(_CREATE_TABLES)
         version_row = self._conn.execute(
@@ -459,6 +528,33 @@ class WorkflowJobStore:
                 )
         self._conn.executescript(_CREATE_V2_OBJECTS)
         self._conn.executescript(_CREATE_V3_OBJECTS)
+        schedule_columns = {
+            str(row["name"])
+            for row in self._conn.execute(
+                "PRAGMA table_info(workflow_schedule_cursors)"
+            )
+        }
+        for name, declaration in _V4_SCHEDULE_COLUMNS.items():
+            if name not in schedule_columns:
+                self._conn.execute(
+                    "ALTER TABLE workflow_schedule_cursors "
+                    f"ADD COLUMN {name} {declaration}"
+                )
+        job_columns = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(workflow_jobs)")
+        }
+        for name, declaration in _V5_JOB_COLUMNS.items():
+            if name not in job_columns:
+                self._conn.execute(
+                    f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
+                )
+        self._conn.executescript(_CREATE_V5_OBJECTS)
+        # Version 4 did not persist ownership provenance.  Do not infer it
+        # from a task cursor or a caller-controlled idempotency key: doing so
+        # reclassifies a direct enqueue as scheduler authority after restart
+        # and lets reconciliation supersede it.  Legacy rows remain direct;
+        # a later authoritative scan creates explicitly managed replacements.
         self._conn.execute(
             "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
             ("workflow_jobs_version", str(WORKFLOW_JOB_SCHEMA_VERSION)),
@@ -504,16 +600,248 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
-    def allocate_decision_window(self, *, total: int, limit: int) -> int:
+    def accept_snapshot_generation(self, snapshot_generation: int) -> bool:
+        """Claim the latest captured scan exactly once for evaluation.
+
+        Allocation happens before source I/O. A slow scan is therefore stale
+        as soon as a newer scan is captured, including when the newer snapshot
+        contains no row for a task present in the older scan.
+        """
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(snapshot_generation)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                allocated_row = self._conn.execute(
+                    "SELECT value FROM schema_meta "
+                    "WHERE key = 'workflow_snapshot_generation'"
+                ).fetchone()
+                accepted_row = self._conn.execute(
+                    "SELECT value FROM schema_meta "
+                    "WHERE key = 'workflow_snapshot_accepted_generation'"
+                ).fetchone()
+                allocated = (
+                    int(allocated_row["value"])
+                    if allocated_row is not None
+                    else 0
+                )
+                accepted = (
+                    int(accepted_row["value"])
+                    if accepted_row is not None
+                    else 0
+                )
+                if generation != allocated or generation <= accepted:
+                    self._conn.commit()
+                    return False
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO schema_meta(key, value) "
+                    "VALUES('workflow_snapshot_accepted_generation', ?)",
+                    (str(generation),),
+                )
+                self._conn.commit()
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def snapshot_generation_is_current(self, snapshot_generation: int) -> bool:
+        """Return whether a claimed generation is still the newest capture."""
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(snapshot_generation)
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT
+                    MAX(CASE WHEN key = 'workflow_snapshot_generation'
+                             THEN CAST(value AS INTEGER) ELSE 0 END) AS allocated,
+                    MAX(CASE WHEN key = 'workflow_snapshot_accepted_generation'
+                             THEN CAST(value AS INTEGER) ELSE 0 END) AS accepted
+                  FROM schema_meta
+                """
+            ).fetchone()
+        allocated = int(row["allocated"] or 0) if row is not None else 0
+        accepted = int(row["accepted"] or 0) if row is not None else 0
+        return allocated == generation == accepted
+
+    def _snapshot_generation_is_current_locked(self, generation: int) -> bool:
+        allocated_row = self._conn.execute(
+            "SELECT value FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_generation'"
+        ).fetchone()
+        accepted_row = self._conn.execute(
+            "SELECT value FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_accepted_generation'"
+        ).fetchone()
+        return (
+            allocated_row is not None
+            and accepted_row is not None
+            and int(allocated_row["value"]) == generation
+            and int(accepted_row["value"]) == generation
+        )
+
+    def publish_snapshot_generation(
+        self,
+        snapshot_generation: int,
+        publisher: Callable[[], Any | WorkflowSnapshotPublication],
+        *,
+        rollback_authority: Callable[[], None] | None = None,
+    ) -> tuple[bool, Any | None]:
+        """Publish external state and the durable marker as one reversible unit.
+
+        SQLite cannot share a physical transaction with the service-state file.
+        A publisher which mutates external state therefore returns compensating
+        operations. External state is restored while the write fence is held;
+        after rolling back the failed marker transaction, durable cursor/job
+        authority is quarantined before this store lock is released.
+        """
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        if not callable(publisher):
+            raise TypeError("publisher must be callable")
+        if rollback_authority is not None and not callable(rollback_authority):
+            raise TypeError("rollback_authority must be callable")
+        generation = int(snapshot_generation)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            publication: WorkflowSnapshotPublication | None = None
+            result: Any | None = None
+            try:
+                published_row = self._conn.execute(
+                    "SELECT value FROM schema_meta "
+                    "WHERE key = 'workflow_snapshot_published_generation'"
+                ).fetchone()
+                published = (
+                    int(published_row["value"])
+                    if published_row is not None
+                    else 0
+                )
+                if (
+                    not self._snapshot_generation_is_current_locked(generation)
+                    or published >= generation
+                ):
+                    self._conn.commit()
+                    return False, None
+                raw_result = publisher()
+                if isinstance(raw_result, WorkflowSnapshotPublication):
+                    publication = raw_result
+                    result = raw_result.result
+                else:
+                    result = raw_result
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO schema_meta(key, value) "
+                    "VALUES('workflow_snapshot_published_generation', ?)",
+                    (str(generation),),
+                )
+                self._conn.commit()
+                return True, result
+            except Exception:
+                # A connection wrapper or storage layer may report an error
+                # after SQLite committed successfully. In that case the marker
+                # and external publication are already coherent; compensating
+                # them would create the split-brain state this protocol avoids.
+                if not self._conn.in_transaction:
+                    committed_row = self._conn.execute(
+                        "SELECT value FROM schema_meta "
+                        "WHERE key = 'workflow_snapshot_published_generation'"
+                    ).fetchone()
+                    if (
+                        committed_row is not None
+                        and int(committed_row["value"]) >= generation
+                    ):
+                        return True, result
+                rollback_errors: list[Exception] = []
+                try:
+                    # Compensate while the SQLite write transaction still
+                    # excludes another process from allocating/publishing a
+                    # newer generation. Releasing SQLite first would let this
+                    # file rollback overwrite that newer authority.
+                    if publication is not None and publication.rollback is not None:
+                        publication.rollback()
+                except Exception as exc:
+                    rollback_errors.append(exc)
+                finally:
+                    self._conn.rollback()
+                try:
+                    durable_rollback = (
+                        publication.rollback_authority
+                        if publication is not None
+                        and publication.rollback_authority is not None
+                        else rollback_authority
+                    )
+                    if durable_rollback is not None:
+                        durable_rollback()
+                except Exception as exc:
+                    rollback_errors.append(exc)
+                    self._conn.rollback()
+                if rollback_errors:
+                    # A failed compensator must never leave the generation
+                    # publishable: otherwise a subsequent scan-failure publish
+                    # could authorize successful-generation jobs accidentally.
+                    self._conn.execute("BEGIN IMMEDIATE")
+                    try:
+                        if self._snapshot_generation_is_current_locked(generation):
+                            published_row = self._conn.execute(
+                                "SELECT value FROM schema_meta "
+                                "WHERE key = 'workflow_snapshot_published_generation'"
+                            ).fetchone()
+                            durable_published = (
+                                int(published_row["value"])
+                                if published_row is not None
+                                else 0
+                            )
+                            self._conn.execute(
+                                "INSERT OR REPLACE INTO schema_meta(key, value) "
+                                "VALUES('workflow_snapshot_accepted_generation', ?)",
+                                (str(durable_published),),
+                            )
+                        self._conn.commit()
+                    except Exception:
+                        self._conn.rollback()
+                    raise WorkflowJobStoreError(
+                        "workflow snapshot publication failed and its "
+                        "compensating rollback also failed"
+                    ) from rollback_errors[0]
+                raise
+
+    def allocate_decision_window(
+        self,
+        *,
+        total: int,
+        limit: int,
+        snapshot_generation: int | None = None,
+    ) -> int | None:
         """Return and advance a durable fair offset for a bounded task scan."""
 
         if isinstance(total, bool) or int(total) < 1:
             raise ValueError("total must be a positive integer")
         bounded = _bounded_limit(limit)
         count = int(total)
+        if snapshot_generation is not None and (
+            isinstance(snapshot_generation, bool)
+            or int(snapshot_generation) < 1
+        ):
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = (
+            int(snapshot_generation)
+            if snapshot_generation is not None
+            else None
+        )
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
+                if (
+                    generation is not None
+                    and not self._snapshot_generation_is_current_locked(
+                        generation
+                    )
+                ):
+                    self._conn.commit()
+                    return None
                 row = self._conn.execute(
                     """
                     SELECT value FROM schema_meta
@@ -535,6 +863,587 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def reconcile_snapshot_membership(
+        self,
+        *,
+        snapshot_generation: int,
+        authoritative_project_ids: Sequence[str],
+        expected_identities: Sequence[tuple[str, str]],
+        evaluated_identities: Sequence[tuple[str, str]] | None = None,
+        now: float | None = None,
+    ) -> WorkflowSnapshotMembershipWrite:
+        """Replace successfully scanned project membership and retire omissions.
+
+        Projects whose source failed are deliberately omitted from
+        ``authoritative_project_ids`` so their last-known membership survives.
+        For an authoritative project, absence is proof: active managed jobs are
+        superseded, running leases are revoked, and the obsolete cursor is
+        deleted in the same transaction as the new bounded membership set.
+        """
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        snapshot = int(snapshot_generation)
+        projects = tuple(
+            sorted(
+                {
+                    _required_text(project_id, "authoritative project_id")
+                    for project_id in authoritative_project_ids
+                }
+            )
+        )
+        expected = {
+            (
+                _required_text(project_id, "expected project_id"),
+                _required_text(task_id, "expected task_id"),
+            )
+            for project_id, task_id in expected_identities
+        }
+        evaluated = (
+            {
+                (
+                    _required_text(project_id, "evaluated project_id"),
+                    _required_text(task_id, "evaluated task_id"),
+                )
+                for project_id, task_id in evaluated_identities
+            }
+            if evaluated_identities is not None
+            else set(expected)
+        )
+        if not evaluated <= expected:
+            raise ValueError("evaluated identities escaped expected membership")
+        unexpected_projects = {project_id for project_id, _task_id in expected} - set(
+            projects
+        )
+        if unexpected_projects:
+            raise ValueError(
+                "expected identities escaped authoritative projects: "
+                + ", ".join(sorted(unexpected_projects))
+            )
+        timestamp = float(self._clock() if now is None else now)
+        replacement_generation = f"snapshot:{snapshot}"
+        message = "task absent from newer authoritative workflow snapshot"
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                if not self._snapshot_generation_is_current_locked(snapshot):
+                    self._conn.commit()
+                    return WorkflowSnapshotMembershipWrite(snapshot, accepted=False)
+                cursors_retired = 0
+                jobs_superseded = 0
+                for project in projects:
+                    expected_tasks = {
+                        task_id
+                        for project_id, task_id in expected
+                        if project_id == project
+                    }
+                    prior_membership = {
+                        str(row["task_id"]): int(row["snapshot_generation"])
+                        for row in self._conn.execute(
+                            """
+                            SELECT task_id, snapshot_generation
+                              FROM workflow_snapshot_membership
+                             WHERE project_id = ?
+                            """,
+                            (project,),
+                        ).fetchall()
+                    }
+                    known_tasks = {
+                        str(row["task_id"])
+                        for row in self._conn.execute(
+                            """
+                            SELECT task_id FROM workflow_schedule_cursors
+                             WHERE project_id = ?
+                            UNION
+                            SELECT task_id FROM workflow_snapshot_membership
+                             WHERE project_id = ?
+                            UNION
+                            SELECT task_id FROM workflow_jobs
+                             WHERE project_id = ? AND workflow_managed = 1
+                               AND state IN (?, ?, ?)
+                            """,
+                            (
+                                project,
+                                project,
+                                project,
+                                WorkflowJobState.QUEUED.value,
+                                WorkflowJobState.RUNNING.value,
+                                WorkflowJobState.RETRY_WAIT.value,
+                            ),
+                        ).fetchall()
+                    }
+                    for task in sorted(known_tasks - expected_tasks):
+                        active_rows = self._conn.execute(
+                            """
+                            SELECT * FROM workflow_jobs
+                             WHERE project_id = ? AND task_id = ?
+                               AND workflow_managed = 1
+                               AND state IN (?, ?, ?)
+                             ORDER BY enqueue_sequence
+                            """,
+                            (
+                                project,
+                                task,
+                                WorkflowJobState.QUEUED.value,
+                                WorkflowJobState.RUNNING.value,
+                                WorkflowJobState.RETRY_WAIT.value,
+                            ),
+                        ).fetchall()
+                        for selected in active_rows:
+                            self._conn.execute(
+                                """
+                                UPDATE workflow_jobs
+                                   SET state = ?, lease_owner = NULL,
+                                       lease_token = NULL, lease_expires_at = NULL,
+                                       retry_at = NULL,
+                                       superseded_by_generation = ?,
+                                       last_error = ?, updated_at = ?,
+                                       completed_at = ?
+                                 WHERE job_id = ?
+                                """,
+                                (
+                                    WorkflowJobState.SUPERSEDED.value,
+                                    replacement_generation,
+                                    message,
+                                    timestamp,
+                                    timestamp,
+                                    selected["job_id"],
+                                ),
+                            )
+                            updated = self._row_locked(str(selected["job_id"]))
+                            self._append_event_locked(
+                                updated,
+                                "superseded",
+                                payload={
+                                    "replacement_generation": replacement_generation,
+                                    "reason": message,
+                                },
+                                now=timestamp,
+                            )
+                            jobs_superseded += 1
+                        deleted = self._conn.execute(
+                            """
+                            DELETE FROM workflow_schedule_cursors
+                             WHERE project_id = ? AND task_id = ?
+                            """,
+                            (project, task),
+                        )
+                        cursors_retired += max(0, int(deleted.rowcount))
+                    self._conn.execute(
+                        "DELETE FROM workflow_snapshot_membership WHERE project_id = ?",
+                        (project,),
+                    )
+                    self._conn.executemany(
+                        """
+                        INSERT INTO workflow_snapshot_membership(
+                            project_id, task_id, snapshot_generation, updated_at
+                        ) VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            (
+                                project,
+                                task,
+                                (
+                                    snapshot
+                                    if (project, task) in evaluated
+                                    else prior_membership.get(task, snapshot)
+                                ),
+                                timestamp,
+                            )
+                            for task in sorted(expected_tasks)
+                        ),
+                    )
+                self._conn.commit()
+                return WorkflowSnapshotMembershipWrite(
+                    snapshot,
+                    accepted=True,
+                    members=len(expected),
+                    cursors_retired=cursors_retired,
+                    jobs_superseded=jobs_superseded,
+                )
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def snapshot_membership(self) -> tuple[tuple[str, str, int], ...]:
+        """Return the bounded current full-snapshot membership for diagnostics."""
+
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT project_id, task_id, snapshot_generation
+                  FROM workflow_snapshot_membership
+                 ORDER BY project_id, task_id
+                """
+            ).fetchall()
+        return tuple(
+            (
+                str(row["project_id"]),
+                str(row["task_id"]),
+                int(row["snapshot_generation"]),
+            )
+            for row in rows
+        )
+
+    def capture_snapshot_authority(
+        self,
+        *,
+        authoritative_project_ids: Sequence[str] = (),
+        evaluated_identities: Sequence[tuple[str, str]] = (),
+        full_project_scope: bool,
+    ) -> WorkflowSnapshotAuthority:
+        """Capture current durable authority before independently committed writes.
+
+        Scheduler membership, cursor, and job writes use short SQLite
+        transactions before the service-state file can be published.  Keeping
+        this small in-memory checkpoint lets a failed publication restore the
+        prior *published* authority instead of deleting it and leaving an
+        unrelated recovery scan to reconstruct it later.
+        """
+
+        projects = tuple(
+            sorted(
+                {
+                    _required_text(project_id, "authoritative project_id")
+                    for project_id in authoritative_project_ids
+                }
+            )
+        )
+        identities = tuple(
+            sorted(
+                {
+                    (
+                        _required_text(project_id, "evaluated project_id"),
+                        _required_text(task_id, "evaluated task_id"),
+                    )
+                    for project_id, task_id in evaluated_identities
+                }
+            )
+        )
+        if not full_project_scope and not identities:
+            return WorkflowSnapshotAuthority(
+                projects, identities, False, (), (), ()
+            )
+        if full_project_scope and not projects:
+            return WorkflowSnapshotAuthority(
+                projects, identities, True, (), (), ()
+            )
+
+        if full_project_scope:
+            placeholders = ",".join("?" for _ in projects)
+            where = f"project_id IN ({placeholders})"
+            params: tuple[Any, ...] = projects
+        else:
+            predicates = " OR ".join(
+                "(project_id = ? AND task_id = ?)" for _ in identities
+            )
+            where = f"({predicates})"
+            params = tuple(item for identity in identities for item in identity)
+
+        with self._lock:
+            cursors = tuple(
+                dict(row)
+                for row in self._conn.execute(
+                    f"SELECT * FROM workflow_schedule_cursors WHERE {where}", params
+                ).fetchall()
+            )
+            memberships = tuple(
+                dict(row)
+                for row in self._conn.execute(
+                    f"SELECT * FROM workflow_snapshot_membership WHERE {where}", params
+                ).fetchall()
+            )
+            jobs = tuple(
+                dict(row)
+                for row in self._conn.execute(
+                    f"SELECT * FROM workflow_jobs WHERE {where} AND workflow_managed = 1",
+                    params,
+                ).fetchall()
+            )
+        return WorkflowSnapshotAuthority(
+            projects, identities, full_project_scope, cursors, memberships, jobs
+        )
+
+    def restore_snapshot_authority(
+        self,
+        authority: WorkflowSnapshotAuthority,
+        *,
+        snapshot_generation: int,
+        now: float | None = None,
+    ) -> bool:
+        """Restore a pre-publication authority checkpoint under the generation fence."""
+
+        if not isinstance(authority, WorkflowSnapshotAuthority):
+            raise TypeError("authority must be a WorkflowSnapshotAuthority")
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        snapshot = int(snapshot_generation)
+        timestamp = float(self._clock() if now is None else now)
+        if authority.full_project_scope:
+            if not authority.project_ids:
+                return True
+            placeholders = ",".join("?" for _ in authority.project_ids)
+            where = f"project_id IN ({placeholders})"
+            params: tuple[Any, ...] = authority.project_ids
+        else:
+            if not authority.identities:
+                return True
+            predicates = " OR ".join(
+                "(project_id = ? AND task_id = ?)" for _ in authority.identities
+            )
+            where = f"({predicates})"
+            params = tuple(item for identity in authority.identities for item in identity)
+
+        before_jobs = {str(row["job_id"]): row for row in authority.jobs}
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                published_row = self._conn.execute(
+                    "SELECT value FROM schema_meta "
+                    "WHERE key = 'workflow_snapshot_published_generation'"
+                ).fetchone()
+                published = int(published_row["value"]) if published_row else 0
+                if (
+                    published >= snapshot
+                    or not self._snapshot_generation_is_current_locked(snapshot)
+                ):
+                    self._conn.commit()
+                    return False
+
+                current_jobs = self._conn.execute(
+                    f"SELECT * FROM workflow_jobs WHERE {where} AND workflow_managed = 1",
+                    params,
+                ).fetchall()
+                for current in current_jobs:
+                    job_id = str(current["job_id"])
+                    prior = before_jobs.get(job_id)
+                    if prior is not None:
+                        columns = [
+                            key
+                            for key in prior
+                            if key not in {"enqueue_sequence", "job_id"}
+                        ]
+                        self._conn.execute(
+                            "UPDATE workflow_jobs SET "
+                            + ", ".join(f"{column} = ?" for column in columns)
+                            + " WHERE job_id = ?",
+                            tuple(prior[column] for column in columns) + (job_id,),
+                        )
+                        restored = self._row_locked(job_id)
+                        self._append_event_locked(
+                            restored,
+                            "publication_rollback",
+                            payload={"snapshot_generation": snapshot},
+                            now=timestamp,
+                        )
+                        continue
+                    if str(current["state"]) in {
+                        state.value for state in ACTIVE_JOB_STATES
+                    }:
+                        self._conn.execute(
+                            """
+                            UPDATE workflow_jobs
+                               SET state = ?, lease_owner = NULL,
+                                   lease_token = NULL, lease_expires_at = NULL,
+                                   retry_at = NULL,
+                                   superseded_by_generation = ?, last_error = ?,
+                                   updated_at = ?, completed_at = ?
+                             WHERE job_id = ?
+                            """,
+                            (
+                                WorkflowJobState.SUPERSEDED.value,
+                                f"publication-rollback:{snapshot}",
+                                "workflow snapshot publication did not commit",
+                                timestamp,
+                                timestamp,
+                                job_id,
+                            ),
+                        )
+                        superseded = self._row_locked(job_id)
+                        self._append_event_locked(
+                            superseded,
+                            "publication_rollback",
+                            payload={"snapshot_generation": snapshot},
+                            now=timestamp,
+                        )
+
+                self._conn.execute(
+                    f"DELETE FROM workflow_schedule_cursors WHERE {where}", params
+                )
+                self._conn.execute(
+                    f"DELETE FROM workflow_snapshot_membership WHERE {where}", params
+                )
+                for table, rows in (
+                    ("workflow_schedule_cursors", authority.cursors),
+                    ("workflow_snapshot_membership", authority.memberships),
+                ):
+                    if not rows:
+                        continue
+                    columns = tuple(rows[0])
+                    self._conn.executemany(
+                        f"INSERT INTO {table} ({', '.join(columns)}) "
+                        f"VALUES ({', '.join('?' for _ in columns)})",
+                        [tuple(row[column] for column in columns) for row in rows],
+                    )
+                self._conn.commit()
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def rollback_snapshot_authority(
+        self,
+        *,
+        snapshot_generation: int,
+        authoritative_project_ids: Sequence[str] = (),
+        evaluated_identities: Sequence[tuple[str, str]] = (),
+        now: float | None = None,
+    ) -> bool:
+        """Quarantine mutations whose external publication did not commit.
+
+        Full-snapshot projects are invalidated as a unit. This intentionally
+        favors fail-closed recovery over reconstructing superseded leases from
+        stale pre-snapshot rows. A subsequent complete generation rebuilds the
+        membership and cursor authority. Unmanaged direct-enqueue jobs are not
+        part of workflow snapshot authority and are never changed here.
+        """
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        snapshot = int(snapshot_generation)
+        projects = {
+            _required_text(project_id, "authoritative project_id")
+            for project_id in authoritative_project_ids
+        }
+        identities = {
+            (
+                _required_text(project_id, "evaluated project_id"),
+                _required_text(task_id, "evaluated task_id"),
+            )
+            for project_id, task_id in evaluated_identities
+        }
+        timestamp = float(self._clock() if now is None else now)
+        replacement_generation = f"publication-rollback:{snapshot}"
+        message = "workflow snapshot publication did not commit"
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                published_row = self._conn.execute(
+                    "SELECT value FROM schema_meta "
+                    "WHERE key = 'workflow_snapshot_published_generation'"
+                ).fetchone()
+                published = (
+                    int(published_row["value"])
+                    if published_row is not None
+                    else 0
+                )
+                if (
+                    published >= snapshot
+                    or not self._snapshot_generation_is_current_locked(snapshot)
+                ):
+                    self._conn.commit()
+                    return False
+
+                affected = set(identities)
+                for project in sorted(projects):
+                    rows = self._conn.execute(
+                        """
+                        SELECT project_id, task_id FROM workflow_schedule_cursors
+                         WHERE project_id = ?
+                        UNION
+                        SELECT project_id, task_id FROM workflow_snapshot_membership
+                         WHERE project_id = ?
+                        UNION
+                        SELECT project_id, task_id FROM workflow_jobs
+                         WHERE project_id = ? AND workflow_managed = 1
+                           AND state IN (?, ?, ?)
+                        """,
+                        (
+                            project,
+                            project,
+                            project,
+                            WorkflowJobState.QUEUED.value,
+                            WorkflowJobState.RUNNING.value,
+                            WorkflowJobState.RETRY_WAIT.value,
+                        ),
+                    ).fetchall()
+                    affected.update(
+                        (str(row["project_id"]), str(row["task_id"]))
+                        for row in rows
+                    )
+
+                for project, task in sorted(affected):
+                    active_rows = self._conn.execute(
+                        """
+                        SELECT * FROM workflow_jobs
+                         WHERE project_id = ? AND task_id = ?
+                           AND workflow_managed = 1
+                           AND state IN (?, ?, ?)
+                         ORDER BY enqueue_sequence
+                        """,
+                        (
+                            project,
+                            task,
+                            WorkflowJobState.QUEUED.value,
+                            WorkflowJobState.RUNNING.value,
+                            WorkflowJobState.RETRY_WAIT.value,
+                        ),
+                    ).fetchall()
+                    for selected in active_rows:
+                        self._conn.execute(
+                            """
+                            UPDATE workflow_jobs
+                               SET state = ?, lease_owner = NULL,
+                                   lease_token = NULL, lease_expires_at = NULL,
+                                   retry_at = NULL,
+                                   superseded_by_generation = ?, last_error = ?,
+                                   updated_at = ?, completed_at = ?
+                             WHERE job_id = ?
+                            """,
+                            (
+                                WorkflowJobState.SUPERSEDED.value,
+                                replacement_generation,
+                                message,
+                                timestamp,
+                                timestamp,
+                                selected["job_id"],
+                            ),
+                        )
+                        updated = self._row_locked(str(selected["job_id"]))
+                        self._append_event_locked(
+                            updated,
+                            "publication_rollback",
+                            payload={
+                                "snapshot_generation": snapshot,
+                                "reason": message,
+                            },
+                            now=timestamp,
+                        )
+                    self._conn.execute(
+                        "DELETE FROM workflow_schedule_cursors "
+                        "WHERE project_id = ? AND task_id = ?",
+                        (project, task),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM workflow_snapshot_membership "
+                        "WHERE project_id = ? AND task_id = ?",
+                        (project, task),
+                    )
+                for project in sorted(projects):
+                    self._conn.execute(
+                        "DELETE FROM workflow_schedule_cursors WHERE project_id = ?",
+                        (project,),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM workflow_snapshot_membership WHERE project_id = ?",
+                        (project,),
+                    )
+                self._conn.commit()
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
+
     @staticmethod
     def _schedule_cursor_from_row(
         row: sqlite3.Row, *, changed: bool, accepted: bool = True
@@ -547,6 +1456,10 @@ class WorkflowJobStore:
             job_generation=str(row["job_generation"]),
             changed=changed,
             accepted=accepted,
+            materialized=(
+                str(row["materialized_job_generation"] or "")
+                == str(row["job_generation"])
+            ),
         )
 
     def schedule_cursor(
@@ -567,6 +1480,56 @@ class WorkflowJobStore:
             if row is not None
             else None
         )
+
+    def schedule_specs_materialized(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        decision_revision: str,
+        job_generation: str,
+        idempotency_keys: Sequence[str],
+    ) -> bool:
+        """Verify the durable semantic cursor and all of its required jobs."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        revision = _required_text(decision_revision, "decision_revision")
+        generation = _required_text(job_generation, "job_generation")
+        raw_keys = tuple(
+            _required_text(key, "idempotency_key")
+            for key in idempotency_keys
+        )
+        keys = tuple(sorted(set(raw_keys)))
+        if len(keys) != len(raw_keys):
+            raise ValueError("idempotency_keys must be unique")
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                SELECT * FROM workflow_schedule_cursors
+                 WHERE project_id = ? AND task_id = ?
+                """,
+                (project, task),
+            ).fetchone()
+            if (
+                cursor is None
+                or str(cursor["decision_revision"]) != revision
+                or str(cursor["job_generation"]) != generation
+                or str(cursor["materialized_job_generation"] or "")
+                != generation
+            ):
+                return False
+            if not keys:
+                return True
+            rows = self._conn.execute(
+                f"""
+                SELECT idempotency_key FROM workflow_jobs
+                 WHERE project_id = ?
+                   AND idempotency_key IN ({','.join('?' for _ in keys)})
+                """,
+                (project, *keys),
+            ).fetchall()
+        return {str(row["idempotency_key"]) for row in rows} == set(keys)
 
     def activate_schedule(
         self,
@@ -601,6 +1564,22 @@ class WorkflowJobStore:
                     """,
                     (project, task),
                 ).fetchone()
+                if not self._snapshot_generation_is_current_locked(snapshot):
+                    self._conn.commit()
+                    if existing is not None:
+                        return self._schedule_cursor_from_row(
+                            existing, changed=False, accepted=False
+                        )
+                    return WorkflowScheduleCursor(
+                        project_id=project,
+                        task_id=task,
+                        snapshot_generation=snapshot,
+                        decision_revision=revision,
+                        job_generation="stale",
+                        changed=False,
+                        accepted=False,
+                        materialized=False,
+                    )
                 if existing is not None:
                     previous_snapshot = int(existing["snapshot_generation"])
                     if snapshot < previous_snapshot:
@@ -628,12 +1607,19 @@ class WorkflowJobStore:
                     """
                     INSERT INTO workflow_schedule_cursors(
                         project_id, task_id, snapshot_generation,
-                        decision_revision, job_generation, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        decision_revision, job_generation,
+                        materialized_job_generation, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, NULL, ?)
                     ON CONFLICT(project_id, task_id) DO UPDATE SET
                         snapshot_generation = excluded.snapshot_generation,
                         decision_revision = excluded.decision_revision,
                         job_generation = excluded.job_generation,
+                        materialized_job_generation = CASE
+                            WHEN workflow_schedule_cursors.job_generation
+                                 = excluded.job_generation
+                            THEN workflow_schedule_cursors.materialized_job_generation
+                            ELSE NULL
+                        END,
                         updated_at = excluded.updated_at
                     """,
                     (
@@ -702,6 +1688,7 @@ class WorkflowJobStore:
                 row["result_transition_json"], "result_transition"
             ),
             superseded_by_generation=_optional_text(row["superseded_by_generation"]),
+            workflow_managed=bool(row["workflow_managed"]),
             created_at=float(row["created_at"]),
             updated_at=float(row["updated_at"]),
             completed_at=(
@@ -793,7 +1780,11 @@ class WorkflowJobStore:
         return tuple(self._event_from_row(row) for row in rows)
 
     def _enqueue_locked(
-        self, spec: WorkflowJobSpec, *, now: float
+        self,
+        spec: WorkflowJobSpec,
+        *,
+        now: float,
+        workflow_managed: bool = False,
     ) -> tuple[WorkflowJob, bool]:
         if not isinstance(spec, WorkflowJobSpec):
             raise TypeError("spec must be a WorkflowJobSpec")
@@ -810,6 +1801,12 @@ class WorkflowJobStore:
                     f"idempotency key {spec.idempotency_key!r} already describes "
                     "different workflow work"
                 )
+            if workflow_managed and not bool(existing["workflow_managed"]):
+                self._conn.execute(
+                    "UPDATE workflow_jobs SET workflow_managed = 1 WHERE job_id = ?",
+                    (existing["job_id"],),
+                )
+                existing = self._row_locked(str(existing["job_id"]))
             return self._from_row(existing), False
         job_id = _required_text(self._id_factory(), "generated job_id")
         self._conn.execute(
@@ -818,8 +1815,9 @@ class WorkflowJobStore:
                 job_id, project_id, task_id, generation, action, phase,
                 idempotency_key, spec_revision, spec_json,
                 expected_evidence_revision, expected_head_sha, state,
-                priority, attempts, max_attempts, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                priority, attempts, max_attempts, workflow_managed,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
             """,
             (
                 job_id,
@@ -836,6 +1834,7 @@ class WorkflowJobStore:
                 WorkflowJobState.QUEUED.value,
                 spec.priority,
                 spec.max_attempts,
+                int(workflow_managed),
                 now,
                 now,
             ),
@@ -907,6 +1906,8 @@ class WorkflowJobStore:
                     (project, task),
                 ).fetchone()
                 if (
+                    not self._snapshot_generation_is_current_locked(snapshot)
+                    or
                     cursor is None
                     or int(cursor["snapshot_generation"]) != snapshot
                     or str(cursor["job_generation"]) != generation
@@ -923,7 +1924,9 @@ class WorkflowJobStore:
                 created = 0
                 replayed = 0
                 for spec in normalized_specs:
-                    _job, inserted = self._enqueue_locked(spec, now=timestamp)
+                    _job, inserted = self._enqueue_locked(
+                        spec, now=timestamp, workflow_managed=True
+                    )
                     created += int(inserted)
                     replayed += int(not inserted)
 
@@ -931,6 +1934,7 @@ class WorkflowJobStore:
                     f"""
                     SELECT * FROM workflow_jobs
                      WHERE project_id = ? AND task_id = ?
+                       AND workflow_managed = 1
                        AND state IN ({",".join("?" for _ in ACTIVE_JOB_STATES)})
                      ORDER BY enqueue_sequence
                     """,
@@ -977,6 +1981,22 @@ class WorkflowJobStore:
                         now=timestamp,
                     )
                     superseded += 1
+                self._conn.execute(
+                    """
+                    UPDATE workflow_schedule_cursors
+                       SET materialized_job_generation = ?, updated_at = ?
+                     WHERE project_id = ? AND task_id = ?
+                       AND snapshot_generation = ? AND job_generation = ?
+                    """,
+                    (
+                        generation,
+                        timestamp,
+                        project,
+                        task,
+                        snapshot,
+                        generation,
+                    ),
+                )
                 self._conn.commit()
                 return WorkflowScheduleWrite(
                     project,
@@ -1204,6 +2224,24 @@ class WorkflowJobStore:
             "(candidate.state = ? OR (candidate.state = ? "
             "AND candidate.retry_at IS NOT NULL AND candidate.retry_at <= ?))",
             "candidate.attempts < candidate.max_attempts",
+            "(candidate.workflow_managed = 0 OR ("
+            "EXISTS (SELECT 1 FROM workflow_snapshot_membership member "
+            "JOIN workflow_schedule_cursors cursor "
+            "ON cursor.project_id = member.project_id "
+            "AND cursor.task_id = member.task_id "
+            "WHERE member.project_id = candidate.project_id "
+            "AND member.task_id = candidate.task_id "
+            "AND cursor.snapshot_generation = member.snapshot_generation "
+            "AND cursor.job_generation = candidate.generation "
+            "AND cursor.materialized_job_generation = candidate.generation) "
+            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_generation') = "
+            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_accepted_generation') "
+            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_accepted_generation') = "
+            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_published_generation'))) ",
             "NOT EXISTS ("
             "SELECT 1 FROM workflow_jobs owned "
             "WHERE owned.project_id = candidate.project_id "
@@ -1745,9 +2783,25 @@ class WorkflowJobStore:
                   FROM workflow_schedule_cursors
                 """
             ).fetchone()
+            membership = self._conn.execute(
+                "SELECT COUNT(*) AS count FROM workflow_snapshot_membership"
+            ).fetchone()
             fairness = self._conn.execute(
                 "SELECT COUNT(*) AS count FROM workflow_project_fairness"
             ).fetchone()
+            generation_rows = {
+                str(row["key"]): int(row["value"])
+                for row in self._conn.execute(
+                    """
+                    SELECT key, value FROM schema_meta
+                     WHERE key IN (
+                        'workflow_snapshot_generation',
+                        'workflow_snapshot_accepted_generation',
+                        'workflow_snapshot_published_generation'
+                     )
+                    """
+                )
+            }
         per_project: dict[str, dict[str, int]] = {}
         for row in project_rows:
             per_project.setdefault(str(row["project_id"]), {})[str(row["state"])] = int(
@@ -1773,7 +2827,17 @@ class WorkflowJobStore:
                 max(0.0, timestamp - available_at) if available_at is not None else None
             ),
             "schedule_cursor_count": int(cursors["count"] or 0),
+            "snapshot_membership_count": int(membership["count"] or 0),
             "latest_snapshot_generation": int(cursors["generation"] or 0),
+            "captured_snapshot_generation": generation_rows.get(
+                "workflow_snapshot_generation", 0
+            ),
+            "accepted_snapshot_generation": generation_rows.get(
+                "workflow_snapshot_accepted_generation", 0
+            ),
+            "published_snapshot_generation": generation_rows.get(
+                "workflow_snapshot_published_generation", 0
+            ),
             "fair_project_count": int(fairness["count"] or 0),
             "projects": per_project,
             "projects_truncated": len(project_rows) >= bounded_projects,

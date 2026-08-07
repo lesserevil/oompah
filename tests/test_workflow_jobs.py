@@ -17,6 +17,7 @@ from oompah.workflow_jobs import (
     WorkflowJobState,
     WorkflowJobStore,
     WorkflowJobStoreError,
+    WorkflowSnapshotPublication,
 )
 
 
@@ -564,6 +565,7 @@ def test_schema_v1_is_upgraded_without_losing_job(tmp_path):
     try:
         assert upgraded.schema_version == WORKFLOW_JOB_SCHEMA_VERSION
         assert upgraded.get("old-job").expected_head_sha is None
+        assert not upgraded.get("old-job").workflow_managed
         assert claim(upgraded).job_id == "old-job"
         upgraded.integrity_check()
     finally:
@@ -583,6 +585,116 @@ def test_future_schema_is_rejected(tmp_path):
 
     with pytest.raises(WorkflowJobStoreError, match="newer"):
         WorkflowJobStore(str(path))
+
+
+def test_post_callback_commit_failure_compensates_and_same_generation_retries(store):
+    generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(generation)
+    external = {"generation": 0}
+    connection = store._conn
+
+    class FailPublishedCommitOnce:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.armed = False
+            self.failed = False
+
+        def execute(self, sql, *args, **kwargs):
+            result = self.wrapped.execute(sql, *args, **kwargs)
+            if (
+                not self.failed
+                and "workflow_snapshot_published_generation" in str(sql)
+                and "INSERT" in str(sql)
+            ):
+                self.armed = True
+            return result
+
+        def commit(self):
+            if self.armed:
+                self.armed = False
+                self.failed = True
+                raise sqlite3.OperationalError("injected post-callback failure")
+            return self.wrapped.commit()
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+    store._conn = FailPublishedCommitOnce(connection)
+
+    def publish():
+        previous = external["generation"]
+        external["generation"] = generation
+        return WorkflowSnapshotPublication(
+            result="published",
+            rollback=lambda: external.__setitem__("generation", previous),
+        )
+
+    with pytest.raises(sqlite3.OperationalError, match="post-callback"):
+        store.publish_snapshot_generation(generation, publish)
+
+    assert external["generation"] == 0
+    assert store.health_snapshot()["published_snapshot_generation"] == 0
+
+    accepted, result = store.publish_snapshot_generation(generation, publish)
+
+    assert accepted
+    assert result == "published"
+    assert external["generation"] == generation
+    assert store.health_snapshot()["published_snapshot_generation"] == generation
+
+
+def test_commit_error_after_durable_marker_does_not_rollback_coherent_publication(
+    store,
+):
+    generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(generation)
+    external = {"generation": 0, "rollbacks": 0}
+    connection = store._conn
+
+    class RaiseAfterPublishedCommitOnce:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.armed = False
+            self.failed = False
+
+        def execute(self, sql, *args, **kwargs):
+            result = self.wrapped.execute(sql, *args, **kwargs)
+            if (
+                not self.failed
+                and "workflow_snapshot_published_generation" in str(sql)
+                and "INSERT" in str(sql)
+            ):
+                self.armed = True
+            return result
+
+        def commit(self):
+            result = self.wrapped.commit()
+            if self.armed:
+                self.armed = False
+                self.failed = True
+                raise sqlite3.OperationalError("injected error after durable commit")
+            return result
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+    store._conn = RaiseAfterPublishedCommitOnce(connection)
+
+    def publish():
+        external["generation"] = generation
+
+        def rollback():
+            external["generation"] = 0
+            external["rollbacks"] += 1
+
+        return WorkflowSnapshotPublication(result="published", rollback=rollback)
+
+    accepted, result = store.publish_snapshot_generation(generation, publish)
+
+    assert accepted
+    assert result == "published"
+    assert external == {"generation": generation, "rollbacks": 0}
+    assert store.health_snapshot()["published_snapshot_generation"] == generation
 
 
 def test_integrity_check_detects_tampered_spec(store):

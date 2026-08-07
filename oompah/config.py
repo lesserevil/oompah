@@ -20,6 +20,7 @@ from oompah.statuses import (
     OPEN,
 )
 from oompah.temp_root import default_temp_root, default_workspace_root, resolve_temp_root
+from oompah.workflow_reasons import LIVENESS_SLOS, build_liveness_slos
 
 logger = logging.getLogger(__name__)
 
@@ -672,6 +673,21 @@ class ServiceConfig:
     workflow_engine_mode: str = "off"
     workflow_shadow_scan_limit: int = 100
     workflow_diagnostic_max_bytes: int = 64 * 1024
+    # Bounded authoritative liveness projections. These limits cap persisted
+    # task/project attribution; the stale threshold fails health closed when
+    # no fresh controller coverage has completed.
+    workflow_liveness_max_task_records: int = 256
+    workflow_liveness_max_project_records: int = 64
+    workflow_liveness_snapshot_stale_seconds: int = 900
+    # Environment-only reassessment ceilings. Keeping this policy on each
+    # ServiceConfig avoids mutable process globals when multiple orchestrators
+    # or tests use different operating objectives.
+    workflow_liveness_slo_seconds: dict[str, int] = field(
+        default_factory=lambda: {
+            key: value.max_reassessment_seconds
+            for key, value in LIVENESS_SLOS.items()
+        }
+    )
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -816,6 +832,21 @@ class ServiceConfig:
         self.workflow_diagnostic_max_bytes = max(
             int(self.workflow_diagnostic_max_bytes), 1024
         )
+        self.workflow_liveness_max_task_records = min(
+            max(int(self.workflow_liveness_max_task_records), 1), 1000
+        )
+        self.workflow_liveness_max_project_records = min(
+            max(int(self.workflow_liveness_max_project_records), 1), 1000
+        )
+        self.workflow_liveness_snapshot_stale_seconds = max(
+            int(self.workflow_liveness_snapshot_stale_seconds), 1
+        )
+        self.workflow_liveness_slo_seconds = {
+            key: slo.max_reassessment_seconds
+            for key, slo in build_liveness_slos(
+                self.workflow_liveness_slo_seconds
+            ).items()
+        }
         self.storage_cleanup_interval_seconds = max(
             int(self.storage_cleanup_interval_seconds), 60
         )
@@ -1111,6 +1142,16 @@ class ServiceConfig:
         # deprecation notices without drowning in repeated warnings.
         warn_deprecated_verify_completion_vars()
 
+        workflow_liveness_slo_seconds = {
+            key: _env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_SLO_"
+                f"{key.upper()}_SECONDS",
+                None,
+                slo.max_reassessment_seconds,
+            )
+            for key, slo in LIVENESS_SLOS.items()
+        }
+
         return cls(
             tracker_kind=tracker_kind,
             tracker_active_states=_parse_state_list(
@@ -1363,6 +1404,16 @@ class ServiceConfig:
             workflow_diagnostic_max_bytes=_env_int(
                 "OOMPAH_WORKFLOW_DIAGNOSTIC_MAX_BYTES", None, 64 * 1024
             ),
+            workflow_liveness_max_task_records=_env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_MAX_TASK_RECORDS", None, 256
+            ),
+            workflow_liveness_max_project_records=_env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_MAX_PROJECT_RECORDS", None, 64
+            ),
+            workflow_liveness_snapshot_stale_seconds=_env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_SNAPSHOT_STALE_SECONDS", None, 900
+            ),
+            workflow_liveness_slo_seconds=workflow_liveness_slo_seconds,
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(
                 "OOMPAH_PROJECT_REFRESH_TIMEOUT_MS",
