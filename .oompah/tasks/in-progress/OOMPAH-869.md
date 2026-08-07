@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T07:12:11.767432Z'
+updated_at: '2026-08-07T07:12:39.189811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -251,5 +251,10 @@ author: oompah
 created: 2026-08-07 05:45
 ---
 Operator deliberately cancelled exact gate generation 8c6215cf670b456f9e9ebfd243d48c06 after 57 seconds because it raced ahead of the already-running systemic critical-path O865 validation despite the project pause. This is scheduling preemption, not a product-test failure. Preserve exact submitted head 519ec2e492dec109ab008ad3617a5489928f2a30; rerun the full gate when the O845/O867/O854 dependency sequence releases the validation lane.
+---
+author: oompah
+created: 2026-08-07 07:12
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
