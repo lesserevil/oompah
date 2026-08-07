@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T12:25:20.972152Z'
+updated_at: '2026-08-07T12:27:31.362633Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -131,8 +131,8 @@ oompah.integration:
   base_branch: main
   base_sha: d4501e4a208a9295776854e477414e81c1b6b69c
   head_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
-  submitted_at: '2026-08-07T09:12:01.013972+00:00'
-  updated_at: '2026-08-07T09:12:01.013972+00:00'
+  submitted_at: '2026-08-07T12:27:19.112201+00:00'
+  updated_at: '2026-08-07T12:27:19.112201+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/738
 oompah.review_number: '738'
 oompah.work_branch: OOMPAH-641
@@ -867,5 +867,10 @@ author: oompah
 created: 2026-08-07 12:25
 ---
 Verification: All acceptance criteria met. Focused epic strategy tests pass (19/19), independently merged child detection tests pass (7/7 including EXOCOMP-57), and terminal mutation scan passes. Full test suite: 15865 passed. Implementation complete:
+---
+author: oompah
+created: 2026-08-07 12:27
+---
+Finished shared-epic pre-PR and reconciliation hardening: All four requirements implemented and tested. (1) _ensure_review_exists blocks per-child PR creation even with stale work_branch by normalizing identities before routing. (2) Fails closed when parent_id absent but parent resolvable via 'parent_id or parent_epic' check. (3) _create_workspace_for_issue corrects in-memory work/branch identity before persistence attempt. (4) Independently-merged reconciliation detects EXOCOMP-57-style stale own-branch children. Acceptance: all 4 regressions covered with dedicated tests, 19/19 epic strategy tests pass, 7/7 independently-merged tests pass including EXOCOMP-57, terminal mutation scan passes, full test suite 15865 passed.
 ---
 <!-- COMMENTS:END -->
