@@ -1656,6 +1656,7 @@ class Orchestrator:
             "transport_failure_count": 0,
             "policy_incompatibility_count": 0,
             "retry_exhausted_count": 0,
+            "transport_retry_pending_count": 0,
             "oldest_pending_age_seconds": None,
             "stale_in_validation_count": 0,
             "last_error": None,
@@ -2591,11 +2592,15 @@ class Orchestrator:
         """
         stale_after = getattr(self.config, "audit_stale_pending_seconds", 3600)
         max_attempts = getattr(self.config, "audit_max_attempts", 3)
+        max_transport_retries = getattr(
+            self.config, "audit_max_transport_retries", 3
+        )
         health = build_terminal_audit_health(
             observations,
             now=datetime.now(timezone.utc),
             stale_after_seconds=stale_after,
             max_attempts=max_attempts,
+            max_transport_retries=max_transport_retries,
             scan_complete=scan_complete,
             scan_error_count=scan_error_count,
         )
@@ -2613,6 +2618,9 @@ class Orchestrator:
             "policy_incompatibility_count": health.policy_incompatibility_count,
             "finalization_failure_count": health.finalization_failure_count,
             "retry_exhausted_count": health.retry_exhausted_count,
+            "transport_retry_pending_count": (
+                health.transport_retry_pending_count
+            ),
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
             "stale_in_validation_count": health.stale_in_validation_count,
             "health_scan_complete": scan_complete,
@@ -8493,6 +8501,9 @@ class Orchestrator:
                 lane = AuditorDispatchLane(
                     selector,
                     max_attempts=self.config.audit_max_attempts,
+                    max_transport_retries=getattr(
+                        self.config, "audit_max_transport_retries", 3
+                    ),
                     attempt_ttl_seconds=self.config.audit_attempt_ttl_seconds,
                 )
                 branch_key = audit_branch_key(issue)
