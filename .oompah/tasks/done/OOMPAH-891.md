@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T15:06:21.158356Z'
+updated_at: '2026-08-07T15:06:31.323483Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -75,6 +75,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T15:06:15.717794+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain exact validated child completion at 28c0729e while parent OOMPAH-879
+      continues with server-owned publication.
+    marked_at: '2026-08-07T15:06:27.996979+00:00'
+    updated_at: '2026-08-07T15:06:27.996979+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain exact validated child completion at 28c0729e while parent OOMPAH-879
+        continues with server-owned publication.
+      recorded_at: '2026-08-07T15:06:27.996979+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
