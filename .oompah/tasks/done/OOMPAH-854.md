@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T16:19:10.716227Z'
+updated_at: '2026-08-07T16:19:47.057868Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -126,6 +126,24 @@ oompah.work_contributors:
     completed_at: '2026-08-06T06:10:36.816817+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-327415205f37
+    project_id: proj-14849f1b
+    task_id: OOMPAH-854
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bdd4ff9f8a687d8460608b62ae884139b8b0c0a384a05468bb10db24506f3e42
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner implementation was independently reviewed and passed the
+      exact focused lifecycle gates at pushed head e0c71eb465b0c0db430baf6382e1327e5a9aa5bd.
+    created_at: '2026-08-07T16:19:41.363686+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -133,12 +151,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-854
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: bdd4ff9f8a687d8460608b62ae884139b8b0c0a384a05468bb10db24506f3e42
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-12609662cf8a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: bdd4ff9f8a687d8460608b62ae884139b8b0c0a384a05468bb10db24506f3e42
+      created_at: '2026-08-07T16:19:37.858462+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T16:19:37.858462+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-854
+      selected_ref: 357149ce04f89835e85a063d914625dc751e71c1
+      selected_sha: 357149ce04f89835e85a063d914625dc751e71c1
     requested_by:
       version: 1
       identity: oompah-cli
@@ -147,7 +180,23 @@ oompah.terminal_audit:
     created_at: '2026-08-07T16:19:02.229224+00:00'
     selected_ref: 357149ce04f89835e85a063d914625dc751e71c1
     selected_sha: 357149ce04f89835e85a063d914625dc751e71c1
-  attempt_history: []
+    updated_at: '2026-08-07T16:19:37.858462+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-12609662cf8a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bdd4ff9f8a687d8460608b62ae884139b8b0c0a384a05468bb10db24506f3e42
+    created_at: '2026-08-07T16:19:37.858462+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T16:19:37.858462+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-854
+    selected_ref: 357149ce04f89835e85a063d914625dc751e71c1
+    selected_sha: 357149ce04f89835e85a063d914625dc751e71c1
 ---
 ## Summary
 
