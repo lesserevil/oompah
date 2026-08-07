@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T13:28:50.863308Z'
+updated_at: '2026-08-07T13:29:09.722043Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -206,7 +206,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -247,6 +247,22 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-07T13:28:49.347793+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-25e8d1ac314c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+      created_at: '2026-08-07T13:28:58.945714+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T13:28:58.945714+00:00'
+      branch_key: epic-OOMPAH-584
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -255,7 +271,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:16:06.083367+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:22:28.715246+00:00'
+    updated_at: '2026-08-07T13:28:58.945714+00:00'
   - version: 1
     audit_id: audit-cc0932baf6f3
     project_id: proj-14849f1b
@@ -365,6 +381,22 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T13:28:49.347793+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-25e8d1ac314c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    created_at: '2026-08-07T13:28:58.945714+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T13:28:58.945714+00:00'
+    branch_key: epic-OOMPAH-584
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 478085
   total_output_tokens: 8640
@@ -795,5 +827,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 46s
 - Log: OOMPAH-584__20260807T132246Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:29
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-07 13:29
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
