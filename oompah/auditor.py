@@ -111,6 +111,10 @@ _MAX_SAFE_EVIDENCE_KEY_LENGTH = 128
 #: or multi-line injections into the coordinator comment.
 _MAX_SAFE_EVIDENCE_VALUE_LENGTH = 512
 
+#: Maximum nesting accepted from ``safe_evidence`` before it is flattened to
+#: the coordinator's durable scalar evidence contract.
+_MAX_SAFE_EVIDENCE_DEPTH = 4
+
 #: Maximum number of optional questions or instructions in one result.
 _MAX_RESULT_LIST_ITEMS = 5
 
@@ -152,14 +156,17 @@ _RESULT_SECRET_RE = re.compile(
     r"|AKIA[0-9A-Z]{16}"
     # PEM private-key headers
     r"|-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY"
-    # Bearer values are unsafe even without an assignment delimiter.
-    r"|Bearer\s+[A-Za-z0-9_./+\-]{1,}"
+    # Bearer values are unsafe even without an assignment delimiter.  Exclude
+    # common prose continuations so phrases such as "Bearer syntax" do not
+    # become false credential matches.
+    r"|Bearer\s+(?!(?:token|tokens|syntax|header|headers|scheme|value|values|credential|credentials|authentication)\b)[A-Za-z0-9_./+\-]{1,}"
     # JWT: three dot-separated Base64url segments (header.payload.signature)
     r"|(?:[A-Za-z0-9\-_]{10,}\.){2}[A-Za-z0-9\-_]{10,}"
     # Explicit Bearer / credential assignment patterns.  Assignment values
     # are rejected even when short: credentials are not required to meet a
     # minimum length before they become unsafe to echo into a tracker.
-    r"|(?:Bearer|token|api[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret|authorization)\s*[=:]\s*[^\s,;]+"
+    r"|authorization\s*[=:]\s*(?:Bearer\s+)?[^\s,;]+"
+    r"|(?:Bearer|token|api[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret)\s*[=:]\s*[^\s,;]+"
     r")",
     re.IGNORECASE,
 )
@@ -175,6 +182,64 @@ _SECRET_KEY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Only values that make their inertness explicit may be normalized. Complete
+# credential-shaped strings are indistinguishable from live credentials and
+# therefore fail closed even when surrounding prose calls them examples.
+_EXPLICIT_CREDENTIAL_PLACEHOLDER_RE = re.compile(
+    r"(?:"
+    r"\.\.\."
+    r"|\*{2,}"
+    r"|x{6,}"
+    r"|<(?:redacted|masked|placeholder|example|sample|token|secret|password|passwd|api[_-]?key|value)>"
+    r"|\[(?:redacted|masked|placeholder|example|sample)[^\]\r\n]{0,48}\]"
+    r"|\b(?:redacted|masked|placeholder|example|sample|dummy|fake)\b"
+    r"|\b(?:your|test)[_-]?(?:token|secret|password|passwd|api[_-]?key|key)\b"
+    r"|\bnot[_-]?a[_-]?real[_-]?(?:token|secret|password|key)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+class _UnsafeAuditorCredential(ValueError):
+    """A credential-shaped result value that cannot be safely normalized."""
+
+
+def _unsafe_credential_error(field_path: str) -> _UnsafeAuditorCredential:
+    """Build non-observable, field-specific retry feedback."""
+
+    if field_path.endswith(" key"):
+        correction = (
+            "rename it to a neutral evidence label and replace any credential "
+            "value with an explicit placeholder such as <redacted>"
+        )
+    else:
+        correction = (
+            "replace the value with an explicit placeholder such as <redacted>"
+        )
+    return _UnsafeAuditorCredential(
+        f"auditor result {field_path} contains credential material that cannot "
+        f"be safely normalized; {correction} and resubmit"
+    )
+
+
+def _credential_match_is_placeholder(match: re.Match[str], text: str) -> bool:
+    """Return whether a credential-pattern match is demonstrably inert."""
+
+    matched_text = match.group(0)
+    if _EXPLICIT_CREDENTIAL_PLACEHOLDER_RE.search(matched_text):
+        return True
+    if matched_text.upper().endswith("EXAMPLE"):
+        # AWS publishes an exact inert access-key example with this suffix.
+        return True
+
+    # A PEM header is syntax rather than key material when no payload follows
+    # it on another line. A header with multiline content remains
+    # indistinguishable from a real private key and is rejected.
+    if "PRIVATE KEY" in matched_text.upper():
+        tail = text[match.end():]
+        return bool(re.fullmatch(r"-{0,5}[\"')\].,;:]*\s*", tail))
+    return False
+
 
 def _redact_credential_patterns(text: str, field_name: str) -> tuple[str, list[str]]:
     """Redact credential-like patterns in free-text fields.
@@ -187,125 +252,140 @@ def _redact_credential_patterns(text: str, field_name: str) -> tuple[str, list[s
     like [REDACTED-github-token] so the auditor can understand what was normalized.
     """
     redactions: list[str] = []
-    
-    def replace_match(match):
+
+    for match in _RESULT_SECRET_RE.finditer(text):
+        if not _credential_match_is_placeholder(match, text):
+            raise _unsafe_credential_error(field_name)
+
+    def replace_match(match: re.Match[str]) -> str:
         matched_text = match.group(0)
-        
-        # Identify the type of credential pattern matched for better feedback
-        if "ghp_" in matched_text or "ghs_" in matched_text or "gho_" in matched_text or "github_pat_" in matched_text:
+        matched_lower = matched_text.lower()
+
+        if any(prefix in matched_lower for prefix in ("ghp_", "ghs_", "gho_", "github_pat_")):
             marker = "[REDACTED-github-token]"
-            redactions.append(f"{field_name}: GitHub token example")
-        elif "glpat-" in matched_text or "gldt-" in matched_text:
+            redactions.append(f"{field_name}: GitHub token placeholder")
+        elif "glpat-" in matched_lower or "gldt-" in matched_lower:
             marker = "[REDACTED-gitlab-token]"
-            redactions.append(f"{field_name}: GitLab token example")
-        elif "xox" in matched_text:
+            redactions.append(f"{field_name}: GitLab token placeholder")
+        elif "xox" in matched_lower:
             marker = "[REDACTED-slack-token]"
-            redactions.append(f"{field_name}: Slack token example")
-        elif "sk-" in matched_text:
-            marker = "[REDACTED-api-key]"
-            redactions.append(f"{field_name}: API key example")
-        elif "AKIA" in matched_text:
-            marker = "[REDACTED-aws-key]"
-            redactions.append(f"{field_name}: AWS credential example")
-        elif "BEGIN" in matched_text and "PRIVATE KEY" in matched_text:
-            marker = "[REDACTED-private-key]"
-            redactions.append(f"{field_name}: Private key header example")
-        elif "Bearer" in matched_text or matched_text.startswith("Bearer "):
+            redactions.append(f"{field_name}: Slack token placeholder")
+        elif "bearer" in matched_lower:
             marker = "[REDACTED-bearer-token]"
-            redactions.append(f"{field_name}: Bearer token example")
+            redactions.append(f"{field_name}: Bearer token placeholder")
+        elif "sk-" in matched_lower:
+            marker = "[REDACTED-api-key]"
+            redactions.append(f"{field_name}: API key placeholder")
+        elif "akia" in matched_lower:
+            marker = "[REDACTED-aws-key]"
+            redactions.append(f"{field_name}: AWS credential placeholder")
+        elif "begin" in matched_lower and "private key" in matched_lower:
+            marker = "[REDACTED-private-key]"
+            redactions.append(f"{field_name}: private key header")
         elif any(sep in matched_text for sep in ("=", ":")):
             marker = "[REDACTED-credential]"
-            # Try to extract the key name for more context
-            for sep in ("=", ":"):
-                if sep in matched_text:
-                    key_part = matched_text.split(sep)[0].strip().lower()
-                    if key_part:
-                        redactions.append(f"{field_name}: credential-like assignment (key: {key_part})")
-                    break
+            redactions.append(f"{field_name}: credential assignment placeholder")
         else:
-            # JWT or other pattern
             if "." in matched_text and len(matched_text) > 50:
                 marker = "[REDACTED-jwt-like]"
-                redactions.append(f"{field_name}: JWT-like token example")
+                redactions.append(f"{field_name}: JWT-like token placeholder")
             else:
                 marker = "[REDACTED-credential-pattern]"
-                redactions.append(f"{field_name}: credential pattern example")
-        
+                redactions.append(f"{field_name}: credential placeholder")
         return marker
-    
+
     redacted = _RESULT_SECRET_RE.sub(replace_match, text)
     return redacted, redactions
 
 
 def _redact_safe_evidence(
-    safe_evidence: Mapping[str, str],
+    safe_evidence: Mapping[str, Any],
 ) -> tuple[dict[str, str], list[str]]:
-    """Redact credential-like keys and values in safe_evidence.
-    
-    Returns (redacted_evidence_dict, redaction_notes). Keys matching secret
-    patterns are replaced with redacted keys. Values matching secret patterns
-    are replaced with redaction markers.
+    """Recursively validate and flatten safe evidence after redaction.
+
+    Complete credential-shaped values fail closed. Explicit placeholders are
+    normalized deterministically. Keys are never included in an error until
+    they have passed the same credential checks.
     """
     redactions: list[str] = []
     redacted: dict[str, str] = {}
-    
-    for key, value in safe_evidence.items():
-        key_str = str(key)
-        value_str = str(value)
-        
-        # Check if the key is credential-like
-        if _SECRET_KEY_RE.search(key_str):
-            # Replace the key with a redacted version
-            redacted_key = "[REDACTED-credential-key]"
-            redacted[redacted_key] = value_str
-            redactions.append(f"safe_evidence: credential-like key ({key_str!r}) was redacted")
-            continue
-        
-        # Check if the value contains credential-like patterns and redact it
-        if _RESULT_SECRET_RE.search(value_str):
-            redacted_value, value_redactions = _redact_credential_patterns(value_str, f"safe_evidence[{key_str!r}]")
-            redacted[key_str] = redacted_value
-            redactions.extend(value_redactions)
-        else:
-            redacted[key_str] = value_str
-    
-    return redacted, redactions
 
+    leaf_count = 0
 
-def _check_safe_evidence_for_secrets(
-    safe_evidence: Mapping[str, str],
-) -> str | None:
-    """Return an error string if any key or value appears credential-like.
-
-    Returns ``None`` when the mapping is clean. Free-text message, question,
-    and instruction fields use the same pattern check through their parser.
-    
-    This function is deprecated; use _redact_safe_evidence instead for
-    better UX that redacts inert examples rather than rejecting them.
-    """
-    for key, value in safe_evidence.items():
-        if _SECRET_KEY_RE.search(str(key)):
-            return (
-                "Error: auditor result safe_evidence contains a credential-like key "
-                f"({key!r}); remove it before submitting"
+    def add_leaf(path: str, value: str, field_path: str) -> None:
+        nonlocal leaf_count
+        leaf_count += 1
+        if leaf_count > _MAX_SAFE_EVIDENCE_ENTRIES:
+            raise ValueError(
+                "safe_evidence exceeds maximum leaf count "
+                f"({_MAX_SAFE_EVIDENCE_ENTRIES})"
             )
-        if _RESULT_SECRET_RE.search(str(value)):
-            return (
-                "Error: auditor result safe_evidence contains a value that matches "
-                "a known credential pattern; remove it before submitting"
-            )
-    return None
-
-
-def _check_result_text_for_secrets(value: str, field_name: str) -> str | None:
-    """Reject credential-like content in a free-text result field."""
-
-    if _RESULT_SECRET_RE.search(value):
-        return (
-            f"Error: auditor result {field_name} contains a value that matches "
-            "a known credential pattern; remove it before submitting"
+        redacted_value, value_redactions = _redact_credential_patterns(
+            value, f"{field_path} value"
         )
-    return None
+        if len(redacted_value) > _MAX_SAFE_EVIDENCE_VALUE_LENGTH:
+            raise ValueError(
+                f"{field_path} value exceeds maximum length "
+                f"({_MAX_SAFE_EVIDENCE_VALUE_LENGTH} characters)"
+            )
+        if path in redacted:
+            raise ValueError("safe_evidence contains ambiguous nested paths")
+        redacted[path] = redacted_value
+        redactions.extend(value_redactions)
+
+    def walk(value: Any, path: str, field_path: str, depth: int) -> None:
+        if depth > _MAX_SAFE_EVIDENCE_DEPTH:
+            raise ValueError(
+                f"{field_path} exceeds maximum nesting depth "
+                f"({_MAX_SAFE_EVIDENCE_DEPTH})"
+            )
+        if isinstance(value, str):
+            add_leaf(path, value, field_path)
+            return
+        if isinstance(value, Mapping):
+            if len(value) > _MAX_SAFE_EVIDENCE_ENTRIES:
+                raise ValueError(
+                    f"{field_path} exceeds maximum container item "
+                    f"count ({_MAX_SAFE_EVIDENCE_ENTRIES})"
+                )
+            for index, (key, child) in enumerate(value.items(), start=1):
+                entry_field_path = f"{field_path} entry {index}"
+                if not isinstance(key, str):
+                    raise ValueError(f"{entry_field_path} key must be a string")
+                if len(key) > _MAX_SAFE_EVIDENCE_KEY_LENGTH:
+                    raise ValueError(
+                        f"{entry_field_path} key exceeds maximum length "
+                        f"({_MAX_SAFE_EVIDENCE_KEY_LENGTH} characters)"
+                    )
+                if _RESULT_SECRET_RE.search(key) or _SECRET_KEY_RE.search(key):
+                    raise _unsafe_credential_error(f"{entry_field_path} key")
+                child_path = f"{path}.{key}" if path else key
+                child_field_path = f"{field_path}.{key}"
+                if len(child_path) > _MAX_SAFE_EVIDENCE_KEY_LENGTH:
+                    raise ValueError(
+                        f"{child_field_path} flattened key exceeds "
+                        f"maximum length ({_MAX_SAFE_EVIDENCE_KEY_LENGTH} characters)"
+                    )
+                walk(child, child_path, child_field_path, depth + 1)
+            return
+        if isinstance(value, list):
+            if len(value) > _MAX_SAFE_EVIDENCE_ENTRIES:
+                raise ValueError(
+                    f"{field_path} exceeds maximum container item "
+                    f"count ({_MAX_SAFE_EVIDENCE_ENTRIES})"
+                )
+            for index, child in enumerate(value):
+                walk(
+                    child,
+                    f"{path}[{index}]",
+                    f"{field_path}[{index}]",
+                    depth + 1,
+                )
+            return
+        raise ValueError(f"{field_path} must be a string, object, or array")
+
+    walk(safe_evidence, "", "safe_evidence", 0)
+    return redacted, redactions
 
 
 @dataclass(frozen=True)
@@ -520,6 +600,32 @@ def check_auditor_session_target(policy: Any, target: Any) -> str | None:
     return None
 
 
+def _safe_evidence_value_schema(depth: int = 1) -> dict[str, Any]:
+    """Build the bounded recursive JSON schema for safe-evidence values."""
+
+    string_schema: dict[str, Any] = {
+        "type": "string",
+        "maxLength": _MAX_SAFE_EVIDENCE_VALUE_LENGTH,
+    }
+    if depth >= _MAX_SAFE_EVIDENCE_DEPTH:
+        return string_schema
+    return {
+        "anyOf": [
+            string_schema,
+            {
+                "type": "object",
+                "maxProperties": _MAX_SAFE_EVIDENCE_ENTRIES,
+                "additionalProperties": _safe_evidence_value_schema(depth + 1),
+            },
+            {
+                "type": "array",
+                "maxItems": _MAX_SAFE_EVIDENCE_ENTRIES,
+                "items": _safe_evidence_value_schema(depth + 1),
+            },
+        ]
+    }
+
+
 AUDITOR_RESULT_TOOL_SCHEMA: dict[str, Any] = {
     "type": "function",
     "function": {
@@ -551,7 +657,8 @@ AUDITOR_RESULT_TOOL_SCHEMA: dict[str, Any] = {
                 "message": {"type": "string"},
                 "safe_evidence": {
                     "type": "object",
-                    "additionalProperties": {"type": "string"},
+                    "maxProperties": _MAX_SAFE_EVIDENCE_ENTRIES,
+                    "additionalProperties": _safe_evidence_value_schema(),
                 },
                 "questions": {
                     "type": "array",
@@ -612,11 +719,10 @@ def parse_auditor_result(
     - Rejects unknown fields (prevents status injection via extra keys).
     - Rejects ``audit_id``, ``target_state``, or ``evidence_fingerprint``
       that do not match the session's trusted :class:`AuditorTargetContract`.
-    - Enforces maximum lengths for ``message`` and each ``safe_evidence``
-      key/value pair to prevent oversized output.
-    - Detects credential-like patterns in free-text and ``safe_evidence``
-      fields to prevent the auditor from exfiltrating secrets through
-      coordinator comments.
+    - Enforces maximum lengths for ``message`` and each recursively flattened
+      ``safe_evidence`` key/value pair to prevent oversized output.
+    - Normalizes explicit credential placeholders while rejecting complete
+      credential-like values before they can reach coordinator comments.
     """
 
     if not isinstance(args, Mapping):
@@ -638,8 +744,8 @@ def parse_auditor_result(
         unexpected = set(args) - allowed_keys
         if unexpected:
             return None, (
-                "Error: invalid auditor result fields: "
-                + ", ".join(sorted(str(key) for key in unexpected))
+                "Error: invalid auditor result fields; submit only "
+                "the fields defined by the submit_audit_result schema"
             )
         contract = (
             target
@@ -674,7 +780,7 @@ def parse_auditor_result(
                 f"({len(message)} > {_MAX_RESULT_MESSAGE_LENGTH} characters)"
             )
         # Redact credential-like patterns from the message
-        redacted_message, message_redactions = _redact_credential_patterns(message, "message")
+        redacted_message, _ = _redact_credential_patterns(message, "message")
         if len(redacted_message) > _MAX_RESULT_MESSAGE_LENGTH:
             return None, (
                 f"Error: auditor result message exceeds maximum length after redaction "
@@ -684,35 +790,15 @@ def parse_auditor_result(
 
         # --- Safe evidence size and content checks with redaction ---
         safe_evidence = args.get("safe_evidence")
-        safe_evidence_redactions: list[str] = []
         if safe_evidence is not None:
             if not isinstance(safe_evidence, Mapping):
                 return None, "Error: auditor result safe_evidence must be an object"
-            if any(
-                not isinstance(key, str) or not isinstance(value, str)
-                for key, value in safe_evidence.items()
-            ):
-                return None, "Error: auditor result safe_evidence values must be strings"
             if len(safe_evidence) > _MAX_SAFE_EVIDENCE_ENTRIES:
                 return None, (
                     f"Error: auditor result safe_evidence exceeds maximum entry count "
                     f"({len(safe_evidence)} > {_MAX_SAFE_EVIDENCE_ENTRIES})"
                 )
-            # Redact credential-like keys and values
-            redacted_safe_evidence, safe_evidence_redactions = _redact_safe_evidence(safe_evidence)
-            
-            # Validate redacted evidence
-            for ev_key, ev_val in redacted_safe_evidence.items():
-                if len(str(ev_key)) > _MAX_SAFE_EVIDENCE_KEY_LENGTH:
-                    return None, (
-                        f"Error: auditor result safe_evidence key {ev_key!r} exceeds "
-                        f"maximum length ({_MAX_SAFE_EVIDENCE_KEY_LENGTH} characters)"
-                    )
-                if len(str(ev_val)) > _MAX_SAFE_EVIDENCE_VALUE_LENGTH:
-                    return None, (
-                        f"Error: auditor result safe_evidence value for key {ev_key!r} "
-                        f"exceeds maximum length ({_MAX_SAFE_EVIDENCE_VALUE_LENGTH} characters)"
-                    )
+            redacted_safe_evidence, _ = _redact_safe_evidence(safe_evidence)
             safe_evidence = redacted_safe_evidence
 
         def _parse_result_list(field_name: str) -> tuple[str, ...]:
@@ -727,7 +813,7 @@ def parse_auditor_result(
                     f"({_MAX_RESULT_LIST_ITEMS})"
                 )
             items: list[str] = []
-            for item in raw_items:
+            for index, item in enumerate(raw_items):
                 if not isinstance(item, str):
                     raise ValueError(f"{field_name} items must be strings")
                 if len(item) > _MAX_RESULT_LIST_ITEM_LENGTH:
@@ -736,7 +822,9 @@ def parse_auditor_result(
                         f"({_MAX_RESULT_LIST_ITEM_LENGTH} characters)"
                     )
                 # Redact credential-like patterns from questions/instructions
-                redacted_item, _ = _redact_credential_patterns(item, field_name)
+                redacted_item, _ = _redact_credential_patterns(
+                    item, f"{field_name}[{index}]"
+                )
                 if len(redacted_item) > _MAX_RESULT_LIST_ITEM_LENGTH:
                     raise ValueError(
                         f"{field_name} item exceeds maximum length after redaction "
@@ -778,6 +866,8 @@ def parse_auditor_result(
             questions=questions,
             instructions=instructions,
         )
+    except _UnsafeAuditorCredential as exc:
+        return None, f"Error: {exc}"
     except (KeyError, TypeError, ValueError) as exc:
         return None, f"Error: invalid auditor result: {exc}"
     return result, None
