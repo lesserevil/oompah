@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
@@ -331,6 +332,19 @@ class TestShellCommandClassifier:
     def test_classifies_git_push(self, command: str):
         assert classify_shell_command(command) == ProtectedAction.GIT_PUSH
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "/usr/bin/git push origin main",
+            "git -C /repo push origin main",
+            r"\\git push origin main",
+            "$(command -v git) push origin main",
+            "git\\ push origin main",
+        ],
+    )
+    def test_classifies_ambiguous_git_push_forms_fail_closed(self, command: str):
+        assert classify_shell_command(command) == ProtectedAction.GIT_PUSH
+
     # --- GitHub delivery ---
     @pytest.mark.parametrize(
         "command",
@@ -466,6 +480,45 @@ class TestCheckShellCommand:
         )
         result = check_shell_command(policy, "git push origin main")
         assert result is None
+
+    def test_dynamic_push_authority_can_revoke_an_allowed_push(self):
+        policy = external_task_policy(
+            allowed_actions=frozenset({ProtectedAction.GIT_PUSH})
+        )
+        policy = replace(
+            policy,
+            shell_authority_check=lambda _command: (
+                "Error: generation changed [reason=epic_rebase_generation_stale]"
+            ),
+        )
+
+        result = check_shell_command(policy, "git push --force-with-lease origin HEAD")
+
+        assert result is not None
+        assert "epic_rebase_generation_stale" in result
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "/usr/bin/git push origin main",
+            "git -C /repo push origin main",
+            r"\\git push origin main",
+            "$(command -v git) push origin main",
+        ],
+    )
+    def test_dynamic_push_authority_checks_ambiguous_push_forms(self, command):
+        guard = MagicMock(return_value="Error: exact CAS required")
+        policy = replace(operator_policy(), shell_authority_check=guard)
+
+        assert check_shell_command(policy, command) == "Error: exact CAS required"
+        guard.assert_called_once_with(command)
+
+    def test_dynamic_push_authority_is_not_called_for_non_push_commands(self):
+        guard = MagicMock(return_value="Error: denied")
+        policy = replace(operator_policy(), shell_authority_check=guard)
+
+        assert check_shell_command(policy, "git status --short") is None
+        guard.assert_not_called()
 
     def test_denial_message_is_error_prefixed(self):
         policy = external_task_policy()

@@ -57,6 +57,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,14 @@ class AgentActionPolicy:
     # generic read-only policy must not be able to invoke the result tool.
     auditor_session: bool = False
     project_id: str | None = None
+    # Optional server-owned, fail-closed guard for authority that can change
+    # after dispatch. It is deliberately excluded from repr/comparison so the
+    # callback cannot leak into audit output or policy identity.
+    shell_authority_check: Callable[[str], str | None] | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -328,10 +337,12 @@ def check_read_only_mutation(
 
 # Patterns for git push detection.
 # Matches: git push, git push origin, git push --force, git push -f, etc.
-_GIT_PUSH_RE = re.compile(
-    r"(?:^|[;&|]|\s)\s*git\s+push\b",
-    re.IGNORECASE,
-)
+# This deliberately detects more than the friendly ``git push`` spelling.
+# The dynamic epic-rebase guard must see absolute paths, ``git -C``, escaped
+# names, and shell substitutions too; a false positive merely asks the server
+# to revalidate authority, whereas a false negative could bypass the CAS.
+_GIT_WORD_RE = re.compile(r"(?:^|[^A-Za-z0-9_])git(?:\.exe)?\b", re.IGNORECASE)
+_PUSH_WORD_RE = re.compile(r"\bpush\b", re.IGNORECASE)
 
 # Read-only verbs for `gh issue` and `gh pr` that do NOT mutate GitHub state.
 # Everything else (create, edit, close, comment, label, merge, review, reopen,
@@ -450,7 +461,7 @@ def classify_shell_command(command: str) -> ProtectedAction | None:
         return ProtectedAction.RELEASE_DELIVERY
 
     # 4. Git push
-    if _GIT_PUSH_RE.search(command):
+    if _GIT_WORD_RE.search(command) and _PUSH_WORD_RE.search(command):
         return ProtectedAction.GIT_PUSH
 
     return None
@@ -500,4 +511,32 @@ def check_shell_command(
         return None
     # Truncate for the audit context (don't log full commands — may contain creds)
     context = f"shell: {command[:120]!r}" if len(command) <= 120 else f"shell: {command[:120]!r}…"
-    return check_action(policy, action, context)
+    denial = check_action(policy, action, context)
+    if denial is not None:
+        return denial
+    if (
+        action == ProtectedAction.GIT_PUSH
+        and policy is not None
+        and policy.shell_authority_check is not None
+    ):
+        try:
+            denial = policy.shell_authority_check(command)
+        except Exception:  # noqa: BLE001 - changing authority must fail closed
+            logger.exception(
+                "AUTHORITY_DENY: action=%r task=%r session=%r "
+                "context='redacted' reason=dynamic_authority_check_failed",
+                action.value,
+                policy.task_identifier,
+                policy.session_id,
+            )
+            return "Error: server could not verify current push authority"
+        if denial is not None:
+            logger.warning(
+                "AUTHORITY_DENY: action=%r task=%r session=%r "
+                "context='redacted' reason=dynamic_authority_revoked",
+                action.value,
+                policy.task_identifier,
+                policy.session_id,
+            )
+            return denial
+    return None

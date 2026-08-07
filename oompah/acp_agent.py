@@ -97,6 +97,8 @@ class AcpAgentSession:
         fallback_model: str | None = None,
         max_turns: int | None = None,
         env: dict[str, str] | None = None,
+        isolate_remote_write: bool = False,
+        provider_auth_kind: str | None = None,
         tool_catalog: list[Any] | None = None,
         read_only: bool = False,
         on_event: Callable[[AgentEvent], None] | None = None,
@@ -131,6 +133,8 @@ class AcpAgentSession:
         self.fallback_model = fallback_model
         self.max_turns = max_turns
         self.env = env or {}
+        self.isolate_remote_write = bool(isolate_remote_write)
+        self.provider_auth_kind = provider_auth_kind
         self.tool_catalog = tool_catalog or []
         self.read_only = bool(read_only)
         self.on_event = on_event
@@ -329,6 +333,8 @@ class AcpAgentSession:
             fallback_model=self.fallback_model,
             max_turns=self.max_turns,
             env=self.env or None,
+            isolate_remote_write=self.isolate_remote_write,
+            provider_auth_kind=self.provider_auth_kind,
             tool_catalog=list(self.tool_catalog) if self.tool_catalog else None,
             read_only=self.read_only,
             permission_mode=self.permission_mode,

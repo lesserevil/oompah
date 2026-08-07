@@ -289,6 +289,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
 
         return build_tool_catalog(
             self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
             tool_liveness=self._options.tool_liveness,
             project_store=self._options.project_store,
             project_id=self._options.project_id,
@@ -330,6 +331,19 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             self._status = "interrupted"
             return
 
+        if self._options.isolate_remote_write:
+            # ``opencode serve`` retains a native execution surface in the
+            # provider-authenticated process.  Its catalog cannot yet prove
+            # exclusive server-mediated execution, so shared-epic rebase work
+            # must fail closed until an API/bridged implementation exists.
+            self._last_error = (
+                "OpenCode is unavailable for shared-epic rebase work; select "
+                "an API/bridged callback-only provider"
+            )
+            self._status = "errored"
+            yield self._emit("acp_session_error", payload={"error": self._last_error})
+            return
+
         # Build the tool catalog before spawning so we can surface
         # NotImplementedError early rather than mid-stream.
         try:
@@ -353,11 +367,13 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            provider_auth_kind=self._options.provider_auth_kind,
         )
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         
-        if self._options.task_handoff_token:
+        if self._options.task_handoff_token and not self._options.isolate_remote_write:
             agent_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
                 agent_env[TASK_HANDOFF_PROJECT_ENV] = self._options.project_id
@@ -366,7 +382,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         # Forward api_key into the process env if present.
         api_key = agent_env.get("OOMPAH_OPENCODE_API_KEY")
         if api_key:
-            os.environ.setdefault("OPENAI_API_KEY", api_key)
+            agent_env["OPENAI_API_KEY"] = api_key
 
         # Build the tool catalog names for the session_start event payload.
         tool_names = [

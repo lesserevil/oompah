@@ -368,11 +368,17 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            provider_auth_kind=self._options.provider_auth_kind,
         )
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         
-        if self._options.task_handoff_token and self._options.task_identifier:
+        if (
+            not self._options.isolate_remote_write
+            and self._options.task_handoff_token
+            and self._options.task_identifier
+        ):
             agent_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
 
         async def _can_use_tool(

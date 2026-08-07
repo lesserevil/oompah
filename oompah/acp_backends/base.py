@@ -83,6 +83,12 @@ class AcpBackendOptions:
     fallback_model: str | None = None
     max_turns: int | None = None
     env: dict[str, str] | None = None
+    # Direct epic-rebase helpers receive a credential-free worker environment.
+    # The server is the sole holder of project remote-write authority.
+    isolate_remote_write: bool = False
+    # Explicit backend-specific model authentication bootstrap used only for
+    # isolated rebase workers. Unknown backend layouts fail closed.
+    provider_auth_kind: str | None = None
     tool_catalog: list[Any] | None = None
     # Qualification-only runs expose read/search tools but no shell, file
     # mutation, tracker mutation, network access, or writable sandbox.

@@ -1235,6 +1235,7 @@ def build_tool_catalog(
     policy_denial_handler: Any = None,
     validation_reuse_policy: dict[str, Any] | None = None,
     validation_reuse_authority_check: Any = None,
+    isolate_remote_write: bool = False,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -1463,6 +1464,7 @@ def build_tool_catalog(
                 ),
                 validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
+                isolate_remote_write=isolate_remote_write,
             )
         )
 
@@ -1647,6 +1649,7 @@ def build_codex_tool_catalog(
     policy_denial_handler: Any = None,
     validation_reuse_policy: dict[str, Any] | None = None,
     validation_reuse_authority_check: Any = None,
+    isolate_remote_write: bool = False,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -1884,6 +1887,7 @@ def build_codex_tool_catalog(
             validation_reuse_authority_check=validation_reuse_authority_check,
             validation_reuse_policy_handler=validation_reuse_policy_handler,
             result_delivery_required=tool_liveness is not None,
+            isolate_remote_write=isolate_remote_write,
         )
 
     @function_tool
@@ -2046,6 +2050,7 @@ def build_opencode_tool_catalog(
     policy_denial_handler: Any = None,
     validation_reuse_policy: dict[str, Any] | None = None,
     validation_reuse_authority_check: Any = None,
+    isolate_remote_write: bool = False,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -2277,6 +2282,7 @@ def build_opencode_tool_catalog(
                 ),
                 validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
+                isolate_remote_write=isolate_remote_write,
             )
         )
 

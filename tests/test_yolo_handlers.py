@@ -661,7 +661,9 @@ class TestYoloNotifyConflictEpicBranch:
             review_id="42", source_branch="epic-TASK-18", target_branch="dev",
         )
         tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = self._epic()
+        epic = self._epic()
+        epic.project_id = project.id
+        tracker.fetch_issue_detail.return_value = epic
         tracker.fetch_issues_by_states.return_value = []
         open_child = MagicMock(identifier="TASK-18.1", state="Open", labels=[])
 
@@ -683,7 +685,12 @@ class TestFileRebaseTaskPriority:
         orch = _make_orchestrator(tmp_path, projects=[project])
         epic = MagicMock()
         epic.identifier = "TASK-18"
+        epic.project_id = project.id
         tracker = MagicMock()
+        orch._active_epic_rebase_siblings = MagicMock(return_value=[])
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-1", "epic-head-1", "dev-head-1")
+        )
         orch._file_rebase_task(tracker, epic, "epic-TASK-18", "dev")
         tracker.create_issue.assert_called_once()
         # P0 so it bypasses the open-PR cap;
