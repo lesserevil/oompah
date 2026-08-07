@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-07T17:46:46.867081Z'
+updated_at: '2026-08-07T17:46:52.169711Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     eligibility across scheduler pause/graceful quiesce retirement. The corpus-capacity
     inconclusive path is the already-fixed OOMPAH-853 deployment gap, not evidence
     of a duplicate.
-oompah.agent_run_id: a049c8d6-3acf-4fbf-a512-60cced11a592
+oompah.agent_run_id: 557c0e32-8f76-470e-b1bb-7f55dcefff86
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-855
 oompah.integration:
   version: 2
