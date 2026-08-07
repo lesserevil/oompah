@@ -2561,6 +2561,39 @@ def test_created_review_metadata_failure_cannot_advance_status(harness):
     tracker.update_issue.assert_not_called()
 
 
+def test_created_review_close_fence_wins_before_tracker_publication(harness):
+    """A close observed during forge create prevents stale In Review."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-CREATE-CLOSED", branch="feature/create-closed")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    created = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="715",
+        head_sha="abc123",
+    )
+
+    def close_before_create_returns(*_args, **_kwargs):
+        orch.release_review_capacity(
+            project.id,
+            created.id,
+            source_branch=created.source_branch,
+        )
+        return created
+
+    provider.create_review.side_effect = close_before_create_returns
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once()
+    provider.create_review.assert_called_once()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert orch.review_capacity_store.active(project.id) == []
+
+
 def test_final_review_revalidation_rejects_state_change_before_metadata(harness):
     """A review that is no longer exact-Merged cannot reach tracker or audit writes."""
 

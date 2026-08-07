@@ -2155,7 +2155,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
         orch._review_quality_gate_passes = MagicMock(return_value=True)
-        reservation = orch.review_capacity_store.adopt(
+        orch.review_capacity_store.adopt(
             project_id="proj-1",
             task_id="task-1",
             source_branch="task-1",
@@ -2182,11 +2182,6 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         with (
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-            patch.object(
-                orch,
-                "_acquire_review_slot",
-                return_value=reservation,
-            ),
             patch(
                 "oompah.close_gate._count_commits_ahead",
                 return_value=(1, ["abc work"], ""),
@@ -3555,7 +3550,7 @@ class TestOpenEpicMainPrs:
             state=DONE,
         )
         child = _make_issue(state="closed")
-        reservation = orch.review_capacity_store.adopt(
+        orch.review_capacity_store.adopt(
             project_id="proj-1",
             task_id=epic.identifier,
             source_branch="epic-epic-1",
@@ -3583,11 +3578,6 @@ class TestOpenEpicMainPrs:
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
             patch.object(orch, "_tracker_for_project", return_value=tracker),
-            patch.object(
-                orch,
-                "_acquire_review_slot",
-                return_value=reservation,
-            ),
         ):
             opened = orch._open_epic_main_prs([epic])
 
@@ -5163,7 +5153,14 @@ class TestEpicReviewRepairCompletion:
             agent_profile_name="default",
         )
         children = [_make_issue(identifier="TASK-738.1", state=IN_REVIEW)]
-        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        def publish_review(_entry, _project_id, *, publication):
+            publication.after_publication()
+            publication.in_review_published = True
+            publication.review_id = "267"
+            return True
+
+        orch._ensure_review_exists = MagicMock(side_effect=publish_review)
 
         with patch.object(orch, "_fetch_epic_children", return_value=children):
             result = orch._finish_epic_review_repair(
@@ -5176,9 +5173,269 @@ class TestEpicReviewRepairCompletion:
         assert result is True
         assert tracker.update_issue.call_args_list == [
             call("TASK-738", **{"remove-label": "ci-fix"}),
-            call("TASK-738", status=IN_REVIEW),
         ]
         assert epic.state == IN_REVIEW
+
+    def test_close_fenced_handoff_does_not_finish_epic_repair(self, tmp_path):
+        """A compatibility True without fenced publication retains repair state."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        epic = _make_issue(
+            identifier="TASK-738-CLOSED",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-738-CLOSED",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with patch.object(
+            orch,
+            "_fetch_epic_children",
+            return_value=[
+                _make_issue(identifier="TASK-738-CLOSED.1", state=IN_REVIEW)
+            ],
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is False
+        tracker.update_issue.assert_not_called()
+        assert epic.state == IN_PROGRESS
+
+    def test_nested_epic_repair_adopts_its_rollup_review(self, tmp_path):
+        """A nested epic uses its own review into the parent epic branch."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        parent = _make_issue(
+            identifier="TASK-PARENT",
+            issue_type="epic",
+            work_branch="epic-TASK-PARENT",
+            project_id="proj-1",
+        )
+        epic = _make_issue(
+            identifier="TASK-CHILD-EPIC",
+            issue_type="epic",
+            parent_id=parent.identifier,
+            state=IN_PROGRESS,
+            labels=["merge-conflict"],
+            work_branch="epic-TASK-CHILD-EPIC",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        review = MagicMock(
+            id="268",
+            url="https://example.test/pr/268",
+            source_branch=epic.work_branch,
+            target_branch=parent.work_branch,
+            state="open",
+            draft=False,
+            has_conflicts=False,
+        )
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [review]
+        orch._reviews_cache = {"proj-1": [review]}
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._review_quality_gate_passes = MagicMock(return_value=True)
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[
+                    _make_issue(identifier="TASK-CHILD-EPIC.1", state=IN_REVIEW)
+                ],
+            ),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc repaired"], ""),
+            ),
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is True
+        assert tracker.update_issue.call_args_list == [
+            call(epic.identifier, status=IN_REVIEW),
+            call(epic.identifier, **{"remove-label": "merge-conflict"}),
+            call(epic.identifier, **{"add-label": "epic:rebased"}),
+        ]
+        assert epic.state == IN_REVIEW
+
+    def test_nested_epic_repair_rejects_same_source_wrong_target(self, tmp_path):
+        """A same-source review into main is not the nested rollup review."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.max_in_flight_prs = 1
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        parent = _make_issue(
+            identifier="TASK-PARENT",
+            issue_type="epic",
+            work_branch="epic-TASK-PARENT",
+            project_id="proj-1",
+        )
+        epic = _make_issue(
+            identifier="TASK-CHILD-WRONG-TARGET",
+            issue_type="epic",
+            parent_id=parent.identifier,
+            state=IN_PROGRESS,
+            labels=["merge-conflict"],
+            work_branch="epic-TASK-CHILD-WRONG-TARGET",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        wrong_target = MagicMock(
+            id="269",
+            source_branch=epic.work_branch,
+            target_branch="main",
+            state="open",
+            draft=False,
+            has_conflicts=False,
+        )
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [wrong_target]
+        orch._reviews_cache = {"proj-1": [wrong_target]}
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[
+                    _make_issue(
+                        identifier="TASK-CHILD-WRONG-TARGET.1",
+                        state=IN_REVIEW,
+                    )
+                ],
+            ),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc repaired"], ""),
+            ),
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is False
+        tracker.update_issue.assert_not_called()
+        provider.create_review.assert_not_called()
+        assert epic.state == IN_PROGRESS
+
+    def test_nested_epic_repair_defers_when_parent_target_is_unresolved(
+        self,
+        tmp_path,
+    ):
+        """Unreadable parent authority cannot fall back to a synthesized base."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        epic = _make_issue(
+            identifier="TASK-CHILD-UNRESOLVED",
+            issue_type="epic",
+            parent_id="TASK-MISSING-PARENT",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-CHILD-UNRESOLVED",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        def resolve_parent(_issue, **kwargs):
+            if kwargs.get("fail_closed"):
+                raise EpicTargetResolutionError(
+                    epic.identifier,
+                    epic.parent_id or "",
+                    "is unreadable",
+                )
+            return None
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[
+                    _make_issue(
+                        identifier="TASK-CHILD-UNRESOLVED.1",
+                        state=IN_REVIEW,
+                    )
+                ],
+            ),
+            patch.object(
+                orch,
+                "_resolve_parent_epic",
+                side_effect=resolve_parent,
+            ),
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is False
+        tracker.update_issue.assert_not_called()
+        assert epic.state == IN_PROGRESS
 
     def test_conflicted_review_requeues_epic_repair(self, tmp_path):
         """A normal agent exit must not finish a repair while its PR conflicts."""

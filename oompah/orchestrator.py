@@ -1306,6 +1306,21 @@ class StandaloneDeliveryAuthority:
     revoked: bool = False
 
 
+@dataclass(slots=True)
+class _ReviewHandoffPublication:
+    """Exact outcome of the lifecycle-fenced review publication step.
+
+    ``_ensure_review_exists`` historically returns a compatibility boolean
+    that also means "deferred" or "no per-child review required".  Repair
+    completion needs the stronger fact that this invocation actually
+    published ``In Review`` while holding the review lifecycle fence.
+    """
+
+    in_review_published: bool = False
+    review_id: str | None = None
+    after_publication: Callable[[], None] | None = None
+
+
 class CrossLoopTaskLock:
     """Cancellation-safe async facade over one cross-thread task mutex.
 
@@ -18314,55 +18329,71 @@ class Orchestrator:
                     "forge provider returned a review without an identity",
                 )
 
-            # The forge review exists from this point forward.  Commit before
-            # tracker writes so later sweeps and restarts retain its capacity.
-            self._commit_review_slot(reservation, created_review_id)
-            try:
-                if not self._clear_standalone_delivery_alert(
+            # The forge review exists from this point forward.  A close
+            # webhook may already have observed it while ``create_review`` was
+            # in flight.  Commit capacity and publish tracker state in the
+            # same lifecycle generation as that close observation.
+            with self._review_lifecycle_lock:
+                if (
                     authority.project_id,
-                    authority.task_id,
-                    authority=authority,
-                ):
+                    created_review_id,
+                ) in self._closed_review_fences:
+                    self._release_review_capacity(
+                        authority.project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
                     return (
                         "created",
                         result,
-                        "created review but authority changed before alert cleanup",
+                        "created review closed before tracker publication",
                     )
-                if not self._write_review_metadata(
-                    tracker,
-                    authority.task_id,
-                    review_id=created_review_id,
-                    review_url=getattr(result, "url", None),
-                    source_branch=work_branch,
-                    target_branch=target_branch,
-                    review_head=created_head or expected_head,
-                    authority=authority,
-                ):
-                    return (
-                        "created",
-                        result,
-                        "created review but authority changed during metadata update",
-                    )
-                if not self._standalone_delivery_mutation(
-                    authority,
-                    tracker,
-                    lambda: tracker.update_issue(
+                self._commit_review_slot(reservation, created_review_id)
+                try:
+                    if not self._clear_standalone_delivery_alert(
+                        authority.project_id,
                         authority.task_id,
-                        status=IN_REVIEW,
-                    ),
-                    next_state=IN_REVIEW,
-                ):
+                        authority=authority,
+                    ):
+                        return (
+                            "created",
+                            result,
+                            "created review but authority changed before alert cleanup",
+                        )
+                    if not self._write_review_metadata(
+                        tracker,
+                        authority.task_id,
+                        review_id=created_review_id,
+                        review_url=getattr(result, "url", None),
+                        source_branch=work_branch,
+                        target_branch=target_branch,
+                        review_head=created_head or expected_head,
+                        authority=authority,
+                    ):
+                        return (
+                            "created",
+                            result,
+                            "created review but authority changed during metadata update",
+                        )
+                    if not self._standalone_delivery_mutation(
+                        authority,
+                        tracker,
+                        lambda: tracker.update_issue(
+                            authority.task_id,
+                            status=IN_REVIEW,
+                        ),
+                        next_state=IN_REVIEW,
+                    ):
+                        return (
+                            "created",
+                            result,
+                            "created review but authority changed before In Review update",
+                        )
+                except Exception as exc:  # noqa: BLE001 - review already exists
                     return (
                         "created",
                         result,
-                        "created review but authority changed before In Review update",
+                        f"created review but tracker update failed: {exc}",
                     )
-            except Exception as exc:  # noqa: BLE001 - review already exists
-                return (
-                    "created",
-                    result,
-                    f"created review but tracker update failed: {exc}",
-                )
             return "created", result, ""
 
     def _preserve_superseded_standalone_review(
@@ -24767,16 +24798,22 @@ class Orchestrator:
             head_sha=(authority.head_sha if authority is not None else None),
         )
         if reservation is not None and not reservation.acquired_new:
-            if (
-                authority is not None
-                and reservation.project_id == authority.project_id
+            same_delivery = (
+                reservation.project_id == str(project.id)
+                and reservation.task_id == task_id
+                and reservation.source_branch == source_branch
+                and reservation.target_branch == target_branch
+            )
+            exact_standalone_head = authority is None or (
+                reservation.project_id == authority.project_id
                 and reservation.task_id == authority.task_id
                 and reservation.source_branch == authority.branch
                 and reservation.target_branch == authority.target_branch
                 and str(reservation.head_sha or "").strip().lower()
                 == str(authority.head_sha or "").strip().lower()
                 and bool(str(authority.head_sha or "").strip())
-            ):
+            )
+            if same_delivery and exact_standalone_head:
                 # A concurrent sweep, or a restarted sweep for the same exact
                 # accepted head, already owns the durable gap between capacity
                 # inspection and review creation.  Return that observation so
@@ -34727,7 +34764,11 @@ class Orchestrator:
         return None
 
     def _ensure_review_exists(
-        self, entry: RunningEntry, project_id: str | None
+        self,
+        entry: RunningEntry,
+        project_id: str | None,
+        *,
+        publication: _ReviewHandoffPublication | None = None,
     ) -> bool:
         """Create a review (PR/MR) if the agent pushed a branch but none exists.
 
@@ -34767,13 +34808,18 @@ class Orchestrator:
         # A child must never receive a standalone PR.  Parent resolution can
         # fail transiently, so we use both parent_id and resolvable parent as
         # fail-closed signals; the epic rollup remains the only review path.
+        nested_epic_review = bool(
+            publication is not None
+            and entry.issue is not None
+            and (entry.issue.issue_type or "").strip().lower() == "epic"
+        )
         if entry.issue is not None:
             parent_id = (entry.issue.parent_id or "").strip()
             
             # Fail closed if parent_id is present OR if parent is resolvable.
             # This prevents bypass when parent_id is missing but parent epic
             # exists authoritatively (OOMPAH-641).
-            if parent_id or parent_epic:
+            if (parent_id or parent_epic) and not nested_epic_review:
                 # For children with resolvable parent epic, verify work_branch
                 # matches expected epic branch.  Correct stale work_branch
                 # before routing to prevent per-child PR creation even when
@@ -34831,7 +34877,20 @@ class Orchestrator:
         # Honor Issue.target_branch when set (e.g. release branches),
         # falling back to the project's default branch.
         target_branch = project.default_branch
-        if entry.issue and entry.issue.target_branch:
+        if nested_epic_review and entry.issue is not None:
+            try:
+                target_branch = self._resolve_epic_target_branch(
+                    entry.issue,
+                    project,
+                )
+            except EpicTargetResolutionError as exc:
+                logger.warning(
+                    "Review repair handoff blocked for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
+                return False
+        elif entry.issue and entry.issue.target_branch:
             target_branch = entry.issue.target_branch
 
         # A cached review is only a hint.  It cannot adopt durable capacity or
@@ -34878,30 +34937,32 @@ class Orchestrator:
 
         if not project.repo_url:
             if review_required:
-                self._reopen_missing_review(
-                    entry,
-                    project_id,
-                    branch,
-                    target_branch,
-                    commits_ahead,
-                    commit_lines,
-                    "project has no repository URL configured",
-                )
+                if publication is None:
+                    self._reopen_missing_review(
+                        entry,
+                        project_id,
+                        branch,
+                        target_branch,
+                        commits_ahead,
+                        commit_lines,
+                        "project has no repository URL configured",
+                    )
                 return False
             return True
 
         provider = detect_provider(project.repo_url, access_token=project.access_token)
         if not provider:
             if review_required:
-                self._reopen_missing_review(
-                    entry,
-                    project_id,
-                    branch,
-                    target_branch,
-                    commits_ahead,
-                    commit_lines,
-                    "no supported forge provider was detected",
-                )
+                if publication is None:
+                    self._reopen_missing_review(
+                        entry,
+                        project_id,
+                        branch,
+                        target_branch,
+                        commits_ahead,
+                        commit_lines,
+                        "no supported forge provider was detected",
+                    )
                 return False
             return True
         slug = extract_repo_slug(project.repo_url)
@@ -34918,16 +34979,17 @@ class Orchestrator:
             )
             if live_reviews is None:
                 n_open, limit, _ = self._project_review_capacity(project_id)
-                self._defer_review_handoff(
-                    entry,
-                    project_id,
-                    branch,
-                    target_branch,
-                    commits_ahead,
-                    commit_lines,
-                    n_open,
-                    limit,
-                )
+                if publication is None:
+                    self._defer_review_handoff(
+                        entry,
+                        project_id,
+                        branch,
+                        target_branch,
+                        commits_ahead,
+                        commit_lines,
+                        n_open,
+                        limit,
+                    )
                 return True
             for live_review in live_reviews:
                 if (
@@ -34935,6 +34997,8 @@ class Orchestrator:
                     == "open"
                     and not getattr(live_review, "draft", False)
                     and getattr(live_review, "source_branch", None) == branch
+                    and getattr(live_review, "target_branch", None)
+                    == target_branch
                 ):
                     # Gate the exact current head before marking In Review so
                     # a forge CI failure followed by a repaired head cannot
@@ -34953,33 +35017,47 @@ class Orchestrator:
                         )
                     ):
                         return False
-                    with self._review_lifecycle_lock:
-                        adopted = self._adopt_open_review_capacity(
-                            project_id=str(project_id),
-                            task_id=entry.identifier,
-                            source_branch=branch,
-                            target_branch=target_branch,
-                            review_id=getattr(live_review, "id", None),
-                            authoritative=True,
-                        )
-                        if not adopted:
-                            return True
-                        self._mark_task_in_review(entry, project_id, live_review)
+                    issue_id = str(
+                        getattr(entry.issue, "id", "") or entry.identifier
+                    )
+                    with self.issue_transition_lock(issue_id).sync():
+                        with self._review_lifecycle_lock:
+                            adopted = self._adopt_open_review_capacity(
+                                project_id=str(project_id),
+                                task_id=entry.identifier,
+                                source_branch=branch,
+                                target_branch=target_branch,
+                                review_id=getattr(live_review, "id", None),
+                                authoritative=True,
+                            )
+                            if not adopted:
+                                return True
+                            published = self._mark_task_in_review(
+                                entry, project_id, live_review
+                            )
+                            if published and publication is not None:
+                                if publication.after_publication is not None:
+                                    publication.after_publication()
+                                publication.in_review_published = True
+                                publication.review_id = str(
+                                    getattr(live_review, "id", "") or ""
+                                ).strip() or None
                     return True
 
         if review_required or commit_error:
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
             if at_capacity:
-                self._defer_review_handoff(
-                    entry,
-                    project_id,
-                    branch,
-                    target_branch,
-                    commits_ahead,
-                    commit_lines,
-                    n_open,
-                    limit,
-                )
+                if publication is None:
+                    self._defer_review_handoff(
+                        entry,
+                        project_id,
+                        branch,
+                        target_branch,
+                        commits_ahead,
+                        commit_lines,
+                        n_open,
+                        limit,
+                    )
                 return True
 
         if (
@@ -35005,16 +35083,17 @@ class Orchestrator:
         )
         if reservation is None:
             n_open, limit, _ = self._project_review_capacity(project_id)
-            self._defer_review_handoff(
-                entry,
-                project_id,
-                branch,
-                target_branch,
-                commits_ahead,
-                commit_lines,
-                n_open,
-                limit,
-            )
+            if publication is None:
+                self._defer_review_handoff(
+                    entry,
+                    project_id,
+                    branch,
+                    target_branch,
+                    commits_ahead,
+                    commit_lines,
+                    n_open,
+                    limit,
+                )
             return True
         if not reservation.acquired_new:
             logger.info(
@@ -35053,15 +35132,16 @@ class Orchestrator:
                         reservation_id=reservation.reservation_id,
                     )
                     if review_required:
-                        self._reopen_missing_review(
-                            entry,
-                            project_id,
-                            branch,
-                            target_branch,
-                            commits_ahead,
-                            commit_lines,
-                            "forge provider returned a review without an identity",
-                        )
+                        if publication is None:
+                            self._reopen_missing_review(
+                                entry,
+                                project_id,
+                                branch,
+                                target_branch,
+                                commits_ahead,
+                                commit_lines,
+                                "forge provider returned a review without an identity",
+                            )
                         return False
                     return True
                 review_closed_before_publication = False
@@ -35085,7 +35165,14 @@ class Orchestrator:
                                 result.id,
                                 target_branch,
                             )
-                            self._mark_task_in_review(entry, project_id, result)
+                            published = self._mark_task_in_review(
+                                entry, project_id, result
+                            )
+                            if published and publication is not None:
+                                if publication.after_publication is not None:
+                                    publication.after_publication()
+                                publication.in_review_published = True
+                                publication.review_id = review_id
                 if review_closed_before_publication:
                     self._release_review_capacity(
                         project_id,
@@ -35110,15 +35197,16 @@ class Orchestrator:
                     reservation_id=reservation.reservation_id,
                 )
                 if review_required:
-                    self._reopen_missing_review(
-                        entry,
-                        project_id,
-                        branch,
-                        target_branch,
-                        commits_ahead,
-                        commit_lines,
-                        "forge provider returned no review",
-                    )
+                    if publication is None:
+                        self._reopen_missing_review(
+                            entry,
+                            project_id,
+                            branch,
+                            target_branch,
+                            commits_ahead,
+                            commit_lines,
+                            "forge provider returned no review",
+                        )
                     return False
         except Exception as exc:
             self._release_review_capacity(
@@ -35127,15 +35215,16 @@ class Orchestrator:
             )
             logger.warning("Error creating review for %s: %s", entry.identifier, exc)
             if review_required:
-                self._reopen_missing_review(
-                    entry,
-                    project_id,
-                    branch,
-                    target_branch,
-                    commits_ahead,
-                    commit_lines,
-                    str(exc),
-                )
+                if publication is None:
+                    self._reopen_missing_review(
+                        entry,
+                        project_id,
+                        branch,
+                        target_branch,
+                        commits_ahead,
+                        commit_lines,
+                        str(exc),
+                    )
                 return False
 
         return True
@@ -35168,7 +35257,7 @@ class Orchestrator:
         entry: RunningEntry,
         project_id: str | None,
         review: ReviewRequest | Any,
-    ) -> None:
+    ) -> bool:
         """Mark the task ``In Review`` once a review artifact exists.
 
         Also persists ``oompah.review_url`` and ``oompah.review_number``
@@ -35180,7 +35269,7 @@ class Orchestrator:
         advances after merge (OOMPAH-697).
         """
         if not project_id:
-            return
+            return False
         try:
             tracker = self._tracker_for_project(project_id)
             tracker.update_issue(entry.identifier, status=IN_REVIEW)
@@ -35224,12 +35313,14 @@ class Orchestrator:
                 target_branch=review_target,
                 review_head=review_head,
             )
+            return True
         except Exception as exc:
             logger.warning(
                 "Failed to mark %s as In Review after review handoff: %s",
                 entry.identifier,
                 exc,
             )
+            return False
 
     def _write_review_metadata(
         self,
@@ -51619,47 +51710,63 @@ class Orchestrator:
                 )
             return False
 
-        review_ready = self._ensure_review_exists(entry, project_id)
+        labels = {str(label).strip().lower() for label in current.labels or []}
+
+        def finish_repair_publication() -> None:
+            """Clear repair state inside the same close-fenced generation."""
+
+            for label in sorted(labels.intersection(_EPIC_REVIEW_REPAIR_LABELS)):
+                try:
+                    tracker.update_issue(
+                        current.identifier,
+                        **{"remove-label": label},
+                    )
+                except Exception as exc:  # noqa: BLE001 - status already published
+                    logger.debug(
+                        "Failed to remove repair label %s from %s: %s",
+                        label,
+                        current.identifier,
+                        exc,
+                    )
+            if "merge-conflict" in labels:
+                try:
+                    self._set_epic_rebase_state(
+                        current.identifier,
+                        EpicRebaseState.REBASED,
+                        project_id=project_id,
+                    )
+                    if current.target_branch:
+                        self._record_epic_rebase_target(
+                            current.identifier,
+                            target_branch=current.target_branch,
+                            project_id=project_id,
+                            parent_id=getattr(current, "parent_id", None),
+                        )
+                except Exception as exc:  # noqa: BLE001 - status already published
+                    logger.debug(
+                        "Failed to persist repaired epic state for %s: %s",
+                        current.identifier,
+                        exc,
+                    )
+
+        publication = _ReviewHandoffPublication(
+            after_publication=finish_repair_publication
+        )
+        review_ready = self._ensure_review_exists(
+            entry,
+            project_id,
+            publication=publication,
+        )
         if not review_ready:
             return False
-
-        labels = {str(label).strip().lower() for label in current.labels or []}
-        for label in sorted(labels.intersection(_EPIC_REVIEW_REPAIR_LABELS)):
-            try:
-                tracker.update_issue(
-                    current.identifier,
-                    **{"remove-label": label},
-                )
-            except Exception as exc:  # noqa: BLE001 - status handoff still matters
-                logger.debug(
-                    "Failed to remove repair label %s from %s: %s",
-                    label,
-                    current.identifier,
-                    exc,
-                )
-        try:
-            tracker.update_issue(current.identifier, status=IN_REVIEW)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Failed to return repaired epic %s to In Review: %s",
+        if not publication.in_review_published:
+            logger.info(
+                "Keeping epic review repair %s dispatchable because no "
+                "lifecycle-fenced In Review publication occurred",
                 current.identifier,
-                exc,
             )
             return False
 
-        if "merge-conflict" in labels:
-            self._set_epic_rebase_state(
-                current.identifier,
-                EpicRebaseState.REBASED,
-                project_id=project_id,
-            )
-            if current.target_branch:
-                self._record_epic_rebase_target(
-                    current.identifier,
-                    target_branch=current.target_branch,
-                    project_id=project_id,
-                    parent_id=getattr(current, "parent_id", None),
-                )
         current.state = IN_REVIEW
         logger.info(
             "Epic review repair completed for %s; returned to In Review",
