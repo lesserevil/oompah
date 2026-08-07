@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T11:41:35.402754Z'
+updated_at: '2026-08-07T11:49:58.241118Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -549,5 +549,10 @@ FAILED tests/test_task_handoff.py::TestOOMPAH650WorkerLifetimeCredentials::test_
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-07 11:49
+---
+Second exact combined-tree gate at 357149ce completed in 1144.95s with 3 failures / 16,546 passes. Repair v3 is in progress under direct claim 43660cfd: replacement generations again make issue-level retirement report incomplete while exact old bearer/retry capabilities are revoked; the one stale telemetry expectation is corrected; cross-project lock independence now uses a deterministic barrier instead of a loaded-host 100ms timing assumption. Static diff/py_compile pass and independent read-only review approved. Exact 3-node broker rerun is durably queued behind O873's active exact gate; no validation bypass.
 ---
 <!-- COMMENTS:END -->
