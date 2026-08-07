@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T14:04:43.156152Z'
-updated_at: '2026-08-07T14:07:27.938753Z'
-work_branch: null
+updated_at: '2026-08-07T14:07:44.974742Z'
+work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
 review_number: null
@@ -27,6 +27,15 @@ oompah.epic_rebase_target:
   parent_id: null
   resolution: confirmed_top_level
 oompah.agent_run_id: e2d1d215-cc3d-4610-8e75-071d3ab22a71
+oompah.work_branch: epic-OOMPAH-763
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763
+  base_branch: epic-OOMPAH-763
+  base_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+  updated_at: '2026-08-07T14:07:42.031533+00:00'
 ---
 ## Summary
 
