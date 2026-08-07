@@ -491,7 +491,11 @@ class AuditorDispatchLane:
                 "all_attempted",
                 f"Audit reached the maximum of {self.max_attempts} substantive attempts.",
             )
-        if transport_used >= self.max_transport_retries:
+        # The initial audit launch must remain possible when operators set the
+        # retry budget to zero.  In that configuration the first transport
+        # failure is terminal for this immutable audit, but it must not make
+        # a healthy candidate look unavailable before it has run.
+        if transport_used and transport_used >= self.max_transport_retries:
             return None, NoCandidateReason(
                 "all_attempted",
                 (

@@ -952,8 +952,8 @@ def test_natural_exhausted_e1_e2_e1_requires_owner_rearm_before_dispatch(
     store.close()
 
 
-def test_restart_abandonment_exhaustion_remains_owner_rearmable(tmp_path) -> None:
-    """A lost exact worker remains a trusted, non-substantive recovery case."""
+def test_restart_abandonment_retries_same_candidate_without_duplicate_auditor(tmp_path) -> None:
+    """A lost pre-verdict worker keeps its candidate slot through restart recovery."""
 
     tracker = _Tracker()
     locks = _ProjectLocks()
@@ -1023,9 +1023,9 @@ def test_restart_abandonment_exhaustion_remains_owner_rearmable(tmp_path) -> Non
     assert running is not None
 
     # Simulate a service restart: durable metadata and the workflow lease
-    # survive, but the in-memory worker registry is empty.  The only configured
-    # independent candidate has already been attempted, so recovery consumes
-    # the final workflow attempt and must route an owner-rearmable exhaustion.
+    # survive, but the in-memory worker registry is empty.  The lost attempt
+    # has no verdict, so recovery must retain the sole capable candidate and
+    # dispatch exactly one fenced retry rather than route Needs Human.
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
     orchestrator.state = SimpleNamespace(claimed=set(), claimed_issues={})
@@ -1055,50 +1055,26 @@ def test_restart_abandonment_exhaustion_remains_owner_rearmable(tmp_path) -> Non
 
     asyncio.run(orchestrator._dispatch_audit_lane())
 
-    assert orchestrator._dispatch.await_count == 0
-    assert tracker.status == NEEDS_HUMAN
-    completed = next(
+    assert orchestrator._dispatch.await_count == 1
+    assert tracker.status == IN_VALIDATION
+    retried = next(
         item
         for item in metadata.read(TASK_ID).pending_chain
         if item.audit_id == record.audit_id
     )
-    assert completed.request_state is RequestState.COMPLETED
-    abandoned = completed.attempts[0]
+    assert retried.request_state is RequestState.IN_PROGRESS
+    assert len(retried.attempts) == 2
+    abandoned = retried.attempts[0]
     assert abandoned.attempt_id == plan.attempt_id
     assert (
         abandoned.failure_classification
         is FailureClassification.INFRASTRUCTURE_ERROR
     )
     assert abandoned.origin is AuditAttemptOrigin.COORDINATOR_ABANDONED_RECOVERY
-    assert completed.attempts[-1].origin is (
-        AuditAttemptOrigin.COORDINATOR_RETRY_EXHAUSTION
-    )
-
-    owner_rearm = asyncio.run(
-        coordinator.retry_failed_audit(
-            tracker.fetch_issue_detail(TASK_ID),
-            TargetState.DONE,
-            ContributorIdentity("project-owner", "api"),
-            PROJECT_ID,
-            "The independent auditor service is healthy again.",
-            SimpleNamespace(
-                tracker_owner="project-owner",
-                status_actor_login=None,
-                status_label_authorized_logins=["project-owner"],
-            ),
-        )
-    )
-
-    assert owner_rearm.success
-    assert owner_rearm.superseded_audit_id == completed.audit_id
-    assert tracker.status == IN_VALIDATION
-    fresh = next(
-        item
-        for item in metadata.read(TASK_ID).pending_chain
-        if item.audit_id == owner_rearm.audit_id
-    )
-    assert fresh.request_state is RequestState.PENDING
-    assert fresh.evidence_fingerprint == completed.evidence_fingerprint
+    retry = retried.attempts[-1]
+    assert retry.attempt_id != abandoned.attempt_id
+    assert (retry.provider_id, retry.model) == (candidate.provider_id, candidate.model)
+    assert workflow.ensure(retried).state is WorkflowJobState.RUNNING
     store.close()
 
 

@@ -1473,6 +1473,98 @@ def test_uncommitted_normal_exit_is_a_finalization_failure(tmp_path) -> None:
     )
 
 
+def test_tool_result_delivery_timeout_is_retryable_transport_failure(tmp_path) -> None:
+    orch = _orchestrator(tmp_path)
+    entry = _entry()
+    fingerprint = compute_evidence_fingerprint(
+        "requirements",
+        "project-1",
+        entry.identifier,
+    )
+    attempt = AuditAttempt(
+        attempt_id=entry.audit_attempt_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        provider_id="provider-haiku",
+        model="haiku",
+        request_state=RequestState.IN_PROGRESS,
+    )
+    record = TerminalAuditRecord(
+        audit_id=entry.audit_id,
+        project_id="project-1",
+        task_id=entry.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+    )
+    store = MagicMock()
+    store.read.return_value = MagicMock(pending_chain=[record])
+
+    with (
+        patch.object(orch, "_audit_store", return_value=store),
+        patch.object(orch, "_audit_update_record", return_value=True),
+        patch("oompah.orchestrator.AuditorDispatchLane.finish_attempt") as finish,
+    ):
+        finish.return_value = record
+        assert orch._finish_audit_attempt(
+            entry,
+            "auditor_tool_result_delivery_timeout",
+            "run_command result delivery timed out after 30s",
+        )
+
+    assert finish.call_args.kwargs["failure_classification"] == (
+        FailureClassification.INFRASTRUCTURE_ERROR
+    )
+
+
+def test_tool_delivery_timeout_uses_audit_retry_not_ordinary_retry(tmp_path) -> None:
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch._tool_stall_status = MagicMock(
+            return_value=(False, "run_command result delivery timed out after 30s")
+        )
+
+        async def terminate(issue_id: str, cleanup_workspace: bool) -> bool:
+            assert issue_id == entry.issue.id
+            assert cleanup_workspace is False
+            orch.state.running.pop(issue_id, None)
+            return True
+
+        orch._terminate_running = AsyncMock(side_effect=terminate)
+        orch._schedule_retry = MagicMock()
+
+        await orch._reconcile()
+
+        assert entry.forced_exit_reason == "auditor_tool_result_delivery_timeout"
+        assert entry.forced_exit_error == "run_command result delivery timed out after 30s"
+        orch._terminate_running.assert_awaited_once_with(
+            entry.issue.id, cleanup_workspace=False
+        )
+        orch._schedule_retry.assert_not_called()
+
+    asyncio.run(scenario())
+
+
+def test_workflow_lease_covers_substantive_and_transport_budgets(tmp_path) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orch = Orchestrator(
+        config=ServiceConfig(
+            duplicate_preflight_max_agents=0,
+            audit_max_attempts=2,
+            audit_max_transport_retries=3,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        state_path=str(tmp_path / "state.json"),
+    )
+
+    assert orch.terminal_audit_workflow.max_attempts == 5
+
+
 def test_structured_nonterminal_result_owns_attempt_classification(tmp_path) -> None:
     orch = _orchestrator(tmp_path)
     entry = _entry()
