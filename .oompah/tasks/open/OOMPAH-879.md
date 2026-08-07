@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-879
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Prevent concurrent duplicate epic-rebase tasks for one epic generation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T11:33:00.076583Z'
+updated_at: '2026-08-07T11:33:24.217573Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -22,23 +22,23 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 4b9ec0bb21e4c1d3a984ccccb80a5a09a30fe3b98a5295807976e833d679c42d
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T11:33:20.542522+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851,
-    OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860,
-    OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877,
-    OOMPAH-878.'
+  evidence: Owner review confirms OOMPAH-879 is the unique systemic atomicity fix
+    for concurrent duplicate epic-rebase task creation. OOMPAH-853 repairs corpus
+    visibility but does not implement this per-epic-generation scheduling authority.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-07T10:47:59.280554+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-07T11:33:20.542522+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Owner review confirms OOMPAH-879 is the unique systemic
+    atomicity fix for concurrent duplicate epic-rebase task creation. OOMPAH-853 repairs
+    corpus visibility but does not implement this per-epic-generation scheduling authority.
 oompah.agent_run_id: 8601033e-1631-489a-a84b-303631ab28c6
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-879
 oompah.integration:
