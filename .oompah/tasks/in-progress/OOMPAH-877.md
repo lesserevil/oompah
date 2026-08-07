@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T10:26:43.245560Z'
+updated_at: '2026-08-07T12:40:08.853171Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -70,5 +70,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 46s
 - Log: OOMPAH-877__20260807T102321Z.jsonl
+---
+author: oompah
+created: 2026-08-07 12:40
+---
+Validation/publish incident: the authorized rebase reached ca1c52744 locally, but its 908-test focused semantic suite later reported 3 failures. Before that result, duplicate OOMPAH-884 discovered the local shared-worktree head and force-pushed it with generic --force-with-lease, bypassing the operator's exact-CAS/no-push hold. O884 is now returned to In Progress and direct-owner fenced. O877 is rebasing the exposed head onto latest main and repairing the failures before any further exact-CAS push; O879 includes this sixth recurrence and generic-push bypass regression.
 ---
 <!-- COMMENTS:END -->
