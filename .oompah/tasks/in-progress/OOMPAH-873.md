@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T07:26:25.583659Z'
+updated_at: '2026-08-07T07:35:51.641834Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,27 @@ author: oompah
 created: 2026-08-07 07:26
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 07:35
+---
+## Understanding
+
+The issue is a regression where detail reads (GET /api/v1/issues/{id}/detail) return fresh state but full-sync snapshots (GET /api/v1/issues) return stale state for the same task.
+
+### Key Problem:
+- Canonical state-branch file for OOMPAH-768: .oompah/tasks/in-progress/OOMPAH-768.md with status 'In Progress'
+- GET detail: returns 'In Progress' with tracker_state_fresh=true ✓ 
+- GET /api/v1/issues: returns 'Done' (stale) ✗
+
+### Root Cause (suspected):
+The snapshot generation code (_fetch_and_serialize_issues/_fetch_all_issues) may have a different code path or caching issue compared to the detail fetch (fetch_issue_detail). The snapshot likely reads issues but the source generation check doesn't match what detail read sees.
+
+### Implementation Plan:
+1. Examine how detail read gets fresh state vs how snapshot gets stale state
+2. Find where the divergence occurs in source generation tracking
+3. Ensure both paths read from the same state-branch generation authority
+4. Add tests to verify snapshot and detail reads always match
+5. Fix cache invalidation/source generation tracking
 ---
 <!-- COMMENTS:END -->
