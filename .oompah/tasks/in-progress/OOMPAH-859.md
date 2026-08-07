@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-06T13:40:10.162851Z'
+updated_at: '2026-08-07T19:12:30.822448Z'
 work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
@@ -109,5 +109,10 @@ author: oompah
 created: 2026-08-06 13:40
 ---
 Static implementation review is ACCEPT. The O859 delta is currently stacked on the larger uncommitted O795 composition, so an exact alternate-index recovery commit was created without touching that worktree/index: backup/OOMPAH-795-with-O859-prevalidation-20260806 at ee4120c0c046c4ea12c195521cd458179b6e8b38. Its tree matches the full current working tree exactly and includes tests/test_work_decision_cache.py. O859-specific scope is confined to terminal_audit_health.py, orchestrator.py, tests/test_terminal_audit_health.py, and tests/test_terminal_audit_observability.py. Safest sequence is finish/restack O795, extract/apply the canonical four-file O859 delta onto that exact head, rerun review if overlapping functions changed, then validate terminal-audit health/observability/API/dashboard/enforcement/scanner and state/WebSocket suites before a separate commit/submission. Recovery ref retained until both tasks integrate.
+---
+author: oompah
+created: 2026-08-07 19:12
+---
+Direct implementation complete on local branch epic-OOMPAH-795--task-OOMPAH-859 at 45665108f0e514f21902ca4e7ed0e8f87d61adbc. Scoped extraction onto shared baseline a85a36baf: pending age/stale facts now derive only from PENDING records; zero-pending backlog alerts are suppressed; stale pending backlog is informational/non-operator-action; partial scans retain one complete fact generation until an authoritative refresh atomically clears the backlog facts and alert. Validation under canonical broker: 100 focused health/observability tests passed, plus 367 adjacent API/dashboard/enforcement/recovery/WebSocket tests passed. make check-secrets and diff/compile checks passed. Branch is intentionally not pushed or submitted pending program composition.
 ---
 <!-- COMMENTS:END -->
