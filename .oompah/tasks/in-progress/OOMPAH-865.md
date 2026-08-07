@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-06T19:12:58.854623Z'
+updated_at: '2026-08-07T05:44:29.729895Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-06 19:11
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-07 05:44
+---
+Implementation committed and pushed at 3e03359da9baed0a36b34dd9a301ad921f2cee96 on epic-OOMPAH-763--task-OOMPAH-865. Pre-rebase frozen patch passed 998 tests serial and 998 parallel; final focus-triage transport races passed directly and independent review accepted. Rebase onto current origin/epic-OOMPAH-763 completed without conflicts and preserved both incoming O856/O858 callbacks plus O865 budget/authority callbacks. A narrow post-rebase overlap gate remains before task submit.
 ---
 <!-- COMMENTS:END -->
