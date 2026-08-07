@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-877
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T09:38:25.797897Z'
-updated_at: '2026-08-07T14:36:30.309439Z'
+updated_at: '2026-08-07T14:47:25.295939Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -36,6 +36,29 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
   updated_at: '2026-08-07T10:22:57.202914+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-aa6731a62483
+    project_id: proj-14849f1b
+    task_id: OOMPAH-877
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bec8134c4776799e78f527c81be2b71d41b4e4dfbd205f6a5df4facb937ce6ea
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Exact recovery head e06bec549 passed the canonical full Makefile gate
+      with 16652 passed and zero failures, plus 20 consecutive WebSocket stress runs,
+      and was published by exact force-with-lease from ca1c527.
+    created_at: '2026-08-07T14:47:19.859762+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
