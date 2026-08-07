@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T10:50:07.798750Z'
+updated_at: '2026-08-07T10:50:17.022334Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -61,7 +61,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 254d9954-5b9b-4828-b140-8c344363c2e8
+oompah.agent_run_id: 57514f82-4116-43ed-be88-0dc5568705d2
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-646__20260731T065633Z
@@ -660,5 +660,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 0s
 - Log: OOMPAH-646__20260807T104312Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:50
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
