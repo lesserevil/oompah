@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-07T05:14:36.797363Z'
+updated_at: '2026-08-07T05:32:41.293070Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: ''
@@ -66,7 +66,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +100,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -174,6 +174,40 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-06T20:42:28.733347+00:00'
     updated_at: '2026-08-06T20:52:03.149135+00:00'
+  - version: 1
+    audit_id: audit-7c7b94e9b81c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a37150b9b287fd14a05647df115a9f708a9e4ebdbb9c1d98a632331f3da025
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T05:32:37.085809+00:00'
+  - version: 1
+    audit_id: audit-644e2f5e42f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a37150b9b287fd14a05647df115a9f708a9e4ebdbb9c1d98a632331f3da025
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T05:32:37.085809+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b5e2b06fe84
