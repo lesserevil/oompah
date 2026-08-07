@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T09:50:58.578435Z'
+updated_at: '2026-08-07T09:51:10.423136Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -104,7 +104,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-865
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -145,6 +145,22 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-07T09:50:50.987123+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-7c783135bb6a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+      created_at: '2026-08-07T09:51:09.002638+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T09:51:09.002638+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-865
+      selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+      selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-integration
@@ -153,7 +169,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:03:33.098057+00:00'
     selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
-    updated_at: '2026-08-07T09:31:19.448292+00:00'
+    updated_at: '2026-08-07T09:51:09.002638+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ef1dae62d434
@@ -190,6 +206,22 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T09:50:50.987123+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-7c783135bb6a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    created_at: '2026-08-07T09:51:09.002638+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T09:51:09.002638+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-865
+    selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+    selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+    candidate_rotation_count: 2
 ---
 ## Summary
 
