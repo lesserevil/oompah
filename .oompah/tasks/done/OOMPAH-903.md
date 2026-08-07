@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:58:05.057419Z'
-updated_at: '2026-08-07T20:34:22.428750Z'
+updated_at: '2026-08-07T20:34:37.975183Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,6 +50,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T20:34:20.832019+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain resolved incident evidence: OOMPAH-871 PR #741 and source task
+      OOMPAH-648 terminal provenance.'
+    marked_at: '2026-08-07T20:34:36.424490+00:00'
+    updated_at: '2026-08-07T20:34:36.424490+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain resolved incident evidence: OOMPAH-871 PR #741 and source task
+        OOMPAH-648 terminal provenance.'
+      recorded_at: '2026-08-07T20:34:36.424490+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
@@ -135,5 +157,10 @@ created: 2026-08-07 20:34
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Incident root cause was stale watchdog reopening of already-merged OOMPAH-648, followed by correct accepted-head mismatch fencing. OOMPAH-871 PR #741 merged exact head 158a2d03f0651b955666ba31c25b3fb412973ccd as 41b1477682c6460a1bb55356ac44c799c9fa783a with all three CI jobs green; OOMPAH-648 is restored to Merged and retained as terminal provenance, preventing recurrence.
+---
+author: oompah
+created: 2026-08-07 20:34
+---
+Incident resolved by merged OOMPAH-871 plus terminal-provenance restoration of OOMPAH-648.
 ---
 <!-- COMMENTS:END -->
