@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T08:58:09.606886Z'
+updated_at: '2026-08-07T08:58:44.757596Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -312,7 +312,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -342,7 +342,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -354,6 +354,44 @@ oompah.terminal_audit:
       source: api
     previous_state: In Progress
     created_at: '2026-08-07T07:16:26.653779+00:00'
+  - version: 1
+    audit_id: audit-995a3dbfef87
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T08:58:37.605256+00:00'
+    selected_ref: f2b319c1182cd654112db622a0498171e508dead
+    selected_sha: f2b319c1182cd654112db622a0498171e508dead
+  - version: 1
+    audit_id: audit-1ed4580274d8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T08:58:37.605256+00:00'
+    selected_ref: f2b319c1182cd654112db622a0498171e508dead
+    selected_sha: f2b319c1182cd654112db622a0498171e508dead
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
