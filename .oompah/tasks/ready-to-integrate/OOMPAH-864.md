@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:14:24.488768Z'
+updated_at: '2026-08-07T19:14:32.452969Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
     no duplicate. OOMPAH-864 is the distinct owner-resolution rearm bug reproduced
     by OOMPAH-863/OOMPAH-855; its exact transaction, generation fencing, restart recovery,
     and worktree preservation scope is not covered by the cited peers.
-oompah.agent_run_id: d36cc827-aa1a-43b4-8e31-faa0cd946d39
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
@@ -314,5 +314,10 @@ author: oompah
 created: 2026-08-06 22:38
 ---
 Owner takeover stopped the old-server CI fixer before it duplicated OOMPAH-845 or rewrote accepted head 742075be6. This exact gate again reached the full suite and failed only tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events after the same LogFileWatcher.start leak warnings. OOMPAH-845 7bb2362fc is the recorded finish dependency and exact fix. Preserve OOMPAH-864 unchanged; rebase/re-gate only after OOMPAH-845 lands.
+---
+author: oompah
+created: 2026-08-07 19:14
+---
+Preserved duplicate-preflight submission authority through owner no_duplicate resolution and restart using fail-closed reassessment for unproven working records. Restacked onto shared epic eb08e86b9; 85 focused duplicate-preflight, owner API, and integration-record tests pass under the canonical lease.
 ---
 <!-- COMMENTS:END -->
