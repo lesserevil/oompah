@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T11:13:48.456057Z'
+updated_at: '2026-08-07T11:14:06.799152Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -679,5 +679,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 51m 16s
 - Log: OOMPAH-643__20260807T102213Z.jsonl
+---
+author: oompah
+created: 2026-08-07 11:13
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-07 11:14
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
