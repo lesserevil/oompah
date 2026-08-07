@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T19:33:25.459943Z'
+updated_at: '2026-08-07T19:33:31.648817Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -987,5 +987,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 28s
 - Log: OOMPAH-641__20260807T192508Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:33
+---
+Already integrated on main; owner override restores the verified terminal record after direct takeover.
 ---
 <!-- COMMENTS:END -->
