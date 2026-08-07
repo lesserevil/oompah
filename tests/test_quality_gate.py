@@ -2080,7 +2080,7 @@ def test_gate_cleans_server_owned_trusted_home_for_every_outcome(
     assert result.status == expected_status
     assert len(created) == 1
     assert not created[0].exists()
-    assert not BranchQualityGate._gate_root_owner_path(created[0]).exists()
+    assert not BranchQualityGate._gate_root_owner_path(created[0].parent).exists()
 
 
 @pytest.mark.parametrize("failed_allocator", ["run-root", "trusted-home"])
@@ -2160,6 +2160,9 @@ def test_gate_startup_scavenges_roots_from_dead_service_generation(
         owner_path.chmod(0o600)
         owner_path.write_text(json.dumps(owner), encoding="utf-8")
         owner_path.chmod(0o400)
+        (run_root / "tmp").chmod(0o000)
+        run_root.chmod(0o000)
+        trusted_home.chmod(0o000)
 
         BranchQualityGate(str(tmp_path / "scavenge-state.json"))
 
@@ -2190,6 +2193,27 @@ def test_gate_scavenger_bounds_corrupt_or_legacy_root_lifetime(
     finally:
         if run_root.exists():
             shutil.rmtree(run_root)
+
+
+def test_gate_scavenger_ignores_old_prefix_lookalikes_and_sidecars(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    lookalike = tmp_path / "oompah-quality-gate-operator-backup"
+    lookalike.mkdir()
+    marker = lookalike / "keep"
+    marker.write_text("operator data", encoding="utf-8")
+    sidecar = tmp_path / f".{lookalike.name}{quality_gate._GATE_ROOT_OWNER_FILE}"
+    sidecar.write_text("not an oompah owner", encoding="utf-8")
+    old = time.time() - 10
+    os.utime(lookalike, (old, old))
+    os.utime(sidecar, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+
+    assert BranchQualityGate._scavenge_stale_gate_roots() == 0
+    assert marker.read_text(encoding="utf-8") == "operator data"
+    assert sidecar.exists()
 
 
 def test_gate_scavenger_retains_old_root_with_exact_live_owner(
@@ -2232,6 +2256,7 @@ def test_gate_scavenger_retains_root_when_proc_identity_is_unknown(
         BranchQualityGate._scavenge_stale_gate_roots()
         assert run_root.exists()
     finally:
+        BranchQualityGate._register_gate_root(container)
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
@@ -2342,9 +2367,13 @@ def test_gate_scavenger_age_bounds_quarantine_without_sidecar(
     monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
     run_root = BranchQualityGate._gate_run_root()
     container = run_root.parent
+    trusted_home = BranchQualityGate._gate_trusted_home_root(run_root)
     owner_path = BranchQualityGate._gate_root_owner_path(container)
     BranchQualityGate._forget_gate_root(container)
     owner_path.unlink()
+    (run_root / "tmp").chmod(0o000)
+    run_root.chmod(0o000)
+    trusted_home.chmod(0o000)
     quarantine = container.with_name(
         f".{container.name}.scavenge-2000000000-123456789"
     )
@@ -2358,6 +2387,76 @@ def test_gate_scavenger_age_bounds_quarantine_without_sidecar(
     finally:
         BranchQualityGate._prepare_gate_container_removal(quarantine)
         shutil.rmtree(quarantine, ignore_errors=True)
+
+
+def test_gate_normal_cleanup_repairs_candidate_controlled_modes(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    trusted_home = BranchQualityGate._gate_trusted_home_root(run_root)
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    (run_root / "tmp").chmod(0o000)
+    run_root.chmod(0o000)
+    trusted_home.chmod(0o000)
+
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    assert not container.exists()
+    assert not owner_path.exists()
+
+
+def test_gate_normal_cleanup_fences_container_inode_swap(tmp_path, monkeypatch):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    displaced = container.with_name(f"{container.name}-displaced")
+    container.rename(displaced)
+    container.mkdir(mode=0o700)
+    replacement_run = container / "run"
+    replacement_run.mkdir(mode=0o700)
+    replacement_identity = container / "identity"
+    replacement_identity.mkdir(mode=0o500)
+    try:
+        BranchQualityGate._cleanup_gate_run_root(replacement_run)
+
+        assert container.exists(), "substituted container was deleted"
+        assert displaced.exists(), "original registered container was deleted"
+        assert owner_path.exists()
+    finally:
+        BranchQualityGate._forget_gate_root(container)
+        assert BranchQualityGate._prepare_gate_container_removal(container)
+        assert BranchQualityGate._prepare_gate_container_removal(displaced)
+        shutil.rmtree(container, ignore_errors=True)
+        shutil.rmtree(displaced, ignore_errors=True)
+        owner_path.unlink(missing_ok=True)
+
+
+def test_gate_normal_cleanup_restores_identity_mode_for_retry(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    identity_root = container / "identity"
+    original_rmtree = shutil.rmtree
+
+    def fail_once(_path):
+        raise OSError("injected removal failure")
+
+    monkeypatch.setattr(shutil, "rmtree", fail_once)
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    assert container.exists()
+    assert identity_root.stat().st_mode & 0o777 == 0o500
+
+    monkeypatch.setattr(shutil, "rmtree", original_rmtree)
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+    assert not container.exists()
 
 
 def test_gate_normal_cleanup_removes_container_and_owner_sidecar(tmp_path, monkeypatch):

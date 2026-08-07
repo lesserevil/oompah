@@ -52,6 +52,7 @@ _GATE_ROOT_OWNER_FILE = ".oompah-gate-owner.json"
 _GATE_ROOT_MAX_AGE_SECONDS = 24 * 60 * 60
 _GATE_ROOT_SCAVENGE_LIMIT = 256
 _GATE_ROOT_NAME_PATTERN = rf"{re.escape(_GATE_CONTAINER_PREFIX)}[a-z0-9_]{{8}}"
+_GATE_ROOT_NAME_RE = re.compile(rf"^{_GATE_ROOT_NAME_PATTERN}$")
 _GATE_ROOT_QUARANTINE_PATTERN = re.compile(
     rf"^\.(?P<root>{_GATE_ROOT_NAME_PATTERN})"
     r"\.scavenge-[1-9][0-9]*-[1-9][0-9]*$"
@@ -761,7 +762,7 @@ class BranchQualityGate:
         if (
             root.name != _GATE_MUTABLE_ROOT_NAME
             or container.parent != temp_root
-            or not container.name.startswith(_GATE_CONTAINER_PREFIX)
+            or _GATE_ROOT_NAME_RE.fullmatch(container.name) is None
             or run_root.is_symlink()
             or container.is_symlink()
             or container.stat().st_uid != os.geteuid()
@@ -838,13 +839,9 @@ class BranchQualityGate:
 
     @staticmethod
     def _prepare_gate_container_removal(container: Path) -> bool:
-        """Make an immutable identity sibling removable without following links."""
-        identity_root = container / _GATE_IDENTITY_ROOT_NAME
+        """Repair candidate-controlled directory modes without following links."""
         try:
-            metadata = identity_root.stat(follow_symlinks=False)
-        except FileNotFoundError:
-            # Age-bounded legacy roots predate the identity capability.
-            return True
+            metadata = container.stat(follow_symlinks=False)
         except OSError:
             return False
         if (
@@ -854,7 +851,45 @@ class BranchQualityGate:
         ):
             return False
         try:
-            identity_root.chmod(0o700, follow_symlinks=False)
+            container.chmod(0o700, follow_symlinks=False)
+            for current_root, directory_names, _file_names in os.walk(
+                container,
+                topdown=True,
+                followlinks=False,
+            ):
+                current = Path(current_root)
+                current_metadata = current.stat(follow_symlinks=False)
+                if (
+                    not stat.S_ISDIR(current_metadata.st_mode)
+                    or stat.S_ISLNK(current_metadata.st_mode)
+                    or current_metadata.st_uid != os.geteuid()
+                ):
+                    return False
+                current.chmod(0o700, follow_symlinks=False)
+                for name in directory_names:
+                    child = current / name
+                    child_metadata = child.stat(follow_symlinks=False)
+                    if stat.S_ISDIR(child_metadata.st_mode):
+                        if child_metadata.st_uid != os.geteuid():
+                            return False
+                        child.chmod(0o700, follow_symlinks=False)
+        except OSError:
+            return False
+        return True
+
+    @staticmethod
+    def _restore_gate_identity_mode(container: Path) -> bool:
+        """Restore the immutable identity-directory mode after a failed delete."""
+        identity_root = container / _GATE_IDENTITY_ROOT_NAME
+        try:
+            metadata = identity_root.stat(follow_symlinks=False)
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+            ):
+                return False
+            identity_root.chmod(0o500, follow_symlinks=False)
         except OSError:
             return False
         return True
@@ -990,10 +1025,18 @@ class BranchQualityGate:
         cls,
         root: Path,
         expected_identity: tuple[int, int],
+        *,
+        allow_active_owner: bool = False,
     ) -> bool:
         """Quarantine and remove only the exact inode classified stale."""
         with cls._processes_lock:
-            if str(root) in cls._active_gate_root_identities:
+            active_identity = cls._active_gate_root_identities.get(str(root))
+            active_authorized = (
+                active_identity == expected_identity
+                if allow_active_owner
+                else active_identity is None
+            )
+            if not active_authorized:
                 return False
         parent_descriptor: int | None = None
         root_descriptor: int | None = None
@@ -1018,7 +1061,13 @@ class BranchQualityGate:
             if (int(current.st_dev), int(current.st_ino)) != expected_identity:
                 return False
             with cls._processes_lock:
-                if str(root) in cls._active_gate_root_identities:
+                active_identity = cls._active_gate_root_identities.get(str(root))
+                active_authorized = (
+                    active_identity == expected_identity
+                    if allow_active_owner
+                    else active_identity is None
+                )
+                if not active_authorized:
                     return False
             os.rename(
                 root.name,
@@ -1052,6 +1101,8 @@ class BranchQualityGate:
         if not cls._prepare_gate_container_removal(quarantine):
             try:
                 if not root.exists() and quarantine.exists():
+                    if allow_active_owner:
+                        cls._restore_gate_identity_mode(quarantine)
                     quarantine.rename(root)
             except OSError:
                 pass
@@ -1062,10 +1113,20 @@ class BranchQualityGate:
             logger.warning("Failed to remove quarantined gate root %s: %s", root, exc)
             try:
                 if not root.exists() and quarantine.exists():
-                    quarantine.rename(root)
+                    restored = (
+                        cls._restore_gate_identity_mode(quarantine)
+                        if allow_active_owner
+                        else True
+                    )
+                    if restored:
+                        quarantine.rename(root)
+                    elif allow_active_owner:
+                        cls._forget_gate_root(root)
             except OSError:
                 pass
             return False
+        if allow_active_owner:
+            cls._forget_gate_root(root)
         cls._unlink_gate_root_owner(root)
         return True
 
@@ -1319,8 +1380,12 @@ class BranchQualityGate:
         candidates = [
             path
             for path in entries
-            if path.name.startswith(f".{_GATE_ROOT_PREFIX}")
+            if path.name.startswith(".")
             and path.name.endswith(_GATE_ROOT_OWNER_FILE)
+            and _GATE_ROOT_NAME_RE.fullmatch(
+                path.name[1 : -len(_GATE_ROOT_OWNER_FILE)]
+            )
+            is not None
         ]
         quarantined_roots = {
             match.group("root")
@@ -1335,7 +1400,7 @@ class BranchQualityGate:
             with cls._processes_lock:
                 root_is_active = str(root) in cls._active_gate_root_identities
             if (
-                not root_name
+                _GATE_ROOT_NAME_RE.fullmatch(root_name) is None
                 or root.exists()
                 or root_is_active
                 or root_name in quarantined_roots
@@ -1363,7 +1428,7 @@ class BranchQualityGate:
             candidates = [
                 path
                 for path in temp_root.iterdir()
-                if path.name.startswith(_GATE_CONTAINER_PREFIX)
+                if _GATE_ROOT_NAME_RE.fullmatch(path.name) is not None
             ]
         except OSError:
             return 0
@@ -1465,7 +1530,7 @@ class BranchQualityGate:
             if (
                 resolved.name != _GATE_MUTABLE_ROOT_NAME
                 or container.parent != temp_root
-                or not container.name.startswith(_GATE_CONTAINER_PREFIX)
+                or _GATE_ROOT_NAME_RE.fullmatch(container.name) is None
                 or root.is_symlink()
                 or container.is_symlink()
                 or not resolved.exists()
@@ -1483,10 +1548,17 @@ class BranchQualityGate:
             ):
                 logger.warning("Refusing to remove untrusted gate identity %s", root)
                 return
-            identity_root.chmod(0o700)
-            shutil.rmtree(container)
-            cls._forget_gate_root(container)
-            cls._unlink_gate_root_owner(container)
+            with cls._processes_lock:
+                expected_identity = cls._active_gate_root_identities.get(str(container))
+            if expected_identity is None:
+                logger.warning("Refusing to remove unowned gate container %s", container)
+                return
+            if not cls._remove_stale_gate_root(
+                container,
+                expected_identity,
+                allow_active_owner=True,
+            ):
+                logger.warning("Failed to clean exact quality gate container %s", container)
         except FileNotFoundError:
             cls._forget_gate_root(container)
             cls._unlink_gate_root_owner(container)
@@ -1514,7 +1586,7 @@ class BranchQualityGate:
         if (
             resolved_run_root.name != _GATE_MUTABLE_ROOT_NAME
             or container.parent != temp_root
-            or not container.name.startswith(_GATE_CONTAINER_PREFIX)
+            or _GATE_ROOT_NAME_RE.fullmatch(container.name) is None
             or run_root.is_symlink()
             or container.is_symlink()
             or root.is_symlink()
