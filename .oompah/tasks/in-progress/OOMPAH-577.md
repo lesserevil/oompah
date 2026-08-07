@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T12:51:09.740247Z'
+updated_at: '2026-08-07T12:51:43.399864Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -838,5 +838,10 @@ author: oompah
 created: 2026-08-07 12:51
 ---
 Understanding: I will diagnose the reported full-gate failure in the existing OOMPAH-577 branch from its GitHub Actions logs, reproduce it locally where possible, make the minimum evidence-based test or code repair, run affected tests, and push/resubmit the same branch.
+---
+author: oompah
+created: 2026-08-07 12:51
+---
+Discovery: PR #588’s only GitHub Actions run (30510632250) is successful for its merged review head. The reported failure instead occurred in Oompah’s later full branch gate at a96f06a7c and is isolated to tests/test_ws_fault_injection.py::TestLiveDashboardConvergence::test_four_completion_snapshots_converge_to_zero_running_chips. I am diagnosing that test directly.
 ---
 <!-- COMMENTS:END -->
