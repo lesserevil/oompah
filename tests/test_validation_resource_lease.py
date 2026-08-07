@@ -52,6 +52,17 @@ def _wait_for(predicate, timeout: float = 3.0) -> None:
     raise AssertionError("condition did not become true")
 
 
+def _age_waiter(state_path: Path, task_id: str, *, seconds: float) -> None:
+    """Move one durable waiter into a deterministic aging band."""
+
+    with sqlite3.connect(state_path) as connection:
+        updated = connection.execute(
+            "UPDATE waiters SET queued_at = ? WHERE task_id = ?",
+            (time.time() - seconds, task_id),
+        ).rowcount
+    assert updated == 1
+
+
 def _gate_owner(project: str, task: str) -> ValidationLeaseOwner:
     return ValidationLeaseOwner.exact_gate(
         project_id=project,
@@ -2543,6 +2554,241 @@ def test_exact_gate_has_priority_but_aging_prevents_auditor_starvation(tmp_path)
     exact.join(timeout=3)
 
     assert order == ["audit", "gate"]
+
+
+def test_continuous_later_exact_arrivals_cannot_starve_aged_worker_multiprocess(
+    tmp_path,
+):
+    state_path = tmp_path / "lease.sqlite3"
+    lease = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = lease.acquire(_gate_owner("blocker", "held"))
+    script = """
+import sys, time
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+lease = ValidationResourceLease(sys.argv[1], aging_seconds=0.01, poll_seconds=0.005)
+factory = ValidationLeaseOwner.worker if sys.argv[2] == 'worker' else ValidationLeaseOwner.exact_gate
+owner = factory(project_id=sys.argv[2], task_id=sys.argv[3], authority_generation=sys.argv[3])
+with lease.acquire(owner, wait_timeout_seconds=10):
+    started = time.time()
+    time.sleep(0.02)
+    ended = time.time()
+print(f'{sys.argv[3]},{started},{ended}', flush=True)
+"""
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])}
+
+    def spawn(kind: str, task: str) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [sys.executable, "-c", script, str(state_path), kind, task],
+            cwd=Path(__file__).parents[1],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    processes = [spawn("worker", "worker-old")]
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    _age_waiter(state_path, "worker-old", seconds=0.22)
+    processes.extend(spawn("exact", f"exact-{index}") for index in range(2))
+    _wait_for(lambda: lease.status().waiter_count == len(processes))
+
+    status = lease.status()
+    worker_status = next(
+        item for item in status.waiters if item["task_id"] == "worker-old"
+    )
+    assert worker_status["starvation_protected"] is True
+    assert worker_status["starvation_protection_in_seconds"] == 0.0
+    assert worker_status["effective_priority"] >= 21
+    held.release()
+
+    intervals: list[tuple[str, float, float]] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == 0, stderr
+        label, start, end = stdout.strip().split(",")
+        intervals.append((label, float(start), float(end)))
+    ordered = sorted(intervals, key=lambda item: item[1])
+    assert ordered[0][0] == "worker-old"
+    assert all(
+        current[2] <= following[1]
+        for current, following in zip(ordered, ordered[1:])
+    )
+
+
+def test_aging_survives_manager_restart_and_fresh_exact_retains_urgency(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    original = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = original.acquire(_gate_owner("blocker", "held"))
+    order: list[str] = []
+
+    worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            original,
+            _worker_owner("repair", "old-worker"),
+            "worker",
+            order,
+        )
+    )
+    worker.start()
+    _wait_for(lambda: original.status().waiter_count == 1)
+    _age_waiter(state_path, "old-worker", seconds=0.22)
+
+    restarted = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+
+    def exact_run() -> None:
+        with restarted.acquire(_gate_owner("urgent", "fresh-exact")):
+            order.append("exact")
+
+    exact = threading.Thread(target=exact_run)
+    exact.start()
+    _wait_for(lambda: restarted.status().waiter_count == 2)
+    held.release()
+    worker.join(timeout=3)
+    exact.join(timeout=3)
+    assert order == ["worker", "exact"]
+
+    # Without the bounded-aging threshold, a fresh exact remains urgent.
+    held = restarted.acquire(_gate_owner("blocker", "held-again"))
+    order.clear()
+    fresh_worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            restarted,
+            _worker_owner("repair", "fresh-worker"),
+            "worker",
+            order,
+        )
+    )
+    fresh_exact = threading.Thread(
+        target=lambda: _acquire_and_record(
+            restarted,
+            _gate_owner("urgent", "fresh-exact-2"),
+            "exact",
+            order,
+        )
+    )
+    fresh_worker.start()
+    _wait_for(lambda: restarted.status().waiter_count == 1)
+    fresh_exact.start()
+    _wait_for(lambda: restarted.status().waiter_count == 2)
+    held.release()
+    fresh_worker.join(timeout=3)
+    fresh_exact.join(timeout=3)
+    assert order == ["exact", "worker"]
+
+
+def _acquire_and_record(lease, owner, label: str, order: list[str]) -> None:
+    with lease.acquire(owner):
+        order.append(label)
+
+
+def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    lease = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = lease.acquire(_gate_owner("blocker", "held"))
+    cancelled = threading.Event()
+    errors: list[BaseException] = []
+
+    def wait() -> None:
+        try:
+            lease.acquire(
+                _worker_owner("repair", "cancelled-worker"),
+                is_cancelled=cancelled.is_set,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=wait)
+    thread.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    _age_waiter(state_path, "cancelled-worker", seconds=0.22)
+    cancelled.set()
+    thread.join(timeout=3)
+    assert isinstance(errors[0], ValidationLeaseCancelled)
+    assert lease.status().waiter_count == 0
+
+    order: list[str] = []
+    worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _worker_owner("repair", "fresh-worker"),
+            "worker",
+            order,
+        )
+    )
+    exact = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _gate_owner("urgent", "fresh-exact"),
+            "exact",
+            order,
+        )
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    exact.start()
+    _wait_for(lambda: lease.status().waiter_count == 2)
+    held.release()
+    worker.join(timeout=3)
+    exact.join(timeout=3)
+    assert order == ["exact", "worker"]
+
+
+def test_dead_aged_waiter_is_pruned_before_fresh_priority_selection(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    lease = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = lease.acquire(_gate_owner("blocker", "held"))
+    script = """
+import sys
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+lease = ValidationResourceLease(sys.argv[1], aging_seconds=0.01, poll_seconds=0.005)
+lease.acquire(ValidationLeaseOwner.worker(project_id='repair', task_id='dead-worker', authority_generation='dead'))
+"""
+    dead = subprocess.Popen(
+        [sys.executable, "-c", script, str(state_path)],
+        cwd=Path(__file__).parents[1],
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])},
+    )
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    _age_waiter(state_path, "dead-worker", seconds=0.22)
+    dead.terminate()
+    dead.wait(timeout=3)
+    _wait_for(lambda: lease.status().waiter_count == 0)
+
+    order: list[str] = []
+    worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _worker_owner("repair", "fresh-worker-after-death"),
+            "worker",
+            order,
+        )
+    )
+    exact = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _gate_owner("urgent", "fresh-exact-after-death"),
+            "exact",
+            order,
+        )
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    exact.start()
+    _wait_for(lambda: lease.status().waiter_count == 2)
+    held.release()
+    worker.join(timeout=3)
+    exact.join(timeout=3)
+    assert order == ["exact", "worker"]
 
 
 def test_wait_cancellation_removes_durable_waiter(tmp_path):

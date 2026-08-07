@@ -241,6 +241,10 @@ VALIDATION_KIND_WORKER = "worker"
 EXACT_GATE_PRIORITY = 20
 AUDITOR_PRIORITY = 10
 WORKER_PRIORITY = 0
+# A waiter which has crossed every configured priority band becomes
+# starvation-protected. Later arrivals can no longer overtake it, while a
+# fresh exact gate still has the full priority span in which to run first.
+_STARVATION_AGING_STEPS = EXACT_GATE_PRIORITY - WORKER_PRIORITY + 1
 _SCHEMA_VERSION = 1
 
 
@@ -4468,6 +4472,21 @@ class ValidationResourceLease:
         if not rows:
             return None
 
+        starvation_seconds = self.aging_seconds * _STARVATION_AGING_STEPS
+        protected = [
+            row
+            for row in rows
+            if max(now - float(row["queued_at"]), 0.0) >= starvation_seconds
+        ]
+        if protected:
+            # Once protected, strict durable FIFO is the starvation bound.
+            # In particular, no continuously arriving exact/auditor work can
+            # move ahead of an already protected focused repair.
+            return min(
+                protected,
+                key=lambda row: (float(row["queued_at"]), str(row["token"])),
+            )
+
         def sort_key(row: sqlite3.Row) -> tuple[int, int, float, str]:
             age_boost = int(max(now - float(row["queued_at"]), 0.0) / self.aging_seconds)
             effective_priority = int(row["priority"]) + age_boost
@@ -5032,13 +5051,22 @@ class ValidationResourceLease:
             return owner
 
         def waiter_dict(row: sqlite3.Row) -> dict[str, object]:
+            age_seconds = max(now - float(row["queued_at"]), 0.0)
+            starvation_seconds = self.aging_seconds * _STARVATION_AGING_STEPS
             return {
                 "kind": str(row["kind"]),
                 "project_id": str(row["project_id"]),
                 "task_id": str(row["task_id"]),
                 "authority_generation": str(row["authority_generation"]),
-                "age_seconds": max(now - float(row["queued_at"]), 0.0),
+                "age_seconds": age_seconds,
                 "priority": int(row["priority"]),
+                "effective_priority": int(row["priority"])
+                + int(age_seconds / self.aging_seconds),
+                "starvation_protected": age_seconds >= starvation_seconds,
+                "starvation_protection_after_seconds": starvation_seconds,
+                "starvation_protection_in_seconds": max(
+                    starvation_seconds - age_seconds, 0.0
+                ),
             }
 
         oldest_age = max(
