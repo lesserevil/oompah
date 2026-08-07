@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:47:03.421576Z'
+updated_at: '2026-08-07T09:52:35.286201Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 32s
 - Log: OOMPAH-876__20260807T094554Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:52
+---
+Additional live reproduction: OOMPAH-426 exhausted its rearmed Archived audit after a prior PASS/finalization failure. Attempt 3 again ended without a usable transport verdict and forced Needs Human despite unchanged merged provenance; owner override restored Archived. Transport retries must preserve substantive candidate capacity and durable PASS finalization must not relaunch unnecessary auditors.
 ---
 <!-- COMMENTS:END -->

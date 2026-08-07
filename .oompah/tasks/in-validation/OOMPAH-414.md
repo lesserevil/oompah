@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-08-07T09:52:24.027168Z'
+updated_at: '2026-08-07T09:52:41.054328Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -99,6 +99,29 @@ oompah.terminal_audit:
     attempt-2fe61af3577e: '2026-07-30T22:01:02.376871+00:00'
     attempt-b130979b1141: '2026-07-30T22:02:15.012985+00:00'
     attempt-8cddd61d6523: '2026-07-30T22:04:09.192145+00:00'
+    no-auditor-audit-3a82bfd112c1-3: '2026-08-07T09:52:39.535424+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-414
+    target_state: Archived
+    evidence_fingerprint: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+    audit_ids:
+    - audit-3a82bfd112c1
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:52:39.535432+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-414
+    audit_id: audit-3a82bfd112c1
+    attempt_id: no-auditor-audit-3a82bfd112c1-3
+    target_state: Archived
+    evidence_fingerprint: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+    status: Needs Human
+    audit_ids:
+    - audit-3a82bfd112c1
+    applied: false
+    created_at: '2026-08-07T09:52:39.535442+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -242,7 +265,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -303,6 +326,20 @@ oompah.terminal_audit:
       candidate_rotation_count: 2
       ended_at: '2026-08-07T09:52:21.495792+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-3a82bfd112c1-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T09:52:39.535304+00:00'
+      completed_at: '2026-08-07T09:52:39.535304+00:00'
+      selected_ref: origin/main
+      selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     requested_by:
       version: 1
       identity: oompah
@@ -311,7 +348,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:42:41.721143+00:00'
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
-    updated_at: '2026-08-07T09:42:20.857791+00:00'
+    updated_at: '2026-08-07T09:52:39.535304+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d0ebf75eb257
