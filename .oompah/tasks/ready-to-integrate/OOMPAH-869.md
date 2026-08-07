@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-869
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make inherited validation-fence restart test deterministic under saturated
   gates
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:46:34.352524Z'
+updated_at: '2026-08-07T04:46:55.670281Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,6 +71,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-869
     source_sha: f2b319c1182cd654112db622a0498171e508dead
     completed_at: '2026-08-07T04:35:55.081435+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-869
+  head_sha: 519ec2e492dec109ab008ad3617a5489928f2a30
+  submitted_at: '2026-08-07T04:46:47.882222+00:00'
+  updated_at: '2026-08-07T04:46:47.882222+00:00'
 ---
 ## Summary
 
@@ -165,5 +173,10 @@ Acceptance criteria verified:
 ✓ No lease owner leaks (owner_count verified at each step)
 
 Branch committed and pushed to origin/OOMPAH-869.
+---
+author: oompah
+created: 2026-08-07 04:46
+---
+Made inherited validation-fence restart test deterministic under saturated gates by replacing wall-clock process lifetime assumptions with deterministic child/fence synchronization using file markers and explicit process termination. All 139 tests pass serially and in parallel. No fixed sleeps used as proof, owner_count verified deterministically, acquire timeouts confirmed while FD held, and acquire succeeds only after explicit release.
 ---
 <!-- COMMENTS:END -->
