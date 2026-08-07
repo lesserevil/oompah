@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T07:33:28.753202Z'
+updated_at: '2026-08-07T07:35:12.085073Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-07 07:33
 ---
 Implementation: added RepositoryIdentity/canonical_repository_identity/repository_identity_for_path in oompah/projects.py; updated Orchestrator._management_tracker_scope to require configured repo_url plus runtime/project checkout identity agreement, recognize independent clones and shared Git worktrees, and reject foreign/ambiguous matches. server.set_orchestrator now records an actionable management_tracker_resolution alert when global ErrorWatcher setup fails. Added tests/test_management_tracker_resolution.py covering canonical URLs, clone/worktree aliases, foreign and ambiguous topology, and restart mapping.
+---
+author: oompah
+created: 2026-08-07 07:35
+---
+Verification: with the task-independent project venv, tests/test_management_tracker_resolution.py passes 6/6 and tests/test_managed_tracker_state_branch_guard.py passes 19/19. The first run caught a legacy local-path configuration case; the resolver now preserves only exact-checkout local-path authority while still requiring matching Git identity for aliases.
 ---
 <!-- COMMENTS:END -->
