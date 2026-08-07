@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T17:46:17.617559Z'
+updated_at: '2026-08-07T17:46:42.436625Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -35,7 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2d812e35-e62d-4ad6-9cfd-c149c4a34214
+oompah.agent_run_id: f4e7a9dd-3553-4a87-b898-78d9bfbbf0d2
 oompah.task_costs:
   total_input_tokens: 484317
   total_output_tokens: 33143
@@ -658,5 +658,19 @@ created: 2026-08-07 16:14
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 17:46
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-08-07 17:46
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 4s
 ---
 <!-- COMMENTS:END -->
