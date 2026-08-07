@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-891
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Isolate epic-rebase workers from all remote-write credentials
 parent: OOMPAH-879
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T14:29:47.704530Z'
+updated_at: '2026-08-07T15:06:11.068592Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -45,6 +45,29 @@ oompah.integration:
   base_branch: epic-OOMPAH-763--task-OOMPAH-879
   base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
   updated_at: '2026-08-07T13:52:51.862140+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-de022124618e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-891
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8db9d788c50dd72d4df54962de0629bb01fa03cfa1985cede2c1010973b33018
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Validated implementation is committed at 28c0729e; independent review
+      accepted the final launch boundary and the canonical brokered suite passed 911
+      of 911 tests after six-node repair rerun.
+    created_at: '2026-08-07T15:06:05.735603+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
