@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T11:14:34.118904Z'
+updated_at: '2026-08-07T11:14:48.722617Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -694,5 +694,10 @@ author: oompah
 created: 2026-08-07 11:14
 ---
 Understanding: This continuation follows a previously merged reconciliation fix. I will audit the current branch head and regression coverage for any remaining stale-metric rehydration defect, verify the terminal-audit suites and mutation scan, and only amend the branch if the current implementation fails the acceptance behavior.
+---
+author: oompah
+created: 2026-08-07 11:14
+---
+Discovery: The current head includes the original recovery reconciliation and a follow-up fix for the remaining crash window:  now durably records stale/overridden identities in , so  treats enforcement rows as a projection refresh rather than proof of liveness. Only a coordinator queue/run/retry event re-arms an identity. The new regression covers repeated sync, restart, live queue visibility, and owner override.
 ---
 <!-- COMMENTS:END -->
