@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T13:52:45.238455Z'
+updated_at: '2026-08-07T13:52:53.490672Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-879--task-OOMPAH-891
   base_branch: epic-OOMPAH-763--task-OOMPAH-879
   base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-  updated_at: '2026-08-07T13:46:09.511133+00:00'
+  updated_at: '2026-08-07T13:52:51.862140+00:00'
 ---
 ## Summary
 
