@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T08:33:43.784505Z'
+updated_at: '2026-08-07T08:35:51.810935Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ author: oompah
 created: 2026-08-07 08:33
 ---
 Understanding: I will trace native Markdown state-file reads and cache/source-generation handling through detail, issue-list snapshots, and WebSocket full sync; preserve continuation-run work; fix the shared authority/generation boundary; and add focused regression tests for lifecycle moves, paused refresh, generation consistency, atomic concurrent reads, and full-sync parity.
+---
+author: oompah
+created: 2026-08-07 08:35
+---
+Discovery: The list path mutates authoritative tracker objects after fetch: _fetch_all_issues rolls an In Progress epic to Done when its children are Done (and coerces children under Proposed parents), while detail returns the canonical state unchanged. This directly explains OOMPAH-768. Separately, generation binding is only read-before/read-after with one retry, so a second concurrent mutation can stamp an older object with a newer generation. I will remove list-only state rewriting and provide an atomic native snapshot read that returns issues plus the exact generation under the repository lock.
 ---
 <!-- COMMENTS:END -->
