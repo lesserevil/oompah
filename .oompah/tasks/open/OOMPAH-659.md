@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T18:08:57.065772Z'
+updated_at: '2026-08-07T18:10:20.860756Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -26,17 +26,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: origin/OOMPAH-659 does not match accepted head cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 78b7ea98-ea2e-4637-a340-0dacb108990c
+  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
+  claimed_at: '2026-08-07T18:09:58.532141+00:00'
+  claim_expires_at: '2026-08-07T18:39:58.532141+00:00'
   retry_count: 1
-  retry_after: '2026-08-07T18:09:19.343658+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 39b2d2da-674c-46a4-8743-021c6ffc2b24
+oompah.agent_run_id: 553f0d15-c62a-4d2a-baad-3fe24815d305
 oompah.task_costs:
   total_input_tokens: 7599646
   total_output_tokens: 52255
@@ -157,6 +157,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: sonnet
+    focus: duplicate_detector
+    source_branch: OOMPAH-659
+    source_sha: null
+    completed_at: ''
+  - run_id: 5cff539ae07e44599afc2248c50722b1--contributor-57ff1a86c984
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
     focus: duplicate_detector
     source_branch: OOMPAH-659
     source_sha: null
@@ -797,5 +805,19 @@ Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 15s
+---
+author: oompah
+created: 2026-08-07 18:10
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-08-07 18:10
+---
+Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 13s
 ---
 <!-- COMMENTS:END -->
