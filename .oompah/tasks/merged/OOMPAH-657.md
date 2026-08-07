@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T19:32:23.388131Z'
+updated_at: '2026-08-07T19:32:35.135952Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -290,6 +290,30 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:27:29.234660+00:00'
     applied_at: '2026-08-07T19:27:39.425549+00:00'
     retired_by_override: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain the merged PR #618 record as terminal provenance; implementation
+      head 0212dada64768ed8f89e7b27f461f121c4a42299 is already on main and no owner-authorized
+      new revision exists.'
+    marked_at: '2026-08-07T19:32:33.657479+00:00'
+    updated_at: '2026-08-07T19:32:33.657479+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain the merged PR #618 record as terminal provenance; implementation
+        head 0212dada64768ed8f89e7b27f461f121c4a42299 is already on main and no owner-authorized
+        new revision exists.'
+      recorded_at: '2026-08-07T19:32:33.657479+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
