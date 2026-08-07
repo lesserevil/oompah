@@ -14,9 +14,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - epic:rebased
+- human-only
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-07T13:53:37.134833Z'
+updated_at: '2026-08-07T18:17:59.528997Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
