@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T08:57:54.982326Z'
+updated_at: '2026-08-07T08:58:09.606886Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -926,5 +926,10 @@ created: 2026-08-07 07:29
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 08:58
+---
+Owner recovery: this already-merged task was reopened by stale watchdog/reconciliation evidence. Restaging the authoritative Merged transition with the expanded verdict-capable auditor pool; no implementation work is authorized. OOMPAH-871 fixes the systemic terminal-provenance reopen path.
 ---
 <!-- COMMENTS:END -->
