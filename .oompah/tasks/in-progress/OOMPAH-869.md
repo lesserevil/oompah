@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:36:52.162362Z'
+updated_at: '2026-08-07T04:38:51.638733Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ Understanding: Test test_restart_observes_child_that_inherited_kernel_fence fail
 5. No process or lease owner leaks
 
 Plan: Examine test and validation-resource code, implement deterministic synchronization primitives, run tests serially and in parallel.
+---
+author: oompah
+created: 2026-08-07 04:38
+---
+Discovery: The failing test test_restart_observes_child_that_inherited_kernel_fence relies on wall-clock timing (sleep 0.5) to keep child alive. Under saturated scheduling, child finishes before test reaches the blocking acquire. The test expects owner_count=1 and acquire to timeout within 0.1s. Solution: Replace fixed sleep with deterministic synchronization - have subprocess signal when child is ready using a file, test waits for file, verifies owner_count=1, tests timeout acquire, polls for child completion without fixed sleep, tests success acquire.
 ---
 <!-- COMMENTS:END -->
