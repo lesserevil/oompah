@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T17:56:19.581029Z'
+updated_at: '2026-08-07T17:56:46.455689Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -25,13 +25,14 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: b2af8b5d-a4e6-4e41-8a27-734605812e0a
-  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
-  claimed_at: '2026-08-07T17:55:39.302960+00:00'
-  claim_expires_at: '2026-08-07T18:25:39.302960+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: 'Implementation dispatch blocked before start: All candidates are used
+    by contributors.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-07T18:00:15.413737+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -700,5 +701,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=— -> Claude/sonn
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 4s
+---
+author: oompah
+created: 2026-08-07 17:56
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-661/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
