@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-08-07T09:48:59.286098Z'
+updated_at: '2026-08-07T09:51:46.916516Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -94,6 +94,30 @@ oompah.terminal_audit:
     attempt-0a53a873c97d: '2026-07-30T22:47:53.487853+00:00'
     attempt-87e3d702c90a: '2026-07-30T23:02:30.675159+00:00'
     attempt-c5370e9496cf: '2026-07-30T23:04:56.633056+00:00'
+    no-auditor-audit-ced9f6230e09-3: '2026-08-07T09:51:35.486332+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    target_state: Archived
+    evidence_fingerprint: bf44d364f900e1fb8bf6937ef794490226147dc789b6377da1e04a87ce8da92f
+    audit_ids:
+    - audit-ced9f6230e09
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:51:35.486344+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    audit_id: audit-ced9f6230e09
+    attempt_id: no-auditor-audit-ced9f6230e09-3
+    target_state: Archived
+    evidence_fingerprint: bf44d364f900e1fb8bf6937ef794490226147dc789b6377da1e04a87ce8da92f
+    status: Needs Human
+    audit_ids:
+    - audit-ced9f6230e09
+    applied: true
+    created_at: '2026-08-07T09:51:35.486361+00:00'
+    applied_at: '2026-08-07T09:51:44.088787+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -203,7 +227,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -249,7 +273,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-381cc3bd4e7d
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -262,6 +286,22 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T09:51:28.789369+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-ced9f6230e09-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: bf44d364f900e1fb8bf6937ef794490226147dc789b6377da1e04a87ce8da92f
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T09:51:35.486107+00:00'
+      completed_at: '2026-08-07T09:51:35.486107+00:00'
+      selected_ref: origin/main
+      selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     requested_by:
       version: 1
       identity: oompah
@@ -270,7 +310,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:03.179376+00:00'
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
-    updated_at: '2026-08-07T09:41:50.988232+00:00'
+    updated_at: '2026-08-07T09:51:35.486107+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0a53a873c97d
@@ -351,7 +391,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-381cc3bd4e7d
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -364,6 +404,8 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T09:51:28.789369+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -741,5 +783,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 3s
 - Log: OOMPAH-426__20260807T094202Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:51
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
