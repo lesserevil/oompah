@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T13:33:26.193348Z'
+updated_at: '2026-08-07T13:33:37.152229Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
@@ -179,7 +179,8 @@ oompah.terminal_audit:
     evidence_fingerprint: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
     audit_ids:
     - audit-f4c6b5b0a6ae
-    kind: result
+    - audit-95e8a9b7c969
+    kind: override
     applied: true
     retired_at: '2026-08-07T13:28:33.714349+00:00'
   oompah.terminal_audit_result_intents:
@@ -195,6 +196,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:13:15.933150+00:00'
     applied_at: '2026-08-07T13:13:24.899415+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-871
     audit_id: audit-f4c6b5b0a6ae
@@ -207,6 +209,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:28:33.714369+00:00'
     applied_at: '2026-08-07T13:28:42.539661+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-24ec26ed602f
@@ -226,7 +229,7 @@ oompah.terminal_audit:
       gate passed. The remaining Needs Human state is auditor availability/provenance
       only; exact head is an ancestor of origin/main.'
     created_at: '2026-08-07T13:33:20.556861+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -776,5 +779,12 @@ created: 2026-08-07 13:28
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 13:33
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #741 merged exact reviewed head 158a2d03f0651b955666ba31c25b3fb412973ccd into main as 41b1477682c6460a1bb55356ac44c799c9fa783a after the 661.5s full gate passed. The remaining Needs Human state is auditor availability/provenance only; exact head is an ancestor of origin/main.
 ---
 <!-- COMMENTS:END -->
