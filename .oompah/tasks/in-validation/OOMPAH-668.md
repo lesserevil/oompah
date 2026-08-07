@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Merged
+status: In Validation
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T22:51:57.418447Z'
+updated_at: '2026-08-07T22:55:39.373294Z'
 work_branch: OOMPAH-668
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/627
@@ -219,6 +219,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T22:48:08.031217+00:00'
     updated_at: '2026-07-31T22:51:44.870513+00:00'
+  - version: 1
+    audit_id: audit-47affd6c02c3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fed37fc056d4e6f8890b318c7f5dfd2a1844b82b5f4aae77892864ac92ba85b7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T22:55:35.185882+00:00'
+    selected_ref: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
+    selected_sha: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
   attempt_history:
   - version: 1
     attempt_id: attempt-59afcdbb0d80
