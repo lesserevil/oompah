@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:51:14.049696Z'
+updated_at: '2026-08-07T22:51:28.376171Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -50,17 +50,14 @@ oompah.duplicate_screening:
 oompah.agent_run_id: null
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: OOMPAH-887
   base_branch: epic-OOMPAH-763
-  base_sha: 42f98aaed239a576933304af51508ecbbd17d320
-  head_sha: 8bd96dd5389d6d3c13004f27365eb5f080fb8be6
-  submitted_at: '2026-08-07T22:38:05.572128+00:00'
-  updated_at: '2026-08-07T22:39:11.104395+00:00'
-  last_error: epic worktree head a85a36baf7b3ebcb45be27823755b5694a790a49 differs
-    from the published epic head 42f98aaed239a576933304af51508ecbbd17d320; refusing
-    to reset a preserved recovery snapshot
+  base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+  head_sha: d68fedf117116e31b62c1cf6d92c451ed248b015
+  submitted_at: '2026-08-07T22:51:15.035414+00:00'
+  updated_at: '2026-08-07T22:51:15.035414+00:00'
 oompah.work_branch: OOMPAH-887
 ---
 ## Summary
@@ -173,5 +170,10 @@ author: oompah
 created: 2026-08-07 22:51
 ---
 Review blockers fixed on canonical branch OOMPAH-887 at replacement exact head d68fedf117116e31b62c1cf6d92c451ed248b015. A genuinely repository-less project (empty repo_path) retains legacy reconciliation, while a configured checkout that is missing or no longer a Git worktree now fails authoritative refresh and leaves Done children untouched. Deterministic regressions move the target exactly at the final Needs Human and Merged CAS fences, move it across both allowed generations, and remove a configured checkout; all defer without child terminal mutation. Evidence: brokered full affected modules tests/test_epic_strategy.py and tests/test_merged_labels_scope.py: 272 passed in 7.77s; py_compile and git diff --check passed; critical Ruff E9/F63/F7 passed; make check-secrets passed. Worktree is clean and HEAD equals origin/OOMPAH-887.
+---
+author: oompah
+created: 2026-08-07 22:51
+---
+Fixed configured-checkout fail-closed behavior and final mutation-edge races at exact head d68fedf117116e31b62c1cf6d92c451ed248b015; 272 affected tests pass.
 ---
 <!-- COMMENTS:END -->
