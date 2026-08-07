@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T19:47:08.156566Z'
+updated_at: '2026-08-07T19:47:37.835589Z'
 work_branch: OOMPAH-902
 target_branch: null
 review_url: null
@@ -67,6 +67,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T19:47:06.604212+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain deployed OOMPAH-902 repair f09c0546f (epic cherry-pick eb08e86b9)
+      as terminal provenance; no new revision exists.
+    marked_at: '2026-08-07T19:47:36.196555+00:00'
+    updated_at: '2026-08-07T19:47:36.196555+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain deployed OOMPAH-902 repair f09c0546f (epic cherry-pick eb08e86b9)
+        as terminal provenance; no new revision exists.
+      recorded_at: '2026-08-07T19:47:36.196555+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -197,13 +219,13 @@ oompah.terminal_audit:
     selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
     candidate_rotation_count: 2
 oompah.task_costs:
-  total_input_tokens: 65
-  total_output_tokens: 1120
+  total_input_tokens: 89
+  total_output_tokens: 1152
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 65
-      output_tokens: 1120
+      input_tokens: 89
+      output_tokens: 1152
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -218,6 +240,12 @@ oompah.task_costs:
     output_tokens: 809
     cost_usd: 0.0
     recorded_at: '2026-08-07T19:33:15.839123+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 24
+    output_tokens: 32
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T19:47:27.015929+00:00'
 ---
 ## Summary
 
@@ -329,5 +357,20 @@ created: 2026-08-07 19:47
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Direct operator review accepted the exact sandbox-security repair at f09c0546f55c4994b8894e003874215ac3d8c816: 50 focused tests passed, a real BranchQualityGate run passed 40 tests with only 11 explicitly proven nested-host-policy skips, scoped lint/diff/secret checks passed, and deployed epic revision eb08e86b9 is healthy. The queued redundant auditor would repeat validation while blocking older repair waiters.
+---
+author: oompah
+created: 2026-08-07 19:47
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 2
+- Tokens: 24 in / 32 out [56 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 59s
+- Log: OOMPAH-902__20260807T193446Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:47
+---
+Exact-gate sandbox identity repair integrated and deployed after independent security review and focused exact-gate validation.
 ---
 <!-- COMMENTS:END -->

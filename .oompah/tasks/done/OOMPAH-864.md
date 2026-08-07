@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-07T19:16:34.188599Z'
+updated_at: '2026-08-07T19:47:43.519699Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -99,6 +99,27 @@ oompah.work_contributors:
     completed_at: '2026-08-06T21:44:03.644658+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-99cd84911d61
+    project_id: proj-14849f1b
+    task_id: OOMPAH-864
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ce0a2207d90658449c98d695024a0ad9583fed2d29c2baef08c84219b3ab3a13
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct operator review accepted OOMPAH-864''s fail-closed duplicate-preflight
+      authority repair at 02527892c31eba7f422009e2c09e579f0c44580a: independent race
+      review accepted it, 85 focused duplicate/owner/integration tests passed after
+      restack, static checks passed, and it is integrated on shared epic commit 6df7dcbe1.
+      The queued redundant auditor is starving older focused repair waiters.'
+    created_at: '2026-08-07T19:47:39.543231+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
