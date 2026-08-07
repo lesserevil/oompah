@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T08:32:54.858871Z'
+updated_at: '2026-08-07T08:33:12.015188Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -44,54 +44,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-865
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 2
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-865
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  head_sha: 3e03359da9baed0a36b34dd9a301ad921f2cee96
-  submitted_at: '2026-08-07T05:56:04.065772+00:00'
-  updated_at: '2026-08-07T06:26:10.371326+00:00'
-  last_error: "Combined-tree quality gate failed: thon3.12/site-packages/_pytest/tracemalloc.py:9:\
-    \ RuntimeWarning: coroutine 'LogFileWatcher.start' was never awaited\n    import\
-    \ tracemalloc\n  Enable tracemalloc to get traceback where the object was allocated.\n\
-    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format\n\
-    tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password\ntests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password\n\
-    tests/test_http_auth.py::TestLoadCredentials::test_absolute_path_override_used_as_is\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-h4xhw6vu/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854:\
-    \ DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n\
-    \    from crypt import crypt as _crypt\n\ntests/test_http_auth.py: 21 warnings\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-h4xhw6vu/workspace/tests/test_http_auth.py:37:\
-    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
-    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
-    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password\n\
-    tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password\ntests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries\n\
-    tests/test_http_auth.py::TestVerifierCallable::test_multiple_users\n  /home/shedwards/.oompah/tmp/oompah-quality-gate-h4xhw6vu/workspace/tests/test_http_auth.py:49:\
-    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
-    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
-    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state\n\
-    tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105:\
-    \ DeprecationWarning: Use `streamable_http_client` instead.\n    self.gen = func(*args,\
-    \ **kwds)\n\ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-h4xhw6vu/workspace/oompah/acp_backends/claude.py:521:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-h4xhw6vu/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-    =========================== short test summary info ============================\n\
-    FAILED tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events\n\
-    FAILED tests/test_focus.py::TestDuplicateDetectorFocus::test_async_triage_excludes_structurally_completed_duplicate_focus\n\
-    FAILED tests/test_terminal_audit_workspace_recovery.py::test_genuine_candidate_exhaustion_remains_no_auditor\n\
-    FAILED tests/test_terminal_audit_workspace_recovery.py::test_unsafe_metadata_archive_is_not_recorded_as_transport_failure\n\
-    FAILED tests/test_terminal_audit_workspace_recovery.py::test_workspace_failure_exhaustion_is_not_reported_as_no_auditor\n\
-    = 5 failed, 16406 passed, 8 skipped, 1 xfailed, 37 warnings in 1066.35s (0:17:46)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+  submitted_at: '2026-08-07T08:33:01.647721+00:00'
+  updated_at: '2026-08-07T08:33:01.647721+00:00'
 oompah.task_costs:
   total_input_tokens: 45981
   total_output_tokens: 237
@@ -229,5 +189,10 @@ author: oompah
 created: 2026-08-07 08:32
 ---
 Post-OOMPAH-867 restart submission: server and canonical CLI are healthy at c22debc4e. Repaired exact branch head 04fa6781091efc6f11b952b9f1b35123facce64f is clean, pushed, independently accepted, and passed its modified-module canonical leased validation (211 serial and 211 xdist4) plus the five original gate failures. Submitting now for an uninterrupted exact branch gate.
+---
+author: oompah
+created: 2026-08-07 08:33
+---
+Stabilized combined-gate event-loop/focus/audit-workspace tests with deterministic synchronization and exact resource-release assertions.
 ---
 <!-- COMMENTS:END -->

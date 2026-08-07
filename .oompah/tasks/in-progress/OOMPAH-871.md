@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T08:32:49.802689Z'
+updated_at: '2026-08-07T08:33:17.178499Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1e76ca5f-6357-400c-9205-713f0357030f
+oompah.agent_run_id: fa03dff1-3094-45a7-8187-357fcebbd0ab
 oompah.task_costs:
   total_input_tokens: 264
   total_output_tokens: 8283
@@ -227,5 +227,10 @@ author: oompah
 created: 2026-08-07 08:31
 ---
 Auto-decomposition failed: No provider configured for decomposition. Falling back to normal retry.
+---
+author: oompah
+created: 2026-08-07 08:33
+---
+Retrying (attempt #2, agent: deep)
 ---
 <!-- COMMENTS:END -->
