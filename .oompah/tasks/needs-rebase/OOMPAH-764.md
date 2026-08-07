@@ -15,9 +15,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - merge-conflict
+- epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T13:45:57.205570Z'
+updated_at: '2026-08-07T13:46:05.313491Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/743
@@ -328,5 +329,10 @@ created: 2026-08-07 12:56
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Owner reviewed queued audit-a69fc1614a16. Exact evidence: all three origin/epic-OOMPAH-764 commits are patch-equivalent in current origin/epic-OOMPAH-763, prior full/focused gates and completion audit passed, and stale PR #742 is closed. Done is the safe deployed-server state until OOMPAH-791 can reconcile nested Merged.
+---
+author: oompah
+created: 2026-08-07 13:46
+---
+YOLO: Merge conflict detected on MR #743. Rebase `epic-OOMPAH-764` onto epic-OOMPAH-763 and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
