@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T09:15:53.503319Z'
+updated_at: '2026-08-07T09:32:07.793155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d8095cec-228b-4530-bc47-7e9a9f470921
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 289
   total_output_tokens: 9006
@@ -116,6 +116,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-871
     source_sha: 45e2b83356dd041200d7cad0970c7e6f939dc757
     completed_at: '2026-08-07T07:20:47.824750+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-871
+  head_sha: bf81691f649971380788c3afd1438978abd95b37
+  submitted_at: '2026-08-07T09:31:55.985216+00:00'
+  updated_at: '2026-08-07T09:31:55.985216+00:00'
 ---
 ## Summary
 
@@ -283,5 +291,10 @@ author: oompah
 created: 2026-08-07 09:15
 ---
 Direct-owner repair update: implemented authenticated project-owner retain/new-revision API and CLI controls, centralized every managed tracker status writer behind a durable provenance-suppression facade, made malformed/unreadable metadata fail closed without payload leakage, and added restart/race/API/CLI regressions. Two independent static reviews completed; the second accepted after the raw-tracker bypass and nested actor log leakage were removed. Focused validation is queued behind the active exact gate.
+---
+author: oompah
+created: 2026-08-07 09:32
+---
+Added durable provenance-only terminal suppression, centralized managed-tracker status fencing, and authenticated owner retain/new-revision API and CLI controls. Malformed metadata fails closed without payload leakage. Independent static review accepted; 204 focused regressions, terminal mutation scan, diff check, compile checks, and secret scan pass at rebased head bf81691f6.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T09:31:37.635177Z'
+updated_at: '2026-08-07T09:31:54.993415Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -113,6 +113,31 @@ oompah.target_branch: main
 oompah.review_head: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-f64e3cfbf518-3: '2026-08-07T09:31:45.299489+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-867
+    target_state: Done
+    evidence_fingerprint: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    audit_ids:
+    - audit-f64e3cfbf518
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:31:45.299500+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-867
+    audit_id: audit-f64e3cfbf518
+    attempt_id: no-auditor-audit-f64e3cfbf518-3
+    target_state: Done
+    evidence_fingerprint: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    status: Needs Human
+    audit_ids:
+    - audit-f64e3cfbf518
+    applied: true
+    created_at: '2026-08-07T09:31:45.299518+00:00'
+    applied_at: '2026-08-07T09:31:53.476995+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -120,7 +145,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-867
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -179,6 +204,20 @@ oompah.terminal_audit:
       candidate_rotation_count: 2
       ended_at: '2026-08-07T09:31:29.618387+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-f64e3cfbf518-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T09:31:45.299273+00:00'
+      completed_at: '2026-08-07T09:31:45.299273+00:00'
+      selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+      selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     requested_by:
       version: 1
       identity: lesserevil
@@ -187,7 +226,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T07:31:07.784061+00:00'
     selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
-    updated_at: '2026-08-07T09:16:10.266176+00:00'
+    updated_at: '2026-08-07T09:31:45.299273+00:00'
   - version: 1
     audit_id: audit-a8bca1ec2de3
     project_id: proj-14849f1b
@@ -663,5 +702,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 34s
 - Log: OOMPAH-867__20260807T091656Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:31
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
