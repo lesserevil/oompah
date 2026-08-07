@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:56:39.278659Z'
+updated_at: '2026-08-07T13:57:37.186964Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -969,5 +969,10 @@ author: oompah
 created: 2026-08-07 13:56
 ---
 Work complete and merged in PR #618. Branch restored at verified head 0212dada64768ed8f89e7b27f461f121c4a42299 for task lifecycle completion. Implementation: immutable exact-head quality gate snapshots with pre-spawn barriers, durable generation tombstones, Ready-to-Open row retirement, and expired lease authority withdrawal. All 83 focused tests passed; make test passed in 370.5s; GitHub Actions CI passed across Python 3.11/3.12/3.13.
+---
+author: oompah
+created: 2026-08-07 13:57
+---
+Completion: Restored origin/OOMPAH-657 at the original verified head (0212dada64768ed8f89e7b27f461f121c4a42299) and submitted successfully. The task now moves to Ready to Integrate. No code was changed — the implementation was complete and merged in PR #618 on 2026-07-31. The only repair was re-establishing the remote branch reference so `oompah task submit` could record the head SHA and break the watchdog reopen cycle.
 ---
 <!-- COMMENTS:END -->
