@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T09:25:15.506708Z'
+updated_at: '2026-08-07T09:26:59.961342Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-07 09:25
 ---
 Direct-owner claim active. Isolated OOMPAH-875 branch created from origin/main 39285e9c3. Implemented a dedicated, coalescing shared-epic integration lane with an isolated executor, prompt refresh/startup wakeups, and queue run/claim-latency telemetry. Added focused starvation, startup, and burst-coalescing regressions. Static compilation passes; focused pytest is blocked because this worktree has no configured test environment, and the validation broker remains occupied, so no full gate was started.
+---
+author: oompah
+created: 2026-08-07 09:26
+---
+Implementation committed locally as d9dd24a34 (not pushed/submitted per coordination instruction). The dedicated lane starts before tick work and on refresh/startup, coalesces active refreshes into one follow-up pass, uses an isolated executor while retaining the existing validation lease, and publishes run/claim-latency state. Added tests/test_integration_lane.py for slow-tick starvation, startup exactly-once, burst coalescing, and telemetry. git diff --check and py_compile pass. Focused execution is blocked: pytest and the project venv are absent; direct execution also fails before collection because the liquid package is unavailable. The validation broker remains untouched.
 ---
 <!-- COMMENTS:END -->
