@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T08:13:01.626744Z'
+updated_at: '2026-08-07T08:33:23.084669Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -221,13 +221,27 @@ oompah.terminal_audit:
       version: 1
       algorithm: sha256
       digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-0496b19966e9
+      target_state: Merged
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T08:33:20.362331+00:00'
+      ended_at: '2026-08-07T08:33:20.362331+00:00'
+      failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+      next_retry_at: '2026-08-07T08:33:30.362305+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T06:55:14.228060+00:00'
+    updated_at: '2026-08-07T08:33:20.362331+00:00'
   - version: 1
     audit_id: audit-c63ac83352b6
     project_id: proj-14849f1b
@@ -277,6 +291,19 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-07-31T07:10:54.561435+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-0496b19966e9
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    failure_classification: infrastructure_error
+    created_at: '2026-08-07T08:33:20.362331+00:00'
+    ended_at: '2026-08-07T08:33:20.362331+00:00'
+    failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+    next_retry_at: '2026-08-07T08:33:30.362305+00:00'
 ---
 ## Summary
 
