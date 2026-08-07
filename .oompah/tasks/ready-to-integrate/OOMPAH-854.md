@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T11:06:51.190109Z'
+updated_at: '2026-08-07T11:19:45.341865Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -44,51 +44,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-854
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-854
   base_branch: epic-OOMPAH-763
   base_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
-  head_sha: 91e76723eda12781b40dce69eec609a815575a7d
-  submitted_at: '2026-08-07T10:31:59.931389+00:00'
-  updated_at: '2026-08-07T10:58:34.315449+00:00'
-  last_error: "Combined-tree quality gate failed: st_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-fvza0r1v/workspace/oompah/acp_backends/claude.py:521:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-fvza0r1v/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-    =========================== short test summary info ============================\n\
-    FAILED tests/test_acp_agent.py::TestAcpWorkerModelHandoff::test_codex_subscription_omits_synthetic_default_model\n\
-    FAILED tests/test_acp_agent.py::TestAcpWorkerModelHandoff::test_acp_worker_records_health_only_after_backend_reports_contact\n\
-    FAILED tests/test_auditor_exit_cleanup.py::test_auditor_exit_releases_claimed_issue_and_branch\n\
-    FAILED tests/test_cli_mismatch_recovery.py::test_mismatched_launcher_detected_and_repaired_during_cutover\n\
-    FAILED tests/test_cli_mismatch_recovery.py::test_recovery_uses_same_lifecycle_lock_as_normal_synchronize\n\
-    FAILED tests/test_cli_mismatch_recovery.py::test_successful_recovery_proves_no_final_mismatch\n\
-    FAILED tests/test_dispatch_close_race.py::TestGitHubClaimRunIdProtocol::test_claim_race_detected_aborts_dispatch\n\
-    FAILED tests/test_duplicate_preflight.py::test_restart_reconciles_owner_record_status_boundary\n\
-    FAILED tests/test_duplicate_preflight.py::test_preflight_retirement_callback_does_not_kill_replacement_runtime\n\
-    FAILED tests/test_orchestrator_duplicate_detection.py::TestFocusHandoff::test_worker_handoff_observation_is_idempotent_and_routes_successor\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_native_oompah_md_claim_writes_run_id\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_claim_success_proceeds_to_worker\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_claim_writes_run_id_to_tracker\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_in_progress_update_called_on_github_tracker\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_pre_dispatch_terminal_state_aborts\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestRetrySchedulingGitHub::test_retry_replaces_existing_timer\n\
-    FAILED tests/test_orchestrator_github_lifecycle.py::TestMixedProjectDispatch::test_dispatch_uses_project_scoped_tracker_for_github_issue\n\
-    FAILED tests/test_orchestrator_merged.py::TestBacklogStatusReconciliation::test_reconcile_stops_ordinary_worker_in_validation\n\
-    FAILED tests/test_task_cost_telemetry.py::TestTerminateRunningWritesCostRecord::test_late_termination_cannot_clean_newer_worker_generation\n\
-    FAILED tests/test_task_cost_telemetry.py::TestTerminateRunningWritesCostRecord::test_terminate_fires_cost_before_workspace_cleanup\n\
-    FAILED tests/test_tick_lane_serialization.py::TestDispatchBeforeMaintenanceInTick::test_dispatch_lock_is_free_when_maintenance_runs\n\
-    FAILED tests/test_tool_liveness.py::test_reconcile_recovers_exited_silent_child\n\
-    FAILED tests/test_tool_liveness.py::test_reconcile_uses_command_timeout_even_when_generic_stall_disabled\n\
-    ERROR tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_pre_create_refresh_cancels_when_child_reopens\n\
-    = 23 failed, 16526 passed, 8 skipped, 1 xfailed, 39 warnings, 1 error in 1168.93s\
-    \ (0:19:28) =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 357149ce04f89835e85a063d914625dc751e71c1
+  submitted_at: '2026-08-07T11:19:37.771032+00:00'
+  updated_at: '2026-08-07T11:19:37.771032+00:00'
 oompah.task_costs:
   total_input_tokens: 47148
   total_output_tokens: 22261
@@ -481,5 +444,10 @@ author: oompah
 created: 2026-08-07 11:06
 ---
 Repair in progress after exact integration gate failure. The focused 24-node traceback run is queued behind OOMPAH-608's active exact gate on the capacity-1 validation broker. Static triage identified and repaired a real exact-generation retirement defect: when a replacement worker wins during old-generation cleanup, the old coordinator now treats cleanup/retry requirements as superseded without touching the replacement. Test-fixture compatibility repairs are proceeding in parallel; no validation bypass is being used.
+---
+author: oompah
+created: 2026-08-07 11:19
+---
+Repaired the exact full-gate regression at 357149ce04f89835e85a063d914625dc751e71c1. A replacement runtime now supersedes old-generation cleanup/retry requirements without touching replacement state and exact stale retry authority is withdrawn. Updated legacy lifecycle fixtures for current provider-admission, restart-claim, live-loop retry, and exact-retirement contracts. Verification: the 24 previously failing/erroring nodes pass under the canonical broker; affected modules 466 passed; terminal mutation scan and secret scan pass; independent final review approved.
 ---
 <!-- COMMENTS:END -->
