@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
-- human-only
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T08:57:49.755333Z'
+updated_at: '2026-08-07T08:57:54.982326Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
