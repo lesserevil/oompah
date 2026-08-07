@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-581
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T06:06:04.775654Z'
+updated_at: '2026-08-07T06:08:21.433317Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -721,5 +722,56 @@ Target branch: `main`
 Reason: review head 741a7d88b2ad409575a0b3577564b98f57733f87 does not match accepted submission head f2b319c1182cd654112db622a0498171e508dead
 
 This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 06:08
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-581`
+Target: `main`
+Head: `f2b319c1182cd654112db622a0498171e508dead`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+est_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_non_acp_natural_swaps_to_acp 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_no_acp_profile_falls_through 
+[gw2] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_merge_conflict_label 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_non_carved_out_task_is_unaffected 
+[gw3] [ 23%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_profile_is_acp_helper 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_logs_both_profile_names 
+[gw0] [ 23%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_none_when_no_profiles 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_acp_natural_unchanged 
+[gw1] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_no_acp_profile_falls_through 
+[gw2] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_non_carved_out_task_is_unaffected 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_retry_does_not_swap_to_acp 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_explicit_handoff_label_skips_swap 
+[gw3] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_logs_both_profile_names 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_agrees_with_dispatch 
+[gw0] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_acp_natural_unchanged 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_skipped_when_default_first_dispatch_off 
+[gw2] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_explicit_handoff_label_skips_swap 
+tests/test_delivery_plane_recovery.py::test_integrated_audit_replay_is_bounded_and_resumes_after_restart 
+[gw1] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_retry_does_not_swap_to_acp 
+tests/test_delivery_plane_recovery.py::test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop 
+[gw3] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_agrees_with_dispatch 
+tests/test_delivery_plane_recovery.py::test_live_ready_claim_precedes_large_integrated_audit_history 
+[gw1] [ 23%] PASSED tests/test_delivery_plane_recovery.py::test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop 
+tests/test_delivery_plane_recovery.py::test_blocked_row_alerts_clear_after_row_and_scan_recover 
+[gw0] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_skipped_when_default_first_dispatch_off 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_no_acp_profile 
+[gw2] [ 23%] PASSED tests/test_delivery_plane_recovery.py::test_integrated_audit_replay_is_bounded_and_resumes_after_restart 
+tests/test_delivery_plane_recovery.py::test_ready_retry_metadata_rearms_identical_blocked_queue_row 
+[gw0] [ 23%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_no_acp_profile 
+tests/test_delivery_plane_recovery.py::test_dependency_blocked_ready_row_is_not_reported_as_claim_stall 
+[gw1] [ 23%] PASSED tests/test_delivery_plane_recovery.py::test_blocked_row_alerts_clear_after_row_and_scan_recover 
+tests/test_delivery_plane_recovery.py::test_retire_inactive_rows_retires_open_tasks_and_cancels_gate_generation 
+[gw2] [ 23%] PASSED tests/test_delivery_plane_recovery.py::test_ready_retry_metadata_rearms_identical_blocked_queue_row 
+tests/test_delivery_plane_recovery.py::test_retire_inactive_rows_does_not_retire_ready_to_integrate_tasks
+```
 ---
 <!-- COMMENTS:END -->
