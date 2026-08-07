@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-07T15:54:15.911107Z'
+updated_at: '2026-08-07T16:39:59.458714Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -52,88 +52,16 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 4
+  state: blocked
+  attempts: 5
   task_branch: epic-OOMPAH-763--task-OOMPAH-863
   base_branch: epic-OOMPAH-763
   base_sha: e06bec5490b9d55d169f7de439755c49eff35307
   head_sha: 3e5ddd154985dc916a725244ba7fadf60db807e1
   submitted_at: '2026-08-06T21:50:50.778719+00:00'
-  updated_at: '2026-08-07T15:54:12.161797+00:00'
-  last_error: 'Rebase onto the latest epic head conflicted: a5
-
-    warning: skipped previously applied commit e20dd758d
-
-    warning: skipped previously applied commit 1f8f25614
-
-    warning: skipped previously applied commit 22252cc04
-
-    warning: skipped previously applied commit e40319c09
-
-    warning: skipped previously applied commit 83c7a3987
-
-    warning: skipped previously applied commit ccd1bf455
-
-    warning: skipped previously applied commit 5d7cdb766
-
-    warning: skipped previously applied commit 930cd74b9
-
-    warning: skipped previously applied commit 52cf744ab
-
-    warning: skipped previously applied commit 34bf3aa8a
-
-    warning: skipped previously applied commit b768ea15c
-
-    warning: skipped previously applied commit 8953687bd
-
-    warning: skipped previously applied commit 512ede780
-
-    warning: skipped previously applied commit 48fdfec42
-
-    warning: skipped previously applied commit fdc7f0b02
-
-    warning: skipped previously applied commit c6494afe4
-
-    warning: skipped previously applied commit 5703f6f72
-
-    warning: skipped previously applied commit 54c8abf8f
-
-    warning: skipped previously applied commit 3c70caced
-
-    warning: skipped previously applied commit 9ae09fa46
-
-    warning: skipped previously applied commit 03563661c
-
-    warning: skipped previously applied commit 6b759e1ca
-
-    warning: skipped previously applied commit 6552636e5
-
-    warning: skipped previously applied commit 12b076629
-
-    warning: skipped previously applied commit a5d1973d0
-
-    hint: use --reapply-cherry-picks to include skipped commits
-
-    hint: Disable this message with "git config set advice.skippedCherryPicks false"
-
-    Rebasing (1/37)
-
-    error: could not apply 40e46bf8e... Add workflow decision shadow diagnostics
-
-    hint: Resolve all conflicts manually, mark them as resolved with
-
-    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-    hint: You can instead skip this commit: run "git rebase --skip".
-
-    hint: To abort and get back to the state before "git rebase", run "git rebase
-    --abort".
-
-    hint: Disable this message with "git config set advice.mergeConflict false"
-
-    Could not apply 40e46bf8e... # Add workflow decision shadow diagnostics'
-  backoff_until: '2026-08-07T16:39:12.161772+00:00'
-  repair_failure_reason: auth_failed
+  updated_at: '2026-08-07T16:39:52.780143+00:00'
+  last_error: "epic worktree has uncommitted task-owned changes; refusing to reset\
+    \ it:  M tests/test_event_driven_loop.py\n M tests/test_yolo_handlers.py"
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2914
@@ -373,5 +301,13 @@ hint: To abort and get back to the state before "git rebase", run "git rebase --
 hint: Disable this message with "git config set advice.mergeConflict false"
 Could not apply 40e46bf8e... # Add workflow decision shadow diagnostics
 ```
+---
+author: oompah
+created: 2026-08-07 16:39
+---
+Integration could not verify `epic-OOMPAH-763--task-OOMPAH-863`: epic worktree has uncommitted task-owned changes; refusing to reset it:  M tests/test_event_driven_loop.py
+ M tests/test_yolo_handlers.py
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
