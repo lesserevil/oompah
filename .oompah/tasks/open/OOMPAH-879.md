@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T10:44:41.522913Z'
+updated_at: '2026-08-07T10:47:06.974761Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-07 10:44
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-07 10:47
+---
+Live stale-generation reproduction during OOMPAH-877 sequencing (2026-08-07): the first prematurely dispatched direct epic-rebase helper captured integration.base_sha=04fa6781091efc6f11b952b9f1b35123facce64f. OOMPAH-854, OOMPAH-866, and possibly OOMPAH-846 will integrate into epic-OOMPAH-763 before the operator-owned rebase starts. The task CLI submit path sends no base_sha and _submission_record prefers the existing value, so an otherwise correct later submission would retain 04fa678 and omit newly integrated child ranges from the direct-rebase generation. The operator will work around this in flight by using the authenticated standard submit endpoint with explicit base_sha equal to the exact pre-rebase origin/epic-OOMPAH-763 head and CLI-equivalent clean/remote/branch/head evidence. Acceptance should cover refreshing/superseding an older helper generation after new child integration, while preserving the older value as forensic evidence until authoritative publication.
 ---
 <!-- COMMENTS:END -->
