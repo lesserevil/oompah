@@ -285,6 +285,7 @@ class TestDifferentProjectsAreIndependent:
 
         started_at: dict[str, float] = {}
         finished_at: dict[str, float] = {}
+        both_projects_entered = threading.Barrier(2, timeout=5)
 
         def mock_create_locked(
             project_id,
@@ -296,7 +297,12 @@ class TestDifferentProjectsAreIndependent:
             expected_head_sha=None,
         ):
             started_at[project_id] = time.monotonic()
-            time.sleep(0.1)  # simulate slow git I/O
+            # Prove both project-specific lock regions are entered at once.
+            # Timing-only sleeps become flaky on a loaded validation host: a
+            # scheduler may not start the second thread before the first
+            # sleep expires even though the locks are genuinely independent.
+            both_projects_entered.wait()
+            time.sleep(0.01)  # retain an observable overlap interval
             finished_at[project_id] = time.monotonic()
             return f"/wt/{issue_id}"
 
