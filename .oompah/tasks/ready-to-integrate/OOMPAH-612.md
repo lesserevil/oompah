@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:24:58.261022Z'
+updated_at: '2026-08-07T04:48:26.003785Z'
 work_branch: OOMPAH-612
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/595
+review_url: ''
 review_number: '595'
 merged_at: null
 oompah.integration:
@@ -26,7 +26,7 @@ oompah.integration:
   head_sha: f2b319c1182cd654112db622a0498171e508dead
   submitted_at: '2026-08-06T21:24:11.834576+00:00'
   updated_at: '2026-08-06T21:24:11.834576+00:00'
-oompah.review_url: https://github.com/lesserevil/oompah/pull/595
+oompah.review_url: ''
 oompah.review_number: '595'
 oompah.work_branch: OOMPAH-612
 oompah.target_branch: main
@@ -549,5 +549,19 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 16s
 - Log: OOMPAH-612__20260806T211459Z.jsonl
+---
+author: oompah
+created: 2026-08-07 04:48
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/595
+Reviewed head: `8ce6fa0ad3a343b053298a64f721a6a3b73ceb22`
+Accepted submission head: `f2b319c1182cd654112db622a0498171e508dead`
+Source branch: `OOMPAH-612`
+Target branch: `main`
+Reason: review head 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22 does not match accepted submission head f2b319c1182cd654112db622a0498171e508dead
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
