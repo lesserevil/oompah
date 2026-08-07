@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-903
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=OOMPAH-648'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:58:05.057419Z'
-updated_at: '2026-08-07T20:09:15.919282Z'
+updated_at: '2026-08-07T20:12:19.716500Z'
 work_branch: null
 target_branch: null
 review_url: null
