@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T10:04:04.055392Z'
+updated_at: '2026-08-07T10:04:11.543412Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -183,7 +183,7 @@ oompah.terminal_audit:
       historical transport exhaustion must not reopen implementation. OOMPAH-876 tracks
       the defect.'
     created_at: '2026-08-07T10:04:00.425552+00:00'
-    applied: false
+    applied: true
   applied_result_attempts:
     attempt-3c098a00efde: '2026-08-07T07:46:26.636014+00:00'
     infrastructure-exhausted-audit-3f0f5b312547-3: '2026-08-07T09:42:42.904431+00:00'
@@ -206,6 +206,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T09:42:42.904447+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    evidence_fingerprint: f25dcaee904569df7b5387a5b6f7b6098dafa67095408d61235428f1a854e173
+    audit_ids:
+    - audit-0596d209fc36
+    - audit-3f0f5b312547
+    - audit-f297117f1fd8
+    - audit-2098f15b1a6b
+    - audit-c3d3f39ba02f
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T10:04:10.095833+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-575
@@ -219,6 +232,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:46:26.636043+00:00'
     applied_at: '2026-08-07T07:46:35.319399+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-575
     audit_id: audit-3f0f5b312547
@@ -231,6 +245,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:42:42.904466+00:00'
     applied_at: '2026-08-07T09:42:53.092688+00:00'
+    retired_by_override: true
   version: 1
   pending_chain:
   - version: 1
@@ -357,7 +372,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -369,12 +384,13 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:10:45.933348+00:00'
+    updated_at: '2026-08-07T10:04:10.095775+00:00'
   - version: 1
     audit_id: audit-2098f15b1a6b
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -388,12 +404,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:03:42.548044+00:00'
     selected_ref: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     selected_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+    updated_at: '2026-08-07T10:04:10.095801+00:00'
   - version: 1
     audit_id: audit-c3d3f39ba02f
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -407,6 +424,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:03:42.548044+00:00'
     selected_ref: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     selected_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+    updated_at: '2026-08-07T10:04:10.095813+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f2dbc8673586
@@ -870,5 +888,12 @@ created: 2026-08-07 09:42
 Needs Human — Merged audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-07 10:04
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner recovery: fresh Merged audit staging now matches current evidence. Independent PASS verified 14,163 tests and head bb0fd760c is already in main; historical transport exhaustion must not reopen implementation. OOMPAH-876 tracks the defect.
 ---
 <!-- COMMENTS:END -->
