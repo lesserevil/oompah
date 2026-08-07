@@ -318,7 +318,10 @@ from oompah.quality_gate import (
     QualityGateOwner,
     QualityGateResult,
 )
-from oompah.validation_resource_lease import ValidationResourceLease
+from oompah.validation_resource_lease import (
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -11717,8 +11720,16 @@ class Orchestrator:
         generation: str,
         project_id: str,
         task_id: str,
+        cancelled_by: str = "oompah-scheduler",
+        reason: str = "scheduling authority withdrawn",
     ) -> int:
-        """Cancel one gate without widening scope for legacy facades."""
+        """Cancel one gate without widening scope for legacy facades.
+
+        The lease tombstone is written before the in-process process-group
+        cancellation.  That lets a gate whose child was stopped externally
+        distinguish scheduling withdrawal from a nonzero test command, even
+        after a service restart.
+        """
         gate = self._branch_quality_gate
         if self._gate_supports_exact_owner(gate):
             if owner is None or not owner.complete:
@@ -11730,6 +11741,26 @@ class Orchestrator:
                     generation,
                 )
                 return 0
+            lease_owner = ValidationLeaseOwner.exact_gate(
+                project_id=owner.project_id,
+                task_id=owner.task_id,
+                authority_generation=owner.authority_generation,
+            )
+            try:
+                self.validation_resource_lease.cancel_owner(
+                    lease_owner,
+                    cancelled_by=cancelled_by,
+                    reason=reason,
+                )
+            except Exception as exc:  # noqa: BLE001 - process fence still applies
+                logger.warning(
+                    "Could not persist quality-gate cancellation provenance "
+                    "project=%s task=%s generation=%s: %s",
+                    owner.project_id,
+                    owner.task_id,
+                    owner.authority_generation,
+                    exc,
+                )
             cancelled = gate.cancel_owner(owner)
             logger.info(
                 "Quality gate exact-owner cancellation requested project=%s "
@@ -12665,6 +12696,19 @@ class Orchestrator:
         3. Real conflicts or hard failures: dispatch to human (NEEDS_REBASE status)
         """
 
+        gate_outcome = (
+            "cancelled_retryable"
+            if result.status == "interrupted"
+            else "ci_failure"
+            if result.status == "ci_failure"
+            else None
+        )
+        gate_cancellation = (
+            dict(result.quality.cancellation)
+            if result.quality is not None and result.quality.cancellation
+            else None
+        )
+
         def _record_failure_diagnostic(
             *,
             next_retry_at: float | None,
@@ -12691,7 +12735,8 @@ class Orchestrator:
                     "level": resolved_level,
                     "source": source,
                     "message": (
-                        f"Integration task {item.task_id} failed at "
+                        f"Integration task {item.task_id} "
+                        f"{'was cancelled and will retry' if gate_outcome == 'cancelled_retryable' else 'failed'} at "
                         f"{result.failing_step}: {result.message}. "
                         f"Next retry: {next_retry or 'not scheduled'}. "
                         f"Repair action: {repair_action}"
@@ -12704,6 +12749,8 @@ class Orchestrator:
                     "repair_action": repair_action,
                     "attempts": item.attempts,
                     "max_attempts": retry_budget,
+                    "gate_outcome": gate_outcome,
+                    "gate_cancellation": gate_cancellation,
                     # Structured recovery classification consumed by
                     # _reconcile_integration_retry_alerts and the dashboard.
                     # ``recovery_state`` is deliberately explicit so alert
@@ -12836,6 +12883,8 @@ class Orchestrator:
                 last_error=result.message,
                 backoff_until=backoff_until,
                 repair_failure_reason=repair_failure_reason,
+                gate_outcome=gate_outcome,
+                gate_cancellation=gate_cancellation,
             ).to_dict(),
         )
 
@@ -33210,6 +33259,42 @@ class Orchestrator:
             )
             return None
 
+    def _write_in_progress_if_scheduler_authorized(
+        self,
+        tracker: Any,
+        issue: Issue,
+    ) -> tuple[bool, Issue | None]:
+        """Atomically refuse a scheduler dispatch behind a takeover fence.
+
+        ``human-only`` is deliberately persisted before an owner claim
+        retires outstanding scheduler work.  Re-read it under the same
+        project lock used by the owner-claim endpoint, immediately before the
+        scheduler writes In Progress.  Therefore a retry that already passed
+        candidate selection cannot install new scheduler authority after the
+        durable takeover fence wins.
+        """
+
+        project_id = str(issue.project_id or "").strip()
+        lock = (
+            self.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
+        )
+        with lock:
+            current = tracker.fetch_issue_detail(issue.identifier)
+            if current is None:
+                return False, None
+            if self._has_live_owner_claim(issue.id, project_id):
+                return False, current
+            labels = {
+                str(label).strip().lower()
+                for label in (getattr(current, "labels", None) or ())
+            }
+            if "human-only" in labels:
+                return False, current
+            tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+            return True, current
+
     async def _dispatch(
         self,
         issue: Issue,
@@ -33631,12 +33716,32 @@ class Orchestrator:
                     self._persist_retry_entries()
                 try:
                     retry_status_write_attempted = retry_entry is not None
-                    await asyncio.get_event_loop().run_in_executor(
-                        self._tick_pool,
-                        lambda: tracker.update_issue(
-                            issue.identifier, status=IN_PROGRESS
-                        ),
+                    scheduler_authorized, _fresh_before_write = await (
+                        asyncio.get_event_loop().run_in_executor(
+                            self._tick_pool,
+                            lambda: self._write_in_progress_if_scheduler_authorized(
+                                tracker,
+                                issue,
+                            ),
+                        )
                     )
+                    if not scheduler_authorized:
+                        logger.info(
+                            "Aborting implementation dispatch of %s: "
+                            "persisted direct-owner takeover fence won",
+                            issue.identifier,
+                        )
+                        self.state.claimed.discard(issue.id)
+                        self.state.claimed_issues.pop(issue.id, None)
+                        if retry_entry is not None:
+                            self._cancel_retry_for_issue(
+                                issue_id=issue.id,
+                                identifier=issue.identifier,
+                                project_id=issue.project_id,
+                                reason="persisted direct-owner takeover fence",
+                                notify=False,
+                            )
+                        return
                 except Exception as exc:
                     logger.warning(
                         "Failed to set in_progress for %s: %s — aborting dispatch",
@@ -42488,6 +42593,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             "head_sha": result.head_sha,
                             "command": result.command,
                             "cached": result.cached,
+                            "cancellation": result.cancellation,
                         }
                     )
         outcomes.sort(key=lambda row: (row["project_id"], row["task_id"]))

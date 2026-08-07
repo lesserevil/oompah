@@ -716,6 +716,66 @@ def test_generation_cancellation_does_not_stop_a_replacement_head_gate(tmp_path)
         BranchQualityGate.cleanup_active_processes()
 
 
+def test_durable_lease_cancellation_is_interrupted_not_a_test_failure(tmp_path):
+    """A lease-level preemption must not turn its SIGTERM into failed CI."""
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    lease = ValidationResourceLease(tmp_path / "leases.sqlite3", poll_seconds=0.01)
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        validation_lease=lease,
+    )
+    owner = QualityGateOwner("project-1", "task-1", head, "generation-1")
+    lease_owner = ValidationLeaseOwner.exact_gate(
+        project_id=owner.project_id,
+        task_id=owner.task_id,
+        authority_generation=owner.authority_generation,
+    )
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 30",
+                expected_head_sha=head,
+                owner=owner,
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if lease.status().owner_count:
+                    break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("quality gate never attached its validation lease")
+
+            assert lease.cancel_owner(
+                lease_owner,
+                cancelled_by="operator:alice",
+                reason="critical-path preemption",
+            ) == 1
+            result = future.result(timeout=5)
+
+        assert result.status == "interrupted"
+        assert result.cancellation is not None
+        assert result.cancellation["cancelled_by"] == "operator:alice"
+        assert result.cancellation["reason"] == "critical-path preemption"
+
+        replacement = _run(
+            gate,
+            repo,
+            "true",
+            expected_head_sha=head,
+            owner=QualityGateOwner("project-1", "task-1", head, "generation-2"),
+        )
+        assert replacement.passed
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
 def test_exact_owner_cancellation_cannot_stop_an_unrelated_task_gate(tmp_path):
     """A task-scoped cancellation must not match another task's process."""
     repo = _git_repo(tmp_path)

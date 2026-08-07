@@ -754,6 +754,16 @@ time.sleep(30)
         assert [owner["authority_generation"] for owner in remaining] == [
             "generation-2"
         ]
+        cancellation = orch.validation_resource_lease.cancellation_for(
+            ValidationLeaseOwner.worker(
+                project_id="proj-1",
+                task_id="OOMPAH-1",
+                authority_generation="generation-1",
+            )
+        )
+        assert cancellation is not None
+        assert cancellation["cancelled_by"] == "operator:alice"
+        assert cancellation["reason"] == "direct owner takeover"
         assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
         tracker.add_label.assert_called_once_with(issue.identifier, "human-only")
         tracker.remove_label.assert_called_once_with(issue.identifier, "human-only")
@@ -967,6 +977,35 @@ def test_stale_dispatch_aborts_after_direct_owner_claim(tmp_path):
     assert issue.id not in orch.state.claimed
     assert issue.id not in orch.state.running
     tracker.update_issue.assert_not_called()
+
+
+def test_persisted_takeover_fence_blocks_retry_authority_install(tmp_path):
+    """A completed owner takeover blocks the retry's final authority write."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    issue.labels = []  # stale retry candidate captured before the takeover
+    fenced = _issue(state="Open")
+    # The temporary human-only label has already been removed, so this covers
+    # the narrow race after a successful owner claim rather than merely the
+    # in-progress label write.
+    fenced.labels = []
+    orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+    )
+    tracker.fetch_issue_detail.return_value = fenced
+
+    authorized, current = orch._write_in_progress_if_scheduler_authorized(
+        tracker,
+        issue,
+    )
+
+    assert authorized is False
+    assert current is fenced
+    tracker.update_issue.assert_not_called()
+    assert issue.id not in orch.state.running
 
 
 def test_dashboard_owner_claim_badge_reads_state_snapshot():

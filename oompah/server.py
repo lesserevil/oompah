@@ -11364,6 +11364,8 @@ def _retire_expected_legacy_validation_owner(
     issue,
     expected_owner: ValidationLeaseOwner,
     expected_process_identity: Mapping[str, int],
+    *,
+    cancelled_by: str = "operator",
 ) -> tuple[bool, str]:
     """Cancel exactly the health-advertised legacy worker generation."""
 
@@ -11408,6 +11410,8 @@ def _retire_expected_legacy_validation_owner(
         ],
         child_pid=expected_process_identity["child_pid"],
         child_start_ticks=expected_process_identity["child_start_ticks"],
+        cancelled_by=cancelled_by,
+        reason="direct owner takeover",
     ):
         return False, "the exact legacy validation owner was already replaced"
     if _matching_legacy_validation_owner(
@@ -11535,6 +11539,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             issue,
             expected_validation_owner,
             expected_process_identity or {},
+            cancelled_by=f"operator:{owner_login}",
         )
         if not retired:
             _api_cache.invalidate("issues:all")

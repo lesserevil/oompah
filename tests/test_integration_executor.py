@@ -352,11 +352,13 @@ def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
         task_branch="epic-E-1--task-T-1",
         submitted_head_sha=task_head,
         quality_gate=gate,
-        quality_command="false",
+        quality_command="printf 'exact gate output tail\\n'; exit 7",
         repo_identity=str(remote),
     )
     assert result.status == "ci_failure"
     assert result.rebased_task_sha
+    assert result.quality is not None
+    assert "exact gate output tail" in result.quality.output_tail
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
 
 
@@ -369,6 +371,10 @@ def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
                 status="interrupted",
                 head_sha=task_head,
                 command="make test",
+                cancellation={
+                    "cancelled_by": "operator:alice",
+                    "reason": "critical-path preemption",
+                },
             )
 
     result = execute_integration(
@@ -384,6 +390,8 @@ def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
     )
 
     assert result.status == "interrupted"
+    assert "operator:alice" in result.message
+    assert "critical-path preemption" in result.message
     assert result.rebased_task_sha
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
 

@@ -25,6 +25,11 @@ def test_integration_record_round_trips_all_supported_evidence():
         submitted_at="2026-07-29T12:00:00Z",
         updated_at="2026-07-29T12:01:00Z",
         dependency_heads={"ABC-1": "c" * 40},
+        gate_outcome="cancelled_retryable",
+        gate_cancellation={
+            "cancelled_by": "operator:alice",
+            "reason": "critical-path preemption",
+        },
     )
 
     assert IntegrationRecord.from_dict(record.to_dict()) == record

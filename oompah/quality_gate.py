@@ -137,6 +137,7 @@ class QualityGateResult:
     duration_seconds: float = 0.0
     output_tail: str = ""
     cached: bool = False
+    cancellation: dict[str, str] | None = None
 
     @property
     def passed(self) -> bool:
@@ -1592,6 +1593,20 @@ class BranchQualityGate:
                 return cached_result
 
         validation_handle = None
+        validation_owner = None
+
+        def _lease_cancellation() -> dict[str, str] | None:
+            if self.validation_lease is None or validation_owner is None:
+                return None
+            try:
+                return self.validation_lease.cancellation_for(validation_owner)
+            except (AttributeError, OSError, sqlite3.Error, ValidationLeaseError):
+                # Lightweight test/legacy lease facades may not expose
+                # cancellation provenance.  They remain usable; only the
+                # durable lease can turn an external process stop into a
+                # retryable scheduling outcome.
+                return None
+
         if self.validation_lease is not None:
             validation_owner = ValidationLeaseOwner.exact_gate(
                 project_id=(
@@ -1637,12 +1652,14 @@ class BranchQualityGate:
                     is_cancelled=_lease_wait_cancelled,
                 )
             except ValidationLeaseCancelled as exc:
+                cancellation = _lease_cancellation()
                 _release_owned_generation()
                 return QualityGateResult(
                     status="interrupted",
                     head_sha=head_sha,
                     command=command,
                     output_tail=str(exc),
+                    cancellation=cancellation,
                 )
             except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
                 _release_owned_generation()
@@ -1874,6 +1891,8 @@ class BranchQualityGate:
                         getattr(process, "_oompah_interrupted", False)
                     )
                     self._active_processes.pop(process.pid, None)
+                cancellation = _lease_cancellation()
+                interrupted = interrupted or cancellation is not None
                 if interrupted:
                     return QualityGateResult(
                         status="interrupted",
@@ -1881,6 +1900,7 @@ class BranchQualityGate:
                         command=command,
                         duration_seconds=duration,
                         output_tail=output_tail,
+                        cancellation=cancellation,
                     )
                 if process.returncode != 0:
                     result = QualityGateResult(
@@ -1920,6 +1940,8 @@ class BranchQualityGate:
                         getattr(process, "_oompah_interrupted", False)
                     )
                     self._active_processes.pop(process.pid, None)
+                cancellation = _lease_cancellation()
+                interrupted = interrupted or cancellation is not None
                 if interrupted:
                     return QualityGateResult(
                         status="interrupted",
@@ -1927,6 +1949,7 @@ class BranchQualityGate:
                         command=command,
                         duration_seconds=duration,
                         output_tail=combined[-self.output_tail_bytes :],
+                        cancellation=cancellation,
                     )
                 result = QualityGateResult(
                     status="timed_out",
@@ -1944,6 +1967,15 @@ class BranchQualityGate:
                     work_branch=work_branch,
                 )
                 return result
+            except ValidationLeaseCancelled as exc:
+                return QualityGateResult(
+                    status="interrupted",
+                    head_sha=head_sha,
+                    command=command,
+                    duration_seconds=time.monotonic() - started,
+                    output_tail=str(exc),
+                    cancellation=_lease_cancellation(),
+                )
             except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
                 result = QualityGateResult(
                     status="error",

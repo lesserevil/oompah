@@ -154,6 +154,7 @@ class ValidationLeaseStatus:
     oldest_waiter_age_seconds: float
     owners: tuple[dict[str, object], ...]
     waiters: tuple[dict[str, object], ...]
+    cancelled_owners: tuple[dict[str, object], ...] = ()
 
     @property
     def available_capacity(self) -> int:
@@ -173,6 +174,7 @@ class ValidationLeaseStatus:
             "oldest_waiter_age_seconds": self.oldest_waiter_age_seconds,
             "owners": list(self.owners),
             "waiters": list(self.waiters),
+            "cancelled_owners": list(self.cancelled_owners),
             "legacy_provider_bootstrap_owner_count": (
                 legacy_provider_bootstrap_owner_count
             ),
@@ -1375,12 +1377,30 @@ class ValidationResourceLease:
                     task_id TEXT NOT NULL,
                     authority_generation TEXT NOT NULL,
                     cancelled_at REAL NOT NULL,
+                    cancelled_by TEXT NOT NULL DEFAULT 'unknown',
+                    reason TEXT NOT NULL DEFAULT 'authority withdrawn',
                     PRIMARY KEY (
                         kind, project_id, task_id, authority_generation
                     )
                 );
                 """
             )
+            cancelled_columns = {
+                str(row["name"])
+                for row in connection.execute(
+                    "PRAGMA table_info(cancelled_owners)"
+                ).fetchall()
+            }
+            if "cancelled_by" not in cancelled_columns:
+                connection.execute(
+                    "ALTER TABLE cancelled_owners ADD COLUMN cancelled_by TEXT "
+                    "NOT NULL DEFAULT 'unknown'"
+                )
+            if "reason" not in cancelled_columns:
+                connection.execute(
+                    "ALTER TABLE cancelled_owners ADD COLUMN reason TEXT "
+                    "NOT NULL DEFAULT 'authority withdrawn'"
+                )
             existing = connection.execute(
                 "SELECT value FROM schema_meta WHERE key = 'version'"
             ).fetchone()
@@ -1837,7 +1857,13 @@ class ValidationResourceLease:
         finally:
             self._close_slot_locks(available.values())
 
-    def cancel_owner(self, owner: ValidationLeaseOwner) -> int:
+    def cancel_owner(
+        self,
+        owner: ValidationLeaseOwner,
+        *,
+        cancelled_by: str = "scheduler",
+        reason: str = "validation authority withdrawn",
+    ) -> int:
         """Cancel matching queued/running native validation work.
 
         Queue waiters observe their session cancellation callback and remove
@@ -1852,12 +1878,20 @@ class ValidationResourceLease:
             connection.execute(
                 """INSERT INTO cancelled_owners(
                        kind, project_id, task_id, authority_generation,
-                       cancelled_at
-                   ) VALUES (?, ?, ?, ?, ?)
+                       cancelled_at, cancelled_by, reason
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(
                        kind, project_id, task_id, authority_generation
-                   ) DO UPDATE SET cancelled_at = excluded.cancelled_at""",
-                (*self._identity_values(owner), time.time()),
+                   ) DO UPDATE SET cancelled_at = excluded.cancelled_at,
+                                   cancelled_by = excluded.cancelled_by,
+                                   reason = excluded.reason""",
+                (
+                    *self._identity_values(owner),
+                    time.time(),
+                    str(cancelled_by or "scheduler").strip() or "scheduler",
+                    str(reason or "validation authority withdrawn").strip()
+                    or "validation authority withdrawn",
+                ),
             )
             rows = connection.execute(
                 """SELECT slot, child_pid, child_start_ticks FROM owners
@@ -1888,6 +1922,32 @@ class ValidationResourceLease:
             _terminate_exact_process_group(pid, row["child_start_ticks"])
         return len(rows) + int(cancelled_waiters or 0)
 
+    def cancellation_for(
+        self,
+        owner: ValidationLeaseOwner,
+    ) -> dict[str, str] | None:
+        """Return durable cancellation provenance for one exact owner."""
+
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT cancelled_at, cancelled_by, reason
+                   FROM cancelled_owners
+                   WHERE kind = ? AND project_id = ? AND task_id = ?
+                     AND authority_generation = ?""",
+                self._identity_values(owner),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "kind": owner.kind,
+            "project_id": owner.project_id,
+            "task_id": owner.task_id,
+            "authority_generation": owner.authority_generation,
+            "cancelled_at": str(row["cancelled_at"]),
+            "cancelled_by": str(row["cancelled_by"]),
+            "reason": str(row["reason"]),
+        }
+
     def cancel_exact_owner_process(
         self,
         owner: ValidationLeaseOwner,
@@ -1896,6 +1956,8 @@ class ValidationResourceLease:
         requester_start_ticks: int,
         child_pid: int,
         child_start_ticks: int,
+        cancelled_by: str = "operator",
+        reason: str = "direct owner takeover",
     ) -> bool:
         """Atomically cancel one health-advertised attached owner process.
 
@@ -1944,12 +2006,20 @@ class ValidationResourceLease:
             connection.execute(
                 """INSERT INTO cancelled_owners(
                        kind, project_id, task_id, authority_generation,
-                       cancelled_at
-                   ) VALUES (?, ?, ?, ?, ?)
+                       cancelled_at, cancelled_by, reason
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(
                        kind, project_id, task_id, authority_generation
-                   ) DO UPDATE SET cancelled_at = excluded.cancelled_at""",
-                (*self._identity_values(owner), time.time()),
+                   ) DO UPDATE SET cancelled_at = excluded.cancelled_at,
+                                   cancelled_by = excluded.cancelled_by,
+                                   reason = excluded.reason""",
+                (
+                    *self._identity_values(owner),
+                    time.time(),
+                    str(cancelled_by or "operator").strip() or "operator",
+                    str(reason or "direct owner takeover").strip()
+                    or "direct owner takeover",
+                ),
             )
             connection.commit()
         _terminate_exact_process_group(child_pid, child_start_ticks)
@@ -1968,6 +2038,12 @@ class ValidationResourceLease:
                 ).fetchall()
                 waiter_rows = connection.execute(
                     "SELECT * FROM waiters ORDER BY queued_at, token"
+                ).fetchall()
+                cancelled_rows = connection.execute(
+                    """SELECT kind, project_id, task_id, authority_generation,
+                              cancelled_at, cancelled_by, reason
+                       FROM cancelled_owners
+                       ORDER BY cancelled_at DESC LIMIT 128"""
                 ).fetchall()
                 connection.commit()
             needs_reconciliation = any(
@@ -1988,6 +2064,12 @@ class ValidationResourceLease:
                     ).fetchall()
                     waiter_rows = connection.execute(
                         "SELECT * FROM waiters ORDER BY queued_at, token"
+                    ).fetchall()
+                    cancelled_rows = connection.execute(
+                        """SELECT kind, project_id, task_id, authority_generation,
+                                  cancelled_at, cancelled_by, reason
+                           FROM cancelled_owners
+                           ORDER BY cancelled_at DESC LIMIT 128"""
                     ).fetchall()
                     connection.commit()
         finally:
@@ -2083,4 +2165,16 @@ class ValidationResourceLease:
             oldest_waiter_age_seconds=max(oldest_age, 0.0),
             owners=tuple(owner_dict(row) for row in owner_rows),
             waiters=tuple(waiter_dict(row) for row in waiter_rows),
+            cancelled_owners=tuple(
+                {
+                    "kind": str(row["kind"]),
+                    "project_id": str(row["project_id"]),
+                    "task_id": str(row["task_id"]),
+                    "authority_generation": str(row["authority_generation"]),
+                    "cancelled_at": str(row["cancelled_at"]),
+                    "cancelled_by": str(row["cancelled_by"]),
+                    "reason": str(row["reason"]),
+                }
+                for row in cancelled_rows
+            ),
         )

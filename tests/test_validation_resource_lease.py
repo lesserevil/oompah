@@ -479,10 +479,68 @@ def test_cancel_owner_terminates_only_matching_attached_process_group(tmp_path):
     )
     handle.attach_process(process, timeout_seconds=60)
 
-    assert lease.cancel_owner(owner) == 1
+    assert lease.cancel_owner(
+        owner,
+        cancelled_by="operator:alice",
+        reason="critical-path preemption",
+    ) == 1
     assert process.wait(timeout=3) != 0
+    assert lease.cancellation_for(owner) == {
+        "kind": owner.kind,
+        "project_id": owner.project_id,
+        "task_id": owner.task_id,
+        "authority_generation": owner.authority_generation,
+        "cancelled_at": lease.cancellation_for(owner)["cancelled_at"],
+        "cancelled_by": "operator:alice",
+        "reason": "critical-path preemption",
+    }
+    assert lease.status().to_dict()["cancelled_owners"][0]["reason"] == (
+        "critical-path preemption"
+    )
     handle.release()
     assert lease.status().owner_count == 0
+
+
+def test_existing_cancelled_owner_rows_gain_safe_provenance_defaults(tmp_path):
+    """A service restart upgrades prior lease tombstones without losing them."""
+
+    state_path = tmp_path / "lease.sqlite3"
+    owner = _gate_owner("project", "TASK-1")
+    with sqlite3.connect(state_path) as connection:
+        connection.execute(
+            """CREATE TABLE cancelled_owners (
+                   kind TEXT NOT NULL,
+                   project_id TEXT NOT NULL,
+                   task_id TEXT NOT NULL,
+                   authority_generation TEXT NOT NULL,
+                   cancelled_at REAL NOT NULL,
+                   PRIMARY KEY (kind, project_id, task_id, authority_generation)
+               )"""
+        )
+        connection.execute(
+            """INSERT INTO cancelled_owners(
+                   kind, project_id, task_id, authority_generation, cancelled_at
+               ) VALUES (?, ?, ?, ?, ?)""",
+            (
+                owner.kind,
+                owner.project_id,
+                owner.task_id,
+                owner.authority_generation,
+                123.0,
+            ),
+        )
+
+    lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+
+    assert lease.cancellation_for(owner) == {
+        "kind": owner.kind,
+        "project_id": owner.project_id,
+        "task_id": owner.task_id,
+        "authority_generation": owner.authority_generation,
+        "cancelled_at": "123.0",
+        "cancelled_by": "unknown",
+        "reason": "authority withdrawn",
+    }
 
 
 def test_cancel_owner_withdraws_matching_waiter_without_callback(tmp_path):
