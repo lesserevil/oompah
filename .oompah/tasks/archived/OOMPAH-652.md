@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-08-07T11:19:05.265531Z'
+updated_at: '2026-08-07T11:25:53.644578Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
@@ -110,6 +110,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-4cd1d35c63d9: '2026-07-31T10:25:41.332572+00:00'
     attempt-071c375a0208: '2026-07-31T10:27:06.473632+00:00'
+    attempt-93efe144e3fc: '2026-08-07T11:25:47.547059+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-652
+    target_state: Archived
+    evidence_fingerprint: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
+    audit_ids:
+    - audit-585747ebe620
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T11:25:47.547071+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-652
+    audit_id: audit-585747ebe620
+    attempt_id: attempt-93efe144e3fc
+    target_state: Archived
+    evidence_fingerprint: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
+    status: Archived
+    audit_ids:
+    - audit-585747ebe620
+    applied: false
+    created_at: '2026-08-07T11:25:47.547088+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -185,7 +208,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-652
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -211,7 +234,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-93efe144e3fc
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -224,6 +247,9 @@ oompah.terminal_audit:
       selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
       selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-07T11:25:47.546854+00:00'
+      ended_at: '2026-08-07T11:25:47.546854+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -232,7 +258,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:53:05.465536+00:00'
     selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
     selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
-    updated_at: '2026-08-07T11:18:47.026836+00:00'
+    updated_at: '2026-08-07T11:25:47.546854+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cd1d35c63d9
