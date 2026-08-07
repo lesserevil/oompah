@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T12:57:46.549741Z'
+updated_at: '2026-08-07T12:58:20.328363Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -314,7 +314,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a65df28f-042e-4207-935b-d0c31ae33881
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-577__20260807T083821Z
@@ -347,9 +347,9 @@ oompah.integration:
   attempts: 0
   task_branch: OOMPAH-577
   base_branch: main
-  head_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
-  submitted_at: '2026-08-07T10:18:44.844048+00:00'
-  updated_at: '2026-08-07T10:18:44.844048+00:00'
+  head_sha: ac686a3a1db0aabc150a5391b9d89c311ad2bbac
+  submitted_at: '2026-08-07T12:57:57.157953+00:00'
+  updated_at: '2026-08-07T12:57:57.157953+00:00'
 oompah.review_head: ''
 review_head: ''
 ---
@@ -858,5 +858,10 @@ author: oompah
 created: 2026-08-07 12:57
 ---
 Completion: Pushed ac686a3a1 to the existing OOMPAH-577 branch. The only change makes the live WebSocket fault-injection test dispatch through its connection-owning portal loop, removing the nondeterministic cross-loop broadcast race that blocked the branch gate.
+---
+author: oompah
+created: 2026-08-07 12:58
+---
+Stabilized the live WebSocket convergence test by dispatching fault-injected broadcasts through the connection portal loop; 87 focused WebSocket tests passed.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-886
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Add atomic idempotent create-once tracker operations
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T12:51:53.162471Z'
+updated_at: '2026-08-07T12:58:17.827441Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,23 +24,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 0bea2cd2fea4fce3202d8deff0fe3f1022ab48374b5b74f48d32e75edc901b70
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T12:58:13.843360+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
-    OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877, OOMPAH-878,
-    OOMPAH-879, OOMPAH-880, OOMPAH-881, OOMPAH-882, OOMPAH-884, OOMPAH-885, OOMPAH-887.'
+  evidence: 'Project-owner corpus review: no existing task provides a TrackerProtocol/native
+    tracker atomic create-once idempotency contract for ambiguous create responses.
+    OOMPAH-879 intentionally supplies only the immediate fail-closed reservation;
+    OOMPAH-886 is the distinct liveness completion.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-07T12:51:29.337142+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-07T12:58:13.843360+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'Project-owner corpus review: no existing task provides
+    a TrackerProtocol/native tracker atomic create-once idempotency contract for ambiguous
+    create responses. OOMPAH-879 intentionally supplies only the immediate fail-closed
+    reservation; OOMPAH-886 is the distinct liveness completion.'
 oompah.agent_run_id: 3c8bd66f-68ab-4674-90f8-6bf7e87745f2
 ---
 ## Summary
