@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T13:42:02.422726Z'
+updated_at: '2026-08-07T13:42:38.672981Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -1010,5 +1010,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 4s
 - Log: OOMPAH-765__20260807T132830Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:42
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
