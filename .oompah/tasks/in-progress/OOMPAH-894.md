@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-894
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Coalesce repeated owner rearm without erasing retained auto-archive provenance
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-07T13:45:31.251950Z'
+updated_at: '2026-08-07T18:25:19.136792Z'
 work_branch: null
 target_branch: null
 review_url: null

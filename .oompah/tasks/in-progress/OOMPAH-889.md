@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-889
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Make Done-only maintenance repair survive native parent rollup
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:16:12.155503Z'
-updated_at: '2026-08-07T13:34:33.713637Z'
+updated_at: '2026-08-07T18:25:08.772773Z'
 work_branch: null
 target_branch: null
 review_url: null

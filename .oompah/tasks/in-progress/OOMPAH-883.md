@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-883
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Break epic-rebase and child-integration ordering deadlocks
 parent: null
@@ -9,11 +9,10 @@ children: []
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-879
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-07T12:02:23.163009Z'
-updated_at: '2026-08-07T18:24:47.487474Z'
+updated_at: '2026-08-07T18:24:57.886278Z'
 work_branch: null
 target_branch: null
 review_url: null
