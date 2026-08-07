@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T11:13:11.590087Z'
+updated_at: '2026-08-07T11:13:31.471970Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: dec03677-68c1-4b86-b281-c4d96fd08c00
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48036
   total_output_tokens: 557
@@ -557,5 +557,10 @@ author: oompah
 created: 2026-08-07 11:13
 ---
 Completion: identity-safe management tracker resolution is delivered at 0458f8f72. Service clones, cached mirrors, and matching agent worktrees resolve the single configured Oompah project by canonical repository evidence; foreign, missing, ambiguous, and invalid topologies fail closed. Global ErrorWatcher setup now emits an actionable startup alert while project log watchers remain active. Focused verification: resolver 12/12, neighboring suites 53/53, terminal scan 8/8; branch gate make test previously passed. Branch is pushed and clean.
+---
+author: oompah
+created: 2026-08-07 11:13
+---
+Resolved identity-safe service checkout management-project resolution with fail-closed clone, mirror, worktree, ambiguity, foreign, startup-alert, and restart coverage.
 ---
 <!-- COMMENTS:END -->
