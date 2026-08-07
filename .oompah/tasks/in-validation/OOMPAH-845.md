@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T06:04:33.897246Z'
+updated_at: '2026-08-07T07:11:34.085085Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -117,18 +117,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-845
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-2753f2ad908d
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+      created_at: '2026-08-07T07:11:20.711408+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T07:11:20.711408+00:00'
+      branch_key: OOMPAH-845
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-07T06:04:20.178475+00:00'
+    updated_at: '2026-08-07T07:11:20.711408+00:00'
   - version: 1
     audit_id: audit-e3a217648c00
     project_id: proj-14849f1b
@@ -146,7 +160,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-07T06:04:20.178475+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-2753f2ad908d
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    created_at: '2026-08-07T07:11:20.711408+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T07:11:20.711408+00:00'
+    branch_key: OOMPAH-845
 ---
 ## Summary
 
@@ -435,5 +462,15 @@ author: oompah
 created: 2026-08-07 06:04
 ---
 YOLO: merged PR #734.
+---
+author: oompah
+created: 2026-08-07 07:11
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 07:11
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
