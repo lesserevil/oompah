@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T03:13:44.351586Z'
+updated_at: '2026-08-07T03:14:13.882219Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -610,5 +610,20 @@ author: oompah
 created: 2026-08-07 03:13
 ---
 Reject integration submissions from the wrong checkout before mutating task worktrees - implementation complete and verified
+---
+author: oompah
+created: 2026-08-07 03:14
+---
+COMPLETION: OOMPAH-576 submitted for integration
+
+This task has been completed and verified. The implementation in commit 6f5a859b2 successfully hardens task submission and integration worktree preparation to prevent wrong-checkout submissions from mutating task records.
+
+Key deliverables:
+- validate_submission_branch() enforces branch identity at ACP and HTTP submit endpoints  
+- _reset_existing_worktree() and execute_integration() fail closed on branch mismatch (no destructive reset)
+- Comprehensive test coverage: 241 tests pass including regression test for OOMPAH-483 scenario
+- All acceptance criteria verified and met
+
+The implementation prevents the regression observed on OOMPAH-483 where a wrong-checkout submission overwrote the recorded work branch and reset the task's live worktree.
 ---
 <!-- COMMENTS:END -->
