@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:43:44.616378Z'
+updated_at: '2026-08-07T09:58:55.030847Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -496,6 +496,25 @@ oompah.terminal_audit:
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
     updated_at: '2026-08-07T09:43:43.035760+00:00'
+  - version: 1
+    audit_id: audit-5028ccb3344d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T09:58:52.190451+00:00'
+    selected_ref: f2b319c1182cd654112db622a0498171e508dead
+    selected_sha: f2b319c1182cd654112db622a0498171e508dead
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
