@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T16:22:08.891209Z'
+updated_at: '2026-08-07T17:20:00.425218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ created: 2026-08-07 16:21
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Direct-owner implementation at pushed head f4053078b7c5ce02d6fa4629edc05d520615c1e9 passed focused and matrix validation plus independent security review.
+---
+author: oompah
+created: 2026-08-07 17:20
+---
+Reconciled the earlier delegated-checkout branch mismatch: the independently accepted exact head f4053078b7c5ce02d6fa4629edc05d520615c1e9 is now also published at the task's expected remote branch refs/heads/OOMPAH-892. The existing OOMPAH-879 coordination branch remains unchanged.
 ---
 <!-- COMMENTS:END -->
