@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T07:32:21.164421Z'
+updated_at: '2026-08-07T08:33:49.529889Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -186,7 +186,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-832
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -195,7 +195,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-813b2c7219b7
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -205,6 +205,8 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T07:23:12.286547+00:00'
       branch_key: OOMPAH-832
+      ended_at: '2026-08-07T08:33:37.035675+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: lesserevil
@@ -212,6 +214,8 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-07T05:09:55.490568+00:00'
     updated_at: '2026-08-07T07:23:12.286547+00:00'
+    selected_ref: faa217b41a87ed3a1869a4fe38947778a55fe4fe
+    selected_sha: faa217b41a87ed3a1869a4fe38947778a55fe4fe
   attempt_history:
   - version: 1
     attempt_id: attempt-63e8cf18eb13
@@ -231,7 +235,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-813b2c7219b7
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -241,6 +245,8 @@ oompah.terminal_audit:
     model: haiku
     started_at: '2026-08-07T07:23:12.286547+00:00'
     branch_key: OOMPAH-832
+    ended_at: '2026-08-07T08:33:37.035675+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
