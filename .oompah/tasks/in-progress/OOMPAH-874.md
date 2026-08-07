@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T09:27:19.147720Z'
+updated_at: '2026-08-07T09:35:09.852494Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-08-07 09:27
 ---
 Implementation: exact validation-lease tombstones now record cancellation actor/reason and quality gates translate durable cancellation into an interrupted/retryable result. Integration persists cancelled_retryable provenance, requeues the identical head without ci-fix, and projects it as a non-actionable retry; real nonzero gates remain ci_failure with diagnostics. Final dispatch status writes now re-check the persisted owner-takeover fence/lease under the project lock.
+---
+author: oompah
+created: 2026-08-07 09:35
+---
+Verification: targeted cancellation/restart/CI-failure/owner-claim tests pass (8 passed); full quality-gate suite passes (82 passed); integration executor/record/dashboard-recovery suite passes (51 passed); validation lease suite passes when its subprocess Make uses the system binary.  was attempted twice but cannot bootstrap the task venv here because uv fails creating a transient DBus scope; gate-mode reuse also correctly rejects the service venv because it is not the candidate snapshot. Diff check and py_compile pass.
 ---
 <!-- COMMENTS:END -->
