@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T13:43:32.609227Z'
+updated_at: '2026-08-07T13:43:50.678021Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -636,5 +636,10 @@ author: oompah
 created: 2026-08-07 13:43
 ---
 Verification: GitHub Actions run 31175762999 is successful at exact head 78aecdcf0: test (3.11), test (3.12), and test (3.13) all passed. Oompah's recorded complete make test gate also passed at this head in 652.7s, after the five originally failing tests passed together (5 passed in 13.16s). Current git diff --check passes and the worktree is clean/up to date. A new local make test-setup invocation cannot start because the managed validation guard hits the known read-only validation lease path; no product/test failure occurred, so I am relying on the existing exact-head service-owned gate and GitHub results rather than bypassing the guard.
+---
+author: oompah
+created: 2026-08-07 13:43
+---
+Completion: Reconciled the reopened task to the already-delivered exact review head 78aecdcf07412f6f4eabf9e735b7206a3faa93b7. PR #740 is merged, all GitHub matrix checks and the service-owned complete branch gate passed at that head, origin/OOMPAH-873 matches local HEAD, and the worktree is clean. No follow-up work or code changes remain; resubmitting for terminal processing.
 ---
 <!-- COMMENTS:END -->
