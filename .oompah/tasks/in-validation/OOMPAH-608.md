@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T11:24:07.744172Z'
+updated_at: '2026-08-07T11:28:29.654159Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/739
@@ -298,12 +298,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-effb42d511a7
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+      created_at: '2026-08-07T11:28:17.468667+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T11:28:17.468667+00:00'
+      branch_key: OOMPAH-608
+      selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+      selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
     requested_by:
       version: 1
       identity: yolo-merge
@@ -312,6 +327,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T11:23:54.672924+00:00'
     selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
     selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    updated_at: '2026-08-07T11:28:17.468667+00:00'
   - version: 1
     audit_id: audit-9ae24abeda54
     project_id: proj-14849f1b
@@ -399,6 +415,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T08:44:43.680174+00:00'
     failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
     next_retry_at: '2026-08-07T08:45:23.680159+00:00'
+  - version: 1
+    attempt_id: attempt-effb42d511a7
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+    created_at: '2026-08-07T11:28:17.468667+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T11:28:17.468667+00:00'
+    branch_key: OOMPAH-608
+    selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
 oompah.review_head: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
 review_head: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
 ---
@@ -883,5 +914,15 @@ author: oompah
 created: 2026-08-07 11:24
 ---
 YOLO: merged PR #739.
+---
+author: oompah
+created: 2026-08-07 11:28
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 11:28
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
