@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:38:51.638733Z'
+updated_at: '2026-08-07T04:43:34.606211Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,21 @@ author: oompah
 created: 2026-08-07 04:38
 ---
 Discovery: The failing test test_restart_observes_child_that_inherited_kernel_fence relies on wall-clock timing (sleep 0.5) to keep child alive. Under saturated scheduling, child finishes before test reaches the blocking acquire. The test expects owner_count=1 and acquire to timeout within 0.1s. Solution: Replace fixed sleep with deterministic synchronization - have subprocess signal when child is ready using a file, test waits for file, verifies owner_count=1, tests timeout acquire, polls for child completion without fixed sleep, tests success acquire.
+---
+author: oompah
+created: 2026-08-07 04:43
+---
+Implementation: Replaced wall-clock timing with deterministic synchronization in test_restart_observes_child_that_inherited_kernel_fence:
+1. Child process now sleeps 30s instead of 0.5s (not used as proof of life)
+2. Subprocess writes child PID to file for explicit termination
+3. Subprocess writes ready marker to signal child is alive and holding inherited FD
+4. Test waits for ready marker before timeout acquire (deterministic proof of child alive)
+5. Test verifies owner_count==1 before timeout acquire (no fixed sleep)
+6. Test kills child via PID using os.killpg to release inherited FD
+7. Test uses _wait_for to poll owner_count==0 instead of fixed sleep
+8. Test verifies acquire succeeds after explicit child release
+9. Added signal import for SIGTERM
+
+All 139 tests pass serially and in parallel.
 ---
 <!-- COMMENTS:END -->
