@@ -16,11 +16,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:36:14.382514Z'
+updated_at: '2026-08-07T12:36:28.013045Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/742
+review_number: '742'
 review_head: null
 merged_at: null
 oompah.terminal_audit:
@@ -161,6 +161,8 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
 oompah.target_branch: epic-OOMPAH-763
 oompah.work_branch: epic-OOMPAH-764
+oompah.review_url: https://github.com/lesserevil/oompah/pull/742
+oompah.review_number: '742'
 ---
 ## Summary
 
