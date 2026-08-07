@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T12:49:57.101407Z'
+updated_at: '2026-08-07T12:50:26.563928Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live false escalation on OOMPAH-779 at 2026-08-07 12:32 UTC: the task was audite
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 12:50
+---
+In-flight workaround applied: project-owner terminal override restored OOMPAH-779 to Done only after exact merge-base ancestry proof for 40e46bf8e41c in origin/epic-OOMPAH-763 and parent audit evidence. No branch was mutated.
+---
+<!-- COMMENTS:END -->
