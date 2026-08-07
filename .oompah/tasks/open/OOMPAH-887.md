@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:02:41.414981Z'
+updated_at: '2026-08-07T13:02:59.886306Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-07 12:50
 ---
 In-flight workaround applied: project-owner terminal override restored OOMPAH-779 to Done only after exact merge-base ancestry proof for 40e46bf8e41c in origin/epic-OOMPAH-763 and parent audit evidence. No branch was mutated.
+---
+author: oompah
+created: 2026-08-07 13:02
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
