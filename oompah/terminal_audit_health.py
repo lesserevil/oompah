@@ -437,7 +437,13 @@ def build_terminal_audit_health(
             )
             transport_used = len(record.attempts) - substantive_used
             substantive_exhausted = substantive_used >= max_attempts
-            transport_exhausted = transport_used >= max_transport_retries
+            # A zero retry budget still permits the initial audit launch.  It
+            # becomes exhausted only after a transport attempt actually
+            # fails, matching AuditorDispatchLane.plan().
+            transport_exhausted = (
+                transport_used > 0
+                and transport_used >= max_transport_retries
+            )
             if substantive_exhausted or transport_exhausted:
                 exhausted += 1
                 increment(observation.project_id, "retry_exhausted_count")
