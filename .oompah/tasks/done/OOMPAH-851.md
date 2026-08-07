@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-07T19:49:35.362162Z'
+updated_at: '2026-08-07T19:49:42.194201Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -99,7 +99,18 @@ oompah.terminal_audit:
       its lease timeout; the combined systemic epic will receive the required full
       exact gate after composition.
     created_at: '2026-08-07T19:49:30.890575+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-851
+    target_state: Done
+    evidence_fingerprint: 004695e34c16994dbe93a54d9b082ebed06decf0b6302154f3ce2e7fe22517d1
+    audit_ids:
+    - audit-3be8cbb0bb70
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:49:40.436011+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -107,7 +118,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-851
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -136,7 +147,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:21:14.225137+00:00'
     selected_ref: 87bfe5f6198a383778eb4e3d39f41fcaa50500d0
     selected_sha: 87bfe5f6198a383778eb4e3d39f41fcaa50500d0
-    updated_at: '2026-08-07T19:22:18.262696+00:00'
+    updated_at: '2026-08-07T19:49:40.435979+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e3190cd0eca9
@@ -225,5 +236,12 @@ author: oompah
 created: 2026-08-07 19:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:49
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct operator review accepted this test-contract-only change after all 651 affected tests passed both xdist4 and serial, with check-secrets and diff checks green, and the exact commits were integrated on shared epic 42f98aaed. The terminal auditor's redundant full suite has spent over 16 minutes with all four workers blocked in jbd2_log_wait_commit and is starving OOMPAH-859 near its lease timeout; the combined systemic epic will receive the required full exact gate after composition.
 ---
 <!-- COMMENTS:END -->
