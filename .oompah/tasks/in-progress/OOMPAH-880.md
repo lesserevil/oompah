@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:16:46.630194Z'
-updated_at: '2026-08-07T11:20:59.659128Z'
+updated_at: '2026-08-07T11:23:49.127273Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-08-07 11:20
 ---
 Discovery: the worktree is clean and epic-OOMPAH-763 is substantially behind origin/main (origin/main is not an ancestor). The epic contains its own commits, so this requires a history rewrite rather than a fast-forward.
+---
+author: oompah
+created: 2026-08-07 11:23
+---
+Operator coordination: STOP before mutating, rebasing, committing, or pushing epic-OOMPAH-763. This is a duplicate of claimed OOMPAH-877. Prerequisite OOMPAH-854 repaired head 357149ce04f89835e85a063d914625dc751e71c1 is in exact validation; OOMPAH-866 f959c182795e0189da987747a1a528741aabe4c8 and OOMPAH-846 are not integrated. Preserve the shared worktree and exit without changes.
 ---
 <!-- COMMENTS:END -->
