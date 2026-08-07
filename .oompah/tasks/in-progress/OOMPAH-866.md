@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-07T17:44:23.140095Z'
+updated_at: '2026-08-07T18:18:55.013269Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
