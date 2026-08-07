@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T09:24:19.622334Z'
+updated_at: '2026-08-07T09:24:54.235778Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -149,6 +149,24 @@ oompah.terminal_audit:
       3.13 all completed successfully. Two configured independent auditor transports
       were attempted and terminated without a verdict, leaving no independent candidate.'
     created_at: '2026-07-31T07:12:44.433704+00:00'
+  - version: 1
+    override_id: override-5d408886bd00
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b958a76bdf3258cb154784766f09d04bf0f0da82146059ed00a67a19210db388
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #608 merged; exact head 5a5f4867f passed make test and is contained
+      in main; prior owner override already resolved exhausted auditor transports.
+      Restore the verified Merged provenance outcome pending OOMPAH-871 deployment.'
+    created_at: '2026-08-07T09:24:47.083185+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-640
