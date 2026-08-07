@@ -352,6 +352,34 @@ def test_opaque_process_baseline_is_immutable_within_process(
     assert scans == [Path("/proc")]
 
 
+def test_process_ancestry_baseline_is_immutable_within_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = ((303, 3_003),)
+    later = (*first, (404, 4_004))
+    scans: list[Path] = []
+
+    def scan(proc_root: Path) -> tuple[tuple[int, int], ...]:
+        scans.append(proc_root)
+        return first if len(scans) == 1 else later
+
+    monkeypatch.setattr(
+        guard_module,
+        "_PROCESS_ANCESTRY_BASELINE_OWNER_PID",
+        None,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_PROCESS_ANCESTRY_BASELINE_CACHE",
+        None,
+    )
+    monkeypatch.setattr(guard_module, "_scan_same_user_process_identities", scan)
+
+    assert guard_module._process_ancestry_baseline() == first
+    assert guard_module._process_ancestry_baseline() == first
+    assert scans == [Path("/proc")]
+
+
 def test_opaque_process_baseline_resets_after_fork(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -374,6 +402,16 @@ def test_opaque_process_baseline_resets_after_fork(
         "_OPAQUE_PROCESS_BASELINE_CACHE",
         ((101, 1_001),),
     )
+    monkeypatch.setattr(
+        guard_module,
+        "_PROCESS_ANCESTRY_BASELINE_OWNER_PID",
+        os.getpid(),
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_PROCESS_ANCESTRY_BASELINE_CACHE",
+        ((303, 3_003),),
+    )
 
     guard_module._reset_opaque_process_baseline_after_fork()
 
@@ -382,6 +420,8 @@ def test_opaque_process_baseline_resets_after_fork(
     guard_module._OPAQUE_PROCESS_BASELINE_LOCK.release()
     assert guard_module._OPAQUE_PROCESS_BASELINE_OWNER_PID is None
     assert guard_module._OPAQUE_PROCESS_BASELINE_CACHE is None
+    assert guard_module._PROCESS_ANCESTRY_BASELINE_OWNER_PID is None
+    assert guard_module._PROCESS_ANCESTRY_BASELINE_CACHE is None
 
 
 @pytest.mark.parametrize("failure", ["broker_bind", "config_write"])
@@ -858,6 +898,19 @@ def test_local_capability_bootstrap_failure_stops_broker_thread(
 
     root = tmp_path / "guard"
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    brokers: list[guard_module._NativeValidationLeaseBroker] = []
+    real_start = guard_module._start_native_validation_broker
+
+    def capture_broker(*args, **kwargs):
+        broker = real_start(*args, **kwargs)
+        brokers.append(broker)
+        return broker
+
+    monkeypatch.setattr(
+        guard_module,
+        "_start_native_validation_broker",
+        capture_broker,
+    )
     monkeypatch.setattr(
         guard_module,
         "_sealed_capability_descriptor",
@@ -877,12 +930,40 @@ def test_local_capability_bootstrap_failure_stops_broker_thread(
             timeout_seconds=10,
         )
 
+    assert len(brokers) == 1
     assert root.resolve() not in guard_module._BROKER_REGISTRY
-    assert not any(
-        thread.is_alive()
-        and thread.name == "native-validation-broker-BOOTSTRAP-FAILURE"
-        for thread in threading.enumerate()
+    assert brokers[0]._thread.is_alive() is False
+
+
+def test_normal_retirement_removes_registry_and_joins_broker_thread(
+    tmp_path: Path,
+) -> None:
+    """A normally retired guard leaves no live in-process broker authority."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="NORMAL-RETIREMENT",
+        authority_generation="generation",
     )
+    _guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    with guard_module._BROKER_REGISTRY_LOCK:
+        broker = guard_module._BROKER_REGISTRY[root.resolve()]
+
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is True
+    with guard_module._BROKER_REGISTRY_LOCK:
+        assert root.resolve() not in guard_module._BROKER_REGISTRY
+    assert broker._thread.is_alive() is False
 
 
 def test_registration_and_retirement_publish_capability_atomically(
@@ -2836,7 +2917,7 @@ def test_nested_home_login_shell_waits_before_task_profile_startup(
     assert process.returncode == 0
     assert profile_marker.exists() is True
     assert heavy_marker.exists() is True
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_absolute_bash_light_command_restores_guard_for_descendants(
@@ -2880,7 +2961,7 @@ def test_absolute_bash_light_command_restores_guard_for_descendants(
     assert not guarded["BASH_ENV"].endswith("validation-guard-bash-reentry")
     assert consume_native_validation_boundary(root, command, "item-1") is True
     assert consume_native_validation_boundary(root, command, "item-1") is False
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_parallel_native_command_boundaries_are_consumed_independently(
@@ -3049,7 +3130,7 @@ def test_absolute_bash_reentry_preserves_exact_flags_and_argv(tmp_path: Path) ->
 
     assert completed.returncode == 0
     assert output.read_text(encoding="utf-8") == "chosen-argv-zero|one argument|0"
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_absolute_bash_reentry_preserves_process_argv_zero(tmp_path: Path) -> None:
@@ -3494,6 +3575,279 @@ def test_runtime_root_scan_retains_guard_when_process_is_opaque(
     ) is False
 
 
+def test_runtime_root_scan_ignores_concurrent_unrelated_opaque_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A new sibling worker can descend from a proven pre-guard generation."""
+
+    root = tmp_path / "guard"
+    root.mkdir()
+    proc_root = tmp_path / "proc"
+    ancestor_pid, ancestor_ticks = 41_001, 410_001
+    child_pid, child_ticks = 41_002, 410_002
+    creator_ancestor_pid, creator_ancestor_ticks = 41_010, 410_010
+    creator_pid, creator_ticks = 41_011, 410_011
+
+    def write_process(pid: int, *, parent: int, ticks: int) -> Path:
+        process = proc_root / str(pid)
+        process.mkdir(parents=True)
+        fields = ["S", str(parent), *("1" for _ in range(17)), str(ticks)]
+        (process / "stat").write_text(
+            f"{pid} (fixture) " + " ".join(fields) + "\n",
+            encoding="utf-8",
+        )
+        return process
+
+    write_process(ancestor_pid, parent=1, ticks=ancestor_ticks)
+    write_process(
+        creator_ancestor_pid,
+        parent=1,
+        ticks=creator_ancestor_ticks,
+    )
+    write_process(
+        creator_pid,
+        parent=creator_ancestor_pid,
+        ticks=creator_ticks,
+    )
+    ancestry_baseline = frozenset(
+        guard_module._process_ancestry_baseline(
+            proc_root,
+            creator_pid=creator_pid,
+        )
+    )
+    assert (ancestor_pid, ancestor_ticks) in ancestry_baseline
+    assert (creator_ancestor_pid, creator_ancestor_ticks) not in ancestry_baseline
+    assert (child_pid, child_ticks) not in ancestry_baseline
+    child = write_process(child_pid, parent=ancestor_pid, ticks=child_ticks)
+    real_read_bytes = Path.read_bytes
+
+    def deny_child_environment(path: Path) -> bytes:
+        if path == child / "environ":
+            raise PermissionError("concurrent sibling worker is opaque")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_child_environment)
+
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+        process_ancestry_baseline=ancestry_baseline,
+        guarded_process_identities=frozenset({(51_001, 510_001)}),
+    ) is False
+
+
+def test_runtime_root_scan_rejects_reparenting_to_pre_guard_subreaper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An ancestor subreaper cannot launder a guarded descendant's origin."""
+
+    root = tmp_path / "guard"
+    root.mkdir()
+    proc_root = tmp_path / "proc"
+    subreaper_pid, subreaper_ticks = 41_101, 411_001
+    creator_pid, creator_ticks = 41_102, 411_002
+    child_pid, child_ticks = 41_103, 411_003
+
+    def write_process(
+        pid: int,
+        *,
+        parent: int,
+        group: int,
+        ticks: int,
+    ) -> Path:
+        process = proc_root / str(pid)
+        process.mkdir(parents=True)
+        fields = [
+            "S",
+            str(parent),
+            str(group),
+            *("1" for _ in range(16)),
+            str(ticks),
+        ]
+        (process / "stat").write_text(
+            f"{pid} (fixture) " + " ".join(fields) + "\n",
+            encoding="utf-8",
+        )
+        return process
+
+    write_process(
+        subreaper_pid,
+        parent=1,
+        group=subreaper_pid,
+        ticks=subreaper_ticks,
+    )
+    write_process(
+        creator_pid,
+        parent=subreaper_pid,
+        group=creator_pid,
+        ticks=creator_ticks,
+    )
+    ancestry_baseline = frozenset(
+        guard_module._process_ancestry_baseline(
+            proc_root,
+            creator_pid=creator_pid,
+        )
+    )
+    assert (subreaper_pid, subreaper_ticks) not in ancestry_baseline
+    child = write_process(
+        child_pid,
+        # The post-baseline guarded child detached, then its creator exited.
+        # Linux has adopted it to the pre-existing ancestor subreaper.
+        parent=subreaper_pid,
+        group=child_pid,
+        ticks=child_ticks,
+    )
+    real_read_bytes = Path.read_bytes
+
+    def deny_child_environment(path: Path) -> bytes:
+        if path == child / "environ":
+            raise PermissionError("reparented guarded child is opaque")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_child_environment)
+
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+        process_ancestry_baseline=ancestry_baseline,
+        guarded_process_identities=frozenset({(creator_pid, creator_ticks)}),
+    ) is True
+
+
+def test_runtime_root_scan_retains_opaque_process_with_broken_ancestry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A detached/reparented opaque generation remains fail closed."""
+
+    root = tmp_path / "guard"
+    root.mkdir()
+    proc_root = tmp_path / "proc"
+    process_pid, process_ticks = 42_001, 420_001
+    process = proc_root / str(process_pid)
+    process.mkdir(parents=True)
+    fields = ["S", "1", *("1" for _ in range(17)), str(process_ticks)]
+    (process / "stat").write_text(
+        f"{process_pid} (orphan) " + " ".join(fields) + "\n",
+        encoding="utf-8",
+    )
+    real_read_bytes = Path.read_bytes
+
+    def deny_process_environment(path: Path) -> bytes:
+        if path == process / "environ":
+            raise PermissionError("orphan is opaque")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_process_environment)
+
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+        process_ancestry_baseline=frozenset({(41_001, 410_001)}),
+    ) is True
+
+
+def test_runtime_root_scan_ignores_opaque_zombie(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unreaped process has already closed every guard reference."""
+
+    root = tmp_path / "guard"
+    root.mkdir()
+    proc_root = tmp_path / "proc"
+    process_pid, process_ticks = 42_101, 421_001
+    process = proc_root / str(process_pid)
+    process.mkdir(parents=True)
+    fields = ["Z", "1", *("1" for _ in range(17)), str(process_ticks)]
+    (process / "stat").write_text(
+        f"{process_pid} (zombie) " + " ".join(fields) + "\n",
+        encoding="utf-8",
+    )
+    real_read_bytes = Path.read_bytes
+
+    def deny_process_environment(path: Path) -> bytes:
+        if path == process / "environ":
+            raise PermissionError("zombie proc entry is opaque")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_process_environment)
+
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+    ) is False
+
+
+def test_runtime_root_scan_retains_opaque_member_of_guarded_process_group(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A baseline ancestor cannot launder this guard's exact command PGID."""
+
+    root = tmp_path / "guard"
+    root.mkdir()
+    proc_root = tmp_path / "proc"
+    ancestor_pid, ancestor_ticks = 43_001, 430_001
+    child_pid, child_ticks = 43_002, 430_002
+    group_pid, group_ticks = 44_001, 440_001
+
+    def write_process(
+        pid: int,
+        *,
+        parent: int,
+        group: int,
+        ticks: int,
+    ) -> Path:
+        process = proc_root / str(pid)
+        process.mkdir(parents=True)
+        fields = [
+            "S",
+            str(parent),
+            str(group),
+            *("1" for _ in range(16)),
+            str(ticks),
+        ]
+        (process / "stat").write_text(
+            f"{pid} (fixture) " + " ".join(fields) + "\n",
+            encoding="utf-8",
+        )
+        return process
+
+    write_process(
+        ancestor_pid,
+        parent=1,
+        group=ancestor_pid,
+        ticks=ancestor_ticks,
+    )
+    write_process(group_pid, parent=1, group=group_pid, ticks=group_ticks)
+    child = write_process(
+        child_pid,
+        parent=ancestor_pid,
+        group=group_pid,
+        ticks=child_ticks,
+    )
+    real_read_bytes = Path.read_bytes
+
+    def deny_child_environment(path: Path) -> bytes:
+        if path == child / "environ":
+            raise PermissionError("guarded group member is opaque")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_child_environment)
+
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+        process_ancestry_baseline=frozenset(
+            {(ancestor_pid, ancestor_ticks)}
+        ),
+        guarded_process_group_identities=frozenset({(group_pid, group_ticks)}),
+    ) is True
+
+
 def test_opaque_process_scan_records_exact_generation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3651,6 +4005,47 @@ def test_cleanup_preserves_guard_owned_by_active_creator(tmp_path: Path) -> None
         validation_lease=lease,
         owner=owner,
     ) is True
+
+
+def test_retirement_retries_transient_proc_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    root = tmp_path / "guard"
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-TRANSIENT-PROC",
+        authority_generation="generation",
+    )
+    install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=root,
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    observations = iter((True, False))
+    calls = 0
+
+    def transient_reference(*_args, **_kwargs) -> bool:
+        nonlocal calls
+        calls += 1
+        return next(observations)
+
+    monkeypatch.setattr(
+        guard_module,
+        "_runtime_root_is_referenced",
+        transient_reference,
+    )
+
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is True
+    assert calls == 2
+    assert root.exists() is False
 
 
 def test_retirement_retries_durable_owner_cancellation_after_failure(
@@ -3992,7 +4387,7 @@ def test_trusted_bootstrap_retains_guard_for_heavy_descendant(tmp_path: Path) ->
 
     assert process.wait(timeout=5) == 0
     assert descendant_marker.exists() is True
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_trusted_bootstrap_ignores_task_path_node_lookalike(tmp_path: Path) -> None:
@@ -4114,15 +4509,16 @@ def test_task_controlled_provider_bootstrap_shape_cannot_bypass_validation(
     real_bin, marker, trusted_entrypoint = _native_node_fixture(tmp_path)
     lookalike = tmp_path / "lookalike-codex.js"
     lookalike.write_text("// task-controlled lookalike\n", encoding="utf-8")
-    guarded, _ = install_native_validation_guard(
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    guarded, root = install_native_validation_guard(
         {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
         runtime_root=tmp_path / "guard",
         validation_lease=lease,
-        owner=ValidationLeaseOwner.worker(
-            project_id="project",
-            task_id="TASK-1",
-            authority_generation="generation",
-        ),
+        owner=owner,
         timeout_seconds=10,
         provider_bootstrap_entrypoint=trusted_entrypoint,
         provider_bootstrap_interpreter=real_bin / "node",
@@ -4162,14 +4558,24 @@ def test_task_controlled_provider_bootstrap_shape_cannot_bypass_validation(
             pass_fds=_guard_pass_fds(guarded),
         )
     try:
-        _wait_until(lambda: lease.status().waiter_count == 1)
+        # A process that merely imitates the provider's argv shape never gets
+        # its sealed session capability. Denial is stronger than admitting it
+        # to the capacity queue: no task-controlled code executes at all.
+        assert process.wait(timeout=5) != 0
         assert marker.exists() is False
+        status = lease.status()
+        assert status.owner_count == 1
+        assert status.waiter_count == 0
     finally:
         gate.release()
-
-    assert process.wait(timeout=5) == 0
-    assert marker.exists() is True
-    assert lease.status().owner_count == 0
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
 
 
 @pytest.mark.parametrize(
@@ -4421,6 +4827,21 @@ def test_withdrawn_owner_remains_fenced_by_detached_descendant(
     )
     _wait_until(descendant_pid_path.exists)
     descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+
+    def descendant_is_detached() -> bool:
+        try:
+            return (
+                os.getpgid(descendant_pid) == descendant_pid
+                and os.getsid(descendant_pid) == descendant_pid
+            )
+        except ProcessLookupError:
+            return False
+
+    # The shell publishes $! immediately after fork, before the child is
+    # guaranteed to have completed setsid(). Cancellation before this proof
+    # can correctly kill it as a member of the guarded command group and does
+    # not exercise the detached-descendant fence this test intends to cover.
+    _wait_until(descendant_is_detached)
     if withdrawal == "cancelled":
         (root / "cancelled").touch()
 
@@ -4725,6 +5146,10 @@ def test_native_post_attach_cancellation_exits_without_self_stopping(
         lambda *_args: True,
     )
     monkeypatch.setattr(
+        "oompah.native_validation_guard._peer_guard_invocation",
+        lambda *_args: ("make test", dict(os.environ), tmp_path),
+    )
+    monkeypatch.setattr(
         "oompah.native_validation_guard._process_group_id",
         lambda _pid: os.getpid(),
     )
@@ -4738,7 +5163,7 @@ def test_native_post_attach_cancellation_exits_without_self_stopping(
     )
     monkeypatch.setattr(sys, "argv", [str(guard_make), "test"])
 
-    with pytest.raises(RuntimeError, match="broker denied execution"):
+    with pytest.raises(RuntimeError, match="authority was withdrawn"):
         main()
 
     assert lease.status().owner_count == 0

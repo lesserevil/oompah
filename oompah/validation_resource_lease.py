@@ -637,6 +637,23 @@ def _process_group_exists(pid: int) -> bool:
     return True
 
 
+def _live_process_group_members(
+    snapshot: tuple[tuple[int, int], ...],
+) -> tuple[tuple[int, int], ...] | None:
+    """Return exact non-zombie identities from one fenced group snapshot."""
+
+    live: list[tuple[int, int]] = []
+    for member_pid, member_ticks in snapshot:
+        member_stat = _process_stat(member_pid)
+        if member_stat is None:
+            if Path(f"/proc/{member_pid}").exists():
+                return None
+            continue
+        if member_stat[2] == member_ticks and member_stat[0] != "Z":
+            live.append((member_pid, member_ticks))
+    return tuple(live)
+
+
 def _original_process_group_snapshot(
     pid: int,
     start_ticks: int,
@@ -669,9 +686,34 @@ def _original_process_group_snapshot(
         # The attached root remains part of this authority generation even if
         # task code moved it out of its original process group.
         members[pid] = start_ticks
+    live_members = _live_process_group_members(tuple(sorted(members.items())))
+    if live_members is None:
+        return False, ()
+    if live_members:
+        return False, live_members
+    if (
+        leader_after is not None
+        and leader_after[2] == start_ticks
+        and leader_after[0] == "Z"
+    ):
+        # Exited processes have already closed every inherited lease/root
+        # descriptor before becoming zombies. A zombie group leader can keep
+        # the numeric PGID visible until its parent calls wait(), creating a
+        # teardown deadlock when that parent is itself waiting for retirement.
+        # Confirm with a second complete snapshot: a live member that forked
+        # during the first enumeration then appears and keeps the group fenced.
+        confirmation = _process_group_members(pid)
+        if confirmation is None:
+            return False, ()
+        confirmed_live = _live_process_group_members(confirmation)
+        if confirmed_live is None:
+            return False, ()
+        if not confirmed_live:
+            return True, ()
+        return False, confirmed_live
     if not members and leader_before is None and leader_after is None:
         return (False, ()) if _process_group_exists(pid) else (True, ())
-    return False, tuple(sorted(members.items()))
+    return False, ()
 
 
 def _signal_exact_process_group_member(
@@ -746,14 +788,14 @@ def _terminate_exact_process_group(
     if not term_sent:
         return False
     grace_deadline = time.monotonic() + max(float(grace_seconds), 0.0)
-    while time.monotonic() < grace_deadline:
-        gone, _members = _original_process_group_snapshot(
-            normalized_pid,
-            expected_ticks,
-        )
-        if gone:
-            return True
-        time.sleep(0.01)
+    # A full process-group snapshot scans all of /proc. Repeating that scan at
+    # 100 Hz makes cancellation latency grow with every unrelated process on
+    # a busy agent host. TERM has already been sent to every exact member in
+    # the fenced snapshot; wait out the short grace interval and take one new
+    # complete snapshot to close the concurrent-fork race.
+    remaining_grace = grace_deadline - time.monotonic()
+    if remaining_grace > 0:
+        time.sleep(remaining_grace)
 
     # The leader may have honored TERM while a child ignored it.  Re-enumerate
     # the original PGID and SIGKILL every exact remaining identity.  Repeat to
@@ -781,7 +823,10 @@ def _terminate_exact_process_group(
             return False
         if time.monotonic() >= kill_deadline:
             return False
-        time.sleep(0.01)
+        # Each scan is O(total host processes), while SIGKILL prevents an
+        # already-signalled member from doing more work. A 50 ms cadence is
+        # both bounded and avoids turning large hosts into procfs scan storms.
+        time.sleep(0.05)
 
 
 def _remove_shell_line_continuations(command: str) -> str:
