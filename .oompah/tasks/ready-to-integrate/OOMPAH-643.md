@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T19:29:24.741624Z'
+updated_at: '2026-08-07T19:55:31.535909Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 05a0a53b-6257-4b3d-96bd-675b9d63a203
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 32945277
   total_output_tokens: 100434
@@ -141,9 +141,11 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-643
-  head_sha: 2b3a967c8d86a285cd3327aec58d52a5b0e64411
-  submitted_at: '2026-07-31T07:10:21.061524+00:00'
-  updated_at: '2026-07-31T07:10:21.061524+00:00'
+  base_branch: main
+  base_sha: 4964bfa243e9dfd1bf48485f6a3b1fcfa0532f3c
+  head_sha: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+  submitted_at: '2026-08-07T19:55:19.847870+00:00'
+  updated_at: '2026-08-07T19:55:19.847870+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/610
 oompah.review_number: '610'
 oompah.work_branch: OOMPAH-643
@@ -752,5 +754,10 @@ author: oompah
 created: 2026-08-07 11:23
 ---
 Direct owner claim taken to contain a live OOMPAH-846 broker-bypass reproduction. This single scheduler run had three simultaneous unleased full make test/pytest -n4 trees (12 xdist workers) while OOMPAH-854 owned the canonical capacity-1 exact gate and OOMPAH-846 waited. All three unleased process trees retired through owner takeover; the canonical OOMPAH-854 gate remains active. Keep OOMPAH-643 fenced until OOMPAH-846 deploys or an owner explicitly resumes it.
+---
+author: oompah
+created: 2026-08-07 19:55
+---
+Prevent stale terminal-audit metric rehydration across restart by persisting discarded/overridden identities until a real coordinator queue/run/retry event re-arms them. Restacked onto current main; 282 enforcement/observability/coordinator tests pass; check-secrets, compile, and diff checks pass.
 ---
 <!-- COMMENTS:END -->
