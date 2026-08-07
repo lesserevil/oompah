@@ -510,8 +510,9 @@ def render_auditor_prompt(
     prompt_content.extend([
         "### Allowed read/test actions",
         allowed_actions,
-        "- Prefer search_files for repository searches and bounded read_file calls "
-        "for focused file inspection.",
+        "- Prefer search_files for Python-regex repository searches. Set its bounded "
+        "context option to inspect source around a match, and use bounded read_file "
+        "calls for focused character-offset inspection.",
         "- If run_command returns a bounded result_id, use read_command_output "
         "with that opaque id to page or search the saved result. Never use grep, "
         "tail, pipes, or an absolute/provider-private path to continue output.",

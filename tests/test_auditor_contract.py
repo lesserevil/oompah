@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -90,6 +93,8 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
         assert required in prompt
 
     assert "absolute/provider-private path" in prompt
+    assert "Python-regex repository searches" in prompt
+    assert "bounded context option" in prompt
 
     assert f"<{DELIMITER}" in prompt
     assert '"trust":"untrusted"' in prompt
@@ -136,6 +141,79 @@ def test_api_auditor_tool_allowlist_excludes_mutators_and_includes_result_schema
         AUDITOR_RESULT_TOOL_NAME,
         {},
     ).startswith("Error:")
+
+    search_schema = next(
+        item["function"] for item in TOOL_DEFINITIONS
+        if item["function"]["name"] == "search_files"
+    )
+    assert "Python regular expression" in search_schema["description"]
+    assert {"pattern", "path", "include", "context"} == set(
+        search_schema["parameters"]["properties"]
+    )
+
+
+def test_all_auditor_catalogs_share_python_regex_context_contract(
+    tmp_path,
+    monkeypatch,
+):
+    pytest.importorskip("claude_agent_sdk")
+    pytest.importorskip("agents")
+    from oompah.acp_tools import (
+        _search_files_input_schema,
+        build_codex_tool_catalog,
+        build_opencode_tool_catalog,
+        build_tool_catalog,
+    )
+
+    expected = _search_files_input_schema()
+    (tmp_path / "source.py").write_text(
+        "before\n    def located():\n        pass\nafter\n",
+        encoding="utf-8",
+    )
+    claude_tool = next(
+        item for item in build_tool_catalog(str(tmp_path), auditor=True)
+        if item.name == "search_files"
+    )
+
+    def fake_tool(name, description, input_schema):
+        def decorate(handler):
+            return SimpleNamespace(
+                name=name,
+                description=description,
+                input_schema=input_schema,
+                handler=handler,
+            )
+
+        return decorate
+
+    monkeypatch.setitem(sys.modules, "opencode", SimpleNamespace(tool=fake_tool))
+    opencode_tool = next(
+        item for item in build_opencode_tool_catalog(str(tmp_path), auditor=True)
+        if item.name == "search_files"
+    )
+    codex_tool = next(
+        item for item in build_codex_tool_catalog(str(tmp_path), auditor=True)
+        if item.name == "search_files"
+    )
+
+    args = {
+        "pattern": r"missing|^\s{4}def located",
+        "path": ".",
+        "include": "*.py",
+        "context": 1,
+    }
+    claude_result = asyncio.run(claude_tool.handler(args))["content"][0]["text"]
+    opencode_result = asyncio.run(opencode_tool.handler(args))["content"][0]["text"]
+
+    assert claude_tool.input_schema == expected
+    assert opencode_tool.input_schema == expected
+    assert {"pattern", "path", "include", "context"} == set(
+        codex_tool.params_json_schema["properties"]
+    )
+    assert "Python regex" in claude_tool.description
+    assert "context" in claude_tool.description
+    assert "source.py:2:    def located():" in claude_result
+    assert opencode_result == claude_result
 
 
 @pytest.mark.parametrize(
@@ -200,6 +278,138 @@ def test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor
     )
     assert '"accepted": true' in verdict
     assert received[0].audit_id == target.audit_id
+
+
+def test_oompah_542_search_context_path_reaches_accepted_verdict(tmp_path: Path):
+    target = _target()
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
+    (tmp_path / "watchdog.py").write_text(
+        "before\n"
+        "    def _watchdog_stale_completed():\n"
+        "        return False\n"
+        "after\n",
+        encoding="utf-8",
+    )
+
+    search = _execute_tool(
+        tmp_path,
+        "search_files",
+        {
+            "pattern": r"^\s{4}def (_watchdog_stale_completed|other)",
+            "path": ".",
+            "include": "*.py",
+            "context": 1,
+        },
+        action_policy=policy,
+    )
+    assert "watchdog.py-1-before" in search
+    assert "watchdog.py:2:    def _watchdog_stale_completed():" in search
+    assert "watchdog.py-3-        return False" in search
+
+    received = []
+    verdict = _execute_tool(
+        tmp_path,
+        AUDITOR_RESULT_TOOL_NAME,
+        {
+            "audit_id": target.audit_id,
+            "target_state": target.target_state,
+            "evidence_fingerprint": target.evidence_fingerprint,
+            "verdict": "pass",
+            "message": "Located and inspected the watchdog implementation.",
+            "attempt_id": target.attempt_id,
+        },
+        action_policy=policy,
+        audit_target=target,
+        audit_result_handler=received.append,
+    )
+    assert '"accepted": true' in verdict
+    assert received[0].audit_id == target.audit_id
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git ls-tree -r --name-only HEAD",
+        "git ls-tree -r --name-only HEAD -- oompah",
+        "git ls-tree --full-tree -r HEAD -- oompah/auditor.py",
+        "git ls-tree HEAD oompah/auditor.py",
+        "git ls-remote origin refs/heads/main refs/heads/epic-OOMPAH-763",
+        "git for-each-ref --format='%(refname:short)' refs/remotes/origin/",
+        "wc -l oompah/projects.py",
+    ],
+)
+def test_oompah_542_and_815_read_only_fallbacks_do_not_consume_fatal_budget(
+    tmp_path: Path,
+    command: str,
+):
+    denials: list[str] = []
+    result = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": command},
+        action_policy=auditor_policy("TASK-1", project_id="project-1"),
+        policy_denial_handler=denials.append,
+    )
+
+    assert result.startswith("Error:")
+    assert "not executed" in result
+    assert denials == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git ls-tree --format='%(objectname)' HEAD",
+        "git ls-tree --name-only",
+        "git ls-tree HEAD -- ../operator-data",
+        "git ls-tree HEAD -- .env",
+        "git ls-remote https://example.test/repository refs/heads/main",
+        "git ls-remote origin ../operator-data",
+        "git ls-remote origin /etc/passwd",
+        "git ls-remote origin .env",
+        "git for-each-ref --format='%(refname:short)' ../refs",
+        "git for-each-ref refs/.env",
+        "wc -l ../operator-data",
+    ],
+)
+def test_read_only_fallback_validation_fails_closed_and_consumes_fatal_budget(
+    tmp_path: Path,
+    command: str,
+):
+    denials: list[str] = []
+    result = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": command},
+        action_policy=auditor_policy("TASK-1", project_id="project-1"),
+        policy_denial_handler=denials.append,
+    )
+
+    assert result.startswith("Error:")
+    assert len(denials) == 1
+
+
+def test_repeated_arbitrary_code_mutation_and_redirects_remain_fatal(tmp_path: Path):
+    denials: list[str] = []
+    policy = auditor_policy("TASK-1", project_id="project-1")
+    for command in (
+        "python -c 'print(1)'",
+        "git commit -am mutation",
+        "git status > audit.txt",
+    ):
+        result = _execute_tool(
+            tmp_path,
+            "run_command",
+            {"command": command},
+            action_policy=policy,
+            policy_denial_handler=denials.append,
+        )
+        assert result.startswith("Error:")
+
+    assert len(denials) == 3
 
 
 def test_git_merge_base_inspection_does_not_consume_policy_budget():

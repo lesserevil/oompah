@@ -19,6 +19,7 @@ import secrets
 import ssl
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -443,24 +444,35 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "function": {
             "name": "search_files",
             "description": (
-                "Search for a pattern across files in the workspace. "
-                "Returns bounded matching lines with file paths and line numbers. "
-                "Use this instead of grep pipelines for auditor searches."
+                "Search across the workspace with a Python regular expression. "
+                "Optional `path` and `include` narrow the scope and results are bounded. "
+                "Set `context` for surrounding source lines. "
+                "Use this instead of grep pipelines for auditor searches. "
+                "Returns workspace-relative matching lines with file:line: prefix."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "pattern": {
                         "type": "string",
-                        "description": "Search pattern (plain text or regex).",
+                        "description": "Python regular expression applied to each line.",
                     },
                     "path": {
                         "type": "string",
-                        "description": "Directory or file to search in (relative to workspace root). Default '.'.",
+                        "description": "Workspace-relative directory or file to search in. Default '.'.",
+                        "default": ".",
                     },
                     "include": {
                         "type": "string",
-                        "description": "Glob pattern to filter files, e.g. '*.go' or '*.py'.",
+                        "description": "Optional workspace-relative file glob.",
+                        "default": "",
+                    },
+                    "context": {
+                        "type": "integer",
+                        "description": "Surrounding lines before and after each match. Default 0.",
+                        "minimum": 0,
+                        "maximum": 20,
+                        "default": 0,
                     },
                 },
                 "required": ["pattern"],
@@ -679,41 +691,24 @@ def _exec_edit_file(workspace: Path, args: dict[str, Any]) -> str:
 
 
 def _exec_search_files(workspace: Path, args: dict[str, Any]) -> str:
-    search_path = _safe_resolve(workspace, args.get("path", "."))
-    pattern = args["pattern"]
-    include = args.get("include", "")
-
-    cmd = (
-        ["grep", "-rn", "--include", include, pattern, str(search_path)]
-        if include
-        else ["grep", "-rn", pattern, str(search_path)]
-    )
+    # Validate containment in-process as well as in the worker.  The separate
+    # process is intentional: Python's stdlib regex engine has no per-match
+    # timeout, so an adversarial-but-valid pattern must not block the server.
+    _safe_resolve(workspace, args.get("path", "."))
+    worker = Path(__file__).with_name("search_files.py")
+    request = json.dumps({"workspace": str(workspace.resolve()), "args": args})
     try:
         result = subprocess.run(
-            cmd,
+            [sys.executable, str(worker)],
+            input=request,
             capture_output=True,
             text=True,
             timeout=15,
-            cwd=str(workspace),
         )
-        output = result.stdout
-        if not output:
-            return f"No matches found for {pattern!r}"
-        # Make paths relative to workspace
-        ws_prefix = str(workspace.resolve()) + os.sep
-        lines = output.splitlines()
-        rel_lines = [l.replace(ws_prefix, "") for l in lines]
-        if len(rel_lines) > 100:
-            rel_lines = rel_lines[:100]
-            rel_lines.append(f"... ({len(lines) - 100} more matches)")
-        bounded = "\n".join(rel_lines)
-        if len(bounded) > _TOOL_RESULT_MAX_CHARS:
-            bounded = bounded[:_TOOL_RESULT_MAX_CHARS]
-            bounded += (
-                "\n... (search output truncated by Oompah before provider "
-                "transport; narrow pattern/path to continue)"
-            )
-        return bounded
+        if result.returncode != 0:
+            detail = (result.stderr or "search worker failed").strip()
+            return f"Error searching: {detail[:1000]}"
+        return result.stdout or f"No matches found for {args['pattern']!r}"
     except subprocess.TimeoutExpired:
         return "Error: search timed out"
     except Exception as exc:
