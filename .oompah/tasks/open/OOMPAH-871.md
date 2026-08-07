@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T07:15:16.440554Z'
+updated_at: '2026-08-07T07:21:06.408642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,78 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d5315e2b5150ac71c464336b3c712f7ea42c50006472f8171c1b4fe8b0d3179d
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T07:20:47.816766+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4a38bc71-843b-41f8-8505-d73ab154df8b
-  claim_owner: 1f41f145-fc51-4991-b60c-19864fd45ab6
-  claimed_at: '2026-08-07T07:14:18.401638+00:00'
-  claim_expires_at: '2026-08-07T07:44:18.401638+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-871 is a novel follow-up bug triggered by OOMPAH-576\
+    \ (post-merge) that requires new architectural changes to persist \"provenance-only\"\
+    \ state and prevent watchdog from redispatching terminal tasks. The closest archived\
+    \ tasks (OOMPAH-160, OOMPAH-212, OOMPAH-219) address related domains (atomic writes,\
+    \ duplicate records, commit races) but do not cover provenance-only suppression\
+    \ or watchdog reopen prevention. No active task in the corpus describes this problem.\n\
+    Looking at OOMPAH-871 and the supplied task corpus, I need to determine whether\
+    \ this is a duplicate of an existing active task.\n\n**Issue Summary:**\nOOMPAH-871\
+    \ describes a bug where a task retained solely as terminal provenance (after being\
+    \ merged) is later reopened and redispatched by the watchdog. The fix requires\
+    \ defining and persisting an authoritative \"provenance-only\" or \"terminal-suppression\"\
+    \ state that watchdog, reconciliation, dependency rollup, and restart recovery\
+    \ all honor.\n\n**Corpus Analysis:**\nI've reviewed all 33 included similarity\
+    \ candidates plus the current task. Examining the closest topically-related archived\
+    \ tasks:\n\n1. **OOMPAH-160** (Archived) - \"Make native task writes atomic and\
+    \ block intake reimports for corrupt tasks\" - Focuses on atomic writes and preventing\
+    \ duplicate task reimports due to corruption, not on provenance-only state or\
+    \ watchdog reopen prevention.\n\n2. **OOMPAH-212** (Archived) - \"Prevent duplicate\
+    \ native task records from appearing on the board\" - Addresses duplicate task\
+    \ records in the board view, not watchdog reopening of provenance-only tasks.\n\
+    \n3. **OOMPAH-219** (Archived) - \"Detect shared-worktree commits that absorb\
+    \ another task's changes\" - Handles shared worktree commit races and stale incomplete-session\
+    \ state, not provenance-only suppression.\n\nAll remaining tasks in the corpus\
+    \ are unrelated (epic strategies, release addendums, docs, etc.).\n\n**Key Distinction:**\n\
+    OOMPAH-871 is explicitly triggered by OOMPAH-576 (mentioned in the description),\
+    \ implying 576 was already completed. This is a follow-up bug discovered after\
+    \ that implementation merged\u2014not a re-filing of the same issue. The problem\
+    \ is specifically about **preventing watchdog from reopening tasks retained only\
+    \ as provenance**, which requires new state-persistence and dispatch-eligibility\
+    \ logic not covered by any existing task.\n\n---\n\nFocus handoff: duplicate_detector\n\
+    \nDuplicate preflight verdict: no_duplicate\n\nMatches: none\n\nEvidence: OOMPAH-871\
+    \ is a novel follow-u"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: a6c9d7ea-cecb-4fe8-9a73-92709eb330ab
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1736
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1736
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1736
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T07:20:47.801719+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-871__20260807T071552Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-871
+    source_sha: 45e2b83356dd041200d7cad0970c7e6f939dc757
+    completed_at: '2026-08-07T07:20:47.824750+00:00'
 ---
 ## Summary
 
@@ -60,5 +118,15 @@ author: oompah
 created: 2026-08-07 07:15
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-07 07:20
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 40s
+- Log: OOMPAH-871__20260807T071552Z.jsonl
 ---
 <!-- COMMENTS:END -->

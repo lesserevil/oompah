@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,12 +12,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T07:20:38.919122Z'
+updated_at: '2026-08-07T07:21:10.523424Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
 review_number: '735'
-review_head: null
+review_head: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -88,6 +88,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/735
 oompah.review_number: '735'
 oompah.work_branch: OOMPAH-867
 oompah.target_branch: main
+oompah.review_head: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
 ---
 ## Summary
 
