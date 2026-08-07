@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-08-07T02:15:57.640755Z'
+updated_at: '2026-08-07T02:16:11.447028Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -26,8 +26,8 @@ oompah.work_branch: epic-OOMPAH-586
 oompah.target_branch: epic-OOMPAH-584
 oompah.agent_run_id: 1339ce75-a22a-456c-b7f0-5556f4c37888
 oompah.task_costs:
-  total_input_tokens: 245646
-  total_output_tokens: 4748
+  total_input_tokens: 245872
+  total_output_tokens: 12517
   total_cost_usd: 0.0
   by_model:
     opus:
@@ -35,8 +35,8 @@ oompah.task_costs:
       output_tokens: 1879
       cost_usd: 0.0
     unknown:
-      input_tokens: 81
-      output_tokens: 2869
+      input_tokens: 307
+      output_tokens: 10638
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -57,6 +57,12 @@ oompah.task_costs:
     output_tokens: 2550
     cost_usd: 0.0
     recorded_at: '2026-07-31T01:22:55.313886+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 226
+    output_tokens: 7769
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T02:16:08.093068+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-586__20260731T002641Z
@@ -450,5 +456,15 @@ Safe evidence:
 - child_tasks_status: All Done (OOMPAH-575, OOMPAH-593, OOMPAH-594, OOMPAH-595)
 - acceptance_criteria: Scoped auth for workers; credential reload/drift handling; operator health signals; no credential exposure; Makefile gates pass
 - previous_audit: PASS at 2026-07-31 01:22 with 876 focused tests, 0 failures
+---
+author: oompah
+created: 2026-08-07 02:16
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 62, Tool calls: 27
+- Tokens: 226 in / 7.8K out [8.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 29m 52s
+- Log: OOMPAH-586__20260807T014629Z.jsonl
 ---
 <!-- COMMENTS:END -->
