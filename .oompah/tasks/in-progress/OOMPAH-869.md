@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T08:55:07.994470Z'
+updated_at: '2026-08-07T20:41:04.968555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-08-07 08:55
 ---
 The unchanged resubmission was immediately rejected by the cached result from operator-cancelled generation 8c6215cf, confirming OOMPAH-874. Retaking direct ownership and removing the false ci-fix label; exact head 519ec2e492dec109ab008ad3617a5489928f2a30 remains immutable. Hold until OOMPAH-874 lands or a supported cache rearm exists.
+---
+author: oompah
+created: 2026-08-07 20:41
+---
+Direct owner restacked the one-commit deterministic validation-fence test onto current main, removed trailing-whitespace defects, and pushed exact head 7a02eb343. The reproduced regression test passes (1 passed in 2.19s). Holding submission until the current review slot clears so it cannot starve the systemic composition gate.
 ---
 <!-- COMMENTS:END -->

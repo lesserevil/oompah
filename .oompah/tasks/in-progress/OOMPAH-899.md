@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T18:25:31.241275Z'
+updated_at: '2026-08-07T20:41:07.860132Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
@@ -362,5 +362,10 @@ After fix:
 - Late listeners discovered and managed safely
 - Process identity verified before any action
 - No silent orphaning of verified processes
+---
+author: oompah
+created: 2026-08-07 20:41
+---
+Direct owner restacked the lifecycle startup-timeout fix onto current main and pushed exact head fba0b8838. Focused listener-startup suite passes 10/10. Holding submission until the current review slot clears so it cannot starve the systemic composition gate.
 ---
 <!-- COMMENTS:END -->
