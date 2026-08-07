@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T16:04:10.296075Z'
+updated_at: '2026-08-07T16:17:48.983326Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -569,5 +569,10 @@ author: oompah
 created: 2026-08-07 16:04
 ---
 Independent semantic review ACCEPTed the e06bec549..a2b745f2 restack: exact-entry retirement, accepted-submission mutation permits, generation-safe suspension/revocation/rollback, provider-to-retry lock order, and shutdown scheduling/drain fencing were all preserved. The three reconciled tests match the current revision-binding and exact-entry contracts. Broader brokered focused validation remains before composition; no push or status transition yet.
+---
+author: oompah
+created: 2026-08-07 16:17
+---
+Bounded validation repair committed locally at e0c71eb465b0c0db430baf6382e1327e5a9aa5bd and intentionally not pushed, rebased, or submitted. Both prior teardown errors were stale test doubles: the retry test now uses a timer contract with cancelled and cancel, and the scheduler-suppressed submission test restores a project-scoped tracker and completes real exact-entry retirement. Brokered validation: exact two 2 passed; full retry-authority module 72 passed; identical seven-module parallel matrix 294 passed with 5 warnings. Diff check, py_compile, and make check-secrets passed.
 ---
 <!-- COMMENTS:END -->
