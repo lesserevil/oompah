@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: In Review
+status: In Progress
 priority: 0
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:53:00.108624Z'
+updated_at: '2026-08-07T12:53:28.426461Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
