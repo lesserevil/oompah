@@ -32,10 +32,12 @@ _GATE_ENV_KEYS = (
 )
 _PROCESS_GLOBAL_MODULES = frozenset(
     {
+        "test_acp_codex_backend.py",
         "test_agent.py",
         "test_granian_e2e.py",
         "test_granian_parity.py",
         "test_makefile_restart_wait.py",
+        "test_native_validation_guard.py",
     }
 )
 _PROCESS_GLOBAL_GROUP = "oompah_process_global"

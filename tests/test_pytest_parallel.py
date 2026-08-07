@@ -198,6 +198,11 @@ def test_active_xdist_worker_uses_its_private_run_tree():
 
 
 def test_process_owning_modules_share_one_xdist_group():
+    assert {
+        "test_acp_codex_backend.py",
+        "test_native_validation_guard.py",
+    }.issubset(_PROCESS_GLOBAL_MODULES)
+
     items = [
         SimpleNamespace(
             path=Path(module),

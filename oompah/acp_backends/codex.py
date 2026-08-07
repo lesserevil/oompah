@@ -104,6 +104,7 @@ from oompah.native_validation_guard import (
     NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION,
     cleanup_retired_native_validation_guards,
     complete_native_validation_command,
+    create_native_validation_broker_socket,
     consume_native_validation_boundary,
     install_native_validation_guard,
     native_validation_provider_launcher,
@@ -1015,6 +1016,8 @@ class CodexAcpBackendSession(AcpBackendSession):
                         validation_scope=validation_scope,
                     )
 
+            broker_socket_cleanup_dir: Path | None = None
+            guard_installed = False
             try:
                 runtime_root = _create_native_validation_runtime_root(
                     untrusted_roots=untrusted_roots,
@@ -1057,9 +1060,17 @@ class CodexAcpBackendSession(AcpBackendSession):
                         raise RuntimeError(
                             "operator Node interpreter is unavailable for Codex bootstrap"
                         )
+                broker_socket, broker_socket_cleanup_dir = (
+                    create_native_validation_broker_socket(
+                        runtime_root=runtime_root,
+                        untrusted_roots=untrusted_roots,
+                    )
+                )
                 cli_env, _ = install_native_validation_guard(
                     cli_env,
                     runtime_root=runtime_root,
+                    broker_socket=broker_socket,
+                    broker_socket_cleanup_dir=broker_socket_cleanup_dir,
                     validation_lease=validation_lease,
                     owner=validation_owner,
                     timeout_seconds=self._options.turn_timeout_s,
@@ -1082,11 +1093,14 @@ class CodexAcpBackendSession(AcpBackendSession):
                     ),
                     validation_command_handler=validation_command_handler,
                 )
+                guard_installed = True
                 if not node_bootstrap:
                     codex_launch_path = native_validation_provider_launcher(
                         runtime_root
                     )
             except Exception as exc:
+                if not guard_installed and broker_socket_cleanup_dir is not None:
+                    shutil.rmtree(broker_socket_cleanup_dir, ignore_errors=True)
                 self._cleanup_worker_runtime_dir()
                 self._last_error = (
                     "unable to install Codex CLI validation guard: "

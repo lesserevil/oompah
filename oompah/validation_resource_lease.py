@@ -24,7 +24,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Mapping
+from typing import Callable, Iterable, Iterator, Mapping
 
 try:  # pragma: no cover - the service runtime is POSIX-only today
     import fcntl
@@ -4195,11 +4195,18 @@ class ValidationResourceLease:
         self._initialize()
         self.state_path.chmod(0o600)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Yield one transactional connection and close it deterministically."""
+
         connection = sqlite3.connect(self.state_path, timeout=10.0)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout = 10000")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA busy_timeout = 10000")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _initialize(self) -> None:
         """Initialize atomically, quarantining unreadable SQLite state.
