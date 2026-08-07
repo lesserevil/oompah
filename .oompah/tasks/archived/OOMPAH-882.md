@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:57:51.621916Z'
-updated_at: '2026-08-07T14:50:36.232923Z'
+updated_at: '2026-08-07T14:50:51.825280Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -71,7 +71,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:50:31.801059+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-882
+    target_state: Archived
+    evidence_fingerprint: e86eb22886f92def423afc05ba265f2e777276dadf0540fde18676c7325df14f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:50:42.687139+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -124,5 +134,17 @@ author: oompah
 created: 2026-08-07 12:04
 ---
 Contained duplicate run 98357359440944b5b799d20a3cdee89d under direct-owner claim 6344dd46defe4c9ba2ac75d3a90761e3 before any conflict resolution. It started the exact authorized 04fa6781091efc6f11b952b9f1b35123facce64f to c9f16e399efcbe1a0e9ac70948c8fac2d9262017 rebase and stopped at step 9/78, commit 40e46bf8e41c15a0a89529694cbb3aa3580f2f19, synthetic HEAD b3a81eb9911612ceb7ddc07351c4cb79d71d3210, conflict in oompah/orchestrator.py. Provider is gone. Recovery refs: refs/oompah/recovery/OOMPAH-882-pre-continue-head, -onto, and -rebase-head. Mode-0600 archive: /home/shedwards/.oompah/recovery-artifacts/OOMPAH-882-pre-continue-20260807T1203Z.tar.gz, sha256 5c87da7233c1015a09a7605193270520a373ebe1f5951bdb2f372597e698ca5f. OOMPAH-877 will continue the exact preserved rebase under the active owner fence; O882 remains claimed.
+---
+author: oompah
+created: 2026-08-07 14:50
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
+---
+author: oompah
+created: 2026-08-07 14:50
+---
+Archived as a superseded duplicate of completed OOMPAH-877.
 ---
 <!-- COMMENTS:END -->
