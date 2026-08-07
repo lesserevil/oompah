@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-868
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-846
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:35:09.597803Z'
+updated_at: '2026-08-07T20:37:40.038151Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -269,5 +270,73 @@ author: oompah
 created: 2026-08-07 20:35
 ---
 Exact pushed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a passed the complete leased branch gate: 15,955 passed, 7 skipped, 1 xfailed, 55 warnings in 651.82s. GitHub currently has zero open PRs while the live server reports stale review capacity 1/1, so direct owner is opening the review as the in-flight OOMPAH-646 workaround.
+---
+author: oompah
+created: 2026-08-07 20:37
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-868`
+Target: `main`
+Head: `9ef4be055115bc8bcadb695d2b918bd37f554c6a`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+s for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-9410g9qc/run/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+tests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration
+tests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88: RuntimeWarning: coroutine 'sleep' was never awaited
+    self._context.run(self._callback, *self._args)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_empty_cache_returns_zero
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py:2217: RuntimeWarning: coroutine 'sleep' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_default_events_passed_to_subprocess
+tests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_includes_api_metrics
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-9410g9qc/run/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7a3aa90b6020>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_acp_codex_backend.py::TestCodexCliPath::test_managed_native_cli_does_not_lease_an_entire_light_turn
+FAILED tests/test_acp_codex_backend.py::TestCodexCliPath::test_managed_native_cli_guard_uses_auditor_owner_identity
+FAILED tests/test_acp_codex_backend.py::TestCodexCliPath::test_managed_native_cli_rejects_task_writable_direct_codex
+= 3 failed, 15948 passed, 11 skipped, 1 xfailed, 43 warnings in 102.87s (0:01:42) =
+
+make: *** [Makefile:401: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
