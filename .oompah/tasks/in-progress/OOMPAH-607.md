@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T09:19:56.384315Z'
+updated_at: '2026-08-07T09:20:02.398581Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: ''
