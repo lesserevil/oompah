@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T08:52:57.482117Z'
+updated_at: '2026-08-07T08:53:07.523913Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null
@@ -22,14 +22,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: e89e104efd8da99c68e706e9e416c2db51b30f62fd17f04c8dab8f82c683df24
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T08:52:53.895812+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 786cfd67-0dd4-4928-8297-274f1cfe197f
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T08:47:28.493002+00:00'
-  claim_expires_at: '2026-08-07T09:17:28.493002+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Examined all 11 required peer tasks under epic parent\
+    \ OOMPAH-768. OOMPAH-788 (Done) completed integration workflow architecture migration\
+    \ to durable jobs but does not address scheduler lane ordering/prioritization.\
+    \ OOMPAH-875 is a post-cutover performance regression (2026-08-07) where slow\
+    \ dispatch/audit lanes starve integration claims despite available validation\
+    \ capacity. OOMPAH-874 (In Progress) addresses gate cancellation classification,\
+    \ a separate concern. No active task duplicates this scheduler lane starvation\
+    \ issue. Closest completed sibling (OOMPAH-788) is architectural groundwork, not\
+    \ the specific tick-ordering fix needed for OOMPAH-875.\nLet me systematically\
+    \ analyze the task corpus for potential duplicates:\n\n**OOMPAH-875 Problem Summary:**\n\
+    - **Core Issue**: Scheduler performance regression (2026-08-07) where eligible\
+    \ Ready integration claims are starved by slow lanes\n- **Root Cause**: `_process_integration_queues`\
+    \ scheduled too late in the orchestrator tick (after reconcile, review, dispatch,\
+    \ YOLO, watchdog)\n- **Specific Regression**: Integration claim delayed 8+ minutes\
+    \ despite idle validation broker; first post-cutover tick took 366s (320s dispatch\
+    \ + 175s terminal-audit)\n- **Solution Needed**: Prioritize integration work or\
+    \ give it its own promptly-woken lane\n\n**Analysis of Peer Tasks:**\n\n1. **OOMPAH-768**\
+    \ (In Progress - Epic Parent): Broader workflow domain migration to durable jobs.\
+    \ Not specific to scheduler lane ordering.\n\n2. **OOMPAH-788** (Done): \"Cut\
+    \ integration delivery over to shared decisions and durable jobs\"\n   - Architectural\
+    \ refactoring to durable workflow jobs\n   - Completed BEFORE the 2026-08-07 regression\n\
+    \   - Addresses eligibility/claiming/quality-gate, NOT scheduler lane prioritization\n\
+    \   - Appears to be a prerequisite, not a duplicate\n\n3. **OOMPAH-874** (In Progress):\
+    \ \"Classify cancelled exact gates as retryable scheduling\"\n   - Distinct problem:\
+    \ gate cancellation classification\n   - Not about scheduler lane starvation\n\
+    \n4. **OOMPAH-812** (Done): \"Drain synthetic long-tick ordering fixtures\"\n\
+    \   - Test fixture cleanup (dispatch-before-maintenance assertion)\n   - Different\
+    \ context (testing), not production scheduler ordering\n\n5. **OOMPAH-819**, **OOMPAH-813**,\
+    \ other siblings: Address different concerns (review metadata, worker exits, etc.)\n\
+    \n**Key Finding**: OOMPAH-875 addresses a **post-cutover performance regression**\
+    \ discovered on 2026-08-07 \u2014 a scheduler tick ordering issue that wasn't\
+    \ the focus of the earlier architecture migration (OOMPAH-788). No active task\
+    \ in the corpus describes this specific scheduler lane starvation problem.\n\n\
+    ---\n\nFocus handoff: duplicate_detector\n\nDupl"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -45,6 +79,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-768
   base_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
   updated_at: '2026-08-07T08:48:00.632247+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 3529
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 3529
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 3529
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T08:52:53.895323+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-875__20260807T084857Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-768--task-OOMPAH-875
+    source_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
+    completed_at: '2026-08-07T08:52:53.909241+00:00'
 ---
 ## Summary
 

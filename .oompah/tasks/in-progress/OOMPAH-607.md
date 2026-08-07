@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T08:52:49.603789Z'
+updated_at: '2026-08-07T08:53:17.008357Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ad60c565-7250-40a0-bc8e-6e8ec0e46ff2
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-607__20260730T181838Z
@@ -714,5 +714,10 @@ author: oompah
 created: 2026-08-07 08:52
 ---
 Verification correction: focused suites passed with the worktree source selected explicitly: terminal status interfaces, terminal override, task CLI, and task handoff tests — 314 passed in 20.55s. The prescribed make test was attempted via /usr/bin/make but could not start because the environment uv wrapper failed creating its transient DBus scope; no test failure was reported. Worktree remains clean at the merged OOMPAH-607 head.
+---
+author: oompah
+created: 2026-08-07 08:53
+---
+Completion: OOMPAH-607 is verified at the exact merged head 39285e9c3. The canonical alias-to-project-ID flow and fail-closed terminal authorization regressions are present and the four focused suites pass (314 tests). The branch was pushed as origin/OOMPAH-607 and git status is clean/up to date. No duplicate implementation was added because the requested fix is already merged on main.
 ---
 <!-- COMMENTS:END -->
