@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T15:07:06.359219Z'
+updated_at: '2026-08-07T15:07:36.570127Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Add a server-owned epic-rebase publish capability. Accept only task/project/cand
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 15:07
+---
+Direct owner implementation started atop validated safety commit 28c0729e in the OOMPAH-879 worktree. Project remains paused. This final child will move all epic-rebase publication into a server-owned exact-CAS capability and leave workers with task/project/candidate identity only. No remote push is authorized from the worker path.
+---
+<!-- COMMENTS:END -->
