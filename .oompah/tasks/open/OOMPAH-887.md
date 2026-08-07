@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:39:18.003279Z'
+updated_at: '2026-08-07T22:51:14.049696Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ created: 2026-08-07 22:39
 Integration could not verify `OOMPAH-887`: epic worktree head a85a36baf7b3ebcb45be27823755b5694a790a49 differs from the published epic head 42f98aaed239a576933304af51508ecbbd17d320; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-07 22:51
+---
+Review blockers fixed on canonical branch OOMPAH-887 at replacement exact head d68fedf117116e31b62c1cf6d92c451ed248b015. A genuinely repository-less project (empty repo_path) retains legacy reconciliation, while a configured checkout that is missing or no longer a Git worktree now fails authoritative refresh and leaves Done children untouched. Deterministic regressions move the target exactly at the final Needs Human and Merged CAS fences, move it across both allowed generations, and remove a configured checkout; all defer without child terminal mutation. Evidence: brokered full affected modules tests/test_epic_strategy.py and tests/test_merged_labels_scope.py: 272 passed in 7.77s; py_compile and git diff --check passed; critical Ruff E9/F63/F7 passed; make check-secrets passed. Worktree is clean and HEAD equals origin/OOMPAH-887.
 ---
 <!-- COMMENTS:END -->
