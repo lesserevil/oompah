@@ -91,6 +91,23 @@ class EpicRebaseStateEntry:
     target_branch: str | None = None
     target_parent_id: str | None = None
     target_resolution: str = ""
+    # One scheduler-created helper owns one exact epic branch head. The target
+    # head is refreshable freshness evidence because native task writes may
+    # legitimately advance the default branch while that helper is active.
+    # This is persisted before worker admission so concurrent tick lanes and a
+    # restarted service cannot each grant mutation authority for the same epic
+    # generation.
+    authority_generation: str = ""
+    authority_task_id: str | None = None
+    authority_epic_head: str | None = None
+    authority_target_head: str | None = None
+    # Set before the non-idempotent tracker create.  An unknown create result
+    # therefore consumes the generation until a later tracker read attaches
+    # the created helper; it is never permission to issue a second create.
+    authority_creation_reserved: bool = False
+    authority_creation_marker: str = ""
+    authority_missing_since: float = 0.0
+    authority_missing_observations: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -108,6 +125,22 @@ class EpicRebaseStateEntry:
             d["target_parent_id"] = self.target_parent_id
         if self.target_resolution:
             d["target_resolution"] = self.target_resolution
+        if self.authority_generation:
+            d["authority_generation"] = self.authority_generation
+        if self.authority_task_id:
+            d["authority_task_id"] = self.authority_task_id
+        if self.authority_epic_head:
+            d["authority_epic_head"] = self.authority_epic_head
+        if self.authority_target_head:
+            d["authority_target_head"] = self.authority_target_head
+        if self.authority_creation_reserved:
+            d["authority_creation_reserved"] = True
+        if self.authority_creation_marker:
+            d["authority_creation_marker"] = self.authority_creation_marker
+        if self.authority_missing_since:
+            d["authority_missing_since"] = self.authority_missing_since
+        if self.authority_missing_observations:
+            d["authority_missing_observations"] = self.authority_missing_observations
         return d
 
     @classmethod
@@ -121,6 +154,14 @@ class EpicRebaseStateEntry:
             target_branch=(str(d.get("target_branch", "")).strip() or None),
             target_parent_id=(str(d.get("target_parent_id", "")).strip() or None),
             target_resolution=str(d.get("target_resolution", "") or ""),
+            authority_generation=str(d.get("authority_generation", "") or ""),
+            authority_task_id=(str(d.get("authority_task_id", "")).strip() or None),
+            authority_epic_head=(str(d.get("authority_epic_head", "")).strip() or None),
+            authority_target_head=(str(d.get("authority_target_head", "")).strip() or None),
+            authority_creation_reserved=bool(d.get("authority_creation_reserved", False)),
+            authority_creation_marker=str(d.get("authority_creation_marker", "") or ""),
+            authority_missing_since=float(d.get("authority_missing_since", 0) or 0),
+            authority_missing_observations=int(d.get("authority_missing_observations", 0) or 0),
         )
 
 

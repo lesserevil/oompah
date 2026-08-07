@@ -14,6 +14,7 @@ import re
 import subprocess
 import threading
 import time
+import urllib.parse
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Iterable, Mapping
@@ -2060,6 +2061,9 @@ class Orchestrator:
         # Maps epic identifier -> EpicRebaseStateEntry.  Persisted
         # across restarts via service_state.json so the orchestrator
         # doesn't lose "rebase already in progress" on restart.
+        self._epic_rebase_authority_lock = threading.RLock()
+        self._epic_rebase_authorities: dict[str, EpicRebaseStateEntry] = {}
+        self._restore_epic_rebase_authorities()
         self._epic_rebase_states: dict[str, EpicRebaseStateEntry] = {}
         self._restore_epic_rebase_states()
         # Per-epic cooldown (monotonic ts of last conflict-driven rebase task
@@ -4183,13 +4187,54 @@ class Orchestrator:
                 len(restored),
             )
 
-    def _persist_epic_rebase_states(self) -> None:
+    @staticmethod
+    def _epic_rebase_authority_key(
+        project_id: str | None,
+        epic_identifier: str,
+    ) -> str:
+        return f"{project_id or ''}\0{epic_identifier}"
+
+    def _restore_epic_rebase_authorities(self) -> None:
+        """Restore project-scoped exact-generation authority records."""
+        raw = self._load_state().get("epic_rebase_authorities")
+        if not isinstance(raw, dict):
+            return
+        restored: dict[str, EpicRebaseStateEntry] = {}
+        for key, value in raw.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+            try:
+                restored[key] = EpicRebaseStateEntry.from_dict(value)
+            except Exception as exc:  # noqa: BLE001 - ignore malformed legacy data
+                logger.warning("Ignoring malformed rebase authority %r: %s", key, exc)
+        self._epic_rebase_authorities = restored
+
+    def _epic_rebase_authority_entry(
+        self,
+        project_id: str | None,
+        epic_identifier: str,
+    ) -> EpicRebaseStateEntry | None:
+        return self._epic_rebase_authorities.get(
+            self._epic_rebase_authority_key(project_id, epic_identifier)
+        )
+
+    def _persist_epic_rebase_authorities(self) -> bool:
+        """Persist a locked authority snapshot, retaining memory on failure."""
+        return self._save_state(
+            epic_rebase_authorities={
+                key: entry.to_dict()
+                for key, entry in self._epic_rebase_authorities.items()
+            }
+        )
+
+    def _persist_epic_rebase_states(self) -> bool:
         """Write ``self._epic_rebase_states`` to ``service_state.json``."""
-        payload = {
-            epic_id: entry.to_dict()
-            for epic_id, entry in self._epic_rebase_states.items()
-        }
-        self._save_state(epic_rebase_states=payload)
+        with self._epic_rebase_authority_lock:
+            payload = {
+                epic_id: entry.to_dict()
+                for epic_id, entry in self._epic_rebase_states.items()
+            }
+            return self._save_state(epic_rebase_states=payload)
 
     # ------------------------------------------------------------------
     # Shared-worktree absorption evidence (OOMPAH-219)
@@ -23178,6 +23223,122 @@ class Orchestrator:
         ).strip().lower()
 
     @staticmethod
+    def _isolated_cli_provider_auth_kind(command: str) -> str:
+        """Resolve only known CLI authentication layouts for rebase workers."""
+        executable = Path(str(command or "").strip().split(maxsplit=1)[0]).name
+        if executable == "claude":
+            return "claude_subscription"
+        if executable == "codex":
+            return "codex_subscription"
+        # A rebase helper must never keep the operator home merely because an
+        # arbitrary wrapper command has an unknown auth layout.
+        return "unknown"
+
+    @staticmethod
+    def _isolated_acp_provider_auth_kind(
+        backend_name: str,
+        billing_model: str,
+    ) -> str:
+        backend = str(backend_name or "").strip().lower()
+        billing = str(billing_model or "").strip().lower()
+        if backend == "claude":
+            return "claude_subscription"
+        if backend == "codex":
+            return "codex_subscription" if billing == "subscription" else "codex_api"
+        if backend == "opencode":
+            return "opencode_subscription" if billing == "subscription" else "opencode_api"
+        return "unknown"
+
+    @staticmethod
+    def _epic_rebase_workspace_has_remote_write_route(
+        workspace_path: str,
+    ) -> bool:
+        """Return whether local Git config provides a credential route.
+
+        Rebase workers run in a clean credential domain, but a token embedded
+        in a task-writable worktree's Git config would bypass that boundary.
+        Never log the configured URL: it may itself contain the secret being
+        rejected.
+        """
+        # The production worktree creator always returns a directory.  The
+        # small unit-test seams that return a symbolic path deliberately skip
+        # this filesystem preflight; the real launcher will still fail before
+        # an agent can start if no workspace exists.
+        if not os.path.isdir(workspace_path):
+            return False
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "config",
+                    "--local",
+                    "--get-regexp",
+                    r"^remote\..*\.(url|pushurl)$",
+                ],
+                cwd=workspace_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                "could not inspect direct epic maintenance remote configuration"
+            ) from exc
+        if result.returncode not in {0, 1}:
+            raise ProjectError(
+                "could not inspect direct epic maintenance remote configuration"
+            )
+        for line in result.stdout.splitlines():
+            _parts = line.split(maxsplit=1)
+            if len(_parts) != 2:
+                continue
+            remote_url = _parts[1]
+            parsed = urllib.parse.urlsplit(remote_url.strip())
+            # HTTP(S) userinfo is a reusable credential route. SSH's normal
+            # ``git@host`` identity is not a credential and is separately
+            # disabled by the isolated worker environment.
+            if parsed.scheme.lower() in {"http", "https"} and (
+                parsed.username is not None or parsed.password is not None
+            ):
+                return True
+        try:
+            local_config = subprocess.run(
+                ["git", "config", "--local", "--get-regexp", "."],
+                cwd=workspace_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                "could not inspect direct epic maintenance credential configuration"
+            ) from exc
+        if local_config.returncode not in {0, 1}:
+            raise ProjectError(
+                "could not inspect direct epic maintenance credential configuration"
+            )
+        for line in local_config.stdout.splitlines():
+            key = line.split(maxsplit=1)[0].casefold()
+            if (
+                key == "credential.helper"
+                or key.startswith("credential.") and key.endswith(".helper")
+                or key.startswith("http.") and key.endswith(".extraheader")
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _epic_rebase_workspace_has_embedded_remote_credentials(
+        workspace_path: str,
+    ) -> bool:
+        """Compatibility alias for the original userinfo-only preflight."""
+        return Orchestrator._epic_rebase_workspace_has_remote_write_route(
+            workspace_path
+        )
+
+    @staticmethod
     def _epic_rebase_helper_target(issue: Issue) -> str | None:
         """Return a helper's recorded target, including legacy title evidence."""
         raw_target = getattr(issue, "target_branch", None)
@@ -23187,6 +23348,263 @@ class Orchestrator:
         title = str(getattr(issue, "title", "") or "")
         match = re.search(r"\s+onto\s+(.+?)\s*$", title, flags=re.IGNORECASE)
         return match.group(1).strip() if match else None
+
+    @staticmethod
+    def _epic_rebase_authority_task_id(issue: Issue) -> str:
+        """Return the stable tracker identity stored in rebase authority."""
+        return str(
+            getattr(issue, "identifier", None) or getattr(issue, "id", "") or ""
+        ).strip()
+
+    @staticmethod
+    def _epic_rebase_creation_marker(
+        project_id: str | None,
+        epic_identifier: str,
+        generation: str,
+    ) -> str:
+        """Return the deterministic, non-secret identity for one create attempt."""
+        payload = "\0".join((str(project_id or ""), epic_identifier, generation))
+        return "oompah-epic-rebase-reservation-v1:" + hashlib.sha256(
+            payload.encode("utf-8")
+        ).hexdigest()
+
+    def _epic_rebase_helper_has_creation_marker(
+        self,
+        helper: Issue,
+        marker: str,
+    ) -> bool:
+        return bool(marker) and marker in str(getattr(helper, "description", "") or "")
+
+    @contextlib.contextmanager
+    def _epic_rebase_authority_transaction(
+        self,
+        _project_id: str | None,
+        _epic_identifier: str,
+    ):
+        """Serialize authority inside the one active scheduler process.
+
+        ``make restart`` drains and stops the old scheduler before starting
+        the next one; force-starting overlapping service processes is outside
+        the supported lifecycle. The persisted authority map supplies the
+        sequential restart boundary, while this lock covers concurrent tick
+        and maintenance lanes in the active process.
+        """
+        with self._epic_rebase_authority_lock:
+            yield
+
+    def _epic_rebase_helper_is_owned(self, issue: Issue) -> bool:
+        """Return whether a helper has scheduler or direct-owner authority."""
+        issue_id = str(getattr(issue, "id", "") or "").strip()
+        identifier = self._epic_rebase_authority_task_id(issue)
+        project_id = getattr(issue, "project_id", None)
+        keys = {value for value in (issue_id, identifier) if value}
+        if keys & set(self.state.running):
+            return True
+        if keys & set(self.state.claimed):
+            return True
+        return any(
+            self._has_live_owner_claim(key, project_id)
+            for key in keys
+        )
+
+    def _select_epic_rebase_authority(
+        self,
+        project_id: str | None,
+        epic_identifier: str,
+        helpers: Iterable[Issue],
+    ) -> Issue | None:
+        """Choose one helper, preserving live ownership and durable authority."""
+        entry = self._epic_rebase_authority_entry(project_id, epic_identifier)
+        recorded = entry.authority_task_id if entry is not None else None
+        candidates = list(helpers)
+        if not candidates:
+            return None
+
+        def _key(helper: Issue) -> tuple[int, str, str]:
+            task_id = self._epic_rebase_authority_task_id(helper)
+            owned = self._epic_rebase_helper_is_owned(helper)
+            priority = 0 if task_id == recorded else 1 if owned else 2
+            return (
+                priority,
+                str(getattr(helper, "created_at", None) or ""),
+                task_id,
+            )
+
+        return min(candidates, key=_key)
+
+    def _observe_epic_rebase_generation(
+        self,
+        *,
+        project_id: str | None,
+        epic_identifier: str,
+        epic_branch: str,
+        target_branch: str,
+        require_remote: bool,
+    ) -> tuple[str, str | None, str | None] | None:
+        """Observe exclusive epic authority plus refreshable target evidence.
+
+        ``ls-remote`` reads both refs in one network snapshot and does not
+        update any checkout. The generation intentionally excludes the target
+        SHA: native task creation/comments advance the default branch and must
+        not transfer authority to another helper. Target SHA is retained as
+        freshness evidence and checked against local rebased HEAD before push.
+        """
+        try:
+            project = self.project_store.get(project_id) if project_id else None
+        except Exception:  # noqa: BLE001 - authority checks fail closed below
+            project = None
+        repo_path = getattr(project, "repo_path", None)
+        heads: dict[str, str] = {}
+        if isinstance(repo_path, str) and repo_path:
+            try:
+                result = self._run_project_network_git(
+                    project,
+                    [
+                        "git",
+                        "ls-remote",
+                        "--heads",
+                        "origin",
+                        f"refs/heads/{epic_branch}",
+                        f"refs/heads/{target_branch}",
+                    ],
+                    cwd=repo_path,
+                    timeout=30,
+                )
+            except Exception as exc:  # noqa: BLE001 - fail closed at admission
+                logger.warning(
+                    "Cannot observe rebase generation for %s: %s",
+                    epic_identifier,
+                    exc,
+                )
+            else:
+                if result.returncode == 0:
+                    for line in result.stdout.splitlines():
+                        fields = line.strip().split()
+                        if len(fields) == 2 and fields[1].startswith("refs/heads/"):
+                            heads[fields[1][len("refs/heads/"):]] = fields[0]
+        epic_head = heads.get(epic_branch)
+        target_head = heads.get(target_branch)
+        if require_remote and (not epic_head or not target_head):
+            return None
+        generation_payload = "\0".join(
+            (
+                str(project_id or ""),
+                epic_identifier,
+                epic_branch,
+                target_branch,
+                epic_head or "unresolved",
+            )
+        )
+        generation = hashlib.sha256(generation_payload.encode("utf-8")).hexdigest()
+        return generation, epic_head, target_head
+
+    def _persist_epic_rebase_authority(
+        self,
+        *,
+        epic: Issue,
+        task: Issue | None,
+        epic_branch: str,
+        target_branch: str,
+        generation: str,
+        epic_head: str | None,
+        target_head: str | None,
+    ) -> EpicRebaseStateEntry | None:
+        """Persist the sole helper authorized for an exact rebase generation.
+
+        Callers hold ``_epic_rebase_authority_lock`` so this service-state
+        write is the durable commit point shared by all scheduler lanes.
+        """
+        authority_key = self._epic_rebase_authority_key(
+            epic.project_id,
+            epic.identifier,
+        )
+        old = self._epic_rebase_authorities.get(authority_key)
+        state_entry = self._epic_rebase_states.get(epic.identifier)
+        task_id = self._epic_rebase_authority_task_id(task) if task else None
+        entry = EpicRebaseStateEntry(
+            state=(
+                state_entry.state
+                if state_entry is not None
+                else old.state if old is not None else EpicRebaseState.REBASING.value
+            ),
+            updated_at=time.time(),
+            project_id=epic.project_id or (state_entry.project_id if state_entry else None),
+            retry_count=state_entry.retry_count if state_entry else 0,
+            reason=state_entry.reason if state_entry else "",
+            target_branch=target_branch,
+            target_parent_id=(
+                str(getattr(epic, "parent_id", None) or "").strip() or None
+            ),
+            target_resolution=(
+                "authoritative_parent"
+                if str(getattr(epic, "parent_id", None) or "").strip()
+                else "confirmed_top_level"
+            ),
+            authority_generation=generation,
+            authority_task_id=task_id,
+            authority_epic_head=epic_head,
+            authority_target_head=target_head,
+            authority_creation_reserved=task is None,
+            authority_creation_marker=self._epic_rebase_creation_marker(
+                epic.project_id, epic.identifier, generation
+            ),
+        )
+        self._epic_rebase_authorities[authority_key] = entry
+        if not self._save_state(
+            epic_rebase_authorities={
+                key: value.to_dict()
+                for key, value in self._epic_rebase_authorities.items()
+            },
+        ):
+            # Admission and dispatch must not proceed on authority that did
+            # not reach durable state.  Restore the exact prior mapping so a
+            # later retry cannot mistake this failed write for a reservation.
+            if old is None:
+                self._epic_rebase_authorities.pop(authority_key, None)
+            else:
+                self._epic_rebase_authorities[authority_key] = old
+            logger.error(
+                "Refusing epic rebase authority for %s: state persistence failed",
+                epic.identifier,
+            )
+            return None
+        return entry
+
+    def _persist_epic_rebase_task_authority_metadata(
+        self,
+        tracker,
+        task: Issue,
+        *,
+        epic: Issue,
+        epic_branch: str,
+        target_branch: str,
+        entry: EpicRebaseStateEntry,
+    ) -> None:
+        """Best-effort forensic copy of server-owned rebase authority."""
+        task_id = self._epic_rebase_authority_task_id(task)
+        if not task_id:
+            return
+        try:
+            tracker.set_metadata_field(
+                task_id,
+                "oompah.epic_rebase_authority",
+                {
+                    "version": 1,
+                    "generation": entry.authority_generation,
+                    "task_id": entry.authority_task_id,
+                    "epic_identifier": epic.identifier,
+                    "epic_branch": epic_branch,
+                    "epic_head": entry.authority_epic_head,
+                    "target_branch": target_branch,
+                    "target_head": entry.authority_target_head,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - service state is authority
+            logger.warning(
+                "Could not persist rebase authority metadata for %s: %s",
+                task_id,
+                exc,
+            )
 
     def _prepare_epic_rebase_helper_target(
         self,
@@ -23273,6 +23691,112 @@ class Orchestrator:
                 issue.identifier,
                 exc,
             )
+        admitted, reason = self._admit_epic_rebase_helper(
+            tracker,
+            issue,
+            parent=parent,
+            epic_branch=self.project_store.epic_branch_name(parent.identifier),
+            target_branch=expected,
+        )
+        return admitted, reason
+
+    def _admit_epic_rebase_helper(
+        self,
+        tracker,
+        issue: Issue,
+        *,
+        parent: Issue,
+        epic_branch: str,
+        target_branch: str,
+    ) -> tuple[bool, str]:
+        """Grant one helper authority before any shared worktree mutation."""
+        with self._epic_rebase_authority_transaction(
+            issue.project_id,
+            parent.identifier,
+        ):
+            observed = self._observe_epic_rebase_generation(
+                project_id=issue.project_id,
+                epic_identifier=parent.identifier,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                require_remote=True,
+            )
+            if observed is None:
+                return False, "epic_rebase_generation_unresolved"
+            generation, epic_head, target_head = observed
+            entry = self._epic_rebase_authority_entry(
+                issue.project_id,
+                parent.identifier,
+            )
+            issue_task_id = self._epic_rebase_authority_task_id(issue)
+            if (
+                entry is not None
+                and entry.authority_generation == generation
+                and not entry.authority_task_id
+                and entry.authority_creation_reserved
+                and not self._epic_rebase_helper_has_creation_marker(
+                    issue, entry.authority_creation_marker
+                )
+            ):
+                return False, "epic_rebase_creation_pending"
+            if (
+                entry is not None
+                and entry.authority_generation == generation
+                and entry.authority_task_id
+                and entry.authority_task_id != issue_task_id
+            ):
+                return False, "epic_rebase_duplicate_authority"
+            helpers = self._active_epic_rebase_siblings(
+                tracker,
+                parent,
+                target_branch=target_branch,
+            )
+            if not any(
+                self._epic_rebase_authority_task_id(helper) == issue_task_id
+                for helper in helpers
+            ):
+                helpers.append(issue)
+            winner = self._select_epic_rebase_authority(
+                issue.project_id,
+                parent.identifier,
+                helpers,
+            )
+            if winner is None:
+                return False, "epic_rebase_authority_missing"
+            winner_task_id = self._epic_rebase_authority_task_id(winner)
+            if winner_task_id != issue_task_id:
+                return False, "epic_rebase_duplicate_authority"
+
+            if (
+                entry is not None
+                and entry.authority_generation
+                and entry.authority_generation != generation
+                and (entry.authority_epic_head or entry.authority_target_head)
+            ):
+                return False, "epic_rebase_generation_stale"
+
+            # Legacy/unresolved reservations are upgraded once, before a
+            # worker receives the shared worktree. A live exact generation is
+            # immutable until it becomes terminal or is superseded.
+            entry = self._persist_epic_rebase_authority(
+                epic=parent,
+                task=winner,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                generation=generation,
+                epic_head=epic_head,
+                target_head=target_head,
+            )
+            if entry is None:
+                return False, "epic_rebase_authority_persist_failed"
+            self._persist_epic_rebase_task_authority_metadata(
+                tracker,
+                winner,
+                epic=parent,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                entry=entry,
+            )
         return True, ""
 
     def _supersede_wrong_epic_rebase_helper(
@@ -23293,50 +23817,47 @@ class Orchestrator:
         identifier = str(getattr(helper, "identifier", "") or "").strip()
         if not identifier:
             return False
-        issue_id = str(getattr(helper, "id", "") or "").strip()
-        if issue_id in self.state.running or issue_id in self.state.claimed:
-            logger.warning(
-                "Leaving wrong-target rebase helper %s claimed; expected %s",
-                identifier,
-                target_branch,
-            )
-            return False
+        project_id = getattr(helper, "project_id", None)
         try:
-            current = tracker.fetch_issue_detail(identifier)
+            # The direct-owner grant endpoint shares this lock. Keep the
+            # fresh read, ownership checks, and auditable retirement request
+            # together so a grant cannot race between them.
+            with self.project_store.project_write_lock(project_id):
+                if self._epic_rebase_helper_is_owned(helper):
+                    logger.warning(
+                        "Leaving wrong-target rebase helper %s claimed; expected %s",
+                        identifier,
+                        target_branch,
+                    )
+                    return False
+                current = tracker.fetch_issue_detail(identifier)
+                if current is None:
+                    return True
+                if self._epic_rebase_helper_is_owned(current):
+                    return False
+                if _state_key(getattr(current, "state", "")) not in {
+                    _state_key(OPEN),
+                    _state_key(IN_PROGRESS),
+                    _state_key(NEEDS_REBASE),
+                }:
+                    return True
+                if not request_archived_audit(
+                    current,
+                    tracker,
+                    getattr(current, "project_id", None) or project_id,
+                    (
+                        "Superseded wrong-target rebase helper: recorded target "
+                        f"{self._epic_rebase_helper_target(current) or '<missing>'}, "
+                        f"authoritative target {target_branch} for parent "
+                        f"{parent_id or '<top-level>'}. No worktree or recovery ref was deleted."
+                    ),
+                    project_store=self.project_store,
+                    trigger_source="epic_rebase_reconciliation",
+                ):
+                    return False
         except Exception as exc:  # noqa: BLE001 - do not race an unreadable task
             logger.warning(
                 "Cannot supersede wrong-target rebase helper %s: %s",
-                identifier,
-                exc,
-            )
-            return False
-        if current is None:
-            return True
-        current_id = str(getattr(current, "id", "") or "").strip()
-        if current_id in self.state.running or current_id in self.state.claimed:
-            return False
-        if _state_key(getattr(current, "state", "")) not in {
-            _state_key(OPEN),
-            _state_key(IN_PROGRESS),
-            _state_key(NEEDS_REBASE),
-        }:
-            return True
-        try:
-            tracker.update_issue(identifier, status=ARCHIVED)
-            tracker.add_comment(
-                identifier,
-                (
-                    "Superseded: this rebase helper recorded target "
-                    f"{self._epic_rebase_helper_target(current) or '<missing>'}, "
-                    f"but the authoritative target is {target_branch} for "
-                    f"parent {parent_id or '<top-level>'}. No worktree or "
-                    "recovery ref was deleted."
-                ),
-                author="oompah",
-            )
-        except Exception as exc:  # noqa: BLE001 - preserve helper for retry
-            logger.warning(
-                "Failed to supersede wrong-target rebase helper %s: %s",
                 identifier,
                 exc,
             )
@@ -23348,14 +23869,14 @@ class Orchestrator:
         )
         return True
 
-    def _find_active_epic_rebase_sibling(
+    def _active_epic_rebase_siblings(
         self,
         tracker,
         epic: Issue,
         *,
         target_branch: str | None = None,
-    ) -> Issue | None:
-        """Find an actionable existing rebase task for ``epic``.
+    ) -> list[Issue]:
+        """Return actionable rebase tasks for ``epic`` in stable order.
 
         This is intentionally tracker-backed instead of relying only on the
         shared epic worktree copy. Shared worktrees can have stale task files
@@ -23434,15 +23955,119 @@ class Orchestrator:
                 )
             matches = matching
 
-        if not matches:
-            return None
-        return min(
+        return sorted(
             matches,
             key=lambda i: (
                 getattr(i, "created_at", None) or "",
                 getattr(i, "identifier", None) or getattr(i, "id", "") or "",
             ),
         )
+
+    def _find_active_epic_rebase_sibling(
+        self,
+        tracker,
+        epic: Issue,
+        *,
+        target_branch: str | None = None,
+    ) -> Issue | None:
+        """Find and reconcile the sole actionable rebase helper for ``epic``."""
+        with self._epic_rebase_authority_transaction(
+            epic.project_id,
+            epic.identifier,
+        ):
+            matches = self._active_epic_rebase_siblings(
+                tracker,
+                epic,
+                target_branch=target_branch,
+            )
+            if target_branch is None:
+                return self._select_epic_rebase_authority(
+                    epic.project_id, epic.identifier, matches
+                )
+            epic_branch = self.project_store.epic_branch_name(epic.identifier)
+            observed = self._observe_epic_rebase_generation(
+                project_id=epic.project_id,
+                epic_identifier=epic.identifier,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                require_remote=False,
+            )
+            if observed is None:  # pragma: no cover - non-required observation
+                return None
+            generation, epic_head, target_head = observed
+            old_entry = self._epic_rebase_authority_entry(
+                epic.project_id,
+                epic.identifier,
+            )
+            if (
+                old_entry is not None
+                and old_entry.authority_generation == generation
+                and old_entry.authority_creation_reserved
+                and not old_entry.authority_task_id
+            ):
+                matches = [
+                    helper for helper in matches
+                    if self._epic_rebase_helper_has_creation_marker(
+                        helper, old_entry.authority_creation_marker
+                    )
+                ]
+            winner = self._select_epic_rebase_authority(
+                epic.project_id,
+                epic.identifier,
+                matches,
+            )
+            if winner is None:
+                return None
+            winner_task_id = self._epic_rebase_authority_task_id(winner)
+            if (
+                old_entry is not None
+                and old_entry.authority_generation == generation
+                and old_entry.authority_task_id
+                and old_entry.authority_task_id != winner_task_id
+            ):
+                for helper in matches:
+                    self._supersede_duplicate_epic_rebase_helper(
+                        tracker,
+                        helper,
+                        winner_task_id=old_entry.authority_task_id,
+                        generation=generation,
+                    )
+                return winner
+            if (
+                old_entry is not None
+                and old_entry.authority_generation
+                and old_entry.authority_generation != generation
+                and (old_entry.authority_epic_head or old_entry.authority_target_head)
+                and self._epic_rebase_helper_is_owned(winner)
+            ):
+                return winner
+            entry = self._persist_epic_rebase_authority(
+                epic=epic,
+                task=winner,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                generation=generation,
+                epic_head=epic_head,
+                target_head=target_head,
+            )
+            if entry is None:
+                return None
+            self._persist_epic_rebase_task_authority_metadata(
+                tracker,
+                winner,
+                epic=epic,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                entry=entry,
+            )
+            for helper in matches:
+                self._supersede_duplicate_epic_rebase_helper(
+                    tracker,
+                    helper,
+                    winner_task_id=winner_task_id,
+                    generation=generation,
+                )
+            return winner
 
     def _issue_has_children(self, issue: Issue) -> bool:
         """Return True when tracker state shows this issue has children."""
@@ -25998,6 +26623,11 @@ class Orchestrator:
                 issue.project_id,
                 parent_epic.identifier,
             )
+            if self._epic_rebase_workspace_has_remote_write_route(wp):
+                raise ProjectError(
+                    "Direct epic maintenance workspace has a remote credential "
+                    "route; dispatch is refused"
+                )
             if persist_dispatch_metadata:
                 try:
                     tracker = self._tracker_for_issue(issue)
@@ -28732,19 +29362,20 @@ class Orchestrator:
         and dashboard consumers verify that a helper did not silently fall
         back to the project default branch.
         """
-        entry = self._epic_rebase_states.get(epic_identifier)
-        if entry is None:
-            logger.debug(
-                "Cannot record epic rebase target for untracked epic %s",
-                epic_identifier,
-            )
-            return
-        entry.target_branch = str(target_branch or "").strip() or None
-        entry.target_parent_id = str(parent_id or "").strip() or None
-        entry.target_resolution = str(resolution or "").strip()
-        if project_id:
-            entry.project_id = project_id
-        self._persist_epic_rebase_states()
+        with self._epic_rebase_authority_lock:
+            entry = self._epic_rebase_states.get(epic_identifier)
+            if entry is None:
+                logger.debug(
+                    "Cannot record epic rebase target for untracked epic %s",
+                    epic_identifier,
+                )
+                return
+            entry.target_branch = str(target_branch or "").strip() or None
+            entry.target_parent_id = str(parent_id or "").strip() or None
+            entry.target_resolution = str(resolution or "").strip()
+            if project_id:
+                entry.project_id = project_id
+            self._persist_epic_rebase_states()
 
     def _set_epic_rebase_state(
         self,
@@ -28760,26 +29391,26 @@ class Orchestrator:
         (except for the timestamp update).  Removes any other
         ``epic:*`` labels from the task before adding the new one.
         """
-        old_entry = self._epic_rebase_states.get(epic_identifier)
-        if old_entry is not None and old_entry.state == state.value:
-            # Same state — just refresh the timestamp.
-            old_entry.updated_at = time.time()
-            self._persist_epic_rebase_states()
-            return
+        with self._epic_rebase_authority_lock:
+            old_entry = self._epic_rebase_states.get(epic_identifier)
+            if old_entry is not None and old_entry.state == state.value:
+                # Same state — just refresh the timestamp.
+                old_entry.updated_at = time.time()
+                self._persist_epic_rebase_states()
+                return
 
-        now = time.time()
-        old_entry = self._epic_rebase_states.get(epic_identifier)
-        retry_count = old_entry.retry_count if old_entry else 0
-        # Increment retry count on FAILED transitions
-        if state == EpicRebaseState.FAILED and (old_entry is None or old_entry.state != "failed"):
-            retry_count += 1
-        self._epic_rebase_states[epic_identifier] = EpicRebaseStateEntry(
-            state=state.value,
-            updated_at=now,
-            project_id=project_id,
-            retry_count=retry_count,
-            reason=reason or (old_entry.reason if old_entry else ""),
-        )
+            now = time.time()
+            retry_count = old_entry.retry_count if old_entry else 0
+            # Increment retry count on FAILED transitions
+            if state == EpicRebaseState.FAILED and (old_entry is None or old_entry.state != "failed"):
+                retry_count += 1
+            self._epic_rebase_states[epic_identifier] = EpicRebaseStateEntry(
+                state=state.value,
+                updated_at=now,
+                project_id=project_id,
+                retry_count=retry_count,
+                reason=reason or (old_entry.reason if old_entry else ""),
+            )
 
         # Sync labels on the task.
         try:
@@ -28823,7 +29454,8 @@ class Orchestrator:
         self, epic_identifier: str
     ) -> EpicRebaseState | None:
         """Return the current rebase state for ``epic_identifier``, or None."""
-        entry = self._epic_rebase_states.get(epic_identifier)
+        with self._epic_rebase_authority_lock:
+            entry = self._epic_rebase_states.get(epic_identifier)
         if entry is None:
             return None
         try:
@@ -28838,7 +29470,8 @@ class Orchestrator:
         project_id: str | None = None,
     ) -> None:
         """Drop the tracked rebase state for ``epic_identifier`` and clear labels."""
-        removed_entry = self._epic_rebase_states.pop(epic_identifier, None)
+        with self._epic_rebase_authority_lock:
+            removed_entry = self._epic_rebase_states.pop(epic_identifier, None)
         try:
             tracker = (
                 self._tracker_for_project(project_id)
@@ -28894,21 +29527,129 @@ class Orchestrator:
                 issue.state, self.config.tracker_terminal_states
             )
         }
-        stale = [
-            epic_id
-            for epic_id in self._epic_rebase_states
-            if epic_id not in active_epic_ids
-        ]
-        for epic_id in stale:
-            entry = self._epic_rebase_states.pop(epic_id)
+        with self._epic_rebase_authority_lock:
+            stale = [
+                epic_id
+                for epic_id in self._epic_rebase_states
+                if epic_id not in active_epic_ids
+            ]
+            removed_states = [
+                (epic_id, self._epic_rebase_states.pop(epic_id))
+                for epic_id in stale
+            ]
+            if removed_states and not self._persist_epic_rebase_states():
+                self._epic_rebase_states.update(removed_states)
+                removed_states = []
+        for epic_id, entry in removed_states:
             self._clear_epic_stale_alert(epic_id)
             logger.debug(
                 "Pruned stale epic rebase state for %s (was %s)",
                 epic_id,
                 entry.state,
             )
-        if stale:
-            self._persist_epic_rebase_states()
+        active_authority_keys = {
+            self._epic_rebase_authority_key(issue.project_id, issue.identifier)
+            for issue in candidates
+            if issue.issue_type == "epic"
+            and not _is_terminal_state(
+                issue.state, self.config.tracker_terminal_states
+            )
+        }
+        candidate_epics = {
+            self._epic_rebase_authority_key(issue.project_id, issue.identifier): issue
+            for issue in candidates
+            if issue.issue_type == "epic"
+        }
+        # Tracker/project reads can block.  Snapshot the authority entries
+        # under their lock, perform those reads without the lock, then use an
+        # identity CAS when removing entries.  A concurrent renewal therefore
+        # cannot be deleted based on a stale sweep snapshot.
+        with self._epic_rebase_authority_lock:
+            authority_snapshot = list(self._epic_rebase_authorities.items())
+        stale_authorities: list[tuple[str, EpicRebaseStateEntry]] = []
+        missing_authorities: list[tuple[str, EpicRebaseStateEntry]] = []
+        now = time.time()
+        for key, entry in authority_snapshot:
+            if key in active_authority_keys:
+                continue
+            candidate = candidate_epics.get(key)
+            if candidate is not None:
+                if _is_terminal_state(
+                    candidate.state,
+                    self.config.tracker_terminal_states,
+                ):
+                    stale_authorities.append((key, entry))
+                continue
+            project_id, _separator, epic_identifier = key.partition("\0")
+            if project_id:
+                try:
+                    project_exists = self.project_store.get(project_id) is not None
+                except Exception:  # noqa: BLE001 - preserve ambiguous ownership
+                    project_exists = True
+                if not project_exists:
+                    missing_authorities.append((key, entry))
+                    continue
+            try:
+                tracker = (
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
+                )
+                authoritative = tracker.fetch_issue_detail(epic_identifier)
+            except Exception as exc:  # noqa: BLE001 - absence is not evidence
+                logger.debug(
+                    "Preserving ambiguous rebase authority %s: %s",
+                    key,
+                    exc,
+                )
+                continue
+            if authoritative is not None:
+                if _is_terminal_state(
+                    authoritative.state,
+                    self.config.tracker_terminal_states,
+                ):
+                    stale_authorities.append((key, entry))
+                elif entry.authority_missing_since:
+                    # A successful authoritative read resets the consecutive
+                    # absence evidence; cache/transient reads must not add up.
+                    with self._epic_rebase_authority_lock:
+                        if self._epic_rebase_authorities.get(key) is entry:
+                            entry.authority_missing_since = 0.0
+                            entry.authority_missing_observations = 0
+                continue
+            missing_authorities.append((key, entry))
+        if missing_authorities:
+            with self._epic_rebase_authority_lock:
+                changed_missing = False
+                for key, expected in missing_authorities:
+                    if self._epic_rebase_authorities.get(key) is not expected:
+                        continue
+                    if not expected.authority_missing_since:
+                        expected.authority_missing_since = now
+                        expected.authority_missing_observations = 1
+                    else:
+                        expected.authority_missing_observations += 1
+                    changed_missing = True
+                    if (
+                        expected.authority_missing_observations >= 2
+                        and now - expected.authority_missing_since >= 86400.0
+                    ):
+                        stale_authorities.append((key, expected))
+                if changed_missing and not self._persist_epic_rebase_authorities():
+                    logger.error("Could not persist rebase authority absence evidence")
+        if stale_authorities:
+            with self._epic_rebase_authority_lock:
+                removed: list[tuple[str, EpicRebaseStateEntry]] = []
+                for key, expected in stale_authorities:
+                    if self._epic_rebase_authorities.get(key) is expected:
+                        self._epic_rebase_authorities.pop(key, None)
+                        removed.append((key, expected))
+                if removed and not self._persist_epic_rebase_authorities():
+                    # Keep the authority fail-closed if its retirement was
+                    # not durable. No concurrent writer can interleave while
+                    # this lock is held, so restoring exact entries is safe.
+                    self._epic_rebase_authorities.update(removed)
+                    logger.error("Retaining epic rebase authorities after persistence failure")
 
     def _should_dispatch_rebase_agent(self, epic_identifier: str) -> bool:
         """Idempotency gate: should we dispatch a rebase agent for this epic?
@@ -29149,93 +29890,280 @@ class Orchestrator:
 
         return filed
 
+    def _supersede_duplicate_epic_rebase_helper(
+        self,
+        tracker,
+        helper: Issue,
+        *,
+        winner_task_id: str,
+        generation: str,
+    ) -> bool:
+        """Archive an unowned duplicate without touching branch artifacts."""
+        task_id = self._epic_rebase_authority_task_id(helper)
+        if not task_id or task_id == winner_task_id:
+            return True
+        project_id = getattr(helper, "project_id", None)
+        try:
+            with self.project_store.project_write_lock(project_id):
+                if self._epic_rebase_helper_is_owned(helper):
+                    logger.warning(
+                        "Leaving owned duplicate rebase helper %s fenced from dispatch",
+                        task_id,
+                    )
+                    return False
+                current = tracker.fetch_issue_detail(task_id)
+                if current is None or canonicalize_status(current.state) in TERMINAL_STATUSES:
+                    return True
+                if self._epic_rebase_helper_is_owned(current):
+                    return False
+                if not request_archived_audit(
+                    current,
+                    tracker,
+                    getattr(current, "project_id", None) or project_id,
+                    (
+                        "Superseded duplicate rebase helper before provider work: "
+                        f"{winner_task_id} owns exact generation {generation[:12]}. "
+                        "No shared worktree or recovery ref was changed."
+                    ),
+                    project_store=self.project_store,
+                    trigger_source="epic_rebase_reconciliation",
+                ):
+                    return False
+        except Exception as exc:  # noqa: BLE001 - preserve an unreadable helper
+            logger.warning("Cannot supersede duplicate helper %s: %s", task_id, exc)
+            return False
+        return True
+
     def _file_rebase_task(
         self,
         tracker,
         epic: Issue,
         epic_branch: str,
         target_branch: str,
-    ) -> None:
-        """Create a sibling task task under ``epic`` to rebase the epic branch.
+    ) -> Issue | None:
+        """Atomically find or create the helper for one exact generation."""
+        with self._epic_rebase_authority_transaction(
+            epic.project_id,
+            epic.identifier,
+        ):
+            observed = self._observe_epic_rebase_generation(
+                project_id=epic.project_id,
+                epic_identifier=epic.identifier,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                # The pre-create reservation is a durable external-effect
+                # fence. Never reserve an "unresolved" pseudo-generation
+                # that could later become a different exact remote epoch.
+                require_remote=True,
+            )
+            if observed is None:  # pragma: no cover - observation is non-required
+                return None
+            generation, epic_head, target_head = observed
+            old_entry = self._epic_rebase_authority_entry(
+                epic.project_id,
+                epic.identifier,
+            )
+            helpers = self._active_epic_rebase_siblings(
+                tracker,
+                epic,
+                target_branch=target_branch,
+            )
+            if (
+                old_entry is not None
+                and old_entry.authority_generation == generation
+                and old_entry.authority_creation_reserved
+                and not old_entry.authority_task_id
+            ):
+                helpers = [
+                    helper for helper in helpers
+                    if self._epic_rebase_helper_has_creation_marker(
+                        helper, old_entry.authority_creation_marker
+                    )
+                ]
+            winner = self._select_epic_rebase_authority(
+                epic.project_id,
+                epic.identifier,
+                helpers,
+            )
+            if winner is not None:
+                winner_task_id = self._epic_rebase_authority_task_id(winner)
+                if (
+                    old_entry is not None
+                    and old_entry.authority_generation == generation
+                    and old_entry.authority_task_id
+                    and old_entry.authority_task_id != winner_task_id
+                ):
+                    self._supersede_duplicate_epic_rebase_helper(
+                        tracker,
+                        winner,
+                        winner_task_id=old_entry.authority_task_id,
+                        generation=generation,
+                    )
+                    return winner
+                if (
+                    old_entry is not None
+                    and old_entry.authority_generation
+                    and old_entry.authority_generation != generation
+                    and (old_entry.authority_epic_head or old_entry.authority_target_head)
+                    and self._epic_rebase_helper_is_owned(winner)
+                ):
+                    return winner
+                entry = self._persist_epic_rebase_authority(
+                    epic=epic,
+                    task=winner,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    generation=generation,
+                    epic_head=epic_head,
+                    target_head=target_head,
+                )
+                if entry is None:
+                    return None
+                self._persist_epic_rebase_task_authority_metadata(
+                    tracker,
+                    winner,
+                    epic=epic,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    entry=entry,
+                )
+                for helper in helpers:
+                    self._supersede_duplicate_epic_rebase_helper(
+                        tracker,
+                        helper,
+                        winner_task_id=winner_task_id,
+                        generation=generation,
+                    )
+                return winner
 
-        The task is labelled ``merge-conflict`` so the dispatcher routes
-        it to the merge-conflict focus, which already knows how to
-        ``git rebase origin/<target>`` and force-push.
-        """
-        title = f"Rebase {epic_branch} onto {target_branch}"
-        description = (
-            f"The epic branch `{epic_branch}` is stale: it has fallen "
-            f"behind `{target_branch}`. Rebase the branch onto "
-            f"`origin/{target_branch}`, resolve any conflicts, and "
-            f"force-push with `git push --force-with-lease`.\n\n"
-            f"This task was auto-filed because epic {epic.identifier} "
-            f"was detected as stale. Do NOT create a new branch or PR — "
-            f"work directly on `{epic_branch}`."
-        )
-        created = tracker.create_issue(
-            title=title,
-            issue_type="task",
-            description=description,
-            # P0: a rebase task resolves a merge conflict on the epic branch and
-            # opens NO new PR, so it must bypass the in-flight-PR cap. Dispatch
-            # still serializes multiple rebase siblings for the same epic branch;
-            # only one agent may force-push a shared branch at a time.
-            priority=0,
-            parent=epic.identifier,
-            initial_status=NEEDS_REBASE,
-        )
-        # Persist the resolved target independently of the human-readable
-        # title. Tracker refreshes, dispatch prompts, restart recovery, and
-        # completion all use this immutable evidence instead of reparsing an
-        # old target or defaulting to main.
-        raw_created_identifier = getattr(created, "identifier", None)
-        if not isinstance(raw_created_identifier, str) or not raw_created_identifier.strip():
-            raw_created_identifier = getattr(created, "id", None)
-        created_identifier = (
-            raw_created_identifier.strip()
-            if isinstance(raw_created_identifier, str)
-            else ""
-        )
-        target_evidence = {
-            "version": 1,
-            "epic_identifier": epic.identifier,
-            "epic_branch": epic_branch,
-            "target_branch": target_branch,
-            "parent_id": str(getattr(epic, "parent_id", None) or "").strip() or None,
-            "resolution": (
-                "authoritative_parent"
-                if str(getattr(epic, "parent_id", None) or "").strip()
-                else "confirmed_top_level"
-            ),
-        }
-        if created_identifier:
-            try:
-                tracker.set_metadata_field(
-                    created_identifier,
-                    "oompah.target_branch",
-                    target_branch,
+            # A terminal helper consumes an exact generation. A successor is
+            # permitted only after either remote head changes.
+            if (
+                old_entry is not None
+                and old_entry.authority_generation == generation
+                and old_entry.authority_task_id
+            ):
+                return None
+            if (
+                old_entry is not None
+                and old_entry.authority_generation == generation
+                and not old_entry.authority_task_id
+            ):
+                # The tracker create may have committed even if its response
+                # was lost.  The durable reservation consumes this exact
+                # generation until reconciliation finds the helper; do not
+                # turn delayed visibility into a duplicate external create.
+                return None
+
+            reservation = self._persist_epic_rebase_authority(
+                epic=epic,
+                task=None,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                generation=generation,
+                epic_head=epic_head,
+                target_head=target_head,
+            )
+            if reservation is None:
+                return None
+            title = f"Rebase {epic_branch} onto {target_branch}"
+            if epic_head:
+                push_instruction = (
+                    "Push only with the exact remote compare-and-swap command "
+                    f"`git push --force-with-lease=refs/heads/{epic_branch}:"
+                    f"{epic_head} origin HEAD:refs/heads/{epic_branch}`."
                 )
-                tracker.set_metadata_field(
-                    created_identifier,
-                    "oompah.epic_rebase_target",
-                    target_evidence,
+            else:
+                push_instruction = (
+                    f"Resolve the exact `refs/heads/{epic_branch}` SHA from "
+                    "origin immediately before pushing, then use only "
+                    "`git push --force-with-lease=refs/heads/"
+                    f"{epic_branch}:<exact-sha> origin HEAD:refs/heads/"
+                    f"{epic_branch}`. Bare `--force` or "
+                    "`--force-with-lease` is not authorized."
                 )
-                if hasattr(created, "target_branch"):
-                    created.target_branch = target_branch
-            except Exception as exc:  # noqa: BLE001 - task remains recoverable
-                logger.warning(
-                    "Filed rebase helper %s but could not persist target "
-                    "evidence %s: %s",
-                    created_identifier,
-                    target_branch,
-                    exc,
+            description = (
+                f"The epic branch `{epic_branch}` is stale: it has fallen "
+                f"behind `{target_branch}`. Rebase the branch onto "
+                f"`origin/{target_branch}`, resolve any conflicts, and "
+                f"force-push the exact generation. {push_instruction}\n\n"
+                f"This task was auto-filed because epic {epic.identifier} "
+                f"was detected as stale. Do NOT create a new branch or PR — "
+                f"work directly on `{epic_branch}`."
+                "\n\n"
+                "OOMPAH-EPIC-REBASE-RESERVATION: "
+                f"{reservation.authority_creation_marker}\n"
+            )
+            created = tracker.create_issue(
+                title=title,
+                issue_type="task",
+                description=description,
+                priority=0,
+                parent=epic.identifier,
+                initial_status=NEEDS_REBASE,
+            )
+            created_identifier = self._epic_rebase_authority_task_id(created)
+            target_evidence = {
+                "version": 1,
+                "epic_identifier": epic.identifier,
+                "epic_branch": epic_branch,
+                "target_branch": target_branch,
+                "parent_id": str(getattr(epic, "parent_id", None) or "").strip() or None,
+                "resolution": (
+                    "authoritative_parent"
+                    if str(getattr(epic, "parent_id", None) or "").strip()
+                    else "confirmed_top_level"
+                ),
+            }
+            entry = self._persist_epic_rebase_authority(
+                epic=epic,
+                task=created,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                generation=generation,
+                epic_head=epic_head,
+                target_head=target_head,
+            )
+            if entry is None:
+                return None
+            if created_identifier:
+                try:
+                    tracker.set_metadata_field(
+                        created_identifier,
+                        "oompah.target_branch",
+                        target_branch,
+                    )
+                    tracker.set_metadata_field(
+                        created_identifier,
+                        "oompah.epic_rebase_target",
+                        target_evidence,
+                    )
+                    if hasattr(created, "target_branch"):
+                        created.target_branch = target_branch
+                except Exception as exc:  # noqa: BLE001 - task is recoverable
+                    logger.warning(
+                        "Filed rebase helper %s but could not persist target "
+                        "evidence %s: %s",
+                        created_identifier,
+                        target_branch,
+                        exc,
+                    )
+                self._persist_epic_rebase_task_authority_metadata(
+                    tracker,
+                    created,
+                    epic=epic,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    entry=entry,
                 )
         logger.info(
-            "Filed rebase task for %s (branch=%s, target=%s)",
+            "Filed rebase task for %s (branch=%s, target=%s, generation=%s)",
             epic.identifier,
             epic_branch,
             target_branch,
+            generation[:12],
         )
+        return created
 
     def _mark_epic_review_repair_issue(
         self,
@@ -38244,6 +39172,49 @@ class Orchestrator:
                 return p
         return None
 
+    @staticmethod
+    def _focus_declares_provider_override(focus) -> bool:
+        """Return whether *focus* explicitly controls provider resolution.
+
+        ``None`` means the field was omitted.  An empty string is deliberately
+        still an override: accepting it as "no override" would allow a bad
+        focus record to fall through to a profile/default provider at launch.
+        """
+        return focus is not None and (
+            getattr(focus, "provider_id", None) is not None
+            or getattr(focus, "model_role", None) is not None
+        )
+
+    def _require_post_focus_provider(self, provider, focus, target) -> None:
+        """Fail closed unless focus resolution produced a concrete provider.
+
+        This runs before a worker derives backend defaults or credentials.  In
+        particular, a focus that names a deleted, blank, or unknown provider
+        must not silently inherit the profile target (or Claude's historical
+        ACP default).
+        """
+        if provider is None:
+            if self._focus_declares_provider_override(focus):
+                raise ProviderStartupError(
+                    f"Focus {focus.name!r} provider override did not resolve to a "
+                    "configured provider",
+                    candidate_key=target.candidate_key if target is not None else "",
+                    reason="invalid_focus_provider",
+                )
+            raise ProviderStartupError(
+                "No provider resolved after focus selection",
+                candidate_key=target.candidate_key if target is not None else "",
+                reason="missing_provider",
+            )
+
+        provider_id = str(getattr(provider, "id", "") or "").strip()
+        if not provider_id:
+            raise ProviderStartupError(
+                "Resolved provider has an empty identity",
+                candidate_key=target.candidate_key if target is not None else "",
+                reason="invalid_provider",
+            )
+
     def _resolve_dispatch_targets(
         self, profile: AgentProfile
     ) -> "list[DispatchTarget]":
@@ -40679,6 +41650,47 @@ class Orchestrator:
                 return p
         return None
 
+    def _find_rebase_acp_profile(self) -> AgentProfile | None:
+        """Choose an ACP profile that has no native-shell credential join."""
+        candidates: list[AgentProfile] = []
+        named_default = self._get_profile_by_name("default")
+        if self._profile_is_acp(named_default):
+            candidates.append(named_default)
+        candidates.extend(
+            profile
+            for profile in self.config.agent_profiles
+            if self._profile_is_acp(profile)
+            and (named_default is None or profile.name != named_default.name)
+        )
+        for profile in candidates:
+            if self._profile_supports_isolated_rebase(profile):
+                return profile
+        return None
+
+    def _profile_supports_isolated_rebase(
+        self,
+        profile: AgentProfile | None,
+    ) -> bool:
+        """Whether a profile has a callback-only rebase execution surface."""
+        if not self._profile_is_acp(profile):
+            return False
+        assert profile is not None
+        try:
+            provider = self._resolve_provider(profile)
+        except Exception:
+            return False
+        backend = str(getattr(provider, "backend", "") or "").strip().casefold()
+        billing = str(
+            getattr(provider, "billing_model", "") or "per_token"
+        ).casefold()
+        # This is intentionally an allowlist. Claude is callback-bridged with
+        # native tools denied; Codex's non-subscription SDK path receives only
+        # the bridged catalog. Every other current or future backend is denied
+        # until it proves the same exclusive callback boundary.
+        if backend == "claude":
+            return True
+        return backend == "codex" and billing != "subscription"
+
     def _duplicate_preflight_focus(self, issue: Issue):
         """Return the forced duplicate-detector focus for a preflight worker."""
 
@@ -41111,6 +42123,30 @@ class Orchestrator:
                         sorted(issue.labels or []),
                     )
                     profile = acp_profile
+
+        # A shared-epic rebase needs a write-capable workspace. Legacy CLI
+        # transports cannot separate their provider credential from their
+        # native shell, so prefer an ACP profile whose tools are bridged back
+        # through oompah. Codex subscription ACP has the same inseparable
+        # native shell and is deliberately excluded.
+        if (
+            implementation_dispatch
+            and self._is_epic_rebase_task(issue)
+            and not self._profile_supports_isolated_rebase(profile)
+        ):
+            rebase_profile = self._find_rebase_acp_profile()
+            if rebase_profile is not None:
+                natural_name = profile.name if profile else "<none>"
+                natural_profile_name = natural_name if profile else None
+                profile = rebase_profile
+                logger.info(
+                    "epic_rebase_acp_routing: using profile=%s for %s "
+                    "(natural=%s) to keep provider transport out of the "
+                    "rebase shell authority boundary",
+                    profile.name,
+                    issue.identifier,
+                    natural_name,
+                )
 
         profile_name = profile.name if profile else "default"
 
@@ -41945,17 +42981,215 @@ class Orchestrator:
             or issue.intake
         )
         if not externally_sourced:
-            return operator_policy(task_identifier=task_identifier, session_id=session_id)
-        return external_task_policy(
-            allowed_actions=frozenset(
-                {
-                    ProtectedAction.GIT_PUSH,
-                    ProtectedAction.TASK_STATUS_TRANSITION,
-                }
-            ),
-            task_identifier=task_identifier,
-            session_id=session_id,
+            policy = operator_policy(
+                task_identifier=task_identifier,
+                session_id=session_id,
+            )
+        else:
+            policy = external_task_policy(
+                allowed_actions=frozenset(
+                    {
+                        ProtectedAction.GIT_PUSH,
+                        ProtectedAction.TASK_STATUS_TRANSITION,
+                    }
+                ),
+                task_identifier=task_identifier,
+                session_id=session_id,
+            )
+        if self._is_epic_rebase_task(issue):
+            policy = replace(
+                policy,
+                shell_authority_check=(
+                    lambda command: self._epic_rebase_push_denial(issue, command)
+                ),
+            )
+        return policy
+
+    @staticmethod
+    def _epic_rebase_push_command_denial(
+        command: str,
+        *,
+        epic_branch: str,
+        expected_epic_head: str,
+    ) -> str | None:
+        """Require the remote compare-and-swap that closes the push race."""
+        lease = (
+            "--force-with-lease="
+            f"refs/heads/{epic_branch}:{expected_epic_head}"
         )
+        refspec = f"HEAD:refs/heads/{epic_branch}"
+        expected = ["git", "push", lease, "origin", refspec]
+        # Exact raw spelling is part of the capability.  Token-normalization
+        # would let escaped, absolute, ``-C``, or substituted command forms
+        # reach the shared branch even though they do not carry the one
+        # explicitly granted CAS command.
+        if command != " ".join(expected):
+            return (
+                "Error: epic rebase pushes require one standalone exact CAS: "
+                f"git push {lease} origin {refspec} "
+                "[reason=epic_rebase_exact_force_with_lease_required]"
+            )
+        return None
+
+    def _epic_rebase_local_contains_target(
+        self,
+        issue: Issue,
+        parent: Issue,
+        target_head: str,
+    ) -> bool:
+        """Prove the latest target commit is already in local rebased HEAD."""
+        if not issue.project_id or not target_head:
+            return False
+        try:
+            workspace = self.project_store.epic_worktree_path_for(
+                issue.project_id,
+                parent.identifier,
+            )
+        except Exception as exc:  # noqa: BLE001 - push must fail closed
+            logger.warning(
+                "Cannot resolve shared epic workspace for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False
+        if not isinstance(workspace, (str, os.PathLike)) or not os.path.isdir(workspace):
+            return False
+        try:
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", target_head, "HEAD"],
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0
+
+    def _epic_rebase_push_denial(
+        self,
+        issue: Issue,
+        command: str,
+    ) -> str | None:
+        """Revoke a helper's push when its exact generation is no longer current."""
+        try:
+            project = self.project_store.get(issue.project_id) if issue.project_id else None
+            parent = self._resolve_parent_epic(issue, fail_closed=True)
+            if project is None or parent is None:
+                raise EpicTargetResolutionError(
+                    issue.identifier,
+                    str(getattr(issue, "parent_id", "") or ""),
+                    "cannot resolve rebase authority",
+                )
+            epic_branch = self.project_store.epic_branch_name(parent.identifier)
+            target_branch = self._resolve_epic_target_branch(parent, project)
+            observed = self._observe_epic_rebase_generation(
+                project_id=issue.project_id,
+                epic_identifier=parent.identifier,
+                epic_branch=epic_branch,
+                target_branch=target_branch,
+                require_remote=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - push authority fails closed
+            logger.warning(
+                "Cannot revalidate push authority for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return (
+                "Error: epic rebase push authority cannot be verified; stop "
+                "without pushing [reason=epic_rebase_generation_unresolved]"
+            )
+        if observed is None:
+            return (
+                "Error: epic rebase remote heads cannot be verified; stop "
+                "without pushing [reason=epic_rebase_generation_unresolved]"
+            )
+        generation, epic_head, target_head = observed
+        task_id = self._epic_rebase_authority_task_id(issue)
+        with self._epic_rebase_authority_transaction(
+            issue.project_id,
+            parent.identifier,
+        ):
+            entry = self._epic_rebase_authority_entry(
+                issue.project_id,
+                parent.identifier,
+            )
+            if (
+                entry is None
+                or entry.authority_task_id != task_id
+                or entry.authority_generation != generation
+                or entry.authority_epic_head != epic_head
+            ):
+                return (
+                    "Error: epic rebase generation changed or this helper no "
+                    "longer owns it; stop without pushing "
+                    "[reason=epic_rebase_generation_stale]"
+                )
+            command_denial = self._epic_rebase_push_command_denial(
+                command,
+                epic_branch=epic_branch,
+                expected_epic_head=entry.authority_epic_head or "",
+            )
+            if command_denial is not None:
+                return command_denial
+            if not self._epic_rebase_local_contains_target(
+                issue,
+                parent,
+                target_head or "",
+            ):
+                return (
+                    f"Error: origin/{target_branch} advanced to "
+                    f"{target_head or '<unresolved>'}, and local rebased HEAD "
+                    "does not contain it. Fetch that target, rebase onto the "
+                    "latest target head, then retry the exact CAS push "
+                    "[reason=epic_rebase_target_not_ancestor]"
+                )
+            if entry.authority_target_head != target_head:
+                entry = self._persist_epic_rebase_authority(
+                    epic=parent,
+                    task=issue,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    generation=generation,
+                    epic_head=epic_head,
+                    target_head=target_head,
+                )
+                if entry is None:
+                    return (
+                        "Error: epic rebase authority could not be persisted; stop "
+                        "without pushing [reason=epic_rebase_authority_persist_failed]"
+                    )
+                self._persist_epic_rebase_task_authority_metadata(
+                    self._tracker_for_issue(issue),
+                    issue,
+                    epic=parent,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    entry=entry,
+                )
+            tracker = self._tracker_for_issue(issue)
+            helpers = self._active_epic_rebase_siblings(
+                tracker,
+                parent,
+                target_branch=target_branch,
+            )
+            winner = self._select_epic_rebase_authority(
+                issue.project_id,
+                parent.identifier,
+                helpers,
+            )
+            if (
+                winner is None
+                or self._epic_rebase_authority_task_id(winner) != task_id
+            ):
+                return (
+                    "Error: another helper owns this epic rebase generation; "
+                    "stop without pushing "
+                    "[reason=epic_rebase_duplicate_authority]"
+                )
+        return None
 
     def _issue_task_handoff_token(self, issue: Issue) -> str | None:
         """Mint and start a subprocess-only capability lease.
@@ -42933,9 +44167,20 @@ class Orchestrator:
             # the *first* role candidate (via profile.model_role) and defeat
             # the failover logic for candidates beyond the first.
             focus_provider = self._resolve_focus_provider_override(focus)
+            if (
+                focus_provider is None
+                and self._focus_declares_provider_override(focus)
+            ):
+                provider = None
         else:
-            # Legacy path: full resolution including profile.model_role.
-            focus_provider = self._resolve_provider(profile, focus=focus)
+            # A focus that explicitly declares a provider or role is
+            # authoritative.  Do not turn an invalid override into an
+            # implicit profile/default-provider launch.
+            focus_provider = self._resolve_focus_provider_override(focus)
+            if focus_provider is None and not self._focus_declares_provider_override(
+                focus
+            ):
+                focus_provider = self._resolve_provider(profile, focus=focus)
         if focus_provider is not None and focus_provider is not provider:
             logger.info(
                 "Focus %r overrides provider: %s -> %s",
@@ -42944,6 +44189,13 @@ class Orchestrator:
                 focus_provider.name,
             )
             provider = focus_provider
+
+        try:
+            self._require_post_focus_provider(provider, focus, target)
+        except ProviderStartupError as exc:
+            if target is not None:
+                raise
+            raise ValueError(str(exc)) from exc
 
         # Resolve model with focus participating. ACP-mode providers
         # with an empty catalog (Claude SDK, etc.) are SDK-managed —
@@ -43640,6 +44892,7 @@ class Orchestrator:
                         transport_configuration_signature
                     ),
                 ),
+                isolate_remote_write=self._is_epic_rebase_task(issue),
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -43956,18 +45209,37 @@ class Orchestrator:
             # then apply focus-level overrides only (not the full profile chain).
             provider = target.provider
             focus_provider = self._resolve_focus_provider_override(focus)
-            if focus_provider is not None:
+            if focus_provider is not None or self._focus_declares_provider_override(
+                focus
+            ):
                 provider = focus_provider
             model = target.model
             if getattr(focus, "model", None) or getattr(focus, "model_role", None):
                 if provider is not None:
                     model = self._resolve_model(profile, provider, focus=focus)
         else:
-            # Legacy path: full _resolve_provider chain.
-            provider = self._resolve_provider(profile, focus=focus)
+            # An explicit focus provider/role must resolve on its own.  It
+            # cannot fall back to the profile/default provider, because the
+            # ACP launch below would otherwise derive a default backend and
+            # credentials from that unrelated provider.
+            focus_provider = self._resolve_focus_provider_override(focus)
+            provider = (
+                focus_provider
+                if focus_provider is not None
+                or self._focus_declares_provider_override(focus)
+                else self._resolve_provider(profile, focus=focus)
+            )
             model = None
             if provider is not None:
                 model = self._resolve_model(profile, provider, focus=focus)
+
+        try:
+            self._require_post_focus_provider(provider, focus, target)
+        except ProviderStartupError as exc:
+            if target is not None:
+                raise
+            raise ValueError(str(exc)) from exc
+
         # Do not invent a ``default`` model for a blank SDK-managed ACP role.
         # The blank is the SDK contract; durable auditor state below uses the
         # explicit SDK_MANAGED_MODEL identity while the backend still receives
@@ -44352,6 +45624,7 @@ class Orchestrator:
                         )
             tool_catalog = build_tool_catalog(
                 workspace_path,
+                isolate_remote_write=self._is_epic_rebase_task(issue),
                 tool_liveness=(
                     self.state.running[issue.id].session.tool_liveness
                     if issue.id in self.state.running
@@ -44673,6 +45946,29 @@ class Orchestrator:
                 prompt=prompt_text,
                 model=acp_model,
                 max_turns=max_turns,
+                isolate_remote_write=self._is_epic_rebase_task(issue),
+                provider_auth_kind=(
+                    self._isolated_acp_provider_auth_kind(
+                        acp_backend_name,
+                        acp_billing_model,
+                    )
+                    if self._is_epic_rebase_task(issue)
+                    else None
+                ),
+                env=(
+                    {
+                        (
+                            "OOMPAH_CODEX_API_KEY"
+                            if acp_backend_name == "codex"
+                            else "OOMPAH_OPENCODE_API_KEY"
+                        ): str(provider.api_key)
+                    }
+                    if self._is_epic_rebase_task(issue)
+                    and provider is not None
+                    and acp_backend_name in {"codex", "opencode"}
+                    and str(getattr(provider, "api_key", "") or "").strip()
+                    else None
+                ),
                 tool_catalog=tool_catalog,
                 read_only=read_only_session,
                 on_event=_on_event,
@@ -45004,6 +46300,12 @@ class Orchestrator:
                 workspace_path=workspace_path,
                 read_timeout_ms=self.config.read_timeout_ms,
                 turn_timeout_ms=self.config.turn_timeout_ms,
+                isolate_remote_write=self._is_epic_rebase_task(issue),
+                provider_auth_kind=(
+                    self._isolated_cli_provider_auth_kind(agent_command)
+                    if self._is_epic_rebase_task(issue)
+                    else None
+                ),
                 env=(
                     {
                         TASK_HANDOFF_TOKEN_ENV: handoff_token,

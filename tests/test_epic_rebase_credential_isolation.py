@@ -1,0 +1,487 @@
+"""Credential-boundary regressions for direct epic-rebase helpers."""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import subprocess
+import sys
+import types
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from oompah.acp_agent import AcpAgentSession
+from oompah.api_agent import _exec_run_command
+
+
+def _init_rebase_workspace(path):
+    """Create the linked-worktree layout required by direct rebase workers."""
+    source = path / "source"
+    workspace = path / "workspace"
+    source.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.name", "Oompah"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.email", "oompah@example.test"], cwd=source, check=True)
+    (source / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=source, check=True)
+    subprocess.run(["git", "worktree", "add", "-q", "-b", "worker", str(workspace)], cwd=source, check=True)
+    return workspace
+
+
+def test_api_worker_shell_does_not_inherit_remote_write_credentials(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("GITHUB_TOKEN", "forge-secret")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("ARBITRARY_FORGE_ROUTE", "forge-secret")
+    workspace = _init_rebase_workspace(tmp_path)
+
+    result = _exec_run_command(
+        workspace,
+        {"command": "env"},
+        isolate_remote_write=True,
+    )
+
+    assert "exit_code: 0" in result
+    assert "forge-secret" not in result
+    assert "GITHUB_TOKEN=" not in result
+    assert "SSH_AUTH_SOCK=" not in result
+    assert "ARBITRARY_FORGE_ROUTE=" not in result
+    assert "GIT_CONFIG_GLOBAL=/dev/null" in result
+    assert "GIT_SSH_COMMAND=/bin/false" in result
+    assert "OOMPAH_TASK_HANDOFF_TOKEN=" not in result
+    assert "OPENAI_API_KEY=" not in result
+    assert "OOMPAH_WORKER_RUNTIME_DIR=" not in result
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "test ! -e /home/shedwards/.ssh",
+        "git send-pack https://example.test/repo HEAD:refs/heads/escape",
+        "gh api https://example.test/user",
+        "curl --max-time 2 https://example.test/",
+        "python3 -c 'import urllib.request; urllib.request.urlopen(\"https://example.test\", timeout=2)'",
+    ],
+)
+def test_rebase_executor_blocks_host_credentials_and_remote_write_routes(
+    tmp_path, command
+):
+    """The MCP shell is a namespace boundary, not a command blacklist."""
+    workspace = _init_rebase_workspace(tmp_path)
+    result = _exec_run_command(
+        workspace,
+        {"command": command},
+        isolate_remote_write=True,
+    )
+
+    if command.startswith("test"):
+        assert "exit_code: 0" in result
+    else:
+        assert "exit_code: 0" not in result
+
+
+def test_rebase_executor_supports_a_real_linked_worktree_without_remote_config(
+    tmp_path,
+):
+    """The namespace keeps the local Git data needed for a rebase/commit."""
+    source = tmp_path / "source"
+    linked = tmp_path / "linked"
+    source.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.name", "Oompah"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.email", "oompah@example.test"], cwd=source, check=True)
+    (source / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "worktree", "add", "-q", "-b", "rebase-worker", str(linked)],
+        cwd=source,
+        check=True,
+    )
+
+    result = _exec_run_command(
+        linked,
+        {
+            "command": (
+                "printf 'worker\\n' > worker.txt && git add worker.txt && "
+                "git commit -m worker && git rebase --onto HEAD HEAD && git status --porcelain"
+            )
+        },
+        isolate_remote_write=True,
+    )
+
+    assert "exit_code: 0" in result
+    assert (linked / "worker.txt").read_text() == "worker\n"
+    # The ordinary shared config remains unchanged; the sandbox receives only
+    # a private, sanitized overlay.
+    assert "remote" not in (source / ".git" / "config").read_text().lower()
+
+
+def test_rebase_executor_never_mounts_provider_or_handoff_runtime(tmp_path, monkeypatch):
+    provider_runtime = tmp_path / "provider-runtime"
+    provider_runtime.mkdir()
+    (provider_runtime / "auth.json").write_text("provider-secret")
+    monkeypatch.setenv("OOMPAH_WORKER_RUNTIME_DIR", str(provider_runtime))
+    monkeypatch.setenv("OOMPAH_TASK_HANDOFF_TOKEN", "handoff-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "provider-secret")
+    workspace = _init_rebase_workspace(tmp_path)
+
+    result = _exec_run_command(
+        workspace,
+        {
+            "command": (
+                f"test ! -e {provider_runtime} && "
+                "test -z \"${OOMPAH_TASK_HANDOFF_TOKEN:-}\" && "
+                "test -z \"${OPENAI_API_KEY:-}\""
+            )
+        },
+        isolate_remote_write=True,
+    )
+
+    assert "exit_code: 0" in result
+
+
+def test_acp_session_forwards_remote_write_isolation_to_backend(tmp_path):
+    captured = {}
+
+    class FakeBackendSession:
+        status = "succeeded"
+        last_error = None
+        permission_denials = []
+
+        async def run_turn(self):
+            if False:
+                yield None
+
+        async def terminate(self):
+            return None
+
+    class FakeBackend:
+        name = "fake"
+
+        def start_session(self, options):
+            captured["isolate_remote_write"] = options.isolate_remote_write
+            return FakeBackendSession()
+
+    session = AcpAgentSession(
+        workspace_path=str(tmp_path),
+        prompt="work",
+        isolate_remote_write=True,
+    )
+    session._backend = FakeBackend()
+
+    assert asyncio.run(session.run_task()) == "succeeded"
+    assert captured["isolate_remote_write"] is True
+
+
+def test_codex_subscription_cli_is_rejected_for_isolated_rebase_work(tmp_path):
+    """Only the API/bridged path may combine provider access and tools."""
+    from oompah.acp_backends.base import AcpBackendOptions
+    from oompah.acp_backends.codex import CodexAcpBackendSession
+
+    async def run() -> list[object]:
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="work",
+                billing_model="subscription",
+                isolate_remote_write=True,
+            )
+        )
+        events = [event async for event in session.run_turn()]
+        assert session.status == "errored"
+        assert "unavailable for shared-epic rebase" in (session.last_error or "")
+        return events
+
+    events = asyncio.run(run())
+    assert events and events[0].kind == "session_error"
+
+
+def test_opencode_is_rejected_for_isolated_rebase_work(tmp_path, monkeypatch):
+    from oompah.acp_backends.base import AcpBackendOptions
+    from oompah.acp_backends import opencode as opencode_module
+
+    spawn = AsyncMock()
+    monkeypatch.setattr(opencode_module.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(
+        opencode_module,
+        "agent_environment",
+        lambda *_args, **_kwargs: pytest.fail("isolated OpenCode must not bootstrap auth"),
+    )
+
+    async def run() -> list[object]:
+        session = opencode_module.OpencodeAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="work",
+                isolate_remote_write=True,
+            )
+        )
+        events = [event async for event in session.run_turn()]
+        assert session.status == "errored"
+        assert "unavailable for shared-epic rebase" in (session.last_error or "")
+        return events
+
+    events = asyncio.run(run())
+    assert events and events[0].kind == "session_error"
+    spawn.assert_not_awaited()
+
+
+def test_rebase_routing_skips_cli_and_codex_subscription_profiles():
+    from oompah.models import AgentProfile
+    from oompah.orchestrator import Orchestrator
+
+    cli = AgentProfile(name="cli", command="codex", mode="cli")
+    subscription = AgentProfile(
+        name="subscription", command="codex", mode="acp", provider_id="sub"
+    )
+    opencode = AgentProfile(
+        name="opencode", command="opencode", mode="acp", provider_id="open"
+    )
+    unknown = AgentProfile(
+        name="unknown", command="future-agent", mode="acp", provider_id="future"
+    )
+    missing_backend = AgentProfile(
+        name="missing-backend", command="agent", mode="acp", provider_id="missing"
+    )
+    empty_backend = AgentProfile(
+        name="empty-backend", command="agent", mode="acp", provider_id="empty"
+    )
+    codex_api = AgentProfile(
+        name="codex-api", command="codex", mode="acp", provider_id="codex-api"
+    )
+    bridged = AgentProfile(
+        name="bridged", command="claude", mode="acp", provider_id="bridge"
+    )
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.config = SimpleNamespace(
+        agent_profiles=[
+            cli,
+            subscription,
+            opencode,
+            unknown,
+            missing_backend,
+            empty_backend,
+            bridged,
+            codex_api,
+        ]
+    )
+    providers = {
+        "sub": SimpleNamespace(backend="codex", billing_model="subscription"),
+        "open": SimpleNamespace(backend="opencode", billing_model="per_token"),
+        "future": SimpleNamespace(backend="future-acp", billing_model="per_token"),
+        "missing": SimpleNamespace(billing_model="per_token"),
+        "empty": SimpleNamespace(backend="", billing_model="per_token"),
+        "codex-api": SimpleNamespace(backend="codex", billing_model="per_token"),
+        "bridge": SimpleNamespace(backend="claude", billing_model="subscription"),
+    }
+    orchestrator._resolve_provider = lambda profile: providers[profile.provider_id]
+
+    assert not orchestrator._profile_supports_isolated_rebase(opencode)
+    assert not orchestrator._profile_supports_isolated_rebase(unknown)
+    assert not orchestrator._profile_supports_isolated_rebase(missing_backend)
+    assert not orchestrator._profile_supports_isolated_rebase(empty_backend)
+    assert orchestrator._profile_supports_isolated_rebase(codex_api)
+    assert orchestrator._profile_supports_isolated_rebase(bridged)
+    assert orchestrator._find_rebase_acp_profile() is bridged
+
+
+def test_embedded_http_remote_credentials_are_detected(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://token:secret@example.test/repo"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    from oompah.orchestrator import Orchestrator
+
+    assert Orchestrator._epic_rebase_workspace_has_embedded_remote_credentials(
+        str(tmp_path)
+    )
+
+
+def test_ssh_remote_identity_is_not_treated_as_embedded_secret(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@example.test:group/repo.git"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    from oompah.orchestrator import Orchestrator
+
+    assert not Orchestrator._epic_rebase_workspace_has_embedded_remote_credentials(
+        str(tmp_path)
+    )
+
+
+def test_credential_bearing_pushurl_is_detected_while_fetch_url_is_clean(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://example.test/repo"],
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "set-url", "--push", "origin", "https://token:secret@example.test/repo"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    from oompah.orchestrator import Orchestrator
+
+    assert Orchestrator._epic_rebase_workspace_has_remote_write_route(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("credential.helper", "!/operator/credential-helper"),
+        ("http.https://example.test/.extraheader", "Authorization: Bearer secret"),
+    ],
+)
+def test_local_git_credential_routes_are_detected(tmp_path, key, value):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "--local", key, value], cwd=tmp_path, check=True)
+
+    from oompah.orchestrator import Orchestrator
+
+    assert Orchestrator._epic_rebase_workspace_has_remote_write_route(str(tmp_path))
+
+
+def _assert_mcp_shell_is_isolated(text: str) -> None:
+    assert "GITHUB_TOKEN=" not in text
+    assert "SSH_AUTH_SOCK=" not in text
+    assert "ARBITRARY_FORGE_ROUTE=" not in text
+    assert "GIT_CONFIG_GLOBAL=/dev/null" in text
+    assert "GIT_SSH_COMMAND=/bin/false" in text
+
+
+def test_claude_mcp_run_command_uses_rebase_credential_boundary(tmp_path, monkeypatch):
+    pytest.importorskip("claude_agent_sdk")
+    monkeypatch.setenv("GITHUB_TOKEN", "forge-secret")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("ARBITRARY_FORGE_ROUTE", "forge-secret")
+    workspace = _init_rebase_workspace(tmp_path)
+
+    from oompah.acp_tools import build_tool_catalog
+
+    catalog = build_tool_catalog(str(workspace), isolate_remote_write=True)
+    tool = next(item for item in catalog if item.name == "run_command")
+    result = asyncio.run(tool.handler({"command": "env"}))
+
+    _assert_mcp_shell_is_isolated(result["content"][0]["text"])
+
+
+def test_codex_mcp_run_command_uses_rebase_credential_boundary(tmp_path, monkeypatch):
+    pytest.importorskip("agents")
+    monkeypatch.setenv("GITHUB_TOKEN", "forge-secret")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("ARBITRARY_FORGE_ROUTE", "forge-secret")
+    workspace = _init_rebase_workspace(tmp_path)
+
+    from oompah.acp_tools import build_codex_tool_catalog
+
+    catalog = build_codex_tool_catalog(str(workspace), isolate_remote_write=True)
+    tool = next(item for item in catalog if item.name == "run_command")
+    result = asyncio.run(tool.on_invoke_tool(MagicMock(), '{"command":"env"}'))
+
+    _assert_mcp_shell_is_isolated(result)
+
+
+def test_opencode_mcp_run_command_uses_rebase_credential_boundary(
+    tmp_path, monkeypatch
+):
+    def fake_tool(name, description, schema):
+        del description, schema
+
+        def decorate(handler):
+            handler.name = name
+            handler.handler = handler
+            return handler
+
+        return decorate
+
+    monkeypatch.setitem(sys.modules, "opencode", types.SimpleNamespace(tool=fake_tool))
+    monkeypatch.setenv("GITHUB_TOKEN", "forge-secret")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("ARBITRARY_FORGE_ROUTE", "forge-secret")
+    workspace = _init_rebase_workspace(tmp_path)
+
+    from oompah.acp_tools import build_opencode_tool_catalog
+
+    catalog = build_opencode_tool_catalog(str(workspace), isolate_remote_write=True)
+    tool = next(item for item in catalog if item.name == "run_command")
+    result = asyncio.run(tool.handler({"command": "env"}))
+
+    _assert_mcp_shell_is_isolated(result["content"][0]["text"])
+
+
+def test_codex_api_keys_are_scoped_per_session_not_process_global(monkeypatch, tmp_path):
+    """Concurrent/rotated provider keys must not cross through os.environ."""
+    from oompah.acp_backends import codex as codex_module
+    from oompah.acp_backends.base import AcpBackendOptions
+    from oompah.acp_backends.codex import CodexAcpBackendSession
+
+    captured_keys = []
+
+    class FakeAgent:
+        def __init__(self, **_kwargs):
+            pass
+
+    class FakeProvider:
+        def __init__(self, *, api_key):
+            self.api_key = api_key
+
+    class FakeRunConfig:
+        def __init__(self, *, model_provider):
+            self.model_provider = model_provider
+
+    class FakeResult:
+        usage = None
+
+        async def _events(self):
+            if False:
+                yield None
+
+        def stream_events(self):
+            return self._events()
+
+    class FakeRunner:
+        @staticmethod
+        def run_streamed(_agent, *, input, run_config=None):
+            del input
+            captured_keys.append(run_config.model_provider.api_key)
+            return FakeResult()
+
+    fake_sdk = types.SimpleNamespace(
+        Agent=FakeAgent,
+        Runner=FakeRunner,
+        OpenAIProvider=FakeProvider,
+        RunConfig=FakeRunConfig,
+    )
+    monkeypatch.setattr(codex_module, "_import_sdk", lambda: fake_sdk)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    async def run_one(key):
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="work",
+                env={"OPENAI_API_KEY": key},
+            )
+        )
+        session._build_tool_catalog = lambda: []
+        async for _event in session.run_turn():
+            pass
+
+    asyncio.run(run_one("key-one"))
+    asyncio.run(run_one("key-two"))
+
+    assert captured_keys == ["key-one", "key-two"]
+    assert "OPENAI_API_KEY" not in os.environ

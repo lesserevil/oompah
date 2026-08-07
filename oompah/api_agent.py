@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import signal
 import secrets
 import ssl
@@ -37,6 +38,10 @@ from oompah.client_auth import agent_environment
 from oompah.authority_boundary import AgentActionPolicy, check_shell_command
 from oompah.git_command_validation import validate_git_command_is_noninteractive
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
+from oompah.rebase_worker_sandbox import (
+    RebaseWorkerSandboxUnavailable,
+    restricted_rebase_command,
+)
 from oompah.secrets import redact_sensitive_data, register_secret
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
@@ -878,6 +883,7 @@ def _exec_run_command(
     validation_reuse_authority_check: Callable[[], object] | None = None,
     validation_reuse_policy_handler: Callable[..., object] | None = None,
     result_delivery_required: bool = False,
+    isolate_remote_write: bool = False,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -893,6 +899,9 @@ def _exec_run_command(
     # command.  This applies even when no explicit overrides are supplied,
     # because ``env=None`` would otherwise inherit the server's full env.
     inherited_env = {**os.environ, **(env_overrides or {})}
+    # The Bubblewrap executor owns the direct-rebase command boundary.  Do
+    # not create/copy a provider-auth runtime for a shell command: provider
+    # credentials belong only to the server control plane.
     env = agent_environment(inherited_env, workspace_path=workspace)
     env = {
         name: value
@@ -1139,6 +1148,7 @@ def _exec_run_command(
                     tool_liveness.complete(invocation_id)
             invocation_id = None
 
+    sandbox_command = None
     try:
         def _authority_cancelled() -> bool:
             if lease_cancelled is None:
@@ -1186,10 +1196,14 @@ def _exec_run_command(
         # allowing task-controlled startup code to replace PATH or start heavy
         # validation before the lease boundary.  This shell is only a command
         # parser; never admit interactive or login startup files here.
-        process = subprocess.Popen(
-            ["bash", "--noprofile", "--norc", "-c", command],
-            **popen_kwargs,
-        )
+        process_args = ["bash", "--noprofile", "--norc", "-c", command]
+        if isolate_remote_write:
+            try:
+                sandbox_command = restricted_rebase_command(command, workspace, env)
+                process_args = sandbox_command
+            except RebaseWorkerSandboxUnavailable as exc:
+                return f"Error: {exc}"
+        process = subprocess.Popen(process_args, **popen_kwargs)
         validation_process_started = True
         # Allowed is definitive only after the process boundary accepted the
         # launch. Denials are recorded before returning above, so every
@@ -1316,6 +1330,8 @@ def _exec_run_command(
             )
         return f"Error running command: {exc}"
     finally:
+        if sandbox_command is not None:
+            sandbox_command.cleanup()
         if invocation_id is not None:
             try:
                 if result_delivery_required and not result_pending:
@@ -1326,6 +1342,9 @@ def _exec_run_command(
                 pass
         if validation_handle is not None:
             validation_handle.release()
+        runtime_dir = env.get("OOMPAH_WORKER_RUNTIME_DIR")
+        if runtime_dir:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
 
 
 def _exec_read_command_output(
@@ -1495,6 +1514,7 @@ def _execute_tool(
     validation_reuse_policy_handler: Callable[..., object] | None = None,
     project_store: Any = None,
     submission_handler: Any = None,
+    isolate_remote_write: bool = False,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1588,6 +1608,7 @@ def _execute_tool(
             command_kwargs = {
                 "timeout": cmd_timeout,
                 "env_overrides": env_overrides,
+                "isolate_remote_write": isolate_remote_write,
             }
             if tool_liveness is not None:
                 command_kwargs["tool_liveness"] = tool_liveness
@@ -1957,6 +1978,7 @@ class ApiAgentSession:
         project_store: Any = None,
         submission_handler: Any = None,
         before_transport_contact: Callable[[], str | None] | None = None,
+        isolate_remote_write: bool = False,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -2023,6 +2045,7 @@ class ApiAgentSession:
         self.validation_reuse_policy_handler = validation_reuse_policy_handler
         self.project_store = project_store
         self.submission_handler = submission_handler
+        self.isolate_remote_write = bool(isolate_remote_write)
         # The orchestrator owns provider-contact authority, but the decisive
         # check must run in the blocking HTTP thread immediately before
         # ``urlopen``.  Keep it one-shot across in-session HTTP retries and
@@ -2499,6 +2522,7 @@ class ApiAgentSession:
                             ),
                             project_store=self.project_store,
                             submission_handler=self.submission_handler,
+                            isolate_remote_write=self.isolate_remote_write,
                         )
 
                     tool_failed = result_str.startswith("Error")
