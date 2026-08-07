@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:38:46.263205Z'
+updated_at: '2026-08-07T22:39:18.003279Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -50,14 +50,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: OOMPAH-887
   base_branch: epic-OOMPAH-763
-  base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+  base_sha: 42f98aaed239a576933304af51508ecbbd17d320
   head_sha: 8bd96dd5389d6d3c13004f27365eb5f080fb8be6
   submitted_at: '2026-08-07T22:38:05.572128+00:00'
-  updated_at: '2026-08-07T22:38:05.572128+00:00'
+  updated_at: '2026-08-07T22:39:11.104395+00:00'
+  last_error: epic worktree head a85a36baf7b3ebcb45be27823755b5694a790a49 differs
+    from the published epic head 42f98aaed239a576933304af51508ecbbd17d320; refusing
+    to reset a preserved recovery snapshot
 oompah.work_branch: OOMPAH-887
 ---
 ## Summary
@@ -158,5 +161,12 @@ author: oompah
 created: 2026-08-07 22:38
 ---
 Canonical branch correction: the exact tested commit 8bd96dd5389d6d3c13004f27365eb5f080fb8be6 is now pushed on the assigned branch OOMPAH-887 and matches origin/OOMPAH-887. The temporary OOMPAH-887-direct remote branch was deleted after the CLI correctly enforced the assigned-branch submission contract. No code or commit changed.
+---
+author: oompah
+created: 2026-08-07 22:39
+---
+Integration could not verify `OOMPAH-887`: epic worktree head a85a36baf7b3ebcb45be27823755b5694a790a49 differs from the published epic head 42f98aaed239a576933304af51508ecbbd17d320; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
