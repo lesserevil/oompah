@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T11:12:30.388985Z'
+updated_at: '2026-08-07T11:13:11.590087Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -552,5 +552,10 @@ author: oompah
 created: 2026-08-07 11:12
 ---
 Verification (continuation): dedicated resolver tests pass 12/12; directly affected managed/startup suites pass 53/53; terminal mutation scan passes 8/8; git diff --check is clean. The prior branch gate also passed make test at 0458f8f72. A wrapper-level rerun was blocked because the host validation guard targets the read-only service checkout; isolated direct-vet tests passed.
+---
+author: oompah
+created: 2026-08-07 11:13
+---
+Completion: identity-safe management tracker resolution is delivered at 0458f8f72. Service clones, cached mirrors, and matching agent worktrees resolve the single configured Oompah project by canonical repository evidence; foreign, missing, ambiguous, and invalid topologies fail closed. Global ErrorWatcher setup now emits an actionable startup alert while project log watchers remain active. Focused verification: resolver 12/12, neighboring suites 53/53, terminal scan 8/8; branch gate make test previously passed. Branch is pushed and clean.
 ---
 <!-- COMMENTS:END -->
