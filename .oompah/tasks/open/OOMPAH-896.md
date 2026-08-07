@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-896
 type: task
-status: In Validation
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:20:53.734640Z'
+updated_at: '2026-08-07T14:26:19.931749Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -51,6 +51,30 @@ oompah.integration:
     evidence_fingerprint: 9c51809ea6ace0bb3d2092c8a585c233fdf9e043012657e1f09ee337ac75a93a
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-295608712f24: '2026-08-07T14:26:10.193682+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-896
+    target_state: Done
+    evidence_fingerprint: 051a0ab5bb043639fde33dad25b74633af1fcda826d603aee9dc3a17cc519ab7
+    audit_ids:
+    - audit-81a537d63f9c
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T14:26:10.193693+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-896
+    audit_id: audit-81a537d63f9c
+    attempt_id: attempt-295608712f24
+    target_state: Done
+    evidence_fingerprint: 051a0ab5bb043639fde33dad25b74633af1fcda826d603aee9dc3a17cc519ab7
+    status: Open
+    audit_ids:
+    - audit-81a537d63f9c
+    applied: false
+    created_at: '2026-08-07T14:26:10.193710+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -58,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-896
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -84,7 +108,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-295608712f24
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -97,6 +121,10 @@ oompah.terminal_audit:
       selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
       selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
       candidate_rotation_count: 1
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-08-07T14:26:10.193536+00:00'
+      ended_at: '2026-08-07T14:26:10.193536+00:00'
     requested_by:
       version: 1
       identity: oompah-epic-maintenance
@@ -105,7 +133,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:08:11.947050+00:00'
     selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
     selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
-    updated_at: '2026-08-07T14:20:42.979691+00:00'
+    updated_at: '2026-08-07T14:26:10.193536+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-37c526a7daa7
