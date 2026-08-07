@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T09:43:51.880076Z'
+updated_at: '2026-08-07T09:44:01.527955Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -131,7 +131,9 @@ oompah.terminal_audit:
     evidence_fingerprint: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
     audit_ids:
     - audit-4b7ddaa796f1
-    kind: result
+    - audit-78d38e3cdbe2
+    - audit-ad075da8086f
+    kind: override
     applied: true
     retired_at: '2026-08-07T09:42:02.927222+00:00'
   oompah.terminal_audit_result_intents:
@@ -147,6 +149,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T08:45:14.443955+00:00'
     applied_at: '2026-08-07T08:45:22.816971+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-870
     audit_id: audit-4b7ddaa796f1
@@ -159,6 +162,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:42:02.927232+00:00'
     applied_at: '2026-08-07T09:42:09.423382+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-6351eccbb20f
@@ -177,7 +181,7 @@ oompah.terminal_audit:
       head aaaebbfa5 is contained in origin/main. All configured auditor transports
       terminated before a verdict; OOMPAH-876 tracks the systemic retry defect.'
     created_at: '2026-08-07T09:43:48.175336+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -637,5 +641,12 @@ created: 2026-08-07 09:42
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 09:43
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner recovery: PR #736 is merged as 39285e9c3 and exact implementation head aaaebbfa5 is contained in origin/main. All configured auditor transports terminated before a verdict; OOMPAH-876 tracks the systemic retry defect.
 ---
 <!-- COMMENTS:END -->
