@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T15:53:52.130918Z'
+updated_at: '2026-08-07T16:04:10.296075Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -564,5 +564,10 @@ author: oompah
 created: 2026-08-07 15:53
 ---
 Direct-owner integration restacked the eight OOMPAH-854 lifecycle/retirement commits from prior head b5a699b316fa onto validated shared-epic head e06bec5490b9. Recovery ref refs/oompah/recovery/OOMPAH-854-pre-e06 preserves the old head. Three current-contract fixture regressions were repaired and pass 3/3 at new local head a2b745f2a6e5; broader focused validation and independent static review are in progress. No branch push or server resume yet.
+---
+author: oompah
+created: 2026-08-07 16:04
+---
+Independent semantic review ACCEPTed the e06bec549..a2b745f2 restack: exact-entry retirement, accepted-submission mutation permits, generation-safe suspension/revocation/rollback, provider-to-retry lock order, and shutdown scheduling/drain fencing were all preserved. The three reconciled tests match the current revision-binding and exact-entry contracts. Broader brokered focused validation remains before composition; no push or status transition yet.
 ---
 <!-- COMMENTS:END -->
