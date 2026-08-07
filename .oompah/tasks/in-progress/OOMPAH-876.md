@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T10:16:19.338500Z'
+updated_at: '2026-08-07T10:19:31.889247Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -54,13 +54,13 @@ oompah.integration:
   base_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
   updated_at: '2026-08-07T09:53:42.693673+00:00'
 oompah.task_costs:
-  total_input_tokens: 47731
-  total_output_tokens: 303
+  total_input_tokens: 47741
+  total_output_tokens: 1317
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 47731
-      output_tokens: 303
+      input_tokens: 47741
+      output_tokens: 1317
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +69,12 @@ oompah.task_costs:
     output_tokens: 303
     cost_usd: 0.0
     recorded_at: '2026-08-07T09:46:45.605951+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1014
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T10:19:20.766113+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-876__20260807T094554Z
@@ -79,6 +85,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-768--task-OOMPAH-876
     source_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
     completed_at: '2026-08-07T09:46:45.640121+00:00'
+  - run_id: OOMPAH-876__20260807T095353Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: oompah_tests
+    source_branch: epic-OOMPAH-768--task-OOMPAH-876
+    source_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
+    completed_at: '2026-08-07T10:19:20.770428+00:00'
 ---
 ## Summary
 
@@ -174,5 +188,25 @@ author: oompah
 created: 2026-08-07 10:16
 ---
 Additional live reproduction: OOMPAH-865 exact integrated head 04fa6781091e reached Needs Human after haiku/sonnet/opus all terminated before a verdict (0 turns; attempts lasted 14m05s, 17m00s, 16m40s). The code had independent acceptance plus 211 serial + 211 xdist4 focused validation and prior gate repairs; owner override restored Done. Pre-verdict transport termination must not consume the substantive candidate budget.
+---
+author: oompah
+created: 2026-08-07 10:19
+---
+Agent completed successfully in 1549s (1024 tokens)
+---
+author: oompah
+created: 2026-08-07 10:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 52, Tool calls: 16
+- Tokens: 10 in / 1.0K out [1.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 49s
+- Log: OOMPAH-876__20260807T095353Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:19
+---
+Agent completed without closing this issue (1549s (1024 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
