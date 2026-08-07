@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:16:46.630194Z'
-updated_at: '2026-08-07T14:49:15.716488Z'
+updated_at: '2026-08-07T14:49:34.129405Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -55,7 +55,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:49:10.420910+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-880
+    target_state: Archived
+    evidence_fingerprint: 88c4699c3f189ad60ebe24aa15d07ea9bb61a94c4ae39d3a0b8717984c18104a
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:49:24.563270+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -113,5 +123,17 @@ author: oompah
 created: 2026-08-07 11:27
 ---
 Direct owner takeover stopped this third premature epic-rebase task after it had already detached the shared epic checkout mid-rebase with unresolved conflicts. Origin and the epic branch ref were never changed. Recovery preserved before cleanup: refs/oompah/recovery/OOMPAH-880-pre-abort-head=063853c108af92c829c7cdd955ce72015f8a33df, ...-rebase-head=373259a41dcb92c069be02c07f0b13605bd82670, ...-onto=18e405d8e6db9549f70e032bc846ce1e4763e6f8, plus mode-0600 archive /home/shedwards/.oompah/recovery-artifacts/OOMPAH-880-pre-abort-20260807T1124Z.tar.gz (sha256 1ee83244dea73edfbbd963f9965c4130599df3387c9e4f9409bb44e2bac0e03f). After preservation, rebase --abort restored the shared checkout clean at exact local/remote epic head 04fa6781091efc6f11b952b9f1b35123facce64f. OOMPAH-877 remains the sole authorized rebase after prerequisites; OOMPAH-879 tracks the duplicate-generation bug.
+---
+author: oompah
+created: 2026-08-07 14:49
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
+---
+author: oompah
+created: 2026-08-07 14:49
+---
+Archived as a superseded duplicate of completed OOMPAH-877.
 ---
 <!-- COMMENTS:END -->
