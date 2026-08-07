@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T09:01:24.848215Z'
+updated_at: '2026-08-07T09:01:36.414351Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -128,7 +128,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
     audit_ids:
     - audit-87e8dfa62ac7
-    kind: result
+    - audit-0fbeacc19e56
+    kind: override
     applied: true
     retired_at: '2026-08-07T08:34:00.419195+00:00'
   oompah.terminal_audit_result_intents:
@@ -144,6 +145,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:10:31.725810+00:00'
     applied_at: '2026-08-07T07:10:40.006881+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-832
     audit_id: audit-87e8dfa62ac7
@@ -156,6 +158,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T08:34:00.419210+00:00'
     applied_at: '2026-08-07T08:34:06.545072+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-a50748b56536
@@ -174,7 +177,7 @@ oompah.terminal_audit:
       and that revision is present on main; restoring the completed terminal outcome
       after the watchdog erroneously reopened it.'
     created_at: '2026-08-07T09:01:21.000677+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -514,5 +517,12 @@ author: oompah
 created: 2026-08-07 09:00
 ---
 Owner recovery: this already-merged task was reopened by stale watchdog/reconciliation evidence. Restaging the authoritative Merged transition with the expanded verdict-capable auditor pool; no implementation work is authorized. OOMPAH-871 fixes the systemic terminal-provenance reopen path.
+---
+author: oompah
+created: 2026-08-07 09:01
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #732 merged at accepted head faa217b41a87ed3a1869a4fe38947778a55fe4fe and that revision is present on main; restoring the completed terminal outcome after the watchdog erroneously reopened it.
 ---
 <!-- COMMENTS:END -->
