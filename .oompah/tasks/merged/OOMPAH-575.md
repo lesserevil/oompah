@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T10:03:46.357059Z'
+updated_at: '2026-08-07T10:04:04.055392Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -165,6 +165,25 @@ oompah.terminal_audit:
       raced and incorrectly regressed the terminal owner override; no gate is now
       active and branch equals main.
     created_at: '2026-07-31T06:08:37.323574+00:00'
+  - version: 1
+    override_id: override-34617fc12a49
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f25dcaee904569df7b5387a5b6f7b6098dafa67095408d61235428f1a854e173
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner recovery: fresh Merged audit staging now matches current evidence.
+      Independent PASS verified 14,163 tests and head bb0fd760c is already in main;
+      historical transport exhaustion must not reopen implementation. OOMPAH-876 tracks
+      the defect.'
+    created_at: '2026-08-07T10:04:00.425552+00:00'
+    applied: false
   applied_result_attempts:
     attempt-3c098a00efde: '2026-08-07T07:46:26.636014+00:00'
     infrastructure-exhausted-audit-3f0f5b312547-3: '2026-08-07T09:42:42.904431+00:00'
