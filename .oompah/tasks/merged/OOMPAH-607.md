@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T09:21:15.964320Z'
+updated_at: '2026-08-07T09:21:27.514640Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: ''
@@ -181,6 +181,25 @@ oompah.terminal_audit:
       and all GitHub CI matrix jobs passed; independent auditor candidates were exhausted
       by transport termination.'
     created_at: '2026-07-31T06:49:06.406486+00:00'
+  - version: 1
+    override_id: override-d79d76442676
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 220324ec55419cf72474495c63cbd567b0cc52d39bbdfdf4f1a03a717b0495b7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #605 is already merged and the task fix is contained in current main;
+      exact current-main head 39285e9c3 passed the full gate, while a replacement
+      review is structurally impossible for a no-diff main head. Restore terminal
+      provenance pending OOMPAH-871 deployment.'
+    created_at: '2026-08-07T09:21:23.915866+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-607
