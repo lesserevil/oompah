@@ -41,19 +41,24 @@ _OWNED_ORCHESTRATOR_RESOURCES: list[
 def _remember_orchestrator_resources(orch: Orchestrator) -> None:
     """Retain the exact pools and stores opened by a test orchestrator."""
 
+    stores = tuple(
+        (name, store)
+        for name in (
+            "coordination_store",
+            "integration_queue",
+            "review_capacity_store",
+            "workflow_job_store",
+            "task_transition_journal",
+        )
+        if (store := getattr(orch, name, None)) is not None
+    )
     _OWNED_ORCHESTRATOR_RESOURCES.append(
         (
             (
                 ("_tick_pool", orch._tick_pool),
                 ("_refresh_pool", orch._refresh_pool),
             ),
-            (
-                ("coordination_store", orch.coordination_store),
-                ("integration_queue", orch.integration_queue),
-                ("review_capacity_store", orch.review_capacity_store),
-                ("workflow_job_store", orch.workflow_job_store),
-                ("task_transition_journal", orch.task_transition_journal),
-            ),
+            stores,
         )
     )
 
