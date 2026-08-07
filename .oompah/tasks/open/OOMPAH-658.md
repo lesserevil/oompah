@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T18:08:17.236375Z'
+updated_at: '2026-08-07T18:08:45.156365Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -27,13 +27,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: a6251c51-dbb4-4245-bf83-92a2a76d6d48
-  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
-  claimed_at: '2026-08-07T18:07:51.172871+00:00'
-  claim_expires_at: '2026-08-07T18:37:51.172871+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: origin/OOMPAH-658 does not match accepted head 6e27fb150b7bd711c98c7aa5c94e355200dfa325
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-07T18:09:12.097674+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
