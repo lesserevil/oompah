@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T02:46:47.548455Z'
+updated_at: '2026-08-07T02:48:51.763941Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -158,6 +158,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-558c6911dda7: '2026-07-31T02:40:35.964619+00:00'
     attempt-f3c46f01b5ac: '2026-07-31T02:44:10.430554+00:00'
+    no-auditor-audit-0f52e8990f4a-0: '2026-08-07T02:48:42.166755+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-576
+    target_state: Archived
+    evidence_fingerprint: 0b4eff7f568d6b885eb36cf31f7ca7e01cfee0e1fc247800b40cf56416ce970a
+    audit_ids:
+    - audit-0f52e8990f4a
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T02:48:42.166767+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-576
+    audit_id: audit-0f52e8990f4a
+    attempt_id: no-auditor-audit-0f52e8990f4a-0
+    target_state: Archived
+    evidence_fingerprint: 0b4eff7f568d6b885eb36cf31f7ca7e01cfee0e1fc247800b40cf56416ce970a
+    status: Needs Human
+    audit_ids:
+    - audit-0f52e8990f4a
+    applied: true
+    created_at: '2026-08-07T02:48:42.166785+00:00'
+    applied_at: '2026-08-07T02:48:50.333951+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -233,18 +257,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-576
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0b4eff7f568d6b885eb36cf31f7ca7e01cfee0e1fc247800b40cf56416ce970a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-0f52e8990f4a-0
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0b4eff7f568d6b885eb36cf31f7ca7e01cfee0e1fc247800b40cf56416ce970a
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T02:48:42.166572+00:00'
+      completed_at: '2026-08-07T02:48:42.166572+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T02:46:41.864256+00:00'
+    updated_at: '2026-08-07T02:48:42.166572+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-558c6911dda7
@@ -491,5 +528,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 15s
 - Log: OOMPAH-576__20260731T024115Z.jsonl
+---
+author: oompah
+created: 2026-08-07 02:48
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
