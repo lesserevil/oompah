@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T08:12:34.747454Z'
+updated_at: '2026-08-07T08:12:47.199415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ Additional reopen paths that need fencing: \`_execute_stalled_watchdog_reopen_lo
 Design: persist a durable \`ProvenanceSuppression\` marker inside the existing \`TerminalAuditMetadata\` envelope under key \`oompah.terminal_provenance_suppression\`. This inherits the metadata store's project write lock, quarantine handling, and redaction rules. The marker carries a monotonically increasing \`authority_generation\` bumped only by \`authorize_new_revision(actor, reason)\` — this is the only path that returns a suppressed record to a dispatchable state and survives service restart naturally because the marker is tracker-durable.
 
 **Implementation**: Added new module \`oompah/provenance_suppression.py\` with pure logic. Integrated into the orchestrator at four sites: \`_reconcile_terminal_open_reviews\`, \`_reopen_stale_in_review_task\`, \`_execute_stalled_watchdog_reopen_locked\`, and \`_should_dispatch\`. The fence emits an operator log line on suppression and an alert-severity log for malformed markers, and never mutates status in either case.
+---
+author: oompah
+created: 2026-08-07 08:12
+---
+Independent early review (while implementation remains in progress): the current durable-marker diff is not yet acceptance-complete. No reachable owner-authorized API/CLI/transition path currently invokes mark_provenance_only or authorize_new_revision, so suppression cannot be set or explicitly cleared. Current fences cover dispatch/watchdog and two review reconciliations, but not shared-absorption, epic-child rollup, restart recovery, or auto-archive paths. These are blocking if still absent at the frozen head; please either cover the required transition surfaces with tests or document and prove why they cannot reopen provenance-only work.
 ---
 <!-- COMMENTS:END -->
