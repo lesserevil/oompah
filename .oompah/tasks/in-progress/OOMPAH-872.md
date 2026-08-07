@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T08:48:53.107208Z'
+updated_at: '2026-08-07T08:49:10.407738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 73f66125-746d-4660-bc78-50853ee8a808
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 47922
   total_output_tokens: 212
@@ -71,6 +71,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-872
     source_sha: 45e2b83356dd041200d7cad0970c7e6f939dc757
     completed_at: '2026-08-07T07:17:59.496533+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-872
+  head_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+  submitted_at: '2026-08-07T08:48:59.903561+00:00'
+  updated_at: '2026-08-07T08:48:59.903561+00:00'
 ---
 ## Summary
 
