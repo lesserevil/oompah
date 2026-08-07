@@ -104,6 +104,13 @@ class TestShouldDispatchRejectsDuplicateCandidate:
         orch.state.owner_claims = {}
         orch._owner_claims_lock = threading.RLock()
         orch._retry_authority_lock = threading.RLock()
+        # Dispatch now checks the durable provenance marker.  This focused
+        # duplicate-label fixture has no marker, so provide the same empty
+        # Mapping metadata surface a real tracker returns for a new issue.
+        metadata_tracker = MagicMock()
+        metadata_tracker.get_metadata.return_value = {}
+        orch.project_store = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=metadata_tracker)
 
         orch._is_project_paused = lambda pid: False
         orch._is_rate_limited = lambda: False

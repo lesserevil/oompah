@@ -14,6 +14,8 @@ Usage::
     oompah task child-create <parent-id> --title "..." [--project <id>]
     oompah task set-status <identifier> <status> [--summary "..."]
         [--audit-override --override-reason "..."]
+    oompah task terminal-provenance <identifier> <retain|new-revision>
+        --project <id> --reason "..."
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
     oompah task set-dependency <identifier> --depends-on <dep-id> [--hard-start]
@@ -656,6 +658,51 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     _print_status_result(result, args.status)
 
 
+def _cmd_terminal_provenance(base_url: str, args: argparse.Namespace) -> None:
+    """Apply an authenticated owner action to terminal provenance state."""
+
+    identifier = args.identifier
+    project_id = str(getattr(args, "project", "") or "").strip()
+    if not project_id:
+        raise SystemExit("--project is required for terminal-provenance")
+    action = str(getattr(args, "action", "") or "").strip().lower()
+    if action not in {"retain", "new-revision"}:
+        raise SystemExit("action must be either 'retain' or 'new-revision'")
+    reason = getattr(args, "reason", None)
+    if not isinstance(reason, str) or not reason.strip():
+        raise SystemExit("--reason is required for terminal-provenance")
+
+    data: dict[str, Any] = {
+        "issue_key": identifier,
+        "reason": reason.strip(),
+    }
+    actor_arg = getattr(args, "actor", None)
+    actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
+    actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    actor = _reconcile_actor_with_session(actor, flag="--actor")
+    if actor:
+        data["actor_login"] = str(actor).strip()
+
+    path = (
+        f"/api/v1/projects/{urllib.parse.quote(project_id, safe='')}"
+        f"/tasks/{_encode_path_id(identifier)}/terminal-provenance/"
+        f"{urllib.parse.quote(action, safe='')}"
+    )
+    result = _http("POST", f"{base_url}{path}", data=data)
+    generation = result.get("authority_generation")
+    if action == "retain":
+        print(
+            f"Task retained as terminal provenance: {identifier} "
+            f"(generation: {generation if generation is not None else 'unknown'})"
+        )
+    else:
+        print(
+            f"New revision authorized: {identifier} "
+            f"(status: {result.get('status') or 'Open'}, "
+            f"generation: {generation if generation is not None else 'unknown'})"
+        )
+
+
 def _print_status_result(result: dict[str, Any], requested_status: str) -> None:
     """Print a stable status result for API and task-handoff responses."""
 
@@ -1288,6 +1335,37 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # --- terminal-provenance ---
+    p_provenance = sub.add_parser(
+        "terminal-provenance",
+        help="Retain terminal provenance or authorize a new revision (project owner only)",
+    )
+    p_provenance.add_argument("identifier", help="Task identifier")
+    p_provenance.add_argument(
+        "action",
+        choices=["retain", "new-revision"],
+        help="retain a terminal record, or authorize a fresh Open revision",
+    )
+    p_provenance.add_argument(
+        "--project",
+        "--project-id",
+        dest="project",
+        required=True,
+        metavar="PROJECT_ID",
+    )
+    p_provenance.add_argument(
+        "--reason",
+        required=True,
+        metavar="REASON",
+        help="Required auditable owner reason",
+    )
+    p_provenance.add_argument(
+        "--actor",
+        default=None,
+        metavar="LOGIN",
+        help="Optional legacy actor; authenticated server principal is authoritative",
+    )
+
     # --- submit ---
     p_submit = sub.add_parser(
         "submit",
@@ -1455,6 +1533,7 @@ _DISPATCH: dict[str, Any] = {
     "create": _cmd_create,
     "child-create": _cmd_child_create,
     "set-status": _cmd_set_status,
+    "terminal-provenance": _cmd_terminal_provenance,
     "submit": _cmd_submit,
     "add-label": _cmd_add_label,
     "remove-label": _cmd_remove_label,
@@ -1523,6 +1602,7 @@ def main(argv: list[str] | None = None) -> None:
         "create": _cmd_create,
         "child-create": _cmd_child_create,
         "set-status": _cmd_set_status,
+        "terminal-provenance": _cmd_terminal_provenance,
         "submit": _cmd_submit,
         "add-label": _cmd_add_label,
         "remove-label": _cmd_remove_label,

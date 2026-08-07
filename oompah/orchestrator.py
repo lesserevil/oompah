@@ -182,6 +182,11 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
+from oompah.provenance_suppression import (
+    describe_malformed_marker,
+    load_provenance_suppression_status,
+    ProvenanceGuardedTracker,
+)
 from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
     DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
@@ -3979,11 +3984,21 @@ class Orchestrator:
                 extra["state_branch_name"] = project.state_branch_name
                 if getattr(project, "state_branch_shadow_write", False) is True:
                     extra["state_branch_shadow_write"] = True
-        return factory(
+        tracker = factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
             cwd=project.repo_path,
             **extra,
+        )
+        # This project-scoped facade is the final authority boundary for
+        # autonomous status writes.  Domain-specific callers still perform
+        # early checks for useful diagnostics, but no newly added watchdog or
+        # recovery path can bypass a durable provenance-only marker merely by
+        # calling the tracker adapter directly.
+        return ProvenanceGuardedTracker(
+            tracker,
+            self.project_store,
+            str(project.id),
         )
 
     def _has_managed_projects(self) -> bool:
@@ -4140,6 +4155,108 @@ class Orchestrator:
         # Always cache by canonical ID so subsequent lookups hit the fast path.
         self._project_trackers[project.id] = tracker
         return tracker
+
+    def _provenance_suppression_status(
+        self,
+        issue: Issue,
+        project_id: str | None,
+        tracker: TrackerProtocol | None = None,
+    ) -> Any:
+        """Return the current provenance-suppression status for one issue.
+
+        A ``None`` project_id returns a permissive status for legacy
+        standalone trackers, which cannot persist this project-scoped marker.
+        Managed-project lookup and metadata failures fail closed: otherwise a
+        transient cache miss or restart race could reopen the exact terminal
+        provenance record this fence exists to protect.
+        """
+
+        from oompah.provenance_suppression import (
+            SuppressionStatus,
+        )
+
+        permissive = SuppressionStatus(
+            suppressed=False,
+            malformed=False,
+            malformed_reason="",
+            marker=None,
+            authority_generation=0,
+        )
+        if not project_id:
+            return permissive
+        blocked = SuppressionStatus(
+            suppressed=True,
+            malformed=True,
+            malformed_reason=(
+                "provenance-suppression metadata could not be read safely"
+            ),
+            marker=None,
+            authority_generation=0,
+        )
+        try:
+            if tracker is None:
+                tracker = self._tracker_for_project(str(project_id))
+        except (ProjectError, TrackerError):
+            return blocked
+        except Exception as exc:  # noqa: BLE001 - fence must never crash callers
+            logger.debug(
+                "Could not establish provenance-suppression fence for %s in %s: %s",
+                getattr(issue, "identifier", "?"),
+                project_id,
+                exc,
+            )
+            return blocked
+        try:
+            store = TerminalAuditMetadataStore(
+                tracker, self.project_store, str(project_id)
+            )
+            return load_provenance_suppression_status(store, issue.identifier)
+        except Exception as exc:  # noqa: BLE001 - fence must never crash callers
+            logger.debug(
+                "Failed to read provenance-suppression marker for %s in %s: %s",
+                getattr(issue, "identifier", "?"),
+                project_id,
+                exc,
+            )
+            return blocked
+
+    def _honor_provenance_suppression(
+        self,
+        issue: Issue,
+        project_id: str | None,
+        *,
+        action: str,
+        tracker: TrackerProtocol | None = None,
+    ) -> bool:
+        """Return True when suppression forbids the requested reopen/dispatch.
+
+        Emits an operator alert for malformed markers without mutating any
+        status.  ``action`` is a short human-readable label used only in the
+        log message (e.g. ``"stalled-task-reopen"``,
+        ``"stale-in-review-reopen"``).
+        """
+
+        status = self._provenance_suppression_status(issue, project_id, tracker)
+        if not status.suppressed and not status.malformed:
+            return False
+        identifier = getattr(issue, "identifier", "?")
+        if status.malformed:
+            logger.warning(
+                "provenance-suppression alert (%s): %s",
+                action,
+                describe_malformed_marker(status, identifier),
+            )
+        else:
+            logger.info(
+                "provenance-suppression: refused %s for %s (project=%s, "
+                "authority_generation=%d) — task is retained only as terminal "
+                "provenance",
+                action,
+                identifier,
+                project_id or "",
+                status.authority_generation,
+            )
+        return True
 
     async def request_terminal_transition(
         self,
@@ -21167,6 +21284,17 @@ class Orchestrator:
             _state_key(s) for s in self.config.tracker_terminal_states
         }:
             return _reject(f"terminal_state={state_norm}")
+        # A durable provenance-suppression marker forbids dispatch even when
+        # tracker state has been externally advanced past a terminal state
+        # (e.g. an operator reopened the tracker label without going through
+        # the ``authorize_new_revision`` path).  The marker survives service
+        # restart, so this fence composes with restart recovery.
+        if self._honor_provenance_suppression(
+            issue,
+            issue.project_id,
+            action="dispatch",
+        ):
+            return _reject("provenance_suppressed")
         if issue.id in self.state.running:
             return _reject("running")
         if issue.id in self.state.claimed:
@@ -23705,6 +23833,19 @@ class Orchestrator:
     ) -> bool:
         """Apply a reopen while issue, queue, tracker, and SCM evidence agree."""
 
+        # Even a stalled-state task can carry a durable provenance-only
+        # marker if an operator explicitly retained it: the fence must
+        # forbid the reopen so a watchdog cannot advance a record that
+        # the owner deliberately left as terminal provenance.  This
+        # composes with the tracker/queue/SCM authority checks below.
+        if self._honor_provenance_suppression(
+            issue,
+            project_id,
+            action="stalled-task-watchdog-reopen",
+            tracker=tracker,
+        ):
+            return False
+
         identifier = str(getattr(issue, "identifier", "") or "").strip()
         expected_status = canonicalize_status(
             str(getattr(decision, "stalled_status", "") or "")
@@ -24126,6 +24267,19 @@ class Orchestrator:
                     )
                     continue
                 if canonicalize_status(issue.state) != MERGED:
+                    continue
+
+                # A task retained only as terminal provenance must not be
+                # demoted from Merged by a stale/historical open-review
+                # observation.  The suppression fence is durable in the
+                # tracker's terminal-audit metadata so this decision
+                # survives restart and repeated maintenance ticks.
+                if self._honor_provenance_suppression(
+                    issue,
+                    project_id,
+                    action="terminal-open-review-reconciliation",
+                    tracker=tracker,
+                ):
                     continue
 
                 branch = self._open_review_branch_for_issue(
@@ -25132,6 +25286,16 @@ class Orchestrator:
         commit_lines: list[str],
         review: ReviewRequest | None,
     ) -> None:
+        # Provenance-suppressed tasks must not be reopened by a stale
+        # In Review reconciliation observation.  The status stays put so
+        # the record remains authoritative terminal provenance.
+        if self._honor_provenance_suppression(
+            issue,
+            getattr(issue, "project_id", None),
+            action="stale-in-review-reopen",
+            tracker=tracker,
+        ):
+            return
         commit_noun = "commit" if commits_ahead == 1 else "commits"
         if review is not None:
             review_id = getattr(review, "id", "")

@@ -86,6 +86,13 @@ def _make_orchestrator(tmp_path, projects=None) -> Orchestrator:
         project_store=project_store,
         state_path=str(tmp_path / "state.json"),
     )
+    # These pause-only tests operate on active tasks with no terminal
+    # provenance marker.  Avoid invoking the production tracker factory with
+    # deliberately partial Project mocks; an empty Mapping is the normal
+    # metadata result for an unmarked issue.
+    metadata_tracker = MagicMock()
+    metadata_tracker.get_metadata.return_value = {}
+    orch._tracker_for_project = MagicMock(return_value=metadata_tracker)
     # Avoid being gated by the open-review cap (reviews cache empty).
     orch._reviews_cache = {}
     return orch
