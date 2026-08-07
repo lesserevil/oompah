@@ -178,6 +178,84 @@ def test_acp_session_forwards_remote_write_isolation_to_backend(tmp_path):
     assert captured["isolate_remote_write"] is True
 
 
+@pytest.mark.parametrize("authorized", [False, True])
+def test_acp_session_threads_exact_publish_authority_to_backend(tmp_path, authorized):
+    """The SDK-native backend rebuild receives the server admission bit."""
+
+    captured = {}
+
+    class FakeBackendSession:
+        status = "succeeded"
+        last_error = None
+        permission_denials = []
+
+        async def run_turn(self):
+            if False:
+                yield None
+
+        async def terminate(self):
+            return None
+
+    class FakeBackend:
+        name = "fake"
+
+        def start_session(self, options):
+            captured["publish_enabled"] = options.epic_rebase_publish_enabled
+            return FakeBackendSession()
+
+    session = AcpAgentSession(
+        workspace_path=str(tmp_path),
+        prompt="work",
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=authorized,
+    )
+    session._backend = FakeBackend()
+
+    assert asyncio.run(session.run_task()) == "succeeded"
+    assert captured["publish_enabled"] is authorized
+
+
+@pytest.mark.parametrize("backend_name", ["codex", "opencode"])
+@pytest.mark.parametrize("authorized", [False, True])
+def test_rebuilding_backends_forward_exact_publish_authority(
+    tmp_path, monkeypatch, backend_name, authorized
+):
+    """Catalog-rebuilding backends cannot silently drop the publish gate."""
+
+    from oompah import acp_tools
+    from oompah.acp_backends.base import AcpBackendOptions
+
+    captured = {}
+
+    def fake_builder(_workspace_path, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    if backend_name == "codex":
+        from oompah.acp_backends.codex import CodexAcpBackendSession
+
+        session_type = CodexAcpBackendSession
+        monkeypatch.setattr(acp_tools, "build_codex_tool_catalog", fake_builder)
+    else:
+        from oompah.acp_backends.opencode import OpencodeAcpBackendSession
+
+        session_type = OpencodeAcpBackendSession
+        monkeypatch.setattr(acp_tools, "build_tool_catalog", fake_builder)
+
+    session = session_type(
+        AcpBackendOptions(
+            workspace_path=str(tmp_path),
+            prompt="work",
+            isolate_remote_write=True,
+            epic_rebase_publish_enabled=authorized,
+        )
+    )
+
+    assert session._build_tool_catalog() == []
+    assert captured["isolate_remote_write"] is True
+    assert captured["epic_rebase_publish_enabled"] is authorized
+
+
 def test_codex_subscription_cli_is_rejected_for_isolated_rebase_work(tmp_path):
     """Only the API/bridged path may combine provider access and tools."""
     from oompah.acp_backends.base import AcpBackendOptions
@@ -490,6 +568,26 @@ def test_publish_tool_is_not_advertised_without_exact_session_authority(
     from oompah.acp_tools import build_opencode_tool_catalog
 
     ordinary = build_opencode_tool_catalog(str(tmp_path))
+    disabled = build_opencode_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=MagicMock(
+            publish_worker_epic_rebase_candidate=lambda *_args: None
+        ),
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=False,
+    )
+    non_rebase = build_opencode_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="ORDINARY-1",
+        coordination_service=MagicMock(
+            publish_worker_epic_rebase_candidate=lambda *_args: None
+        ),
+        isolate_remote_write=False,
+        epic_rebase_publish_enabled=True,
+    )
     missing_task = build_opencode_tool_catalog(
         str(tmp_path),
         project_id="project-bound",
@@ -501,6 +599,8 @@ def test_publish_tool_is_not_advertised_without_exact_session_authority(
     )
 
     assert "publish_epic_rebase" not in {item.name for item in ordinary}
+    assert "publish_epic_rebase" not in {item.name for item in disabled}
+    assert "publish_epic_rebase" not in {item.name for item in non_rebase}
     assert "publish_epic_rebase" not in {item.name for item in missing_task}
 
 
@@ -553,9 +653,27 @@ def test_codex_publish_catalog_requires_all_authority_gates(tmp_path):
         isolate_remote_write=True,
         epic_rebase_publish_enabled=True,
     )
+    disabled = build_codex_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="REBASE-BOUND",
+        coordination_service=coordinator,
+        isolate_remote_write=True,
+        epic_rebase_publish_enabled=False,
+    )
+    non_rebase = build_codex_tool_catalog(
+        str(tmp_path),
+        project_id="project-bound",
+        task_identifier="ORDINARY-1",
+        coordination_service=coordinator,
+        isolate_remote_write=False,
+        epic_rebase_publish_enabled=True,
+    )
 
     assert "publish_epic_rebase" in {item.name for item in enabled}
     assert "publish_epic_rebase" not in {item.name for item in missing_callback}
+    assert "publish_epic_rebase" not in {item.name for item in disabled}
+    assert "publish_epic_rebase" not in {item.name for item in non_rebase}
 
 
 def test_publish_tool_validates_full_candidate_before_callback():

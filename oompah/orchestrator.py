@@ -46693,6 +46693,9 @@ class Orchestrator:
                 model=acp_model,
                 max_turns=max_turns,
                 isolate_remote_write=self._is_epic_rebase_task(issue),
+                epic_rebase_publish_enabled=(
+                    self._has_epic_rebase_publish_authority(issue)
+                ),
                 provider_auth_kind=(
                     self._isolated_acp_provider_auth_kind(
                         acp_backend_name,

@@ -86,6 +86,12 @@ class AcpBackendOptions:
     # Direct epic-rebase helpers receive a credential-free worker environment.
     # The server is the sole holder of project remote-write authority.
     isolate_remote_write: bool = False
+    # Server-issued, exact-task publication authority.  Rebuilding backends
+    # must receive this separately from ``tool_catalog`` because Codex and
+    # OpenCode construct SDK-native catalogs at their execution boundary.
+    # Default deny keeps the server-owned publish capability hidden unless the
+    # orchestrator admitted this precise helper generation.
+    epic_rebase_publish_enabled: bool = False
     # Explicit backend-specific model authentication bootstrap used only for
     # isolated rebase workers. Unknown backend layouts fail closed.
     provider_auth_kind: str | None = None
