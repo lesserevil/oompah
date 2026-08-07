@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T05:38:17.579741Z'
+updated_at: '2026-08-07T05:45:24.871612Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -246,5 +246,10 @@ tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_
 [gw0] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_mixed_provider_default_is_free 
 tests/test_budget_free_tier_dispatch.py::TestShouldDispatchBudgetFreeTier::test_paid_model_rejected_when_budget_exceeded
 ```
+---
+author: oompah
+created: 2026-08-07 05:45
+---
+Operator deliberately cancelled exact gate generation 8c6215cf670b456f9e9ebfd243d48c06 after 57 seconds because it raced ahead of the already-running systemic critical-path O865 validation despite the project pause. This is scheduling preemption, not a product-test failure. Preserve exact submitted head 519ec2e492dec109ab008ad3617a5489928f2a30; rerun the full gate when the O845/O867/O854 dependency sequence releases the validation lane.
 ---
 <!-- COMMENTS:END -->
