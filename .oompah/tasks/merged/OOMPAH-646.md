@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T21:18:38.429321Z'
+updated_at: '2026-08-07T21:18:42.387412Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: ''
