@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T08:52:09.175431Z'
+updated_at: '2026-08-07T08:52:49.603789Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -704,5 +704,15 @@ author: oompah
 created: 2026-08-07 08:52
 ---
 Implementation: verified the merged OOMPAH-607 implementation in oompah/server.py. _canonical_managed_project_id feeds canonical IDs through _get_tracker_for_issue_or_project, api_task_handoff, and _stage_terminal_transition; _project_by_id and coordinator authorization therefore receive the managed ID. Existing regressions cover canonical/alias owner overrides, staged canonical IDs, unauthorized actors, unknown aliases, and non-leaking errors.
+---
+author: oompah
+created: 2026-08-07 08:52
+---
+Verification: focused suites passed with the worktree source selected explicitly: , , , and  — 314 passed in 20.55s. The prescribed  was attempted via /usr/bin/make but could not start because the environment's uv wrapper failed creating its transient DBus scope; no test failure was reported. Worktree remains clean at the merged OOMPAH-607 head.
+---
+author: oompah
+created: 2026-08-07 08:52
+---
+Verification correction: focused suites passed with the worktree source selected explicitly: terminal status interfaces, terminal override, task CLI, and task handoff tests — 314 passed in 20.55s. The prescribed make test was attempted via /usr/bin/make but could not start because the environment uv wrapper failed creating its transient DBus scope; no test failure was reported. Worktree remains clean at the merged OOMPAH-607 head.
 ---
 <!-- COMMENTS:END -->
