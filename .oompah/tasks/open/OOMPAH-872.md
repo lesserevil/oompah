@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T07:16:01.578099Z'
+updated_at: '2026-08-07T07:16:19.440986Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,3 +48,16 @@ At service startup from /home/shedwards/src/oompah, the global backend/frontend 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 07:16
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 07:16
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
