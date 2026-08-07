@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T11:05:51.730649Z'
+updated_at: '2026-08-07T11:14:27.905862Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -265,7 +265,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-641
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -290,6 +290,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T11:05:13.620572+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-07T11:05:23.620542+00:00'
+    - version: 1
+      attempt_id: attempt-6c64ed7bc5f6
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+      created_at: '2026-08-07T11:14:26.485349+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T11:14:26.485349+00:00'
+      branch_key: OOMPAH-641
+      selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+      selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: yolo-merge
@@ -298,7 +314,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:51:28.198397+00:00'
     selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
     selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
-    updated_at: '2026-08-07T11:05:13.620572+00:00'
+    updated_at: '2026-08-07T11:14:26.485349+00:00'
   - version: 1
     audit_id: audit-aa2204db9e01
     project_id: proj-14849f1b
@@ -364,6 +380,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T11:05:13.620572+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T11:05:23.620542+00:00'
+  - version: 1
+    attempt_id: attempt-6c64ed7bc5f6
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5513fd45015b5d70824ae03367b66b8212ef94064098a22177cf414eee37a57f
+    created_at: '2026-08-07T11:14:26.485349+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T11:14:26.485349+00:00'
+    branch_key: OOMPAH-641
+    selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    candidate_rotation_count: 1
 oompah.review_head: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 review_head: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 ---
