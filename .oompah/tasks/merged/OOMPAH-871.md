@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: Needs Human
+status: Merged
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T13:28:45.601367Z'
+updated_at: '2026-08-07T13:33:26.193348Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
@@ -207,6 +207,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:28:33.714369+00:00'
     applied_at: '2026-08-07T13:28:42.539661+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-24ec26ed602f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #741 merged exact reviewed head 158a2d03f0651b955666ba31c25b3fb412973ccd
+      into main as 41b1477682c6460a1bb55356ac44c799c9fa783a after the 661.5s full
+      gate passed. The remaining Needs Human state is auditor availability/provenance
+      only; exact head is an ancestor of origin/main.'
+    created_at: '2026-08-07T13:33:20.556861+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1

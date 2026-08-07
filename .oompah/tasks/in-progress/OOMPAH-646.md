@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T11:14:56.224583Z'
+updated_at: '2026-08-07T13:33:18.878058Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -700,5 +700,10 @@ author: oompah
 created: 2026-08-07 11:14
 ---
 Direct owner claim taken to retire this run's unleased full make test. The live process reproduced OOMPAH-846's validation-broker bypass (absolute make -> scripts/run-tests.sh parallel -> pytest -n4) while OOMPAH-608 owned the canonical capacity-1 lease and OOMPAH-854 waited. The unleased process was retired without touching the canonical gate; keep this task fenced from scheduler relaunch until OOMPAH-846 deploys or an owner explicitly resumes it.
+---
+author: oompah
+created: 2026-08-07 13:33
+---
+Live recurrence on PR #742: close webhook released reservation 018f at 12:52:21, then epic reconciliation trusted stale cached state=open and re-adopted the closed PR as reservation bd762 at 12:53:45, blocking OOMPAH-647 until owner replayed the close webhook at 13:27. Root cause: _find_open_epic_review uses cached review before authoritative forge lookup; _adopt_open_review_capacity can recreate a released review ID; live review-capacity reconciliation is not called. Required fix/tests within this task: a close/merge webhook must fence cache and ledger generations; cache-only data must never adopt capacity or regress a task to In Review; only a fresh successful live-open observation or authoritative reopened event may adopt; successful live empty result releases stale rows. Reproduce exact sequence close #742 + stale cached open #742 + epic reconciliation => no reservation, no In Review regression, no capacity block; verify a later authoritative reopen can re-adopt.
 ---
 <!-- COMMENTS:END -->
