@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-798
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Split the monolithic orchestrator into cohesive workflow modules
 parent: OOMPAH-771
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T13:59:30.266221Z'
-updated_at: '2026-08-07T18:22:53.461329Z'
+updated_at: '2026-08-07T18:22:58.505073Z'
 work_branch: null
 target_branch: null
 review_url: null
