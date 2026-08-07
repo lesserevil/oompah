@@ -55,6 +55,7 @@ children:
 - OOMPAH-882
 - OOMPAH-884
 - OOMPAH-885
+- OOMPAH-886
 blocked_by: []
 start_blocked_by: []
 labels:
@@ -64,7 +65,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-07T12:41:30.242799Z'
+updated_at: '2026-08-07T12:42:13.779087Z'
 work_branch: null
 target_branch: null
 review_url: null
