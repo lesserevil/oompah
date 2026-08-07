@@ -17,11 +17,10 @@ children:
 - OOMPAH-857
 blocked_by: []
 start_blocked_by: []
-labels:
-- epic:rebasing
+labels: []
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T05:38:50.202799Z'
+updated_at: '2026-08-07T05:38:59.400443Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -368,5 +367,10 @@ author: oompah
 created: 2026-08-07 05:37
 ---
 Reconciled to Merged from merged-review and green exact-head evidence after restart interrupted terminal verdict publication.
+---
+author: oompah
+created: 2026-08-07 05:38
+---
+Cleared stale rebase-requested, merge-conflict, and epic:rebasing labels after PR 731 merged and the owner-recovered terminal state was applied.
 ---
 <!-- COMMENTS:END -->
