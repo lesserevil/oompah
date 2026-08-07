@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T10:18:28.579921Z'
+updated_at: '2026-08-07T10:18:58.669778Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -313,7 +313,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d356e0a9-c79d-4720-bd12-41e16369cbbe
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-577__20260807T083821Z
@@ -340,6 +340,15 @@ oompah.work_contributors:
     source_branch: OOMPAH-577
     source_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     completed_at: '2026-08-07T09:48:00.958522+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-577
+  base_branch: main
+  head_sha: a96f06a7c7d1525e8c50f6aaebe763cbea36d3df
+  submitted_at: '2026-08-07T10:18:44.844048+00:00'
+  updated_at: '2026-08-07T10:18:44.844048+00:00'
 ---
 ## Summary
 
@@ -629,5 +638,10 @@ author: oompah
 created: 2026-08-07 10:18
 ---
 Completion: The original OOMPAH-577 implementation is confirmed present in the current branch (merged via PR #588 / 70fa1de48), focused verification passed (448 tests), and the clean branch is pushed at a96f06a7c. Submitting this restored task for normal lifecycle reconciliation.
+---
+author: oompah
+created: 2026-08-07 10:18
+---
+Verified merged changed-evidence terminal-audit retry implementation; 448 focused tests passed
 ---
 <!-- COMMENTS:END -->
