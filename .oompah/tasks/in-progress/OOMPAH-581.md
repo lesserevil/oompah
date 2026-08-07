@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
+- human-only
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T07:29:06.483029Z'
+updated_at: '2026-08-07T08:57:49.755333Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
