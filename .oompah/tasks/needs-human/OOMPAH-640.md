@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T09:10:17.063084Z'
+updated_at: '2026-08-07T09:23:32.201765Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -768,5 +768,10 @@ created: 2026-08-07 09:10
 Needs Human — Merged audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-07 09:23
+---
+Owner recovery: PR #608 is merged, exact head 5a5f4867f passed the full branch gate, and the prior Merged owner override already recorded complete evidence after transport exhaustion. The new Needs Human state is a provenance-only re-audit, not unfinished implementation. Restoring Merged; OOMPAH-871 prevents this recurrence.
 ---
 <!-- COMMENTS:END -->
