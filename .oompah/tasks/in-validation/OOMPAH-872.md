@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T09:24:43.570220Z'
+updated_at: '2026-08-07T09:45:49.906530Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -84,6 +84,49 @@ oompah.review_number: '737'
 oompah.work_branch: OOMPAH-872
 oompah.target_branch: main
 oompah.review_head: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5b3c5f4c2a0d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-872
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T09:45:34.532405+00:00'
+    selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+    selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+  - version: 1
+    audit_id: audit-46b8ca9873dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-872
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T09:45:34.532405+00:00'
+    selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+    selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+  attempt_history: []
 ---
 ## Summary
 
@@ -211,5 +254,15 @@ author: oompah
 created: 2026-08-07 09:23
 ---
 Branch quality gate passed for `0458f8f72b38d61bf81f1629a3d050d51c25bc8d` using `make test` in 669.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 09:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 09:45
+---
+YOLO: merged PR #737.
 ---
 <!-- COMMENTS:END -->
