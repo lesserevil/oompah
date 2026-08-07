@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T11:09:20.236204Z'
+updated_at: '2026-08-07T11:14:56.224583Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -695,5 +695,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 56s
 - Log: OOMPAH-646__20260807T105032Z.jsonl
+---
+author: oompah
+created: 2026-08-07 11:14
+---
+Direct owner claim taken to retire this run's unleased full make test. The live process reproduced OOMPAH-846's validation-broker bypass (absolute make -> scripts/run-tests.sh parallel -> pytest -n4) while OOMPAH-608 owned the canonical capacity-1 lease and OOMPAH-854 waited. The unleased process was retired without touching the canonical gate; keep this task fenced from scheduler relaunch until OOMPAH-846 deploys or an owner explicitly resumes it.
 ---
 <!-- COMMENTS:END -->
