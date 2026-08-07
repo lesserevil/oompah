@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-07T11:57:51.621916Z'
-updated_at: '2026-08-07T12:02:49.630953Z'
+updated_at: '2026-08-07T12:03:13.187594Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -37,6 +36,22 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
   updated_at: '2026-08-07T11:59:38.837950+00:00'
+oompah.task_costs:
+  total_input_tokens: 37
+  total_output_tokens: 586
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 37
+      output_tokens: 586
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 37
+    output_tokens: 586
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T12:03:03.533613+00:00'
 ---
 ## Summary
 
@@ -71,5 +86,15 @@ author: oompah
 created: 2026-08-07 12:02
 ---
 STOP: duplicate of owner-claimed OOMPAH-877. Do not resolve, continue, abort, push, or submit the active rebase. Operator containment and exact recovery preservation are in progress.
+---
+author: oompah
+created: 2026-08-07 12:03
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 22
+- Tokens: 37 in / 586 out [623 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 40s
+- Log: OOMPAH-882__20260807T115948Z.jsonl
 ---
 <!-- COMMENTS:END -->
