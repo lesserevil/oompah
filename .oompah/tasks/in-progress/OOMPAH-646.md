@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T10:58:44.377418Z'
+updated_at: '2026-08-07T11:03:04.997804Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -680,5 +680,10 @@ author: oompah
 created: 2026-08-07 10:58
 ---
 Implementation: serialized same-process standalone Ready sweeps with a non-blocking reconciliation lock, and added exact task/branch reservation recognition. A losing sweep now exits or waits quietly when another process owns the durable reservation, instead of issuing a transient capacity alert or attempting a competing review. Added a deterministic blocked-create overlap regression.
+---
+author: oompah
+created: 2026-08-07 11:03
+---
+Verification: focused review-capacity, standalone Ready, and webhook suites pass (204 passed), including the new blocked-create overlap regression. git diff --check is clean. The first terminal-audit-scan invocation was intercepted by the native validation wrapper and failed before the target ran because its shared validation directory is read-only; I will rerun the Makefile target with the provisioned test runtime, then run make test.
 ---
 <!-- COMMENTS:END -->
