@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T11:14:02.716487Z'
+updated_at: '2026-08-07T17:35:43.557184Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -572,5 +572,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 3s
 - Log: OOMPAH-872__20260807T110511Z.jsonl
+---
+author: oompah
+created: 2026-08-07 17:35
+---
+Recovered an unpublished worktree checkpoint after worker/service interruption. Exact recovery evidence is durable at refs/oompah/recovery/OOMPAH-872-09fc713aa7ea143b (798b7de07c8cf60f4adc0f3953e525ce8bff9f09); the ownerless task was returned to Open.
 ---
 <!-- COMMENTS:END -->
