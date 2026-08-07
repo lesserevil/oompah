@@ -10,13 +10,14 @@ children:
 - OOMPAH-601
 - OOMPAH-602
 - OOMPAH-603
-blocked_by: []
+blocked_by:
+- OOMPAH-889
 start_blocked_by: []
 labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-07T18:18:10.769119Z'
+updated_at: '2026-08-07T20:27:24.678993Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -2140,5 +2141,10 @@ created: 2026-08-07 13:51
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 20:27
+---
+Direct closure evidence is complete, but the live parent-rollup mutation races every owner override with task_changed (including while the project is paused), and shared-child Merged verification rejects already-proven parent ancestry. OOMPAH-889 is the existing systemic fix for this exact Done-only/parent-rollup race; dependency recorded. No implementation remains in OOMPAH-588 itself.
 ---
 <!-- COMMENTS:END -->
