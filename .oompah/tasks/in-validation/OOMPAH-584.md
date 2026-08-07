@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Progress
+status: In Validation
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T13:14:02.784787Z'
+updated_at: '2026-08-07T13:16:10.121310Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -93,7 +93,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -127,7 +127,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -201,6 +201,44 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T06:09:01.019828+00:00'
     updated_at: '2026-08-07T07:24:42.436303+00:00'
+  - version: 1
+    audit_id: audit-d1cdbc7574d4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Progress
+    created_at: '2026-08-07T13:16:06.083367+00:00'
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+  - version: 1
+    audit_id: audit-cc0932baf6f3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Progress
+    created_at: '2026-08-07T13:16:06.083367+00:00'
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
