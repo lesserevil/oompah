@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import time
 
 import pytest
@@ -364,6 +365,88 @@ class TestCallApiBudget:
         mt = captured["payload"]["max_tokens"]
         assert mt >= _MIN_MAX_OUTPUT_TOKENS
 
+    def test_transport_authority_runs_in_http_thread_at_actual_edge(
+        self, tmp_path, monkeypatch
+    ):
+        """A revocation after scheduling but before urlopen prevents contact."""
+        from oompah.api_agent import ApiAgentSession, _http_post as real_http_post
+
+        scheduled = threading.Event()
+        release_edge = threading.Event()
+        revoked = threading.Event()
+        opened = []
+
+        def delayed_http_post(url, headers, body, ssl_ctx, **kwargs):
+            scheduled.set()
+            assert release_edge.wait(timeout=2)
+            return real_http_post(url, headers, body, ssl_ctx, **kwargs)
+
+        def forbidden_urlopen(*_args, **_kwargs):
+            opened.append(True)
+            raise AssertionError("revoked API transport reached urlopen")
+
+        monkeypatch.setattr("oompah.api_agent._http_post", delayed_http_post)
+        monkeypatch.setattr("urllib.request.urlopen", forbidden_urlopen)
+        session = ApiAgentSession(
+            base_url="http://provider.invalid",
+            api_key="",
+            model="m",
+            workspace_path=str(tmp_path),
+            before_transport_contact=lambda: (
+                "runtime authority was revoked" if revoked.is_set() else None
+            ),
+        )
+
+        async def exercise():
+            call = asyncio.create_task(
+                session._call_api([_msg("system"), _msg("user", "hi")])
+            )
+            assert await asyncio.to_thread(scheduled.wait, 2)
+            revoked.set()
+            release_edge.set()
+            with pytest.raises(RuntimeError, match="authority was revoked"):
+                await call
+
+        asyncio.run(exercise())
+
+        assert opened == []
+        assert session.transport_contacted is False
+
+    def test_transport_authority_is_consumed_once_across_http_retry(
+        self, tmp_path, monkeypatch
+    ):
+        """A retry reuses only the admitted run, not its mutable callback."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        admissions = []
+        attempts = []
+
+        def fake_post(url, headers, body, ssl_ctx, **kwargs):
+            attempts.append(url)
+            assert kwargs["before_transport_contact"]() is None
+            if len(attempts) == 1:
+                raise TransientServerError("retry")
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        async def no_sleep(_delay):
+            return None
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", no_sleep)
+        session = ApiAgentSession(
+            base_url="http://provider.invalid",
+            api_key="",
+            model="m",
+            workspace_path=str(tmp_path),
+            before_transport_contact=lambda: admissions.append("admit") or None,
+        )
+
+        asyncio.run(session._call_api([_msg("system"), _msg("user", "hi")]))
+
+        assert len(attempts) == 2
+        assert admissions == ["admit"]
+        assert session.transport_contacted is True
+
 
 # ---------------------------------------------------------------------------
 # Per-dispatch JSONL agent logging — captures every request, response,
@@ -523,13 +606,20 @@ class TestAgentLogging:
 import urllib.error as _ue
 
 
+class _ClosableFakeReader:
+    """Minimal HTTPError body reader that satisfies its close contract."""
+
+    def close(self):
+        return None
+
+
 class TestHttpPostClassification:
     """_http_post must distinguish retryable from permanent failures."""
 
     def test_5xx_raises_transient_server_error(self, monkeypatch):
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"EngineCore boom"
 
@@ -572,7 +662,7 @@ class TestHttpPostClassification:
     def test_429_still_raises_rate_limit_error(self, monkeypatch):
         from oompah.api_agent import _http_post, RateLimitError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"slow down"
 
@@ -590,7 +680,7 @@ class TestHttpPostClassification:
     def test_4xx_other_than_429_is_permanent(self, monkeypatch):
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"bad request"
 
@@ -752,7 +842,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         can distinguish it from 5xx."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":{"message":"Authentication Error","code":"401"}}'
 
@@ -775,7 +865,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         digging through logs."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":{"message":"Server disconnected without sending a response.","type":"auth_error","code":"401"}}'
 
@@ -795,7 +885,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         retry semantics (no Retry-After on 401)."""
         from oompah.api_agent import _http_post, RateLimitError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"unauthorized"
 
@@ -815,7 +905,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         retryable. 400 is still a permanent RuntimeError."""
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":"bad request"}'
 
@@ -851,7 +941,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         must be wrapped as TransientServerError so normal retry logic fires."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY.encode()
 
@@ -872,7 +962,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         """status_code must be 404 so callers can distinguish it from 5xx."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY.encode()
 
@@ -893,7 +983,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         treated as transient."""
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":"Not Found"}'
 
@@ -917,7 +1007,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         is still a permanent error."""
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":{"message":"litellm.NotFoundError: something else"}}'
 

@@ -304,12 +304,20 @@ class AgentSession:
         read_timeout_ms: int = 5000,
         turn_timeout_ms: int = 3_600_000,
         env: dict[str, str] | None = None,
+        before_transport_contact: Callable[[], str | None] | None = None,
+        on_transport_contact: Callable[[], None] | None = None,
+        on_precontact_admission_cancelled: Callable[[], None] | None = None,
     ):
         self.command = command
         self.workspace_path = workspace_path
         self.read_timeout_ms = read_timeout_ms
         self.turn_timeout_ms = turn_timeout_ms
         self.env = dict(env or {})
+        self.before_transport_contact = before_transport_contact
+        self.on_transport_contact = on_transport_contact
+        self.on_precontact_admission_cancelled = (
+            on_precontact_admission_cancelled
+        )
         self._process: asyncio.subprocess.Process | None = None
         self._process_identity: ProcessIdentity | None = None
         self._stderr_task: asyncio.Task[None] | None = None
@@ -318,6 +326,30 @@ class AgentSession:
         self._request_id = 0
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir: str | None = None
+        self._transport_admitted = False
+        self._transport_contacted = False
+        self._transport_starting = False
+        self._stop_requested = False
+
+    @property
+    def transport_contacted(self) -> bool:
+        """Whether the legacy CLI subprocess boundary was crossed."""
+
+        return self._transport_contacted
+
+    def _cancel_precontact_admission(self) -> None:
+        """Return a permit when local CLI startup never created a process."""
+
+        if not self._transport_admitted or self._transport_contacted:
+            return
+        self._transport_admitted = False
+        callback = self.on_precontact_admission_cancelled
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception:  # pragma: no cover - defensive authority cleanup
+            logger.exception("Unable to roll back unused CLI contact admission")
 
     def _next_id(self) -> int:
         self._request_id += 1
@@ -360,22 +392,74 @@ class AgentSession:
             # Track the temporary worker runtime directory for cleanup (OOMPAH-686)
             self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
 
-            self._process = await asyncio.create_subprocess_exec(
-                "bash",
-                "-lc",
-                self.command,
-                cwd=self.workspace_path,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=agent_env,
-                start_new_session=(os.name == "posix"),
-            )
+            if self._stop_requested:
+                raise AgentError(
+                    "Agent launch was cancelled before subprocess contact",
+                    error_class="agent_launch_cancelled",
+                )
+
+            # This callback owns the exact runtime-authority CAS.  Keep it
+            # adjacent to create_subprocess_exec: all environment and local
+            # setup has completed, and there is no user callback or local
+            # operation between the permit and the Popen edge.
+            if self.before_transport_contact is not None:
+                denial = self.before_transport_contact()
+                if denial is not None:
+                    raise AgentError(
+                        denial,
+                        error_class="provider_contact_denied",
+                    )
+                self._transport_admitted = True
+                if self._stop_requested:
+                    self._cancel_precontact_admission()
+                    raise AgentError(
+                        "Agent launch was cancelled before subprocess contact",
+                        error_class="agent_launch_cancelled",
+                    )
+
+            self._transport_starting = True
+            try:
+                self._process = await asyncio.create_subprocess_exec(
+                    "bash",
+                    "-lc",
+                    self.command,
+                    cwd=self.workspace_path,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=agent_env,
+                    start_new_session=(os.name == "posix"),
+                )
+            finally:
+                self._transport_starting = False
+            self._transport_contacted = True
+            self._transport_admitted = False
+            if self.on_transport_contact is not None:
+                try:
+                    self.on_transport_contact()
+                except Exception:  # pragma: no cover - observer only
+                    logger.exception("Unable to publish CLI transport contact")
+            if self._stop_requested:
+                # Admission won the exact edge race, so the subprocess is a
+                # real contacted attempt.  Retire it immediately rather than
+                # returning an untracked process to the caller.
+                await self.stop()
+                raise AgentError(
+                    "Agent launch was cancelled at subprocess contact",
+                    error_class="agent_launch_cancelled",
+                )
+        except asyncio.CancelledError:
+            self._cancel_precontact_admission()
+            raise
         except FileNotFoundError:
+            self._cancel_precontact_admission()
             raise AgentError(
                 f"Agent command not found: {self.command}",
                 error_class="agent_not_found",
             )
+        except Exception:
+            self._cancel_precontact_admission()
+            raise
 
         # Capture the kernel identity immediately after creation.  A delayed
         # stop must never trust the PID after the child has exited and the OS
@@ -666,8 +750,15 @@ class AgentSession:
 
     async def stop(self, timeout_s: float = DEFAULT_STOP_TIMEOUT_S) -> None:
         """Terminate the agent subprocess and all of its descendants."""
+        self._stop_requested = True
         process = self._process
         if process is None:
+            # When create_subprocess_exec is already in flight, the contact
+            # permit won the linearization race.  ``start`` will observe the
+            # stop flag immediately after Popen and retire the child.  A stop
+            # before that edge returns any unused permit here.
+            if not self._transport_starting:
+                self._cancel_precontact_admission()
             return
 
         pid = process.pid

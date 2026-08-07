@@ -14,9 +14,13 @@ order.
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,7 +28,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.focus import Focus
 from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, RunningEntry
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import DispatchTarget, Orchestrator, ProviderStartupError
 from oompah.projects import ProjectError
 from oompah.scm import ReviewRequest
 from oompah.terminal_audit import ContributorIdentity, EvidenceFingerprint, TargetState
@@ -61,6 +65,10 @@ def _make_issue(
         project_id=project_id,
         labels=labels or [],
     )
+
+
+def _audit_reservation_key(orch: Orchestrator, issue: Issue) -> str:
+    return orch._audit_reservation_key_for_issue(issue)
 
 
 def _make_project(
@@ -186,7 +194,13 @@ async def test_request_terminal_transition_requires_project_context(tmp_path):
         )
 
 
-def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
+def _make_orchestrator(
+    tmp_path,
+    projects=None,
+    yolo_projects=None,
+    *,
+    provider_store=None,
+):
     """Create a test orchestrator with mocked project store."""
     from oompah.roles import RoleStore
 
@@ -202,6 +216,7 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
     orch = Orchestrator(
         config=_make_config(),
         workflow_path="WORKFLOW.md",
+        provider_store=provider_store,
         project_store=project_store,
         role_store=role_store,
         state_path=str(tmp_path / "state.json"),
@@ -5599,6 +5614,12 @@ class TestRunWorkerCandidateFailover:
 
         orch = _make_orchestrator(tmp_path)
         orch._on_worker_exit = AsyncMock()
+
+        async def _allow_legacy_test_targets(_issue, targets):
+            return targets, None
+
+        orch._reserve_auditor_for_contributor = _allow_legacy_test_targets
+        orch._stage_work_contributor_launch = AsyncMock(return_value=None)
         orch.state.running[issue.id] = RunningEntry(
             worker_task=None,
             identifier=issue.identifier,
@@ -5714,6 +5735,107 @@ class TestRunWorkerCandidateFailover:
         assert args[0] == issue.id
         assert args[1] == "abnormal"
         assert "candidates" in args[2].lower() or "startup" in args[2].lower()
+
+    def test_startup_failure_secret_is_redacted_before_log_and_aggregate(
+        self, tmp_path
+    ):
+        """Raw provider exceptions never reach logging or persisted exit detail."""
+        from oompah.orchestrator import DispatchTarget, ProviderStartupError
+        from oompah.roles import Candidate
+
+        issue = _make_issue("startup-secret")
+        provider = _provider(pid="secret-provider", models=["secret-model"])
+        target = DispatchTarget(
+            role_name="fast",
+            provider=provider,
+            model="secret-model",
+            candidate_key="secret-provider/secret-model",
+            source="role:fast[0]",
+            candidate=Candidate("secret-provider", "secret-model"),
+        )
+        orch = self._make_orch_with_running(tmp_path, issue)
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target])
+        secret = "top-secret-startup-token"
+
+        async def fail_startup(issue, attempt, profile, provider, target=None):
+            raise ProviderStartupError(
+                f"Authorization: Bearer {secret}",
+                candidate_key=target.candidate_key,
+                reason="launch_failed",
+            )
+
+        orch._run_api_worker = fail_startup
+        with patch("oompah.orchestrator.logger.warning") as warning:
+            asyncio.run(
+                orch._run_worker(
+                    issue,
+                    attempt=1,
+                    profile=_profile(mode="api"),
+                )
+            )
+
+        startup_warning = next(
+            call
+            for call in warning.call_args_list
+            if call.args and str(call.args[0]).startswith("Candidate %s startup failed")
+        )
+        assert secret not in repr(startup_warning.args)
+        assert "[REDACTED]" in startup_warning.args[3]
+        aggregate = orch._on_worker_exit.await_args.args[2]
+        assert secret not in aggregate
+        assert "launch_failed" in aggregate
+        assert "[REDACTED]" in aggregate
+
+    def test_startup_failure_aggregate_is_bounded_with_many_candidates(self, tmp_path):
+        """Unlimited role candidates produce one deterministic bounded summary."""
+        from oompah.orchestrator import (
+            DispatchTarget,
+            ProviderStartupError,
+            _PROVIDER_STARTUP_AGGREGATE_LIMIT,
+        )
+        from oompah.roles import Candidate
+
+        issue = _make_issue("startup-many")
+        targets = []
+        for index in range(40):
+            provider_id = f"candidate-{index:03d}"
+            model = f"model-{index:03d}"
+            provider = _provider(pid=provider_id, models=[model])
+            targets.append(
+                DispatchTarget(
+                    role_name="fast",
+                    provider=provider,
+                    model=model,
+                    candidate_key=f"{provider_id}/{model}",
+                    source=f"role:fast[{index}]",
+                    candidate=Candidate(provider_id, model),
+                )
+            )
+        orch = self._make_orch_with_running(tmp_path, issue)
+        orch._resolve_dispatch_targets = MagicMock(return_value=targets)
+
+        async def fail_startup(issue, attempt, profile, provider, target=None):
+            raise ProviderStartupError(
+                "actionable transport failure " + ("x" * 600),
+                candidate_key=target.candidate_key,
+                reason="launch_failed",
+            )
+
+        orch._run_api_worker = fail_startup
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                attempt=1,
+                profile=_profile(mode="api"),
+            )
+        )
+
+        aggregate = orch._on_worker_exit.await_args.args[2]
+        assert len(aggregate) <= _PROVIDER_STARTUP_AGGREGATE_LIMIT
+        assert "candidate-000/model-000: launch_failed" in aggregate
+        assert "actionable transport failure" in aggregate
+        assert "additional candidate diagnostics omitted" in aggregate
+        assert "candidate-039/model-039" not in aggregate
 
     def test_non_provider_failure_does_not_switch_candidate(self, tmp_path):
         """A regular exception (task failure) propagates without trying the next candidate."""
@@ -5861,6 +5983,3028 @@ class TestRunWorkerCandidateFailover:
         asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
 
         assert calls == ["a", "b"]
+
+
+class TestContributorAuditorReservationOrchestration:
+    """OOMPAH-865 production-path contributor reservation regressions."""
+
+    @staticmethod
+    def _wire(
+        orch,
+        providers,
+        auditor_candidates,
+        *,
+        metadata_store=None,
+    ):
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE, ProviderTestResult
+        from oompah.roles import Role
+
+        PROVIDER_HEALTH_CACHE.clear()
+        by_id = {provider.id: provider for provider in providers}
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = by_id.get
+        orch.provider_store.get_default.return_value = providers[0]
+        orch.provider_store.list_all.return_value = providers
+        for candidate in auditor_candidates:
+            provider = by_id[candidate.provider_id]
+            PROVIDER_HEALTH_CACHE.record(
+                provider,
+                ProviderTestResult(
+                    provider_id=provider.id,
+                    provider_name=provider.name,
+                    model=candidate.model,
+                    success=True,
+                    latency_ms=0.0,
+                ),
+            )
+        role = Role(
+            name="auditor",
+            strategy="priority",
+            candidates=list(auditor_candidates),
+            updated_at=datetime.now(timezone.utc),
+        )
+        orch.role_store.get = MagicMock(
+            side_effect=lambda name: role if name == "auditor" else None
+        )
+
+        store = metadata_store if metadata_store is not None else {}
+        tracker = MagicMock()
+        tracker.get_metadata.side_effect = lambda identifier: store.get(identifier, {})
+        tracker.set_metadata_field.side_effect = (
+            lambda identifier, key, value: store.setdefault(identifier, {}).__setitem__(
+                key, value
+            )
+        )
+        orch.tracker = tracker
+        orch._project_trackers = {"__legacy__": tracker}
+        return role, tracker, store
+
+    @staticmethod
+    def _running(orch, issue, run_id):
+        from oompah.models import RunningEntry
+
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="standard",
+            run_id=run_id,
+        )
+
+    def test_run_worker_haiku_sonnet_opus_reserves_terra_across_restart(self, tmp_path):
+        from oompah.roles import Candidate
+
+        providers = [
+            _provider(pid=model, name=model, models=[model], default_model=model)
+            for model in ("haiku", "sonnet", "opus", "terra")
+        ]
+        candidates = [
+            Candidate(provider.id, provider.default_model) for provider in providers
+        ]
+        store = {}
+        calls = []
+
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, providers, candidates, metadata_store=store)
+        orch._on_worker_exit = AsyncMock()
+
+        async def _worker(issue, attempt, profile, provider, target=None, **kwargs):
+            evidence_error = await orch._stage_work_contributor_launch(
+                issue,
+                run_id=kwargs.get("run_id"),
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model=target.model,
+            )
+            assert evidence_error is None
+            calls.append(provider.id)
+
+        orch._run_api_worker = _worker
+        issue = _make_issue("reserve-sequence")
+        for index, provider in enumerate(providers[:3]):
+            run_id = f"run-{index}"
+            self._running(orch, issue, run_id)
+            profile = _profile(
+                mode="api", provider_id=provider.id, model=provider.default_model
+            )
+            asyncio.run(
+                orch._run_worker(issue, attempt=index, profile=profile, run_id=run_id)
+            )
+
+        # A new orchestrator proves the fence comes from tracker evidence, not
+        # process-local rotation state.
+        restarted = _make_orchestrator(tmp_path)
+        self._wire(restarted, providers, candidates, metadata_store=store)
+        restarted._run_api_worker = _worker
+        restarted._on_worker_exit = AsyncMock()
+        self._running(restarted, issue, "run-terra")
+        asyncio.run(
+            restarted._run_worker(
+                issue,
+                attempt=3,
+                profile=_profile(mode="api", provider_id="terra", model="terra"),
+                run_id="run-terra",
+            )
+        )
+
+        assert calls == ["haiku", "sonnet", "opus"]
+        error = restarted._on_worker_exit.await_args.args[2]
+        assert "Only one healthy auditor candidate remains" in error
+        assert "terra" in error
+
+    def test_api_resolved_focus_override_is_rechecked_before_workspace(self, tmp_path):
+        from oompah.roles import Candidate
+
+        initial = _provider(pid="initial", models=["initial"], default_model="initial")
+        reserved = _provider(
+            pid="reserved", models=["reserved"], default_model="reserved"
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [initial, reserved],
+            [Candidate("initial", "initial"), Candidate("reserved", "reserved")],
+        )
+        issue = _make_issue("focus-api")
+        self._running(orch, issue, "focus-api-run")
+        orch._create_workspace_for_issue = MagicMock()
+        target = DispatchTarget(None, initial, "initial", "initial/initial", "test")
+        focus = Focus(
+            name="feature",
+            role="Feature",
+            description="feature",
+            provider_id="reserved",
+            model="reserved",
+        )
+
+        with patch(
+            "oompah.orchestrator.select_focus_async",
+            AsyncMock(return_value=focus),
+        ):
+            with pytest.raises(ProviderStartupError, match="reserved"):
+                asyncio.run(
+                    orch._run_api_worker(
+                        issue,
+                        0,
+                        _profile(mode="api"),
+                        initial,
+                        target=target,
+                        run_id="focus-api-run",
+                    )
+                )
+
+        orch._create_workspace_for_issue.assert_not_called()
+
+    def test_acp_resolved_focus_override_is_rechecked_before_workspace(self, tmp_path):
+        from oompah.roles import Candidate
+
+        initial = _provider(pid="initial", models=["initial"], default_model="initial")
+        initial.mode = "acp"
+        reserved = _provider(
+            pid="reserved", models=["reserved"], default_model="reserved"
+        )
+        reserved.mode = "acp"
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [initial, reserved],
+            [Candidate("initial", "initial"), Candidate("reserved", "reserved")],
+        )
+        issue = _make_issue("focus-acp")
+        self._running(orch, issue, "focus-acp-run")
+        orch._create_workspace_for_issue = MagicMock()
+        target = DispatchTarget(None, initial, "initial", "initial/initial", "test")
+        focus = Focus(
+            name="feature",
+            role="Feature",
+            description="feature",
+            provider_id="reserved",
+            model="reserved",
+        )
+
+        with patch(
+            "oompah.orchestrator.select_focus_async",
+            AsyncMock(return_value=focus),
+        ):
+            with pytest.raises(ProviderStartupError, match="reserved"):
+                asyncio.run(
+                    orch._run_acp_worker(
+                        issue,
+                        0,
+                        _profile(mode="acp"),
+                        target=target,
+                        run_id="focus-acp-run",
+                    )
+                )
+
+        orch._create_workspace_for_issue.assert_not_called()
+
+    def test_missing_role_recovers_then_tracker_failure_starts_nothing(self, tmp_path):
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE, ProviderTestResult
+        from oompah.roles import Candidate, Role
+
+        one = _provider(pid="one", models=["one"], default_model="one")
+        two = _provider(pid="two", models=["two"], default_model="two")
+        orch = _make_orchestrator(tmp_path)
+        role_ref = {"value": None}
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = {"one": one, "two": two}.get
+        orch.provider_store.get_default.return_value = one
+        orch.provider_store.list_all.return_value = [one, two]
+        orch.role_store.get = MagicMock(side_effect=lambda name: role_ref["value"])
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {}
+        orch.tracker = tracker
+        issue = _make_issue("role-recovery")
+        target = DispatchTarget(None, one, "one", "one/one", "test")
+
+        blocked, error = asyncio.run(
+            orch._reserve_auditor_for_contributor(issue, [target])
+        )
+        assert blocked == []
+        assert "Auditor role is absent" in error
+
+        role_ref["value"] = Role(
+            "auditor",
+            "priority",
+            [Candidate("one", "one"), Candidate("two", "two")],
+            datetime.now(timezone.utc),
+        )
+        for provider, model in ((one, "one"), (two, "two")):
+            PROVIDER_HEALTH_CACHE.record(
+                provider,
+                ProviderTestResult(
+                    provider_id=provider.id,
+                    provider_name=provider.name,
+                    model=model,
+                    success=True,
+                    latency_ms=0.0,
+                ),
+            )
+        allowed, error = asyncio.run(
+            orch._reserve_auditor_for_contributor(issue, [target])
+        )
+        assert allowed == [target]
+        assert error is None
+
+        tracker.get_metadata.side_effect = RuntimeError("tracker unavailable")
+        provider_contact = MagicMock()
+
+        async def _worker(issue, attempt, profile, provider, target=None, **kwargs):
+            evidence_error = await orch._stage_work_contributor_launch(
+                issue,
+                run_id=kwargs.get("run_id"),
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model=target.model,
+            )
+            if evidence_error is not None:
+                raise ProviderStartupError(
+                    evidence_error,
+                    candidate_key=target.candidate_key,
+                    reason="contributor_evidence_unavailable",
+                )
+            provider_contact()
+
+        orch._run_api_worker = _worker
+        orch._on_worker_exit = AsyncMock()
+        self._running(orch, issue, "tracker-failure-run")
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(mode="api", provider_id="one", model="one"),
+                run_id="tracker-failure-run",
+            )
+        )
+        provider_contact.assert_not_called()
+        error = orch._on_worker_exit.await_args.args[2]
+        assert "Restore tracker metadata access" in error
+        assert "blocked before start" in error
+
+    def test_health_budget_and_whitelist_feed_production_selector(self, tmp_path):
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE, ProviderTestResult
+        from oompah.roles import Candidate
+
+        one = _provider(pid="one", name="One", models=["one"], default_model="one")
+        two = _provider(pid="two", name="Two", models=["two"], default_model="two")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [one, two],
+            [Candidate("one", "one"), Candidate("two", "two")],
+        )
+        provider_contact = MagicMock()
+
+        async def _worker(issue, attempt, profile, provider, target=None, **kwargs):
+            evidence_error = await orch._stage_work_contributor_launch(
+                issue,
+                run_id=kwargs.get("run_id"),
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model=target.model,
+            )
+            if evidence_error is not None:
+                raise ProviderStartupError(
+                    evidence_error,
+                    candidate_key=target.candidate_key,
+                    reason="auditor_reservation",
+                )
+            provider_contact()
+
+        orch._run_api_worker = _worker
+        orch._on_worker_exit = AsyncMock()
+
+        issue = _make_issue("health-wiring")
+        self._running(orch, issue, "health-run")
+        PROVIDER_HEALTH_CACHE.record_failure(two, model="two", reason="timeout")
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(mode="api", provider_id="one", model="one"),
+                run_id="health-run",
+            )
+        )
+        provider_contact.assert_not_called()
+        error = orch._on_worker_exit.await_args.args[2]
+        assert "Only one healthy auditor candidate remains" in error
+
+        PROVIDER_HEALTH_CACHE.clear()
+        for candidate in (Candidate("one", "one"), Candidate("two", "two")):
+            provider = {"one": one, "two": two}[candidate.provider_id]
+            PROVIDER_HEALTH_CACHE.record(
+                provider,
+                ProviderTestResult(
+                    provider_id=provider.id,
+                    provider_name=provider.name,
+                    model=candidate.model,
+                    success=True,
+                    latency_ms=0.0,
+                ),
+            )
+        orch._on_worker_exit.reset_mock()
+        orch.config.budget_limit = 1.0
+        orch.state.agent_totals.estimated_cost = 1.0
+        budget_issue = _make_issue("budget-wiring")
+        self._running(orch, budget_issue, "budget-run")
+        asyncio.run(
+            orch._run_worker(
+                budget_issue,
+                0,
+                _profile(mode="api", provider_id="one", model="one"),
+                run_id="budget-run",
+            )
+        )
+        error = orch._on_worker_exit.await_args.args[2]
+        assert error is not None
+        assert "budget" in error.lower()
+
+        orch._on_worker_exit.reset_mock()
+        orch.config.budget_limit = 0.0
+        orch.state.agent_totals.estimated_cost = 0.0
+        project = MagicMock(provider_whitelist=["One"])
+        orch.project_store.get.side_effect = None
+        orch.project_store.get.return_value = project
+        whitelist_issue = _make_issue("whitelist-wiring")
+        whitelist_issue.project_id = "project-1"
+        orch._project_trackers["project-1"] = orch.tracker
+        self._running(orch, whitelist_issue, "whitelist-run")
+        asyncio.run(
+            orch._run_worker(
+                whitelist_issue,
+                0,
+                _profile(mode="api", provider_id="one", model="one"),
+                run_id="whitelist-run",
+            )
+        )
+        error = orch._on_worker_exit.await_args.args[2]
+        assert "Only one healthy auditor candidate remains" in error
+        provider_contact.assert_not_called()
+
+    def test_auditor_whitelist_blocks_forbidden_health_probe(self, tmp_path):
+        """Role configuration never probes a provider forbidden by this project."""
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE, ProviderTestResult
+        from oompah.roles import Candidate, Role
+
+        allowed = _provider(
+            pid="allowed", name="Allowed", models=["audit"], default_model="audit"
+        )
+        forbidden = ModelProvider(
+            id="forbidden",
+            name="Forbidden",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            mode="acp",
+            provider_type="acp",
+            backend="codex",
+        )
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = {
+            allowed.id: allowed,
+            forbidden.id: forbidden,
+        }.get
+        orch.provider_store.list_all.return_value = [allowed, forbidden]
+        orch.role_store.get = MagicMock(return_value=Role(
+            "auditor",
+            "priority",
+            [Candidate(allowed.id, "audit"), Candidate(forbidden.id, "")],
+            datetime.now(timezone.utc),
+        ))
+        orch.project_store.get = MagicMock(
+            return_value=SimpleNamespace(provider_whitelist=["Allowed"])
+        )
+        PROVIDER_HEALTH_CACHE.clear()
+        PROVIDER_HEALTH_CACHE.record(
+            allowed,
+            ProviderTestResult(
+                provider_id=allowed.id,
+                provider_name=allowed.name,
+                model="audit",
+                success=True,
+                latency_ms=0.0,
+            ),
+        )
+
+        with patch(
+            "oompah.orchestrator.run_acp_health_check", new_callable=AsyncMock
+        ) as forbidden_probe:
+            selector, error = asyncio.run(
+                orch._prepare_audit_selector(
+                    _make_issue("whitelist-health", project_id="project-1")
+                )
+            )
+
+        assert error is None
+        assert selector is not None
+        forbidden_probe.assert_not_awaited()
+
+    @pytest.mark.parametrize("revocation", ["role", "allowlist", "provider"])
+    def test_automatic_probe_revalidates_policy_at_transport_edge(
+        self, tmp_path, revocation
+    ):
+        """Awaited probes cannot contact through a stale auditor snapshot."""
+        from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+        from oompah.provider_health import (
+            PROVIDER_HEALTH_CACHE,
+            run_health_check as real_health_check,
+        )
+        from oompah.roles import Candidate, Role
+
+        provider = _provider(
+            pid="probe-provider",
+            name="Probe Provider",
+            models=["probe-model"],
+            default_model="probe-model",
+        )
+        role = Role(
+            "auditor",
+            "priority",
+            [Candidate(provider.id, "probe-model")],
+            datetime.now(timezone.utc),
+        )
+        project = SimpleNamespace(provider_whitelist=[provider.name])
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = (
+            lambda provider_id: provider if provider_id == provider.id else None
+        )
+        orch.provider_store.list_all.return_value = [provider]
+        orch.role_store.get = MagicMock(
+            side_effect=lambda name: role if name == "auditor" else None
+        )
+        orch.project_store.get = MagicMock(return_value=project)
+        PROVIDER_HEALTH_CACHE.clear()
+        contacted = MagicMock()
+
+        def revoke_then_probe(snapshot, model=None, **kwargs):
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                if revocation == "role":
+                    role.candidates = []
+                elif revocation == "allowlist":
+                    project.provider_whitelist = ["Another Provider"]
+                else:
+                    provider.base_url = "https://replacement.invalid/v1"
+            return real_health_check(snapshot, model, **kwargs)
+
+        with patch(
+            "oompah.orchestrator.run_health_check",
+            side_effect=revoke_then_probe,
+        ):
+            with patch("urllib.request.urlopen", contacted):
+                selector, error = asyncio.run(
+                    orch._prepare_audit_selector(
+                        _make_issue("probe-race", project_id="project-1")
+                    )
+                )
+
+        assert selector is None
+        assert "health" in error.lower() or "probe" in error.lower()
+        contacted.assert_not_called()
+        assert PROVIDER_HEALTH_CACHE.get(provider, "probe-model") is None
+
+    @pytest.mark.parametrize("outcome", ["success", "exception"])
+    def test_automatic_probe_result_is_signature_guarded_after_contact(
+        self,
+        tmp_path,
+        outcome,
+    ):
+        """An admitted old endpoint cannot publish health for its replacement."""
+        from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE, ProviderTestResult
+        from oompah.roles import Candidate, Role
+
+        provider = _provider(
+            pid="automatic-mutation",
+            name="Automatic Mutation",
+            models=["probe-model"],
+            default_model="probe-model",
+        )
+        role = Role(
+            "auditor",
+            "priority",
+            [Candidate(provider.id, "probe-model")],
+            datetime.now(timezone.utc),
+        )
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = (
+            lambda provider_id: provider if provider_id == provider.id else None
+        )
+        orch.provider_store.list_all.return_value = [provider]
+        orch.role_store.get = MagicMock(
+            side_effect=lambda name: role if name == "auditor" else None
+        )
+        orch.project_store.get = MagicMock(
+            return_value=SimpleNamespace(provider_whitelist=[provider.name])
+        )
+        PROVIDER_HEALTH_CACHE.clear()
+
+        def mutate_after_contact(snapshot, model=None, **kwargs):
+            assert kwargs["before_transport_contact"]() is None
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                provider.base_url = "https://replacement.invalid/v1"
+            if outcome == "exception":
+                raise RuntimeError("old automatic transport failed")
+            return ProviderTestResult(
+                provider_id=snapshot.id,
+                provider_name=snapshot.name,
+                model=str(model or ""),
+                success=True,
+                latency_ms=1.0,
+            )
+
+        with patch(
+            "oompah.orchestrator.run_health_check",
+            side_effect=mutate_after_contact,
+        ):
+            selector, error = asyncio.run(
+                orch._prepare_audit_selector(
+                    _make_issue("automatic-mutation", project_id="project-1")
+                )
+            )
+
+        assert selector is None
+        assert "health persistence" in error
+        assert PROVIDER_HEALTH_CACHE.get(provider, "probe-model") is None
+
+    def test_tracker_write_failure_blocks_before_provider_or_workspace(self, tmp_path):
+        from oompah.roles import Candidate
+
+        one = _provider(pid="one", models=["one"], default_model="one")
+        two = _provider(pid="two", models=["two"], default_model="two")
+        orch = _make_orchestrator(tmp_path)
+        _, tracker, _ = self._wire(
+            orch,
+            [one, two],
+            [Candidate("one", "one"), Candidate("two", "two")],
+        )
+        tracker.set_metadata_field.side_effect = RuntimeError("write failed")
+        provider_contact = MagicMock()
+
+        async def _worker(issue, attempt, profile, provider, target=None, **kwargs):
+            evidence_error = await orch._stage_work_contributor_launch(
+                issue,
+                run_id=kwargs.get("run_id"),
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model=target.model,
+            )
+            if evidence_error is not None:
+                raise ProviderStartupError(
+                    evidence_error,
+                    candidate_key=target.candidate_key,
+                    reason="contributor_evidence_unavailable",
+                )
+            provider_contact()
+
+        orch._run_api_worker = _worker
+        orch._run_cli_worker = AsyncMock()
+        orch._on_worker_exit = AsyncMock()
+        issue = _make_issue("write-failure")
+        self._running(orch, issue, "write-failure-run")
+
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(mode="api", provider_id="one", model="one"),
+                run_id="write-failure-run",
+            )
+        )
+
+        provider_contact.assert_not_called()
+        orch._run_cli_worker.assert_not_awaited()
+        error = orch._on_worker_exit.await_args.args[2]
+        assert "Cannot durably record exact contributor" in error
+        assert "no provider or workspace was started" in error
+
+    def test_cli_stages_identity_without_consuming_provider_auditor(self, tmp_path):
+        from oompah.roles import Candidate
+        from oompah.work_contributors import load_contributors
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        orch = _make_orchestrator(tmp_path)
+        _, _, store = self._wire(
+            orch,
+            [auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        orch._run_cli_worker = AsyncMock()
+        orch._on_worker_exit = AsyncMock()
+        issue = _make_issue("cli-independent")
+        self._running(orch, issue, "cli-independent-run")
+
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(
+                    mode="cli",
+                    provider_id="auditor",
+                    model="audit-model",
+                ),
+                run_id="cli-independent-run",
+            )
+        )
+
+        orch._run_cli_worker.assert_awaited_once()
+        contributors = load_contributors(store[issue.identifier])
+        assert [(value.provider_id, value.model_id) for value in contributors] == [
+            ("cli", None)
+        ]
+
+    def test_exact_prelaunch_fence_rechecks_runtime_role_change(self, tmp_path):
+        from oompah.roles import Candidate
+
+        one = _provider(pid="one", models=["one"], default_model="one")
+        two = _provider(pid="two", models=["two"], default_model="two")
+        orch = _make_orchestrator(tmp_path)
+        role, tracker, _ = self._wire(
+            orch,
+            [one, two],
+            [Candidate("one", "one"), Candidate("two", "two")],
+        )
+        provider_contact = MagicMock()
+
+        async def _worker(issue, attempt, profile, provider, target=None, **kwargs):
+            evidence_error = await orch._stage_work_contributor_launch(
+                issue,
+                run_id=kwargs.get("run_id"),
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model=target.model,
+            )
+            if evidence_error is not None:
+                raise ProviderStartupError(
+                    evidence_error,
+                    candidate_key=target.candidate_key,
+                    reason="auditor_reservation",
+                )
+            provider_contact()
+
+        orch._run_api_worker = _worker
+        orch._on_worker_exit = AsyncMock()
+        issue = _make_issue("role-race")
+        self._running(orch, issue, "role-race-run")
+
+        def _remove_reserved_candidate(_target, **_kwargs):
+            role.candidates = [Candidate("one", "one")]
+            return ""
+
+        orch._candidate_preflight = _remove_reserved_candidate
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(mode="api", provider_id="one", model="one"),
+                run_id="role-race-run",
+            )
+        )
+
+        provider_contact.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        error = orch._on_worker_exit.await_args.args[2]
+        assert "Only one healthy auditor candidate remains" in error
+
+    def test_auditor_plan_bypasses_contributor_reservation_and_write(self, tmp_path):
+        provider = _provider(pid="audit", models=["audit"], default_model="audit")
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = provider
+        orch.provider_store.get_default.return_value = provider
+        orch._reserve_auditor_for_contributor = AsyncMock(
+            side_effect=AssertionError("auditor must not reserve contributor capacity")
+        )
+        orch._stage_work_contributor_launch = AsyncMock(
+            side_effect=AssertionError("auditor must not write contributor evidence")
+        )
+        orch._run_api_worker = AsyncMock()
+        issue = _make_issue("auditor-bypass")
+        self._running(orch, issue, "audit-run")
+        plan = MagicMock()
+
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(mode="api", provider_id="audit", model="audit"),
+                run_id="audit-run",
+                auditor_plan=plan,
+            )
+        )
+
+        orch._run_api_worker.assert_awaited_once()
+
+    def test_focus_triage_contact_follows_exact_default_model_fence(self, tmp_path):
+        """Use the real focus selector and observe its low-level HTTP ordering."""
+
+        from oompah.focus import _triage_cache
+        from oompah.roles import Candidate
+        from oompah.work_contributors import METADATA_KEY
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model", "triage-model"],
+            default_model="triage-model",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        _, tracker, _ = self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        issue = _make_issue(
+            "triage-order",
+            description="Implement a feature with tests and documentation.",
+        )
+        self._running(orch, issue, "triage-run")
+        events: list[str] = []
+        persist = tracker.set_metadata_field.side_effect
+
+        def _observe_evidence(identifier, key, value):
+            persist(identifier, key, value)
+            if key == METADATA_KEY:
+                events.append(f"evidence:{value['runs'][-1]['model_id']}")
+
+        tracker.set_metadata_field.side_effect = _observe_evidence
+
+        def _triage_http(*_args, **_kwargs):
+            admission = _kwargs["before_transport_contact"]()
+            assert admission is None
+            events.append("triage-admitted")
+            events.append("triage-contact")
+            return {"choices": [{"message": {"content": "default: deterministic"}}]}
+
+        _triage_cache.clear()
+        orch._resolve_focus_provider_override = MagicMock(
+            side_effect=RuntimeError("stop-after-triage")
+        )
+        with patch("oompah.api_agent._http_post", side_effect=_triage_http):
+            with pytest.raises(RuntimeError, match="stop-after-triage"):
+                asyncio.run(
+                    orch._run_worker(
+                        issue,
+                        0,
+                        _profile(
+                            mode="api",
+                            provider_id="implementation",
+                            model="implementation-model",
+                        ),
+                        run_id="triage-run",
+                    )
+                )
+
+        triage_evidence = events.index("evidence:triage-model")
+        assert triage_evidence < events.index("triage-admitted")
+        assert events.index("triage-admitted") < events.index("triage-contact")
+
+    def test_focus_triage_lifecycle_revocation_in_thread_gap_blocks_http_edge(
+        self, tmp_path
+    ):
+        """A stop after staging but before the worker-thread edge wins."""
+
+        from oompah.api_agent import _http_post as real_http_post
+        from oompah.focus import _triage_cache
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model", "triage-model"],
+            default_model="triage-model",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        issue = _make_issue(
+            "triage-revocation-gap",
+            description="Implement a feature with tests and documentation.",
+        )
+        self._running(orch, issue, "triage-revocation-run")
+        entry = orch.state.running[issue.id]
+
+        def _revoke_in_thread_gap(*args, **kwargs):
+            # Simulate lifecycle winning after the async evidence fence handed
+            # work to ``to_thread`` but before the blocking helper reaches
+            # urllib.  The callback carried into real_http_post must re-CAS.
+            orch._stopping = True
+            return real_http_post(*args, **kwargs)
+
+        _triage_cache.clear()
+        orch._resolve_focus_provider_override = MagicMock(
+            side_effect=RuntimeError("stop-after-triage")
+        )
+        with patch(
+            "oompah.api_agent.urllib.request.urlopen",
+            side_effect=AssertionError("revoked triage opened HTTP transport"),
+        ) as urlopen:
+            with patch(
+                "oompah.api_agent._http_post",
+                side_effect=_revoke_in_thread_gap,
+            ):
+                with pytest.raises(RuntimeError, match="stop-after-triage"):
+                    asyncio.run(
+                        orch._run_worker(
+                            issue,
+                            0,
+                            _profile(
+                                mode="api",
+                                provider_id="implementation",
+                                model="implementation-model",
+                            ),
+                            run_id="triage-revocation-run",
+                        )
+                    )
+
+        urlopen.assert_not_called()
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_focus_triage_provider_update_during_staging_blocks_stale_http_edge(
+        self, tmp_path
+    ):
+        """A provider edit during the awaited evidence fence revokes the snapshot."""
+
+        from oompah.api_agent import _http_post as real_http_post
+        from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+        from oompah.focus import _triage_cache
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model", "triage-model"],
+            default_model="triage-model",
+        )
+        implementation.base_url = "https://original.example/v1"
+        implementation.api_key = "original-triage-key"
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        issue = _make_issue(
+            "triage-provider-staging-race",
+            description="Implement a feature with tests and documentation.",
+        )
+        self._running(orch, issue, "triage-provider-staging-race-run")
+        entry = orch.state.running[issue.id]
+        original_stage = orch._stage_work_contributor_launch
+        observed_request: dict[str, object] = {}
+
+        async def _stage_then_rotate(*args, **kwargs):
+            result = await original_stage(*args, **kwargs)
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                implementation.base_url = "https://replacement.example/v1"
+                implementation.api_key = "replacement-triage-key"
+                implementation.default_model = "replacement-model"
+                implementation.models = ["implementation-model", "replacement-model"]
+            return result
+
+        def _observe_frozen_request(url, headers, body, ssl_ctx, **kwargs):
+            observed_request.update(
+                url=url,
+                authorization=headers["Authorization"],
+                model=json.loads(body)["model"],
+            )
+            return real_http_post(url, headers, body, ssl_ctx, **kwargs)
+
+        orch._stage_work_contributor_launch = _stage_then_rotate
+        _triage_cache.clear()
+        orch._resolve_focus_provider_override = MagicMock(
+            side_effect=RuntimeError("stop-after-triage")
+        )
+        with patch(
+            "oompah.api_agent.urllib.request.urlopen",
+            side_effect=AssertionError("stale triage opened HTTP transport"),
+        ) as urlopen:
+            with patch(
+                "oompah.api_agent._http_post",
+                side_effect=_observe_frozen_request,
+            ):
+                with pytest.raises(RuntimeError, match="stop-after-triage"):
+                    asyncio.run(
+                        orch._run_worker(
+                            issue,
+                            0,
+                            _profile(
+                                mode="api",
+                                provider_id="implementation",
+                                model="implementation-model",
+                            ),
+                            run_id="triage-provider-staging-race-run",
+                        )
+                    )
+
+        assert observed_request == {
+            "url": "https://original.example/v1/chat/completions",
+            "authorization": "Bearer original-triage-key",
+            "model": "triage-model",
+        }
+        urlopen.assert_not_called()
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_focus_triage_provider_update_in_http_thread_blocks_stale_edge(
+        self, tmp_path
+    ):
+        """A provider edit after to_thread handoff wins before urlopen."""
+
+        from oompah.api_agent import _http_post as real_http_post
+        from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+        from oompah.focus import _triage_cache
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model", "triage-model"],
+            default_model="triage-model",
+        )
+        implementation.base_url = "https://original.example/v1"
+        implementation.api_key = "original-triage-key"
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        issue = _make_issue(
+            "triage-provider-thread-race",
+            description="Implement a feature with tests and documentation.",
+        )
+        self._running(orch, issue, "triage-provider-thread-race-run")
+        entry = orch.state.running[issue.id]
+
+        def _rotate_before_actual_edge(url, headers, body, ssl_ctx, **kwargs):
+            # This wrapper is invoked by asyncio.to_thread. Mutate policy in
+            # the worker-thread gap, then enter the real helper whose callback
+            # must reject before urllib can observe the frozen request.
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                implementation.base_url = "https://replacement.example/v1"
+                implementation.api_key = "replacement-triage-key"
+            return real_http_post(url, headers, body, ssl_ctx, **kwargs)
+
+        _triage_cache.clear()
+        orch._resolve_focus_provider_override = MagicMock(
+            side_effect=RuntimeError("stop-after-triage")
+        )
+        with patch(
+            "oompah.api_agent.urllib.request.urlopen",
+            side_effect=AssertionError("stale triage opened HTTP transport"),
+        ) as urlopen:
+            with patch(
+                "oompah.api_agent._http_post",
+                side_effect=_rotate_before_actual_edge,
+            ):
+                with pytest.raises(RuntimeError, match="stop-after-triage"):
+                    asyncio.run(
+                        orch._run_worker(
+                            issue,
+                            0,
+                            _profile(
+                                mode="api",
+                                provider_id="implementation",
+                                model="implementation-model",
+                            ),
+                            run_id="triage-provider-thread-race-run",
+                        )
+                    )
+
+        urlopen.assert_not_called()
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_concurrent_tasks_cannot_spend_same_projected_audit_budget(self, tmp_path):
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        orch.config.budget_limit = 1.5
+        issues = [_make_issue("budget-a"), _make_issue("budget-b")]
+        for issue in issues:
+            self._running(orch, issue, f"run-{issue.id}")
+
+        def _stage(issue):
+            return asyncio.run(
+                orch._stage_work_contributor_launch(
+                    issue,
+                    run_id=f"run-{issue.id}",
+                    provider_id=implementation.id,
+                    provider_name=implementation.name,
+                    model="implementation-model",
+                )
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            errors = list(pool.map(_stage, issues))
+
+        assert sum(error is None for error in errors) == 1
+        assert sum("Insufficient unreserved budget" in (error or "") for error in errors) == 1
+        assert len(orch._audit_budget_reservations) == 1
+
+        restart_provider_store = MagicMock()
+        restart_provider_store.get.side_effect = {
+            implementation.id: implementation,
+            auditor.id: auditor,
+        }.get
+        restart_provider_store.list_all.return_value = [implementation, auditor]
+        restarted = _make_orchestrator(
+            tmp_path, provider_store=restart_provider_store
+        )
+        self._wire(
+            restarted,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        restarted.config.budget_limit = 1.5
+        third = _make_issue("budget-c")
+        self._running(restarted, third, "run-budget-c")
+        error = asyncio.run(
+            restarted._stage_work_contributor_launch(
+                third,
+                run_id="run-budget-c",
+                provider_id=implementation.id,
+                provider_name=implementation.name,
+                model="implementation-model",
+            )
+        )
+        assert "Insufficient unreserved budget" in error
+
+    def test_restart_reconciles_terminal_task_budget_reservation(self, tmp_path):
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        candidate = Candidate("auditor", "audit-model")
+        issue = _make_issue("terminal-budget", state="Done", project_id="project-1")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [candidate])
+        orch.config.budget_limit = 2.0
+        assert orch._reserve_audit_budget_capacity(issue, candidate) is None
+        assert orch._mark_audit_budget_started(_audit_reservation_key(orch, issue))
+
+        restart_provider_store = MagicMock()
+        restart_provider_store.get.side_effect = {auditor.id: auditor}.get
+        restart_provider_store.list_all.return_value = [auditor]
+        restarted = _make_orchestrator(
+            tmp_path, provider_store=restart_provider_store
+        )
+        _, tracker, _ = self._wire(restarted, [auditor], [candidate])
+        restarted._project_trackers["project-1"] = tracker
+        tracker.fetch_issue_detail.return_value = issue
+        assert restarted._audit_budget_reservations
+
+        restarted._reconcile_audit_budget_reservations()
+
+        assert restarted._audit_budget_reservations == {}
+        assert restarted._load_state()["audit_budget_reservations"] == {}
+        assert restarted.state.agent_totals.estimated_cost == pytest.approx(0.98304)
+
+    def test_restart_canonicalizes_sdk_model_and_legacy_project_scope(self, tmp_path):
+        """Valid old ACP reservations must not become a budget bypass on boot."""
+        reservation = {
+            "amount_usd": 0.0,
+            "provider_id": "subscription-acp",
+            "model": "",
+            "project_id": "",
+            "task_id": "legacy-audit",
+            "reserved_at": "2026-08-06T00:00:00+00:00",
+            "audit_started": False,
+            "spend_reconciled": False,
+        }
+        (tmp_path / "state.json").write_text(
+            json.dumps({"audit_budget_reservations": {"legacy": reservation}}),
+            encoding="utf-8",
+        )
+        provider = ModelProvider(
+            id="subscription-acp",
+            name="subscription-acp",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            mode="acp",
+            provider_type="acp",
+        )
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = provider
+        orch._audit_budget_authority_error = None
+        orch._audit_budget_reservations = {}
+
+        orch._restore_audit_budget_reservations()
+
+        restored = orch._audit_budget_reservations["legacy"]
+        assert restored["model"] == "__sdk_managed__"
+        assert restored["project_id"] == "__legacy_unscoped__"
+        assert orch._audit_budget_authority_error is None
+
+    def test_blank_sdk_managed_auditor_uses_one_runtime_budget_identity(self, tmp_path):
+        """A role's blank ACP model is never rewritten to synthetic default."""
+        from oompah.roles import Candidate
+        from oompah.work_contributors import SDK_MANAGED_MODEL
+
+        provider = ModelProvider(
+            id="subscription-acp",
+            name="subscription-acp",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            mode="acp",
+            provider_type="acp",
+            backend="codex",
+            billing_model="subscription",
+        )
+        issue = _make_issue("sdk-managed-audit", project_id="project-1")
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = provider
+        orch.config.budget_limit = 1.0
+        candidate = Candidate(provider.id, "")
+
+        assert orch._canonical_auditor_candidate(candidate).model == SDK_MANAGED_MODEL
+        assert orch._reserve_audit_budget_capacity(issue, candidate) is None
+        assert (
+            orch._audit_budget_reservations[_audit_reservation_key(orch, issue)][
+                "model"
+            ]
+            == SDK_MANAGED_MODEL
+        )
+
+    @pytest.mark.parametrize("transport", ["API", "ACP", "CLI"])
+    def test_provider_contact_fails_closed_when_workspace_loses_running_entry(
+        self, tmp_path, transport
+    ):
+        """All transport launch boundaries reject an entry removed after setup."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(f"removed-{transport.lower()}")
+        self._running(orch, issue, f"{transport.lower()}-run")
+        orch._remove_running_entry(issue.id)
+
+        error = orch._begin_provider_contact(
+            issue, f"{transport.lower()}-run", transport=transport
+        )
+
+        assert error is not None
+        assert "runtime authority" in error
+
+    def test_precontact_auditor_failure_releases_capacity_without_projection(self, tmp_path):
+        """Reservation is capacity only until the provider admission boundary."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        issue = _make_issue("precontact-auditor")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 2.0
+        self._running(orch, issue, "precontact-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.model_name = "audit-model"
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._finish_audit_attempt = MagicMock(return_value=False)
+        orch._remove_audit_workspace = MagicMock()
+
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+        assert (
+            orch._audit_budget_reservations[_audit_reservation_key(orch, issue)][
+                "audit_started"
+            ]
+            is False
+        )
+
+        asyncio.run(orch._on_worker_exit(issue.id, "interrupted", "setup failed", run_id=entry.run_id))
+
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert orch._audit_budget_reservations == {}
+
+    def test_acp_lifecycle_stop_before_run_turn_has_zero_spend_and_health_change(
+        self, tmp_path
+    ):
+        """A granted ACP permit is reversed when lifecycle wins pre-transport."""
+        from oompah.acp_agent import AcpAgentSession
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        issue = _make_issue("acp-pretransport-stop")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 2.0
+        self._running(orch, issue, "acp-pretransport-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.model_name = "audit-model"
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+        health_before = PROVIDER_HEALTH_CACHE.get(
+            auditor, "audit-model", max_age_seconds=60
+        )
+
+        class FakeBackendSession:
+            status = "pending"
+            last_error = None
+            permission_denials: list = []
+            input_tokens = output_tokens = total_tokens = turn_count = 0
+            session_id = None
+            total_cost_usd = None
+
+            def __init__(self, options):
+                self.options = options
+
+            async def run_turn(self):
+                assert self.options.begin_transport_contact() is not None
+                self.status = "interrupted"
+                yield None  # pragma: no cover - async generator marker
+
+            async def close(self):
+                return None
+
+        class FakeBackend:
+            def start_session(self, options):
+                return FakeBackendSession(options)
+
+        def _admit_then_stop():
+            error = orch._begin_provider_contact(issue, entry.run_id, transport="ACP")
+            session._stop_requested = True
+            return error
+
+        session = AcpAgentSession(
+            workspace_path=str(tmp_path),
+            prompt="audit",
+            model="audit-model",
+            before_transport_contact=_admit_then_stop,
+            on_precontact_admission_cancelled=lambda: (
+                orch._cancel_precontact_provider_admission(issue, entry.run_id)
+            ),
+        )
+        session._backend = FakeBackend()
+
+        assert asyncio.run(session.run_task()) == "interrupted"
+        assert session.transport_contacted is False
+        assert (
+            orch._audit_budget_reservations[_audit_reservation_key(orch, issue)][
+                "audit_started"
+            ]
+            is False
+        )
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+        assert (
+            PROVIDER_HEALTH_CACHE.get(auditor, "audit-model", max_age_seconds=60)
+            == health_before
+        )
+
+    def test_cli_local_popen_failure_rolls_back_auditor_contact_and_spend(
+        self, tmp_path
+    ):
+        """A legacy CLI permit is capacity-only until Popen succeeds."""
+
+        from oompah.agent import AgentError, AgentSession
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        issue = _make_issue("cli-local-failure")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 2.0
+        self._running(orch, issue, "cli-local-failure-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.model_name = "audit-model"
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+
+        session = AgentSession(
+            "missing-agent",
+            str(tmp_path),
+            before_transport_contact=lambda: orch._begin_provider_contact(
+                issue, entry.run_id, transport="CLI"
+            ),
+            on_precontact_admission_cancelled=lambda: (
+                orch._cancel_precontact_provider_admission(issue, entry.run_id)
+            ),
+        )
+        with patch(
+            "oompah.agent.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=FileNotFoundError("missing bash")),
+        ):
+            with pytest.raises(AgentError, match="Agent command not found"):
+                asyncio.run(session.start())
+
+        assert session.transport_contacted is False
+        assert (
+            orch._audit_budget_reservations[_audit_reservation_key(orch, issue)][
+                "audit_started"
+            ]
+            is False
+        )
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_cli_retirement_after_permit_but_before_popen_rolls_back_audit(
+        self, tmp_path
+    ):
+        """A lifecycle stop observed before Popen returns the unused permit."""
+
+        from oompah.agent import AgentError, AgentSession
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        issue = _make_issue("cli-pre-popen-retirement")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 2.0
+        self._running(orch, issue, "cli-pre-popen-retirement-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.model_name = "audit-model"
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+
+        def _admit_then_retire():
+            error = orch._begin_provider_contact(
+                issue, entry.run_id, transport="CLI"
+            )
+            session._stop_requested = True
+            return error
+
+        session = AgentSession(
+            "agent",
+            str(tmp_path),
+            before_transport_contact=_admit_then_retire,
+            on_precontact_admission_cancelled=lambda: (
+                orch._cancel_precontact_provider_admission(issue, entry.run_id)
+            ),
+        )
+        with patch(
+            "oompah.agent.asyncio.create_subprocess_exec",
+            new=AsyncMock(),
+        ) as create_process:
+            with pytest.raises(AgentError, match="cancelled before subprocess"):
+                asyncio.run(session.start())
+
+        create_process.assert_not_awaited()
+        assert session.transport_contacted is False
+        assert (
+            orch._audit_budget_reservations[_audit_reservation_key(orch, issue)][
+                "audit_started"
+            ]
+            is False
+        )
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_owner_revocation_wins_before_auditor_contact_permit(self, tmp_path):
+        """Policy/tracker reads cannot hold the retry lock ahead of owner stop."""
+
+        issue = _make_issue("contact-revoke-first", project_id="project-1")
+        orch = _make_orchestrator(tmp_path)
+        self._running(orch, issue, "contact-revoke-first-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+
+        policy_read_started = threading.Event()
+        release_policy_read = threading.Event()
+        revocation_done = threading.Event()
+
+        def _slow_policy_read(_entry):
+            policy_read_started.set()
+            assert release_policy_read.wait(timeout=2)
+            return None
+
+        orch._auditor_contact_authority_error = _slow_policy_read
+        orch._auditor_budget_admission_error = MagicMock(return_value=None)
+        orch._mark_audit_budget_started = MagicMock(return_value=True)
+        orch._schedule_running_termination = MagicMock()
+        result: dict[str, str | None] = {}
+
+        contact = threading.Thread(
+            target=lambda: result.setdefault(
+                "error",
+                orch._begin_provider_contact(issue, entry.run_id, transport="ACP"),
+            )
+        )
+        contact.start()
+        assert policy_read_started.wait(timeout=2)
+
+        def _revoke():
+            orch._revoke_auditor_authority("project-1", issue.identifier)
+            revocation_done.set()
+
+        override = threading.Thread(target=_revoke)
+        override.start()
+        # If policy inspection held retry authority, this deterministic wait
+        # would time out: owner override must remain able to revoke first.
+        assert revocation_done.wait(timeout=2)
+        release_policy_read.set()
+        contact.join(timeout=2)
+        override.join(timeout=2)
+
+        assert result["error"] is not None
+        assert "runtime authority disappeared" in result["error"]
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_auditor_contact_permit_wins_then_owner_observes_admitted_run(self, tmp_path):
+        """The reverse interleaving retires a visible admitted generation."""
+
+        issue = _make_issue("contact-permit-first", project_id="project-1")
+        orch = _make_orchestrator(tmp_path)
+        self._running(orch, issue, "contact-permit-first-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        orch._auditor_contact_authority_error = MagicMock(return_value=None)
+        orch._auditor_budget_admission_error = MagicMock(return_value=None)
+        mark_started = threading.Event()
+        release_mark = threading.Event()
+
+        def _mark_started(_issue_id, *, expected_identity=None):
+            mark_started.set()
+            assert release_mark.wait(timeout=2)
+            return True
+
+        orch._mark_audit_budget_started = _mark_started
+        orch._schedule_running_termination = MagicMock()
+        result: dict[str, str | None] = {}
+        contact = threading.Thread(
+            target=lambda: result.setdefault(
+                "error",
+                orch._begin_provider_contact(issue, entry.run_id, transport="ACP"),
+            )
+        )
+        contact.start()
+        assert mark_started.wait(timeout=2)
+        # The permit has already linearized under the retry lock.  The owner
+        # must see and retire this generation rather than let it become an
+        # invisible post-override launch.
+        assert entry.provider_contact_permitted is True
+        orch._revoke_auditor_authority("project-1", issue.identifier)
+        assert entry.authority_revoked is True
+        orch._schedule_running_termination.assert_called_once_with(
+            issue.id,
+            cleanup_workspace=False,
+            task_name_prefix="retire-revoked-auditor",
+        )
+        release_mark.set()
+        contact.join(timeout=2)
+
+        assert result["error"] is None
+        assert entry.provider_started is True
+
+    def test_owner_override_generation_rejects_auditor_registration_gap(self, tmp_path):
+        """An override between reservation and publication fences that attempt."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="registration-gap-auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 10.0
+        issue = _make_issue("registration-gap", project_id="project-a")
+        captured_generation = orch._auditor_authority_generation(
+            issue.project_id, issue.identifier
+        )
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+
+        # This is the previously invisible window: no RunningEntry exists yet.
+        orch._schedule_running_termination = MagicMock()
+        orch._revoke_auditor_authority("project-a", issue.identifier)
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            is_auditor=True,
+            provider_id=auditor.id,
+            model_name="audit-model",
+            run_id="registration-gap-run",
+            auditor_authority_generation=captured_generation,
+        )
+
+        assert orch._register_running_entry(issue.id, entry) is False
+        assert issue.id not in orch.state.running
+        assert "runtime authority" in orch._begin_provider_contact(
+            issue, entry.run_id, transport="API"
+        )
+        orch._schedule_running_termination.assert_not_called()
+
+        # The generation is project scoped: the same local identifier in a
+        # different project is not revoked by project-a's owner.
+        other = _make_issue("registration-gap", project_id="project-b")
+        other_entry = replace(
+            entry,
+            issue=other,
+            run_id="other-project-run",
+            auditor_authority_generation=orch._auditor_authority_generation(
+                other.project_id, other.identifier
+            ),
+        )
+        assert orch._register_running_entry(other.id, other_entry) is True
+        assert orch._remove_running_entry(other.id, other_entry) is True
+
+    def test_live_auditor_blocks_maintenance_projection_until_exact_exit(self, tmp_path):
+        """Maintenance cannot charge a live auditor's projection before exit usage."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.02,
+                "cost_per_1k_output": 0.04,
+            }
+        }
+        issue = _make_issue("race-accounting", state="Done", project_id="project-1")
+        orch = _make_orchestrator(tmp_path)
+        _, tracker, _ = self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch._project_trackers["project-1"] = tracker
+        tracker.fetch_issue_detail.return_value = issue
+        orch.config.budget_limit = 3.0
+        self._running(orch, issue, "race-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.model_name = "audit-model"
+        entry.admitted_per_token_billed = True
+        entry.admitted_cost_per_1k_input = 0.02
+        entry.admitted_cost_per_1k_output = 0.04
+        entry.session = MagicMock(
+            input_tokens=1000,
+            output_tokens=2000,
+            total_tokens=3000,
+            sdk_cost_usd=None,
+            final_usage_observed=True,
+            final_cost_observed=False,
+        )
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._finish_audit_attempt = MagicMock(return_value=False)
+        orch._remove_audit_workspace = MagicMock()
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+        assert orch._mark_audit_budget_started(_audit_reservation_key(orch, issue))
+
+        orch._reconcile_audit_budget_reservations()
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert _audit_reservation_key(orch, issue) in orch._audit_budget_reservations
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None, run_id=entry.run_id))
+        assert orch.state.agent_totals.estimated_cost == pytest.approx(0.1)
+        assert orch._audit_budget_reservations == {}
+
+    def test_auditor_actual_cost_uses_persisted_attempt_identity(self, tmp_path):
+        auditor = _provider(
+            pid="rotated-auditor",
+            models=["exact-model"],
+            default_model="exact-model",
+        )
+        auditor.model_costs = {
+            "exact-model": {
+                "cost_per_1k_input": 0.02,
+                "cost_per_1k_output": 0.04,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = auditor
+        issue = _make_issue("exact-auditor-cost")
+        self._running(orch, issue, "exact-auditor-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = auditor.id
+        entry.model_name = "exact-model"
+        entry.admitted_per_token_billed = True
+        entry.admitted_cost_per_1k_input = 0.02
+        entry.admitted_cost_per_1k_output = 0.04
+        entry.session = MagicMock(
+            input_tokens=1000,
+            output_tokens=2000,
+            sdk_cost_usd=None,
+            final_usage_observed=True,
+            final_cost_observed=False,
+        )
+        orch._get_profile_by_name = MagicMock(
+            side_effect=AssertionError("profile rates are not exact attempt authority")
+        )
+
+        assert orch._auditor_actual_cost(entry) == pytest.approx(0.1)
+        orch._get_profile_by_name.assert_not_called()
+
+    def test_normal_auditor_exit_reconciles_exact_running_entry_cost(self, tmp_path):
+        """Exit accounting must not consult a profile that rotated post-launch."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="rotated-auditor",
+            models=["exact-model"],
+            default_model="exact-model",
+        )
+        auditor.model_costs = {
+            "exact-model": {
+                "cost_per_1k_input": 0.02,
+                "cost_per_1k_output": 0.04,
+            }
+        }
+        candidate = Candidate(auditor.id, "exact-model")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [candidate])
+        orch.config.budget_limit = 3.0
+        issue = _make_issue("normal-auditor-cost", project_id="project-1")
+        self._running(orch, issue, "normal-auditor-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.provider_name = auditor.name
+        entry.model_name = "exact-model"
+        entry.admitted_per_token_billed = True
+        entry.admitted_cost_per_1k_input = 0.02
+        entry.admitted_cost_per_1k_output = 0.04
+        entry.session = MagicMock(
+            input_tokens=1000,
+            output_tokens=2000,
+            total_tokens=3000,
+            sdk_cost_usd=None,
+            final_usage_observed=True,
+            final_cost_observed=False,
+        )
+        orch._get_profile_by_name = MagicMock(
+            side_effect=AssertionError("auditor exit must use RunningEntry identity")
+        )
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._finish_audit_attempt = MagicMock(return_value=False)
+        orch._remove_audit_workspace = MagicMock()
+
+        assert orch._reserve_audit_budget_capacity(issue, candidate) is None
+        assert orch._mark_audit_budget_started(_audit_reservation_key(orch, issue))
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None, run_id=entry.run_id))
+
+        assert orch.state.agent_totals.estimated_cost == pytest.approx(0.1)
+        assert orch._audit_budget_reservations == {}
+        orch._get_profile_by_name.assert_not_called()
+
+    @pytest.mark.parametrize("revoked", [False, True])
+    def test_contacted_auditor_without_final_usage_charges_projection(
+        self, tmp_path, revoked
+    ):
+        """Initialized zero counters never turn a contacted paid audit into $0."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="uncertain-auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.02,
+                "cost_per_1k_output": 0.04,
+            }
+        }
+        issue = _make_issue(
+            f"uncertain-audit-{'revoked' if revoked else 'normal'}",
+            project_id="project-1",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 3.0
+        self._running(orch, issue, f"{issue.id}-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = auditor.id
+        entry.provider_name = auditor.name
+        entry.model_name = "audit-model"
+        entry.provider_started = True
+        entry.authority_revoked = revoked
+        entry.session = MagicMock(
+            input_tokens=0,
+            output_tokens=0,
+            total_tokens=0,
+            sdk_cost_usd=None,
+            final_usage_observed=False,
+            final_cost_observed=False,
+        )
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._finish_audit_attempt = MagicMock(return_value=False)
+        orch._remove_audit_workspace = MagicMock()
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate(auditor.id, "audit-model")
+        ) is None
+        assert orch._mark_audit_budget_started(_audit_reservation_key(orch, issue))
+
+        assert orch._auditor_actual_cost(entry) is None
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "interrupted" if revoked else "normal",
+                "lifecycle stop" if revoked else None,
+                run_id=entry.run_id,
+            )
+        )
+
+        # 65,536 projected input and 32,768 output at the rates above.
+        assert orch.state.agent_totals.estimated_cost == pytest.approx(2.62144)
+        assert orch._audit_budget_reservations == {}
+
+    def test_final_zero_usage_report_reconciles_paid_auditor_at_zero(self, tmp_path):
+        """An explicit terminal all-zero report remains exact billing data."""
+        auditor = _provider(
+            pid="zero-auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.02,
+                "cost_per_1k_output": 0.04,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = auditor
+        issue = _make_issue("zero-final-audit")
+        self._running(orch, issue, "zero-final-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = auditor.id
+        entry.model_name = "audit-model"
+        entry.admitted_per_token_billed = True
+        entry.admitted_cost_per_1k_input = 0.02
+        entry.admitted_cost_per_1k_output = 0.04
+        entry.session = MagicMock(
+            input_tokens=0,
+            output_tokens=0,
+            sdk_cost_usd=None,
+            final_usage_observed=True,
+            final_cost_observed=False,
+        )
+
+        assert orch._auditor_actual_cost(entry) == 0.0
+
+    @pytest.mark.parametrize(
+        ("status", "reason"),
+        [
+            ("failed", "provider_unavailable"),
+            ("stalled", "timeout"),
+            ("rate_limited", "rate_limited"),
+        ],
+    )
+    def test_worker_failure_replaces_successful_health_with_durable_ttl_evidence(
+        self,
+        tmp_path,
+        status,
+        reason,
+    ):
+        """A failed task run cannot leave a stale successful auditor probe."""
+        from oompah.provider_health import ProviderHealthCache, ProviderTestResult
+
+        provider = _provider(
+            pid="health-provider",
+            models=["health-model"],
+            default_model="health-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [provider], [])
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE
+
+        PROVIDER_HEALTH_CACHE.record(
+            provider,
+            ProviderTestResult(
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model="health-model",
+                success=True,
+                latency_ms=0.0,
+            ),
+        )
+
+        orch._record_worker_provider_health(
+            provider,
+            "health-model",
+            status,
+            detail="provider outcome",
+            expected_configuration_signature=(
+                PROVIDER_HEALTH_CACHE.configuration_signature(provider)
+            ),
+        )
+
+        observed = PROVIDER_HEALTH_CACHE.get(
+            provider, "health-model", max_age_seconds=60
+        )
+        assert observed is not None
+        assert observed["success"] is False
+        assert observed["error_reason"] == reason
+        restored = ProviderHealthCache(str(tmp_path / "provider_health.json"))
+        assert restored.get(provider, "health-model", max_age_seconds=60) == observed
+
+    def test_worker_outcome_does_not_publish_under_mutated_provider_signature(
+        self, tmp_path
+    ):
+        """An old endpoint's outcome is not health evidence for its replacement."""
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE
+
+        provider = _provider(
+            pid="mutated-health-provider",
+            models=["health-model"],
+            default_model="health-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [provider], [])
+        admitted_signature = PROVIDER_HEALTH_CACHE.configuration_signature(provider)
+        provider.base_url = "https://replacement.invalid/v1"
+
+        orch._record_worker_provider_health(
+            provider,
+            "health-model",
+            "succeeded",
+            expected_configuration_signature=admitted_signature,
+        )
+
+        assert PROVIDER_HEALTH_CACHE.get(
+            provider, "health-model", max_age_seconds=60
+        ) is None
+
+    @pytest.mark.parametrize("lifecycle", ["owner", "drain", "pause"])
+    def test_lifecycle_interruption_preserves_prior_provider_health(
+        self, tmp_path, lifecycle
+    ):
+        """A post-contact local cancellation is not provider outage evidence."""
+        from oompah.provider_health import ProviderTestResult, PROVIDER_HEALTH_CACHE
+
+        provider = _provider(
+            pid=f"lifecycle-health-{lifecycle}",
+            models=["health-model"],
+            default_model="health-model",
+        )
+        issue = _make_issue(f"lifecycle-health-{lifecycle}")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [provider], [])
+        self._running(orch, issue, f"{lifecycle}-run")
+        entry = orch.state.running[issue.id]
+        PROVIDER_HEALTH_CACHE.record(
+            provider,
+            ProviderTestResult(
+                provider_id=provider.id,
+                provider_name=provider.name,
+                model="health-model",
+                success=True,
+                latency_ms=0.0,
+            ),
+        )
+        before = PROVIDER_HEALTH_CACHE.get(provider, "health-model", max_age_seconds=60)
+        if lifecycle == "owner":
+            entry.authority_revoked = True
+        elif lifecycle == "drain":
+            orch._stopping = True
+        else:
+            orch._quiesced = True
+
+        orch._record_worker_provider_health(
+            provider,
+            "health-model",
+            "interrupted",
+            detail="local lifecycle cancellation",
+            outcome_is_provider_evidence=orch._worker_provider_outcome_is_evidence(
+                issue.id, entry.run_id, "interrupted", "local lifecycle cancellation"
+            ),
+        )
+
+        assert (
+            PROVIDER_HEALTH_CACHE.get(provider, "health-model", max_age_seconds=60)
+            == before
+        )
+
+    def test_contributor_staging_fails_closed_when_running_entry_disappears(self, tmp_path):
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        _, tracker, _ = self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate(auditor.id, "audit-model")],
+        )
+        issue = _make_issue("missing-runtime")
+
+        error = asyncio.run(
+            orch._stage_work_contributor_launch(
+                issue,
+                run_id="vanished-run",
+                provider_id=implementation.id,
+                provider_name=implementation.name,
+                model="implementation-model",
+            )
+        )
+
+        assert "authority is absent or changed" in error
+        assert orch._workspace_authority_check(issue, "vanished-run") is not None
+        assert orch._workspace_authority_check(issue, "vanished-run")() is False
+        tracker.set_metadata_field.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "blank_field",
+        ["provider_id", "model", "task_id", "reserved_at"],
+    )
+    def test_blank_restored_audit_reservation_identity_blocks_budget_authority(
+        self,
+        tmp_path,
+        blank_field,
+    ):
+        from oompah.roles import Candidate
+
+        reservation = {
+            "amount_usd": 1.0,
+            "provider_id": "auditor",
+            "model": "audit-model",
+            "project_id": "project-1",
+            "task_id": "stored-task",
+            "reserved_at": "2026-08-06T00:00:00+00:00",
+            "audit_started": False,
+            "spend_reconciled": False,
+        }
+        reservation[blank_field] = ""
+        (tmp_path / "state.json").write_text(
+            json.dumps({"audit_budget_reservations": {"stored": reservation}}),
+            encoding="utf-8",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        orch.config.budget_limit = 2.0
+
+        error = orch._reserve_audit_budget_capacity(
+            _make_issue("another-task", project_id="project-1"),
+            Candidate(auditor.id, "audit-model"),
+        )
+
+        assert "budget authority" in error
+        assert "identity is incomplete" in error
+
+    def test_malformed_restart_reservation_lifecycle_blocks_budget_authority(
+        self,
+        tmp_path,
+    ):
+        from oompah.roles import Candidate
+
+        state_path = tmp_path / "state.json"
+        state_path.write_text(
+            '{"audit_budget_reservations":{"task":{"amount_usd":1.0,'
+            '"audit_started":"yes","spend_reconciled":false}}}',
+            encoding="utf-8",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 2.0
+
+        error = orch._reserve_audit_budget_capacity(
+            _make_issue("another-task"),
+            Candidate("auditor", "audit-model"),
+        )
+
+        assert "budget authority" in error
+        assert "lifecycle is invalid" in error
+
+    @pytest.mark.parametrize("project_failure", [None, RuntimeError("store down")])
+    def test_cli_project_allowlist_authority_fails_closed(
+        self,
+        tmp_path,
+        project_failure,
+    ):
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        if project_failure is None:
+            orch.project_store.get.return_value = None
+            orch.project_store.get.side_effect = None
+        else:
+            orch.project_store.get.side_effect = project_failure
+        issue = _make_issue("cli-project-authority", project_id="project-missing")
+        self._running(orch, issue, "cli-project-run")
+        orch._run_cli_worker = AsyncMock()
+        orch._on_worker_exit = AsyncMock()
+
+        asyncio.run(
+            orch._run_worker(
+                issue,
+                0,
+                _profile(mode="cli"),
+                run_id="cli-project-run",
+            )
+        )
+
+        orch._run_cli_worker.assert_not_awaited()
+        error = orch._on_worker_exit.await_args.args[2]
+        assert "allowlist" in error
+        assert "blocked before start" in error
+
+    def test_exact_focus_provider_must_be_project_whitelisted(self, tmp_path):
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            name="Implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        override = _provider(
+            pid="override",
+            name="Override",
+            models=["override-model"],
+            default_model="override-model",
+        )
+        auditor = _provider(
+            pid="auditor",
+            name="Auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        orch = _make_orchestrator(tmp_path)
+        _, tracker, _ = self._wire(
+            orch,
+            [implementation, override, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        project = MagicMock(
+            provider_whitelist=["Implementation", "Auditor"]
+        )
+        orch.project_store.get.side_effect = None
+        orch.project_store.get.return_value = project
+        issue = _make_issue("focus-whitelist", project_id="project-1")
+        orch._project_trackers["project-1"] = tracker
+        self._running(orch, issue, "focus-whitelist-run")
+
+        error = asyncio.run(
+            orch._stage_work_contributor_launch(
+                issue,
+                run_id="focus-whitelist-run",
+                provider_id="override",
+                provider_name="Override",
+                model="override-model",
+                focus="feature",
+            )
+        )
+
+        assert "not permitted" in error
+        assert "whitelist" in error
+        tracker.set_metadata_field.assert_not_called()
+
+    def test_auditor_provider_admission_fails_closed_without_reservation(self, tmp_path):
+        """A lost reservation cannot become spend authority at transport start."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 2.0
+        issue = _make_issue("missing-audit-reservation")
+        self._running(orch, issue, "missing-reservation-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = "auditor"
+        entry.model_name = "audit-model"
+
+        error = orch._begin_provider_contact(
+            issue, entry.run_id, transport="API"
+        )
+
+        assert error is not None
+        assert "reservation is missing" in error
+        assert entry.provider_started is False
+
+    def test_auditor_provider_admission_revalidates_exact_reservation_identity(
+        self, tmp_path
+    ):
+        """A reservation for another model/task is not transferable at launch."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 2.0
+        issue = _make_issue("wrong-audit-reservation")
+        self._running(orch, issue, "wrong-reservation-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = "auditor"
+        entry.model_name = "audit-model"
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate("auditor", "audit-model")
+        ) is None
+        orch._audit_budget_reservations[_audit_reservation_key(orch, issue)][
+            "model"
+        ] = "other-model"
+
+        error = orch._begin_provider_contact(
+            issue, entry.run_id, transport="API"
+        )
+
+        assert error is not None
+        assert "reservation identity changed" in error
+
+    def test_ordinary_spend_and_audit_reservation_share_atomic_budget_lock(self, tmp_path):
+        """Concurrent ordinary completion cannot erase a durable audit claim."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 2.0
+        issue = _make_issue("atomic-audit-reservation")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            ordinary, reservation = list(
+                pool.map(
+                    lambda operation: operation(),
+                    [
+                        lambda: orch._record_ordinary_budget_spend("standard", 0.5),
+                        lambda: orch._reserve_audit_budget_capacity(
+                            issue, Candidate("auditor", "audit-model")
+                        ),
+                    ],
+                )
+            )
+
+        assert ordinary is True
+        assert reservation is None
+        assert orch.state.agent_totals.estimated_cost == pytest.approx(0.5)
+        assert _audit_reservation_key(orch, issue) in orch._audit_budget_reservations
+
+    def test_ordinary_contact_rejects_policy_change_after_live_inspection(self, tmp_path):
+        """A staged worker cannot consume the last auditor after policy rotates."""
+        from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        orch = _make_orchestrator(tmp_path)
+        role, _tracker, _store = self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        issue = _make_issue("ordinary-contact-policy-race")
+        self._running(orch, issue, "ordinary-contact-policy-race-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = "implementation"
+        entry.model_name = "implementation-model"
+
+        original = orch._contributor_contact_authority_error
+
+        def _inspect_then_rotate(current_entry, candidate):
+            result = original(current_entry, candidate)
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                role.candidates = [Candidate("implementation", "implementation-model")]
+            return result
+
+        orch._contributor_contact_authority_error = _inspect_then_rotate
+
+        error = orch._begin_provider_contact(
+            issue,
+            entry.run_id,
+            transport="API",
+            contributor_candidate=Candidate(
+                "implementation", "implementation-model"
+            ),
+        )
+
+        assert "policy changed during admission" in error
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_auditor_contact_rejects_role_mutation_between_inspect_and_cas(self, tmp_path):
+        """The contact CAS cannot reuse a stale independent-auditor snapshot."""
+        from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        orch = _make_orchestrator(tmp_path)
+        role, _tracker, _store = self._wire(
+            orch, [auditor], [Candidate("auditor", "audit-model")]
+        )
+        issue = _make_issue("auditor-contact-policy-race")
+        self._running(orch, issue, "auditor-contact-policy-race-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = "auditor"
+        entry.model_name = "audit-model"
+        original = orch._auditor_contact_authority_error
+
+        def _inspect_then_remove(current_entry):
+            result = original(current_entry)
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                role.candidates = []
+            return result
+
+        orch._auditor_contact_authority_error = _inspect_then_remove
+
+        error = orch._begin_provider_contact(issue, entry.run_id, transport="ACP")
+
+        assert "policy changed during admission" in error
+        assert entry.provider_contact_permitted is False
+
+    def test_auditor_contact_refreshes_rate_in_exact_reservation(self, tmp_path):
+        """A rate increase is covered durably before provider contact."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 100.0
+        issue = _make_issue("auditor-contact-rate-refresh")
+        self._running(orch, issue, "auditor-contact-rate-refresh-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = "auditor"
+        entry.model_name = "audit-model"
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate("auditor", "audit-model")
+        ) is None
+        reservation_key = _audit_reservation_key(orch, issue)
+        original_amount = orch._audit_budget_reservations[reservation_key][
+            "amount_usd"
+        ]
+        original_identity = orch._audit_reservation_identity(
+            orch._audit_budget_reservations[reservation_key]
+        )
+        auditor.model_costs["audit-model"] = {
+            "cost_per_1k_input": 0.10,
+            "cost_per_1k_output": 0.10,
+        }
+
+        error = orch._begin_provider_contact(issue, entry.run_id, transport="API")
+
+        reservation = orch._audit_budget_reservations[reservation_key]
+        assert error is None
+        assert reservation["amount_usd"] > original_amount
+        assert orch._audit_reservation_identity(reservation) == original_identity
+        assert reservation["audit_started"] is True
+        assert entry.provider_configuration_signature is not None
+        assert entry.admitted_per_token_billed is True
+        assert entry.admitted_cost_per_1k_input == pytest.approx(0.10)
+        assert entry.admitted_cost_per_1k_output == pytest.approx(0.10)
+
+        entry.session = MagicMock(
+            input_tokens=1000,
+            output_tokens=2000,
+            sdk_cost_usd=None,
+            final_usage_observed=True,
+            final_cost_observed=False,
+        )
+        auditor.model_costs["audit-model"] = {
+            "cost_per_1k_input": 0.001,
+            "cost_per_1k_output": 0.001,
+        }
+        assert orch._auditor_actual_cost(entry) == pytest.approx(0.30)
+
+    def test_auditor_contact_rejects_replaced_reservation_after_runtime_cas(self, tmp_path):
+        """Spend admission is bound to the exact reservation inspected earlier."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor", models=["audit-model"], default_model="audit-model"
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 10.0
+        issue = _make_issue("auditor-contact-reservation-race")
+        self._running(orch, issue, "auditor-contact-reservation-race-run")
+        entry = orch.state.running[issue.id]
+        entry.is_auditor = True
+        entry.provider_id = "auditor"
+        entry.model_name = "audit-model"
+        assert orch._reserve_audit_budget_capacity(
+            issue, Candidate("auditor", "audit-model")
+        ) is None
+        original_refresh = orch._refresh_audit_budget_admission
+
+        def _refresh_then_replace(current_entry, *, require_entry_identity):
+            identity, error = original_refresh(
+                current_entry, require_entry_identity=require_entry_identity
+            )
+            reservation_key = _audit_reservation_key(orch, issue)
+            replacement = dict(orch._audit_budget_reservations[reservation_key])
+            replacement["reserved_at"] = "2099-01-01T00:00:00+00:00"
+            orch._audit_budget_reservations[reservation_key] = replacement
+            return identity, error
+
+        orch._refresh_audit_budget_admission = _refresh_then_replace
+
+        error = orch._begin_provider_contact(issue, entry.run_id, transport="API")
+
+        assert "budget admission could not be persisted" in error
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    @pytest.mark.parametrize("rotation", ["health", "role"])
+    def test_contributor_contact_migrates_to_live_reserved_auditor(
+        self,
+        tmp_path,
+        rotation,
+    ):
+        """Health rotation cannot leave a cheaper stale capacity claim."""
+        from oompah.provider_health import PROVIDER_HEALTH_CACHE
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        live_auditor = _provider(
+            pid="live-auditor",
+            models=["live-model"],
+            default_model="live-model",
+        )
+        stale_auditor = _provider(
+            pid="stale-auditor",
+            models=["stale-model"],
+            default_model="stale-model",
+        )
+        live_auditor.model_costs = {
+            "live-model": {
+                "cost_per_1k_input": 0.10,
+                "cost_per_1k_output": 0.10,
+            }
+        }
+        stale_auditor.model_costs = {
+            "stale-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        role, _tracker, _store = self._wire(
+            orch,
+            [implementation, live_auditor, stale_auditor],
+            [
+                Candidate("live-auditor", "live-model"),
+                Candidate("stale-auditor", "stale-model"),
+            ],
+        )
+        orch.config.budget_limit = 100.0
+        issue = _make_issue("live-reservation-migration")
+        self._running(orch, issue, "live-reservation-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = implementation.id
+        entry.model_name = "implementation-model"
+
+        assert (
+            asyncio.run(
+                orch._stage_work_contributor_launch(
+                    issue,
+                    run_id=entry.run_id,
+                    provider_id=implementation.id,
+                    provider_name=implementation.name,
+                    model="implementation-model",
+                )
+            )
+            is None
+        )
+        reservation_key = _audit_reservation_key(orch, issue)
+        stale_amount = orch._audit_budget_reservations[reservation_key][
+            "amount_usd"
+        ]
+        assert orch._audit_budget_reservations[reservation_key]["provider_id"] == (
+            "stale-auditor"
+        )
+
+        if rotation == "health":
+            assert PROVIDER_HEALTH_CACHE.record_failure(
+                stale_auditor,
+                model="stale-model",
+                reason="timeout",
+            )
+        else:
+            role.candidates = [Candidate("live-auditor", "live-model")]
+        error = orch._begin_provider_contact(
+            issue,
+            entry.run_id,
+            transport="API",
+            contributor_candidate=Candidate(
+                implementation.id,
+                "implementation-model",
+            ),
+        )
+
+        reservation = orch._audit_budget_reservations[reservation_key]
+        assert error is None
+        assert reservation["provider_id"] == "live-auditor"
+        assert reservation["model"] == "live-model"
+        assert reservation["amount_usd"] > stale_amount
+        assert entry.provider_contact_permitted is True
+
+    def test_contributor_contact_replaces_expensive_stale_projection(
+        self,
+        tmp_path,
+    ):
+        """A cheaper exact rotation must not inherit stale projected capacity."""
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="cheap-rotation-implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        live_auditor = _provider(
+            pid="cheap-live-auditor",
+            models=["live-model"],
+            default_model="live-model",
+        )
+        stale_auditor = _provider(
+            pid="expensive-stale-auditor",
+            models=["stale-model"],
+            default_model="stale-model",
+        )
+        live_auditor.model_costs = {
+            "live-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        stale_auditor.model_costs = {
+            "stale-model": {
+                "cost_per_1k_input": 0.10,
+                "cost_per_1k_output": 0.10,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        role, _tracker, _store = self._wire(
+            orch,
+            [implementation, live_auditor, stale_auditor],
+            [
+                Candidate(live_auditor.id, "live-model"),
+                Candidate(stale_auditor.id, "stale-model"),
+            ],
+        )
+        orch.config.budget_limit = 100.0
+        issue = _make_issue("cheaper-live-reservation")
+        self._running(orch, issue, "cheaper-live-reservation-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = implementation.id
+        entry.model_name = "implementation-model"
+        assert asyncio.run(
+            orch._stage_work_contributor_launch(
+                issue,
+                run_id=entry.run_id,
+                provider_id=implementation.id,
+                provider_name=implementation.name,
+                model="implementation-model",
+            )
+        ) is None
+        reservation_key = _audit_reservation_key(orch, issue)
+        stale_amount = orch._audit_budget_reservations[reservation_key]["amount_usd"]
+        assert orch._audit_budget_reservations[reservation_key]["provider_id"] == (
+            stale_auditor.id
+        )
+
+        role.candidates = [Candidate(live_auditor.id, "live-model")]
+        orch.config.budget_limit = stale_amount / 2.0
+        error = orch._begin_provider_contact(
+            issue,
+            entry.run_id,
+            transport="API",
+            contributor_candidate=Candidate(
+                implementation.id,
+                "implementation-model",
+            ),
+        )
+
+        reservation = orch._audit_budget_reservations[reservation_key]
+        assert error is None
+        assert reservation["provider_id"] == live_auditor.id
+        assert reservation["model"] == "live-model"
+        assert reservation["amount_usd"] < stale_amount
+        assert reservation["amount_usd"] < orch.config.budget_limit
+
+    def test_contributor_contact_rejects_budget_replacement_after_refresh(
+        self,
+        tmp_path,
+    ):
+        """The runtime permit and migrated reservation share one exact CAS."""
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate("auditor", "audit-model")],
+        )
+        orch.config.budget_limit = 10.0
+        issue = _make_issue("contributor-budget-cas")
+        self._running(orch, issue, "contributor-budget-cas-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = implementation.id
+        entry.model_name = "implementation-model"
+        assert (
+            asyncio.run(
+                orch._stage_work_contributor_launch(
+                    issue,
+                    run_id=entry.run_id,
+                    provider_id=implementation.id,
+                    provider_name=implementation.name,
+                    model="implementation-model",
+                )
+            )
+            is None
+        )
+        original_refresh = orch._refresh_audit_budget_admission
+
+        def _refresh_then_replace(
+            current_entry,
+            *,
+            require_entry_identity,
+            reserved_candidate=None,
+        ):
+            identity, error = original_refresh(
+                current_entry,
+                require_entry_identity=require_entry_identity,
+                reserved_candidate=reserved_candidate,
+            )
+            reservation_key = _audit_reservation_key(orch, issue)
+            replacement = dict(orch._audit_budget_reservations[reservation_key])
+            replacement["reserved_at"] = "2099-01-01T00:00:00+00:00"
+            orch._audit_budget_reservations[reservation_key] = replacement
+            return identity, error
+
+        orch._refresh_audit_budget_admission = _refresh_then_replace
+
+        error = orch._begin_provider_contact(
+            issue,
+            entry.run_id,
+            transport="API",
+            contributor_candidate=Candidate(
+                implementation.id,
+                "implementation-model",
+            ),
+        )
+
+        assert "reservation changed during contributor admission" in error
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+    def test_malformed_restart_claim_preserves_entire_raw_ledger(self, tmp_path):
+        """A mixed ledger never launders a started malformed claim."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [Candidate("auditor", "audit-model")])
+        orch.config.budget_limit = 10.0
+        valid_issue = _make_issue("valid-restart-claim", project_id="project-a")
+        assert orch._reserve_audit_budget_capacity(
+            valid_issue,
+            Candidate("auditor", "audit-model"),
+        ) is None
+        raw = orch._load_state()["audit_budget_reservations"]
+        raw["malformed-started"] = {
+            "amount_usd": "unknown",
+            "provider_id": "auditor",
+            "model": "audit-model",
+            "project_id": "project-b",
+            "task_id": "same-task",
+            "issue_id": "same-task",
+            "reserved_at": "2026-08-06T00:00:00+00:00",
+            "audit_started": True,
+            "spend_reconciled": False,
+            "authority_scope": "managed-audit-budget",
+            "authority_version": 2,
+        }
+        assert orch._save_state(audit_budget_reservations=raw)
+        expected = json.loads(json.dumps(raw))
+
+        for _restart in range(2):
+            orch._audit_budget_authority_error = None
+            orch._audit_budget_reservations = {}
+            orch._restore_audit_budget_reservations()
+            assert "amount is invalid" in orch._audit_budget_authority_error
+            assert orch._audit_budget_reservations == {}
+            assert orch._record_ordinary_budget_spend("standard", 0.25) is False
+            assert orch._load_state()["audit_budget_reservations"] == expected
+
+    def test_owner_override_releases_only_exact_project_reservation(self, tmp_path):
+        """Identical native task IDs in different projects cannot alias."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        candidate = Candidate("auditor", "audit-model")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [candidate])
+        orch.config.budget_limit = 10.0
+        first = _make_issue("SAME-1", project_id="project-a")
+        second = _make_issue("SAME-1", project_id="project-b")
+        unscoped = _make_issue("SAME-1")
+
+        assert orch._reserve_audit_budget_capacity(first, candidate) is None
+        assert orch._reserve_audit_budget_capacity(second, candidate) is None
+        assert orch._reserve_audit_budget_capacity(unscoped, candidate) is None
+        first_key = _audit_reservation_key(orch, first)
+        second_key = _audit_reservation_key(orch, second)
+        unscoped_key = _audit_reservation_key(orch, unscoped)
+        assert first_key != second_key
+        assert set(orch._audit_budget_reservations) == {
+            first_key,
+            second_key,
+            unscoped_key,
+        }
+        assert orch._mark_audit_budget_started(first_key)
+        assert orch._mark_audit_budget_started(second_key)
+        assert orch._mark_audit_budget_started(unscoped_key)
+
+        orch._release_audit_budget_after_override("project-a", "SAME-1")
+
+        assert first_key not in orch._audit_budget_reservations
+        assert second_key in orch._audit_budget_reservations
+        assert unscoped_key in orch._audit_budget_reservations
+        assert orch._audit_budget_reservations[second_key]["spend_reconciled"] is False
+        assert orch.state.agent_totals.estimated_cost == pytest.approx(0.98304)
+
+    def test_bare_managed_ids_never_resolve_budget_claims_across_projects(
+        self, tmp_path
+    ):
+        """Every managed start/unmark/reconcile/release requires scoped identity."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="scoped-auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        candidate = Candidate(auditor.id, "audit-model")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [candidate])
+        orch.config.budget_limit = 20.0
+        issues = {
+            operation: _make_issue(
+                f"bare-{operation}",
+                project_id="project-a",
+            )
+            for operation in ("start", "unmark", "reconcile", "release")
+        }
+        for issue in issues.values():
+            assert orch._reserve_audit_budget_capacity(issue, candidate) is None
+
+        unmark_key = _audit_reservation_key(orch, issues["unmark"])
+        reconcile_key = _audit_reservation_key(orch, issues["reconcile"])
+        assert orch._mark_audit_budget_started(unmark_key)
+        assert orch._mark_audit_budget_started(reconcile_key)
+        spend_before = orch.state.agent_totals.estimated_cost
+
+        # These deliberately omit project scope. Older fallback logic found the
+        # sole managed reservation by its local ID and mutated another scope.
+        assert orch._mark_audit_budget_started(issues["start"].id) is False
+        assert (
+            orch._unmark_unused_audit_budget_contact(issues["unmark"].id) is False
+        )
+        assert (
+            orch._reconcile_audit_budget_spend(
+                issues["reconcile"].id,
+                actual_cost=0.25,
+            )
+            is False
+        )
+        assert (
+            orch._release_audit_budget_reservation(issues["release"].id) is False
+        )
+
+        assert orch._audit_budget_reservations[
+            _audit_reservation_key(orch, issues["start"])
+        ]["audit_started"] is False
+        assert orch._audit_budget_reservations[unmark_key]["audit_started"] is True
+        assert orch._audit_budget_reservations[reconcile_key]["spend_reconciled"] is False
+        assert _audit_reservation_key(orch, issues["release"]) in (
+            orch._audit_budget_reservations
+        )
+        assert orch.state.agent_totals.estimated_cost == spend_before
+
+    def test_restart_reconciler_matches_running_auditor_by_project(self, tmp_path):
+        """A same-ID auditor in another project cannot shelter a terminal claim."""
+        from oompah.roles import Candidate
+
+        auditor = _provider(
+            pid="auditor",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        candidate = Candidate("auditor", "audit-model")
+        orch = _make_orchestrator(tmp_path)
+        self._wire(orch, [auditor], [candidate])
+        orch.config.budget_limit = 10.0
+        terminal = _make_issue("SAME-2", state="Done", project_id="project-a")
+        running = _make_issue(
+            "SAME-2",
+            state="In Validation",
+            project_id="project-b",
+        )
+        assert orch._reserve_audit_budget_capacity(terminal, candidate) is None
+        assert orch._reserve_audit_budget_capacity(running, candidate) is None
+        terminal_key = _audit_reservation_key(orch, terminal)
+        running_key = _audit_reservation_key(orch, running)
+        assert orch._mark_audit_budget_started(terminal_key)
+        self._running(orch, running, "same-id-running-auditor")
+        orch.state.running[running.id].is_auditor = True
+        tracker_a = MagicMock()
+        tracker_a.fetch_issue_detail.return_value = terminal
+        tracker_b = MagicMock()
+        orch._project_trackers = {
+            "project-a": tracker_a,
+            "project-b": tracker_b,
+        }
+
+        orch._reconcile_audit_budget_reservations()
+
+        assert terminal_key not in orch._audit_budget_reservations
+        assert running_key in orch._audit_budget_reservations
+        tracker_a.fetch_issue_detail.assert_called_once_with("SAME-2")
+        tracker_b.fetch_issue_detail.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -512,6 +512,10 @@ class ServiceConfig:
     # live is reclaimed immediately regardless of TTL.
     # Configurable via OOMPAH_AUDIT_ATTEMPT_TTL. Default: 3600 (1 hour).
     audit_attempt_ttl: int = 3600
+    # Freshness and financial-capacity authority for terminal auditors.
+    provider_health_ttl_seconds: int = 300
+    audit_projected_input_tokens: int = 65536
+    audit_projected_output_tokens: int = 32768
     # Relative dispatch priority for In Validation audits that do not carry
     # an explicit task priority.  The audit lane still runs before ordinary
     # Open work when a slot is available.
@@ -1132,6 +1136,15 @@ class ServiceConfig:
             ),
             audit_attempt_ttl=_parse_positive_env_int(
                 "OOMPAH_AUDIT_ATTEMPT_TTL", 3600
+            ),
+            provider_health_ttl_seconds=_parse_positive_env_int(
+                "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS", 300
+            ),
+            audit_projected_input_tokens=_parse_positive_env_int(
+                "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS", 65536
+            ),
+            audit_projected_output_tokens=_parse_positive_env_int(
+                "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS", 32768
             ),
             audit_priority=_env_int("OOMPAH_AUDIT_PRIORITY", None, 100),
             audit_lane_scan_limit=_env_int(

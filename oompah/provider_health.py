@@ -21,19 +21,26 @@ calls out: ``missing_credentials``, ``auth_failed``, ``rate_limited``,
 from __future__ import annotations
 
 import asyncio
+import copy
 import contextlib
+import hashlib
 import json
 import logging
+import math
+import os
 import re
 import shutil
 import ssl
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 from urllib.parse import urlsplit
+
+from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -55,6 +62,45 @@ MAX_RESPONSE_LENGTH = 200
 _TEST_PROMPT = "What is 2 + 2? Answer with only the number."
 
 
+class ProviderProbeAuthorityError(RuntimeError):
+    """Raised when live policy revokes a probe before provider contact."""
+
+
+def snapshot_provider_for_probe(
+    provider: "ModelProvider",
+) -> tuple["ModelProvider", str, int]:
+    """Capture immutable probe inputs under provider-policy authority.
+
+    ``ProviderStore.update`` mutates records in place. Passing that live object
+    across an await/thread boundary lets an old request acquire a new
+    configuration signature before its result is published. A deep snapshot
+    keeps endpoint, credentials, model catalog, backend, and billing inputs
+    bound to one generation; callers revalidate the signature at contact and
+    publication boundaries.
+    """
+
+    while True:
+        generation = AUDITOR_POLICY_AUTHORITY.generation()
+        with AUDITOR_POLICY_AUTHORITY.admission(generation) as current:
+            if not current:
+                continue
+            snapshot = copy.deepcopy(provider)
+            signature = ProviderHealthCache.configuration_signature(snapshot)
+            return snapshot, signature, generation
+
+
+def _require_probe_contact(
+    callback: Callable[[], str | None] | None,
+) -> None:
+    """Apply a caller's policy fence at the concrete probe transport edge."""
+
+    if callback is None:
+        return
+    denial = callback()
+    if denial is not None:
+        raise ProviderProbeAuthorityError(str(denial))
+
+
 # ---------------------------------------------------------------------------
 # Normalized error reasons
 # ---------------------------------------------------------------------------
@@ -71,6 +117,7 @@ ERROR_REASONS = frozenset(
         "overloaded",
         "invalid_model",
         "provider_unavailable",
+        "health_unknown",
         "unknown_error",
     }
 )
@@ -187,6 +234,328 @@ class ProviderTestResult:
         return d
 
 
+class ProviderHealthCache:
+    """Thread-safe cache of authoritative provider probe/startup outcomes.
+
+    The HTTP health endpoint, provider startup path, and bounded pre-dispatch
+    probe all publish here. Candidate selection itself reads snapshots only.
+    Entries are tied to a non-secret provider configuration signature;
+    editing transport/model configuration immediately makes an old
+    observation inapplicable.
+    """
+
+    _FORMAT_VERSION = 1
+
+    def __init__(self, path: str | None = None) -> None:
+        self._lock = threading.RLock()
+        self._entries: dict[
+            tuple[str, str], tuple[str, dict[str, object]]
+        ] = {}
+        self._path: str | None = None
+        self._persistence_error: str | None = None
+        if path:
+            self.configure(path)
+
+    @staticmethod
+    def _signature(provider: "ModelProvider") -> str:
+        api_key = str(getattr(provider, "api_key", "") or "")
+        payload = {
+            "mode": str(getattr(provider, "mode", "api") or "api"),
+            "provider_type": str(
+                getattr(provider, "provider_type", "openai_compatible")
+                or "openai_compatible"
+            ),
+            "backend": str(getattr(provider, "backend", "") or ""),
+            "billing_model": str(
+                getattr(provider, "billing_model", "subscription") or "subscription"
+            ),
+            "acp_subscription_only": bool(
+                getattr(provider, "acp_subscription_only", False)
+            ),
+            "acp_permission_mode": str(
+                getattr(provider, "acp_permission_mode", "") or ""
+            ),
+            "base_url": str(getattr(provider, "base_url", "") or ""),
+            "api_key_digest": (
+                hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+                if api_key
+                else ""
+            ),
+            "models": list(getattr(provider, "models", None) or ()),
+            "default_model": str(getattr(provider, "default_model", "") or ""),
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    @classmethod
+    def configuration_signature(cls, provider: "ModelProvider") -> str:
+        """Return the non-secret identity of one provider configuration.
+
+        Worker admission snapshots this value while provider policy is stable.
+        A terminal outcome may only update the health ledger when the live
+        provider still has the same signature; otherwise an old endpoint or
+        credential generation would be recorded as evidence for its replacement.
+        """
+
+        return cls._signature(provider)
+
+    def configure(self, path: str) -> None:
+        """Bind this cache to one durable ledger and load it atomically."""
+
+        normalized = os.path.abspath(path)
+        with self._lock:
+            if self._path == normalized:
+                return
+            self._path = normalized
+            self._entries = {}
+            self._persistence_error = None
+            if not os.path.exists(normalized):
+                return
+            try:
+                with open(normalized, "r", encoding="utf-8") as handle:
+                    raw = json.load(handle)
+                if not isinstance(raw, dict) or raw.get("version") != self._FORMAT_VERSION:
+                    raise ValueError("unsupported provider-health ledger format")
+                entries = raw.get("entries")
+                if not isinstance(entries, list):
+                    raise ValueError("provider-health entries must be a list")
+                for item in entries:
+                    if not isinstance(item, dict):
+                        raise ValueError("provider-health entry must be a mapping")
+                    provider_id = str(item.get("provider_id") or "")
+                    model = str(item.get("model") or "")
+                    signature = str(item.get("signature") or "")
+                    value = item.get("value")
+                    if not provider_id or not signature or not isinstance(value, dict):
+                        raise ValueError("provider-health entry is incomplete")
+                    if (
+                        len(signature) != 64
+                        or re.fullmatch(r"[0-9a-f]{64}", signature) is None
+                        or value.get("provider_id") != provider_id
+                        or str(value.get("model") or "") != model
+                        or not isinstance(value.get("success"), bool)
+                        or isinstance(value.get("observed_at"), bool)
+                        or not isinstance(value.get("observed_at"), (int, float))
+                        or not math.isfinite(float(value.get("observed_at")))
+                    ):
+                        raise ValueError("provider-health authority fields are invalid")
+                    reason = str(value.get("error_reason") or "")
+                    if reason and reason not in ERROR_REASONS:
+                        raise ValueError("provider-health reason is invalid")
+                    self._entries[(provider_id, model)] = (signature, dict(value))
+            except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                self._entries = {}
+                self._persistence_error = (
+                    f"provider-health ledger {normalized!r} is unreadable: "
+                    f"{type(exc).__name__}"
+                )
+
+    def _persist_locked(self) -> bool:
+        if self._path is None:
+            return True
+        if self._persistence_error is not None:
+            return False
+        directory = os.path.dirname(self._path) or "."
+        temp_path = ""
+        try:
+            os.makedirs(directory, exist_ok=True)
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=f".{os.path.basename(self._path)}.",
+                suffix=".tmp",
+                dir=directory,
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                os.chmod(temp_path, 0o600)
+                entries = [
+                    {
+                        "provider_id": provider_id,
+                        "model": model,
+                        "signature": signature,
+                        "value": value,
+                    }
+                    for (provider_id, model), (signature, value) in sorted(
+                        self._entries.items()
+                    )
+                ]
+                json.dump(
+                    {"version": self._FORMAT_VERSION, "entries": entries},
+                    handle,
+                    indent=2,
+                )
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_path, self._path)
+            directory_fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            return True
+        except (OSError, TypeError, ValueError) as exc:
+            self._persistence_error = (
+                "provider-health ledger could not be durably updated: "
+                f"{type(exc).__name__}"
+            )
+            return False
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+
+    def persistence_error(self) -> str | None:
+        with self._lock:
+            return self._persistence_error
+
+    def record(self, provider: "ModelProvider", result: ProviderTestResult) -> bool:
+        value = result.to_dict()
+        value["provider_id"] = str(provider.id)
+        value.pop("response_text", None)
+        value.pop("error_detail", None)
+        value["observed_at"] = time.time()
+        key = (str(provider.id), str(result.model or ""))
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            with self._lock:
+                self._entries[key] = (self._signature(provider), value)
+                return self._persist_locked()
+
+    def record_if_configuration(
+        self,
+        provider: "ModelProvider",
+        result: ProviderTestResult,
+        *,
+        expected_signature: str,
+        current_provider: Callable[[], "ModelProvider | None"] | None = None,
+    ) -> bool:
+        """Record *result* only for the admitted provider generation.
+
+        The signature comparison and ledger write share the policy mutation
+        lock with ProviderStore updates. This closes the check/write race where
+        a provider could be edited after a worker compared its snapshot but
+        before the health result was persisted.
+        """
+
+        value = result.to_dict()
+        value["provider_id"] = str(provider.id)
+        value.pop("response_text", None)
+        value.pop("error_detail", None)
+        value["observed_at"] = time.time()
+        key = (str(provider.id), str(result.model or ""))
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            try:
+                authoritative_provider = (
+                    current_provider() if current_provider is not None else provider
+                )
+            except Exception:
+                return False
+            if (
+                authoritative_provider is None
+                or str(authoritative_provider.id) != str(provider.id)
+                or self._signature(authoritative_provider) != str(expected_signature)
+            ):
+                return False
+            with self._lock:
+                self._entries[key] = (str(expected_signature), value)
+                return self._persist_locked()
+
+    def record_failure(
+        self,
+        provider: "ModelProvider",
+        *,
+        model: str | None,
+        reason: str,
+        detail: str = "",
+    ) -> bool:
+        return self.record(
+            provider,
+            ProviderTestResult(
+                provider_id=str(provider.id),
+                provider_name=str(getattr(provider, "name", provider.id)),
+                model=str(model or ""),
+                success=False,
+                latency_ms=0.0,
+                error_reason=(reason if reason in ERROR_REASONS else "unknown_error"),
+                error_detail=detail,
+            ),
+        )
+
+    def get(
+        self,
+        provider: "ModelProvider",
+        model: str | None = None,
+        *,
+        max_age_seconds: float | None = None,
+        now: float | None = None,
+    ) -> dict[str, object] | None:
+        key = (str(provider.id), str(model or ""))
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None or entry[0] != self._signature(provider):
+                return None
+            if max_age_seconds is not None:
+                observed_at = entry[1].get("observed_at")
+                if not isinstance(observed_at, (int, float)):
+                    return None
+                age = (time.time() if now is None else now) - float(observed_at)
+                if age < 0 or age > max(0.0, max_age_seconds):
+                    return None
+            return dict(entry[1])
+
+    def snapshot(
+        self,
+        providers: list["ModelProvider"],
+        *,
+        max_age_seconds: float | None = None,
+        now: float | None = None,
+    ) -> dict[tuple[str, str], dict[str, object]]:
+        result: dict[tuple[str, str], dict[str, object]] = {}
+        by_id = {str(provider.id): provider for provider in providers}
+        with self._lock:
+            entries = list(self._entries.items())
+        for key, (signature, value) in entries:
+            provider = by_id.get(key[0])
+            observed_at = value.get("observed_at")
+            fresh = (
+                max_age_seconds is None
+                or (
+                    isinstance(observed_at, (int, float))
+                    and 0
+                    <= (time.time() if now is None else now) - float(observed_at)
+                    <= max(0.0, max_age_seconds)
+                )
+            )
+            if (
+                provider is not None
+                and signature == self._signature(provider)
+                and fresh
+            ):
+                result[key] = dict(value)
+        return result
+
+    def invalidate(self, provider_id: str) -> None:
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            with self._lock:
+                doomed = [key for key in self._entries if key[0] == str(provider_id)]
+                for key in doomed:
+                    self._entries.pop(key, None)
+                self._persist_locked()
+
+    def clear(self) -> None:
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            with self._lock:
+                self._entries.clear()
+                self._persistence_error = None
+                self._persist_locked()
+
+
+PROVIDER_HEALTH_CACHE = ProviderHealthCache()
+
+
 # ---------------------------------------------------------------------------
 # Normalization helpers
 # ---------------------------------------------------------------------------
@@ -236,7 +605,7 @@ def _normalize_timeout_error() -> str:
     return "timeout"
 
 
-def _pick_model(provider: "ModelProvider") -> str:
+def _pick_model(provider: "ModelProvider", model: str | None = None) -> str:
     """Choose the best model to use for a health-check call.
 
     Priority:
@@ -244,6 +613,8 @@ def _pick_model(provider: "ModelProvider") -> str:
     2. First entry in provider.models (if available)
     3. Empty string — for ACP providers that let the SDK choose the model.
     """
+    if model is not None:
+        return str(model)
     if provider.default_model:
         return provider.default_model
     if provider.models:
@@ -267,7 +638,12 @@ def _build_ssl_context() -> ssl.SSLContext:
         return ctx
 
 
-def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
+def run_health_check(
+    provider: "ModelProvider",
+    model: str | None = None,
+    *,
+    before_transport_contact: Callable[[], str | None] | None = None,
+) -> ProviderTestResult:
     """Send a tiny prompt to *provider* and return a :class:`ProviderTestResult`.
 
     This function is intentionally **blocking** so it can be wrapped in
@@ -294,7 +670,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model="",
+            model=_pick_model(provider, model),
             success=False,
             latency_ms=0.0,
             error_reason="provider_unavailable",
@@ -304,12 +680,12 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             ),
         )
 
-    model = _pick_model(provider)
-    if not model:
+    resolved_model = _pick_model(provider, model)
+    if not resolved_model:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model="",
+            model=resolved_model,
             success=False,
             latency_ms=0.0,
             error_reason="invalid_model",
@@ -317,6 +693,16 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
                 "Provider has no models configured. "
                 "Add at least one model to test it."
             ),
+        )
+    if provider.models and resolved_model not in provider.models:
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model=resolved_model,
+            success=False,
+            latency_ms=0.0,
+            error_reason="invalid_model",
+            error_detail="The requested model is absent from the provider catalog.",
         )
 
     base_url_error = openai_base_url_error(getattr(provider, "base_url", ""))
@@ -327,7 +713,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=0.0,
             error_reason="provider_unavailable" if missing else "invalid_base_url",
@@ -345,7 +731,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
     url = openai_chat_completions_url(provider.base_url)
 
     payload = {
-        "model": model,
+        "model": resolved_model,
         "messages": [
             {"role": "user", "content": _TEST_PROMPT},
         ],
@@ -365,7 +751,15 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
 
     t0 = time.monotonic()
     try:
-        with urllib.request.urlopen(req, context=ssl_ctx, timeout=HEALTH_CHECK_TIMEOUT) as resp:
+        # The caller may have crossed an event-loop/thread boundary since it
+        # snapshotted this provider. Revalidate live policy immediately before
+        # opening the socket; a denied probe is not provider-health evidence.
+        _require_probe_contact(before_transport_contact)
+        with urllib.request.urlopen(
+            req,
+            context=ssl_ctx,
+            timeout=HEALTH_CHECK_TIMEOUT,
+        ) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
         latency_ms = (time.monotonic() - t0) * 1000.0
 
@@ -375,7 +769,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             return ProviderTestResult(
                 provider_id=pid,
                 provider_name=pname,
-                model=model,
+                model=resolved_model,
                 success=False,
                 latency_ms=latency_ms,
                 error_reason="unknown_error",
@@ -396,11 +790,14 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=True,
             latency_ms=latency_ms,
             response_text=response_text.strip()[:MAX_RESPONSE_LENGTH],
         )
+
+    except ProviderProbeAuthorityError:
+        raise
 
     except urllib.error.HTTPError as exc:
         latency_ms = (time.monotonic() - t0) * 1000.0
@@ -413,11 +810,13 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=latency_ms,
             error_reason=reason,
-                error_detail=f"HTTP {exc.code}: {redact_sensitive_text(error_body)[:300]}",
+            error_detail=(
+                f"HTTP {exc.code}: {redact_sensitive_text(error_body)[:300]}"
+            ),
         )
 
     except urllib.error.URLError as exc:
@@ -430,7 +829,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=latency_ms,
             error_reason=reason,
@@ -442,7 +841,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=latency_ms,
             error_reason="timeout",
@@ -454,7 +853,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=latency_ms,
             error_reason="provider_unavailable",
@@ -471,7 +870,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=latency_ms,
             error_reason="unknown_error",
@@ -540,7 +939,12 @@ def _normalize_acp_error(status: str, last_error: str | None) -> tuple[str, str]
     return "unknown_error", detail or f"ACP session ended with status {status!r}."
 
 
-async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
+async def run_acp_health_check(
+    provider: "ModelProvider",
+    model: str | None = None,
+    *,
+    before_transport_contact: Callable[[], str | None] | None = None,
+) -> ProviderTestResult:
     """Live-probe an ACP provider by running one tiny turn through its backend.
 
     Resolves ``provider.backend`` (defaulting to ``"claude"``) against the
@@ -564,6 +968,7 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
 
     pid = provider.id
     pname = provider.name
+    resolved_model = _pick_model(provider, model)  # "" lets the backend choose
     backend_name = getattr(provider, "backend", None) or "claude"
 
     backend_cls = get_backend(backend_name)
@@ -571,7 +976,7 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model="",
+            model=resolved_model,
             success=False,
             latency_ms=0.0,
             error_reason="provider_unavailable",
@@ -592,14 +997,23 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model="",
+            model=resolved_model,
             success=False,
             latency_ms=0.0,
             error_reason="missing_credentials",
             error_detail="; ".join(config_errors)[:500],
         )
 
-    model = _pick_model(provider)  # "" lets the backend/SDK choose
+    if provider.models and resolved_model not in provider.models:
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model=resolved_model,
+            success=False,
+            latency_ms=0.0,
+            error_reason="invalid_model",
+            error_detail="The requested model is absent from the provider catalog.",
+        )
     permission_mode = getattr(provider, "acp_permission_mode", None) or "default"
     # Flow the billing tier so the probe exercises the SAME execution
     # path real dispatch would (e.g. codex: subscription -> CLI/OAuth,
@@ -607,16 +1021,28 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
     billing_model = (getattr(provider, "billing_model", None) or "per_token")
     workspace = tempfile.mkdtemp(prefix="oompah-acp-health-")
 
+    contact_denial: str | None = None
+
+    def _begin_probe_transport() -> str | None:
+        nonlocal contact_denial
+        if before_transport_contact is None:
+            return None
+        denial = before_transport_contact()
+        if denial is not None:
+            contact_denial = str(denial)
+        return contact_denial
+
     options = AcpBackendOptions(
         workspace_path=workspace,
         prompt=_TEST_PROMPT,
-        model=model or None,
+        model=resolved_model or None,
         max_turns=1,
         tool_catalog=[],  # the 2+2 probe needs no tools
         permission_mode=permission_mode,
         turn_timeout_s=ACP_HEALTH_CHECK_TIMEOUT,
         on_event=None,
         billing_model=billing_model,
+        begin_transport_contact=_begin_probe_transport,
     )
 
     response_parts: list[str] = []
@@ -629,7 +1055,7 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=(time.monotonic() - t0) * 1000.0,
             error_reason="provider_unavailable",
@@ -650,10 +1076,12 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
     except (asyncio.TimeoutError, TimeoutError):
         with contextlib.suppress(Exception):
             await session.close()
+        if contact_denial is not None:
+            raise ProviderProbeAuthorityError(contact_denial)
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=(time.monotonic() - t0) * 1000.0,
             error_reason="timeout",
@@ -665,6 +1093,8 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
     except Exception as exc:  # noqa: BLE001
         with contextlib.suppress(Exception):
             await session.close()
+        if contact_denial is not None:
+            raise ProviderProbeAuthorityError(contact_denial) from exc
         logger.warning(
             "ACP health-check unexpected error for %s (%s): %s",
             pname,
@@ -674,7 +1104,7 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=False,
             latency_ms=(time.monotonic() - t0) * 1000.0,
             error_reason="provider_unavailable",
@@ -685,6 +1115,9 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
     finally:
         shutil.rmtree(workspace, ignore_errors=True)
 
+    if contact_denial is not None:
+        raise ProviderProbeAuthorityError(contact_denial)
+
     latency_ms = (time.monotonic() - t0) * 1000.0
     status = session.status
     response_text = "".join(response_parts).strip()
@@ -693,7 +1126,7 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
-            model=model,
+            model=resolved_model,
             success=True,
             latency_ms=latency_ms,
             response_text=response_text[:MAX_RESPONSE_LENGTH],
@@ -703,7 +1136,7 @@ async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
     return ProviderTestResult(
         provider_id=pid,
         provider_name=pname,
-        model=model,
+        model=resolved_model,
         success=False,
         latency_ms=latency_ms,
         response_text=response_text[:MAX_RESPONSE_LENGTH],

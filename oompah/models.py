@@ -331,6 +331,13 @@ class LiveSession:
     # (or "no cost" for subscription/api/cli paths). See issue
     # oompah-zlz_2-ag7h.
     sdk_cost_usd: float | None = None
+    # Counter fields begin at zero for live dashboard rendering.  They become
+    # billing authority only after the transport reports a terminal usage
+    # envelope.  In particular, a contacted provider which disconnects,
+    # crashes, or is revoked before that envelope must not be mistaken for a
+    # genuine zero-token, zero-cost attempt.
+    final_usage_observed: bool = False
+    final_cost_observed: bool = False
     # Opaque per-session monitor for bounded ACP tool subprocesses. It is
     # intentionally not part of dashboard serialization or persisted state.
     tool_liveness: Any = None
@@ -1506,6 +1513,11 @@ class RunningEntry:
     # process cleanup confirms every captured identity has exited.
     managed_processes: dict[int, Any] = field(default_factory=dict, repr=False)
     retirement_pending: bool = False
+    # Set only by the final, linearized provider-contact admission.  This is
+    # deliberately distinct from ``provider_started``: an owner override
+    # that loses the admission race must be able to see that contact was
+    # authorized even while durable budget persistence is completing.
+    provider_contact_permitted: bool = False
     provider_started: bool = False
     # Read-only auditors are allowed a small number of policy mistakes before
     # the attempt is failed and rotated to another independent candidate.
@@ -1516,6 +1528,17 @@ class RunningEntry:
     # authority is revoked (OOMPAH-724). Used to fence submission handoff until
     # the revoked worker fully exits and its final worktree state is validated.
     accepted_submission_record: IntegrationRecord | None = None
+    # Provider configuration and billing authority captured by the final
+    # transport-admission CAS. ProviderStore updates mutate provider objects in
+    # place, so exit accounting and health publication must not re-interpret an
+    # old run using a newer endpoint, credential, billing mode, or rate table.
+    provider_configuration_signature: str | None = None
+    admitted_per_token_billed: bool | None = None
+    admitted_cost_per_1k_input: float | None = None
+    admitted_cost_per_1k_output: float | None = None
+    # Process-local owner-override generation captured before auditor setup.
+    # Registration compares it atomically with the task-scoped live generation.
+    auditor_authority_generation: int | None = None
 
 
 @dataclass

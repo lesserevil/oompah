@@ -159,6 +159,43 @@ class AcpBackendOptions:
     # Exact server-generated identity for this run's native validation lane.
     # It lets stall supervision reject an older generation of the same task.
     validation_authority_generation: str | None = None
+    # Provider-contact authority is deliberately owned by the orchestrator,
+    # but must be invoked by the concrete backend at its *actual* network or
+    # subprocess edge.  Calling it in the facade merely before ``run_turn``
+    # can book spend/health for a backend whose local setup then fails.
+    #
+    # ``begin_transport_contact`` returns an actionable denial string, or
+    # ``None`` when the backend may touch its provider.  A backend calls
+    # ``transport_contacted`` immediately after that edge succeeds, and
+    # ``cancel_transport_contact`` if the edge fails or is cancelled before
+    # contact.  They are sync callbacks so they can surround both Popen and
+    # synchronous SDK entrypoints without introducing a scheduling gap.
+    begin_transport_contact: Callable[[], str | None] | None = None
+    transport_contacted: Callable[[], None] | None = None
+    cancel_transport_contact: Callable[[], None] | None = None
+
+
+def begin_transport_contact(options: AcpBackendOptions) -> str | None:
+    """Ask the orchestrator for permission at a backend transport edge."""
+
+    callback = options.begin_transport_contact
+    return callback() if callback is not None else None
+
+
+def mark_transport_contacted(options: AcpBackendOptions) -> None:
+    """Publish that a backend actually crossed its transport edge."""
+
+    callback = options.transport_contacted
+    if callback is not None:
+        callback()
+
+
+def cancel_transport_contact(options: AcpBackendOptions) -> None:
+    """Return an unused provider-contact permit after a local failure."""
+
+    callback = options.cancel_transport_contact
+    if callback is not None:
+        callback()
 
 
 @runtime_checkable

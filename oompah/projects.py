@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from urllib.parse import urlsplit
 
+from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
@@ -2332,22 +2333,24 @@ class ProjectStore:
                         "'state_branch_checkpoint_debounce_ms' + 1000 ms"
                     )
 
-        for key, value in fields.items():
-            setattr(project, key, value)
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            for key, value in fields.items():
+                setattr(project, key, value)
 
-        # Dynamic project updates can introduce a new opaque token/secret;
-        # retain both the new and old value in the process-local registry so
-        # delayed workers cannot expose either during rotation.
-        register_secret_values((project.access_token, project.webhook_secret))
+            # Dynamic project updates can introduce a new opaque token/secret;
+            # retain both the new and old value in the process-local registry so
+            # delayed workers cannot expose either during rotation.
+            register_secret_values((project.access_token, project.webhook_secret))
 
-        self._save()
+            self._save()
         return project
 
     def delete(self, project_id: str) -> bool:
-        if project_id in self._projects:
-            del self._projects[project_id]
-            self._save()
-            return True
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            if project_id in self._projects:
+                del self._projects[project_id]
+                self._save()
+                return True
         return False
 
     # -- Startup sync --

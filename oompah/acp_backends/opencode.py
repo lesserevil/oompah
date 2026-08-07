@@ -34,6 +34,9 @@ from oompah.acp_backends.base import (
     AcpBackendOptions,
     AcpBackendSession,
     BackendEvent,
+    begin_transport_contact,
+    cancel_transport_contact,
+    mark_transport_contacted,
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
@@ -389,6 +392,12 @@ class OpencodeAcpBackendSession(AcpBackendSession):
 
         # Spawn the opencode serve subprocess.
         cmd = ["opencode", "serve"]
+        admission_error = begin_transport_contact(self._options)
+        if admission_error is not None:
+            self._last_error = admission_error
+            self._status = "interrupted"
+            return
+        transport_permit = True
         try:
             self._proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -398,7 +407,11 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 env=agent_env,
                 cwd=self._options.workspace_path,
             )
+            mark_transport_contacted(self._options)
+            transport_permit = False
         except FileNotFoundError as exc:
+            cancel_transport_contact(self._options)
+            transport_permit = False
             self._last_error = (
                 "opencode binary not found in PATH. Opencode ACP backend "
                 "requires the opencode CLI to be installed and in PATH. "
@@ -411,6 +424,8 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             )
             return
         except Exception as exc:
+            cancel_transport_contact(self._options)
+            transport_permit = False
             self._last_error = f"failed to spawn opencode serve: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"

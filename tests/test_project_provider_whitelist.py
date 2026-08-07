@@ -28,7 +28,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from oompah.config import ServiceConfig
+from oompah.config import ServiceConfig, WorkflowError
 from oompah.models import AgentProfile, Issue, ModelProvider, Project, RunningEntry
 from oompah.orchestrator import DispatchTarget, Orchestrator
 from oompah.projects import ProjectError, ProjectStore
@@ -392,16 +392,15 @@ class TestApplyProjectProviderWhitelist:
         assert filtered == targets
         assert was_applied is False
 
-    def test_unknown_project_returns_unchanged(self, tmp_path):
-        """Unknown project_id (not in store) → no filter applied."""
+    def test_unknown_project_fails_closed(self, tmp_path):
+        """Unknown project_id cannot become an unrestricted allowlist."""
         orch = _make_orchestrator(tmp_path, projects=[])
         prov_a = _make_provider(pid="p-a", name="alice")
         targets = [_make_target(provider=prov_a)]
         issue = _make_issue(project_id="does-not-exist")
 
-        filtered, was_applied = orch._apply_project_provider_whitelist(targets, issue)
-        assert filtered == targets
-        assert was_applied is False
+        with pytest.raises(WorkflowError, match="whitelist cannot be established"):
+            orch._apply_project_provider_whitelist(targets, issue)
 
     def test_preserves_candidate_order(self, tmp_path):
         """Whitelist filtering preserves the order of matching targets."""
@@ -470,6 +469,12 @@ def _make_blocking_orchestrator(
     """Orchestrator that returns the given project; _on_worker_exit is mocked."""
     orch = _make_orchestrator(tmp_path, projects=[project])
     orch._on_worker_exit = AsyncMock()
+
+    async def _allow_legacy_test_targets(_issue, targets):
+        return targets, None
+
+    orch._reserve_auditor_for_contributor = _allow_legacy_test_targets
+    orch._stage_work_contributor_launch = AsyncMock(return_value=None)
     for prov in extra_providers or []:
         orch.provider_store._providers[prov.id] = prov
     return orch

@@ -29,6 +29,9 @@ from oompah.acp_backends.base import (
     AcpBackendOptions,
     AcpBackendSession,
     BackendEvent,
+    begin_transport_contact,
+    cancel_transport_contact,
+    mark_transport_contacted,
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
@@ -489,9 +492,19 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         )
         yield start_event
 
+        transport_permit = False
         try:
+            admission_error = begin_transport_contact(self._options)
+            if admission_error is not None:
+                self._last_error = admission_error
+                self._status = "interrupted"
+                return
+            transport_permit = True
             async with ClaudeSDKClient(options=options) as client:
                 self._client = client
+                # Entering the SDK client is the Claude CLI/Popen boundary.
+                mark_transport_contacted(self._options)
+                transport_permit = False
 
                 await client.query(self._options.prompt)
 
@@ -666,6 +679,8 @@ class ClaudeAcpBackendSession(AcpBackendSession):
             )
             self._status = "errored"
         finally:
+            if transport_permit:
+                cancel_transport_contact(self._options)
             self._client = None
             if self._sysprompt_file:
                 with contextlib.suppress(OSError):
