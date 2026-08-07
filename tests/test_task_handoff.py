@@ -108,6 +108,188 @@ class TestTaskHandoffGrantStore:
         finally:
             clear_registered_secrets()
 
+    def test_suspension_rollback_preserves_concurrent_lease_renewal(self):
+        """A retirement rollback must not erase a live lease heartbeat."""
+
+        now = [100.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=10,
+            owner_id="worker-1",
+        )
+        lease = store.start_lease(
+            token,
+            owner_id="worker-1",
+            heartbeat_interval_seconds=60,
+        )
+        assert lease is not None
+        try:
+            fence = store.suspend(token)
+            assert fence is not None
+            now[0] = 105.0
+            assert lease.heartbeat() is True
+            renewed_expiry = store._grants[store._digest(token)].expires_at
+
+            assert store.restore(fence) is True
+
+            restored = store._grants[store._digest(token)]
+            assert restored.expires_at == renewed_expiry
+            assert restored.operation_permit_generation == (
+                fence.original_grant.operation_permit_generation
+            )
+            assert restored.admission_suspended is False
+        finally:
+            lease.stop()
+
+    def test_suspension_rollback_stays_valid_past_original_expiry(self):
+        """A near-expiry fence uses the heartbeat's renewed deadline."""
+
+        now = [200.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=2,
+            owner_id="worker-1",
+        )
+        fence = store.suspend(token)
+        assert fence is not None
+        now[0] = 201.9
+        assert store.refresh(token, owner_id="worker-1") is True
+        now[0] = 202.1
+
+        assert store.restore(fence) is True
+        assert store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        ) == (True, "")
+
+    def test_suspension_of_unknown_token_without_operation_needs_no_fence(self):
+        """A truly absent capability cannot leave a mutation to drain."""
+
+        store = TaskHandoffGrantStore()
+
+        assert store.suspend("never-issued-token") is None
+
+    def test_reversible_suspension_validation_class_survives_restore_or_revoke(
+        self,
+    ) -> None:
+        """The observed denial class cannot be changed by a later race winner."""
+
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+        fence = store.suspend(token)
+        assert fence is not None
+
+        restored_observation = store.validate_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert restored_observation[0] is False
+        assert restored_observation[2] is True
+        assert store.restore(fence) is True
+        assert restored_observation[2] is True
+        assert store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        ) == (True, "")
+
+        final_fence = store.suspend(token)
+        assert final_fence is not None
+        revoked_observation = store.validate_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        store.revoke(token)
+
+        assert revoked_observation[2] is True
+        assert store.validate_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )[2] is False
+
+    def test_reversible_suspension_is_classified_at_permit_race_windows(self):
+        """Permit acquisition and admission preserve the fence observation."""
+
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+        permit = store.acquire_permit(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert permit is not None
+
+        fence = store.suspend(token)
+        assert fence is not None
+        denied_permit, temporary = store.acquire_permit_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert denied_permit is None
+        assert temporary is True
+        with pytest.raises(OperationPermitDenied) as denied:
+            permit.begin()
+        assert denied.value.temporary_suspension is True
+
+        assert store.restore(fence) is True
+        permit.begin()
+        permit.end()
+
+    def test_expired_revoked_and_invalid_denials_remain_actionable_classes(self):
+        """Only the reversible retirement fence receives the temporary class."""
+
+        now = [100.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        expired = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=1,
+        )
+        revoked = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+        store.revoke(revoked)
+        now[0] = 102.0
+
+        for token in (expired, revoked, "never-issued-token"):
+            allowed, _reason, temporary = store.validate_classified(
+                token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="comment",
+            )
+            assert allowed is False
+            assert temporary is False
+
 
 class TestTaskCliHandoff:
     def test_capability_route_has_no_basic_auth_and_uses_project_scope(
@@ -4006,7 +4188,10 @@ class TestOOMPAH650WorkerLifetimeCredentials:
                 orch.state.running[issue.id] = replacement_entry
                 return await terminate_task
 
-            assert asyncio.run(_swap_and_terminate()) is True
+            # The exact old bearer is retired, but a replacement runtime is
+            # still live.  Report the overall stop as incomplete so a service
+            # shutdown cannot treat the replacement as drained.
+            assert asyncio.run(_swap_and_terminate()) is False
 
             # OLD token: revoked (or already outright removed after grace).
             valid_old, reason_old = validate_task_handoff_token(
@@ -4229,7 +4414,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         old_orch = server._orchestrator
         old_creds = server._http_credentials
         old_broadcast = server.broadcast_issues
-        old_acquire = server.acquire_task_handoff_permit
+        old_acquire = server.acquire_task_handoff_permit_classified
         server._orchestrator = orch
         server._http_credentials = None
         server.broadcast_issues = AsyncMock()
@@ -4242,7 +4427,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             assert release_admission.wait(2.0)
             return permit
 
-        server.acquire_task_handoff_permit = gated_acquire
+        server.acquire_task_handoff_permit_classified = gated_acquire
         result: dict[str, object] = {}
 
         def issue_request() -> None:
@@ -4274,11 +4459,107 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             server._orchestrator = old_orch
             server._http_credentials = old_creds
             server.broadcast_issues = old_broadcast
-            server.acquire_task_handoff_permit = old_acquire
+            server.acquire_task_handoff_permit_classified = old_acquire
 
         response = result["response"]
         assert response.status_code == 401
         assert response.json()["error"]["code"] == "handoff_revoked"
+        tracker.add_comment.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "race_window",
+        ["validation", "permit_acquisition", "operation_admission"],
+    )
+    def test_temporary_retirement_denial_does_not_degrade_auth_health(
+        self,
+        race_window,
+    ):
+        """A reversible retirement fence is contention, not broken auth."""
+
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as auth_health
+        import oompah.server as server
+        import oompah.task_handoff as task_handoff_module
+        from oompah.server import app
+
+        auth_health._reset_for_testing()
+        store = TaskHandoffGrantStore()
+        old_store = task_handoff_module._default_store
+        task_handoff_module._default_store = store
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker.fetch_comments.return_value = []
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        old_acquire = server.acquire_task_handoff_permit_classified
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+
+        if race_window == "validation":
+            assert store.suspend(token) is not None
+        elif race_window == "permit_acquisition":
+            def suspend_before_acquire(*args, **kwargs):
+                assert store.suspend(token) is not None
+                return old_acquire(*args, **kwargs)
+
+            server.acquire_task_handoff_permit_classified = suspend_before_acquire
+        else:
+            def suspend_after_acquire(*args, **kwargs):
+                result = old_acquire(*args, **kwargs)
+                assert result[0] is not None
+                assert store.suspend(token) is not None
+                return result
+
+            server.acquire_task_handoff_permit_classified = suspend_after_acquire
+
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "must wait for retirement resolution",
+                    },
+                )
+            failure = store.consume_failure(token)
+            health = auth_health.auth_health_snapshot()["worker"]
+        finally:
+            task_handoff_module._default_store = old_store
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+            server.acquire_task_handoff_permit_classified = old_acquire
+            auth_health._reset_for_testing()
+
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "handoff_revoked"
+        assert failure is None
+        assert health["recent_401_count"] == 0
+        assert health["total_401_count"] == 0
+        assert health["recent_403_scope_count"] == 0
         tracker.add_comment.assert_not_called()
 
     def test_admitted_operation_is_ordered_before_revocation(self):

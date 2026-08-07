@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,6 +17,7 @@ from oompah.integration import IntegrationRecord
 from oompah.models import Issue, RetryEntry, RunningEntry
 from oompah.orchestrator import DispatchAuthorityRevoked, Orchestrator
 from oompah.server import _cancel_retry_for_authority_change
+from oompah.tracker import TrackerError
 
 
 _OWNED_ORCHESTRATORS: list[
@@ -269,6 +270,10 @@ def _schedule(orch: Orchestrator, issue: Issue, *, attempt: int = 1) -> RetryEnt
         assignment_id="assignment-1",
         workspace_path=None,
     )
+    # A replacement retry may only be created by the exact live worker that
+    # failed.  Model the worker-exit handoff explicitly; callers receive the
+    # post-exit retry, not a still-occupying running slot.
+    orch.state.running[issue.id] = entry
     orch._schedule_retry(
         issue.id,
         attempt=attempt,
@@ -278,6 +283,7 @@ def _schedule(orch: Orchestrator, issue: Issue, *, attempt: int = 1) -> RetryEnt
         project_id=issue.project_id,
         context_entry=entry,
     )
+    orch.state.running.pop(issue.id, None)
     return orch.state.retry_attempts[issue.id]
 
 
@@ -337,6 +343,79 @@ def test_submission_cancellation_clears_claim_placeholder(tmp_path):
     assert retry.cancelled is True
     assert issue.id not in orch.state.claimed
     assert issue.id not in orch.state.claimed_issues
+
+
+def test_schedule_build_cancel_cannot_publish_replacement(tmp_path):
+    """Cancellation wins the remove/build/install window deterministically."""
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    _schedule(orch, issue)
+    entered = threading.Event()
+    release = threading.Event()
+    original_head = orch._retry_issue_head
+
+    def block_build(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=1)
+        return original_head(*args, **kwargs)
+
+    worker = threading.Thread(
+        target=lambda: orch._schedule_retry(
+            issue.id, 2, issue.identifier, 60_000, "replacement", project_id=issue.project_id
+        )
+    )
+    with patch.object(orch, "_retry_issue_head", side_effect=block_build):
+        worker.start()
+        assert entered.wait(timeout=1)
+        orch._cancel_retry_for_issue(issue_id=issue.id, reason="submitted")
+        release.set()
+        worker.join(timeout=1)
+    assert not worker.is_alive()
+    assert issue.id not in orch.state.retry_attempts
+
+
+def test_unpause_snapshot_cancel_before_arm_cannot_revive_retry(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    retry = _schedule(orch, issue)
+    retry.pre_admission_recovery = True
+    if retry.timer_handle is not None:
+        retry.timer_handle.cancel()
+    retry.timer_handle = None
+    original_arm = orch._arm_retry_entry
+
+    def cancel_before_arm(*args, **kwargs):
+        orch._cancel_retry_for_issue(issue_id=issue.id, reason="submitted")
+        return original_arm(*args, **kwargs)
+
+    with patch.object(orch, "_arm_retry_entry", side_effect=cancel_before_arm):
+        assert orch._activate_unpaused_dispatch() is False
+    assert issue.id not in orch.state.retry_attempts
+
+
+def test_timer_finally_cancel_before_rearm_cannot_revive_retry(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        retry = _schedule(orch, issue)
+        if retry.timer_handle is not None:
+            retry.timer_handle.cancel()
+        retry.timer_handle = None
+        orch._fetch_retry_issue = MagicMock(return_value=issue)
+        orch._dispatch = AsyncMock()
+        original_retain = orch._retain_or_arm_pre_admission_recovery
+
+        def cancel_before_rearm(*args, **kwargs):
+            orch._cancel_retry_for_issue(issue_id=issue.id, reason="submitted")
+            return original_retain(*args, **kwargs)
+
+        with patch.object(
+            orch, "_retain_or_arm_pre_admission_recovery", side_effect=cancel_before_rearm
+        ):
+            await orch._on_retry_timer(issue.id)
+        assert issue.id not in orch.state.retry_attempts
+
+    asyncio.run(scenario())
 
 
 def test_revoked_running_submission_is_quarantined_without_retry(tmp_path):
@@ -928,6 +1007,7 @@ def test_focus_handoff_open_retry_starts_feature_developer_exactly_once(tmp_path
         assert tracker_state["state"] == "Open"
         assert select_focus(issue, foci=BUILTIN_FOCI).role == "Feature Developer"
 
+        orch.state.running[issue.id] = writer_entry
         orch._schedule_retry(
             issue.id,
             attempt=1,
@@ -939,6 +1019,7 @@ def test_focus_handoff_open_retry_starts_feature_developer_exactly_once(tmp_path
             context_entry=writer_entry,
             authority_issue=issue,
         )
+        orch.state.running.pop(issue.id, None)
         retry = orch.state.retry_attempts[issue.id]
         orch._retry_dispatching[issue.id] = retry
         profile = MagicMock(name="deep", model_role="deep")
@@ -1335,7 +1416,7 @@ def test_both_retry_journal_failures_close_provider_admission(tmp_path):
 
 
 def test_unpause_repairs_retry_journal_before_reopening_admission(tmp_path):
-    """Retained retry authority stays fenced until a durable write succeeds."""
+    """Retained retry authority stays fenced until storage and a loop recover."""
 
     orch = _orchestrator(tmp_path)
     issue = _issue(state="Open")
@@ -1379,18 +1460,209 @@ def test_unpause_repairs_retry_journal_before_reopening_admission(tmp_path):
         )
         return real_save_fallback(snapshot)
 
-    with (
-        patch.object(orch, "_activate_unpaused_dispatch", activate),
-        patch.object(orch, "_save_retry_fallback", side_effect=recovered_save),
-    ):
-        assert orch.unpause() is True
+    try:
+        prior_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        prior_loop = None
+    asyncio.set_event_loop(None)
+    try:
+        with patch.object(
+            orch, "_save_retry_fallback", side_effect=recovered_save
+        ):
+            # A synchronous operator call has no current loop to own the
+            # retry timer. It must leave the durable retry visible and
+            # admission quiesced rather than manufacturing an idle loop.
+            assert orch.unpause() is False
+    finally:
+        asyncio.set_event_loop(prior_loop)
 
     assert observed_during_persistence == [(True, True, True)]
     assert orch._retry_persistence_failed is False
-    assert orch._quiesced is False
-    assert orch._dispatch_is_blocked(issue) is False
-    activate.assert_called_once_with()
+    assert orch._quiesced is True
+    assert orch._dispatch_is_blocked(issue) is True
+    assert recovery.timer_handle is None
+    activate.assert_not_called()
+
+    async def resume_on_live_loop() -> None:
+        assert orch.unpause() is True
+        assert orch._quiesced is False
+        assert orch._dispatch_is_blocked(issue) is False
+        assert recovery.timer_handle is not None
+        recovery.timer_handle.cancel()
+
+    asyncio.run(resume_on_live_loop())
     orch._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
+
+
+def test_retry_timer_arming_uses_dispatch_loop_from_foreign_thread(tmp_path):
+    """A non-owner thread never calls ``call_later`` on the dispatch loop."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue(state="Open")
+    retry = RetryEntry(
+        issue_id=issue.id,
+        identifier=issue.identifier,
+        attempt=1,
+        due_at_ms=0.0,
+        project_id=issue.project_id,
+    )
+    loop = asyncio.new_event_loop()
+    loop_started = threading.Event()
+    loop_stopped = threading.Event()
+
+    def run_loop() -> None:
+        asyncio.set_event_loop(loop)
+        loop.call_soon(loop_started.set)
+        loop.run_forever()
+        loop.close()
+        loop_stopped.set()
+
+    thread = threading.Thread(target=run_loop, daemon=True)
+    thread.start()
+    assert loop_started.wait(timeout=1)
+    orch._dispatch_loop = loop
+    call_later_threads: list[int] = []
+    original_call_later = loop.call_later
+
+    def record_call_later(delay, callback, *args, **kwargs):
+        call_later_threads.append(threading.get_ident())
+        return original_call_later(delay, callback, *args, **kwargs)
+
+    loop.call_later = record_call_later  # type: ignore[method-assign]
+    try:
+        assert orch._arm_retry_entry(retry, 60_000) is True
+        assert retry.timer_handle is not None
+        assert call_later_threads == [thread.ident]
+
+        cancelled = threading.Event()
+
+        def cancel_timer() -> None:
+            retry.timer_handle.cancel()
+            cancelled.set()
+
+        loop.call_soon_threadsafe(cancel_timer)
+        assert cancelled.wait(timeout=1)
+    finally:
+        orch._dispatch_loop = None
+        loop.call_soon_threadsafe(loop.stop)
+        assert loop_stopped.wait(timeout=1)
+        thread.join(timeout=1)
+
+
+def test_stale_timer_coroutine_cannot_consume_rearmed_retry(tmp_path):
+    """A callback queued before rearm cannot dispatch the replacement timer.
+
+    This models the narrow interleaving where the old timer callback has
+    validated its handle and created its coroutine, but the dispatch loop has
+    not yet started that coroutine when a replacement arm wins authority.
+    """
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        stale = RetryEntry(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            attempt=1,
+            due_at_ms=0.0,
+            project_id=issue.project_id,
+        )
+        replacement = RetryEntry(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            attempt=2,
+            due_at_ms=0.0,
+            project_id=issue.project_id,
+        )
+        stale_timer = object()
+        replacement_timer = object()
+        stale_generation = object()
+        replacement_generation = object()
+        orch.state.retry_attempts[issue.id] = stale
+        stale.timer_handle = stale_timer
+        orch._retry_timer_generations[issue.id] = (stale, stale_generation)
+
+        # This is the coroutine already queued by the old timer callback.
+        stale_callback = orch._on_retry_timer(
+            issue.id,
+            expected_retry=stale,
+            expected_timer=stale_timer,
+            expected_timer_generation=stale_generation,
+        )
+
+        # A concurrent rearm becomes authoritative before the queued
+        # coroutine receives a turn.
+        orch.state.retry_attempts[issue.id] = replacement
+        replacement.timer_handle = replacement_timer
+        orch._retry_timer_generations[issue.id] = (
+            replacement,
+            replacement_generation,
+        )
+        orch._post_event = MagicMock()
+        orch._fetch_retry_issue = MagicMock(return_value=issue)
+
+        await stale_callback
+
+        assert orch._retry_dispatching == {}
+        assert orch.state.retry_attempts[issue.id] is replacement
+        assert replacement.timer_handle is replacement_timer
+        orch._post_event.assert_not_called()
+        orch._fetch_retry_issue.assert_not_called()
+
+    asyncio.run(scenario())
+
+
+def test_retry_cancellation_publishes_to_foreign_timer_owner_loop(tmp_path):
+    """Authority cancellation never invokes a live foreign loop's handle directly."""
+
+    class RecordingTimer:
+        def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+            self._loop = loop
+            self.cancelled_on: list[int] = []
+            self.cancelled_event = threading.Event()
+
+        def cancelled(self) -> bool:
+            return bool(self.cancelled_on)
+
+        def cancel(self) -> None:
+            self.cancelled_on.append(threading.get_ident())
+            self.cancelled_event.set()
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue(state="Open")
+    retry = RetryEntry(
+        issue_id=issue.id,
+        identifier=issue.identifier,
+        attempt=1,
+        due_at_ms=0.0,
+        project_id=issue.project_id,
+    )
+    loop = asyncio.new_event_loop()
+    loop_started = threading.Event()
+    loop_stopped = threading.Event()
+
+    def run_loop() -> None:
+        asyncio.set_event_loop(loop)
+        loop.call_soon(loop_started.set)
+        loop.run_forever()
+        loop.close()
+        loop_stopped.set()
+
+    thread = threading.Thread(target=run_loop, daemon=True)
+    thread.start()
+    assert loop_started.wait(timeout=1)
+    timer = RecordingTimer(loop)
+    retry.timer_handle = timer
+    orch.state.retry_attempts[issue.id] = retry
+    try:
+        orch._cancel_retry_for_issue(issue_id=issue.id, reason="foreign-thread test")
+
+        assert timer.cancelled_event.wait(timeout=1)
+        assert timer.cancelled_on == [thread.ident]
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        assert loop_stopped.wait(timeout=1)
+        thread.join(timeout=1)
 
 
 def test_post_rearm_persistence_failure_suppresses_resumed_event(tmp_path):
@@ -1872,6 +2144,17 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
 
         orch = _orchestrator(tmp_path)
         issue = _issue(state="Open")
+        # Git verification is covered independently. Keep this concurrency
+        # regression on a confirmed remote generation while retaining the
+        # real ProjectStore interface used by ordinary dispatch setup.
+        orch.project_store.verify_submission_git_authority = MagicMock(
+            return_value=MagicMock(
+                task_branch=issue.work_branch,
+                head_sha="b" * 40,
+                base_branch=None,
+                base_sha=None,
+            )
+        )
         orch._match_agent_profile = MagicMock(
             return_value=MagicMock(name="default", model_role="fast")
         )
@@ -2125,6 +2408,475 @@ def test_due_retry_loses_to_submit_cancellation_race(tmp_path):
     asyncio.run(scenario())
 
 
+def test_due_retry_fetch_failure_cannot_requeue_after_cancellation(tmp_path):
+    """A cancelled timer owner cannot revive itself after a failed refresh."""
+
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        retry = _schedule(orch, issue)
+        entered = threading.Event()
+        release = threading.Event()
+
+        def fetch(_retry):
+            entered.set()
+            assert release.wait(timeout=3)
+            raise TrackerError("temporary outage")
+
+        orch._fetch_retry_issue = fetch
+        timer = asyncio.create_task(orch._on_retry_timer(issue.id))
+        await asyncio.to_thread(entered.wait)
+        orch._cancel_retry_for_issue(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            project_id=issue.project_id,
+            reason="task submitted for integration",
+        )
+        release.set()
+        await timer
+
+        assert orch.state.retry_attempts == {}
+        assert retry.authority_generation in orch._revoked_authority_generations
+
+    asyncio.run(scenario())
+
+
+def test_due_retry_no_capacity_cannot_requeue_after_cancellation(tmp_path):
+    """A cancellation during the slot decision wins over no-capacity retry."""
+
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        retry = _schedule(orch, issue)
+        orch._fetch_retry_issue = MagicMock(return_value=issue)
+
+        def cancel_then_report_full():
+            orch._cancel_retry_for_issue(
+                issue_id=issue.id,
+                identifier=issue.identifier,
+                project_id=issue.project_id,
+                reason="task submitted for integration",
+            )
+            return 0
+
+        orch._available_slots = MagicMock(side_effect=cancel_then_report_full)
+        await orch._on_retry_timer(issue.id)
+
+        assert orch.state.retry_attempts == {}
+        assert retry.authority_generation in orch._revoked_authority_generations
+
+    asyncio.run(scenario())
+
+
+def test_schedule_construction_cancellation_retains_generation_tombstone(tmp_path):
+    """A builder never clears a tombstone until its exact replacement commits."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    retry = _schedule(orch, issue)
+    entered = threading.Event()
+    release = threading.Event()
+    original_head = orch._retry_issue_head
+
+    def block_build(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=3)
+        return original_head(*args, **kwargs)
+
+    worker = threading.Thread(
+        target=lambda: orch._schedule_retry(
+            issue.id,
+            retry.attempt + 1,
+            issue.identifier,
+            60_000,
+            "retry poll failed",
+            project_id=issue.project_id,
+            context_retry=retry,
+        )
+    )
+    with patch.object(orch, "_retry_issue_head", side_effect=block_build):
+        worker.start()
+        assert entered.wait(timeout=3)
+        orch._cancel_retry_for_issue(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            project_id=issue.project_id,
+            reason="task submitted for integration",
+        )
+        release.set()
+        worker.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert orch.state.retry_attempts == {}
+    assert retry.authority_generation in orch._revoked_authority_generations
+
+
+def test_identifier_cancellation_fences_live_worker_retry_builder(tmp_path):
+    """A live exit callback remains cancellable while it rebuilds authority."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id=issue.assignment_id,
+        authority_generation="live-builder-generation",
+    )
+    orch.state.running[issue.id] = entry
+    entered = threading.Event()
+    release = threading.Event()
+    original_head = orch._retry_issue_head
+
+    def block_build(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=3)
+        return original_head(*args, **kwargs)
+
+    worker = threading.Thread(
+        target=lambda: orch._schedule_retry(
+            issue.id,
+            1,
+            issue.identifier,
+            60_000,
+            "worker exit retry",
+            project_id=issue.project_id,
+            context_entry=entry,
+        )
+    )
+    with patch.object(orch, "_retry_issue_head", side_effect=block_build):
+        worker.start()
+        assert entered.wait(timeout=3)
+        # An identifier-only caller does not have the RunningEntry object.
+        # It must nevertheless find the published builder and advance the
+        # schedule epoch before the out-of-lock reconstruction can publish.
+        orch._cancel_retry_for_issue(
+            identifier=issue.identifier,
+            project_id=issue.project_id,
+            reason="task submitted for integration",
+            schedule_termination=False,
+        )
+        release.set()
+        worker.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert entry.authority_revoked is True
+    assert entry.authority_generation in orch._revoked_authority_generations
+    assert issue.id not in orch._retry_schedule_builders
+    assert orch.state.retry_attempts == {}
+
+
+def test_stale_worker_exit_cannot_schedule_retry_for_replacement_owner(tmp_path):
+    """A late worker-exit callback cannot replace a newer running entry."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    stale = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id=issue.assignment_id,
+    )
+    replacement = replace(stale, run_id="replacement-run")
+    orch.state.running[issue.id] = replacement
+
+    orch._schedule_retry(
+        issue.id,
+        1,
+        issue.identifier,
+        60_000,
+        "stale worker exit",
+        project_id=issue.project_id,
+        context_entry=stale,
+    )
+
+    assert orch.state.running[issue.id] is replacement
+    assert orch.state.retry_attempts == {}
+
+
+def _retire_exact_entry_with_retry_capability(
+    orch: Orchestrator,
+    issue_id: str,
+    entry: RunningEntry,
+) -> object | None:
+    """Model the non-yielding final commit of a successful retirement."""
+
+    with orch._provider_admission_lock:
+        with orch._retry_authority_lock:
+            assert orch.state.running.get(issue_id) is entry
+            orch.state.running.pop(issue_id)
+            return orch._publish_post_retirement_retry_token(issue_id, entry)
+
+
+def test_stall_retirement_can_schedule_exact_post_retirement_retry(tmp_path):
+    """A watchdog timeout must not strand work after exact retirement."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.stall_timeout_ms = 1
+        issue = _issue()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc) - timedelta(seconds=5),
+            assignment_id=issue.assignment_id,
+        )
+        orch.state.running[issue.id] = entry
+
+        async def retire(
+            issue_id: str,
+            cleanup_workspace: bool,
+            *,
+            post_retirement_retry: bool = False,
+            **_kwargs,
+        ) -> bool:
+            assert cleanup_workspace is False
+            assert post_retirement_retry is True
+            assert _retire_exact_entry_with_retry_capability(orch, issue_id, entry)
+            return True
+
+        orch._terminate_running = AsyncMock(side_effect=retire)
+
+        await orch._reconcile()
+
+        retry = orch.state.retry_attempts[issue.id]
+        assert retry.error == "stall timeout"
+        assert retry.attempt == 1
+        assert issue.id not in orch._post_retirement_retry_tokens
+
+    asyncio.run(scenario())
+
+
+def test_active_state_revert_can_schedule_exact_post_retirement_retry(tmp_path):
+    """A tracker-open recovery can retry only from its retired owner token."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.stall_timeout_ms = 0
+        issue = _issue()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            assignment_id=issue.assignment_id,
+        )
+        orch.state.running[issue.id] = entry
+        orch._fetch_running_states = MagicMock(
+            return_value={issue.id: replace(issue, state="Open")}
+        )
+        # Handoff reconciliation is orthogonal to this exact-retirement retry
+        # path and requires a real managed project store.
+        orch._handoff_completed_focus = MagicMock(return_value=False)
+
+        async def retire(
+            issue_id: str,
+            cleanup_workspace: bool,
+            *,
+            post_retirement_retry: bool = False,
+            **_kwargs,
+        ) -> bool:
+            assert cleanup_workspace is False
+            assert post_retirement_retry is True
+            assert _retire_exact_entry_with_retry_capability(orch, issue_id, entry)
+            return True
+
+        orch._terminate_running = AsyncMock(side_effect=retire)
+
+        await orch._reconcile()
+
+        retry = orch.state.retry_attempts[issue.id]
+        assert retry.error == "state reverted to open"
+        assert retry.attempt == 1
+        assert issue.id not in orch._post_retirement_retry_tokens
+
+    asyncio.run(scenario())
+
+
+def test_post_retirement_retry_token_rejects_replacement_and_cancellation(tmp_path):
+    """A retired worker cannot revive work after replacement or cancellation."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id=issue.assignment_id,
+    )
+    orch.state.running[issue.id] = entry
+    token = _retire_exact_entry_with_retry_capability(orch, issue.id, entry)
+    assert token is not None
+
+    # A newer worker owns the task, so even the old exact token is stale.
+    replacement = replace(entry, run_id="replacement-run")
+    orch.state.running[issue.id] = replacement
+    orch._schedule_retry(
+        issue.id,
+        1,
+        issue.identifier,
+        60_000,
+        "stale post-retirement retry",
+        project_id=issue.project_id,
+        context_entry=entry,
+        post_retirement_retry_token=token,
+    )
+    assert orch.state.retry_attempts == {}
+    assert issue.id in orch._post_retirement_retry_tokens
+
+    orch.state.running.pop(issue.id)
+    orch._cancel_retry_for_issue(
+        identifier=issue.identifier,
+        project_id=issue.project_id,
+        reason="task submitted for integration",
+    )
+    orch._schedule_retry(
+        issue.id,
+        1,
+        issue.identifier,
+        60_000,
+        "cancelled post-retirement retry",
+        project_id=issue.project_id,
+        context_entry=entry,
+        post_retirement_retry_token=token,
+    )
+    assert orch.state.retry_attempts == {}
+    assert issue.id not in orch._post_retirement_retry_tokens
+
+
+def test_identifier_cancellation_fences_post_retirement_retry_builder(tmp_path):
+    """A cancellation sees a retired source while its retry is being built."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id=issue.assignment_id,
+    )
+    orch.state.running[issue.id] = entry
+    token = _retire_exact_entry_with_retry_capability(orch, issue.id, entry)
+    assert token is not None
+    entered = threading.Event()
+    release = threading.Event()
+    original_head = orch._retry_issue_head
+
+    def block_build(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=3)
+        return original_head(*args, **kwargs)
+
+    worker = threading.Thread(
+        target=lambda: orch._schedule_retry(
+            issue.id,
+            1,
+            issue.identifier,
+            60_000,
+            "retired retry",
+            project_id=issue.project_id,
+            context_entry=entry,
+            post_retirement_retry_token=token,
+        )
+    )
+    with patch.object(orch, "_retry_issue_head", side_effect=block_build):
+        worker.start()
+        assert entered.wait(timeout=3)
+        # The builder is the sole live representation after consuming the
+        # one-shot retired token.  Cancellation has only identifier/project
+        # scope, so it must still find and tombstone that exact source.
+        orch._cancel_retry_for_issue(
+            identifier=issue.identifier,
+            project_id=issue.project_id,
+            reason="task submitted for integration",
+        )
+        release.set()
+        worker.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert entry.authority_revoked is True
+    assert issue.id not in orch._post_retirement_retry_tokens
+    assert issue.id not in orch.state.retry_attempts
+
+
+def test_interrupted_retirement_restores_retry_before_cancellation_propagates(
+    tmp_path,
+):
+    """Late caller cancellation cannot strand a retired In Progress task."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            assignment_id=issue.assignment_id,
+        )
+        orch.state.running[issue.id] = entry
+        retired = asyncio.Event()
+        release = asyncio.Event()
+
+        async def retire_once(
+            issue_id: str,
+            _cleanup_workspace: bool,
+            *,
+            expected_entry: RunningEntry,
+            post_retirement_retry: bool = False,
+            coordinator=None,
+        ) -> bool:
+            assert expected_entry is entry
+            assert post_retirement_retry is True
+            assert _retire_exact_entry_with_retry_capability(orch, issue_id, entry)
+            retired.set()
+            await release.wait()
+            return True
+
+        orch._terminate_running_once = retire_once
+        termination = asyncio.create_task(
+            orch._terminate_running(
+                issue.id,
+                cleanup_workspace=False,
+                post_retirement_retry=True,
+            )
+        )
+        await retired.wait()
+        termination.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await termination
+
+        retry = orch.state.retry_attempts[issue.id]
+        assert retry.attempt == 1
+        assert retry.error == "retry restored after interrupted retirement"
+        assert retry.cancelled is False
+        assert issue.id not in orch._post_retirement_retry_tokens
+        retry.timer_handle.cancel()
+
+    asyncio.run(scenario())
+
+
 def test_restart_discards_persisted_retry_with_replaced_head(tmp_path):
     original = _orchestrator(tmp_path)
     retry = _schedule(original, _issue())
@@ -2293,6 +3045,7 @@ def test_workspace_head_is_revalidated_when_tracker_has_no_head(tmp_path):
         workspace_path=str(workspace),
     )
     with patch.object(Orchestrator, "_worktree_head", return_value="a" * 40):
+        orch.state.running[issue.id] = entry
         orch._schedule_retry(
             issue.id,
             attempt=1,
@@ -2302,6 +3055,7 @@ def test_workspace_head_is_revalidated_when_tracker_has_no_head(tmp_path):
             project_id=issue.project_id,
             context_entry=entry,
         )
+        orch.state.running.pop(issue.id, None)
         retry = orch.state.retry_attempts[issue.id]
         assert orch._retry_entry_matches_issue(_issue(head_sha=None), retry) is True
 

@@ -1962,10 +1962,11 @@ async def test_scheduled_old_retirement_does_not_deduplicate_replacement(
             task_name_prefix="retire-old",
         )
         await asyncio.wait_for(replacement_retired.wait(), timeout=1)
-        for _ in range(10):
+        deadline = asyncio.get_running_loop().time() + 1
+        while asyncio.get_running_loop().time() < deadline:
             if not orch._scheduled_termination_entries:
                 break
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.001)
 
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
@@ -2130,8 +2131,8 @@ async def test_concurrent_retirement_parents_release_only_their_owner(
     orch.state.running[issue.id] = entry
     orch.state.claimed.add(issue.id)
     orch.state.claimed_issues[issue.id] = issue
-    child_started = [asyncio.Event(), asyncio.Event()]
-    release_child = [asyncio.Event(), asyncio.Event()]
+    child_started = asyncio.Event()
+    release_child = asyncio.Event()
     child_count = 0
 
     async def controlled_retirement(
@@ -2139,13 +2140,14 @@ async def test_concurrent_retirement_parents_release_only_their_owner(
         _cleanup_workspace,
         *,
         expected_entry,
+        coordinator=None,
+        **_kwargs,
     ) -> bool:
         nonlocal child_count
-        index = child_count
         child_count += 1
         assert expected_entry is entry
-        child_started[index].set()
-        await release_child[index].wait()
+        child_started.set()
+        await release_child.wait()
         return False
 
     with patch.object(
@@ -2156,31 +2158,28 @@ async def test_concurrent_retirement_parents_release_only_their_owner(
         first_parent = asyncio.create_task(
             orch._terminate_running(issue.id, cleanup_workspace=False)
         )
-        await child_started[0].wait()
+        await child_started.wait()
         second_parent = asyncio.create_task(
             orch._terminate_running(issue.id, cleanup_workspace=False)
         )
-        await child_started[1].wait()
+        await asyncio.sleep(0)
 
         owner_key = orch._termination_owner_key(issue.id, entry)
         assert len(orch._terminating_worker_owners[owner_key]) == 2
-        release_child[0].set()
-        assert await first_parent is False
-        assert len(orch._terminating_worker_owners[owner_key]) == 1
-        assert orch._termination_owned(issue.id, entry) is True
-
-        # The first parent is gone, but the second exact owner still suppresses
-        # the worker's exit callback.
+        # Both parents share one child, while independently retaining the
+        # callback-suppression lease until they observe its result.
         await orch._on_worker_exit(
             issue.id,
             "authority_revoked",
-            "first retirement parent finished",
+            "retirement child still running",
             run_id=entry.run_id,
         )
         assert orch.state.running[issue.id] is entry
 
-        release_child[1].set()
+        release_child.set()
+        assert await first_parent is False
         assert await second_parent is False
+        assert child_count == 1
 
     assert orch._termination_owned(issue.id, entry) is False
     assert orch._termination_pending_baselines == {}
@@ -2679,6 +2678,7 @@ async def test_cancelled_stop_owner_is_replaced_without_losing_live_rollback_own
         return real_state_save(**updates)
 
     retry_observations: list[tuple[bool, bool, bool, bool]] = []
+    original_sleep = asyncio.sleep
 
     async def observe_retry_delay(_delay: float) -> None:
         retry_observations.append(
@@ -2689,6 +2689,7 @@ async def test_cancelled_stop_owner_is_replaced_without_losing_live_rollback_own
                 orch._stopping,
             )
         )
+        await original_sleep(0)
 
     cancelled_stop_owner: ConcurrentFuture[None] = ConcurrentFuture()
     cancelled_stop_owner.cancel()

@@ -28,7 +28,7 @@ import hmac
 import secrets
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, FrozenSet
 
 
@@ -82,6 +82,15 @@ _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.01
 class OperationPermitDenied(Exception):
     """Grant was revoked or operation not authorized after validation."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        temporary_suspension: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.temporary_suspension = bool(temporary_suspension)
+
 
 @dataclass
 class _OperationState:
@@ -111,11 +120,13 @@ class OperationPermit:
         """Linearize and admit the protected operation, or fail closed."""
         if self._active:
             raise OperationPermitDenied("task handoff operation already active")
-        if not self.store._begin_operation(
+        denial = self.store._begin_operation(
             self.token_digest, self.generation_at_acquisition
-        ):
+        )
+        if denial is not None:
             raise OperationPermitDenied(
-                "task handoff capability was revoked before the operation started"
+                "task handoff capability was revoked before the operation started",
+                temporary_suspension=denial == "temporary_suspension",
             )
         self._active = True
 
@@ -164,6 +175,17 @@ class TaskHandoffGrant:
     revoked_at: float | None = None  # Explicit revocation timestamp
     original_ttl_seconds: float = DEFAULT_TTL_SECONDS
     operation_permit_generation: int = 0  # Incremented on revocation
+    admission_suspended: bool = False
+
+
+@dataclass(frozen=True)
+class TaskHandoffFence:
+    """Opaque retirement drain fence with optional one-shot rollback."""
+
+    token_digest: str
+    suspended_generation: int | None
+    original_grant: TaskHandoffGrant | None
+    restore_allowed: bool
 
 
 class TaskHandoffGrantStore:
@@ -177,6 +199,7 @@ class TaskHandoffGrantStore:
     def __init__(self, *, now=time.time):
         self._now = now
         self._lock = threading.Lock()
+        self._operations_changed = threading.Condition(self._lock)
         self._grants: dict[str, TaskHandoffGrant] = {}
         self._operations: dict[str, _OperationState] = {}
         self._failures: dict[str, str] = {}
@@ -249,8 +272,32 @@ class TaskHandoffGrantStore:
         agent-facing diagnostics. The token itself is never included in
         the reason or logs.
         """
+        allowed, reason, _temporary_suspension = self.validate_classified(
+            token,
+            project_id=project_id,
+            task_identifier=task_identifier,
+            action=action,
+        )
+        return allowed, reason
+
+    def validate_classified(
+        self,
+        token: str | None,
+        *,
+        project_id: str,
+        task_identifier: str,
+        action: str,
+    ) -> tuple[bool, str, bool]:
+        """Validate and identify a denial caused by a reversible fence.
+
+        The third result is captured at the same lock-protected observation as
+        authorization.  A concurrent rollback or final revocation therefore
+        cannot turn an intentional retirement-fence denial into an actionable
+        worker failure after the fact.
+        """
+
         if not isinstance(token, str) or not token:
-            return False, "missing task handoff capability"
+            return False, "missing task handoff capability", False
         digest = self._digest(token)
         now = float(self._now())
         with self._lock:
@@ -265,7 +312,7 @@ class TaskHandoffGrantStore:
                         else "task handoff capability expired; worker must complete within the session lifetime"
                     )
                     self._purge_locked(now)
-                    return False, reason
+                    return False, reason, False
             # Now purge expired grants from the store
             self._purge_locked(now)
             grant = self._grants.get(digest)
@@ -273,24 +320,34 @@ class TaskHandoffGrantStore:
         # Distinguish revoked (explicit termination) from expired (TTL)
         if grant is None or not hmac.compare_digest(grant.token_digest, digest):
             # Token never existed, was purged, or digest doesn't match
-            return False, "invalid or expired task handoff capability"
+            return False, "invalid or expired task handoff capability", False
 
         # Check revocation state (should not happen given purge above, but be safe)
         if grant.revoked_at is not None:
-            return False, "task handoff capability was revoked when the worker terminated"
+            return (
+                False,
+                "task handoff capability was revoked when the worker terminated",
+                False,
+            )
+        if grant.admission_suspended:
+            return (
+                False,
+                "task handoff capability was revoked when the worker terminated",
+                True,
+            )
 
         # Check project/task scope (prevent cross-task/project use)
         if not hmac.compare_digest(grant.project_id, str(project_id or "")):
-            return False, "task handoff capability is scoped to another project"
+            return False, "task handoff capability is scoped to another project", False
         if not hmac.compare_digest(
             grant.task_identifier, str(task_identifier or "")
         ):
-            return False, "task handoff capability is scoped to another task"
+            return False, "task handoff capability is scoped to another task", False
 
         # Check action scope (prevent privilege escalation)
         if action not in grant.allowed_actions:
-            return False, "task handoff action is not granted"
-        return True, ""
+            return False, "task handoff action is not granted", False
+        return True, "", False
 
     def revoke(self, token: str | None) -> None:
         """Revoke a capability after its worker exits.
@@ -350,6 +407,125 @@ class TaskHandoffGrantStore:
             ),
         )
 
+    def suspend(self, token: str | None) -> TaskHandoffFence | None:
+        """Atomically close admission and preserve an exact drain handle."""
+        if not token:
+            return None
+        digest = self._digest(token)
+        now = float(self._now())
+        with self._lock:
+            grant = self._grants.get(digest)
+            operation_state = self._operations.get(digest)
+            if grant is None and (
+                operation_state is None or operation_state.active == 0
+            ):
+                # No capability and no separately retained admitted mutation
+                # means there is nothing for retirement to fence or drain.
+                return None
+            if (
+                grant is None
+                or grant.revoked_at is not None
+                or grant.expires_at <= now
+                or grant.admission_suspended
+            ):
+                # Revocation/expiry closes new admission, but it does not
+                # cancel an operation which already passed ``begin``.  The
+                # grant may also have been purged while that operation's
+                # separate refcount remains live.  Preserve the digest in a
+                # drain-only fence so retirement still waits for that exact
+                # pre-existing mutation.  This fence must never restore the
+                # invalid or independently-suspended capability.
+                return TaskHandoffFence(
+                    token_digest=digest,
+                    suspended_generation=None,
+                    original_grant=None,
+                    restore_allowed=False,
+                )
+            suspended = TaskHandoffGrant(
+                token_digest=grant.token_digest,
+                project_id=grant.project_id,
+                task_identifier=grant.task_identifier,
+                allowed_actions=grant.allowed_actions,
+                expires_at=grant.expires_at,
+                owner_id=grant.owner_id,
+                revoked_at=grant.revoked_at,
+                original_ttl_seconds=grant.original_ttl_seconds,
+                operation_permit_generation=grant.operation_permit_generation + 1,
+                admission_suspended=True,
+            )
+            self._grants[digest] = suspended
+            return TaskHandoffFence(
+                token_digest=digest,
+                suspended_generation=suspended.operation_permit_generation,
+                original_grant=grant,
+                restore_allowed=True,
+            )
+
+    def restore(self, fence: TaskHandoffFence | None) -> bool:
+        """Restore only the exact still-suspended capability generation."""
+        if (
+            fence is None
+            or not fence.restore_allowed
+            or fence.suspended_generation is None
+            or fence.original_grant is None
+        ):
+            return False
+        with self._lock:
+            current = self._grants.get(fence.token_digest)
+            if (
+                current is None
+                or not current.admission_suspended
+                or current.operation_permit_generation != fence.suspended_generation
+            ):
+                return False
+            # The server-owned lease remains active while retirement child
+            # publication is attempted.  Its heartbeat can legitimately renew
+            # the suspended grant without changing the suspension generation.
+            # Restore the pre-fence admission generation, but retain the current
+            # expiry so rollback cannot erase a concurrent lease renewal and
+            # resurrect an already-expired snapshot.
+            self._grants[fence.token_digest] = replace(
+                current,
+                operation_permit_generation=(
+                    fence.original_grant.operation_permit_generation
+                ),
+                admission_suspended=False,
+            )
+            return True
+
+    def wait_for_operations(
+        self,
+        fence: TaskHandoffFence | None,
+        *,
+        timeout_seconds: float,
+    ) -> bool:
+        """Wait for mutations admitted before ``fence`` to finish.
+
+        For a live grant, ``suspend`` increments its generation while holding
+        the same lock used by :meth:`_begin_operation`, so no operation can
+        increment the refcount after the fence is returned.  For an expired,
+        revoked, or already-purged grant, admission is already closed and the
+        drain-only fence preserves its digest.  Waiting on the separate
+        operation state therefore drains exactly the mutations ordered before
+        retirement in either case, including their post-I/O observer
+        callbacks.  The bounded wait fails closed instead of tying up a
+        retirement child forever when an adapter call is wedged.
+        """
+
+        if fence is None:
+            return True
+        timeout = max(0.0, float(timeout_seconds))
+        deadline = time.monotonic() + timeout
+        with self._operations_changed:
+            while True:
+                state = self._operations.get(fence.token_digest)
+                if state is None or state.active == 0:
+                    return True
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._operations_changed.wait(timeout=remaining)
+
     def record_failure(self, token: str | None, reason: str) -> None:
         """Remember an actionable failure without retaining the bearer token.
 
@@ -375,21 +551,23 @@ class TaskHandoffGrantStore:
         with self._lock:
             return self._failures.pop(self._digest(token), None)
 
-    def _begin_operation(self, token_digest: str, generation: int) -> bool:
-        """Atomically admit one mutation before its first awaited I/O."""
+    def _begin_operation(self, token_digest: str, generation: int) -> str | None:
+        """Admit one mutation or return its lock-linearized denial class."""
         now = float(self._now())
         with self._lock:
             grant = self._grants.get(token_digest)
+            if grant is not None and grant.admission_suspended:
+                return "temporary_suspension"
             if (
                 grant is None
                 or grant.revoked_at is not None
                 or grant.expires_at <= now
                 or grant.operation_permit_generation != generation
             ):
-                return False
+                return "actionable_denial"
             state = self._operations.setdefault(token_digest, _OperationState())
             state.active += 1
-            return True
+            return None
 
     def _end_operation(self, token_digest: str) -> None:
         """Release one admitted mutation without retaining bearer material."""
@@ -400,6 +578,7 @@ class TaskHandoffGrantStore:
             state.active = max(0, state.active - 1)
             if state.active == 0 and token_digest not in self._grants:
                 self._operations.pop(token_digest, None)
+            self._operations_changed.notify_all()
 
     def current_grant_ttl(self, token: str | None) -> float | None:
         """Return the active grant's bounded renewal TTL without exposing it.
@@ -440,32 +619,55 @@ class TaskHandoffGrantStore:
         grant was just revoked or expired in the narrow window between
         validation and permit acquisition.
         """
+        permit, _temporary_suspension = self.acquire_permit_classified(
+            token,
+            project_id=project_id,
+            task_identifier=task_identifier,
+            action=action,
+        )
+        return permit
+
+    def acquire_permit_classified(
+        self,
+        token: str | None,
+        *,
+        project_id: str,
+        task_identifier: str,
+        action: str,
+    ) -> tuple[OperationPermit | None, bool]:
+        """Acquire a permit and preserve a reversible-fence denial class."""
+
         if not isinstance(token, str) or not token:
-            return None
+            return None, False
         digest = self._digest(token)
         now = float(self._now())
         with self._lock:
             grant = self._grants.get(digest)
+            if grant is not None and grant.admission_suspended:
+                return None, True
             if grant is None or grant.revoked_at is not None:
-                return None
+                return None, False
             if grant.expires_at <= now:
                 self._purge_locked(now)
-                return None
+                return None, False
             # Quick scope check (revalidate project/task/action)
             if not hmac.compare_digest(grant.project_id, str(project_id or "")):
-                return None
+                return None, False
             if not hmac.compare_digest(
                 grant.task_identifier, str(task_identifier or "")
             ):
-                return None
+                return None, False
             if action not in grant.allowed_actions:
-                return None
+                return None, False
             # Capture current generation so permit can detect revocation
             generation = grant.operation_permit_generation
-        return OperationPermit(
-            token_digest=digest,
-            store=self,
-            generation_at_acquisition=generation,
+        return (
+            OperationPermit(
+                token_digest=digest,
+                store=self,
+                generation_at_acquisition=generation,
+            ),
+            False,
         )
 
     def refresh(
@@ -526,6 +728,7 @@ class TaskHandoffGrantStore:
                 revoked_at=grant.revoked_at,
                 original_ttl_seconds=grant.original_ttl_seconds,
                 operation_permit_generation=grant.operation_permit_generation,
+                admission_suspended=grant.admission_suspended,
             )
             self._grants[digest] = extended_grant
             return True
@@ -677,9 +880,41 @@ def validate_task_handoff_token(token: str | None, **kwargs) -> tuple[bool, str]
     return _default_store.validate(token, **kwargs)
 
 
+def validate_task_handoff_token_classified(
+    token: str | None,
+    **kwargs,
+) -> tuple[bool, str, bool]:
+    """Validate and report an intentional reversible-suspension denial."""
+
+    return _default_store.validate_classified(token, **kwargs)
+
+
 def revoke_task_handoff_token(token: str | None) -> None:
     """Revoke a capability from the service-owned default registry."""
     _default_store.revoke(token)
+
+
+def suspend_task_handoff_token(token: str | None) -> TaskHandoffFence | None:
+    """Fence an exact bearer from beginning new API mutations."""
+    return _default_store.suspend(token)
+
+
+def restore_task_handoff_token(fence: TaskHandoffFence | None) -> bool:
+    """Restore a capability after child creation failed before retirement."""
+    return _default_store.restore(fence)
+
+
+def wait_for_task_handoff_operations(
+    fence: TaskHandoffFence | None,
+    *,
+    timeout_seconds: float,
+) -> bool:
+    """Drain mutations admitted before a retirement fence was installed."""
+
+    return _default_store.wait_for_operations(
+        fence,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def record_task_handoff_failure(token: str | None, reason: str) -> None:
@@ -711,6 +946,23 @@ def acquire_task_handoff_permit(
     mutation; ``async with permit`` is the linearizable admission point.
     """
     return _default_store.acquire_permit(
+        token,
+        project_id=project_id,
+        task_identifier=task_identifier,
+        action=action,
+    )
+
+
+def acquire_task_handoff_permit_classified(
+    token: str | None,
+    *,
+    project_id: str,
+    task_identifier: str,
+    action: str,
+) -> tuple[OperationPermit | None, bool]:
+    """Acquire a permit and report a reversible retirement-fence denial."""
+
+    return _default_store.acquire_permit_classified(
         token,
         project_id=project_id,
         task_identifier=task_identifier,
