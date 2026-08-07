@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T10:59:42.846923Z'
+updated_at: '2026-08-07T11:06:51.190109Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -476,5 +476,10 @@ ERROR tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_pre_create_refresh_
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-07 11:06
+---
+Repair in progress after exact integration gate failure. The focused 24-node traceback run is queued behind OOMPAH-608's active exact gate on the capacity-1 validation broker. Static triage identified and repaired a real exact-generation retirement defect: when a replacement worker wins during old-generation cleanup, the old coordinator now treats cleanup/retry requirements as superseded without touching the replacement. Test-fixture compatibility repairs are proceeding in parallel; no validation bypass is being used.
 ---
 <!-- COMMENTS:END -->
