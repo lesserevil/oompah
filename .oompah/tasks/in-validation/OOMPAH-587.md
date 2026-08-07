@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-07T13:49:19.470034Z'
+updated_at: '2026-08-07T13:50:36.541642Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -891,7 +891,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -934,6 +934,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T13:48:49.199253+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-07T13:49:09.199220+00:00'
+    - version: 1
+      attempt_id: attempt-fd24c838ac98
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+      created_at: '2026-08-07T13:50:34.925317+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T13:50:34.925317+00:00'
+      branch_key: epic-OOMPAH-587
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -942,7 +958,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:25:13.344231+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:48:49.199253+00:00'
+    updated_at: '2026-08-07T13:50:34.925317+00:00'
   - version: 1
     audit_id: audit-8dcb52fee17f
     project_id: proj-14849f1b
@@ -1200,6 +1216,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T13:48:49.199253+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T13:49:09.199220+00:00'
+  - version: 1
+    attempt_id: attempt-fd24c838ac98
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    created_at: '2026-08-07T13:50:34.925317+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T13:50:34.925317+00:00'
+    branch_key: epic-OOMPAH-587
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 566
   total_output_tokens: 76613
