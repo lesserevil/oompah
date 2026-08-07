@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Needs Human
+status: Open
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T14:20:02.705655Z'
+updated_at: '2026-08-07T14:27:29.856865Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -1169,5 +1169,19 @@ created: 2026-08-07 14:19
 Needs Human — Archived audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 14:27
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #3)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 621 is merged
+**Evidence head:** `6e27fb150b7bd711c98c7aa5c94e355200dfa325`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
