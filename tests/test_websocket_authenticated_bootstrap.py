@@ -17,7 +17,7 @@ from __future__ import annotations
 import base64
 import contextlib
 from typing import Generator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -341,18 +341,29 @@ class TestWebSocketCredentialsRedaction:
     def test_ws_refresh_does_not_leak_credentials(self):
         """WebSocket refresh response must not contain credentials."""
         client = TestClient(app, raise_server_exceptions=False)
-        with _auth_enabled("operator", "mypassword"), _ws_isolation():
-            auth = _basic("operator", "mypassword")
-            with client.websocket_connect("/ws", headers={"Authorization": auth}) as ws:
-                ws.receive_json()  # initial state
-                ws.receive_json()  # issues
-                ws.send_json({"action": "refresh"})
-                msg = ws.receive_json()
+        username = "credential-user-8f3a"
+        password = "credential-password-91bd"
+        with _auth_enabled(username, password), _ws_isolation():
+            # OOMPAH-873 deliberately declines to emit an unavailable/stale
+            # issue bootstrap.  Seed the authoritative empty generation this
+            # security test expects rather than depending on global snapshot
+            # state left by another test.
+            with patch.object(
+                server_module,
+                "_issues_snapshot_payload_with_revision",
+                return_value=(server_module._empty_issue_board(), 1),
+            ):
+                auth = _basic(username, password)
+                with client.websocket_connect("/ws", headers={"Authorization": auth}) as ws:
+                    ws.receive_json()  # initial state
+                    ws.receive_json()  # issues
+                    ws.send_json({"action": "refresh"})
+                    msg = ws.receive_json()
 
                 import json
                 payload_str = json.dumps(msg)
-                assert "mypassword" not in payload_str
-                assert "operator" not in payload_str
+                assert password not in payload_str
+                assert username not in payload_str
                 assert ".htpasswd" not in payload_str
 
 

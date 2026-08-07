@@ -365,6 +365,7 @@ def test_ws_connection_and_initial_push() -> None:
 @pytest.mark.skipif(
     not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable"
 )
+@pytest.mark.timeout(20)
 def test_ws_broadcast_fan_out() -> None:
     """orchestrator → _broadcast → WS client fan-out under Granian.
 
@@ -382,12 +383,14 @@ def test_ws_broadcast_fan_out() -> None:
 
         client_b_received: list[dict] = []
         client_b_error: list[Exception] = []
+        client_b_ready = threading.Event()
 
         def _run_client_b() -> None:
             """Background thread: connect, drain initial push, collect broadcast."""
             try:
                 with _ws_connect(uri) as ws_b:
                     _drain_initial_ws_push(ws_b)
+                    client_b_ready.set()
                     # Wait up to 6 s for the broadcast triggered by client A
                     try:
                         client_b_received.append(_ws_recv_json(ws_b))
@@ -395,27 +398,34 @@ def test_ws_broadcast_fan_out() -> None:
                         client_b_error.append(exc)
             except Exception as exc:
                 client_b_error.append(exc)
+                client_b_ready.set()
 
         with _ws_connect(uri) as ws_a:
             # Drain client A's initial push
             _drain_initial_ws_push(ws_a)
 
-            # Start client B in background and give it time to connect and
-            # drain its own initial push before client A fires the refresh.
+            # Start client B in the background and wait for its bootstrap to
+            # drain before client A fires the refresh.  A fixed sleep becomes
+            # racy when the process-global gate is under CPU contention.
             t = threading.Thread(target=_run_client_b, daemon=True)
             t.start()
-            time.sleep(0.4)  # let B connect + drain
+            assert client_b_ready.wait(timeout=6), (
+                "Client B did not finish its WebSocket bootstrap"
+            )
+            assert not client_b_error, (
+                f"Client B raised during bootstrap: {client_b_error[0]!r}"
+            )
 
             # Trigger broadcast from client A
             ws_a.send(json.dumps({"action": "refresh"}))
 
             # Also collect what client A (the requester) receives
-            requester_msgs: list[dict] = []
-            for _ in range(3):
-                try:
-                    requester_msgs.append(_ws_recv_json(ws_a))
-                except Exception:
-                    break
+            # The refresh path synchronously replies with state before doing
+            # the issue rebuild.  One bounded receive proves the requester is
+            # serviced without waiting for a nonexistent third message (the
+            # suite-wide timeout is intentionally shorter than the helper's
+            # normal network timeout).
+            requester_msgs = [_ws_recv_json(ws_a, timeout=3)]
 
             t.join(timeout=8)
 
