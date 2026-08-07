@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T13:38:37.994202Z'
+updated_at: '2026-08-07T13:43:38.668856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Implement worker-launch isolation for epic-rebase helpers across CLI, API, and A
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 13:43
+---
+Implemented the O891 isolation boundary in the O879 coordination worktree: direct epic-rebase workers now receive a strict credential-free environment and private HOME/XDG roots across CLI, API command shells, and all ACP backends; dispatch rejects embedded HTTP(S) remote userinfo. Added explicit provider-only bootstrap (Codex auth.json, Claude .credentials.json, configured Codex/OpenCode API keys) with unknown layouts failing closed. Focused tests: 98 passed (test_client_auth, test_agent, test_epic_rebase_credential_isolation). Awaiting brokered integration validation.
+---
+<!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T13:42:34.256744Z'
+updated_at: '2026-08-07T13:43:32.609227Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -626,5 +626,15 @@ author: oompah
 created: 2026-08-07 13:42
 ---
 Discovery: There is no current GitHub CI failure to repair. The only Actions run for branch OOMPAH-873 is run 31175762999 at exact head 78aecdcf07412f6f4eabf9e735b7206a3faa93b7; Python 3.11, 3.12, and 3.13 jobs all completed successfully, and --log-failed returned no output. The earlier five failures were from oompah's pre-review branch gate at 7910664b9 and were already repaired by commit 78aecdcf0. Local HEAD and origin/OOMPAH-873 both equal that commit, it is an ancestor of origin/main, and PR #740 is merged as a57b76354.
+---
+author: oompah
+created: 2026-08-07 13:43
+---
+Implementation: No additional code change was appropriate in this continuation. The existing CI repair commit 78aecdcf0 is already checked out, clean, pushed to origin/OOMPAH-873, merged by PR #740, and contains the required canonical attribution. Adding another speculative commit would only diverge from the exact head whose complete branch gate and GitHub matrix already passed.
+---
+author: oompah
+created: 2026-08-07 13:43
+---
+Verification: GitHub Actions run 31175762999 is successful at exact head 78aecdcf0: test (3.11), test (3.12), and test (3.13) all passed. Oompah's recorded complete make test gate also passed at this head in 652.7s, after the five originally failing tests passed together (5 passed in 13.16s). Current git diff --check passes and the worktree is clean/up to date. A new local make test-setup invocation cannot start because the managed validation guard hits the known read-only validation lease path; no product/test failure occurred, so I am relying on the existing exact-head service-owned gate and GitHub results rather than bypassing the guard.
 ---
 <!-- COMMENTS:END -->
