@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T22:38:21.138662Z'
+updated_at: '2026-08-07T23:37:05.999710Z'
 work_branch: OOMPAH-906
 target_branch: null
 review_url: null
@@ -24,9 +24,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-906
-  head_sha: 510988c96e982ff170fbb78bda8c39963f11b113
-  submitted_at: '2026-08-07T22:38:05.608489+00:00'
-  updated_at: '2026-08-07T22:38:05.608489+00:00'
+  head_sha: aca098a94f75330939e7fe392bca31b33cc87ced
+  submitted_at: '2026-08-07T23:36:59.852789+00:00'
+  updated_at: '2026-08-07T23:36:59.852789+00:00'
 oompah.work_branch: OOMPAH-906
 ---
 ## Summary
@@ -65,5 +65,15 @@ author: oompah
 created: 2026-08-07 22:38
 ---
 Addressed blocked independent-review findings with fully resolved candidate/root validation, relative-root and symlink defenses, and runner/controller-owned crash-safe cleanup. Replacement exact head: 510988c96e982ff170fbb78bda8c39963f11b113.
+---
+author: oompah
+created: 2026-08-07 23:36
+---
+Final independent-review replacement is pushed at exact head aca098a94f75330939e7fe392bca31b33cc87ced. The quality gate now mounts a distinct server-owned trusted HOME capability outside the candidate-writable run root; legacy three-argument injected launchers receive host-materialized paths; every allocation, completion, cancellation, and failure path releases the validation lease/generation and removes both run roots and sidecars. Restart cleanup is inode/PID-start-tick fenced, preserves active or unknown owners, age-bounds missing/corrupt metadata, safely reclaims abandoned .<root>.scavenge-* quarantines after hard crashes, and keeps owner sidecars until quarantine recovery completes. The runner validates preallocated worker HOME before any disposable allocation and cleans controller/configuration-failure state. Evidence on the exact content: canonical-broker affected suite 134/134 passed and returned to idle with zero owners/waiters; real built-in bubblewrap execution of the three OOMPAH-869 managed-native regressions passed 3/3 at the exact committed head; git diff --check, bash syntax, focused Ruff, make terminal-audit-scan, and make check-secrets all passed. Two independent adversarial reviews ACCEPT exact aca098a94f75330939e7fe392bca31b33cc87ced, including a manual hard-crash quarantine replay. Branch is clean and exactly matches origin/OOMPAH-906.
+---
+author: oompah
+created: 2026-08-07 23:37
+---
+Isolated validation guards in a server-owned HOME, hardened allocation and xdist cleanup, and added restart-safe stale-root/quarantine recovery; exact head aca098a94f75330939e7fe392bca31b33cc87ced passed 134 affected tests, 3 real-bwrap regressions, static/security gates, and two independent reviews.
 ---
 <!-- COMMENTS:END -->
