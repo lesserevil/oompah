@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:43:34.782196Z'
+updated_at: '2026-08-07T09:45:15.033079Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: a65ea1cca8d20eed7b092bbd7d9508a9efb66b5de9a560e5789a353e11a480e7
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 20d756c0-d9c8-4bfa-ac90-3e0b13b9a415
+  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
+  claimed_at: '2026-08-07T09:45:01.265729+00:00'
+  claim_expires_at: '2026-08-07T10:15:01.265729+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: af3cfb1b-8403-490b-b457-3a8081bd085a
 ---
 ## Summary
 
@@ -63,5 +81,10 @@ author: oompah
 created: 2026-08-07 09:43
 ---
 Live reproductions on 2026-08-07: OOMPAH-581 exhausted sonnet and opus after both transports terminated before a verdict, reaching Needs Human on its Done audit; OOMPAH-870 exhausted all eligible auditor candidates after pre-verdict transport terminations, reaching Needs Human on its Merged audit. Both had authoritative merged exact-head evidence and required owner overrides. Acceptance must ensure pre-verdict transport failure does not consume substantive candidate capacity or force Needs Human.
+---
+author: oompah
+created: 2026-08-07 09:45
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
