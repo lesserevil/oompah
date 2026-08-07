@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T04:09:48.279104Z'
+updated_at: '2026-08-07T04:10:28.275191Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -556,5 +556,10 @@ author: oompah
 created: 2026-08-07 04:09
 ---
 DISCOVERY: Verified implementation is present and fully tested. The _cleanup_epic_repair_workspace_locked method (oompah/projects.py:4610) is properly integrated into cleanup_terminal_issue at line 5211, only invoked for terminal epics (is_epic=True). TestEpicRepairWorkspaceCleanup test class has 7 tests covering: (1) happy-path removes merged auxiliary workspace, (2) preserves dirty worktrees, (3) preserves unmerged heads, (4) preserves shared branches, (5) skips non-matching identifiers, (6) skips unregistered directories, (7) non-epic doesn't trigger cleanup. All 7 tests PASS.
+---
+author: oompah
+created: 2026-08-07 04:10
+---
+VERIFICATION: Reviewed implementation for auth/access-control safety. Key security findings: (1) All operations protected by project_write_lock (line 5119) preventing concurrent modification races, (2) Strict path validation: only removes registered managed worktrees, (3) Branch identity validation via git symbolic-ref ensuring exact match, (4) Cleanliness check via git status before removal, (5) Ancestry safety via git merge-base --is-ancestor, (6) Uses existing _delete_owned_issue_branch_locked with proper ownership checks, (7) Never infers arbitrary paths or branches - everything explicit. Implementation follows principle of least privilege and fail-safe defaults.
 ---
 <!-- COMMENTS:END -->
