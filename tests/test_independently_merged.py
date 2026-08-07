@@ -100,6 +100,24 @@ class TestDetectIndependentlyMergedChildren:
         # epic_branch_name("EPIC-1") == "epic-EPIC-1" per the stub
         assert found_branch == "epic-EPIC-1"
 
+    def test_detects_exocomp57_style_stale_own_branch(self, tmp_path):
+        """A stale child-identifier branch must not bypass independent detection."""
+        orch = _make_orch(tmp_path)
+        epic = _make_issue(identifier="EXOCOMP-9", issue_type="epic", state="Open")
+        child = _make_issue(
+            identifier="EXOCOMP-57",
+            state="Merged",
+            parent_id="EXOCOMP-9",
+            work_branch="EXOCOMP-57",  # stale; expected epic branch is epic-EXOCOMP-9
+        )
+
+        with patch.object(orch, "_fetch_epic_children", return_value=[child]):
+            results = orch._detect_independently_merged_children([epic])
+
+        assert [(item[0].identifier, item[2]) for item in results] == [
+            ("EXOCOMP-57", "epic-EXOCOMP-9")
+        ]
+
     def test_ignores_child_on_epic_branch(self, tmp_path):
         """Child whose work_branch matches the epic's branch is NOT flagged."""
         orch = _make_orch(tmp_path)
