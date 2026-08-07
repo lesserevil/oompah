@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-08-07T22:35:50.162792Z'
+updated_at: '2026-08-07T22:35:57.900157Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -95,8 +95,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-08210eeb9df6
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-07T22:35:46.164159+00:00'
+    applied_at: '2026-08-07T22:35:55.245953+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -476,5 +477,25 @@ author: oompah
 created: 2026-08-07 21:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 22:35
+---
+Audit PASS — Archived
+
+OOMPAH-619 Archived audit: PASS. Epic successfully merged into main (PR #626, commit 16362384b). All children marked Done. Current test results: 15962 passed, 7 skipped, 1 xfailed (serial gate). Epic delivers unified CLI authentication resolver with netrc/CLI/env/password-file precedence, comprehensive tests, and documentation.
+
+Safe evidence:
+- merge_commit: 16362384b
+- pr_number: 626
+- merge_verified: git merge-base --is-ancestor 16362384b HEAD returns 0
+- test_results_serial: 15962 passed, 7 skipped, 1 xfailed (0 failures)
+- test_results_previous: 14535 passed, 7 skipped, 1 xfailed (2026-07-31 21:33)
+- children_status: OOMPAH-620/621/623/624/650/660/662 = Done
+- key_files_on_main[0]: oompah/client_auth.py
+- key_files_on_main[1]: scripts/canonical_cli_cutover.py
+- docs_updated[0]: docs/authentication.md
+- docs_updated[1]: docs/cli-install.md
+- parallel_run_note: 4 SQLite timeout failures in parallel mode pass in serial mode
 ---
 <!-- COMMENTS:END -->
