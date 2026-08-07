@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Needs CI Fix
+status: In Validation
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T19:58:52.580394Z'
+updated_at: '2026-08-07T20:06:37.197120Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: ''
@@ -324,7 +324,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-643
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -343,7 +343,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-643
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -357,6 +357,44 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:28:42.473515+00:00'
     selected_ref: 2b3a967c8d86a285cd3327aec58d52a5b0e64411
     selected_sha: 2b3a967c8d86a285cd3327aec58d52a5b0e64411
+  - version: 1
+    audit_id: audit-483c0f406c87
+    project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 673fe8081908dc89bcce21a3ce7022ac2eacdcc0d20f8e1e6946cd0938598190
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs CI Fix
+    created_at: '2026-08-07T20:06:27.783142+00:00'
+    selected_ref: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+    selected_sha: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+  - version: 1
+    audit_id: audit-182c9627fb58
+    project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 673fe8081908dc89bcce21a3ce7022ac2eacdcc0d20f8e1e6946cd0938598190
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs CI Fix
+    created_at: '2026-08-07T20:06:27.783142+00:00'
+    selected_ref: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+    selected_sha: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
   attempt_history:
   - version: 1
     attempt_id: attempt-e5b97bb4551d
@@ -856,5 +894,10 @@ FAILED tests/test_validation_resource_lease.py::test_five_file_worker_pytest_que
 RuntimeWarning: Enable tracemalloc to get the object allocation traceback
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 20:06
+---
+YOLO: merged PR #745.
 ---
 <!-- COMMENTS:END -->
