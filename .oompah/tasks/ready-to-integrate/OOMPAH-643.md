@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T19:55:58.508915Z'
+updated_at: '2026-08-07T19:56:18.906106Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: ''
@@ -764,6 +764,20 @@ Prevent stale terminal-audit metric rehydration across restart by persisting dis
 ---
 author: oompah
 created: 2026-08-07 19:55
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/610
+Reviewed head: `2b3a967c8d86a285cd3327aec58d52a5b0e64411`
+Accepted submission head: `1ba8872eef1517e4ec0774f21e8a8a6558d22097`
+Source branch: `OOMPAH-643`
+Target branch: `main`
+Reason: review head 2b3a967c8d86a285cd3327aec58d52a5b0e64411 does not match accepted submission head 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 19:56
 ---
 Superseded review preserved during standalone Ready reconciliation.
 
