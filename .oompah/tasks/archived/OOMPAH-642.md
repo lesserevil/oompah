@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-08-07T09:26:16.962887Z'
+updated_at: '2026-08-07T09:26:27.317576Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -146,6 +146,18 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T09:10:41.536007+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-642
+    target_state: Archived
+    evidence_fingerprint: 6c20735c9c1a8ae04785f1b164a700ba0ac386f697f1ef56c79cf935527d5f31
+    audit_ids:
+    - audit-4b63458b4594
+    - audit-734e9f76fb55
+    - audit-bdfc9e5e99cb
+    - audit-149098a5859a
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T09:26:25.119120+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-642
@@ -159,6 +171,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:10:41.536024+00:00'
     applied_at: '2026-08-07T09:10:50.436427+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-7184b2886578
@@ -177,7 +190,7 @@ oompah.terminal_audit:
       audits already PASSed Done and Merged. The re-opened Archived audit failed before
       review began; authorize the provenance-only archive while OOMPAH-871 fixes recurrence.'
     created_at: '2026-08-07T09:26:10.638688+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -322,7 +335,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-642
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -336,6 +349,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:25:23.170910+00:00'
     selected_ref: af6e423391f3756f99900cf4263cbb6f4d3d07de
     selected_sha: af6e423391f3756f99900cf4263cbb6f4d3d07de
+    updated_at: '2026-08-07T09:26:25.119085+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3755ea18f7aa
@@ -643,5 +657,12 @@ author: oompah
 created: 2026-08-07 09:25
 ---
 Archive the already merged, independently audited PR #609 task after transport-only re-audit failure.
+---
+author: oompah
+created: 2026-08-07 09:26
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: PR #609 merged at af6e42339 after a passing full gate, and independent audits already PASSed Done and Merged. The re-opened Archived audit failed before review began; authorize the provenance-only archive while OOMPAH-871 fixes recurrence.
 ---
 <!-- COMMENTS:END -->
