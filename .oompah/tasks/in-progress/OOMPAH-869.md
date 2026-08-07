@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T07:22:27.556909Z'
+updated_at: '2026-08-07T07:23:00.819187Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bd4020cc-87a3-4b2a-86d3-4509ef797833
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46778
   total_output_tokens: 501

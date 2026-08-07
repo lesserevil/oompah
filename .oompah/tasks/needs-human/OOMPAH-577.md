@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T07:10:45.108801Z'
+updated_at: '2026-08-07T07:22:47.805778Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -40,6 +40,31 @@ oompah.terminal_audit:
     reason: 'Restore proven merged state from PR #588 merge commit 70fa1de48 and recorded
       green CI/live evidence.'
     created_at: '2026-07-31T06:06:55.508737+00:00'
+  applied_result_attempts:
+    no-auditor-audit-c1eee8ef1fc2-2: '2026-08-07T07:22:36.552463+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Done
+    evidence_fingerprint: 48fe0a0413a694bb96d0f317a7f6440aac564b1f9b3fac497a37a0bb5095d8cd
+    audit_ids:
+    - audit-c1eee8ef1fc2
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:22:36.552473+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    audit_id: audit-c1eee8ef1fc2
+    attempt_id: no-auditor-audit-c1eee8ef1fc2-2
+    target_state: Done
+    evidence_fingerprint: 48fe0a0413a694bb96d0f317a7f6440aac564b1f9b3fac497a37a0bb5095d8cd
+    status: Needs Human
+    audit_ids:
+    - audit-c1eee8ef1fc2
+    applied: true
+    created_at: '2026-08-07T07:22:36.552485+00:00'
+    applied_at: '2026-08-07T07:22:44.871987+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -47,7 +72,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -87,13 +112,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-577 (tried: origin/OOMPAH-577)'
       next_retry_at: '2026-08-07T07:10:49.385204+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-c1eee8ef1fc2-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 48fe0a0413a694bb96d0f317a7f6440aac564b1f9b3fac497a37a0bb5095d8cd
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:22:36.552340+00:00'
+      completed_at: '2026-08-07T07:22:36.552340+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Review
     created_at: '2026-07-31T06:06:13.348111+00:00'
-    updated_at: '2026-08-07T07:10:29.385257+00:00'
+    updated_at: '2026-08-07T07:22:36.552340+00:00'
   - version: 1
     audit_id: audit-534d62772883
     project_id: proj-14849f1b
@@ -252,5 +289,12 @@ author: oompah
 created: 2026-08-07 07:10
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-577 (tried: origin/OOMPAH-577). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-07 07:22
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

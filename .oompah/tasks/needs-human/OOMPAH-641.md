@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T07:11:15.067257Z'
+updated_at: '2026-08-07T07:23:10.044944Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/607
@@ -118,6 +118,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-2590e4533e41: '2026-07-31T06:57:48.137341+00:00'
     attempt-1a6f3469b104: '2026-07-31T07:02:00.620917+00:00'
+    no-auditor-audit-3add4ac3b4e8-0: '2026-08-07T07:23:03.849829+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-641
+    target_state: Archived
+    evidence_fingerprint: 4d66feb3ba0d326f9991dd92f28f9f33344894453c53fd16f5429fcea9872b87
+    audit_ids:
+    - audit-3add4ac3b4e8
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:23:03.849836+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-641
+    audit_id: audit-3add4ac3b4e8
+    attempt_id: no-auditor-audit-3add4ac3b4e8-0
+    target_state: Archived
+    evidence_fingerprint: 4d66feb3ba0d326f9991dd92f28f9f33344894453c53fd16f5429fcea9872b87
+    status: Needs Human
+    audit_ids:
+    - audit-3add4ac3b4e8
+    applied: true
+    created_at: '2026-08-07T07:23:03.849848+00:00'
+    applied_at: '2026-08-07T07:23:08.786545+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -193,18 +217,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-641
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 4d66feb3ba0d326f9991dd92f28f9f33344894453c53fd16f5429fcea9872b87
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-3add4ac3b4e8-0
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4d66feb3ba0d326f9991dd92f28f9f33344894453c53fd16f5429fcea9872b87
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:23:03.849724+00:00'
+      completed_at: '2026-08-07T07:23:03.849724+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:11:09.923055+00:00'
+    updated_at: '2026-08-07T07:23:03.849724+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2590e4533e41
@@ -469,5 +506,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 34s
 - Log: OOMPAH-641__20260731T065848Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:23
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

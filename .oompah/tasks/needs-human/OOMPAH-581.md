@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T07:16:32.202260Z'
+updated_at: '2026-08-07T07:23:03.029562Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -162,6 +162,7 @@ oompah.terminal_audit:
     attempt-200d14f6c680: '2026-07-31T02:45:07.986873+00:00'
     attempt-60d86ee9562c: '2026-07-31T02:47:25.569475+00:00'
     no-auditor-audit-d7244a8797ac-0: '2026-08-07T03:48:38.735786+00:00'
+    no-auditor-audit-92362c1c4018-0: '2026-08-07T07:22:52.281224+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-581
@@ -172,6 +173,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T03:48:38.735796+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Done
+    evidence_fingerprint: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    audit_ids:
+    - audit-92362c1c4018
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:22:52.281249+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-581
@@ -185,6 +195,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T03:48:38.735810+00:00'
     applied_at: '2026-08-07T03:48:47.245154+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    audit_id: audit-92362c1c4018
+    attempt_id: no-auditor-audit-92362c1c4018-0
+    target_state: Done
+    evidence_fingerprint: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    status: Needs Human
+    audit_ids:
+    - audit-92362c1c4018
+    applied: true
+    created_at: '2026-08-07T07:22:52.281270+00:00'
+    applied_at: '2026-08-07T07:23:01.629589+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -290,18 +312,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-92362c1c4018-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:22:52.281061+00:00'
+      completed_at: '2026-08-07T07:22:52.281061+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: In Progress
     created_at: '2026-08-07T07:16:26.653779+00:00'
+    updated_at: '2026-08-07T07:22:52.281061+00:00'
   - version: 1
     audit_id: audit-c2ccc4272c2f
     project_id: proj-14849f1b
@@ -870,5 +905,12 @@ author: oompah
 created: 2026-08-07 07:16
 ---
 Owner workaround: PR #600 is merged; reviewed head 741a7d88 and the stale accepted head f2b319c are both ancestors of current origin/main with zero target diff. Retired the erroneous CI-fixer retry under direct claim. OOMPAH-870 tracks the zero-diff Ready fast path and OOMPAH-871 tracks the watchdog reopen. Restoring this task to the Merged terminal audit path; no new implementation, gate, or PR is warranted.
+---
+author: oompah
+created: 2026-08-07 07:22
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
