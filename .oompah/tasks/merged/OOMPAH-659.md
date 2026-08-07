@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-659
 type: task
-status: In Progress
+status: Merged
 priority: null
 title: Defer standalone full gates until finish dependencies are satisfied
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T18:26:08.765626Z'
+updated_at: '2026-08-07T20:19:31.249701Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -263,6 +263,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:35:54.684152+00:00'
     applied_at: '2026-08-07T14:36:02.215586+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b89b95b0ef5d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-659
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30c09f3dce6d46574763a22aeaeab2353f843d3875c8feaf48628818d2f2c745
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #620 merged exact head cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50 as
+      507534cf21032d8bd94ce6e9d5dcd4d1497b3a65; all Python 3.11/3.12/3.13 CI checks
+      passed and the merge commit is an ancestor of current main.'
+    created_at: '2026-08-07T20:19:26.894175+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
