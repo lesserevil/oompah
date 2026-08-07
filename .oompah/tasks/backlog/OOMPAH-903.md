@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:58:05.057419Z'
-updated_at: '2026-08-07T18:58:05.057419Z'
+updated_at: '2026-08-07T19:10:06.231892Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,17 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 19:10
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: ACP worker failed issue_id=OOMPAH-648
+
+Source issue: `OOMPAH-648`
+---
+<!-- COMMENTS:END -->
