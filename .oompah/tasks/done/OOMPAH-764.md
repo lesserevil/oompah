@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:56:27.570874Z'
+updated_at: '2026-08-07T12:56:35.510124Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
@@ -63,7 +63,7 @@ oompah.terminal_audit:
       gates and completion audit passed, and stale PR #742 is closed. Done is the
       safe deployed-server state until OOMPAH-791 can reconcile nested Merged.'
     created_at: '2026-08-07T12:56:23.688691+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-764
@@ -75,6 +75,17 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-04T14:44:20.219011+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    evidence_fingerprint: e410ab35e5a6bf95f6c0fb4e037303058915bf7ed1e85e0ee4dd1d9e3a48306e
+    audit_ids:
+    - audit-a70c8beeb684
+    - audit-017862c7aec9
+    - audit-a69fc1614a16
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T12:56:34.085325+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -150,7 +161,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-764
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,6 +175,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:55:37.708645+00:00'
     selected_ref: origin/epic-OOMPAH-764
     selected_sha: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
+    updated_at: '2026-08-07T12:56:34.085290+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
@@ -289,5 +301,12 @@ author: oompah
 created: 2026-08-07 12:55
 ---
 Patch-equivalent nested epic work is already contained in epic-OOMPAH-763; stale PR #742 is closed. Requesting audited Done because the deployed server cannot yet verify the truthful nested Merged transition.
+---
+author: oompah
+created: 2026-08-07 12:56
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Owner reviewed queued audit-a69fc1614a16. Exact evidence: all three origin/epic-OOMPAH-764 commits are patch-equivalent in current origin/epic-OOMPAH-763, prior full/focused gates and completion audit passed, and stale PR #742 is closed. Done is the safe deployed-server state until OOMPAH-791 can reconcile nested Merged.
 ---
 <!-- COMMENTS:END -->
