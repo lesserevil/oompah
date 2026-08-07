@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T13:43:50.678021Z'
+updated_at: '2026-08-07T13:44:20.273629Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1626be4e-125c-4670-82ed-6b63577a9d56
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 11703460
   total_output_tokens: 51871
@@ -641,5 +641,10 @@ author: oompah
 created: 2026-08-07 13:43
 ---
 Completion: Reconciled the reopened task to the already-delivered exact review head 78aecdcf07412f6f4eabf9e735b7206a3faa93b7. PR #740 is merged, all GitHub matrix checks and the service-owned complete branch gate passed at that head, origin/OOMPAH-873 matches local HEAD, and the worktree is clean. No follow-up work or code changes remain; resubmitting for terminal processing.
+---
+author: oompah
+created: 2026-08-07 13:44
+---
+Reconciled reopened task to merged PR #740 head 78aecdcf0; exact-head complete gate and Python 3.11/3.12/3.13 GitHub CI all pass, branch is pushed and clean, with no additional code change needed.
 ---
 <!-- COMMENTS:END -->
