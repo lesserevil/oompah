@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-07T18:38:38.572978Z'
+updated_at: '2026-08-07T19:03:53.115898Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -199,5 +199,10 @@ author: oompah
 created: 2026-08-07 18:38
 ---
 Direct repair update: fixed the final rejected durability cut so availability persistence is a precondition of tracker mutation, failed project-store updates restore the prior durable availability, and no failed cut advances epoch/cache/notifications. Independent review then found a slow old-config refresh could republish stale cache data after the cut; stale entries and refresh publication are now fenced by tracker generation, with late results rejected. New direct/API/rollback/barrier regressions plus the complete work-decision cache suite pass (43/43). Awaiting final independent static acceptance before the broader affected-suite gate.
+---
+author: oompah
+created: 2026-08-07 19:03
+---
+Direct implementation checkpoint: independent review ACCEPTED the final generation-fencing and aggregate invalidation repair. The complete affected surface passes under the canonical validation lease (700 passed), including controller/cache/snapshot/API/dashboard parity, reload/config races, redaction, alerts, and WebSocket lifecycle. Committed locally as 0939ca85d5fd9c67376f1b6f7d9dde6bf1cef02b; branch remains isolated and will be restacked onto the repaired shared baseline before exact-gate submission.
 ---
 <!-- COMMENTS:END -->
