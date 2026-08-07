@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:12:14.742186Z'
+updated_at: '2026-08-07T10:12:34.358490Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -216,7 +216,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -239,6 +239,22 @@ oompah.terminal_audit:
       selected_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
       ended_at: '2026-08-07T10:12:11.349094+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-064e24c7b8c3
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 22621054d425c46d849eab25864e085503df1f9257f4701b475a5a27f1e634bc
+      created_at: '2026-08-07T10:12:30.389708+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T10:12:30.389708+00:00'
+      branch_key: OOMPAH-647
+      selected_ref: 79fbad71a4c5e735916e16db6fd546d455da3022
+      selected_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
@@ -247,7 +263,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:47:28.967497+00:00'
     selected_ref: 79fbad71a4c5e735916e16db6fd546d455da3022
     selected_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
-    updated_at: '2026-08-07T09:50:19.149663+00:00'
+    updated_at: '2026-08-07T10:12:30.389708+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d19fa24aa57b
@@ -308,6 +324,22 @@ oompah.terminal_audit:
     selected_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
     ended_at: '2026-08-07T10:12:11.349094+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-064e24c7b8c3
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 22621054d425c46d849eab25864e085503df1f9257f4701b475a5a27f1e634bc
+    created_at: '2026-08-07T10:12:30.389708+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T10:12:30.389708+00:00'
+    branch_key: OOMPAH-647
+    selected_ref: 79fbad71a4c5e735916e16db6fd546d455da3022
+    selected_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
+    candidate_rotation_count: 1
 ---
 ## Summary
 
