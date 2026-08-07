@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-07T13:13:09.087947Z'
+updated_at: '2026-08-07T13:16:31.844123Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -816,12 +816,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3c7cffa05f28
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+      created_at: '2026-08-07T13:16:21.115166+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T13:16:21.115166+00:00'
+      branch_key: epic-OOMPAH-585
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -830,6 +845,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:13:05.253827+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    updated_at: '2026-08-07T13:16:21.115166+00:00'
   - version: 1
     audit_id: audit-6bc04524dcf6
     project_id: proj-14849f1b
@@ -1111,6 +1127,21 @@ oompah.terminal_audit:
     started_at: '2026-08-04T00:35:28.422966+00:00'
     branch_key: epic-OOMPAH-585
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-3c7cffa05f28
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    created_at: '2026-08-07T13:16:21.115166+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T13:16:21.115166+00:00'
+    branch_key: epic-OOMPAH-585
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
 oompah.task_costs:
   total_input_tokens: 369
   total_output_tokens: 11865
@@ -1967,5 +1998,10 @@ author: oompah
 created: 2026-08-05 08:06
 ---
 Lifecycle reconciliation restored OOMPAH-585 to audited Done: Cannot transition shared-epic child OOMPAH-585 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
+---
+author: oompah
+created: 2026-08-07 13:16
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
