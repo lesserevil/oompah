@@ -486,9 +486,15 @@ def test_stop_fences_cross_thread_termination_scheduling_and_drains_owner_task(
         termination_started = asyncio.Event()
         allow_termination = asyncio.Event()
 
-        async def terminate(issue_id, cleanup_workspace=False):
+        async def terminate(
+            issue_id,
+            cleanup_workspace=False,
+            *,
+            expected_entry=None,
+        ):
             assert issue_id == issue.id
             assert cleanup_workspace is False
+            assert expected_entry is entry
             termination_started.set()
             await allow_termination.wait()
             orch.state.running.pop(issue_id, None)
