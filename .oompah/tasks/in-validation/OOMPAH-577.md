@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-07-31T06:07:19.409406Z'
+updated_at: '2026-08-07T06:08:56.525620Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -90,6 +90,23 @@ oompah.terminal_audit:
       source: api
     previous_state: In Review
     created_at: '2026-07-31T06:06:13.348111+00:00'
+  - version: 1
+    audit_id: audit-ddd74e1c9e1e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 80e2c5927e01fa8dd501f592e9e8062ec6229b01926107d735232bfc4bf86daf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T06:08:51.515138+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2d156054d52d
