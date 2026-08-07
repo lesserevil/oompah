@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T08:14:06.526944Z'
+updated_at: '2026-08-07T08:31:20.804186Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,13 +69,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 1e76ca5f-6357-400c-9205-713f0357030f
 oompah.task_costs:
-  total_input_tokens: 40
-  total_output_tokens: 1745
+  total_input_tokens: 264
+  total_output_tokens: 8283
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 40
       output_tokens: 1745
+      cost_usd: 0.0
+    opus:
+      input_tokens: 224
+      output_tokens: 6538
       cost_usd: 0.0
   runs:
   - profile: default
@@ -90,6 +94,12 @@ oompah.task_costs:
     output_tokens: 9
     cost_usd: 0.0
     recorded_at: '2026-08-07T07:29:19.336540+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 224
+    output_tokens: 6538
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T08:31:11.779630+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-871__20260807T071552Z
@@ -197,5 +207,25 @@ author: oompah
 created: 2026-08-07 08:14
 ---
 Independent review follow-up: current draft remains REJECT until these are resolved: (1) mark/authorize helpers merely accept a caller-supplied ContributorIdentity and do not bind to authenticated project-owner authority; (2) autonomous restart recovery, shared absorption, late review handoff, close/unpushed/integration gates, and merge-conflict/CI escalations can still mutate provenance-only terminal work before _should_dispatch; (3) tests must exercise real orchestrator/restart calls, not marker models only; (4) unsupported marker version currently interpolates raw metadata into ProvenanceSuppressionError, so malformed-marker alert text can leak attacker-controlled/sensitive payload. Use an auth-bound reachable entry point, a central fenced status-transition boundary or complete coverage of reopeners, and sanitized structural errors.
+---
+author: oompah
+created: 2026-08-07 08:31
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 214, Tool calls: 158
+- Tokens: 224 in / 6.5K out [6.8K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 1m 7s
+- Log: OOMPAH-871__20260807T073021Z.jsonl
+---
+author: oompah
+created: 2026-08-07 08:31
+---
+Issue has failed 2 time(s). Attempting auto-decomposition into smaller tasks.
+---
+author: oompah
+created: 2026-08-07 08:31
+---
+Auto-decomposition failed: No provider configured for decomposition. Falling back to normal retry.
 ---
 <!-- COMMENTS:END -->
