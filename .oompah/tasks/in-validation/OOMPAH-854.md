@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T16:18:32.737220Z'
+updated_at: '2026-08-07T16:19:10.716227Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -124,6 +124,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-854
     source_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
     completed_at: '2026-08-06T06:10:36.816817+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-ee9988f727c9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-854
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bdd4ff9f8a687d8460608b62ae884139b8b0c0a384a05468bb10db24506f3e42
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T16:19:02.229224+00:00'
+    selected_ref: 357149ce04f89835e85a063d914625dc751e71c1
+    selected_sha: 357149ce04f89835e85a063d914625dc751e71c1
+  attempt_history: []
 ---
 ## Summary
 
@@ -579,5 +603,10 @@ author: oompah
 created: 2026-08-07 16:18
 ---
 Broader restack validation is green at local head e0c71eb465b0c0db430baf6382e1327e5a9aa5bd. Two strict teardown errors were stale test doubles, not product lifecycle defects: the timer double now implements cancellation and the scheduler-suppressed accepted-submission test restores a project-scoped tracker and performs real exact-entry retirement. Evidence: exact 2/2, full retry-authority module 72/72, seven lifecycle modules 294/294 under canonical lease; diff, py_compile, and secret scan clean. Independent semantic review already ACCEPTed the production restack. Holding unpushed for controlled shared-epic composition.
+---
+author: oompah
+created: 2026-08-07 16:19
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
