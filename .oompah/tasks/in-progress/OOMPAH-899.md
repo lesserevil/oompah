@@ -12,8 +12,8 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T18:19:44.319195Z'
-work_branch: null
+updated_at: '2026-08-07T18:20:08.032443Z'
+work_branch: OOMPAH-899
 target_branch: null
 review_url: null
 review_number: null
@@ -98,6 +98,15 @@ oompah.task_costs:
     output_tokens: 1983
     cost_usd: 0.0
     recorded_at: '2026-08-07T17:49:38.143582+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-899
+  head_sha: e6e07180cee4207eb6cf1f0b7059a7d5a63f6e80
+  submitted_at: '2026-08-07T18:19:59.644291+00:00'
+  updated_at: '2026-08-07T18:19:59.644291+00:00'
+oompah.work_branch: OOMPAH-899
 ---
 ## Summary
 
