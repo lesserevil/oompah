@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T19:34:53.124763Z'
+updated_at: '2026-08-07T19:35:26.637488Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -46,8 +46,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 7b49f9fa-5d02-4af3-86f8-e8915a11b2e9
 oompah.task_costs:
-  total_input_tokens: 48226
-  total_output_tokens: 591
+  total_input_tokens: 48252
+  total_output_tokens: 923
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -55,8 +55,8 @@ oompah.task_costs:
       output_tokens: 246
       cost_usd: 0.0
     unknown:
-      input_tokens: 114
-      output_tokens: 345
+      input_tokens: 140
+      output_tokens: 677
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +89,12 @@ oompah.task_costs:
     output_tokens: 34
     cost_usd: 0.0
     recorded_at: '2026-08-07T18:19:22.774501+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 26
+    output_tokens: 332
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T19:35:18.611472+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-872__20260807T071650Z
@@ -134,6 +140,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T10:49:23.247373+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-872
+    target_state: Merged
+    evidence_fingerprint: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+    audit_ids:
+    - audit-5b3c5f4c2a0d
+    - audit-46b8ca9873dd
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:34:57.806133+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-872
@@ -147,6 +163,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:49:23.247389+00:00'
     applied_at: '2026-08-07T10:49:31.691347+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-1868a51b7115
@@ -166,7 +183,7 @@ oompah.terminal_audit:
       Direct takeover changed lifecycle state but introduced no new revision; redundant
       re-audit is unnecessary.'
     created_at: '2026-08-07T19:34:48.941670+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -263,7 +280,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-872
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -292,7 +309,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:45:34.532405+00:00'
     selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
-    updated_at: '2026-08-07T19:26:21.144297+00:00'
+    updated_at: '2026-08-07T19:34:57.806095+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4f9386900ca5
@@ -677,5 +694,27 @@ author: oompah
 created: 2026-08-07 19:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:34
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Retain the previously accepted merged revision: verified source head 0458f8f72b38d61bf81f1629a3d050d51c25bc8d is an exact ancestor of current origin/main. Direct takeover changed lifecycle state but introduced no new revision; redundant re-audit is unnecessary.
+---
+author: oompah
+created: 2026-08-07 19:35
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 13
+- Tokens: 26 in / 332 out [358 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 52s
+- Log: OOMPAH-872__20260807T192640Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:35
+---
+Already integrated on main; owner override restores the verified terminal record after direct takeover.
 ---
 <!-- COMMENTS:END -->

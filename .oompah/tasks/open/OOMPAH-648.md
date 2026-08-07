@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T19:30:44.382427Z'
+updated_at: '2026-08-07T19:35:17.490564Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -24,17 +24,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: origin/OOMPAH-648 does not match accepted head ca51c22b90785daec5d4dd7f0e29dc22045957cc
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-07T19:23:52.135045+00:00'
+  evidence: ''
+  claim_id: d8fb633d-e90e-43be-848c-36594333ec76
+  claim_owner: c9ddd8c2-e01f-4883-8c85-4ffaf1d4d3b9
+  claimed_at: '2026-08-07T19:35:09.854270+00:00'
+  claim_expires_at: '2026-08-07T20:05:09.854270+00:00'
+  retry_count: 0
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 017bc873-f505-4885-b7ce-c838c75214fd
+oompah.agent_run_id: 87c907a6-fe18-4f39-853a-bdf2c7111f1f
 oompah.task_costs:
   total_input_tokens: 26033567
   total_output_tokens: 68369
@@ -946,5 +946,10 @@ created: 2026-08-07 19:30
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 19:35
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
