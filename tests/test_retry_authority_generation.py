@@ -1564,6 +1564,18 @@ def test_stale_timer_coroutine_cannot_consume_rearmed_retry(tmp_path):
     """
 
     async def scenario() -> None:
+        class TimerDouble:
+            """Minimal TimerHandle contract retained for strict teardown."""
+
+            def __init__(self) -> None:
+                self._cancelled = False
+
+            def cancelled(self) -> bool:
+                return self._cancelled
+
+            def cancel(self) -> None:
+                self._cancelled = True
+
         orch = _orchestrator(tmp_path)
         issue = _issue(state="Open")
         stale = RetryEntry(
@@ -1580,8 +1592,8 @@ def test_stale_timer_coroutine_cannot_consume_rearmed_retry(tmp_path):
             due_at_ms=0.0,
             project_id=issue.project_id,
         )
-        stale_timer = object()
-        replacement_timer = object()
+        stale_timer = TimerDouble()
+        replacement_timer = TimerDouble()
         stale_generation = object()
         replacement_generation = object()
         orch.state.retry_attempts[issue.id] = stale
@@ -1612,6 +1624,8 @@ def test_stale_timer_coroutine_cannot_consume_rearmed_retry(tmp_path):
         assert orch._retry_dispatching == {}
         assert orch.state.retry_attempts[issue.id] is replacement
         assert replacement.timer_handle is replacement_timer
+        assert stale_timer.cancelled() is False
+        assert replacement_timer.cancelled() is False
         orch._post_event.assert_not_called()
         orch._fetch_retry_issue.assert_not_called()
 
@@ -2287,6 +2301,23 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
                 if not entry.worker_task.done():
                     entry.worker_task.cancel()
                 await asyncio.gather(entry.worker_task, return_exceptions=True)
+            if entry is not None:
+                # This test deliberately suppresses the production termination
+                # scheduler. Restore a resolvable managed tracker, then perform
+                # the real accepted-submission retirement so strict fixture
+                # teardown observes no fabricated runtime owner.
+                tracker.fetch_issue_detail.side_effect = None
+                tracker.fetch_issue_detail.return_value = replace(
+                    issue,
+                    state=tracker_state["state"],
+                )
+                orch._project_trackers[issue.project_id] = tracker
+                assert await orch._terminate_running(
+                    issue.id,
+                    cleanup_workspace=False,
+                    expected_entry=entry,
+                )
+                assert issue.id not in orch.state.running
 
     asyncio.run(scenario())
 
