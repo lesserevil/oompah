@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T10:41:04.783931Z'
+updated_at: '2026-08-07T10:43:33.796066Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -19,43 +19,21 @@ review_number: '615'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: 34b7218c890759bfab1fc1575e53815c1060649d03e9dae5e880401024c8464e
+  task_fingerprint: 46482d7ee908c0f865e2bffc49b4817e6aba0606ffb53c68967324d4c9dabbc3
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T07:22:29.514613+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: "Based on my comprehensive investigation, I have:\n\n1. \u2705 Searched\
-    \ all active tasks (open, backlog) - found OOMPAH-281 (unrelated: containerized\
-    \ runner) and OOMPAH-282 (unrelated: Unicode encoding bug)\n2. \u2705 Searched\
-    \ merged/archived task histories - no duplicates matching worktree preservation\n\
-    3. \u2705 Searched docs/ and plans/ directories - no existing documentation on\
-    \ this topic\n4. \u2705 Searched for references to OOMPAH-644 and OOMPAH-645 mentioned\
-    \ in the description - they do not exist as tracked tasks\n5. \u2705 Searched\
-    \ for related keywords (dirty, worktree, termination, cleanup, retry, preserve,\
-    \ reset, stash, recovery) - no active duplicate tasks found\n\n## Investigation\
-    \ Summary\n\n**OOMPAH-649** addresses a critical data-loss bug: when a worker\
-    \ is terminated with `cleanup=False` during task work, the subsequent retry launch\
-    \ starts on a clean worktree with the previous agent's staged/unstaged/untracked\
-    \ changes completely lost. The issue description references OOMPAH-644 and OOMPAH-645\
-    \ as prior instances of this data loss, but these are not currently tracked as\
-    \ separate active tasks \u2014 they're mentioned only as context for the problem.\n\
-    \nThe required fix involves:\n- Detecting dirty worktrees before any reset/sync/rebase\n\
-    - Preserving changes durably via task-scoped recovery commits or snapshots\n-\
-    \ Exposing recovery context and exact prior filesystem state to retry agents\n\
-    - Preventing silent data loss via `reset --hard`\n\nThis is a unique, previously-unaddressed\
-    \ task with no active duplicate.\n\n---\n\n**Focus handoff: duplicate_detector**\n\
-    \n**Duplicate preflight verdict: no_duplicate**\n\n**Matches: none**\n\n**Evidence:**\
-    \ Searched all task states (open, backlog, merged, archived), docs/, plans/, and\
-    \ entire repository for related keywords (dirty, worktree, termination, cleanup,\
-    \ retry, preserve, reset, stash, recovery, worker). Only active tasks are OOMPAH-281\
-    \ (self-hosted runner) and OOMPAH-282 (Unicode encoding bug), both unrelated.\
-    \ OOMPAH-649 is a unique task addressing a critical data-loss b"
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 2c0c5de7-5a00-4af6-bfeb-a9edbc24efcd
+  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
+  claimed_at: '2026-08-07T10:43:29.863109+00:00'
+  claim_expires_at: '2026-08-07T11:13:29.863109+00:00'
   retry_count: 0
   retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 oompah.agent_run_id: 89318e91-c940-4206-8649-a4c23121637d
 oompah.task_costs:
   total_input_tokens: 243

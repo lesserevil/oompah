@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:43:15.770205Z'
+updated_at: '2026-08-07T10:43:31.619080Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -635,5 +635,15 @@ created: 2026-08-07 10:40
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 10:43
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-08-07 10:43
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
