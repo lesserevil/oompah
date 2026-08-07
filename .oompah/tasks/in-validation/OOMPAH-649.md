@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T19:24:43.949226Z'
+updated_at: '2026-08-07T19:25:55.944793Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
@@ -335,12 +335,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-33627e8bb55f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
+      created_at: '2026-08-07T19:25:48.895004+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T19:25:48.895004+00:00'
+      branch_key: OOMPAH-649
+      selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+      selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
     requested_by:
       version: 1
       identity: oompah-cli
@@ -349,6 +364,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:38.221111+00:00'
     selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
     selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+    updated_at: '2026-08-07T19:25:48.895004+00:00'
   - version: 1
     audit_id: audit-f0f396469843
     project_id: proj-14849f1b
@@ -432,6 +448,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T10:20:45.999691+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T10:21:05.999670+00:00'
+  - version: 1
+    attempt_id: attempt-33627e8bb55f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
+    created_at: '2026-08-07T19:25:48.895004+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T19:25:48.895004+00:00'
+    branch_key: OOMPAH-649
+    selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+    selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
 oompah.review_head: ''
 review_head: ''
 ---
@@ -916,5 +947,10 @@ Target branch: `main`
 Reason: review head 0957d99556f3200361fa225ba313a7b5db53daa6 does not match accepted submission head c9f16e399efcbe1a0e9ac70948c8fac2d9262017
 
 This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 19:25
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
