@@ -587,6 +587,9 @@ class CodexAcpBackendSession(AcpBackendSession):
         return build_codex_tool_catalog(
             self._options.workspace_path,
             isolate_remote_write=self._options.isolate_remote_write,
+            epic_rebase_publish_enabled=(
+                self._options.epic_rebase_publish_enabled
+            ),
             tool_liveness=self._options.tool_liveness,
             project_store=self._options.project_store,
             project_id=self._options.project_id,
