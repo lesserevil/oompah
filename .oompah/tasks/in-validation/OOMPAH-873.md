@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T19:25:06.765706Z'
+updated_at: '2026-08-07T19:27:11.027012Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -251,12 +251,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-873
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-33ebb68d0299
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+      created_at: '2026-08-07T19:27:03.416913+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T19:27:03.416913+00:00'
+      branch_key: OOMPAH-873
+      selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+      selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
     requested_by:
       version: 1
       identity: lesserevil
@@ -265,6 +280,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:05:44.182570+00:00'
     selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
     selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    updated_at: '2026-08-07T19:27:03.416913+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f377f7de4b20
@@ -303,6 +319,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T12:24:55.212301+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T12:25:15.212274+00:00'
+  - version: 1
+    attempt_id: attempt-33ebb68d0299
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+    created_at: '2026-08-07T19:27:03.416913+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T19:27:03.416913+00:00'
+    branch_key: OOMPAH-873
+    selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
 ---
 ## Summary
 
@@ -661,5 +692,10 @@ author: oompah
 created: 2026-08-07 15:03
 ---
 Fresh production reproduction for acceptance coverage: after owner-overriding OOMPAH-877/878/880/881/882/884/885/888/890/893/895/897/898 to terminal and releasing their direct claims, each task-specific owner-claim GET reported active=false, while GET /api/v1/state continued listing eight released claims as active owner_claims. This is an exact stale full-state projection versus fresh detail read and should clear through OOMPAH-873 reconciliation/full-sync without manual restart.
+---
+author: oompah
+created: 2026-08-07 19:27
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
