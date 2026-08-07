@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T12:47:31.436713Z'
+updated_at: '2026-08-07T12:48:41.280306Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -809,5 +809,19 @@ FAILED tests/test_ws_fault_injection.py::TestLiveDashboardConvergence::test_four
 RuntimeWarning: Enable tracemalloc to get the object allocation traceback
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 12:48
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #24)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 588 is merged
+**Evidence head:** `a96f06a7c7d1525e8c50f6aaebe763cbea36d3df`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
