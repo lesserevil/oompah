@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: In Validation
+status: Done
 priority: 0
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:55:49.110761Z'
+updated_at: '2026-08-07T12:56:27.570874Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
@@ -45,6 +45,25 @@ oompah.terminal_audit:
       and 482 focused and adjacent tests passed.
     created_at: '2026-08-04T14:44:06.820415+00:00'
     applied: true
+  - version: 1
+    override_id: override-74f118f46b7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e410ab35e5a6bf95f6c0fb4e037303058915bf7ed1e85e0ee4dd1d9e3a48306e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reviewed queued audit-a69fc1614a16. Exact evidence: all three origin/epic-OOMPAH-764
+      commits are patch-equivalent in current origin/epic-OOMPAH-763, prior full/focused
+      gates and completion audit passed, and stale PR #742 is closed. Done is the
+      safe deployed-server state until OOMPAH-791 can reconcile nested Merged.'
+    created_at: '2026-08-07T12:56:23.688691+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-764
