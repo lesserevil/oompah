@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T10:15:05.735762Z'
+updated_at: '2026-08-07T10:39:21.814728Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -293,5 +293,10 @@ author: oompah
 created: 2026-08-07 10:15
 ---
 Live enforcement miss on 2026-08-07 around 10:12 UTC: scheduler worker OOMPAH-577 launched PID 3314696 via scripts/run-tests.sh serial for test_terminal_transition_coordinator.py, test_orchestrator_handlers.py, and test_delivery_plane_recovery.py while the canonical broker showed OOMPAH-871 exact_gate as sole owner and O866/O854 as waiters. Process ancestry: server -> Codex O577 -> bwrap -> run-tests.sh -> pytest; it was not represented as a validation lease owner/waiter. Acceptance must cover this Codex/sandbox worker command path so heavyweight tests cannot run concurrently with an exact gate.
+---
+author: oompah
+created: 2026-08-07 10:39
+---
+Recovered the existing clean O846 worktree at ef1e1d07a (six local commits ahead of origin/epic-OOMPAH-763, two commits behind). The 2026-08-07 O577 process used deployed main c22debc, which predates this provider-boundary repair. Added a direct regression for the exact native path: absolute Codex Bash -> scripts/run-tests.sh serial -> /usr/bin/env bash -> three-file pytest. With an exact-gate owner holding capacity=1, the script remains a TASK-577 waiter and cannot reach its interpreter until release. Focused regression passed through the canonical validation broker.
 ---
 <!-- COMMENTS:END -->
