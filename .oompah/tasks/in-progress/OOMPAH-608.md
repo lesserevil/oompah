@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T10:07:16.883541Z'
+updated_at: '2026-08-07T10:15:25.427762Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -751,5 +751,10 @@ author: oompah
 created: 2026-08-07 10:07
 ---
 Implementation: tightened oompah/auditor.py so only explicit inert placeholders (masks, ellipses, synthetic x-runs, the published AWS EXAMPLE value, or header-only PEM syntax) are deterministically redacted. Complete credential-shaped message/list/evidence values and credential-like evidence keys now fail before the coordinator handler with field/path-only guidance that never echoes submitted content. safe_evidence now accepts bounded nested objects/arrays, recursively validates every key/leaf, and flattens safe leaves for the existing scalar coordinator contract. Unknown fields no longer echo model-controlled names. Updated the tool schema, coordinator design contract, and result/contract tests.
+---
+author: oompah
+created: 2026-08-07 10:15
+---
+Verification: exact-head focused suites passed: 477 tests across ACP auditor bridge, auditor focus/contract/result API, terminal audit, terminal transition coordinator, and secret tests. Ruff checks and git diff whitespace checks passed. Terminal mutation scan passed (8/8 allowlisted). Full repository secret scan passed with exit 0. The managed make guard could not acquire its validation lease because its operator lock path is read-only in this sandbox; no full make test was repeated, consistent with the specialist handoff rule that the orchestrator runs the exact-head branch gate.
 ---
 <!-- COMMENTS:END -->
