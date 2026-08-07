@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T19:32:09.556152Z'
+updated_at: '2026-08-07T19:32:23.388131Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -1212,5 +1212,10 @@ created: 2026-08-07 19:32
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Retain previously independently audited merged revision: PR #618 merged verified source head 0212dada64768ed8f89e7b27f461f121c4a42299 as 3316ec40933d1c387619d534e607a3b0100df7dc after exact make test and green Python 3.11/3.12/3.13 CI. Current Needs Human is solely candidate exhaustion on a redundant post-merge audit; no new revision exists.
+---
+author: oompah
+created: 2026-08-07 19:32
+---
+Already merged and independently verified in PR #618; owner override closes the redundant exhausted re-audit without reopening implementation.
 ---
 <!-- COMMENTS:END -->
