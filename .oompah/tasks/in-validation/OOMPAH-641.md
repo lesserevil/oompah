@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T18:18:36.691773Z'
+updated_at: '2026-08-07T19:24:18.671429Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
