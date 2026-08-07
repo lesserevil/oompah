@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:24:22.801210Z'
+updated_at: '2026-08-07T04:47:28.794463Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -361,5 +361,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 33s
 - Log: OOMPAH-845__20260806T210555Z.jsonl
+---
+author: oompah
+created: 2026-08-07 04:47
+---
+Post-O740 integration preflight: origin/main is now 7daf26e68 and OOMPAH-845 remains at accepted head 7bb2362fc. A synthetic merge reports conflicts across stacked shared infrastructure files because the branch merge-base predates several patch-equivalent main integrations; this needs a proper rebase/restack, not conflict masking. The server quality-gate snapshot still points at obsolete head 6a799a148; a refresh was queued so the current 7bb head can be re-evaluated after the shared validation lease clears.
 ---
 <!-- COMMENTS:END -->

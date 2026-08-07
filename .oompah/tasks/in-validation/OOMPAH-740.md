@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T04:45:32.100904Z'
+updated_at: '2026-08-07T04:47:40.083271Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -70,18 +70,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-740
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-901665a3be58
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
+      created_at: '2026-08-07T04:47:29.943857+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T04:47:29.943857+00:00'
+      branch_key: epic-OOMPAH-740
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T04:45:24.196289+00:00'
+    updated_at: '2026-08-07T04:47:29.943857+00:00'
   - version: 1
     audit_id: audit-68970d9026fb
     project_id: proj-14849f1b
@@ -99,7 +113,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T04:45:24.196289+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-901665a3be58
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
+    created_at: '2026-08-07T04:47:29.943857+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T04:47:29.943857+00:00'
+    branch_key: epic-OOMPAH-740
 ---
 ## Summary
 
@@ -267,5 +294,15 @@ author: oompah
 created: 2026-08-07 04:45
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 04:47
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 04:47
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
