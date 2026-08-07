@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T20:18:52.980783Z'
+updated_at: '2026-08-07T20:19:03.968470Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -1452,5 +1452,10 @@ created: 2026-08-07 20:18
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: PR #621 merged exact head 6e27fb150b7bd711c98c7aa5c94e355200dfa325 as ef2938146bf828ddc8d8d677501f4fad61d65a73; all Python 3.11/3.12/3.13 CI checks passed and the merge commit is an ancestor of current main.
+---
+author: oompah
+created: 2026-08-07 20:19
+---
+Already merged by PR #621 with complete CI.
 ---
 <!-- COMMENTS:END -->
