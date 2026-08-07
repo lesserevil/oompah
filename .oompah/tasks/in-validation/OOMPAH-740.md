@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: In Review
+status: In Validation
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T04:39:34.114391Z'
+updated_at: '2026-08-07T04:45:32.100904Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -61,6 +61,45 @@ oompah.task_costs:
     cost_usd: 0.0
     recorded_at: '2026-08-06T08:44:39.453301+00:00'
 oompah.review_head: 46e5857a9ad886e5cd4647cac496bf6ce29eb276
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6de89be41a1b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-740
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T04:45:24.196289+00:00'
+  - version: 1
+    audit_id: audit-68970d9026fb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-740
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T04:45:24.196289+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -223,5 +262,10 @@ author: oompah
 created: 2026-08-07 04:39
 ---
 Replacement hosted matrix attempt on exact head 231d2b8a7 passed Python 3.11 and 3.13. Python 3.12 reached 15,779 passing tests, then the unrelated validation-resource restart test raced its fixed 0.5s child lifetime and incorrectly expected a 0.05s acquisition timeout after the child had already released the kernel fence. The same exact O740 head already has a prior fully green hosted matrix. Filed OOMPAH-869 for deterministic child/fence synchronization and reran only the failed Python 3.12 job; no O740 product mutation was made.
+---
+author: oompah
+created: 2026-08-07 04:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
