@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T12:29:08.766332Z'
+updated_at: '2026-08-07T12:39:37.431907Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -561,5 +561,19 @@ created: 2026-08-07 12:29
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 12:39
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #23)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 740 is merged
+**Evidence head:** `78aecdcf07412f6f4eabf9e735b7206a3faa93b7`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
