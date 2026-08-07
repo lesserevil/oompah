@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T14:17:33.849223Z'
+updated_at: '2026-08-07T17:01:30.633829Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-08-07 14:17
 ---
 Recurrence evidence from OOMPAH-897: after a corrective exact-CAS rollback left remote epic-OOMPAH-763 at ca1c527, a second scheduler worker launched, entered the same shared worktree, rebased it, and attempted its own validation while OOMPAH-877 owned acceptance work. Supported owner takeover retired PID 2476147 and descendants; remote stayed fenced. This directly validates the need for OOMPAH-891 credential/workspace isolation and OOMPAH-892 server-owned CAS publication. Recovery refs protect 78e93d/a70fe0/d008. Project remains paused.
+---
+author: oompah
+created: 2026-08-07 17:01
+---
+Combined shared epic head 02eb534fa completed the first exact full make test gate: 17,367 passed, 7 skipped, 1 xfailed, with 14 failures isolated to four compatibility-contract clusters (auditor read-only Git policy, rebase admission fixtures, detached-descendant validation fencing, and legacy terminal-audit recovery). Independent repairs are running in parallel; project remains paused pending a green exact-head rerun.
 ---
 <!-- COMMENTS:END -->
