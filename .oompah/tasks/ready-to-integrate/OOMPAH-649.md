@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T11:31:56.764302Z'
+updated_at: '2026-08-07T11:32:38.584281Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 197fdc95-acb9-42c0-ac19-f74e94269c9b
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 51019
   total_output_tokens: 18073
@@ -152,9 +152,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-649
-  head_sha: 0957d99556f3200361fa225ba313a7b5db53daa6
-  submitted_at: '2026-07-31T08:54:15.875304+00:00'
-  updated_at: '2026-07-31T08:54:15.875304+00:00'
+  base_branch: main
+  head_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+  submitted_at: '2026-08-07T11:32:26.256134+00:00'
+  updated_at: '2026-08-07T11:32:26.256134+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/615
 oompah.review_number: '615'
 oompah.work_branch: OOMPAH-649
@@ -780,5 +781,10 @@ author: oompah
 created: 2026-08-07 11:31
 ---
 Verification: Git ancestry confirms 0957d9955 is merged through 72ed26d3; the tree is clean after fast-forwarding to origin/main. Historical task evidence records 210 focused recovery tests and a 14,254-pass full Makefile gate on the delivery head; I am also running the current terminal mutation scan.
+---
+author: oompah
+created: 2026-08-07 11:32
+---
+Verified already-merged delivery (0957d9955 / PR #615), restored required remote branch provenance, and confirmed a clean main-equivalent tree.
 ---
 <!-- COMMENTS:END -->
