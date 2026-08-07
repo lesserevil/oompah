@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-07T17:41:15.238484Z'
+updated_at: '2026-08-07T18:02:39.888060Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -52,14 +52,80 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-863
   base_branch: epic-OOMPAH-763
   base_sha: a85a36baf7b3ebcb45be27823755b5694a790a49
   head_sha: dab5702e5a9527bed25a4b2cb65714a1f0fdac52
   submitted_at: '2026-08-07T17:41:01.849386+00:00'
-  updated_at: '2026-08-07T17:41:01.849386+00:00'
+  updated_at: '2026-08-07T18:02:32.449255+00:00'
+  last_error: 'Combined-tree quality gate failed: ion_surface_waits_for_validation_capacity[yarn-arguments5-environment_update5]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[rg-arguments6-environment_update6]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[rg-arguments7-environment_update7]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[ruby-arguments8-environment_update8]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[ruby-arguments9-environment_update9]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_heavy_child_retains_lane_after_launcher_crash@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_detached_heavy_descendant_retains_native_capacity_until_exit@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_withdrawn_owner_remains_fenced_by_detached_descendant[expired]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_withdrawn_owner_remains_fenced_by_detached_descendant[cancelled]@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_term_ignoring_same_group_child_is_gone_before_capacity_reuse@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_command_timeout_begins_after_capacity_acquisition@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_launcher_ignores_candidate_pythonpath_poisoning@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_shell_entrypoint_fences_path_reassignment_and_local_wrapper@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_capacity_wait_observes_session_cancellation@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_post_attach_cancellation_exits_without_self_stopping@oompah_process_global
+
+    FAILED tests/test_native_validation_guard.py::test_native_stdin_shell_waits_for_validation_capacity@oompah_process_global
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_api_worker_shell_does_not_inherit_remote_write_credentials
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_rebase_executor_blocks_host_credentials_and_remote_write_routes[test
+    ! -e /home/shedwards/.ssh]
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_rebase_executor_supports_a_real_linked_worktree_without_remote_config
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_claude_mcp_run_command_uses_rebase_credential_boundary
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_rebase_executor_never_mounts_provider_or_handoff_runtime
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_opencode_mcp_run_command_uses_rebase_credential_boundary
+
+    FAILED tests/test_epic_rebase_credential_isolation.py::test_codex_mcp_run_command_uses_rebase_credential_boundary
+
+    FAILED tests/test_long_tick_regression.py::TestOperatorDiagnostics::test_snapshot_tick_metrics_include_dispatch_timing
+
+    ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_rejects_symlink_component@oompah_process_global
+
+    ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_rejects_unsafe_home_mode@oompah_process_global
+
+    ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_rejects_foreign_owned_home@oompah_process_global
+
+    ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_tightens_owned_scoped_directories@oompah_process_global
+
+    ERROR tests/test_native_validation_guard.py::test_external_broker_socket_rejects_tampered_private_child@oompah_process_global
+
+    = 120 failed, 17257 passed, 12 skipped, 1 xfailed, 36 warnings, 5 errors in 1200.17s
+    (0:20:00) =
+
+
+    make: *** [Makefile:401: test] Error 1
+
+    '
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2914
@@ -312,5 +378,47 @@ author: oompah
 created: 2026-08-07 17:41
 ---
 Rebased the accepted three-commit reservation-race repair onto exact shared epic a85a36baf, preserving the composed fixture corrections and concurrent contained-head behavior. Focused validation: review capacity 9/9 and standalone ready-to-integrate 69/69; secret scan and diff check passed. Published exact head dab5702e5a9527bed25a4b2cb65714a1f0fdac52.
+---
+author: oompah
+created: 2026-08-07 18:02
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-863`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+ion_surface_waits_for_validation_capacity[yarn-arguments5-environment_update5]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[rg-arguments6-environment_update6]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[rg-arguments7-environment_update7]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[ruby-arguments8-environment_update8]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_runner_execution_surface_waits_for_validation_capacity[ruby-arguments9-environment_update9]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_heavy_child_retains_lane_after_launcher_crash@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_detached_heavy_descendant_retains_native_capacity_until_exit@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_withdrawn_owner_remains_fenced_by_detached_descendant[expired]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_withdrawn_owner_remains_fenced_by_detached_descendant[cancelled]@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_term_ignoring_same_group_child_is_gone_before_capacity_reuse@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_command_timeout_begins_after_capacity_acquisition@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_launcher_ignores_candidate_pythonpath_poisoning@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_shell_entrypoint_fences_path_reassignment_and_local_wrapper@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_capacity_wait_observes_session_cancellation@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_post_attach_cancellation_exits_without_self_stopping@oompah_process_global
+FAILED tests/test_native_validation_guard.py::test_native_stdin_shell_waits_for_validation_capacity@oompah_process_global
+FAILED tests/test_epic_rebase_credential_isolation.py::test_api_worker_shell_does_not_inherit_remote_write_credentials
+FAILED tests/test_epic_rebase_credential_isolation.py::test_rebase_executor_blocks_host_credentials_and_remote_write_routes[test ! -e /home/shedwards/.ssh]
+FAILED tests/test_epic_rebase_credential_isolation.py::test_rebase_executor_supports_a_real_linked_worktree_without_remote_config
+FAILED tests/test_epic_rebase_credential_isolation.py::test_claude_mcp_run_command_uses_rebase_credential_boundary
+FAILED tests/test_epic_rebase_credential_isolation.py::test_rebase_executor_never_mounts_provider_or_handoff_runtime
+FAILED tests/test_epic_rebase_credential_isolation.py::test_opencode_mcp_run_command_uses_rebase_credential_boundary
+FAILED tests/test_epic_rebase_credential_isolation.py::test_codex_mcp_run_command_uses_rebase_credential_boundary
+FAILED tests/test_long_tick_regression.py::TestOperatorDiagnostics::test_snapshot_tick_metrics_include_dispatch_timing
+ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_rejects_symlink_component@oompah_process_global
+ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_rejects_unsafe_home_mode@oompah_process_global
+ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_rejects_foreign_owned_home@oompah_process_global
+ERROR tests/test_native_validation_guard.py::test_operator_broker_socket_parent_tightens_owned_scoped_directories@oompah_process_global
+ERROR tests/test_native_validation_guard.py::test_external_broker_socket_rejects_tampered_private_child@oompah_process_global
+= 120 failed, 17257 passed, 12 skipped, 1 xfailed, 36 warnings, 5 errors in 1200.17s (0:20:00) =
+
+make: *** [Makefile:401: test] Error 1
+
+```
 ---
 <!-- COMMENTS:END -->
