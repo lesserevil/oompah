@@ -98,12 +98,19 @@ def _make_orchestrator(tmp_path, projects=None) -> Orchestrator:
     project_store.get.side_effect = lambda pid: next(
         (p for p in all_projects if p.id == pid), None
     )
-    return Orchestrator(
+    orch = Orchestrator(
         config=_make_config(),
         workflow_path="WORKFLOW.md",
         project_store=project_store,
         state_path=str(tmp_path / "state.json"),
     )
+    # The dispatch-cap tests use intentionally partial Project mocks.  Give
+    # the new provenance fence the empty Mapping a real unmarked tracker
+    # exposes instead of exercising unrelated tracker construction.
+    metadata_tracker = MagicMock()
+    metadata_tracker.get_metadata.return_value = {}
+    orch._tracker_for_project = MagicMock(return_value=metadata_tracker)
+    return orch
 
 
 # ---------------------------------------------------------------------------

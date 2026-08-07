@@ -58,24 +58,27 @@ def _probe_metadata_shape(
 ) -> tuple[bool, Mapping[str, Any]]:
     """Return ``(ok, payload)`` describing the tracker metadata surface.
 
-    ``ok`` is ``False`` when the tracker does not expose a Mapping-shaped
-    ``get_metadata`` result — the fence returns a permissive status in
-    that case rather than trigger a quarantine write for a transient
-    tracker misconfiguration or test double.
+    ``ok`` is ``False`` only when reading the tracker metadata raised.  A
+    tracker that does not expose a Mapping-shaped ``get_metadata`` result is
+    treated as an unconfigured legacy metadata surface and returns an empty,
+    permissive payload.  That distinction is important: failing closed on a
+    *failed read* protects an existing durable marker, while treating an
+    unavailable metadata capability as a malformed marker would block every
+    unrelated lifecycle transition for legacy adapters and test doubles.
     """
 
     tracker = getattr(store, "_tracker", None)
     if tracker is None:
-        return False, {}
+        return True, {}
     getter = getattr(tracker, "get_metadata", None)
     if not callable(getter):
-        return False, {}
+        return True, {}
     try:
         raw = getter(identifier)
     except Exception:  # noqa: BLE001 - callable is external
         return False, {}
     if not isinstance(raw, Mapping):
-        return False, {}
+        return True, {}
     return True, raw
 
 

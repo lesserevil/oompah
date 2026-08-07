@@ -16,6 +16,7 @@ from oompah.error_watcher import ErrorWatcher
 from oompah.models import Issue, Project
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
+from oompah.provenance_suppression import ProvenanceGuardedTracker
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.roles import RoleStore
@@ -243,7 +244,10 @@ def test_orchestrator_global_tracker_is_read_only_in_managed_mode(
     assert orch.tracker.allow_default_branch_task_writes is False
 
     project_tracker = orch._tracker_for_project(project.id)
-    assert isinstance(project_tracker, OompahMarkdownTracker)
+    # Managed project trackers are wrapped so every status mutation crosses
+    # the durable terminal-provenance fence.  Their state-branch properties
+    # remain available through the facade.
+    assert isinstance(project_tracker, ProvenanceGuardedTracker)
     assert project_tracker.state_branch_enabled is True
     assert project_tracker.allow_default_branch_task_writes is False
 
@@ -334,7 +338,7 @@ def test_auto_archive_and_shutdown_leave_code_branch_untouched(
     project = _make_project(repo)
     orch = _make_orchestrator(tmp_path, project)
     tracker = orch._tracker_for_project(project.id)
-    assert isinstance(tracker, OompahMarkdownTracker)
+    assert isinstance(tracker, ProvenanceGuardedTracker)
 
     old_timestamp = "2026-07-01T00:00:00+00:00"
     with patch("oompah.oompah_md_tracker._now_iso", return_value=old_timestamp):
@@ -404,7 +408,7 @@ def test_server_error_watcher_and_scheduler_write_only_to_state_branch(
     project = _make_project(repo)
     orch = _make_orchestrator(tmp_path, project)
     tracker = orch._tracker_for_project(project.id)
-    assert isinstance(tracker, OompahMarkdownTracker)
+    assert isinstance(tracker, ProvenanceGuardedTracker)
 
     # Exercise the actual server startup consumer that creates the global
     # ErrorWatcher.  Unrelated startup migrations are covered separately and

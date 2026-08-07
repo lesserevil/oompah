@@ -294,6 +294,22 @@ class TestSuppressionStatus:
         assert status.marker is None
         assert status.authority_generation == 0
 
+    def test_unconfigured_metadata_surface_is_permissive(self) -> None:
+        """Legacy adapters without mapping metadata must not freeze all work."""
+
+        class _LegacyTracker:
+            def get_metadata(self, _identifier: str) -> object:
+                return object()
+
+        status = load_provenance_suppression_status(
+            TerminalAuditMetadataStore(_LegacyTracker(), _LockStore(), "proj-1"),
+            "TASK-1",
+        )
+
+        assert status.suppressed is False
+        assert status.malformed is False
+        assert status.marker is None
+
     def test_malformed_marker_reports_fail_closed(self) -> None:
         tracker = _MemoryTracker(
             {
