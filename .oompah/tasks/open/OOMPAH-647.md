@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T10:40:46.225081Z'
+updated_at: '2026-08-07T10:43:03.132650Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -19,30 +19,21 @@ review_number: '612'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: 68fcb9c97245c8ffaa75c53536a9ffa3c84fea1bb8ec55c467315ac0a4a26565
+  task_fingerprint: 65423adea4fabcca416c799ddb94324737ba5a0df53c104a413f347dfcc70c8e
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T07:10:54.566738+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: 'Focus handoff: duplicate_detector
-
-
-    Duplicate preflight verdict: no_duplicate
-
-
-    Matches: none
-
-
-    Evidence: Only active native task is OOMPAH-281, covering a self-hosted CI runner.
-    Closest matches OOMPAH-214 (Archived, conflict-agent dispatch) and OOMPAH-235
-    (Archived, tracker rebase recovery) are terminal and do not cover noninteractive
-    rebase continuation/editor deadlock prevention.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: e6214b71-d55d-422e-9b03-a9e27195dda4
+  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
+  claimed_at: '2026-08-07T10:42:56.719427+00:00'
+  claim_expires_at: '2026-08-07T11:12:56.719427+00:00'
   retry_count: 0
   retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 oompah.agent_run_id: f04374c6-0574-41a8-8715-8a7b627a01d5
 oompah.task_costs:
   total_input_tokens: 270370
