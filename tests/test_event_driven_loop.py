@@ -1888,7 +1888,8 @@ class TestRetryTimerResetsInProgressOnRelease:
         )
         mock_tracker = MagicMock()
         orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
-        orch.state.running[issue_id] = MagicMock()
+        running_entry = MagicMock()
+        orch.state.running[issue_id] = running_entry
         orch._terminate_running = AsyncMock(return_value=True)
         orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
 
@@ -1896,7 +1897,9 @@ class TestRetryTimerResetsInProgressOnRelease:
         event_loop.run_until_complete(orch._drain_scheduled_terminations())
 
         mock_tracker.update_issue.assert_not_called()
-        orch._terminate_running.assert_awaited_once_with(issue_id, False)
+        orch._terminate_running.assert_awaited_once_with(
+            issue_id, False, expected_entry=running_entry
+        )
 
     def test_does_not_reset_when_issue_already_open(
         self, tmp_path, event_loop
