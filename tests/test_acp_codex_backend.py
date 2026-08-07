@@ -23,8 +23,11 @@ import asyncio
 import contextlib
 import json
 import os
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import types
@@ -252,6 +255,119 @@ def test_native_validation_runtime_root_rejects_task_writable_parent(
         codex_module._create_native_validation_runtime_root(
             untrusted_roots=(operator_home.resolve(),),
         )
+
+
+def test_native_validation_deep_root_uses_random_protected_socket(tmp_path):
+    from oompah.acp_backends import codex as codex_module
+
+    runtime_root = tmp_path / ("deep-" * 24)
+    runtime_root.mkdir()
+
+    first_socket, first_dir = codex_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+    second_socket, second_dir = codex_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+
+    assert first_socket is not None and first_dir is not None
+    assert second_socket is not None and second_dir is not None
+    assert first_socket.parent == first_dir
+    assert second_socket.parent == second_dir
+    assert first_dir != second_dir
+    assert first_dir.parent == guard_module._operator_broker_socket_parent()
+    assert stat.S_IMODE(first_dir.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(first_dir.stat().st_mode) == 0o700
+    assert len(os.fsencode(str(first_socket))) < 100
+    shutil.rmtree(first_dir)
+    shutil.rmtree(second_dir)
+
+
+def test_native_validation_short_root_keeps_local_socket(tmp_path):
+    from oompah.acp_backends import codex as codex_module
+
+    runtime_root = guard_module._operator_broker_socket_parent().parent / "guard"
+    socket_path, cleanup_dir = codex_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+
+    assert socket_path is None
+    assert cleanup_dir is None
+
+
+def test_native_validation_broker_socket_rejects_task_writable_parent(
+    tmp_path,
+):
+    from oompah.acp_backends import codex as codex_module
+
+    runtime_root = tmp_path / ("deep-" * 24)
+    runtime_root.mkdir()
+    socket_parent = guard_module._operator_broker_socket_parent()
+
+    with pytest.raises(RuntimeError, match="broker socket parent is task-writable"):
+        codex_module.create_native_validation_broker_socket(
+            runtime_root=runtime_root,
+            untrusted_roots=(socket_parent,),
+        )
+
+
+def test_native_validation_install_failure_removes_unpublished_socket_child(
+    tmp_path,
+    monkeypatch,
+):
+    from oompah.acp_backends import codex as codex_module
+
+    capture: dict[str, Path] = {}
+    _install_fake_cli(monkeypatch, events=[])
+    lease = ValidationResourceLease(tmp_path / "validation.sqlite3", poll_seconds=0.01)
+    runtime_root = tmp_path / ("deep-" * 24)
+    monkeypatch.setattr(
+        codex_module,
+        "_create_native_validation_runtime_root",
+        lambda **_kwargs: str(runtime_root),
+    )
+    real_create = codex_module.create_native_validation_broker_socket
+
+    def capture_socket(**kwargs):
+        socket_path, cleanup_dir = real_create(**kwargs)
+        assert socket_path is not None and cleanup_dir is not None
+        capture["cleanup_dir"] = cleanup_dir
+        return socket_path, cleanup_dir
+
+    monkeypatch.setattr(
+        codex_module,
+        "create_native_validation_broker_socket",
+        capture_socket,
+    )
+    monkeypatch.setattr(
+        codex_module,
+        "install_native_validation_guard",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("injected")),
+    )
+    service = types.SimpleNamespace(validation_resource_lease=lease)
+
+    async def run() -> CodexAcpBackendSession:
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="install guard",
+                billing_model="subscription",
+                coordination_service=service,
+                project_id="worker-project",
+                task_identifier="WORK-1",
+            )
+        )
+        async for _event in session.run_turn():
+            pass
+        return session
+
+    session = asyncio.run(run())
+
+    assert session.status == "errored"
+    assert not capture["cleanup_dir"].exists()
 
 
 def test_native_validation_uses_effective_child_temp_environment(tmp_path):

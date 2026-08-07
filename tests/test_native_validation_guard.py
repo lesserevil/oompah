@@ -9,11 +9,14 @@ import shlex
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,6 +35,7 @@ from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationCommandClassification,
     ValidationResourceLease,
+    is_heavyweight_validation_command,
 )
 
 
@@ -53,6 +57,36 @@ def _open_fd_snapshot() -> set[str]:
     return set(os.listdir("/proc/self/fd"))
 
 
+def _open_fd_targets(descriptors: set[str]) -> dict[str, str]:
+    targets: dict[str, str] = {}
+    for descriptor in descriptors:
+        try:
+            targets[descriptor] = os.readlink(f"/proc/self/fd/{descriptor}")
+        except OSError:
+            targets[descriptor] = "<closed>"
+    return targets
+
+
+@pytest.fixture
+def fake_operator_home(monkeypatch: pytest.MonkeyPatch):
+    """Provide a private passwd home below only trusted real-home ancestors."""
+
+    real_home = Path(guard_module.pwd.getpwuid(os.geteuid()).pw_dir)
+    operator_home = Path(
+        tempfile.mkdtemp(prefix=".nvh-", dir=real_home)
+    )
+    operator_home.chmod(0o700)
+    monkeypatch.setattr(
+        guard_module.pwd,
+        "getpwuid",
+        lambda _uid: SimpleNamespace(pw_dir=str(operator_home)),
+    )
+    try:
+        yield operator_home
+    finally:
+        shutil.rmtree(operator_home, ignore_errors=True)
+
+
 def _test_native_broker(
     tmp_path: Path,
     *,
@@ -60,9 +94,19 @@ def _test_native_broker(
 ) -> tuple[guard_module._NativeValidationLeaseBroker, Path]:
     root = tmp_path / task_id.lower()
     root.mkdir()
-    (root / guard_module._CONFIG_NAME).write_text("{}", encoding="utf-8")
+    config_path = root / guard_module._CONFIG_NAME
+    config_path.write_text("{}", encoding="utf-8")
+    config_path.chmod(0o400)
+    socket_path, socket_cleanup_dir = (
+        guard_module.create_native_validation_broker_socket(
+            runtime_root=root,
+            untrusted_roots=(),
+        )
+    )
     broker = guard_module._NativeValidationLeaseBroker(
         root,
+        socket_path=socket_path or root / guard_module._BROKER_SOCKET_NAME,
+        socket_cleanup_dir=socket_cleanup_dir,
         validation_lease=ValidationResourceLease(
             tmp_path / f"{task_id.lower()}.sqlite3",
             poll_seconds=0.01,
@@ -75,6 +119,332 @@ def _test_native_broker(
         timeout_seconds=10,
     )
     return broker, root
+
+
+def test_long_guard_root_uses_explicit_short_broker_socket(tmp_path: Path) -> None:
+    """Deep worktree paths use the supplied protected short socket."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-LONG-ROOT",
+        authority_generation="generation",
+    )
+    runtime_root = tmp_path / ("deep-" * 20) / "guard"
+    socket_path, socket_dir = guard_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+    assert socket_path is not None and socket_dir is not None
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=runtime_root,
+        broker_socket=socket_path,
+        broker_socket_cleanup_dir=socket_dir,
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    try:
+        config = json.loads((root / guard_module._CONFIG_NAME).read_text("utf-8"))
+        assert config["broker_socket"] == str(socket_path)
+        assert config["broker_socket_cleanup_dir"] == str(socket_dir)
+        assert socket_path.exists()
+        assert stat.S_IMODE(socket_dir.stat().st_mode) == 0o700
+        with guard_module._broker_socket(config):
+            pass
+        assert guarded["OOMPAH_NATIVE_VALIDATION_GUARD"] == str(
+            root / "validation-guard-bin"
+        )
+    finally:
+        retired = retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        )
+        if retired:
+            assert not socket_path.exists()
+            assert not socket_dir.exists()
+        else:
+            guard_module._retire_configured_broker_socket(root)
+            shutil.rmtree(socket_dir, ignore_errors=True)
+
+
+def test_long_guard_root_automatically_uses_short_broker_socket(
+    tmp_path: Path,
+) -> None:
+    """The generic installer must not regress to a deep local AF_UNIX path."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-LONG-AUTOMATIC",
+        authority_generation="generation",
+    )
+    runtime_root = tmp_path / ("project-harness-root-" * 12) / "guard"
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=runtime_root,
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    socket_path: Path | None = None
+    socket_dir: Path | None = None
+    try:
+        config = json.loads((root / guard_module._CONFIG_NAME).read_text("utf-8"))
+        socket_path = Path(config["broker_socket"])
+        socket_dir = Path(config["broker_socket_cleanup_dir"])
+        assert socket_path.parent == socket_dir
+        assert socket_dir.parent == guard_module._operator_broker_socket_parent()
+        assert len(os.fsencode(str(socket_path))) < 100
+        assert socket_path.exists()
+        assert guarded["OOMPAH_NATIVE_VALIDATION_GUARD"] == str(
+            root / "validation-guard-bin"
+        )
+    finally:
+        retired = retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        )
+        if retired:
+            assert socket_path is not None and socket_dir is not None
+            assert not socket_path.exists()
+            assert not socket_dir.exists()
+        elif socket_path is not None and socket_dir is not None:
+            guard_module._retire_configured_broker_socket(root)
+            shutil.rmtree(socket_dir, ignore_errors=True)
+
+
+def test_operator_broker_socket_parent_ignores_isolated_worker_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An xdist/task HOME override cannot deepen or relocate the endpoint."""
+
+    monkeypatch.setenv("HOME", str(tmp_path / ("isolated-home-" * 12)))
+    expected_home = Path(
+        guard_module.pwd.getpwuid(os.geteuid()).pw_dir
+    ).resolve()
+
+    assert guard_module._operator_broker_socket_parent() == (
+        expected_home / ".oompah" / "native-validation-sockets"
+    )
+
+
+def test_operator_broker_socket_parent_rejects_relative_passwd_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        guard_module.pwd,
+        "getpwuid",
+        lambda _uid: SimpleNamespace(pw_dir="relative/operator-home"),
+    )
+
+    with pytest.raises(RuntimeError, match="account home path is unsafe"):
+        guard_module._prepare_operator_broker_socket_parent()
+
+
+def test_operator_broker_socket_parent_rejects_symlink_component(
+    fake_operator_home: Path,
+) -> None:
+    target = fake_operator_home / "redirected-oompah"
+    target.mkdir(mode=0o700)
+    (fake_operator_home / ".oompah").symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="directory is unsafe"):
+        guard_module._prepare_operator_broker_socket_parent()
+
+
+def test_operator_broker_socket_parent_rejects_unsafe_home_mode(
+    fake_operator_home: Path,
+) -> None:
+    fake_operator_home.chmod(0o770)
+    try:
+        with pytest.raises(RuntimeError, match="directory is unsafe"):
+            guard_module._prepare_operator_broker_socket_parent()
+    finally:
+        fake_operator_home.chmod(0o700)
+
+
+def test_operator_broker_socket_parent_rejects_foreign_owned_home(
+    fake_operator_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_lstat = Path.lstat
+
+    def foreign_home_lstat(path: Path):
+        info = real_lstat(path)
+        if path == fake_operator_home:
+            return SimpleNamespace(
+                st_mode=info.st_mode,
+                st_uid=os.geteuid() + 1,
+            )
+        return info
+
+    with monkeypatch.context() as isolated:
+        isolated.setattr(Path, "lstat", foreign_home_lstat)
+        with pytest.raises(RuntimeError, match="directory is unsafe"):
+            guard_module._prepare_operator_broker_socket_parent()
+
+
+def test_operator_broker_socket_parent_tightens_owned_scoped_directories(
+    fake_operator_home: Path,
+) -> None:
+    oompah_root = fake_operator_home / ".oompah"
+    oompah_root.mkdir(mode=0o755)
+
+    socket_parent = guard_module._prepare_operator_broker_socket_parent()
+
+    assert stat.S_IMODE(oompah_root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(socket_parent.stat().st_mode) == 0o700
+
+
+def test_external_broker_socket_rejects_tampered_private_child(
+    tmp_path: Path,
+    fake_operator_home: Path,
+) -> None:
+    runtime_root = tmp_path / ("deep-" * 24)
+    socket_path, cleanup_dir = guard_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+    assert socket_path is not None and cleanup_dir is not None
+    cleanup_dir.chmod(0o770)
+    try:
+        assert (
+            guard_module._validated_external_broker_socket(
+                socket_path,
+                cleanup_dir,
+            )
+            is None
+        )
+        guard_module._cleanup_validated_external_broker_socket(
+            socket_path,
+            cleanup_dir,
+        )
+        assert cleanup_dir.exists()
+    finally:
+        cleanup_dir.chmod(0o700)
+        shutil.rmtree(cleanup_dir, ignore_errors=True)
+
+
+def test_opaque_process_baseline_is_immutable_within_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later opaque generation cannot become trusted by another install."""
+
+    first = ((101, 1_001),)
+    later = (*first, (202, 2_002))
+    scans: list[Path] = []
+
+    def scan(proc_root: Path) -> tuple[tuple[int, int], ...]:
+        scans.append(proc_root)
+        return first if len(scans) == 1 else later
+
+    monkeypatch.setattr(guard_module, "_OPAQUE_PROCESS_BASELINE_OWNER_PID", None)
+    monkeypatch.setattr(guard_module, "_OPAQUE_PROCESS_BASELINE_CACHE", None)
+    monkeypatch.setattr(guard_module, "_scan_opaque_same_user_processes", scan)
+
+    assert guard_module._opaque_same_user_process_baseline() == first
+    assert guard_module._opaque_same_user_process_baseline() == first
+    assert scans == [Path("/proc")]
+
+
+def test_opaque_process_baseline_resets_after_fork(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child cannot inherit its parent's trusted opaque generations or lock."""
+
+    parent_lock = threading.Lock()
+    parent_lock.acquire()
+    monkeypatch.setattr(
+        guard_module,
+        "_OPAQUE_PROCESS_BASELINE_LOCK",
+        parent_lock,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_OPAQUE_PROCESS_BASELINE_OWNER_PID",
+        os.getpid(),
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_OPAQUE_PROCESS_BASELINE_CACHE",
+        ((101, 1_001),),
+    )
+
+    guard_module._reset_opaque_process_baseline_after_fork()
+
+    assert guard_module._OPAQUE_PROCESS_BASELINE_LOCK is not parent_lock
+    assert guard_module._OPAQUE_PROCESS_BASELINE_LOCK.acquire(blocking=False)
+    guard_module._OPAQUE_PROCESS_BASELINE_LOCK.release()
+    assert guard_module._OPAQUE_PROCESS_BASELINE_OWNER_PID is None
+    assert guard_module._OPAQUE_PROCESS_BASELINE_CACHE is None
+
+
+@pytest.mark.parametrize("failure", ["broker_bind", "config_write"])
+def test_automatic_deep_socket_cleanup_on_install_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    """Automatic deep-root children never survive a failed installation."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-DEEP-FAIL",
+        authority_generation="generation",
+    )
+    captured: dict[str, Path] = {}
+    real_create = guard_module.create_native_validation_broker_socket
+
+    def capture_socket(**kwargs):
+        socket_path, cleanup_dir = real_create(**kwargs)
+        assert socket_path is not None and cleanup_dir is not None
+        captured["socket"] = socket_path
+        captured["cleanup"] = cleanup_dir
+        captured["parent"] = cleanup_dir.parent
+        captured["parent_mode"] = stat.S_IMODE(cleanup_dir.parent.stat().st_mode)
+        captured["cleanup_mode"] = stat.S_IMODE(cleanup_dir.stat().st_mode)
+        return socket_path, cleanup_dir
+
+    monkeypatch.setattr(
+        guard_module,
+        "create_native_validation_broker_socket",
+        capture_socket,
+    )
+    if failure == "broker_bind":
+        monkeypatch.setattr(
+            guard_module,
+            "_start_native_validation_broker",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("bind failed")),
+        )
+    else:
+        original_write_text = Path.write_text
+
+        def fail_config_write(path: Path, data: str, *args, **kwargs):
+            if path.name == guard_module._CONFIG_NAME:
+                raise OSError("config write failed")
+            return original_write_text(path, data, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", fail_config_write)
+
+    with pytest.raises(OSError):
+        install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / ("deep-" * 20) / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+        )
+
+    assert captured["parent_mode"] == 0o700
+    assert captured["cleanup_mode"] == 0o700
+    assert not captured["socket"].exists()
+    assert not captured["cleanup"].exists()
 
 
 def test_broker_descriptor_reply_rejects_extra_descriptors(tmp_path: Path) -> None:
@@ -457,7 +827,9 @@ def test_broker_rejects_copied_secret_in_distinct_sealed_memfd(
                 **os.environ,
                 guard_module._CAPABILITY_FD_ENV: str(spoofed),
                 "OOMPAH_TEST_BROKER_SOCKET": str(
-                    root / guard_module._BROKER_SOCKET_NAME
+                    json.loads(
+                        (root / guard_module._CONFIG_NAME).read_text("utf-8")
+                    )["broker_socket"]
                 ),
             },
             pass_fds=(spoofed,),
@@ -602,7 +974,7 @@ def test_broker_stop_closes_and_joins_blocked_request_handlers(
     broker, root = _test_native_broker(tmp_path, task_id="BLOCKED-HANDLER")
     client = socket.socket(socket.AF_UNIX, guard_module._BROKER_SOCKET_TYPE)
     try:
-        client.connect(str(root / guard_module._BROKER_SOCKET_NAME))
+        client.connect(str(broker.socket_path))
         _wait_until(lambda: len(broker._handler_threads) == 1)
         handlers = tuple(broker._handler_threads)
 
@@ -860,13 +1232,19 @@ def test_provider_registration_closes_all_descriptors_after_partial_inherit_fail
 
 def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
-    real_bin = tmp_path / "real-bin"
-    real_bin.mkdir()
-    real_make = real_bin / "make"
-    real_make.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    real_make.chmod(0o700)
+    makefile_side_effect = tmp_path / "makefile-was-parsed"
+    (tmp_path / "Makefile").write_text(
+        f"$(shell touch {shlex.quote(str(makefile_side_effect))})\n",
+        encoding="utf-8",
+    )
+    original_path = os.environ.get("PATH", os.defpath)
+    assert is_heavyweight_validation_command(
+        "make --help",
+        executable_search_path=original_path,
+        working_directory=tmp_path,
+    ) is False
     guarded, _ = install_native_validation_guard(
-        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        {"PATH": original_path},
         runtime_root=tmp_path / "guard",
         validation_lease=lease,
         owner=ValidationLeaseOwner.worker(
@@ -878,7 +1256,12 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
     )
 
     completed = subprocess.run(
-        ["make", "help"],
+        # A named ``help`` target still parses a task-controlled Makefile and
+        # can execute parse-time shell expressions, so it is correctly
+        # capacity-bearing.  GNU Make's standalone informational flag is the
+        # actual light invocation covered by this regression.
+        ["make", "--help"],
+        cwd=tmp_path,
         env={**os.environ, **guarded},
         pass_fds=_guard_pass_fds(guarded),
         check=False,
@@ -886,6 +1269,7 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
     )
 
     assert completed.returncode == 0
+    assert makefile_side_effect.exists() is False
     assert lease.status().owner_count == 0
 
 
@@ -1675,6 +2059,7 @@ def test_native_natural_exit_awaiting_item_records_stream_error_on_cleanup(
     "failure_surface",
     ["second_pipe", "third_pipe", "observer_start"],
 )
+@pytest.mark.timeout(15)
 def test_native_supervisor_setup_failure_restores_fd_baseline(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1747,7 +2132,15 @@ def test_native_supervisor_setup_failure_restores_fd_baseline(
         assert completed.returncode != 0
         assert marker.exists() is False
         _wait_until(lambda: lease.status().owner_count == 0)
-        _wait_until(lambda: _open_fd_snapshot() == baseline)
+        try:
+            _wait_until(lambda: _open_fd_snapshot() == baseline)
+        except AssertionError:
+            current = _open_fd_snapshot()
+            pytest.fail(
+                "native supervisor setup leaked descriptors: "
+                f"added={_open_fd_targets(current - baseline)!r} "
+                f"removed={_open_fd_targets(baseline - current)!r}"
+            )
     finally:
         monkeypatch.undo()
         assert retire_native_validation_guard(
@@ -2105,7 +2498,179 @@ def test_absolute_bash_env_unset_heavy_command_waits_for_validation_capacity(
 
     assert process.wait(timeout=5) == 0
     assert marker.exists() is True
-    assert lease.status().owner_count == 0
+    # The absolute Bash returns after its heavy descendant exits, while the
+    # independent supervisor retains its duplicate until it has observed that
+    # exact process group quiescent.  That asynchronous retirement is the
+    # safety fence which prevents a briefly escaped descendant from releasing
+    # capacity early, so assert the durable postcondition rather than a
+    # scheduler-timing-dependent instant immediately after wait().
+    _wait_until(lambda: lease.status().owner_count == 0)
+
+
+def test_run_tests_sh_waits_for_validation_capacity(
+    tmp_path: Path,
+) -> None:
+    """A Codex-style ``scripts/run-tests.sh serial`` launch cannot bypass.
+
+    The live OOMPAH-577 escape used the script's ``/usr/bin/env bash`` shebang
+    below an absolute provider shell.  It must remain behind the exact-gate
+    owner before its three-file pytest invocation can reach the interpreter.
+    """
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "pytest-started"
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    python = tools / "python"
+    python.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    python.chmod(0o700)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    run_tests = scripts / "run-tests.sh"
+    run_tests.write_text(
+        "#!/usr/bin/env bash\n"
+        "exec python -m pytest "
+        "tests/test_terminal_transition_coordinator.py "
+        "tests/test_orchestrator_handlers.py "
+        "tests/test_delivery_plane_recovery.py\n",
+        encoding="utf-8",
+    )
+    run_tests.chmod(0o700)
+    # The guard owns a Unix-domain broker socket.  Pytest's descriptive
+    # per-test directory here is long enough to exceed sockaddr_un.sun_path
+    # before the route itself can be exercised, so keep only this disposable
+    # runtime root short.
+    runtime_parent = Path(tempfile.mkdtemp(prefix="oompah-846-"))
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{tools}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=runtime_parent / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-577",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-lc", "scripts/run-tests.sh serial"],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            **guarded,
+            "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+        },
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        status = lease.status()
+        assert status.owner_count == 1
+        assert status.owners[0]["task_id"] == "GATE-1"
+        assert status.waiters[0]["task_id"] == "TASK-577"
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    try:
+        assert process.wait(timeout=5) == 0
+        assert marker.exists() is True
+        _wait_until(lambda: lease.status().owner_count == 0)
+    finally:
+        try:
+            time.sleep(0.5)
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=ValidationLeaseOwner.worker(
+                    project_id="project",
+                    task_id="TASK-577",
+                    authority_generation="generation",
+                ),
+            )
+        finally:
+            shutil.rmtree(runtime_parent, ignore_errors=True)
+
+
+def test_abs_make_waits_for_validation_capacity(tmp_path: Path) -> None:
+    """A sandbox's absolute ``/usr/bin/make test`` remains brokered.
+
+    OOMPAH-643 used this form below the Codex sandbox's absolute Bash, with a
+    PATH assignment that intentionally omitted the task virtualenv.  The
+    BASH_ENV boundary must classify that outer command before the absolute
+    Make executable can start its parallel pytest descendants.
+    """
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "make-started"
+    (tmp_path / "Makefile").write_text(
+        f"test:\n\t@touch {shlex.quote(str(marker))}\n",
+        encoding="utf-8",
+    )
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-643",
+        authority_generation="generation",
+    )
+    runtime_parent = Path(tempfile.mkdtemp(prefix="oompah-846-"))
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=runtime_parent / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    process = subprocess.Popen(
+        [
+            "/bin/bash",
+            "-c",
+            'PATH="/usr/local/bin:/usr/bin:/bin" /usr/bin/make test',
+        ],
+        cwd=tmp_path,
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        status = lease.status()
+        assert status.owner_count == 1
+        assert status.owners[0]["task_id"] == "GATE-1"
+        assert status.waiters[0]["task_id"] == "TASK-643"
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    try:
+        assert process.wait(timeout=5) == 0
+        assert marker.exists() is True
+        _wait_until(lambda: lease.status().owner_count == 0)
+    finally:
+        try:
+            time.sleep(0.5)
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+        finally:
+            shutil.rmtree(runtime_parent, ignore_errors=True)
 
 
 def test_absolute_login_shell_cannot_run_task_home_profile_before_guard(
@@ -2831,13 +3396,19 @@ def test_retired_guard_blocks_delayed_background_descendant(tmp_path: Path) -> N
         timeout_seconds=10,
     )
     guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    delayed_code = (
+        "import os, subprocess, time; "
+        "time.sleep(1); "
+        "subprocess.run(['/bin/bash', '-c', "
+        "': > \"$OOMPAH_TEST_NATIVE_MARKER\"'], env=os.environ.copy())"
+    )
+    launcher_code = (
+        "import os, subprocess, sys; "
+        f"subprocess.Popen([sys.executable, '-c', {delayed_code!r}], "
+        "env=os.environ.copy(), start_new_session=True, close_fds=True)"
+    )
     outer = subprocess.Popen(
-        [
-            "/bin/bash",
-            "-c",
-            "(sleep 0.25; /bin/bash -c "
-            "': > \"$OOMPAH_TEST_NATIVE_MARKER\"') &",
-        ],
+        [sys.executable, "-c", launcher_code],
         env={**os.environ, **guarded},
         pass_fds=_guard_pass_fds(guarded),
     )
@@ -2848,7 +3419,7 @@ def test_retired_guard_blocks_delayed_background_descendant(tmp_path: Path) -> N
         validation_lease=lease,
         owner=owner,
     ) is False
-    time.sleep(0.5)
+    time.sleep(1.25)
 
     assert marker.exists() is False
     assert retire_native_validation_guard(root) is True
@@ -2881,6 +3452,151 @@ def test_guard_install_skips_missing_path_directories(tmp_path: Path) -> None:
     assert guarded["PATH"].endswith(
         f"{os.pathsep}{missing_bin}{os.pathsep}{real_bin}"
     )
+
+
+def test_runtime_root_scan_retains_guard_when_process_is_opaque(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unreadable same-user process cannot authorize guard deletion."""
+
+    root = tmp_path / "guard"
+    root.mkdir()
+    proc_root = tmp_path / "proc"
+    process = proc_root / str(os.getpid() + 10_000)
+    process.mkdir(parents=True)
+    process_start_ticks = 123_456
+    (process / "stat").write_text(
+        f"{process.name} (opaque) "
+        + " ".join(["S", *(["1"] * 18), str(process_start_ticks)])
+        + "\n",
+        encoding="utf-8",
+    )
+    real_read_bytes = Path.read_bytes
+
+    def deny_process_environment(path: Path) -> bytes:
+        if path == process / "environ":
+            raise PermissionError("opaque same-user process")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_process_environment)
+
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+    ) is True
+    assert guard_module._runtime_root_is_referenced(
+        root,
+        proc_root=proc_root,
+        opaque_process_baseline=frozenset(
+            {(int(process.name), process_start_ticks)}
+        ),
+    ) is False
+
+
+def test_opaque_process_scan_records_exact_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc_root = tmp_path / "proc"
+    process = proc_root / str(os.getpid() + 20_000)
+    process.mkdir(parents=True)
+    process_start_ticks = 234_567
+    (process / "stat").write_text(
+        f"{process.name} (opaque scan) "
+        + " ".join(["S", *(["1"] * 18), str(process_start_ticks)])
+        + "\n",
+        encoding="utf-8",
+    )
+    real_read_bytes = Path.read_bytes
+
+    def deny_process_environment(path: Path) -> bytes:
+        if path == process / "environ":
+            raise PermissionError("opaque same-user process")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny_process_environment)
+
+    assert guard_module._scan_opaque_same_user_processes(proc_root) == (
+        (int(process.name), process_start_ticks),
+    )
+
+
+def test_tampered_config_cannot_inject_opaque_retirement_baseline(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-CONFIG-BASELINE",
+        authority_generation="generation",
+    )
+    _guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    config_path = root / guard_module._CONFIG_NAME
+    config_path.chmod(0o600)
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["opaque_process_baseline"] = [[os.getpid(), 1]]
+    config_path.write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
+
+    try:
+        assert guard_module._configured_opaque_process_baseline(root) is None
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is False
+        assert root.exists()
+    finally:
+        config_path.chmod(0o400)
+        retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        )
+
+
+def test_symlinked_config_retains_guard_fail_closed(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-CONFIG-SYMLINK",
+        authority_generation="generation",
+    )
+    _guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    config_path = root / guard_module._CONFIG_NAME
+    backup_path = root / "validation-guard.backup.json"
+    config_path.rename(backup_path)
+    config_path.symlink_to(backup_path.name)
+
+    try:
+        with pytest.raises(RuntimeError, match="configuration is unavailable"):
+            guard_module._load_verified_guard_config(root)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is False
+        assert root.exists()
+    finally:
+        config_path.unlink(missing_ok=True)
+        backup_path.rename(config_path)
+        retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        )
 
 
 def test_creator_death_cleanup_fences_and_removes_orphaned_guard(
@@ -3552,8 +4268,13 @@ def test_native_heavy_child_retains_lane_after_launcher_crash(tmp_path: Path) ->
     guarded["OOMPAH_TEST_HEAVY_PID"] = str(pid_path)
     launcher_code = (
         "import os, pathlib, subprocess, time; "
+        # The provider's nested launcher deliberately uses Python's default
+        # close_fds boundary.  The descended trusted shim must recover its
+        # sealed capability through the broker rather than treating a closed
+        # inherited descriptor as permission to bypass or as a spurious
+        # validation failure.
         "subprocess.Popen(['make', 'test'], env=os.environ.copy(), "
-        "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+        "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True); "
         "p=pathlib.Path(os.environ['OOMPAH_TEST_HEAVY_PID']); "
         "deadline=time.monotonic()+3; "
         "\nwhile not p.exists() and time.monotonic() < deadline: time.sleep(.01)"
