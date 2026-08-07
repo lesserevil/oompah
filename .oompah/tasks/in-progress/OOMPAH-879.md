@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T12:43:16.702818Z'
+updated_at: '2026-08-07T13:17:45.450626Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-08-07 12:43
 ---
 Live recurrence #7: OOMPAH-885 was auto-filed in Needs Rebase after duplicate O884 had already published ca1 and been owner-fenced, while authorized O877 was locally repairing the same shared epic against newer main. Operator acquired a direct-owner claim before dispatch. This confirms task-state changes and a newly stale target can keep minting helpers while an existing rebase authority remains live; generation authority must survive target-head churn and supersede/fence new helper identifiers before provider launch.
+---
+author: oompah
+created: 2026-08-07 13:17
+---
+Live recurrence #8: scheduler created OOMPAH-888 (Needs Rebase) for epic-OOMPAH-763 while OOMPAH-877 remained the sole active helper and its repaired 911-test semantic union had just passed. Operator acquired direct-owner claim 4963baca22fc4853ba6e8ee89b382446 before implementation. Add OOMPAH-888 to the durable one-authority regression corpus; it must not be admitted or allowed to push.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:06:34.028897Z'
-updated_at: '2026-08-07T13:17:19.537853Z'
+updated_at: '2026-08-07T13:17:43.150450Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -39,3 +39,11 @@ This task was auto-filed because epic OOMPAH-763 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 13:17
+---
+Direct-owner containment applied before implementation. This is recurrence #8 of the duplicate epic-OOMPAH-763 rebase helper race while canonical OOMPAH-877 already owns and has repaired the same generation. Preserve this task/claim as fenced incident evidence; do not mutate or push the shared branch. OOMPAH-879 owns the systemic authority/idempotency fix.
+---
+<!-- COMMENTS:END -->
