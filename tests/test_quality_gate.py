@@ -30,6 +30,7 @@ from oompah.quality_gate import (
     QualityGateOwner,
     QualityGateResult,
     _SANDBOX_RUN_ROOT,
+    _SANDBOX_TMP_ROOT,
     _SandboxUnavailable,
     _TrustedRuntimeCorruption,
     _editable_oompah_source,
@@ -1522,10 +1523,11 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
         ' && test -z "${OOMPAH_SERVER_PASSWORD+x}"'
         ' && test -z "${OOMPAH_SERVER_PASSWORD_FILE+x}"'
         ' && test -z "${QUALITY_GATE_SENTINEL+x}"'
-        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" '
+        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" '
         f'"$HOME" "$TMPDIR" "$OOMPAH_TEST_PID_FILE" '
         f'"$OOMPAH_TEST_PID_META_FILE" "$OOMPAH_TEST_SERVER_PORT" '
         f'"$OOMPAH_TEMP_ROOT" "$OOMPAH_PYTEST_TEMP_ROOT" '
+        f'"$PYTHONPYCACHEPREFIX" '
         f'> {shlex.quote(str(sentinel))}'
     )
 
@@ -1537,13 +1539,14 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
 
     assert result.passed
     values = sentinel.read_text(encoding="utf-8").splitlines()
-    assert values[0] == "/oompah-gate/home"
-    assert values[1] == "/oompah-gate/tmp"
+    assert values[0] == "/home/oompah"
+    assert values[1] == "/tmp/oompah-gate"
     assert values[2] == "/oompah-gate/lifecycle/.oompah.pid"
     assert values[3] == "/oompah-gate/lifecycle/.oompah.pid.meta"
     assert values[4].isdigit() and values[4] != "8090"
-    assert values[5] == "/oompah-gate/tmp"
-    assert values[6] == "/oompah-gate/tmp"
+    assert values[5] == "/tmp/oompah-gate"
+    assert values[6] == "/tmp/oompah-gate"
+    assert values[7] == "/tmp/oompah-gate/pycache"
     runner_root = Path(os.environ.get("OOMPAH_PYTEST_RUN_ROOT", "/"))
     if runner_root.is_relative_to(_SANDBOX_RUN_ROOT):
         assert Path(values[0]).is_dir(), "outer gate root is not available"
@@ -1680,6 +1683,26 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
         assert (str(run_root), "/oompah-gate") in pairs
         assert ("--cap-add", "CAP_NET_ADMIN") in pairs
         assert 'ip link set lo up 2>/dev/null || true; exec "$@"' in command
+        assert ("--tmpfs", "/tmp") in pairs
+        assert ("--dir", str(_SANDBOX_TMP_ROOT)) in pairs
+
+        ro_bind_triples = {
+            tuple(command[index : index + 3])
+            for index in range(len(command) - 2)
+            if command[index] == "--ro-bind"
+        }
+        identity_root = run_root.parent / "identity"
+        for name in ("passwd", "group", "nsswitch.conf"):
+            source = identity_root / name
+            assert source.is_file()
+            assert source.stat().st_mode & 0o222 == 0
+            assert (
+                "--ro-bind",
+                str(source),
+                f"/etc/{name}",
+            ) in ro_bind_triples
+            assert not source.is_relative_to(run_root)
+        assert ("--ro-bind", "/etc/passwd", "/etc/passwd") not in ro_bind_triples
         runtime_prefix = Path(sys.prefix).resolve()
         if runtime_prefix != Path(sys.base_prefix).resolve():
             bind_triples = {
@@ -1699,6 +1722,47 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
             ) in bind_triples
     finally:
         BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
+def test_default_sandbox_provides_immutable_synthetic_identity_and_tmpfs(
+    tmp_path,
+):
+    """The real empty-root gate supports pwd without exposing host identity."""
+    repo = _git_repo(tmp_path)
+    python_check = (
+        "import os,pwd; "
+        "entry=pwd.getpwuid(os.geteuid()); "
+        "assert entry.pw_name == 'oompah'; "
+        "assert entry.pw_uid == os.geteuid(); "
+        "assert entry.pw_gid == os.getegid(); "
+        "assert entry.pw_dir == '/home/oompah'"
+    )
+    command = (
+        "if printf attacker >>/etc/passwd 2>/dev/null; then exit 41; fi; "
+        f"python3 -c {shlex.quote(python_check)}; "
+        'test "$(wc -l </etc/passwd)" -eq 1; '
+        'test "$(stat -f -c %T "$TMPDIR")" = tmpfs; '
+        'test -z "${OOMPAH_SERVER_PASSWORD+x}"; '
+        'test -z "${OOMPAH_SERVER_PASSWORD_FILE+x}"; '
+        "printf identity-and-tmpfs-ok"
+    )
+    result = _run(
+        BranchQualityGate(
+            str(tmp_path / "quality.json"), safety_head=_safety_head(repo)
+        ),
+        repo,
+        command,
+    )
+
+    if result.status == "needs_rebase":
+        assert result.output_tail.startswith(
+            "OS-enforced quality-gate sandbox is unavailable; refusing to "
+            "execute candidate code: bubblewrap cannot create the required "
+            "OS namespaces: bwrap: No permissions to create a new namespace"
+        )
+    else:
+        assert result.status == "passed"
+        assert "identity-and-tmpfs-ok" in result.output_tail
 
 
 def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(

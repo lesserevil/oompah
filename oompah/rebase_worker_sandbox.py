@@ -21,6 +21,10 @@ class RebaseWorkerSandboxUnavailable(RuntimeError):
     """Raised when mandatory rebase-worker isolation cannot be created."""
 
 
+class RebaseWorkerHostPolicyUnavailable(RebaseWorkerSandboxUnavailable):
+    """Raised when the host explicitly denies the required OS namespaces."""
+
+
 class RestrictedRebaseCommand(list[str]):
     """Bubblewrap argv plus private, server-owned files to remove afterwards."""
 
@@ -67,6 +71,62 @@ def _real_directory(path: Path, *, label: str) -> Path:
     if not resolved.is_dir() or path.is_symlink():
         raise RebaseWorkerSandboxUnavailable(f"{label} is not a real directory")
     return resolved
+
+
+def _probe_bubblewrap_namespaces(bubblewrap: str) -> None:
+    """Fail closed before command construction when host policy blocks bwrap."""
+    probe_args = [
+        bubblewrap,
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-net",
+        "--clearenv",
+        "--tmpfs", "/",
+        "--dir", "/usr",
+        "--ro-bind", "/usr", "/usr",
+        "--symlink", "usr/bin", "/bin",
+        "--symlink", "usr/lib", "/lib",
+        "--symlink", "usr/lib64", "/lib64",
+        "--dev", "/dev",
+        "--proc", "/proc",
+        "/bin/true",
+    ]
+    try:
+        probe = subprocess.run(
+            probe_args,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RebaseWorkerSandboxUnavailable(
+            "bubblewrap namespace probe is unavailable"
+        ) from exc
+    if probe.returncode == 0:
+        return
+
+    detail = (probe.stderr or probe.stdout).strip()[-500:]
+    normalized = detail.casefold()
+    host_policy_markers = (
+        "no permissions to create a new namespace",
+        "permissions to create new namespace",
+        "permissions to creating new namespace",
+        "creating new namespace failed: operation not permitted",
+        "setting up uid map: permission denied",
+        "setting up uid map: operation not permitted",
+        "setting up gid map: permission denied",
+        "setting up gid map: operation not permitted",
+    )
+    if any(marker in normalized for marker in host_policy_markers):
+        raise RebaseWorkerHostPolicyUnavailable(
+            "nested bubblewrap namespaces are denied by host policy"
+        )
+    raise RebaseWorkerSandboxUnavailable(
+        "bubblewrap cannot create the required rebase-worker namespaces"
+        + (f": {detail}" if detail else "")
+    )
 
 
 def _worktree_git_dirs(workspace: Path) -> tuple[Path, Path]:
@@ -162,6 +222,7 @@ def restricted_rebase_command(
         raise RebaseWorkerSandboxUnavailable(
             "bubblewrap is unavailable; refusing an unsandboxed epic-rebase command"
         )
+    _probe_bubblewrap_namespaces(bubblewrap)
     workspace = _real_directory(workspace, label="epic-rebase workspace")
     git_dir, common_dir = _worktree_git_dirs(workspace)
     runtime_dir = Path(tempfile.mkdtemp(prefix="oompah-rebase-sandbox-"))
