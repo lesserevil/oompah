@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T20:19:03.968470Z'
+updated_at: '2026-08-07T20:19:19.917617Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -332,6 +332,28 @@ oompah.terminal_audit:
       passed and the merge commit is an ancestor of current main.'
     created_at: '2026-08-07T20:18:41.599074+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain exact merged PR #621 provenance and eliminate stale non-terminal
+      state.'
+    marked_at: '2026-08-07T20:19:17.964088+00:00'
+    updated_at: '2026-08-07T20:19:17.964088+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain exact merged PR #621 provenance and eliminate stale non-terminal
+        state.'
+      recorded_at: '2026-08-07T20:19:17.964088+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
