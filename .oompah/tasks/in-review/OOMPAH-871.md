@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T12:22:19.307425Z'
+updated_at: '2026-08-07T12:22:27.273212Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
