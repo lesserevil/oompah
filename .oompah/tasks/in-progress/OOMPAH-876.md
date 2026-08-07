@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T10:02:55.343151Z'
+updated_at: '2026-08-07T10:16:19.338500Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-07 10:02
 ---
 Additional stale Needs Human reproduction: OOMPAH-575 had an independent Done PASS covering 14,163 tests and an existing owner-verified Merged state, but remained Needs Human from a historical Merged audit infrastructure exhaustion while Archived was queued. Owner recovery retained the merged/archived provenance; implementation was not reopened.
+---
+author: oompah
+created: 2026-08-07 10:16
+---
+Additional live reproduction: OOMPAH-865 exact integrated head 04fa6781091e reached Needs Human after haiku/sonnet/opus all terminated before a verdict (0 turns; attempts lasted 14m05s, 17m00s, 16m40s). The code had independent acceptance plus 211 serial + 211 xdist4 focused validation and prior gate repairs; owner override restored Done. Pre-verdict transport termination must not consume the substantive candidate budget.
 ---
 <!-- COMMENTS:END -->
