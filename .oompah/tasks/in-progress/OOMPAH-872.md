@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T18:19:27.449324Z'
+updated_at: '2026-08-07T18:19:34.788734Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -47,13 +47,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 7b49f9fa-5d02-4af3-86f8-e8915a11b2e9
 oompah.task_costs:
-  total_input_tokens: 48036
-  total_output_tokens: 557
+  total_input_tokens: 48226
+  total_output_tokens: 591
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 47922
-      output_tokens: 212
+      input_tokens: 48112
+      output_tokens: 246
       cost_usd: 0.0
     unknown:
       input_tokens: 114
@@ -84,6 +84,12 @@ oompah.task_costs:
     output_tokens: 190
     cost_usd: 0.0
     recorded_at: '2026-08-07T10:48:35.539661+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 190
+    output_tokens: 34
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T18:19:22.774501+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-872__20260807T071650Z
