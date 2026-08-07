@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:07:37.878760Z'
+updated_at: '2026-08-07T14:11:11.105368Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -77,13 +77,27 @@ oompah.terminal_audit:
       version: 1
       algorithm: sha256
       digest: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3ae4bc120dca
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T14:11:08.842516+00:00'
+      ended_at: '2026-08-07T14:11:08.842516+00:00'
+      failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+      next_retry_at: '2026-08-07T14:11:18.842493+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Merged
     created_at: '2026-07-30T04:16:21.411299+00:00'
+    updated_at: '2026-08-07T14:11:08.842516+00:00'
   - version: 1
     audit_id: audit-f48fab3abffb
     project_id: proj-14849f1b
@@ -137,7 +151,20 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:07:33.053461+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-3ae4bc120dca
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+    failure_classification: infrastructure_error
+    created_at: '2026-08-07T14:11:08.842516+00:00'
+    ended_at: '2026-08-07T14:11:08.842516+00:00'
+    failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+    next_retry_at: '2026-08-07T14:11:18.842493+00:00'
 ---
 ## Summary
 
