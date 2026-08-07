@@ -285,8 +285,10 @@ from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
     ProjectStore,
+    canonical_repository_identity,
     github_owner_repo_from_url,
     github_work_branch_name,
+    repository_identity_for_path,
 )
 from oompah.providers import ProviderStore
 from oompah.roles import CandidateSelector, RoleStore
@@ -3995,31 +3997,114 @@ class Orchestrator:
         """Resolve the tracker that owns Oompah's own operational tasks.
 
         In standalone mode this is the legacy tracker.  In managed mode the
-        workflow file must live inside exactly one registered project checkout;
-        that project's canonical tracker becomes the management tracker.
-        Refusing to guess is important: a wrong guess can put backend-error or
-        maintenance tasks in another project's tracker.
+        service checkout must identify exactly one registered project.  The
+        configured repository identity is authoritative, so an independent
+        service clone, a cache mirror, or a Git worktree alias can resolve to
+        the project without sharing its filesystem path.  Refusing to guess is
+        important: a wrong guess can put backend-error or maintenance tasks in
+        another project's tracker.
         """
         projects = self.project_store.list_all()
         if not projects:
             return self.tracker, None
 
         workflow_root = Path(self.workflow_path).expanduser().resolve().parent
+        runtime_identity = repository_identity_for_path(workflow_root)
         matches = []
         for project in projects:
             repo_path = str(getattr(project, "repo_path", "") or "").strip()
             if not repo_path:
                 continue
-            if Path(repo_path).expanduser().resolve() == workflow_root:
+
+            project_path = Path(repo_path).expanduser().resolve()
+            configured_identity = canonical_repository_identity(
+                getattr(project, "repo_url", None),
+                base_dir=project_path,
+            )
+            configured_path_identity = canonical_repository_identity(repo_path)
+            configured_local_repository = (
+                configured_identity is not None
+                and configured_identity == configured_path_identity
+            )
+            project_identity = repository_identity_for_path(project_path)
+
+            # A real Git checkout must be resolved by repository evidence, not
+            # by a path that happens to be equal to the configured clone.  In
+            # particular, a foreign checkout at the configured path is never
+            # allowed to inherit the project's tracker.
+            if runtime_identity is not None:
+                if project_identity is None or configured_identity is None:
+                    continue
+
+                shared_git_repository = bool(
+                    runtime_identity.git_common_dir
+                    and runtime_identity.git_common_dir
+                    == project_identity.git_common_dir
+                )
+                if shared_git_repository:
+                    # Worktrees share a common Git directory.  Every remote
+                    # identity that is available must still corroborate the
+                    # project's explicit repo_url authority.  A deliberately
+                    # remote-less local repository is accepted only when the
+                    # configured URL explicitly names the registered checkout.
+                    observed_remotes = tuple(
+                        remote
+                        for remote in (
+                            runtime_identity.remote,
+                            project_identity.remote,
+                        )
+                        if remote
+                    )
+                    if (
+                        observed_remotes
+                        and all(
+                            remote == configured_identity
+                            for remote in observed_remotes
+                        )
+                    ) or configured_local_repository:
+                        matches.append(project)
+                    continue
+
+                # Independent service and managed clones must each identify
+                # the configured remote.  Missing project-checkout evidence is
+                # not equivalent to a match: tracker writes remain disabled
+                # until the registration is repaired.
+                if (
+                    runtime_identity.remote
+                    and runtime_identity.remote == configured_identity
+                    and project_identity.remote == configured_identity
+                ):
+                    matches.append(project)
+                continue
+
+            # Preserve legacy support for a plain, non-Git workflow directory,
+            # but only when repo_url explicitly authorizes that exact local
+            # checkout.  Production Git checkouts take the identity path above.
+            if (
+                project_identity is None
+                and project_path == workflow_root
+                and configured_local_repository
+            ):
                 matches.append(project)
 
         if len(matches) != 1:
             matched_ids = ", ".join(str(project.id) for project in matches) or "none"
+            runtime_identity_text = (
+                runtime_identity.remote
+                if runtime_identity is not None and runtime_identity.remote
+                else (
+                    f"git-common-dir={runtime_identity.git_common_dir}"
+                    if runtime_identity is not None
+                    and runtime_identity.git_common_dir
+                    else "unavailable"
+                )
+            )
             raise ProjectError(
                 "Cannot resolve the Oompah management tracker safely: "
-                f"workflow root {str(workflow_root)!r} matched {matched_ids}. "
-                "Register the service checkout as exactly one managed project "
-                "and use its project ID for management task writes."
+                f"workflow root {str(workflow_root)!r} has repository identity "
+                f"{runtime_identity_text!r}; matching project IDs: {matched_ids}. "
+                "Ensure exactly one registered project has the same canonical "
+                "repo_url and a valid checkout, then restart the service."
             )
 
         project = matches[0]

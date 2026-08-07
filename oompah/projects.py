@@ -15,7 +15,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
-from urllib.parse import urlsplit
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.git_hooks import hook_path as _bundled_hook_path
@@ -34,6 +35,199 @@ DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
 
 class ProjectError(Exception):
     """Raised when project registration or worktree management fails."""
+
+
+@dataclass(frozen=True)
+class RepositoryIdentity:
+    """Stable local evidence for one Git repository checkout.
+
+    ``remote`` is the durable identity shared by independent clones.  The
+    Git common directory is retained as a local identity for worktrees and
+    repositories that intentionally have no configured remote.  A caller
+    must not use ``root`` as an identity: it is only the resolved checkout
+    path used to resolve relative Git configuration.
+    """
+
+    remote: str | None = None
+    git_common_dir: str | None = None
+    root: str | None = None
+
+
+def canonical_repository_identity(
+    value: str | os.PathLike[str] | None,
+    *,
+    base_dir: str | os.PathLike[str] | None = None,
+) -> str | None:
+    """Return a credential-free canonical identity for a Git remote.
+
+    Forge clones commonly use different URL forms for the same repository
+    (for example HTTPS versus ``git@host:owner/repo.git``).  The canonical
+    form intentionally keeps the host and repository path while discarding
+    transport, credentials, and the conventional ``.git`` suffix.  URLs with
+    query or fragment components are rejected because those components can be
+    repository-selecting or secret-bearing.  Local paths are resolved against
+    ``base_dir`` when supplied.
+
+    The function is deliberately conservative for malformed or empty input:
+    it returns ``None`` instead of inventing an identity that could route
+    operational writes to the wrong project.
+    """
+
+    try:
+        raw_value = os.fspath(value) if value is not None else ""
+    except TypeError:
+        return None
+    if not isinstance(raw_value, str):
+        return None
+    raw = raw_value.strip()
+    if not raw:
+        return None
+
+    # Git's scp-like syntax is not parsed as a URL by urllib.  Only consider
+    # scheme-less values here: treating ``http://`` as ``host:path`` would
+    # produce a transport-dependent identity for the same remote.
+    scp_match = None
+    if "://" not in raw:
+        scp_match = re.match(r"^(?:[^/@\s]+@)?([^:/\s]+):(.+)$", raw)
+    if scp_match and not re.match(r"^[A-Za-z]:[\\/].*", raw):
+        host, path = scp_match.groups()
+        path = _canonical_repository_path(path)
+        return f"{host.lower()}/{path}" if path else None
+
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        return None
+    if parsed.query or parsed.fragment:
+        return None
+
+    if parsed.scheme.lower() == "file":
+        local_path = unquote(parsed.path or "")
+        if parsed.netloc and parsed.netloc not in ("", "localhost"):
+            local_path = f"//{parsed.netloc}{local_path}"
+        return _canonical_local_repository_identity(local_path, base_dir=base_dir)
+
+    scheme = parsed.scheme.lower()
+    if scheme in {"http", "https", "ssh", "git"}:
+        try:
+            host = (parsed.hostname or "").lower()
+            port = parsed.port
+        except ValueError:
+            return None
+        if not host:
+            return None
+        # Preserve reserved percent escapes.  Decoding ``%2F`` could collapse
+        # two server-distinct repositories into one management identity.
+        path = _canonical_repository_path(parsed.path)
+        if not path:
+            return None
+        default_ports = {"http": 80, "https": 443, "ssh": 22, "git": 9418}
+        host_port = (
+            f"{host}:{port}"
+            if port is not None and port != default_ports[scheme]
+            else host
+        )
+        return f"{host_port}/{path}"
+
+    # Unknown URL schemes have server-specific path semantics.  Refuse to
+    # collapse them into an opaque value that could collide with a supported
+    # remote identity.
+    if parsed.scheme:
+        return None
+
+    # Git treats every remaining scheme-less value as a local clone path,
+    # including a single component such as ``mirror.git``.  Resolve it against
+    # the checkout so two unrelated relative remotes cannot collide merely
+    # because their configuration text is identical.
+    return _canonical_local_repository_identity(raw, base_dir=base_dir)
+
+
+def _canonical_repository_path(path: str) -> str:
+    """Normalize the repository component of a remote identity."""
+
+    normalized = "/".join(part for part in path.strip().split("/") if part)
+    if normalized.lower().endswith(".git"):
+        normalized = normalized[:-4]
+    return normalized.strip("/")
+
+
+def _canonical_local_repository_identity(
+    path: str,
+    *,
+    base_dir: str | os.PathLike[str] | None = None,
+) -> str | None:
+    if not path:
+        return None
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute() and base_dir is not None:
+        candidate = Path(base_dir).expanduser() / candidate
+    try:
+        return f"file://{candidate.resolve(strict=False)}"
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def repository_identity_for_path(
+    path: str | os.PathLike[str] | None,
+) -> RepositoryIdentity | None:
+    """Inspect a checkout without contacting its Git remote.
+
+    The returned ``remote`` is canonicalized from ``origin``.  For Git
+    worktrees, ``git-common-dir`` identifies the shared object database and
+    lets callers recognize a worktree alias even when no remote is configured.
+    Any Git inspection failure returns ``None`` so management resolution can
+    fail closed.
+    """
+
+    if path is None:
+        return None
+    candidate = Path(path).expanduser()
+
+    def _git(*args: str) -> str | None:
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(candidate), *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+                env={**os.environ, **NONINTERACTIVE_GIT_ENV},
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode != 0:
+            return None
+        output = result.stdout.strip()
+        return output or None
+
+    root_value = _git("rev-parse", "--show-toplevel")
+    common_value = _git("rev-parse", "--git-common-dir")
+    if root_value is None and common_value is None:
+        return None
+
+    root = Path(root_value).expanduser() if root_value else candidate
+    try:
+        root = root.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+    common_dir: Path | None = None
+    if common_value:
+        common_dir = Path(common_value).expanduser()
+        if not common_dir.is_absolute():
+            common_dir = root / common_dir
+        try:
+            common_dir = common_dir.resolve(strict=False)
+        except (OSError, RuntimeError, ValueError):
+            common_dir = None
+
+    remote_value = _git("remote", "get-url", "origin")
+    remote = canonical_repository_identity(remote_value, base_dir=root)
+    return RepositoryIdentity(
+        remote=remote,
+        git_common_dir=str(common_dir) if common_dir is not None else None,
+        root=str(root),
+    )
 
 
 @dataclass(frozen=True)
