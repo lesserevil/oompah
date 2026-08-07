@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:02:23.163009Z'
-updated_at: '2026-08-07T12:07:29.907510Z'
+updated_at: '2026-08-07T12:08:00.978308Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,3 +57,16 @@ Acceptance criteria: the scheduler cannot form a wait cycle between an epic reba
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 12:07
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 12:08
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
