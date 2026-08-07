@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T02:55:58.381411Z'
+updated_at: '2026-08-07T02:56:52.071936Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 188baf43-a4a1-4973-af8b-fde3365849ef
+oompah.agent_run_id: a24fa29c-f1fd-4cfa-bed9-296c20c08807
 oompah.task_costs:
   total_input_tokens: 5647313
   total_output_tokens: 37291
@@ -571,5 +571,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 45s
 - Log: OOMPAH-576__20260807T025521Z.jsonl
+---
+author: oompah
+created: 2026-08-07 02:56
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-07 02:56
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
