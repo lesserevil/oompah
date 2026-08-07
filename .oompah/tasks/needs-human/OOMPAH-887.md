@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:03:12.297366Z'
+updated_at: '2026-08-07T13:03:44.713295Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,13 +25,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 0785bfa1-8872-4315-b620-28b6133594dd
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T13:02:25.763311+00:00'
-  claim_expires_at: '2026-08-07T13:32:25.763311+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852,
+    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
+    OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877, OOMPAH-878,
+    OOMPAH-879, OOMPAH-880, OOMPAH-881, OOMPAH-882, OOMPAH-884, OOMPAH-885, OOMPAH-886.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-07T13:03:07.979875+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -67,5 +71,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 11s
+---
+author: oompah
+created: 2026-08-07 13:03
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877, OOMPAH-878, OOMPAH-879, OOMPAH-880, OOMPAH-881, OOMPAH-882, OOMPAH-884, OOMPAH-885, OOMPAH-886. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
