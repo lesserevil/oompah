@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T18:06:48.489026Z'
+updated_at: '2026-08-07T18:08:20.745960Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -25,18 +25,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'Implementation dispatch blocked before start: All candidates are used
-    by contributors.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-07T18:09:17.473418+00:00'
+  evidence: ''
+  claim_id: 3050c3e3-a624-47ee-ba61-8dc3720e8559
+  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
+  claimed_at: '2026-08-07T18:08:08.870154+00:00'
+  claim_expires_at: '2026-08-07T18:38:08.870154+00:00'
+  retry_count: 0
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5a210a77-4f3c-431e-bcf9-ec663807e3cc
+oompah.agent_run_id: 28f97696-dd37-473b-9e25-943b5f496ccb
 oompah.task_costs:
   total_input_tokens: 484317
   total_output_tokens: 33143
@@ -781,5 +780,10 @@ created: 2026-08-07 18:06
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 18:08
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
 ---
 <!-- COMMENTS:END -->
