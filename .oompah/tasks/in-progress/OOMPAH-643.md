@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T11:22:06.793905Z'
+updated_at: '2026-08-07T11:22:24.301948Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -700,5 +700,15 @@ author: oompah
 created: 2026-08-07 11:14
 ---
 Discovery: The current head includes the original recovery reconciliation and a follow-up fix for the remaining crash window:  now durably records stale/overridden identities in , so  treats enforcement rows as a projection refresh rather than proof of liveness. Only a coordinator queue/run/retry event re-arms an identity. The new regression covers repeated sync, restart, live queue visibility, and owner override.
+---
+author: oompah
+created: 2026-08-07 11:22
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 24
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 24s
+- Log: OOMPAH-643__20260807T111407Z.jsonl
 ---
 <!-- COMMENTS:END -->
