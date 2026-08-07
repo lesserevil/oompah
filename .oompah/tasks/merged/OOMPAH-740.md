@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: In Validation
+status: Merged
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T05:12:24.318653Z'
+updated_at: '2026-08-07T05:37:02.594049Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -73,6 +73,27 @@ oompah.task_costs:
 oompah.review_head: 46e5857a9ad886e5cd4647cac496bf6ce29eb276
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a304bad38450
+    project_id: proj-14849f1b
+    task_id: OOMPAH-740
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Owner recovery after planned service restart terminated the terminal auditor
+      before verdict publication. PR 731 merged corrected head 231d2b8a7e44089a3ab3ad9676e3656883c607b1
+      as 7daf26e683d9f57afa703c4e832c768b853f6a3c; hosted CI is green on Python 3.11,
+      3.12, and 3.13, focused corrected tests pass serial and parallel, and independent
+      static review accepted the exact patch.
+    created_at: '2026-08-07T05:36:56.393587+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
