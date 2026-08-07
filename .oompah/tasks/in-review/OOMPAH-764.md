@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:52:24.589925Z'
+updated_at: '2026-08-07T12:53:00.108624Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
@@ -243,5 +243,10 @@ author: oompah
 created: 2026-08-07 12:52
 ---
 In-flight workaround: restored audited Done and closed stale PR #742 after proving all three branch commits patch-equivalent in current origin/epic-OOMPAH-763. The current server still rejects the truthful nested Merged override because it cannot verify parent OOMPAH-763; OOMPAH-791 is already included in the systemic epic to remove that proof cycle.
+---
+author: oompah
+created: 2026-08-07 12:53
+---
+Correction to the immediately preceding workaround note: the first Done override raced the PR-closure webhook and was rejected before changing state. After refreshing, the owner override was retried against the current generation; PR #742 remains closed because its patch set is already contained.
 ---
 <!-- COMMENTS:END -->
