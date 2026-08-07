@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T05:31:25.396945Z'
+updated_at: '2026-08-07T05:31:39.044104Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/733
@@ -187,6 +187,18 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T02:48:42.166767+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-576
+    target_state: Archived
+    evidence_fingerprint: 7e73e4a0bd4ea001006d879ea3f8d221060351f1b7cd3c767ce59a6230ea5d36
+    audit_ids:
+    - audit-38593917d6d9
+    - audit-e4ce4c1b8864
+    - audit-0f52e8990f4a
+    - audit-c05a58f031d7
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T05:31:30.131774+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-576
@@ -200,6 +212,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T02:48:42.166785+00:00'
     applied_at: '2026-08-07T02:48:50.333951+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-01a5b0954773
@@ -218,7 +231,7 @@ oompah.terminal_audit:
       and comment 20 explicitly retained this task only as provenance. The watchdog-created
       documentation-only revision must not be delivered.'
     created_at: '2026-08-07T05:31:18.642047+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -324,7 +337,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-576
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -336,6 +349,7 @@ oompah.terminal_audit:
       source: api
     previous_state: In Review
     created_at: '2026-08-07T05:30:49.155443+00:00'
+    updated_at: '2026-08-07T05:31:30.131743+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-558c6911dda7
@@ -852,5 +866,17 @@ author: oompah
 created: 2026-08-07 05:27
 ---
 Branch quality gate passed for `e280a391ce72067c080173fad9056b49e98c0bb6` using `make test` in 653.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 05:31
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Owner workaround for OOMPAH-871: the original implementation is merged and comment 20 explicitly retained this task only as provenance. The watchdog-created documentation-only revision must not be delivered.
+---
+author: oompah
+created: 2026-08-07 05:31
+---
+Archived as the authoritative provenance-only record; OOMPAH-871 tracks preventing watchdog reopen and redispatch.
 ---
 <!-- COMMENTS:END -->
