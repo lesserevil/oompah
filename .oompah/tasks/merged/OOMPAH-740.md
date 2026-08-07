@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T05:37:02.594049Z'
+updated_at: '2026-08-07T05:37:16.195000Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -93,7 +93,19 @@ oompah.terminal_audit:
       3.12, and 3.13, focused corrected tests pass serial and parallel, and independent
       static review accepted the exact patch.
     created_at: '2026-08-07T05:36:56.393587+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-740
+    target_state: Merged
+    evidence_fingerprint: 6cd976c0876d328b5cc228fc7eee6702eead1e422add8d980ee82778bee861a2
+    audit_ids:
+    - audit-6de89be41a1b
+    - audit-68970d9026fb
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T05:37:11.632163+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +113,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-740
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -126,13 +138,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T04:45:24.196289+00:00'
-    updated_at: '2026-08-07T04:47:29.943857+00:00'
+    updated_at: '2026-08-07T05:37:11.632128+00:00'
   - version: 1
     audit_id: audit-68970d9026fb
     project_id: proj-14849f1b
     task_id: OOMPAH-740
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -144,6 +156,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T04:45:24.196289+00:00'
+    updated_at: '2026-08-07T05:37:11.632153+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-901665a3be58
@@ -345,5 +358,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: terminated, Duration: 24m 46s
 - Log: OOMPAH-740__20260807T044746Z.jsonl
+---
+author: oompah
+created: 2026-08-07 05:37
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner recovery after planned service restart terminated the terminal auditor before verdict publication. PR 731 merged corrected head 231d2b8a7e44089a3ab3ad9676e3656883c607b1 as 7daf26e683d9f57afa703c4e832c768b853f6a3c; hosted CI is green on Python 3.11, 3.12, and 3.13, focused corrected tests pass serial and parallel, and independent static review accepted the exact patch.
 ---
 <!-- COMMENTS:END -->
