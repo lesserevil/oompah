@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T08:33:53.280122Z'
+updated_at: '2026-08-07T08:34:26.666965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-07 08:33
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 08:34
+---
+Understanding (continuation): I am resuming the preserved attempt #1 changes. I will audit the repository-identity and explicit management-project authority rules, reconcile the recovery snapshot with the branch, run focused resolver and neighboring fail-closed tests, fix any gaps, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T08:34:21.758378Z'
+updated_at: '2026-08-07T08:34:36.926326Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -592,5 +592,15 @@ author: oompah
 created: 2026-08-07 07:58
 ---
 Owner workaround during the OOMPAH-867 graceful restart: PR #734 is merged at exact reviewed head 60a701e828d7fb5ebaa878e021639c93b0856cf7, but the stalled-task watchdog reopened the exhausted audit hold to Open at 07:30. OOMPAH-871 tracks and is actively fixing that provenance-only reopen. Direct claim prevents duplicate implementation; restoring/coalescing the existing Merged terminal chain without new code, gate, or PR.
+---
+author: oompah
+created: 2026-08-07 08:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 08:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
