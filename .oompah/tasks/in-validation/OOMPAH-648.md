@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T18:39:26.782364Z'
+updated_at: '2026-08-07T18:40:03.618807Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -302,12 +302,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-648
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 105705b393fb602a37ebc3c72934fee096a56f87ef9cb307f2428527acb6578d
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3a4ef40145d8
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 105705b393fb602a37ebc3c72934fee096a56f87ef9cb307f2428527acb6578d
+      created_at: '2026-08-07T18:39:53.315988+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T18:39:53.315988+00:00'
+      branch_key: OOMPAH-648
+      selected_ref: ca51c22b90785daec5d4dd7f0e29dc22045957cc
+      selected_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
     requested_by:
       version: 1
       identity: oompah
@@ -316,6 +331,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T18:39:22.717061+00:00'
     selected_ref: ca51c22b90785daec5d4dd7f0e29dc22045957cc
     selected_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
+    updated_at: '2026-08-07T18:39:53.315988+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d1427097e93
@@ -361,6 +377,21 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-07-31T09:01:22.107199+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-3a4ef40145d8
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 105705b393fb602a37ebc3c72934fee096a56f87ef9cb307f2428527acb6578d
+    created_at: '2026-08-07T18:39:53.315988+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T18:39:53.315988+00:00'
+    branch_key: OOMPAH-648
+    selected_ref: ca51c22b90785daec5d4dd7f0e29dc22045957cc
+    selected_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
 ---
 ## Summary
 
@@ -608,5 +639,15 @@ created: 2026-07-31 18:18
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: PR 614 merged exact head ca51c22b90785daec5d4dd7f0e29dc22045957cc as 8fd133e26aa2823ab68cde2a42b446933142b614 after a recorded passing terminal audit. This owner restage preserves the existing Merged lifecycle outcome while binding it to current evidence and retiring the obsolete pre-fix no-independent-candidate alert audit-db48e6cb6d3e.
+---
+author: oompah
+created: 2026-08-07 18:40
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 18:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
