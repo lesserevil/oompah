@@ -456,7 +456,7 @@ class TestRevisionCandidateList:
             work_branch=None,
             issue_type="epic",
         )
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
 
         assert list(candidates.iter_for_workspace()) == ["origin/epic-EPIC-42"]
@@ -472,7 +472,7 @@ class TestRevisionCandidateList:
             work_branch=None,
             issue_type="epic",
         )
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
 
         revisions = list(candidates.iter_for_workspace())
@@ -524,7 +524,7 @@ class TestRevisionCandidateList:
             work_branch="custom-epic-work",
             issue_type="epic",
         )
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
 
         revisions = list(candidates.iter_for_workspace())
@@ -542,7 +542,7 @@ class TestRevisionCandidateList:
             description="Description",
             issue_type="task",
         )
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
 
         revisions = list(candidates.iter_for_workspace())
@@ -558,7 +558,7 @@ class TestRevisionCandidateList:
             issue_type="epic",
             work_branch=None,
         )
-        
+
         candidates = build_revision_candidate_list(
             issue,
             "proj-1",
