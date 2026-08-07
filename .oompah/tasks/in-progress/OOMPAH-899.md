@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T18:19:21.898617Z'
+updated_at: '2026-08-07T18:19:44.319195Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -281,5 +281,53 @@ created: 2026-08-07 18:19
 - No changes to stop/restart/graceful/status semantics
 - Test/gate isolation with private PID files still works
 - All existing tests pass (23 makefile + 6 PID + 10 new = 39 tests)
+---
+author: oompah
+created: 2026-08-07 18:19
+---
+**Verification:** All tests pass ✓
+
+**Test results:**
+- New listener-startup timeout tests: 10/10 PASSED
+- Makefile structure tests: 23/23 PASSED  
+- PID/metadata gitignore tests: 6/6 PASSED
+- Makefile setup tests (start-related): 2/2 PASSED
+- Lifecycle CLI sync integration tests: 27/27 PASSED
+
+**Total: 68 tests passing, 0 failures**
+
+**Acceptance criteria met:**
+
+✓ Startup wait duration is configurable via bounded OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS
+  - Range: 5-120 seconds
+  - Default: 10 seconds (preserves existing behavior)
+  - Documented in .env.example
+
+✓ Verified process that listens after deadline is never silently orphaned
+  - PID/metadata preserved when process exists + identity matches
+  - Identity re-verified after timeout via process_identity.py
+  - Late listener gets 30s grace period to bind
+
+✓ Lifecycle status and operations distinguish late success from failure
+  - WARNING message for late listeners (not silent orphaning)
+  - ERROR message with cleanup for genuine failures
+  - Failed identity checks prevent lifecycle operations (fail-closed)
+
+✓ No code path deletes PID/metadata before proving owned process stopped
+  - After timeout, identity is verified
+  - Deletion only on confirmed process exit or identity mismatch
+  - Process group, session, start_time, cwd all checked
+
+✓ All existing lifecycle semantics preserved
+  - restart/graceful still work correctly
+  - stop/status identity checks intact
+  - Test/gate isolation with private PID files working
+  - No changes to port detection or process group signaling
+
+**Deployment safety:**
+- Fail-closed for PID reuse scenarios (different start_time detected)
+- Fail-closed for foreign processes (identity mismatch blocks signals)
+- Fail-closed for unverified processes (no stale metadata acceptance)
+- Configuration is bounded (prevents unreasonable timeout values)
 ---
 <!-- COMMENTS:END -->
