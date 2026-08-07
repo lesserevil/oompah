@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-07T14:22:40.033851Z'
+updated_at: '2026-08-07T14:23:16.383277Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -1002,12 +1002,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-a7252c61a538
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+      created_at: '2026-08-07T14:23:14.822789+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T14:23:14.822789+00:00'
+      branch_key: epic-OOMPAH-587
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -1016,6 +1031,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:25:13.344231+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    updated_at: '2026-08-07T14:23:14.822789+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -1272,6 +1288,21 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-07T13:54:52.327716+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-a7252c61a538
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    created_at: '2026-08-07T14:23:14.822789+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T14:23:14.822789+00:00'
+    branch_key: epic-OOMPAH-587
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
 oompah.task_costs:
   total_input_tokens: 582
   total_output_tokens: 76757
