@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:30:34.733299Z'
+updated_at: '2026-08-07T09:30:40.465432Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -1061,5 +1061,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 41s
 - Log: OOMPAH-581__20260807T091024Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:30
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
