@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T07:21:06.408642Z'
+updated_at: '2026-08-07T07:25:33.910393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a6c9d7ea-cecb-4fe8-9a73-92709eb330ab
+oompah.agent_run_id: 7d41907e-6ae9-4b6e-851c-406edac4a9ee
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1736
