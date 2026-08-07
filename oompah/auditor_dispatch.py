@@ -20,6 +20,7 @@ from oompah.auditor_candidate_selector import (
 from oompah.roles import Candidate
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     EvidenceFingerprint,
     RequestState,
     TargetState,
@@ -82,6 +83,18 @@ class AuditDispatchPlan:
     branch_key: str
     created_at: str
     previous_state: str | None = None
+    selected_ref: str | None = None
+    selected_sha: str | None = None
+
+    def __post_init__(self) -> None:
+        if (self.selected_ref is None) != (self.selected_sha is None):
+            raise ValueError(
+                "AuditDispatchPlan selected_ref and selected_sha must be supplied together"
+            )
+        if self.selected_ref is not None:
+            binding = AuditRevisionBinding(self.selected_ref, self.selected_sha or "")
+            object.__setattr__(self, "selected_ref", binding.selected_ref)
+            object.__setattr__(self, "selected_sha", binding.selected_sha)
 
 
 @dataclass(frozen=True)
@@ -267,8 +280,52 @@ class AuditorDispatchLane:
                 branch_key=branch_key,
                 created_at=created,
                 previous_state=record.previous_state,
+                selected_ref=record.selected_ref,
+                selected_sha=record.selected_sha,
             ),
             None,
+        )
+
+    def record_prelaunch_failure(
+        self,
+        record: TerminalAuditRecord,
+        *,
+        reason: str,
+        retry_after: str | None = None,
+        now: datetime | None = None,
+    ) -> TerminalAuditRecord | None:
+        """Consume one bounded attempt before an auditor can be launched.
+
+        Revision binding and other prelaunch infrastructure can fail before a
+        provider/model is selected.  Those failures must still advance the
+        same durable attempt budget as launch failures; otherwise a recovered
+        legacy record can remain pending forever without becoming actionable.
+        ``None`` means the record has already exhausted this lane's budget.
+        """
+
+        if len(record.attempts) >= self.max_attempts:
+            return None
+        from oompah.terminal_audit import FailureClassification
+
+        ended = timestamp(now or self.clock())
+        attempt = AuditAttempt(
+            attempt_id=self.id_factory(),
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            request_state=RequestState.PENDING,
+            created_at=ended,
+            ended_at=ended,
+            failure_reason=reason,
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+            next_retry_at=retry_after,
+            selected_ref=record.selected_ref,
+            selected_sha=record.selected_sha,
+        )
+        return replace(
+            record,
+            request_state=RequestState.PENDING,
+            attempts=[*record.attempts, attempt],
+            updated_at=ended,
         )
 
     @staticmethod
@@ -280,6 +337,11 @@ class AuditorDispatchLane:
 
         if plan.audit_id != record.audit_id:
             raise ValueError("dispatch plan belongs to a different audit")
+        if (
+            plan.selected_ref != record.selected_ref
+            or plan.selected_sha != record.selected_sha
+        ):
+            raise ValueError("dispatch plan revision binding does not match its audit")
         attempt = AuditAttempt(
             attempt_id=plan.attempt_id,
             target_state=plan.target_state,
@@ -291,6 +353,8 @@ class AuditorDispatchLane:
             started_at=plan.created_at,
             candidate_rotation_count=plan.rotation_count,
             branch_key=plan.branch_key,
+            selected_ref=plan.selected_ref,
+            selected_sha=plan.selected_sha,
         )
         return replace(
             record,

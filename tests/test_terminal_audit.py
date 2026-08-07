@@ -7,6 +7,7 @@ import pytest
 
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
@@ -14,6 +15,8 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    archive_default_branch_fallback_authorized,
+    build_revision_candidate_list,
     compute_evidence_fingerprint,
     compute_issue_evidence_fingerprint,
     _resolve_epic_branch_names,
@@ -111,6 +114,35 @@ class TestSerialization:
         restored = TerminalAuditRecord.from_dict(data)
 
         assert restored.attempts == []
+
+    def test_revision_binding_round_trips_and_legacy_record_remains_readable(
+        self,
+    ) -> None:
+        sha = "c" * 40
+        original = replace(
+            _record(),
+            selected_ref="origin/epic-OOMPAH-768",
+            selected_sha=sha,
+            attempts=[
+                replace(
+                    _record().attempts[0],
+                    selected_ref="origin/epic-OOMPAH-768",
+                    selected_sha=sha,
+                )
+            ],
+        )
+
+        assert TerminalAuditRecord.from_dict(original.to_dict()) == original
+        legacy = _record().to_dict()
+        assert TerminalAuditRecord.from_dict(legacy).selected_sha is None
+
+    def test_revision_binding_is_all_or_nothing_and_immutable_ref_matches_sha(
+        self,
+    ) -> None:
+        with pytest.raises(ValueError, match="supplied together"):
+            replace(_record(), selected_ref="origin/main")
+        with pytest.raises(ValueError, match="must equal"):
+            AuditRevisionBinding("a" * 40, "b" * 40)
 
     @pytest.mark.parametrize(
         "record_type, payload, missing",
@@ -361,6 +393,35 @@ class TestEpicBranchResolution:
         )
         assert fp == fp_expected
 
+    def test_ordinary_head_sha_preserves_legacy_branch_and_sha_shape(self) -> None:
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="Description",
+            work_branch="task-work",
+            integration=Mock(
+                state="ready",
+                task_branch="task-work",
+                head_sha="a" * 40,
+                integrated_sha=None,
+                base_branch="main",
+                base_sha="b" * 40,
+            ),
+        )
+
+        actual = compute_issue_evidence_fingerprint(issue, "proj-1")
+
+        assert actual == compute_evidence_fingerprint(
+            requirements_text="Description",
+            project_id="proj-1",
+            task_id="TASK-1",
+            source_branch="task-work",
+            source_sha="a" * 40,
+            target_branch="main",
+            target_sha="b" * 40,
+        )
+
     def test_compute_fingerprint_falls_back_through_candidates(self) -> None:
         """Branch resolution tries candidates in order: source_branch, work_branch, integration, branch_name, epic."""
         issue = Issue(
@@ -381,3 +442,306 @@ class TestEpicBranchResolution:
             source_branch="",  # Empty, no candidates matched
         )
         assert fp == fp_expected
+
+
+class TestRevisionCandidateList:
+    """Tests for immutable terminal-audit revision authority."""
+
+    def test_standalone_epic_without_work_branch_resolves_epic_branch(self) -> None:
+        """Standalone epic with no work_branch should resolve epic-EPIC-42."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Standalone epic",
+            description="Description",
+            work_branch=None,
+            issue_type="epic",
+        )
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        assert list(candidates.iter_for_workspace()) == ["origin/epic-EPIC-42"]
+
+    def test_nested_epic_tries_parent_branch_first(self) -> None:
+        """Nested epic should try parent epic branch first, then own branch."""
+        issue = Issue(
+            id="CHILD-1",
+            identifier="CHILD-1",
+            title="Nested epic",
+            description="Description",
+            parent_id="EPIC-42",
+            work_branch=None,
+            issue_type="epic",
+        )
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        revisions = list(candidates.iter_for_workspace())
+        assert revisions == ["origin/epic-EPIC-42", "origin/epic-CHILD-1"]
+
+    def test_immutable_sha_takes_precedence(self) -> None:
+        """When immutable SHA is present, it takes precedence over branches."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with SHA",
+            description="Description",
+            work_branch=None,
+            issue_type="epic",
+        )
+        issue.source_sha = "abc123def456abc123def456abc123def456abc1"
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        assert list(candidates.iter_for_workspace()) == [
+            "abc123def456abc123def456abc123def456abc1"
+        ]
+        assert candidates.immutable_shas_available is True
+
+    def test_immutable_sha_prevents_branch_fallback(self) -> None:
+        """When immutable SHA is present, branches are skipped in workspace iteration."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with SHA and branch",
+            description="Description",
+            work_branch="custom-branch",
+            issue_type="epic",
+        )
+        issue.source_sha = "abc123def456abc123def456abc123def456abc1"
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        revisions = list(candidates.iter_for_workspace())
+        assert revisions == ["abc123def456abc123def456abc123def456abc1"]
+
+    def test_explicit_work_branch_takes_precedence_over_epic_branch(self) -> None:
+        """Explicit work_branch should be tried first, with epic branch as fallback."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with explicit branch",
+            description="Description",
+            work_branch="custom-epic-work",
+            issue_type="epic",
+        )
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        revisions = list(candidates.iter_for_workspace())
+        assert revisions == [
+            "origin/custom-epic-work",
+            "origin/epic-EPIC-42",
+        ]
+
+    def test_non_epic_task_does_not_get_epic_branches(self) -> None:
+        """Regular tasks should not try to resolve epic branches."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Regular task",
+            description="Description",
+            issue_type="task",
+        )
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        revisions = list(candidates.iter_for_workspace())
+        assert all(not rev.endswith("epic-TASK-1") for rev in revisions)
+
+    def test_default_branch_not_added_without_permission(self) -> None:
+        """Default branch fallback should only be added when allowed by audit policy."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic",
+            description="Description",
+            issue_type="epic",
+            work_branch=None,
+        )
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.DONE,
+            previous_state="Open",
+            default_branch="main",
+        )
+
+        revisions = list(candidates.iter_for_workspace())
+        assert "origin/main" not in revisions
+
+    def test_merged_default_branch_is_last_candidate(self) -> None:
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic",
+            description="Description",
+            work_branch="explicit-work",
+            issue_type="epic",
+        )
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.MERGED,
+            default_branch="main",
+        )
+
+        assert list(candidates.iter_for_workspace())[-1] == "origin/main"
+
+    def test_archived_done_auto_archive_default_branch_is_last_candidate(self) -> None:
+        """Aged Done auto-archive retention binds the canonical default branch."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Tracker-only maintenance task",
+            description="Description",
+            issue_type="task",
+        )
+
+        authorized = archive_default_branch_fallback_authorized(
+            "Done",
+            ContributorIdentity("oompah", "auto_archive"),
+        )
+        assert authorized is True
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Done",
+            default_branch="main",
+            archive_default_branch_authorized=authorized,
+        )
+
+        assert list(candidates.iter_for_workspace()) == ["origin/main"]
+
+    def test_archived_done_non_auto_archive_does_not_default_to_main(self) -> None:
+        """A generic archive request cannot turn Done into landing evidence."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Tracker-only maintenance task",
+            description="Description",
+            issue_type="task",
+        )
+
+        authorized = archive_default_branch_fallback_authorized(
+            "Done",
+            ContributorIdentity("operator", "api"),
+        )
+        assert authorized is False
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Done",
+            default_branch="main",
+            archive_default_branch_authorized=authorized,
+        )
+
+        assert list(candidates.iter_for_workspace()) == []
+
+    @pytest.mark.parametrize(
+        "source",
+        ["github_intake", "release_pick_migration", "stalled_task_watchdog"],
+    )
+    def test_archived_open_automated_dispositions_do_not_default_to_main(
+        self,
+        source: str,
+    ) -> None:
+        """External or supersession archive triggers cannot retire abandoned work."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Unintegrated task",
+            description="Description",
+            issue_type="task",
+        )
+
+        authorized = archive_default_branch_fallback_authorized(
+            "Open",
+            ContributorIdentity("oompah", source),
+        )
+        assert authorized is False
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Open",
+            default_branch="main",
+            archive_default_branch_authorized=authorized,
+        )
+
+        assert list(candidates.iter_for_workspace()) == []
+
+    def test_archived_merged_default_branch_remains_last_candidate(self) -> None:
+        """Already-merged retention retains the established default fallback."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Merged task",
+            description="Description",
+            issue_type="task",
+        )
+
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.ARCHIVED,
+            previous_state="Merged",
+            default_branch="main",
+        )
+
+        assert list(candidates.iter_for_workspace()) == ["origin/main"]
+
+    def test_invalid_recorded_immutable_revision_fails_closed(self) -> None:
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="Description",
+            work_branch="mutable-fallback",
+        )
+        issue.source_sha = "abbreviated"
+
+        with pytest.raises(ValueError, match="full Git object ID"):
+            build_revision_candidate_list(issue, "proj-1")
+
+    def test_integration_record_provides_immutable_sha(self) -> None:
+        """Integration record integrated_sha provides immutable precedence."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="Description",
+        )
+        issue.integration = Mock(
+            integrated_sha="abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1",
+            head_sha="def2def2def2def2def2def2def2def2def2def2",
+            base_branch="main",
+            base_sha="aaa2aaa2aaa2aaa2aaa2aaa2aaa2aaa2aaa2aaa2",
+            task_branch="my-task",
+            state="integrated",
+        )
+
+        candidates = build_revision_candidate_list(issue, "proj-1")
+
+        assert list(candidates.iter_for_workspace()) == [
+            "abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1"
+        ]
+
+    def test_integrated_record_without_integrated_sha_fails_closed(self) -> None:
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            work_branch="mutable-fallback",
+            integration=Mock(state="integrated", integrated_sha=None),
+        )
+
+        with pytest.raises(ValueError, match="missing its immutable revision"):
+            build_revision_candidate_list(issue, "proj-1")

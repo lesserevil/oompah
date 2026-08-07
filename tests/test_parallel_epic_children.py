@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
@@ -22,7 +23,14 @@ from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
 from oompah.roles import Candidate
 from oompah.server import _integration_queue_summary
-from oompah.terminal_audit import EvidenceFingerprint, TargetState
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    compute_issue_evidence_fingerprint,
+)
 from tests.test_epic_strategy import (
     _make_issue,
     _make_orch,
@@ -972,6 +980,8 @@ def _audit_plan(
     *,
     target: TargetState = TargetState.ARCHIVED,
     previous_state: str | None = "Merged",
+    selected_ref: str = "c" * 40,
+    selected_sha: str = "c" * 40,
 ) -> AuditDispatchPlan:
     return AuditDispatchPlan(
         audit_id="audit-1",
@@ -983,6 +993,30 @@ def _audit_plan(
         branch_key="epic-EPIC-1",
         created_at="2026-07-31T00:00:00+00:00",
         previous_state=previous_state,
+        selected_ref=selected_ref,
+        selected_sha=selected_sha,
+    )
+
+
+def _audit_record(
+    issue: Issue,
+    *,
+    target: TargetState = TargetState.ARCHIVED,
+    previous_state: str | None = "Merged",
+    requested_by: ContributorIdentity | None = None,
+) -> TerminalAuditRecord:
+    return TerminalAuditRecord(
+        audit_id="audit-1",
+        project_id=str(issue.project_id),
+        task_id=issue.identifier,
+        target_state=target,
+        evidence_fingerprint=compute_issue_evidence_fingerprint(
+            issue,
+            str(issue.project_id),
+        ),
+        request_state=RequestState.PENDING,
+        previous_state=previous_state,
+        requested_by=requested_by,
     )
 
 
@@ -1028,11 +1062,11 @@ def test_archived_auditor_falls_back_to_default_when_merged_branch_deleted(tmp_p
     project.default_branch = "main"
     orchestrator = _make_orch(tmp_path, projects=[project])
     orchestrator.project_store.get.return_value = project
-    orchestrator.project_store.create_detached_audit_worktree.side_effect = [
+    orchestrator.project_store.resolve_audit_revision.side_effect = [
         ProjectError(
             "terminal audit revision is unavailable: origin/epic-EPIC-OLD"
         ),
-        ("/wt/audit", "d" * 40),
+        "d" * 40,
     ]
     child = _make_issue(
         identifier="TASK-1",
@@ -1041,12 +1075,13 @@ def test_archived_auditor_falls_back_to_default_when_merged_branch_deleted(tmp_p
     )
     child.work_branch = "epic-EPIC-OLD"
 
-    workspace = orchestrator._create_workspace_for_auditor(child, _audit_plan())
+    bound = orchestrator._bind_audit_record_revision(child, _audit_record(child))
 
-    assert workspace == "/wt/audit"
+    assert bound.selected_ref == "origin/main"
+    assert bound.selected_sha == "d" * 40
     revisions = [
-        call.args[2]
-        for call in orchestrator.project_store.create_detached_audit_worktree.call_args_list
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
     ]
     assert revisions == ["origin/epic-EPIC-OLD", "origin/main"]
 
@@ -1055,30 +1090,60 @@ def test_archived_auditor_fails_closed_without_merged_evidence(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     orchestrator = _make_orch(tmp_path, projects=[project])
     orchestrator.project_store.get.return_value = project
-    orchestrator.project_store.create_detached_audit_worktree.side_effect = ProjectError(
+    orchestrator.project_store.resolve_audit_revision.side_effect = ProjectError(
         "terminal audit revision is unavailable: origin/epic-EPIC-OLD"
     )
     child = _make_issue(identifier="TASK-1", project_id=project.id)
     child.work_branch = "epic-EPIC-OLD"
 
     with pytest.raises(ProjectError, match="no safely resolvable revision"):
-        orchestrator._create_workspace_for_auditor(
+        orchestrator._bind_audit_record_revision(
             child,
-            _audit_plan(previous_state="Done"),
+            _audit_record(child, previous_state="Done"),
         )
 
     revisions = [
-        call.args[2]
-        for call in orchestrator.project_store.create_detached_audit_worktree.call_args_list
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
     ]
     assert revisions == ["origin/epic-EPIC-OLD"]
+
+
+def test_aged_done_auto_archive_late_binding_uses_persisted_provenance(tmp_path):
+    """A legacy unbound retention record keeps its auto-archive authority."""
+    project = _make_project_record(epic_strategy="shared")
+    project.default_branch = "main"
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.resolve_audit_revision.side_effect = [
+        ProjectError(
+            "terminal audit revision is unavailable: origin/epic-EPIC-OLD"
+        ),
+        "d" * 40,
+    ]
+    child = _make_issue(identifier="TASK-1", project_id=project.id)
+    child.work_branch = "epic-EPIC-OLD"
+    record = _audit_record(
+        child,
+        previous_state="Done",
+        requested_by=ContributorIdentity("oompah", "auto_archive"),
+    )
+
+    bound = orchestrator._bind_audit_record_revision(child, record)
+
+    assert bound.selected_ref == "origin/main"
+    assert bound.selected_sha == "d" * 40
+    assert [
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
+    ] == ["origin/epic-EPIC-OLD", "origin/main"]
 
 
 def test_auditor_never_substitutes_default_for_unreachable_immutable_head(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     orchestrator = _make_orch(tmp_path, projects=[project])
     orchestrator.project_store.get.return_value = project
-    orchestrator.project_store.create_detached_audit_worktree.side_effect = ProjectError(
+    orchestrator.project_store.resolve_audit_revision.side_effect = ProjectError(
         f"terminal audit revision is unavailable: {'c' * 40}"
     )
     child = _make_issue(identifier="TASK-1", project_id=project.id)
@@ -1089,13 +1154,134 @@ def test_auditor_never_substitutes_default_for_unreachable_immutable_head(tmp_pa
     )
 
     with pytest.raises(ProjectError, match="no safely resolvable revision"):
-        orchestrator._create_workspace_for_auditor(child, _audit_plan())
+        orchestrator._bind_audit_record_revision(child, _audit_record(child))
 
     revisions = [
-        call.args[2]
-        for call in orchestrator.project_store.create_detached_audit_worktree.call_args_list
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
     ]
     assert revisions == ["c" * 40]
+
+
+def test_standalone_epic_binding_resolves_canonical_oompah_768_branch(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.resolve_audit_revision.side_effect = [
+        ProjectError("terminal audit revision is unavailable: origin/OOMPAH-768"),
+        "7" * 40,
+    ]
+    epic = _make_issue(
+        identifier="OOMPAH-768",
+        issue_type="epic",
+        project_id=project.id,
+        work_branch=None,
+    )
+    epic.branch_name = "OOMPAH-768"
+    record = replace(
+        _audit_record(epic),
+        evidence_fingerprint=compute_issue_evidence_fingerprint(
+            epic,
+            project.id,
+        ),
+    )
+
+    bound = orchestrator._bind_audit_record_revision(epic, record)
+
+    assert bound.selected_ref == "origin/epic-OOMPAH-768"
+    assert bound.selected_sha == "7" * 40
+    assert [
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
+    ] == ["origin/OOMPAH-768", "origin/epic-OOMPAH-768"]
+
+
+def test_nested_epic_binding_resolves_private_branch_after_shared_is_missing(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.resolve_audit_revision.side_effect = [
+        ProjectError("terminal audit revision is unavailable: origin/epic-PARENT"),
+        "8" * 40,
+    ]
+    epic = _make_issue(
+        identifier="CHILD",
+        issue_type="epic",
+        parent_id="PARENT",
+        project_id=project.id,
+        work_branch=None,
+    )
+
+    bound = orchestrator._bind_audit_record_revision(epic, _audit_record(epic))
+
+    assert bound.selected_ref == "origin/epic-CHILD"
+    assert bound.selected_sha == "8" * 40
+    assert [
+        call.args[1]
+        for call in orchestrator.project_store.resolve_audit_revision.call_args_list
+    ] == ["origin/epic-PARENT", "origin/epic-CHILD"]
+
+
+def test_auditor_retry_uses_persisted_sha_after_branch_moves(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.resolve_audit_revision.return_value = "a" * 40
+    orchestrator.project_store.create_detached_audit_worktree.return_value = (
+        "/wt/audit",
+        "a" * 40,
+    )
+    epic = _make_issue(
+        identifier="OOMPAH-768",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    bound = orchestrator._bind_audit_record_revision(epic, _audit_record(epic))
+    orchestrator.project_store.resolve_audit_revision.reset_mock()
+    orchestrator.project_store.resolve_audit_revision.return_value = "b" * 40
+
+    workspace = orchestrator._create_workspace_for_auditor(
+        epic,
+        _audit_plan(
+            selected_ref=str(bound.selected_ref),
+            selected_sha=str(bound.selected_sha),
+        ),
+    )
+
+    assert workspace == "/wt/audit"
+    orchestrator.project_store.resolve_audit_revision.assert_not_called()
+    orchestrator.project_store.create_detached_audit_worktree.assert_called_once_with(
+        project.id,
+        "OOMPAH-768--terminal-audit-attempt-1",
+        "a" * 40,
+    )
+
+
+def test_restart_reuses_persisted_binding_without_repository_resolution(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    epic = _make_issue(
+        identifier="OOMPAH-768",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    restored = TerminalAuditRecord.from_dict(
+        replace(
+            _audit_record(epic),
+            selected_ref="origin/epic-OOMPAH-768",
+            selected_sha="9" * 40,
+        ).to_dict()
+    )
+    # Tracker normalization after staging must not invalidate already-persisted
+    # immutable authority or trigger another mutable repository resolution.
+    epic.branch_name = "OOMPAH-768"
+
+    rebound = orchestrator._bind_audit_record_revision(epic, restored)
+
+    assert rebound.selected_ref == "origin/epic-OOMPAH-768"
+    assert rebound.selected_sha == "9" * 40
+    orchestrator.project_store.resolve_audit_revision.assert_not_called()
 
 
 def test_epic_head_race_requeues_the_rebased_remote_head(tmp_path):

@@ -224,6 +224,26 @@ class ContributorIdentity:
         )
 
 
+def archive_default_branch_fallback_authorized(
+    previous_state: str | None,
+    requested_by: ContributorIdentity | None,
+) -> bool:
+    """Return whether an aged Done retention audit may witness ``origin/main``.
+
+    This deliberately recognizes only the durable provenance written by
+    :func:`oompah.archived_audit_requests.request_archived_audit` for the
+    automatic-retention sweep.  An ``Archived`` target by itself is not
+    authority to treat the default branch as evidence for active, external, or
+    superseded work.
+    """
+
+    return (
+        str(previous_state or "").strip().casefold() == "done"
+        and str(getattr(requested_by, "source", None) or "").strip().casefold()
+        == "auto_archive"
+    )
+
+
 @dataclass(frozen=True)
 class EvidenceFingerprint:
     """Versioned SHA-256 digest of the accepted terminal-audit evidence."""
@@ -547,6 +567,228 @@ def _resolve_epic_branch_names(
     return branches
 
 
+@dataclass(frozen=True)
+class RevisionCandidate:
+    """One ordered repository revision candidate for a terminal audit."""
+
+    revision: str
+    """A full object ID or an ``origin/<branch>`` ref."""
+
+    @property
+    def is_sha(self) -> bool:
+        """True if revision is an immutable SHA, not a mutable branch ref."""
+        return _is_valid_sha(self.revision)
+
+
+@dataclass(frozen=True)
+class RevisionCandidateList:
+    """Ordered list of revision candidates for terminal-audit resolution.
+
+    An immutable evidence object ID is the only candidate when present. Branch
+    candidates are ordered explicit, canonical shared/private epic, and finally
+    the policy-authorized default branch. The repository owner resolves this
+    list once and persists the resulting :class:`AuditRevisionBinding`.
+    """
+
+    candidates: list[RevisionCandidate] = field(default_factory=list)
+    immutable_shas_available: bool = False
+    """True when the sole candidate came from immutable task evidence."""
+
+    def iter_for_workspace(self) -> Iterable[str]:
+        """Iterate revisions to try when creating audit workspace.
+
+        Yields candidate revisions in priority order. Branches are prefixed
+        with 'origin/', SHAs are bare. When immutable SHAs are available,
+        only those are yielded; branch candidates are skipped.
+        """
+        for candidate in self.candidates:
+            if self.immutable_shas_available and not candidate.is_sha:
+                continue
+            yield candidate.revision
+
+
+@dataclass(frozen=True)
+class AuditRevisionBinding:
+    """The immutable repository authority selected for one audit request."""
+
+    selected_ref: str
+    selected_sha: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.selected_ref, str) or not self.selected_ref.strip():
+            raise ValueError("AuditRevisionBinding.selected_ref must be non-empty")
+        if not _is_valid_sha(self.selected_sha):
+            raise ValueError(
+                "AuditRevisionBinding.selected_sha must be a full Git object ID"
+            )
+        object.__setattr__(self, "selected_ref", self.selected_ref.strip())
+        object.__setattr__(self, "selected_sha", self.selected_sha.strip().lower())
+        if _is_valid_sha(self.selected_ref) and (
+            self.selected_ref.strip().lower() != self.selected_sha
+        ):
+            raise ValueError(
+                "immutable selected_ref must equal AuditRevisionBinding.selected_sha"
+            )
+
+    def to_dict(self) -> dict[str, str | int]:
+        return {
+            "version": CURRENT_VERSION,
+            "selected_ref": self.selected_ref,
+            "selected_sha": self.selected_sha,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> "AuditRevisionBinding":
+        data = _require_mapping(raw, cls.__name__)
+        _read_version(data, cls.__name__)
+        return cls(
+            selected_ref=_required_string(data, "selected_ref", cls.__name__),
+            selected_sha=_required_string(data, "selected_sha", cls.__name__),
+        )
+
+
+def build_revision_candidate_list(
+    issue: Any,
+    project_id: str,
+    target_state: TargetState | None = None,
+    previous_state: str | None = None,
+    default_branch: str | None = None,
+    *,
+    archive_default_branch_authorized: bool = False,
+) -> RevisionCandidateList:
+    """Build ordered revision candidates for terminal-audit resolution.
+
+    This function only enumerates authority. The repository-aware caller must
+    resolve it exactly once, persist the returned ref/SHA pair, and launch all
+    attempts at that SHA. It deliberately does not participate in the legacy
+    evidence-fingerprint calculation, whose byte-for-byte stability is part of
+    restart compatibility.
+
+    Parameters
+    ----------
+    issue : Any
+        Tracker issue object with optional properties: source_sha, source_branch,
+        work_branch, branch_name, issue_type, parent_id, integration record, etc.
+    project_id : str
+        Managed project ID for context.
+    target_state : TargetState, optional
+        The terminal state being audited (used to determine if default-branch
+        fallback is allowed).
+    previous_state : str, optional
+        Retained for request compatibility and audit diagnostics.
+    archive_default_branch_authorized : bool, optional
+        Whether a retained ``Done`` task was explicitly authorized by the
+        automatic-retention path to use the canonical default branch.  This is
+        durable audit provenance, not a generic consequence of requesting an
+        ``Archived`` transition.
+
+    Returns
+    -------
+    RevisionCandidateList
+        Ordered candidates with immutable SHA precedence and branch/epic fallbacks.
+    """
+
+    del project_id  # Kept in the API for project-aware callers and diagnostics.
+    candidates: list[RevisionCandidate] = []
+    integration = getattr(issue, "integration", None)
+    integration_state = str(getattr(integration, "state", None) or "").strip().lower()
+    if integration_state == "integrated":
+        immutable = str(getattr(integration, "integrated_sha", None) or "").strip()
+        if not immutable:
+            raise ValueError(
+                "terminal audit integrated evidence is missing its immutable revision"
+            )
+    else:
+        immutable = str(
+            getattr(issue, "source_sha", None)
+            or getattr(integration, "head_sha", None)
+            or ""
+        ).strip()
+    if immutable:
+        if not _is_valid_sha(immutable):
+            raise ValueError(
+                "terminal audit immutable revision must be a full Git object ID"
+            )
+        return RevisionCandidateList(
+            candidates=[RevisionCandidate(immutable.lower())],
+            immutable_shas_available=True,
+        )
+
+    def _append_branch(value: Any) -> None:
+        branch = str(value or "").strip()
+        if not branch:
+            return
+        revision = branch if branch.startswith("origin/") else f"origin/{branch}"
+        if not any(candidate.revision == revision for candidate in candidates):
+            candidates.append(RevisionCandidate(revision=revision))
+
+    for value in (
+        getattr(issue, "source_branch", None),
+        getattr(issue, "work_branch", None),
+        getattr(integration, "task_branch", None),
+        getattr(issue, "branch_name", None),
+    ):
+        _append_branch(value)
+
+    issue_identifier = str(
+        getattr(issue, "identifier", None) or getattr(issue, "id", None) or ""
+    )
+    for branch in _resolve_epic_branch_names(
+        issue_identifier,
+        getattr(issue, "parent_id", None),
+        str(getattr(issue, "issue_type", None) or ""),
+    ):
+        _append_branch(branch)
+
+    previous = str(previous_state or "").strip().casefold()
+    # The default branch is a landing witness, never a substitute for missing
+    # task evidence.  Merged work already has the lifecycle authority for that
+    # witness.  An Archived audit normally needs the same already-merged
+    # authority; the one additional retention case is an aged Done task whose
+    # request was explicitly made by the auto-archive path.  Other Archived
+    # requests (for example external closure, release-pick replacement, or a
+    # watchdog disposition) can originate from active/unintegrated work and
+    # must fail closed without a task/epic/immutable revision.
+    default_fallback_allowed = target_state == TargetState.MERGED or (
+        target_state == TargetState.ARCHIVED
+        and (
+            previous in {"merged", "archived"}
+            or (previous == "done" and archive_default_branch_authorized)
+        )
+    )
+    if default_fallback_allowed:
+        _append_branch(default_branch)
+
+    return RevisionCandidateList(candidates=candidates)
+
+
+def _is_valid_sha(value: str) -> bool:
+    """Check if value looks like a Git SHA-1 or SHA-256 hash."""
+    if not isinstance(value, str):
+        return False
+    value = value.strip().lower()
+    # SHA-1: 40 hex chars, SHA-256: 64 hex chars
+    if len(value) not in (40, 64):
+        return False
+    return all(c in "0123456789abcdef" for c in value)
+
+
+def _validate_optional_revision_binding(
+    selected_ref: str | None,
+    selected_sha: str | None,
+    type_name: str,
+) -> AuditRevisionBinding | None:
+    """Validate an optional all-or-nothing persisted revision binding."""
+
+    if (selected_ref is None) != (selected_sha is None):
+        raise ValueError(
+            f"{type_name} selected_ref and selected_sha must be supplied together"
+        )
+    if selected_ref is None:
+        return None
+    return AuditRevisionBinding(selected_ref, selected_sha or "")
+
+
 def compute_issue_evidence_fingerprint(
     issue: Any,
     project_id: str,
@@ -629,7 +871,9 @@ def compute_issue_evidence_fingerprint(
                 ),
             )
     else:
-        # Try explicit branches first
+        # Preserve the v1 fingerprint shape exactly. Repository resolution is
+        # persisted separately as an AuditRevisionBinding so deploying the
+        # resolver cannot invalidate an in-flight legacy audit.
         source_branch = str(
             getattr(issue, "source_branch", None)
             or getattr(issue, "work_branch", None)
@@ -637,26 +881,20 @@ def compute_issue_evidence_fingerprint(
             or getattr(issue, "branch_name", None)
             or ""
         )
-        
-        # If no explicit branch and it's an epic without work_branch,
-        # try canonical epic branch names
         if not source_branch:
             issue_identifier = str(
                 getattr(issue, "identifier", None)
                 or getattr(issue, "id", None)
                 or ""
             )
-            parent_id = getattr(issue, "parent_id", None)
-            issue_type = str(getattr(issue, "issue_type", None) or "")
-            
             epic_branches = _resolve_epic_branch_names(
-                issue_identifier, parent_id, issue_type
+                issue_identifier,
+                getattr(issue, "parent_id", None),
+                str(getattr(issue, "issue_type", None) or ""),
             )
-            # Use the first candidate; callers needing remote verification
-            # should validate and fail closed on ambiguity
             if epic_branches:
                 source_branch = epic_branches[0]
-        
+
         source_sha = str(
             getattr(issue, "source_sha", None)
             or getattr(integration, "head_sha", None)
@@ -723,6 +961,8 @@ class AuditAttempt:
     branch_key: str | None = None
     session_id: str | None = None
     next_retry_at: str | None = None
+    selected_ref: str | None = None
+    selected_sha: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.attempt_id, str) or not self.attempt_id.strip():
@@ -743,11 +983,20 @@ class AuditAttempt:
             raise TypeError("AuditAttempt.requested_by must be ContributorIdentity or null")
         for name in (
             "provider_id", "model", "started_at", "ended_at", "failure_reason",
-            "branch_key", "session_id", "next_retry_at",
+            "branch_key", "session_id", "next_retry_at", "selected_ref",
+            "selected_sha",
         ):
             value = getattr(self, name)
             if value is not None and not isinstance(value, str):
                 raise TypeError(f"AuditAttempt.{name} must be a string or null")
+        binding = _validate_optional_revision_binding(
+            self.selected_ref,
+            self.selected_sha,
+            "AuditAttempt",
+        )
+        if binding is not None:
+            self.selected_ref = binding.selected_ref
+            self.selected_sha = binding.selected_sha
         if (
             isinstance(self.candidate_rotation_count, bool)
             or not isinstance(self.candidate_rotation_count, int)
@@ -785,7 +1034,8 @@ class AuditAttempt:
             result["completed_at"] = self.completed_at
         for key in (
             "provider_id", "model", "started_at", "ended_at", "failure_reason",
-            "branch_key", "session_id", "next_retry_at",
+            "branch_key", "session_id", "next_retry_at", "selected_ref",
+            "selected_sha",
         ):
             value = getattr(self, key)
             if value is not None:
@@ -831,6 +1081,8 @@ class AuditAttempt:
             branch_key=_optional_string(data, "branch_key", cls.__name__),
             session_id=_optional_string(data, "session_id", cls.__name__),
             next_retry_at=_optional_string(data, "next_retry_at", cls.__name__),
+            selected_ref=_optional_string(data, "selected_ref", cls.__name__),
+            selected_sha=_optional_string(data, "selected_sha", cls.__name__),
         )
 
 
@@ -849,6 +1101,8 @@ class TerminalAuditRecord:
     previous_state: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    selected_ref: str | None = None
+    selected_sha: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("audit_id", "project_id", "task_id"):
@@ -871,6 +1125,14 @@ class TerminalAuditRecord:
             raise TypeError(
                 "TerminalAuditRecord.requested_by must be ContributorIdentity or null"
             )
+        binding = _validate_optional_revision_binding(
+            self.selected_ref,
+            self.selected_sha,
+            "TerminalAuditRecord",
+        )
+        if binding is not None:
+            self.selected_ref = binding.selected_ref
+            self.selected_sha = binding.selected_sha
 
     @property
     def id(self) -> str:
@@ -903,6 +1165,9 @@ class TerminalAuditRecord:
             result["created_at"] = self.created_at
         if self.updated_at is not None:
             result["updated_at"] = self.updated_at
+        if self.selected_ref is not None:
+            result["selected_ref"] = self.selected_ref
+            result["selected_sha"] = self.selected_sha
         return result
 
     @classmethod
@@ -932,6 +1197,8 @@ class TerminalAuditRecord:
             previous_state=_optional_string(data, "previous_state", cls.__name__),
             created_at=_optional_string(data, "created_at", cls.__name__),
             updated_at=_optional_string(data, "updated_at", cls.__name__),
+            selected_ref=_optional_string(data, "selected_ref", cls.__name__),
+            selected_sha=_optional_string(data, "selected_sha", cls.__name__),
         )
 
 
@@ -1018,17 +1285,22 @@ __all__ = [
     "CURRENT_VERSION",
     "AuditAttempt",
     "AuditRecord",
+    "AuditRevisionBinding",
     "AuditVerdict",
+    "archive_default_branch_fallback_authorized",
     "ContributorIdentity",
     "EvidenceFingerprint",
     "FailureClassification",
     "IntegratedEvidenceFingerprintVariants",
     "OverrideRecord",
     "RequestState",
+    "RevisionCandidate",
+    "RevisionCandidateList",
     "TargetState",
     "TerminalAuditRecord",
     "TerminalState",
     "Verdict",
+    "build_revision_candidate_list",
     "compute_evidence_fingerprint",
     "compute_integrated_evidence_fingerprint_variants",
     "compute_issue_evidence_fingerprint",

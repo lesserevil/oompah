@@ -91,6 +91,7 @@ from oompah.statuses import (
 )
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
@@ -99,6 +100,8 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    archive_default_branch_fallback_authorized,
+    build_revision_candidate_list,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
@@ -449,6 +452,9 @@ class ResultRejection:
     AUDIT_OWNERSHIP_MISMATCH = "audit does not belong to the requested task or project"
     TARGET_MISMATCH = "target state does not match audit"
     FINGERPRINT_MISMATCH = "evidence fingerprint does not match audit"
+    REVISION_BINDING_MISMATCH = (
+        "auditor attempt revision binding does not match audit authority"
+    )
     STATE_MISMATCH = "audit is no longer pending or in progress"
     ISSUE_NOT_IN_VALIDATION = "issue is not in In Validation"
     MALFORMED_RESULT = "audit result is malformed"
@@ -750,6 +756,201 @@ class TerminalTransitionCoordinator:
             )
         return None
 
+    def _resolve_revision_binding(
+        self,
+        issue: Issue,
+        target: TargetState,
+        project_id: str,
+        *,
+        previous_state: str | None,
+        archive_default_branch_authorized: bool = False,
+    ) -> AuditRevisionBinding | None:
+        """Resolve request-time repository authority when the store supports it.
+
+        Tracker-neutral embedders historically supplied only a project lock.
+        They remain schema-compatible and are bound later by the orchestrator;
+        the service ProjectStore binds here, before tracker refresh can alter
+        normalized branch fields.
+        """
+
+        resolver_method = getattr(
+            type(self._project_store),
+            "resolve_audit_revision",
+            None,
+        )
+        getter_method = getattr(type(self._project_store), "get", None)
+        if resolver_method is None or getter_method is None:
+            return None
+        project = self._project_store.get(project_id)
+        if project is None:
+            raise ValueError(f"Unknown project: {project_id}")
+        candidates = build_revision_candidate_list(
+            issue,
+            project_id,
+            target_state=target,
+            previous_state=previous_state,
+            default_branch=project.default_branch,
+            archive_default_branch_authorized=archive_default_branch_authorized,
+        )
+        unavailable: list[str] = []
+        for candidate in candidates.candidates:
+            try:
+                selected_sha = self._project_store.resolve_audit_revision(
+                    project_id,
+                    candidate.revision,
+                )
+            except Exception as exc:  # noqa: BLE001 - duck-typed project store
+                if "revision is unavailable" not in str(exc):
+                    raise
+                unavailable.append(candidate.revision)
+                if candidates.immutable_shas_available:
+                    break
+                continue
+            return AuditRevisionBinding(candidate.revision, selected_sha)
+        tried = ", ".join(unavailable) if unavailable else "no permitted revision"
+        raise ValueError(
+            "terminal audit evidence has no safely resolvable revision "
+            f"for {issue.identifier} (tried: {tried})"
+        )
+
+    def _request_revision_binding(
+        self,
+        store: TerminalAuditMetadataStore,
+        issue: Issue,
+        target: TargetState,
+        project_id: str,
+        fingerprint: EvidenceFingerprint,
+        *,
+        trigger_identity: ContributorIdentity,
+        coalesce_pending_target: bool = False,
+    ) -> AuditRevisionBinding | None:
+        """Reuse durable authority before resolving a new request binding."""
+
+        try:
+            document = store.read(issue.identifier)
+        except TerminalAuditMetadataQuarantinedError:
+            # Let _transition_locked preserve its canonical quarantine result.
+            return None
+        # Only active requests own reusable repository authority. A completed
+        # row can share the canonical v1 fingerprint after its branch advances;
+        # reusing that row's old SHA would acknowledge the new branch tip
+        # without auditing it. Only fall back to a different fingerprint for
+        # the live authority that ``coalesce_pending_target`` is specifically
+        # meant to reuse.
+        matching = next(
+            (
+                record
+                for record in reversed(document.pending_chain)
+                if record.target_state == target
+                and record.request_state
+                in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                and record.evidence_fingerprint == fingerprint
+            ),
+            None,
+        )
+        if matching is None and coalesce_pending_target:
+            matching = next(
+                (
+                    record
+                    for record in reversed(document.pending_chain)
+                    if record.target_state == target
+                    and record.request_state
+                    in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                ),
+                None,
+            )
+        if matching is not None:
+            if matching.selected_ref is not None or matching.selected_sha is not None:
+                return AuditRevisionBinding(
+                    matching.selected_ref or "",
+                    matching.selected_sha or "",
+                )
+
+        # If an active record needs a late legacy binding, its persisted
+        # provenance—not a fresh coalescing caller—decides whether the aged
+        # Done auto-archive exception can use the default branch.
+        binding_authority_record = matching
+
+        # A current immutable SHA can prove that an exact completed row still
+        # names the request's authority without touching the repository. A
+        # branch-backed completion cannot: resolve it again so
+        # ``_transition_locked`` can compare bindings and either acknowledge
+        # the exact completion or supersede/requeue the advanced revision.
+        completed = next(
+            (
+                record
+                for record in reversed(document.pending_chain)
+                if record.target_state == target
+                and record.request_state == RequestState.COMPLETED
+                and record.evidence_fingerprint == fingerprint
+            ),
+            None,
+        )
+        if (
+            completed is not None
+            and completed.selected_ref is not None
+            and completed.selected_sha is not None
+        ):
+            getter_method = getattr(type(self._project_store), "get", None)
+            if getter_method is not None:
+                project = self._project_store.get(project_id)
+                if project is None:
+                    raise ValueError(f"Unknown project: {project_id}")
+                candidates = build_revision_candidate_list(
+                    issue,
+                    project_id,
+                    target_state=target,
+                    previous_state=completed.previous_state,
+                    default_branch=project.default_branch,
+                    archive_default_branch_authorized=(
+                        archive_default_branch_fallback_authorized(
+                            completed.previous_state,
+                            completed.requested_by,
+                        )
+                    ),
+                )
+                if (
+                    candidates.immutable_shas_available
+                    and candidates.candidates
+                    and candidates.candidates[0].revision
+                    == completed.selected_sha
+                ):
+                    return AuditRevisionBinding(
+                        completed.selected_ref,
+                        completed.selected_sha,
+                    )
+        if binding_authority_record is not None:
+            binding_previous_state = binding_authority_record.previous_state
+            archive_default_branch_authorized = (
+                archive_default_branch_fallback_authorized(
+                    binding_authority_record.previous_state,
+                    binding_authority_record.requested_by,
+                )
+            )
+        elif completed is not None:
+            binding_previous_state = completed.previous_state
+            archive_default_branch_authorized = (
+                archive_default_branch_fallback_authorized(
+                    completed.previous_state,
+                    completed.requested_by,
+                )
+            )
+        else:
+            binding_previous_state = issue.state or None
+            archive_default_branch_authorized = (
+                archive_default_branch_fallback_authorized(
+                    issue.state or None,
+                    trigger_identity,
+                )
+            )
+        return self._resolve_revision_binding(
+            issue,
+            target,
+            project_id,
+            previous_state=binding_previous_state,
+            archive_default_branch_authorized=archive_default_branch_authorized,
+        )
+
     # ------------------------------------------------------------------
     # Public API — request_transition
     # ------------------------------------------------------------------
@@ -803,13 +1004,24 @@ class TerminalTransitionCoordinator:
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
-            self._revoke_delivery_for_terminal_transition(
-                project_id,
-                current_issue.identifier,
-            )
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
+            )
+            try:
+                revision_binding = self._request_revision_binding(
+                    store,
+                    current_issue,
+                    requested_target,
+                    project_id,
+                    evidence_fingerprint,
+                    trigger_identity=trigger_identity,
+                )
+            except Exception as exc:  # noqa: BLE001 - fail closed before mutation
+                return TransitionResult(success=False, reason=str(exc))
+            self._revoke_delivery_for_terminal_transition(
+                project_id,
+                current_issue.identifier,
             )
             outcome = self._transition_locked(
                 store,
@@ -819,6 +1031,7 @@ class TerminalTransitionCoordinator:
                 trigger_identity,
                 project_id,
                 evidence_fingerprint,
+                revision_binding=revision_binding,
                 ensure_validation_on_coalesce=True,
             )
             if outcome.success:
@@ -897,13 +1110,25 @@ class TerminalTransitionCoordinator:
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
-            self._revoke_delivery_for_terminal_transition(
-                project_id,
-                current_issue.identifier,
-            )
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
+            )
+            try:
+                revision_binding = self._request_revision_binding(
+                    store,
+                    current_issue,
+                    requested_target,
+                    project_id,
+                    evidence_fingerprint,
+                    trigger_identity=trigger_identity,
+                    coalesce_pending_target=coalesce_pending_target,
+                )
+            except Exception as exc:  # noqa: BLE001 - fail closed before mutation
+                return TransitionResult(success=False, reason=str(exc))
+            self._revoke_delivery_for_terminal_transition(
+                project_id,
+                current_issue.identifier,
             )
             return self._transition_locked(
                 store,
@@ -913,6 +1138,7 @@ class TerminalTransitionCoordinator:
                 trigger_identity,
                 project_id,
                 evidence_fingerprint,
+                revision_binding=revision_binding,
                 coalesce_pending_target=coalesce_pending_target,
                 ensure_validation_on_coalesce=ensure_validation_on_coalesce,
                 queued_comment=queued_comment,
@@ -1110,14 +1336,34 @@ class TerminalTransitionCoordinator:
                     else record
                     for record in chain
                 ]
+                # A rearm is owned by ``authorized_actor`` (recorded in the
+                # durable history below), but a legacy unbound retention audit
+                # must retain its original automatic-retention provenance.  It
+                # is the narrow authority that permits the later binder to
+                # witness origin/main for an aged Done task.  Do not carry
+                # arbitrary prior requesters forward.
+                retained_provenance = (
+                    exhausted.requested_by
+                    if (
+                        exhausted.selected_ref is None
+                        and exhausted.selected_sha is None
+                        and archive_default_branch_fallback_authorized(
+                            exhausted.previous_state,
+                            exhausted.requested_by,
+                        )
+                    )
+                    else authorized_actor
+                )
                 fresh = _make_record(
                     project_id,
                     current_issue.identifier,
                     requested_target,
                     exhausted.evidence_fingerprint,
-                    authorized_actor,
+                    retained_provenance,
                     exhausted.previous_state,
                     now,
+                    selected_ref=exhausted.selected_ref,
+                    selected_sha=exhausted.selected_sha,
                 )
                 chain.append(fresh)
                 rearm_history = list(
@@ -1521,6 +1767,7 @@ class TerminalTransitionCoordinator:
         project_id: str,
         evidence_fingerprint: EvidenceFingerprint,
         *,
+        revision_binding: AuditRevisionBinding | None = None,
         coalesce_pending_target: bool = False,
         ensure_validation_on_coalesce: bool = False,
         queued_comment: str | None = None,
@@ -1531,11 +1778,23 @@ class TerminalTransitionCoordinator:
         def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
             """Atomically decide and commit all metadata changes."""
             chain = list(doc.pending_chain)
+
+            def _binding_matches(record: TerminalAuditRecord) -> bool:
+                """Return whether *record* names this request's exact revision."""
+
+                if revision_binding is None:
+                    return True
+                return (
+                    record.selected_ref == revision_binding.selected_ref
+                    and record.selected_sha == revision_binding.selected_sha
+                )
+
             merged_prerequisite_ready = (
                 requested_target != TargetState.MERGED
                 or any(
                     record.target_state == TargetState.DONE
                     and record.evidence_fingerprint == evidence_fingerprint
+                    and _binding_matches(record)
                     and record.request_state
                     in (
                         RequestState.PENDING,
@@ -1552,6 +1811,7 @@ class TerminalTransitionCoordinator:
                     record.target_state == requested_target
                     and record.request_state == RequestState.COMPLETED
                     and record.evidence_fingerprint == evidence_fingerprint
+                    and _binding_matches(record)
                     and merged_prerequisite_ready
                 ):
                     duplicate_ids = [
@@ -1588,7 +1848,12 @@ class TerminalTransitionCoordinator:
             # prevents a native reconciliation pass after restart from
             # recreating an audit for an already-applied fingerprint.
             if _has_terminal_retirement(
-                doc, project_id, identifier, requested_target, evidence_fingerprint
+                doc,
+                project_id,
+                identifier,
+                requested_target,
+                evidence_fingerprint,
+                revision_binding=revision_binding,
             ):
                 decision.early_result = TransitionResult(
                     success=False,
@@ -1603,6 +1868,7 @@ class TerminalTransitionCoordinator:
                     record.target_state == requested_target
                     and record.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    and _binding_matches(record)
                     and merged_prerequisite_ready
                     and (
                         coalesce_pending_target
@@ -1615,17 +1881,36 @@ class TerminalTransitionCoordinator:
                     if not coalesce_pending_target:
                         updated_chain = []
                         for existing in chain:
+                            mismatched_chain_binding = (
+                                revision_binding is not None
+                                and existing.evidence_fingerprint
+                                == evidence_fingerprint
+                                and (
+                                    existing.target_state == requested_target
+                                    or (
+                                        requested_target == TargetState.MERGED
+                                        and existing.target_state
+                                        == TargetState.DONE
+                                    )
+                                )
+                                and not _binding_matches(existing)
+                            )
                             if (
                                 existing.audit_id != record.audit_id
-                                and existing.target_state == requested_target
                                 and existing.request_state
                                 in (
                                     RequestState.PENDING,
                                     RequestState.IN_PROGRESS,
                                     RequestState.COMPLETED,
                                 )
-                                and existing.evidence_fingerprint
-                                != evidence_fingerprint
+                                and (
+                                    (
+                                        existing.target_state == requested_target
+                                        and existing.evidence_fingerprint
+                                        != evidence_fingerprint
+                                    )
+                                    or mismatched_chain_binding
+                                )
                             ):
                                 updated_chain.append(
                                     replace(
@@ -1679,6 +1964,18 @@ class TerminalTransitionCoordinator:
             superseded_ids: list[str] = []
             updated_chain: list[TerminalAuditRecord] = []
             for record in chain:
+                mismatched_target_binding = (
+                    revision_binding is not None
+                    and (
+                        record.target_state == requested_target
+                        or (
+                            requested_target == TargetState.MERGED
+                            and record.target_state == TargetState.DONE
+                        )
+                    )
+                    and record.evidence_fingerprint == evidence_fingerprint
+                    and not _binding_matches(record)
+                )
                 invalid_merged_prerequisite = (
                     requested_target == TargetState.MERGED
                     and not merged_prerequisite_ready
@@ -1702,6 +1999,7 @@ class TerminalTransitionCoordinator:
                     and (
                         record.evidence_fingerprint != evidence_fingerprint
                         or invalid_merged_prerequisite
+                        or mismatched_target_binding
                     )
                 ):
                     updated_chain.append(
@@ -1722,6 +2020,7 @@ class TerminalTransitionCoordinator:
                 trigger_identity,
                 evidence_fingerprint,
                 project_id,
+                revision_binding=revision_binding,
             )
             decision.new_entries = new_entries
 
@@ -1989,6 +2288,46 @@ class TerminalTransitionCoordinator:
                 return doc
 
             record = chain[target_index]
+            launched_attempt = next(
+                (
+                    existing
+                    for existing in record.attempts
+                    if result.attempt_id is not None
+                    and existing.attempt_id == result.attempt_id
+                ),
+                None,
+            )
+            if launched_attempt is not None and (
+                record.selected_ref is None
+                or record.selected_sha is None
+                or launched_attempt.selected_ref != record.selected_ref
+                or launched_attempt.selected_sha != record.selected_sha
+            ):
+                decision.outcome = ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.REVISION_BINDING_MISMATCH,
+                )
+                return doc
+            if result.verdict is Verdict.PASS and record.target_state is TargetState.MERGED:
+                exact_done = any(
+                    candidate.project_id == project_id
+                    and candidate.task_id in issue_ids
+                    and candidate.target_state is TargetState.DONE
+                    and candidate.request_state is RequestState.COMPLETED
+                    and candidate.evidence_fingerprint
+                    == record.evidence_fingerprint
+                    and candidate.selected_ref == record.selected_ref
+                    and candidate.selected_sha == record.selected_sha
+                    for candidate in chain
+                )
+                if not exact_done:
+                    decision.outcome = ResultOutcome(
+                        success=False,
+                        audit_id=result.audit_id,
+                        reason=ResultRejection.REVISION_BINDING_MISMATCH,
+                    )
+                    return doc
             now = _now_iso8601()
             attempt = _make_attempt(result, now, attempt_id=idempotency_key)
 
@@ -2032,6 +2371,8 @@ class TerminalTransitionCoordinator:
                             existing.candidate_rotation_count
                             or attempt.candidate_rotation_count
                         ),
+                        selected_ref=existing.selected_ref,
+                        selected_sha=existing.selected_sha,
                         ended_at=(
                             now
                             if attempt.request_state == RequestState.COMPLETED
@@ -2040,7 +2381,13 @@ class TerminalTransitionCoordinator:
                     )
                 )
             if not merged:
-                attempts.append(attempt)
+                attempts.append(
+                    replace(
+                        attempt,
+                        selected_ref=record.selected_ref,
+                        selected_sha=record.selected_sha,
+                    )
+                )
             updated_record = replace(record, attempts=attempts, updated_at=now)
 
             if action.kind == "nonterminal":
@@ -2953,8 +3300,16 @@ def _has_terminal_retirement(
     task_id: str,
     target_state: TargetState,
     evidence_fingerprint: EvidenceFingerprint,
+    *,
+    revision_binding: AuditRevisionBinding | None = None,
 ) -> bool:
-    """Check the durable applied-fingerprint fence used by reconciliation."""
+    """Check the durable applied-fingerprint fence used by reconciliation.
+
+    Owner overrides intentionally fence the whole evidence fingerprint. Result
+    retirements fence only the exact revision authority that produced them;
+    otherwise a recovered same-fingerprint generation at another SHA could be
+    suppressed by an older terminal result.
+    """
 
     for row in _retirement_rows(doc):
         if row.get("applied", True) is False:
@@ -2965,7 +3320,25 @@ def _has_terminal_retirement(
             and row.get("target_state") == target_state.value
             and row.get("evidence_fingerprint") == evidence_fingerprint.digest
         ):
-            return True
+            if row.get("kind") != "result" or revision_binding is None:
+                return True
+            raw_audit_ids = row.get("audit_ids", [])
+            retired_audit_ids = (
+                {str(value) for value in raw_audit_ids if isinstance(value, str)}
+                if isinstance(raw_audit_ids, list)
+                else set()
+            )
+            if any(
+                record.audit_id in retired_audit_ids
+                and record.project_id == project_id
+                and record.task_id == task_id
+                and record.target_state == target_state
+                and record.evidence_fingerprint == evidence_fingerprint
+                and record.selected_ref == revision_binding.selected_ref
+                and record.selected_sha == revision_binding.selected_sha
+                for record in doc.pending_chain
+            ):
+                return True
     return False
 
 
@@ -3183,6 +3556,8 @@ def _build_new_entries(
     trigger: ContributorIdentity,
     fingerprint: EvidenceFingerprint,
     project_id: str,
+    *,
+    revision_binding: AuditRevisionBinding | None = None,
 ) -> list[TerminalAuditRecord]:
     """Return the list of new :class:`~oompah.terminal_audit.TerminalAuditRecord` objects.
 
@@ -3192,23 +3567,44 @@ def _build_new_entries(
     """
     now = _now_iso8601()
     previous_state = issue.state or None
+    selected_ref = revision_binding.selected_ref if revision_binding else None
+    selected_sha = revision_binding.selected_sha if revision_binding else None
 
     if target == TargetState.DONE:
         return [
-            _make_record(project_id, issue.identifier, TargetState.DONE,
-                         fingerprint, trigger, previous_state, now)
+            _make_record(
+                project_id,
+                issue.identifier,
+                TargetState.DONE,
+                fingerprint,
+                trigger,
+                previous_state,
+                now,
+                selected_ref=selected_ref,
+                selected_sha=selected_sha,
+            )
         ]
 
     if target == TargetState.MERGED:
         return _build_merged_entries(
             current_chain, project_id, issue.identifier,
             fingerprint, trigger, previous_state, now,
+            revision_binding=revision_binding,
         )
 
     if target == TargetState.ARCHIVED:
         return [
-            _make_record(project_id, issue.identifier, TargetState.ARCHIVED,
-                         fingerprint, trigger, previous_state, now)
+            _make_record(
+                project_id,
+                issue.identifier,
+                TargetState.ARCHIVED,
+                fingerprint,
+                trigger,
+                previous_state,
+                now,
+                selected_ref=selected_ref,
+                selected_sha=selected_sha,
+            )
         ]
 
     raise ValueError(f"Unknown target state: {target!r}")
@@ -3222,6 +3618,8 @@ def _build_merged_entries(
     trigger: ContributorIdentity,
     previous_state: str | None,
     now: str,
+    *,
+    revision_binding: AuditRevisionBinding | None = None,
 ) -> list[TerminalAuditRecord]:
     """Build the new entries for a ``Merged`` request.
 
@@ -3239,6 +3637,13 @@ def _build_merged_entries(
             if r.target_state == TargetState.DONE
             and r.request_state == RequestState.COMPLETED
             and r.evidence_fingerprint == fingerprint
+            and (
+                revision_binding is None
+                or (
+                    r.selected_ref == revision_binding.selected_ref
+                    and r.selected_sha == revision_binding.selected_sha
+                )
+            )
         ),
         None,
     )
@@ -3248,21 +3653,48 @@ def _build_merged_entries(
             if r.target_state == TargetState.DONE
             and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
             and r.evidence_fingerprint == fingerprint
+            and (
+                revision_binding is None
+                or (
+                    r.selected_ref == revision_binding.selected_ref
+                    and r.selected_sha == revision_binding.selected_sha
+                )
+            )
         ),
         None,
     )
 
     entries: list[TerminalAuditRecord] = []
+    selected_ref = revision_binding.selected_ref if revision_binding else None
+    selected_sha = revision_binding.selected_sha if revision_binding else None
     if completed_done is None and active_done is None:
         # No completed Done — queue Done first so the auditor cannot skip it
         entries.append(
-            _make_record(project_id, task_id, TargetState.DONE,
-                         fingerprint, trigger, previous_state, now)
+            _make_record(
+                project_id,
+                task_id,
+                TargetState.DONE,
+                fingerprint,
+                trigger,
+                previous_state,
+                now,
+                selected_ref=selected_ref,
+                selected_sha=selected_sha,
+            )
         )
 
     entries.append(
-        _make_record(project_id, task_id, TargetState.MERGED,
-                     fingerprint, trigger, previous_state, now)
+        _make_record(
+            project_id,
+            task_id,
+            TargetState.MERGED,
+            fingerprint,
+            trigger,
+            previous_state,
+            now,
+            selected_ref=selected_ref,
+            selected_sha=selected_sha,
+        )
     )
     return entries
 
@@ -3275,6 +3707,9 @@ def _make_record(
     trigger: ContributorIdentity,
     previous_state: str | None,
     created_at: str,
+    *,
+    selected_ref: str | None = None,
+    selected_sha: str | None = None,
 ) -> TerminalAuditRecord:
     """Create a new :class:`~oompah.terminal_audit.TerminalAuditRecord` in ``PENDING`` state."""
     return TerminalAuditRecord(
@@ -3287,6 +3722,8 @@ def _make_record(
         requested_by=trigger,
         previous_state=previous_state,
         created_at=created_at,
+        selected_ref=selected_ref,
+        selected_sha=selected_sha,
     )
 
 

@@ -27,6 +27,7 @@ from oompah.terminal_audit import (
     RequestState,
     TargetState,
     TerminalAuditRecord,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
@@ -39,7 +40,7 @@ from oompah.terminal_transition_coordinator import (
     TransitionResult,
     _build_new_entries,
 )
-from oompah.statuses import IN_VALIDATION, DONE, MERGED, ARCHIVED
+from oompah.statuses import ARCHIVED, DONE, IN_VALIDATION, MERGED, NEEDS_HUMAN
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +58,26 @@ class _LockStore:
     def project_write_lock(self, project_id: str) -> threading.RLock:
         with self._guard:
             return self._locks.setdefault(project_id, threading.RLock())
+
+
+class _RevisionLockStore(_LockStore):
+    """Lock provider with deterministic repository revision resolution."""
+
+    def __init__(self, revisions: dict[str, str]) -> None:
+        super().__init__()
+        self.revisions = revisions
+        self.resolve_calls: list[str] = []
+        self.project = SimpleNamespace(default_branch="main")
+
+    def get(self, project_id: str) -> Any:
+        return self.project if project_id == PROJECT_ID else None
+
+    def resolve_audit_revision(self, project_id: str, revision: str) -> str:
+        assert project_id == PROJECT_ID
+        self.resolve_calls.append(revision)
+        if revision not in self.revisions:
+            raise ValueError(f"terminal audit revision is unavailable: {revision}")
+        return self.revisions[revision]
 
 
 class _MemoryTracker:
@@ -265,6 +286,364 @@ def _seed_metadata(tracker: _MemoryTracker, chain: list[TerminalAuditRecord],
     tracker.set_metadata_field(task_id, METADATA_KEY, doc.to_dict())
 
 
+def test_request_persists_canonical_revision_before_tracker_refresh() -> None:
+    tracker = _MemoryTracker()
+    sha = "7" * 40
+    project_store = _RevisionLockStore({"origin/epic-OOMPAH-768": sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-768",
+        identifier="OOMPAH-768",
+        title="Systemic workflow epic",
+        description="Complete the workflow program.",
+        state="In Progress",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+        )
+    )
+    initial_resolve_calls = list(project_store.resolve_calls)
+    issue.branch_name = "OOMPAH-768"
+    project_store.resolve_calls.clear()
+    repeated = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+        )
+    )
+    document = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        PROJECT_ID,
+    ).read(issue.identifier)
+
+    assert result.success is True
+    assert repeated.success is True
+    assert repeated.coalesced is True
+    assert document.pending_chain[0].evidence_fingerprint == fingerprint
+    assert document.pending_chain[0].selected_ref == "origin/epic-OOMPAH-768"
+    assert document.pending_chain[0].selected_sha == sha
+    assert initial_resolve_calls == ["origin/epic-OOMPAH-768"]
+    assert project_store.resolve_calls == []
+
+
+def test_aged_done_auto_archive_binds_main_before_coalesced_retry() -> None:
+    """The retention exception is bound once from its original provenance."""
+    tracker = _MemoryTracker()
+    sha = "d" * 40
+    project_store = _RevisionLockStore({"origin/main": sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = _issue(DONE)
+    fingerprint = _fingerprint()
+
+    initial = coordinator.request_transition_sync(
+        issue,
+        TargetState.ARCHIVED,
+        ContributorIdentity("oompah", "auto_archive"),
+        PROJECT_ID,
+        fingerprint,
+        coalesce_pending_target=True,
+    )
+    repeated = coordinator.request_transition_sync(
+        issue,
+        TargetState.ARCHIVED,
+        ContributorIdentity("operator", "api"),
+        PROJECT_ID,
+        fingerprint,
+        coalesce_pending_target=True,
+    )
+    record = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        PROJECT_ID,
+    ).read(TASK_ID).pending_chain[0]
+
+    assert initial.success is True
+    assert repeated.success is True
+    assert repeated.coalesced is True
+    assert record.requested_by == ContributorIdentity("oompah", "auto_archive")
+    assert record.selected_ref == "origin/main"
+    assert record.selected_sha == sha
+    assert project_store.resolve_calls == ["origin/main"]
+
+
+@pytest.mark.parametrize(
+    ("record_state", "current_state"),
+    [
+        (RequestState.PENDING, IN_VALIDATION),
+        (RequestState.COMPLETED, NEEDS_HUMAN),
+    ],
+)
+def test_aged_done_auto_archive_legacy_record_uses_persisted_state_for_binding(
+    record_state: RequestState,
+    current_state: str,
+) -> None:
+    """Late binding survives staging/restart without trusting current status."""
+    tracker = _MemoryTracker()
+    sha = "d" * 40
+    project_store = _RevisionLockStore({"origin/main": sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    fingerprint = _fingerprint()
+    _seed_metadata(
+        tracker,
+        [
+            TerminalAuditRecord(
+                audit_id="audit-legacy-retention",
+                project_id=PROJECT_ID,
+                task_id=TASK_ID,
+                target_state=TargetState.ARCHIVED,
+                evidence_fingerprint=fingerprint,
+                request_state=record_state,
+                previous_state=DONE,
+                requested_by=ContributorIdentity("oompah", "auto_archive"),
+                created_at="2026-07-01T00:00:00+00:00",
+            )
+        ],
+    )
+
+    binding = coordinator._request_revision_binding(
+        TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
+        _issue(current_state),
+        TargetState.ARCHIVED,
+        PROJECT_ID,
+        fingerprint,
+        trigger_identity=ContributorIdentity("project-owner", "api"),
+    )
+
+    assert binding is not None
+    assert binding.selected_ref == "origin/main"
+    assert binding.selected_sha == sha
+    assert project_store.resolve_calls == ["origin/main"]
+
+
+@pytest.mark.parametrize(
+    ("record_state", "current_state"),
+    [
+        (RequestState.PENDING, IN_VALIDATION),
+        (RequestState.COMPLETED, NEEDS_HUMAN),
+    ],
+)
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        ContributorIdentity("project-owner", "api"),
+        ContributorIdentity("oompah", "stalled_task_watchdog"),
+    ],
+)
+def test_legacy_done_archive_non_retention_provenance_cannot_bind_main(
+    record_state: RequestState,
+    current_state: str,
+    provenance: ContributorIdentity,
+) -> None:
+    """Only persisted automatic-retention provenance can witness main."""
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore({"origin/main": "d" * 40})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    fingerprint = _fingerprint()
+    _seed_metadata(
+        tracker,
+        [
+            TerminalAuditRecord(
+                audit_id="audit-non-retention",
+                project_id=PROJECT_ID,
+                task_id=TASK_ID,
+                target_state=TargetState.ARCHIVED,
+                evidence_fingerprint=fingerprint,
+                request_state=record_state,
+                previous_state=DONE,
+                requested_by=provenance,
+                created_at="2026-07-01T00:00:00+00:00",
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="no permitted revision"):
+        coordinator._request_revision_binding(
+            TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
+            _issue(current_state),
+            TargetState.ARCHIVED,
+            PROJECT_ID,
+            fingerprint,
+            trigger_identity=ContributorIdentity("project-owner", "api"),
+        )
+
+    assert project_store.resolve_calls == []
+
+
+def test_completed_canonical_epic_rebinds_when_branch_advances() -> None:
+    """A stable v1 fingerprint cannot make an old completed branch current."""
+
+    tracker = _MemoryTracker()
+    branch = "origin/epic-OOMPAH-768"
+    old_sha = "a" * 40
+    current_sha = "b" * 40
+    project_store = _RevisionLockStore({branch: current_sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-768",
+        identifier="OOMPAH-768",
+        title="Systemic workflow epic",
+        description="Complete the workflow program.",
+        state="In Progress",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    completed = TerminalAuditRecord(
+        audit_id="audit-epic-completed-a",
+        project_id=PROJECT_ID,
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        selected_ref=branch,
+        selected_sha=old_sha,
+        created_at="2026-07-01T00:00:00+00:00",
+    )
+    _seed_metadata(tracker, [completed], task_id=issue.identifier)
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+        )
+    )
+    records = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        PROJECT_ID,
+    ).read(issue.identifier).pending_chain
+    by_id = {record.audit_id: record for record in records}
+    fresh = next(record for record in records if record.audit_id != completed.audit_id)
+
+    assert result.success is True
+    assert result.coalesced is False
+    assert result.superseded_audit_id == completed.audit_id
+    assert by_id[completed.audit_id].request_state is RequestState.SUPERSEDED
+    assert fresh.request_state is RequestState.PENDING
+    assert fresh.evidence_fingerprint == fingerprint
+    assert fresh.selected_ref == branch
+    assert fresh.selected_sha == current_sha
+    assert project_store.resolve_calls == [branch]
+
+
+def test_completed_immutable_revision_idempotency_skips_repo_resolution() -> None:
+    """Current immutable evidence can acknowledge its exact completed audit."""
+
+    tracker = _MemoryTracker()
+    sha = "c" * 40
+    project_store = _RevisionLockStore({})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id=TASK_ID,
+        identifier=TASK_ID,
+        title="Immutable task",
+        state="In Progress",
+        project_id=PROJECT_ID,
+    )
+    issue.source_sha = sha
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    completed = TerminalAuditRecord(
+        audit_id="audit-immutable-completed",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        selected_ref=sha,
+        selected_sha=sha,
+        created_at="2026-07-01T00:00:00+00:00",
+    )
+    _seed_metadata(tracker, [completed])
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+        )
+    )
+
+    assert result.success is False
+    assert result.reason == "already completed"
+    assert result.audit_id == completed.audit_id
+    assert project_store.resolve_calls == []
+
+
+def test_request_fails_before_status_write_for_invalid_immutable_evidence() -> None:
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore({})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id=TASK_ID,
+        identifier=TASK_ID,
+        title="Task",
+        state="Ready to Integrate",
+        project_id=PROJECT_ID,
+    )
+    issue.source_sha = "abbreviated"
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint(),
+        )
+    )
+
+    assert result.success is False
+    assert "full Git object ID" in str(result.reason)
+    assert tracker.update_calls == []
+    assert tracker.get_metadata(issue.identifier) == {}
+
+
 # ---------------------------------------------------------------------------
 # TestDoneChain
 # ---------------------------------------------------------------------------
@@ -333,6 +712,164 @@ class TestDoneChain:
 
 
 class TestMergedChain:
+    @staticmethod
+    def _request_bound_merged_after_done(
+        done: TerminalAuditRecord,
+    ) -> tuple[TransitionResult, list[TerminalAuditRecord]]:
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [done])
+        project_store = _RevisionLockStore({"origin/main": "b" * 40})
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+
+        result = _run(
+            coordinator.request_transition(
+                _issue(),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint(),
+            )
+        )
+        records = TerminalAuditMetadataStore(
+            tracker,
+            project_store,
+            PROJECT_ID,
+        ).read(TASK_ID).pending_chain
+        return result, records
+
+    @staticmethod
+    def _assert_rebound_merged_chain(
+        old_done: TerminalAuditRecord,
+        result: TransitionResult,
+        records: list[TerminalAuditRecord],
+    ) -> None:
+        retired = next(
+            record for record in records if record.audit_id == old_done.audit_id
+        )
+        assert retired.request_state == RequestState.SUPERSEDED
+        live = [
+            record
+            for record in records
+            if record.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ]
+        assert result.queued_targets == [TargetState.DONE, TargetState.MERGED]
+        assert [record.target_state for record in live] == [
+            TargetState.DONE,
+            TargetState.MERGED,
+        ]
+        assert all(record.selected_ref == "origin/main" for record in live)
+        assert all(record.selected_sha == "b" * 40 for record in live)
+
+    def test_bound_merged_reaudits_completed_done_from_another_sha(self) -> None:
+        old_done = replace(
+            _completed_done_record(),
+            selected_ref="origin/main",
+            selected_sha="a" * 40,
+        )
+
+        result, records = self._request_bound_merged_after_done(old_done)
+
+        self._assert_rebound_merged_chain(old_done, result, records)
+
+    def test_bound_merged_reaudits_active_done_from_another_sha(self) -> None:
+        old_done = replace(
+            _pending_done_record(),
+            request_state=RequestState.IN_PROGRESS,
+            selected_ref="origin/main",
+            selected_sha="a" * 40,
+        )
+
+        result, records = self._request_bound_merged_after_done(old_done)
+
+        self._assert_rebound_merged_chain(old_done, result, records)
+
+    def test_bound_merged_reaudits_legacy_unbound_done(self) -> None:
+        old_done = _pending_done_record()
+
+        result, records = self._request_bound_merged_after_done(old_done)
+
+        self._assert_rebound_merged_chain(old_done, result, records)
+
+    def test_duplicate_merged_rows_select_exact_done_binding_and_retire_old(self) -> None:
+        tracker = _MemoryTracker()
+        binding_a = ("origin/main", "a" * 40)
+        binding_b = ("origin/main", "b" * 40)
+        done_b = replace(
+            _completed_done_record(),
+            selected_ref=binding_b[0],
+            selected_sha=binding_b[1],
+        )
+        merged_a = TerminalAuditRecord(
+            audit_id="audit-merged-a",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            selected_ref=binding_a[0],
+            selected_sha=binding_a[1],
+        )
+        merged_b = replace(
+            merged_a,
+            audit_id="audit-merged-b",
+            request_state=RequestState.PENDING,
+            selected_ref=binding_b[0],
+            selected_sha=binding_b[1],
+        )
+        document = TerminalAuditMetadata(
+            pending_chain=[done_b, merged_a, merged_b],
+            unknown_fields={
+                "oompah.terminal_audit_retirements": [
+                    {
+                        "version": 1,
+                        "project_id": PROJECT_ID,
+                        "task_id": TASK_ID,
+                        "target_state": TargetState.MERGED.value,
+                        "evidence_fingerprint": _fingerprint().digest,
+                        "audit_ids": [merged_a.audit_id],
+                        "kind": "result",
+                        "applied": True,
+                    }
+                ]
+            },
+        )
+        tracker.set_metadata_field(TASK_ID, METADATA_KEY, document.to_dict())
+        project_store = _RevisionLockStore({})
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+
+        result = _run(
+            coordinator.request_transition(
+                _issue(),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint(),
+            )
+        )
+        records = TerminalAuditMetadataStore(
+            tracker,
+            project_store,
+            PROJECT_ID,
+        ).read(TASK_ID).pending_chain
+        by_id = {record.audit_id: record for record in records}
+
+        assert result.success is True
+        assert result.coalesced is True
+        assert result.audit_id == merged_b.audit_id
+        assert by_id[done_b.audit_id].request_state is RequestState.COMPLETED
+        assert by_id[merged_a.audit_id].request_state is RequestState.SUPERSEDED
+        assert by_id[merged_b.audit_id].request_state is RequestState.PENDING
+        assert by_id[merged_b.audit_id].selected_sha == binding_b[1]
+        assert project_store.resolve_calls == []
+
     def test_merged_without_done_queues_both_done_and_merged(self) -> None:
         """Direct Merged with no current Done evidence must queue Done first."""
         tracker = _MemoryTracker()
@@ -744,6 +1281,60 @@ class TestArchivedChain:
         done_idx = next(i for i, t in enumerate(targets) if t == TargetState.DONE)
         arch_idx = next(i for i, t in enumerate(targets) if t == TargetState.ARCHIVED)
         assert arch_idx > done_idx
+
+    def test_maintenance_rebinds_changed_evidence_after_completed_archive(
+        self,
+    ) -> None:
+        """Completed evidence cannot donate its revision to a new request."""
+
+        tracker = _MemoryTracker()
+        old = TerminalAuditRecord(
+            audit_id="audit-archive-e1",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.ARCHIVED,
+            evidence_fingerprint=_fingerprint("a"),
+            request_state=RequestState.COMPLETED,
+            previous_state=DONE,
+            selected_ref="origin/archive-a",
+            selected_sha="a" * 40,
+            created_at="2026-07-01T00:00:00+00:00",
+        )
+        _seed_metadata(tracker, [old])
+        project_store = _RevisionLockStore({"origin/archive-b": "b" * 40})
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        issue = _issue(DONE)
+        issue.branch_name = "archive-b"
+
+        result = coordinator.request_transition_sync(
+            issue,
+            TargetState.ARCHIVED,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("b"),
+            coalesce_pending_target=True,
+        )
+        records = TerminalAuditMetadataStore(
+            tracker,
+            project_store,
+            PROJECT_ID,
+        ).read(TASK_ID).pending_chain
+        by_id = {record.audit_id: record for record in records}
+        fresh = next(record for record in records if record.audit_id != old.audit_id)
+
+        assert result.success is True
+        assert result.coalesced is False
+        assert result.superseded_audit_id == old.audit_id
+        assert by_id[old.audit_id].request_state is RequestState.SUPERSEDED
+        assert fresh.evidence_fingerprint == _fingerprint("b")
+        assert fresh.request_state is RequestState.PENDING
+        assert fresh.selected_ref == "origin/archive-b"
+        assert fresh.selected_sha == "b" * 40
+        assert project_store.resolve_calls == ["origin/archive-b"]
 
     @pytest.mark.parametrize("prior_state", [DONE, MERGED])
     def test_archived_from_terminal_retention_state_moves_to_validation(
@@ -1934,6 +2525,99 @@ class TestRetryFailedAudit:
             (PROJECT_ID, TASK_ID, exhausted.audit_id),
         ) in metrics.calls
 
+    def test_owner_rearm_retains_unbound_auto_archive_provenance(self) -> None:
+        """A recovery owner is recorded without losing retention authority."""
+        tracker = _MemoryTracker()
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            previous_state=DONE,
+            requested_by=ContributorIdentity("oompah", "auto_archive"),
+            selected_ref=None,
+            selected_sha=None,
+        )
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False)
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Auditor capacity was restored.",
+                self._owner_project(),
+            )
+        )
+
+        document = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        fresh = document.pending_chain[-1]
+        history = document.unknown_fields["oompah.terminal_audit_rearm_history"]
+        assert result.success is True
+        assert fresh.requested_by == ContributorIdentity("oompah", "auto_archive")
+        assert history[-1]["actor"] == ContributorIdentity(
+            "project-owner", "api"
+        ).to_dict()
+
+        sha = "d" * 40
+        project_store = _RevisionLockStore({"origin/main": sha})
+        binding_coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        binding = binding_coordinator._request_revision_binding(
+            TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
+            _issue(IN_VALIDATION),
+            TargetState.ARCHIVED,
+            PROJECT_ID,
+            fresh.evidence_fingerprint,
+            trigger_identity=ContributorIdentity("project-owner", "api"),
+        )
+
+        assert binding is not None
+        assert binding.selected_ref == "origin/main"
+        assert binding.selected_sha == sha
+
+    def test_owner_rearm_bound_auto_archive_uses_owner_provenance(self) -> None:
+        """A pinned retention audit needs no inherited late-binding authority."""
+        tracker = _MemoryTracker()
+        sha = "d" * 40
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            previous_state=DONE,
+            requested_by=ContributorIdentity("oompah", "auto_archive"),
+            selected_ref="origin/main",
+            selected_sha=sha,
+        )
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False)
+        owner = ContributorIdentity("project-owner", "api")
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                owner,
+                PROJECT_ID,
+                "Auditor capacity was restored.",
+                self._owner_project(),
+            )
+        )
+
+        document = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        fresh = document.pending_chain[-1]
+        history = document.unknown_fields["oompah.terminal_audit_rearm_history"]
+
+        assert result.success is True
+        assert fresh.requested_by == owner
+        assert fresh.selected_ref == "origin/main"
+        assert fresh.selected_sha == sha
+        assert history[-1]["actor"] == owner.to_dict()
+
     def test_retry_is_idempotent_after_fresh_record_is_pending(self) -> None:
         tracker = _MemoryTracker()
         _seed_metadata(tracker, [_exhausted_no_auditor_record()])
@@ -2210,6 +2894,105 @@ def _seed_and_validation(
     return Issue(id=task_id, identifier=task_id, title="Test task", state=IN_VALIDATION)
 
 
+def test_active_legacy_attempt_is_superseded_before_binding_and_result_rejected() -> None:
+    fingerprint = _fingerprint()
+    legacy_attempt = AuditAttempt(
+        attempt_id="attempt-legacy-unbound",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        created_at="2026-08-01T00:00:00+00:00",
+        started_at="2026-08-01T00:00:00+00:00",
+    )
+    legacy = replace(
+        _pending_record(
+            audit_id="audit-legacy-unbound",
+            target=TargetState.DONE,
+            fingerprint=fingerprint,
+            state=RequestState.IN_PROGRESS,
+        ),
+        attempts=[legacy_attempt],
+    )
+    tracker = _MemoryTracker()
+    _seed_metadata(tracker, [legacy])
+    project_store = _RevisionLockStore({"origin/audit-work": "b" * 40})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    request_issue = _issue()
+    request_issue.work_branch = "audit-work"
+
+    result = _run(
+        coordinator.request_transition(
+            request_issue,
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+        )
+    )
+    records = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        PROJECT_ID,
+    ).read(TASK_ID).pending_chain
+    old = next(record for record in records if record.audit_id == legacy.audit_id)
+    fresh = next(
+        record
+        for record in records
+        if record.audit_id != legacy.audit_id
+        and record.request_state is RequestState.PENDING
+    )
+
+    assert result.success is True
+    assert result.coalesced is False
+    assert old.request_state is RequestState.SUPERSEDED
+    assert old.selected_sha is None
+    assert legacy_attempt.selected_sha is None
+    assert fresh.selected_ref == "origin/audit-work"
+    assert fresh.selected_sha == "b" * 40
+
+    late = _apply(
+        coordinator,
+        _issue(IN_VALIDATION),
+        _pass_result(legacy, attempt_id=legacy_attempt.attempt_id),
+    )
+    assert late.success is False
+    assert late.reason == ResultRejection.STATE_MISMATCH
+
+
+def test_result_rejects_matching_attempt_without_record_revision_authority() -> None:
+    fingerprint = _fingerprint()
+    attempt = AuditAttempt(
+        attempt_id="attempt-unbound",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+    )
+    record = replace(
+        _pending_record(
+            target=TargetState.DONE,
+            fingerprint=fingerprint,
+            state=RequestState.IN_PROGRESS,
+        ),
+        attempts=[attempt],
+    )
+    tracker = _MemoryTracker()
+    issue = _seed_and_validation(tracker, [record])
+
+    outcome = _apply(
+        _coordinator(tracker),
+        issue,
+        _pass_result(record, attempt_id=attempt.attempt_id),
+    )
+
+    assert outcome.success is False
+    assert outcome.reason == ResultRejection.REVISION_BINDING_MISMATCH
+    assert tracker.current_status(TASK_ID) is None
+
+
 # ---------------------------------------------------------------------------
 # TestClassifyFailureToStatus
 # ---------------------------------------------------------------------------
@@ -2315,7 +3098,12 @@ class TestApplyPassSingleTarget:
     def test_pass_posts_result_comment_referencing_target(self) -> None:
         tracker = _MemoryTracker()
         record = _pending_record(target=TargetState.MERGED)
-        issue = _seed_and_validation(tracker, [record])
+        done = _pending_record(
+            audit_id="audit-done-prerequisite",
+            target=TargetState.DONE,
+            state=RequestState.COMPLETED,
+        )
+        issue = _seed_and_validation(tracker, [done, record])
         coord = _coordinator(tracker)
 
         outcome = _apply(coord, issue, _pass_result(record))
@@ -2395,6 +3183,37 @@ class TestApplyPassChainedTargets:
         assert outcome.applied_status == MERGED
         assert outcome.advanced_target is None
         assert tracker.current_status(TASK_ID) == MERGED
+
+    def test_merged_pass_requires_completed_done_at_exact_binding(self) -> None:
+        tracker = _MemoryTracker()
+        done = replace(
+            _pending_record(
+                audit_id="audit-done-a",
+                target=TargetState.DONE,
+                state=RequestState.COMPLETED,
+            ),
+            selected_ref="origin/main",
+            selected_sha="a" * 40,
+        )
+        merged = replace(
+            _pending_record(
+                audit_id="audit-merged-b",
+                target=TargetState.MERGED,
+            ),
+            selected_ref="origin/main",
+            selected_sha="b" * 40,
+        )
+        issue = _seed_and_validation(tracker, [done, merged])
+
+        outcome = _apply(
+            _coordinator(tracker),
+            issue,
+            _pass_result(merged),
+        )
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.REVISION_BINDING_MISMATCH
+        assert tracker.current_status(TASK_ID) is None
 
     def test_pass_only_marks_audited_record_completed(self) -> None:
         tracker = _MemoryTracker()
