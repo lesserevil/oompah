@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T20:09:33.662696Z'
+updated_at: '2026-08-07T20:09:40.543620Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: ''
@@ -167,6 +167,21 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T09:42:59.582975+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Merged
+    evidence_fingerprint: 673fe8081908dc89bcce21a3ce7022ac2eacdcc0d20f8e1e6946cd0938598190
+    audit_ids:
+    - audit-e2ade2dd2cf1
+    - audit-a683b49271d9
+    - audit-f116ee35fbfd
+    - audit-1302a6ae307d
+    - audit-3bc7b58ba710
+    - audit-483c0f406c87
+    - audit-182c9627fb58
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T20:09:38.958709+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-643
@@ -180,6 +195,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:42:59.582986+00:00'
     applied_at: '2026-08-07T09:43:09.961801+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-6f209dbcc1b2
@@ -198,7 +214,7 @@ oompah.terminal_audit:
       into main after all Python 3.11, 3.12, and 3.13 CI jobs passed; owner override
       retires the redundant post-merge audit.'
     created_at: '2026-08-07T20:09:25.669713+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -381,7 +397,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-643
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -395,13 +411,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T20:06:27.783142+00:00'
     selected_ref: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
     selected_sha: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
-    updated_at: '2026-08-07T20:08:54.247711+00:00'
+    updated_at: '2026-08-07T20:09:38.958654+00:00'
   - version: 1
     audit_id: audit-182c9627fb58
     project_id: proj-14849f1b
     task_id: OOMPAH-643
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -415,6 +431,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T20:06:27.783142+00:00'
     selected_ref: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
     selected_sha: 1ba8872eef1517e4ec0774f21e8a8a6558d22097
+    updated_at: '2026-08-07T20:09:38.958687+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e5b97bb4551d
@@ -939,5 +956,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: interrupted, Duration: 18s
 - Log: OOMPAH-643__20260807T200854Z.jsonl
+---
+author: oompah
+created: 2026-08-07 20:09
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #745 merged exact accepted head 1ba8872eef1517e4ec0774f21e8a8a6558d22097 into main after all Python 3.11, 3.12, and 3.13 CI jobs passed; owner override retires the redundant post-merge audit.
 ---
 <!-- COMMENTS:END -->
