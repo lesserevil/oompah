@@ -25,6 +25,7 @@ from oompah.orchestrator import (
     DispatchTarget,
     Orchestrator,
     UnadmittedAuditRollbackOutcome,
+    _AuditCandidateScan,
 )
 from oompah.roles import Candidate
 from oompah.statuses import IN_VALIDATION
@@ -1432,9 +1433,23 @@ async def test_audit_lane_repeated_cancel_waits_for_fallback_thread_start(
         return await real_to_thread(func, *args, **kwargs)
 
     with (
-        patch.object(orch, "_fetch_audit_candidates", return_value=[issue]),
+        patch.object(
+            orch,
+            "_fetch_audit_candidates",
+            return_value=_AuditCandidateScan((issue,)),
+        ),
         patch.object(orch, "_audit_store", return_value=store),
-        patch.object(orch, "_audit_selector", return_value=selector),
+        patch.object(
+            orch,
+            "_prepare_audit_selector",
+            new=AsyncMock(return_value=(selector, None)),
+        ),
+        patch.object(
+            orch,
+            "_terminal_audit_validation_configuration_error",
+            return_value=None,
+        ),
+        patch.object(orch, "_clear_terminal_audit_validation_configuration"),
         patch.object(orch, "_revisionless_archive_evidence", return_value=None),
         patch.object(orch, "_bind_audit_record_revision", return_value=record),
         patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -3244,7 +3259,17 @@ def test_two_audits_survive_canonical_restart_and_admit_once_on_new_orchestrator
         with (
             patch.object(fresh, "_tracker_for_project", return_value=tracker),
             patch.object(fresh, "_tracker_for_issue", return_value=tracker),
-            patch.object(fresh, "_audit_selector", return_value=selector),
+            patch.object(
+                fresh,
+                "_prepare_audit_selector",
+                new=AsyncMock(return_value=(selector, None)),
+            ),
+            patch.object(
+                fresh,
+                "_terminal_audit_validation_configuration_error",
+                return_value=None,
+            ),
+            patch.object(fresh, "_clear_terminal_audit_validation_configuration"),
             patch.object(fresh, "_revisionless_archive_evidence", return_value=None),
             patch.object(
                 fresh,

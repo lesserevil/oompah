@@ -13,7 +13,7 @@ import pytest
 
 from oompah.archived_evidence_collector import SafetyFailureMode
 from oompah.models import Issue
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, _AuditCandidateScan
 from oompah.projects import ProjectError
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -194,16 +194,23 @@ def test_restarted_legacy_binding_failure_exhausts_durably_without_workspace() -
         audit_priority=0,
         audit_lane_scan_limit=0,
         audit_max_attempts=2,
-        audit_attempt_ttl_seconds=60,
+        audit_attempt_ttl=60,
     )
     orchestrator._tick_pool = None
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = MagicMock(return_value=[issue])
+    orchestrator._fetch_audit_candidates = MagicMock(
+        return_value=_AuditCandidateScan((issue,))
+    )
     orchestrator._audit_store = MagicMock(return_value=store)
     orchestrator._uncommitted_terminal_result_intents = MagicMock(return_value=0)
     orchestrator._refresh_terminal_audit_health = MagicMock()
+    orchestrator._refresh_terminal_audit_validation_configuration_alerts = MagicMock()
+    orchestrator._terminal_audit_validation_configuration_error = MagicMock(
+        return_value=None
+    )
+    orchestrator._clear_terminal_audit_validation_configuration = MagicMock()
     orchestrator._prepare_audit_selector = AsyncMock(
         return_value=(MagicMock(), None)
     )

@@ -33,4 +33,3 @@ import this corpus rather than reconstructing incident-specific test doubles.
 Adding a new systemic incident requires an actionable oompah task first, then
 a corpus scenario whose before-facts reproduce the failure and whose expected
 decision is expressed without depending on an orchestrator private method.
-
