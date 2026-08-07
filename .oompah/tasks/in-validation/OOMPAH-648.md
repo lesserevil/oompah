@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T18:18:08.214195Z'
+updated_at: '2026-08-07T18:39:26.782364Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -297,6 +297,25 @@ oompah.terminal_audit:
     previous_state: In Validation
     created_at: '2026-07-31T18:17:59.081777+00:00'
     updated_at: '2026-07-31T18:18:07.434279+00:00'
+  - version: 1
+    audit_id: audit-2f23be7e09d9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 105705b393fb602a37ebc3c72934fee096a56f87ef9cb307f2428527acb6578d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T18:39:22.717061+00:00'
+    selected_ref: ca51c22b90785daec5d4dd7f0e29dc22045957cc
+    selected_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
   attempt_history:
   - version: 1
     attempt_id: attempt-7d1427097e93
