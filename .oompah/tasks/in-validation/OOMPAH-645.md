@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-08-07T16:11:49.773917Z'
+updated_at: '2026-08-07T16:14:20.983005Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
@@ -194,6 +194,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-cd482e907e4c: '2026-07-31T15:17:19.855439+00:00'
     attempt-4deff41dcadd: '2026-07-31T15:19:53.072640+00:00'
+    attempt-99416de31a1d: '2026-08-07T16:14:19.048870+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-645
@@ -213,6 +214,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T15:19:53.072656+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    target_state: Archived
+    evidence_fingerprint: 9f3568b92e70891349d14bdd170148fd399409e323472bfb22a2c4dd7f036f55
+    audit_ids:
+    - audit-a26cbe01cd64
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T16:14:19.048889+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-645
@@ -238,6 +248,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T15:19:53.072671+00:00'
     applied_at: '2026-07-31T15:19:58.566590+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    audit_id: audit-a26cbe01cd64
+    attempt_id: attempt-99416de31a1d
+    target_state: Archived
+    evidence_fingerprint: 9f3568b92e70891349d14bdd170148fd399409e323472bfb22a2c4dd7f036f55
+    status: Archived
+    audit_ids:
+    - audit-a26cbe01cd64
+    applied: false
+    created_at: '2026-08-07T16:14:19.048911+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -313,7 +334,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-645
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -322,7 +343,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-99416de31a1d
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -334,6 +355,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-645
       selected_ref: 9e4a0c877707d946a4504d664dba74811c2e0aac
       selected_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
+      verdict: pass
+      completed_at: '2026-08-07T16:14:19.048637+00:00'
+      ended_at: '2026-08-07T16:14:19.048637+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -342,7 +366,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T16:10:44.376416+00:00'
     selected_ref: 9e4a0c877707d946a4504d664dba74811c2e0aac
     selected_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
-    updated_at: '2026-08-07T16:11:37.304653+00:00'
+    updated_at: '2026-08-07T16:14:19.048637+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cd482e907e4c
