@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T13:30:29.471159Z'
+updated_at: '2026-08-07T13:31:06.790490Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-07 13:17
 ---
 Live recurrence #8: scheduler created OOMPAH-888 (Needs Rebase) for epic-OOMPAH-763 while OOMPAH-877 remained the sole active helper and its repaired 911-test semantic union had just passed. Operator acquired direct-owner claim 4963baca22fc4853ba6e8ee89b382446 before implementation. Add OOMPAH-888 to the durable one-authority regression corpus; it must not be admitted or allowed to push.
+---
+author: oompah
+created: 2026-08-07 13:31
+---
+Recurrence #9 observed as OOMPAH-890 while canonical OOMPAH-877 full gate was still running. Root fenced OOMPAH-890 with a direct-owner claim before implementation. Add explicit OOMPAH-890 coverage alongside OOMPAH-888: a stable unresolved generation must not create or dispatch another helper after one is reserved/owned.
 ---
 <!-- COMMENTS:END -->
