@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: Needs Human
+status: Done
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T09:31:54.993415Z'
+updated_at: '2026-08-07T09:33:42.295630Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -138,6 +138,27 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:31:45.299518+00:00'
     applied_at: '2026-08-07T09:31:53.476995+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-bc572de428ae
+    project_id: proj-14849f1b
+    task_id: OOMPAH-867
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact repaired head 8b7ba2e54 passed the full make-test gate, independent
+      static review, and 272 focused tests serial plus parallel; PR #735 merged it
+      into main. Haiku, sonnet, and opus all terminated before a structured verdict,
+      exhausting max_attempts. Preserve the verified Done outcome while OOMPAH-876
+      fixes pre-verdict transport exhaustion.'
+    created_at: '2026-08-07T09:33:33.776478+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
