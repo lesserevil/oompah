@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T08:37:53.296631Z'
+updated_at: '2026-08-07T08:38:10.438718Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -332,5 +332,10 @@ author: oompah
 created: 2026-08-07 08:37
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 08:38
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
