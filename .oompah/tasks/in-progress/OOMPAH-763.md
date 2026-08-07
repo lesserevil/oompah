@@ -77,7 +77,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-07T22:13:27.155598Z'
+updated_at: '2026-08-07T23:04:02.623428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-08-07 22:13
 ---
 Review-lifecycle blocker repair composed at ad15ee70bbb79ff3c5dc951603b3070ec3731998. It establishes canonical lifecycle-before-tracker lock order, treats acquired_new=false reservations as wait/adoption signals in epic and generic paths, fences created-review parent+child publication against close/merge under issue ownership, and preserves still-open sibling reviews in API/TTL state when a close overtakes a fetch. Validation: 7 deterministic race regressions and 725 broader affected review tests pass; terminal mutation scan 9/9, secret scan, and diff check pass. Independent review of this exact commit is active. Full exact gate remains deferred until direct-owner OOMPAH-887 and the reviewed OOMPAH-906 gate-harness repair are incorporated, avoiding redundant full-suite runs.
+---
+author: oompah
+created: 2026-08-07 23:04
+---
+Direct composition checkpoint: independently accepted OOMPAH-887 exact stack through 5403e4b196cfae75cc7333d69b062d66c33fef8e is composed cleanly at systemic head a8b1d653ba8259dfc4e90603fdb075af85f9d77b. The landing path now freezes exact remote generations, fails closed for missing configured checkouts, fences both ref-movement mutation edges, and rechecks open-review publication after the final remote CAS. Brokered overlap suite tests/test_epic_strategy.py, tests/test_merged_labels_scope.py, and tests/test_standalone_ready_to_integrate.py: 355 passed. OOMPAH-906 remains isolated pending final hardening and independent exact-head review; no full gate or publication has started.
 ---
 <!-- COMMENTS:END -->
