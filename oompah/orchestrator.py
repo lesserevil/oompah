@@ -39432,21 +39432,6 @@ class Orchestrator:
                     child.identifier,
                 )
                 continue
-            open_review_checked = False
-            if child_status == DONE and not landing_reason:
-                open_review_checked = True
-                open_review_branch = self._open_review_branch_for_issue_in_cache(
-                    child, epic
-                )
-                if open_review_branch:
-                    logger.warning(
-                        "Leaving epic child %s non-terminal: its open review "
-                        "branch %s has not landed (epic %s landed)",
-                        child.identifier,
-                        open_review_branch,
-                        epic.identifier,
-                    )
-                    continue
             if child_status == DONE:
                 disposition_current, landing_reason = (
                     revalidate_done_child_disposition(
@@ -39455,7 +39440,11 @@ class Orchestrator:
                 )
                 if not disposition_current:
                     continue
-                if not landing_reason and not open_review_checked:
+                if not landing_reason:
+                    # Check after the potentially slow evidence-generation
+                    # revalidation.  Webhooks can publish a separate open
+                    # child review without moving any fenced Git ref, so an
+                    # earlier cache observation cannot authorize promotion.
                     open_review_branch = (
                         self._open_review_branch_for_issue_in_cache(child, epic)
                     )
