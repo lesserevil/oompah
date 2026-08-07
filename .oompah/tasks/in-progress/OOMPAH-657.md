@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:58:27.745889Z'
+updated_at: '2026-08-07T13:58:32.142396Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
