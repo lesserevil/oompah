@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:46:16.395762Z'
+updated_at: '2026-08-07T23:55:50.960709Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -310,6 +310,25 @@ oompah.terminal_audit:
     previous_state: In Progress
     created_at: '2026-07-31T23:35:05.212351+00:00'
     updated_at: '2026-07-31T23:45:54.857777+00:00'
+  - version: 1
+    audit_id: audit-c02d3187c650
+    project_id: proj-14849f1b
+    task_id: OOMPAH-664
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: aaedca72ffba21347402a479a2a8ae6abdb708671949e00aba969037470cc014
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T23:55:46.728218+00:00'
+    selected_ref: 34c5751b727880fc621df76cb50e17ae5f9321c4
+    selected_sha: 34c5751b727880fc621df76cb50e17ae5f9321c4
   attempt_history:
   - version: 1
     attempt_id: attempt-0387de50d11a
