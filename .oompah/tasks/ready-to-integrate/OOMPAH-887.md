@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:38:28.509776Z'
+updated_at: '2026-08-07T22:38:46.263205Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-07 22:38
 ---
 Implemented exact-generation Done-child landing reconciliation at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6; 122 focused tests and secret/static checks pass.
+---
+author: oompah
+created: 2026-08-07 22:38
+---
+Canonical branch correction: the exact tested commit 8bd96dd5389d6d3c13004f27365eb5f080fb8be6 is now pushed on the assigned branch OOMPAH-887 and matches origin/OOMPAH-887. The temporary OOMPAH-887-direct remote branch was deleted after the CLI correctly enforced the assigned-branch submission contract. No code or commit changed.
 ---
 <!-- COMMENTS:END -->
