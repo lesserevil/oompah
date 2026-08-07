@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T17:46:19.331376Z'
-updated_at: '2026-08-07T20:33:17.556911Z'
+updated_at: '2026-08-07T20:33:23.043475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,6 +50,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T20:33:08.152183+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain resolved incident evidence: OOMPAH-871 PR #741 and source task
+      OOMPAH-658 terminal provenance.'
+    marked_at: '2026-08-07T20:33:21.486322+00:00'
+    updated_at: '2026-08-07T20:33:21.486322+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain resolved incident evidence: OOMPAH-871 PR #741 and source task
+        OOMPAH-658 terminal provenance.'
+      recorded_at: '2026-08-07T20:33:21.486322+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
