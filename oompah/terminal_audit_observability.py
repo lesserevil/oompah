@@ -189,6 +189,12 @@ class TerminalAuditMetrics:
                 "no_independent_candidate",
             )
         }
+        # A worker can disappear while its durable audit record remains
+        # IN_PROGRESS.  Keep that identity out of the recovery projection
+        # until an explicit queue/run event proves that it is live again.
+        # This is separate from ``_seen`` because stale_discarded is a
+        # lifetime counter and must not be undone when an audit is rearmed.
+        self._stale_blocked: set[tuple[str, str, str]] = set()
         self._no_candidate: dict[tuple[str, str, str], str] = {}
         self._last_successful_audit_at: str | None = None
         self.persistence_corrupt = False
@@ -251,6 +257,15 @@ class TerminalAuditMetrics:
                     _identity(item.get("project_id"), item.get("task_id"), item.get("audit_id"))
                     for item in values
                 }
+            raw_stale_blocked = raw.get("stale_blocked", [])
+            if not isinstance(raw_stale_blocked, list) or not all(
+                isinstance(item, Mapping) for item in raw_stale_blocked
+            ):
+                raise ValueError("invalid terminal-audit stale blocked entries")
+            self._stale_blocked = {
+                _identity(item.get("project_id"), item.get("task_id"), item.get("audit_id"))
+                for item in raw_stale_blocked
+            }
             raw_no_candidate = raw.get("no_candidate", [])
             if not isinstance(raw_no_candidate, list):
                 raise ValueError("invalid terminal-audit no-candidate entries")
@@ -301,6 +316,9 @@ class TerminalAuditMetrics:
                 name: [_identity_dict(key) for key in sorted(values)]
                 for name, values in self._seen.items()
             },
+            "stale_blocked": [
+                _identity_dict(key) for key in sorted(self._stale_blocked)
+            ],
             "no_candidate": [
                 dict(_identity_dict(key), reason=reason)
                 for key, reason in self._no_candidate.items()
@@ -344,6 +362,10 @@ class TerminalAuditMetrics:
         attempts: int = 0,
     ) -> None:
         key = _identity(project_id, task_id, audit_id)
+        # A new coordinator queue event re-arms an identity that was
+        # previously discarded because its worker disappeared.  The lifetime
+        # stale counter remains guarded by ``_seen``.
+        self._stale_blocked.discard(key)
         self._no_candidate.pop(key, None)
         entry = self._queued.get(key) or self._running.pop(key, None)
         if entry is None:
@@ -357,6 +379,7 @@ class TerminalAuditMetrics:
     @_synchronized
     def record_running(self, project_id: str, task_id: str, audit_id: str, *, attempts: int = 0) -> None:
         key = _identity(project_id, task_id, audit_id)
+        self._stale_blocked.discard(key)
         self._no_candidate.pop(key, None)
         if key in self._running:
             self._running[key]["attempts"] = max(self._running[key].get("attempts", 0), attempts)
@@ -375,6 +398,7 @@ class TerminalAuditMetrics:
         for key in tuple(self._running):
             if key not in live:
                 self._finish(key)
+                self._stale_blocked.add(key)
                 self._count_once("stale_discarded", key)
         self._persist()
 
@@ -406,6 +430,7 @@ class TerminalAuditMetrics:
     @_synchronized
     def record_retried(self, project_id: str, task_id: str, audit_id: str, *, attempts: int | None = None) -> None:
         key = _identity(project_id, task_id, audit_id)
+        self._stale_blocked.discard(key)
         self._no_candidate.pop(key, None)
         self._increment("retried", key)
         entry = self._running.pop(key, None) or self._queued.get(key) or self._entry(key, None, 0)
@@ -417,6 +442,7 @@ class TerminalAuditMetrics:
     def record_stale_discarded(self, project_id: str, task_id: str, audit_id: str) -> None:
         key = _identity(project_id, task_id, audit_id)
         self._finish(key)
+        self._stale_blocked.add(key)
         self._count_once("stale_discarded", key)
         self._persist()
 
@@ -424,6 +450,10 @@ class TerminalAuditMetrics:
     def record_overridden(self, project_id: str, task_id: str, audit_id: str) -> None:
         key = _identity(project_id, task_id, audit_id)
         self._finish(key)
+        # The override intent may be durably ahead of its final metadata
+        # cleanup.  Suppress that old pending projection until a fresh
+        # coordinator event proves that this identity is live again.
+        self._stale_blocked.add(key)
         self._increment("overridden", key)
         self._persist()
 
@@ -485,11 +515,22 @@ class TerminalAuditMetrics:
             key = _identity(project_id, task_id, audit_id)
             if (record_project_id, record_task_id, record_audit_id) != key:
                 continue
+            # ``sync_pending`` is a projection refresh, not a new dispatch
+            # event.  In particular it must not resurrect an IN_PROGRESS row
+            # that was already discarded after its worker disappeared.  A
+            # fresh record_queued/record_running/record_retried call clears
+            # this block before the next sync.
+            if key in self._stale_blocked:
+                continue
             observed.add(key)
+            attempts = getattr(record, "attempts", None)
+            if attempts is None and isinstance(record, Mapping):
+                attempts = record.get("attempts", ())
+            attempt_count = len(attempts or ())
             if request_state == "in_progress":
-                self.record_running(*key, attempts=len(getattr(record, "attempts", ()) or ()))
+                self.record_running(*key, attempts=attempt_count)
             else:
-                self.record_queued(*key, attempts=len(getattr(record, "attempts", ()) or ()))
+                self.record_queued(*key, attempts=attempt_count)
         for key in set(self._queued) | set(self._running):
             if key not in observed:
                 self._finish(key)
