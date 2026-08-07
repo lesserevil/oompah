@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:18:23.056939Z'
+updated_at: '2026-08-07T12:18:52.809764Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -370,5 +370,10 @@ author: oompah
 created: 2026-08-07 12:18
 ---
 Verification: PASS. Focused auditor/candidate/termination/durable-finalization/health/config batch: 291 passed in 32.34s. Adjacent terminal-transition coordinator, terminal-audit workflow/observability, and tool-liveness batch: 239 passed in 76.81s. git diff --check passed. The managed native validation wrapper itself could not run make test-setup because its immutable state_path incorrectly targets read-only /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3; tests were therefore run serially from this worktree's existing .venv. The orchestrator remains responsible for the authoritative full make test gate at the review-ready head.
+---
+author: oompah
+created: 2026-08-07 12:18
+---
+Completion: delivered and pushed exact head 001ee04b940b98ab3167495fd5c8f9711a020404. Pre-verdict auditor transport/finalization failures retain eligible candidate capacity and retry under a separate bounded durable budget/backoff; policy or structured substantive outcomes still consume/rotate; incapable subscription Codex ACP candidates remain excluded with missing_audit_capability; restart preserves audit/fingerprint/attempt fencing without duplicate launch; health distinguishes transport recovery from exhaustion, including correct zero-retry initial capacity. Focused and neighboring verification: 530 passed. Branch is clean and exactly up to date with origin.
 ---
 <!-- COMMENTS:END -->
