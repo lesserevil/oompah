@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-869
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make inherited validation-fence restart test deterministic under saturated
   gates
@@ -13,8 +13,8 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T20:55:08.065815Z'
-work_branch: null
+updated_at: '2026-08-07T21:25:28.633468Z'
+work_branch: OOMPAH-869
 target_branch: null
 review_url: null
 review_number: null
@@ -93,9 +93,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-869
-  head_sha: 519ec2e492dec109ab008ad3617a5489928f2a30
-  submitted_at: '2026-08-07T04:46:47.882222+00:00'
-  updated_at: '2026-08-07T04:46:47.882222+00:00'
+  head_sha: 9fba0551672e48c8bf8fa2b0f43801d5bcf44441
+  submitted_at: '2026-08-07T21:25:15.340096+00:00'
+  updated_at: '2026-08-07T21:25:15.340096+00:00'
+oompah.work_branch: OOMPAH-869
 ---
 ## Summary
 
@@ -311,5 +312,10 @@ author: oompah
 created: 2026-08-07 20:55
 ---
 Final direct verification found and fixed a detached-child cleanup gap in the prepared test. The deterministic fixture now records the child's PID/start ticks and uses the production identity-fenced process-group terminator from a finally block, so an assertion failure cannot leak the 30-second child or inherited lease. Restacked onto current main 89de98783 and pushed exact head 9fba0551672e48c8bf8fa2b0f43801d5bcf44441. Evidence: complete tests/test_validation_resource_lease.py passed 139/139 through the canonical capacity-1 broker; scoped Ruff and diff checks passed; remote parity verified. Not submitted per direct-owner handoff.
+---
+author: oompah
+created: 2026-08-07 21:25
+---
+Deterministic inherited validation-fence restart coverage is complete at pushed exact head 9fba0551672e48c8bf8fa2b0f43801d5bcf44441. Focused validation-resource suite: 139 passed. Local branch and origin/OOMPAH-869 have exact remote parity.
 ---
 <!-- COMMENTS:END -->
