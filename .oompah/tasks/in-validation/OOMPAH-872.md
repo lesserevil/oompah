@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T10:08:55.851659Z'
+updated_at: '2026-08-07T10:15:36.718765Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -103,7 +103,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-872
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -112,7 +112,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4f9386900ca5
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -124,6 +124,8 @@ oompah.terminal_audit:
       branch_key: OOMPAH-872
       selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
       selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+      ended_at: '2026-08-07T10:15:35.281700+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: yolo-merge
@@ -156,7 +158,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-4f9386900ca5
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -168,6 +170,8 @@ oompah.terminal_audit:
     branch_key: OOMPAH-872
     selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+    ended_at: '2026-08-07T10:15:35.281700+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
