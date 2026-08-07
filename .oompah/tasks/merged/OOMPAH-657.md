@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Open
+status: Merged
 priority: 0
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T19:31:22.220649Z'
+updated_at: '2026-08-07T19:31:59.149815Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -210,6 +210,26 @@ oompah.terminal_audit:
       Owner override applies the already-verified terminal result and breaks the known
       OOMPAH-653 coordinator race.'
     created_at: '2026-07-31T13:00:14.999114+00:00'
+  - version: 1
+    override_id: override-2516b86ddb63
+    project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Retain previously independently audited merged revision: PR #618 merged
+      verified source head 0212dada64768ed8f89e7b27f461f121c4a42299 as 3316ec40933d1c387619d534e607a3b0100df7dc
+      after exact make test and green Python 3.11/3.12/3.13 CI. Current Needs Human
+      is solely candidate exhaustion on a redundant post-merge audit; no new revision
+      exists.'
+    created_at: '2026-08-07T19:31:51.546988+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-657
