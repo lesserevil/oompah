@@ -1005,32 +1005,61 @@ os._exit(0)
 
 def test_restart_observes_child_that_inherited_kernel_fence(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
+    ready_marker = tmp_path / "child_ready.txt"
+    child_info_file = tmp_path / "child_info.txt"
     script = """
-import os, subprocess, sys
-from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+import os, subprocess, sys, pathlib
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease, _process_start_ticks
 lease = ValidationResourceLease(sys.argv[1], poll_seconds=0.01)
 handle = lease.acquire(ValidationLeaseOwner.exact_gate(project_id='p', task_id='old', authority_generation='g'))
-child = subprocess.Popen(['sleep', '0.5'], pass_fds=handle.pass_fds, start_new_session=True)
+child = subprocess.Popen(['sleep', '30'], pass_fds=handle.pass_fds, start_new_session=True)
 handle.attach_process(child, timeout_seconds=5)
+pathlib.Path(sys.argv[3]).write_text(f'{child.pid}:{_process_start_ticks(child.pid)}', encoding='utf-8')
+pathlib.Path(sys.argv[2]).write_text('ready', encoding='utf-8')
 os._exit(0)
 """
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])}
     subprocess.run(
-        [sys.executable, "-c", script, str(state_path)],
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(state_path),
+            str(ready_marker),
+            str(child_info_file),
+        ],
         cwd=Path(__file__).parents[1],
         env=env,
         check=True,
         timeout=5,
     )
-    restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
 
-    assert restarted.status().owner_count == 1
-    with pytest.raises(ValidationLeaseCancelled, match="timed out"):
-        restarted.acquire(
-            _gate_owner("p", "new"),
-            wait_timeout_seconds=0.1,
-        )
-    time.sleep(0.5)
+    _wait_for(ready_marker.exists, timeout=2)
+    restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
+    raw_pid, raw_start_ticks = child_info_file.read_text(encoding="utf-8").split(":")
+    child_pid = int(raw_pid)
+    child_start_ticks = int(raw_start_ticks)
+    try:
+        status = restarted.status()
+        assert status.owner_count == 1
+        assert status.owners[0]["child_pid"] == child_pid
+        assert status.owners[0]["child_start_ticks"] == child_start_ticks
+        with pytest.raises(ValidationLeaseCancelled, match="timed out"):
+            restarted.acquire(
+                _gate_owner("p", "new"),
+                wait_timeout_seconds=0.1,
+            )
+    finally:
+        if validation_lease_module._process_identity_alive(
+            child_pid,
+            child_start_ticks,
+        ):
+            assert validation_lease_module._terminate_exact_process_group(
+                child_pid,
+                child_start_ticks,
+            )
+        _wait_for(lambda: restarted.status().owner_count == 0, timeout=5)
+
     with restarted.acquire(
         _gate_owner("p", "new"),
         wait_timeout_seconds=1,
