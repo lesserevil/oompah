@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T10:06:59.654170Z'
+updated_at: '2026-08-07T10:09:10.476125Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -604,5 +604,10 @@ author: oompah
 created: 2026-08-07 10:06
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 10:09
+---
+Understanding: A completed terminal audit must remain idempotent for identical target/evidence, but a failed audit with changed integrated evidence must be superseded and retried as a new Pending audit. I will inspect the coordinator and integration sweep, implement the smallest compatible change, and run the focused coordinator/orchestrator tests.
 ---
 <!-- COMMENTS:END -->
