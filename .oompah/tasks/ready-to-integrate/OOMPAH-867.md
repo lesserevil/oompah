@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T07:07:59.934412Z'
+updated_at: '2026-08-07T07:08:07.576621Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -408,5 +408,10 @@ author: oompah
 created: 2026-08-07 07:07
 ---
 Gate repair finalized at 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae. Independent review ACCEPT; canonical leased focused validation passed 272 serial and 272 xdist4; diff/compile/check-secrets passed. Submitting the exact pushed head for a fresh branch gate.
+---
+author: oompah
+created: 2026-08-07 07:08
+---
+Unified terminal-audit revision binding with a narrowly authorized Done auto-archive fallback; focused validation 272 serial and 272 parallel.
 ---
 <!-- COMMENTS:END -->
