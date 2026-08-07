@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T14:02:20.764129Z'
+updated_at: '2026-08-07T14:03:06.172012Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/743
@@ -120,6 +120,32 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T14:02:17.515075+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Nested epic work is already contained in epic-OOMPAH-763; PRs #742 and
+      #743 are closed, all children are terminal, and audited Done is retained as
+      provenance. No autonomous review/rebase/watchdog path may reopen this record;
+      a project owner must explicitly authorize a new revision.'
+    marked_at: '2026-08-07T14:03:02.699762+00:00'
+    updated_at: '2026-08-07T14:03:02.699762+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Nested epic work is already contained in epic-OOMPAH-763; PRs #742
+        and #743 are closed, all children are terminal, and audited Done is retained
+        as provenance. No autonomous review/rebase/watchdog path may reopen this record;
+        a project owner must explicitly authorize a new revision.'
+      recorded_at: '2026-08-07T14:03:02.699762+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
