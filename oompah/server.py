@@ -3285,6 +3285,12 @@ def _fetch_open_reviews_for_api(
         except Exception as exc:
             logger.warning("Failed to fetch reviews for %s: %s", project.name, exc)
             continue
+        if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
+            logger.warning(
+                "Review provider reported an unsuccessful fetch for %s",
+                project.name,
+            )
+            continue
 
         reviews_by_project[project_id] = reviews
         successful_project_ids.add(project_id)
@@ -3337,7 +3343,8 @@ def _sync_orchestrator_review_cache(
     orch: "Orchestrator",
     reviews_by_project: dict[str, list[ReviewRequest]],
     successful_project_ids: set[str],
-) -> None:
+    observed_generations: dict[str, int] | None = None,
+) -> set[str]:
     """Keep dashboard review summary aligned with /api/v1/reviews.
 
     The dashboard badge reads ``orch._reviews_cache`` while the Reviews page
@@ -3345,6 +3352,32 @@ def _sync_orchestrator_review_cache(
     sync successfully fetched project entries so the badge and board agree
     without clearing dispatch gates for projects whose fetch failed.
     """
+    review_lifecycle_lock = (
+        getattr(orch, "_review_lifecycle_lock", None)
+        if observed_generations is not None
+        else None
+    )
+    publication_context = (
+        review_lifecycle_lock
+        if hasattr(review_lifecycle_lock, "__enter__")
+        else contextlib.nullcontext()
+    )
+    with publication_context:
+        return _sync_orchestrator_review_cache_locked(
+            orch,
+            reviews_by_project,
+            successful_project_ids,
+            observed_generations,
+        )
+
+
+def _sync_orchestrator_review_cache_locked(
+    orch: "Orchestrator",
+    reviews_by_project: dict[str, list[ReviewRequest]],
+    successful_project_ids: set[str],
+    observed_generations: dict[str, int] | None,
+) -> set[str]:
+    """Publish a review snapshot while holding the lifecycle barrier."""
     old_summary = None
     if callable(getattr(orch, "_reviews_summary", None)):
         try:
@@ -3352,14 +3385,47 @@ def _sync_orchestrator_review_cache(
         except Exception:
             old_summary = None
 
-    cache: dict[str, list[ReviewRequest]] = {
-        str(project_id): list(reviews)
-        for project_id, reviews in (getattr(orch, "_reviews_cache", {}) or {}).items()
-    }
-    for project_id in successful_project_ids:
-        cache[project_id] = list(reviews_by_project.get(project_id, []))
-
-    orch._reviews_cache = cache
+    published_project_ids = set(successful_project_ids)
+    publisher = getattr(type(orch), "_publish_review_cache_snapshot", None)
+    if callable(publisher) and observed_generations is not None:
+        published_project_ids = {
+            project_id
+            for project_id in successful_project_ids
+            if getattr(type(orch), "_review_generation")(orch, project_id)
+            == observed_generations.get(project_id, 0)
+        }
+        cache = publisher(
+            orch,
+            {
+                project_id: list(reviews_by_project.get(project_id, []))
+                for project_id in successful_project_ids
+            },
+            observed_generations,
+        )
+        reconciler = getattr(
+            type(orch),
+            "_reconcile_review_capacity_from_live_reviews",
+            None,
+        )
+        if callable(reconciler):
+            for project_id in published_project_ids:
+                reconciler(
+                    orch,
+                    project_id,
+                    reviews_by_project.get(project_id, []),
+                )
+    else:
+        # Compatibility path for lightweight test doubles and embedders that
+        # do not implement review-lifecycle generations.
+        cache = {
+            str(project_id): list(reviews)
+            for project_id, reviews in (
+                getattr(orch, "_reviews_cache", {}) or {}
+            ).items()
+        }
+        for project_id in successful_project_ids:
+            cache[project_id] = list(reviews_by_project.get(project_id, []))
+        orch._reviews_cache = cache
     orch._unmerged_review_branches = {
         r.source_branch
         for reviews in cache.values()
@@ -3368,14 +3434,14 @@ def _sync_orchestrator_review_cache(
     }
 
     if not callable(getattr(orch, "_reviews_summary", None)):
-        return
+        return published_project_ids
 
     try:
         new_summary = orch._reviews_summary()
     except Exception:
-        return
+        return published_project_ids
     if new_summary == old_summary:
-        return
+        return published_project_ids
 
     try:
         orch._last_emitted_reviews_summary = dict(new_summary)
@@ -3384,6 +3450,7 @@ def _sync_orchestrator_review_cache(
     notify = getattr(orch, "_notify_state_only", None)
     if callable(notify):
         notify()
+    return published_project_ids
 
 
 def _schedule_api_coro(factory: Callable[[], Any]) -> bool:
@@ -17951,8 +18018,20 @@ async def api_list_reviews():
             return JSONResponse(cached)
         # Index projects by id for fast lookup in the loop below.
         _project_by_id = {p.id: p for p in projects}
-        reviews, reviews_by_project, successful_project_ids = _fetch_open_reviews_for_api(
-            projects
+        review_generation_reader = getattr(type(orch), "_review_generation", None)
+        observed_review_generations = (
+            {
+                str(project.id): review_generation_reader(
+                    orch,
+                    str(project.id),
+                )
+                for project in projects
+            }
+            if callable(review_generation_reader)
+            else None
+        )
+        reviews, reviews_by_project, successful_project_ids = (
+            _fetch_open_reviews_for_api(projects)
         )
         # Enrich reviews with agent status
         active_branches = _active_review_branches(orch)
@@ -18018,11 +18097,36 @@ async def api_list_reviews():
                     and r.get("needs_rebase", False)
                 ):
                     item["gate_blocked"] = True
-        _sync_orchestrator_review_cache(
-            orch, reviews_by_project, successful_project_ids
+        review_lifecycle_lock = (
+            getattr(orch, "_review_lifecycle_lock", None)
+            if observed_review_generations is not None
+            else None
         )
-        _api_cache.set("reviews:all", reviews, ttl_ms=10000)
-        return JSONResponse(reviews)
+        publication_context = (
+            review_lifecycle_lock
+            if hasattr(review_lifecycle_lock, "__enter__")
+            else contextlib.nullcontext()
+        )
+        with publication_context:
+            published_project_ids = _sync_orchestrator_review_cache(
+                orch,
+                reviews_by_project,
+                successful_project_ids,
+                observed_review_generations,
+            )
+            if observed_review_generations is not None:
+                # A close/merge that overtook the fetch also wins the HTTP
+                # response and its TTL cache.  Do not send or cache the older
+                # open row merely because the remote request completed later.
+                reviews = [
+                    item
+                    for item in reviews
+                    if str(item.get("project_id", ""))
+                    in published_project_ids
+                ]
+            _api_cache.set("reviews:all", reviews, ttl_ms=10000)
+            response = JSONResponse(reviews)
+        return response
     except Exception as exc:
         logger.error("Reviews API error: %s", exc)
         return JSONResponse(
@@ -20087,6 +20191,7 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
                 source_branch=source_branch,
                 target_branch=target_branch,
                 review_head=review_head,
+                reopened=event.action == "reopened",
             )
             if adopted:
                 logger.info(
