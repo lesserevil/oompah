@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:09:52.081850Z'
+updated_at: '2026-08-07T12:10:33.256174Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -350,5 +350,10 @@ author: oompah
 created: 2026-08-07 12:09
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-08-07 12:10
+---
+Understanding: continuing the preserved implementation for transport-safe auditor retries. I will audit the current diff and test gaps, ensure pre-verdict infrastructure failures retain candidate capacity under a durable bounded retry/backoff ledger, preserve authority/audit identity across restart, distinguish verdict-incapable configuration in health output, then run focused Makefile-backed checks before commit, push, and submission.
 ---
 <!-- COMMENTS:END -->
