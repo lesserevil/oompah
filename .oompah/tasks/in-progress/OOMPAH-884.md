@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:24:28.093323Z'
-updated_at: '2026-08-07T12:25:26.911292Z'
+updated_at: '2026-08-07T12:25:37.103310Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -26,6 +26,7 @@ oompah.epic_rebase_target:
   target_branch: main
   parent_id: null
   resolution: confirmed_top_level
+oompah.agent_run_id: d661e0b1-46db-49fd-a2c3-10c70b19ce7c
 ---
 ## Summary
 
