@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-08-07T20:18:22.599595Z'
+updated_at: '2026-08-07T20:18:39.293787Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -42,6 +42,18 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T10:49:48.048456+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-418
+    target_state: Merged
+    evidence_fingerprint: 212b743fc58c22c56a4631fca24909029a5ab96069e61eea85104a1e15ace17c
+    audit_ids:
+    - audit-f40f33a428ec
+    - audit-ff537cef05b3
+    - audit-08957463466d
+    - audit-012bd3b53573
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T20:18:29.798438+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-418
@@ -55,6 +67,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T10:49:48.048469+00:00'
     applied_at: '2026-08-07T10:49:58.185884+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-e14d666998b5
@@ -73,7 +86,29 @@ oompah.terminal_audit:
       10fac3f6e9794e2974cbea24ce089c982cbd7799; all Python 3.11/3.12/3.13 CI checks
       passed and the merge commit is an ancestor of current main.'
     created_at: '2026-08-07T20:18:18.035191+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain exact merged PR #542 provenance and eliminate stale non-terminal
+      state.'
+    marked_at: '2026-08-07T20:18:37.831649+00:00'
+    updated_at: '2026-08-07T20:18:37.831649+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain exact merged PR #542 provenance and eliminate stale non-terminal
+        state.'
+      recorded_at: '2026-08-07T20:18:37.831649+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -639,5 +674,17 @@ created: 2026-08-07 10:54
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 20:18
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #542 merged exact head a975649d56fc98d36ba2df5db62f288d24784caa as 10fac3f6e9794e2974cbea24ce089c982cbd7799; all Python 3.11/3.12/3.13 CI checks passed and the merge commit is an ancestor of current main.
+---
+author: oompah
+created: 2026-08-07 20:18
+---
+Already merged by PR #542 with complete CI.
 ---
 <!-- COMMENTS:END -->

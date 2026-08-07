@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Merged
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T18:21:06.918169Z'
+updated_at: '2026-08-07T20:18:46.096445Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -308,6 +308,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:19:48.965656+00:00'
     applied_at: '2026-08-07T14:19:59.714521+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a235b404916c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-658
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #621 merged exact head 6e27fb150b7bd711c98c7aa5c94e355200dfa325 as
+      ef2938146bf828ddc8d8d677501f4fad61d65a73; all Python 3.11/3.12/3.13 CI checks
+      passed and the merge commit is an ancestor of current main.'
+    created_at: '2026-08-07T20:18:41.599074+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1

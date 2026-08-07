@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T18:23:49.939372Z'
+updated_at: '2026-08-07T20:18:28.811855Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-08-07 04:20
 ---
 Exact dedicated-runner evidence from run 31129704050: 15,759 passed / 14 failed in 23m47s. The runner is root, invalidating unreadable/read-only permission cases; its system node cannot resolve node:assert/strict; Python 3.13 reports chmod follow_symlinks unavailable; verbose output contributed sustained jbd2 journal waits. Scope must therefore include a non-root hermetic test identity, supported Node provisioning/version assertion, Python 3.13 storage-cleanup portability, bounded console output, and shared validation-broker admission. Preserve complete failure logs as artifacts.
+---
+author: oompah
+created: 2026-08-07 20:18
+---
+Direct completion pushed at 9ef4be055115bc8bcadb695d2b918bd37f554c6a, restacked onto current origin/main e731c3d985d368bedcf71f9e031c8c7de87de218. Dedicated CI now acquires/attaches the shared durable validation lease with stable GitHub run authority; fences cancellation, timeout, broker death, and descendants; runs pytest under a private non-root identity; bounds console output while retaining full log/JUnit artifacts; provisions/asserts Node 22; and uses fd-based storage cleanup compatible with Python 3.13. Validation: 160 related tests passed; scoped Ruff, py_compile, workflow YAML parse, git diff check, and make check-secrets passed. Branch is pushed and clean. Per direct-owner handoff, task was not submitted.
 ---
 <!-- COMMENTS:END -->
