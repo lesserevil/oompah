@@ -18,12 +18,10 @@ children:
 blocked_by: []
 start_blocked_by: []
 labels:
-- rebase-requested
-- merge-conflict
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T05:37:30.425884Z'
+updated_at: '2026-08-07T05:38:50.202799Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
