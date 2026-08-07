@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T06:38:15.709525Z'
+updated_at: '2026-08-07T07:07:59.934412Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,9 +81,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-867
-  head_sha: 3296c2516b0c2fd0da7fd3420226428e940680d6
-  submitted_at: '2026-08-07T06:02:14.105488+00:00'
-  updated_at: '2026-08-07T06:02:14.105488+00:00'
+  head_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+  submitted_at: '2026-08-07T07:07:55.821489+00:00'
+  updated_at: '2026-08-07T07:07:55.821489+00:00'
 ---
 ## Summary
 
@@ -403,5 +403,10 @@ FAILED tests/test_managed_tracker_state_branch_guard.py::test_auto_archive_and_s
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 07:07
+---
+Gate repair finalized at 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae. Independent review ACCEPT; canonical leased focused validation passed 272 serial and 272 xdist4; diff/compile/check-secrets passed. Submitting the exact pushed head for a fresh branch gate.
 ---
 <!-- COMMENTS:END -->
