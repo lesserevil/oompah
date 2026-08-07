@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T10:46:12.227363Z'
+updated_at: '2026-08-07T10:51:07.025970Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8090dd1e-b1ae-4c24-8712-8d00bd969cce
+oompah.agent_run_id: 374d4485-2a59-433c-89b4-f3b298bb9e0c
 oompah.task_costs:
   total_input_tokens: 50949
   total_output_tokens: 17027
@@ -624,5 +624,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 53s
 - Log: OOMPAH-649__20260807T104412Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:51
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
