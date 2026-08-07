@@ -14,6 +14,22 @@ import pytest
 
 from oompah.acp_agent import AcpAgentSession
 from oompah.api_agent import _exec_run_command
+from oompah.rebase_worker_sandbox import (
+    RebaseWorkerHostPolicyUnavailable,
+    RebaseWorkerSandboxUnavailable,
+    _probe_bubblewrap_namespaces,
+    restricted_rebase_command,
+)
+
+
+_HOST_POLICY_DENIAL = "nested bubblewrap namespaces are denied by host policy"
+_HOST_POLICY_ERROR = f"Error: {_HOST_POLICY_DENIAL}"
+
+
+def _skip_when_nested_bubblewrap_is_denied(text: str) -> None:
+    """Never turn failure to launch the sandbox into a passing assertion."""
+    if text.strip() == _HOST_POLICY_ERROR:
+        pytest.skip(_HOST_POLICY_DENIAL)
 
 
 def _init_rebase_workspace(path):
@@ -45,6 +61,7 @@ def test_api_worker_shell_does_not_inherit_remote_write_credentials(
         isolate_remote_write=True,
     )
 
+    _skip_when_nested_bubblewrap_is_denied(result)
     assert "exit_code: 0" in result
     assert "forge-secret" not in result
     assert "GITHUB_TOKEN=" not in result
@@ -78,6 +95,7 @@ def test_rebase_executor_blocks_host_credentials_and_remote_write_routes(
         isolate_remote_write=True,
     )
 
+    _skip_when_nested_bubblewrap_is_denied(result)
     if command.startswith("test"):
         assert "exit_code: 0" in result
     else:
@@ -114,6 +132,7 @@ def test_rebase_executor_supports_a_real_linked_worktree_without_remote_config(
         isolate_remote_write=True,
     )
 
+    _skip_when_nested_bubblewrap_is_denied(result)
     assert "exit_code: 0" in result
     assert (linked / "worker.txt").read_text() == "worker\n"
     # The ordinary shared config remains unchanged; the sandbox receives only
@@ -142,7 +161,160 @@ def test_rebase_executor_never_mounts_provider_or_handoff_runtime(tmp_path, monk
         isolate_remote_write=True,
     )
 
+    _skip_when_nested_bubblewrap_is_denied(result)
     assert "exit_code: 0" in result
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "bwrap: setting up uid map: Permission denied",
+        (
+            "bwrap: No permissions to create a new namespace, likely because "
+            "the kernel does not allow non-privileged user namespaces."
+        ),
+    ],
+)
+def test_nested_bubblewrap_probe_classifies_host_policy_denial(
+    monkeypatch,
+    detail,
+):
+    from oompah import rebase_worker_sandbox as sandbox_module
+
+    monkeypatch.setattr(
+        sandbox_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 1, stderr=detail),
+    )
+
+    with pytest.raises(
+        RebaseWorkerHostPolicyUnavailable,
+        match=_HOST_POLICY_DENIAL,
+    ):
+        _probe_bubblewrap_namespaces("/usr/bin/bwrap")
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "bwrap: malformed trusted invocation",
+        "bwrap: failed to ro-bind /usr: Permission denied",
+        "bwrap: execve /bin/true: Operation not permitted",
+    ],
+)
+def test_nested_bubblewrap_probe_keeps_other_failures_distinct(
+    monkeypatch,
+    detail,
+):
+    from oompah import rebase_worker_sandbox as sandbox_module
+
+    monkeypatch.setattr(
+        sandbox_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [], 1, stderr=detail
+        ),
+    )
+
+    with pytest.raises(RebaseWorkerSandboxUnavailable) as caught:
+        _probe_bubblewrap_namespaces("/usr/bin/bwrap")
+
+    assert not isinstance(caught.value, RebaseWorkerHostPolicyUnavailable)
+    assert detail in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        _HOST_POLICY_DENIAL,
+        f"exit_code: 1\nstderr: {_HOST_POLICY_DENIAL}",
+        f"Error: unrelated failure: {_HOST_POLICY_DENIAL}",
+        f"{_HOST_POLICY_ERROR}\nadditional failure",
+    ],
+)
+def test_nested_bubblewrap_skip_requires_exact_canonical_error(
+    monkeypatch,
+    text,
+):
+    skip = MagicMock(side_effect=AssertionError("noncanonical output was skipped"))
+    monkeypatch.setattr(pytest, "skip", skip)
+
+    _skip_when_nested_bubblewrap_is_denied(text)
+
+    skip.assert_not_called()
+
+
+def test_nested_bubblewrap_skip_accepts_exact_canonical_error(monkeypatch):
+    skip = MagicMock()
+    monkeypatch.setattr(pytest, "skip", skip)
+
+    _skip_when_nested_bubblewrap_is_denied(f"  {_HOST_POLICY_ERROR}\n")
+
+    skip.assert_called_once_with(_HOST_POLICY_DENIAL)
+
+
+def test_nested_bubblewrap_host_denial_fails_closed_before_candidate_launch(
+    tmp_path,
+    monkeypatch,
+):
+    from oompah import api_agent as api_agent_module
+    from oompah import rebase_worker_sandbox as sandbox_module
+
+    workspace = _init_rebase_workspace(tmp_path)
+    launch = MagicMock(side_effect=AssertionError("candidate command launched"))
+    monkeypatch.setattr(api_agent_module.subprocess, "Popen", launch)
+    monkeypatch.setattr(
+        sandbox_module,
+        "_probe_bubblewrap_namespaces",
+        lambda _bubblewrap: (_ for _ in ()).throw(
+            RebaseWorkerHostPolicyUnavailable(_HOST_POLICY_DENIAL)
+        ),
+    )
+
+    result = _exec_run_command(
+        workspace,
+        {"command": "printf candidate-ran"},
+        isolate_remote_write=True,
+    )
+
+    assert result == f"Error: {_HOST_POLICY_DENIAL}"
+    launch.assert_not_called()
+
+
+def test_rebase_sandbox_static_boundary_survives_nested_host_denial(
+    tmp_path,
+    monkeypatch,
+):
+    """Static fencing remains asserted when the dynamic namespace is blocked."""
+    from oompah import rebase_worker_sandbox as sandbox_module
+
+    workspace = _init_rebase_workspace(tmp_path)
+    monkeypatch.setattr(sandbox_module.shutil, "which", lambda _name: "/usr/bin/bwrap")
+    monkeypatch.setattr(
+        sandbox_module,
+        "_probe_bubblewrap_namespaces",
+        lambda _bubblewrap: None,
+    )
+    command = restricted_rebase_command(
+        "env",
+        workspace,
+        {
+            "GITHUB_TOKEN": "forge-secret",
+            "SSH_AUTH_SOCK": "/run/ssh-agent.sock",
+        },
+    )
+    try:
+        assert "--unshare-net" in command
+        assert ["--setenv", "GIT_CONFIG_GLOBAL", os.devnull] in [
+            command[index : index + 3]
+            for index in range(len(command) - 2)
+        ]
+        joined = "\0".join(command)
+        assert "forge-secret" not in joined
+        assert "GITHUB_TOKEN" not in joined
+        assert "SSH_AUTH_SOCK" not in joined
+    finally:
+        command.cleanup()
 
 
 def test_acp_session_forwards_remote_write_isolation_to_backend(tmp_path):
@@ -433,6 +605,7 @@ def test_local_git_credential_routes_are_detected(tmp_path, key, value):
 
 
 def _assert_mcp_shell_is_isolated(text: str) -> None:
+    _skip_when_nested_bubblewrap_is_denied(text)
     assert "GITHUB_TOKEN=" not in text
     assert "SSH_AUTH_SOCK=" not in text
     assert "ARBITRARY_FORGE_ROUTE=" not in text
