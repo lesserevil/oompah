@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-775
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService and enforce
   the boundary
@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-06T16:09:20.566296Z'
+updated_at: '2026-08-07T18:21:59.810892Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
