@@ -13,12 +13,10 @@ children:
 - OOMPAH-800
 blocked_by: []
 start_blocked_by: []
-labels:
-- merge-conflict
-- epic:rebasing
+labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:53:28.426461Z'
+updated_at: '2026-08-07T12:55:04.186251Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
