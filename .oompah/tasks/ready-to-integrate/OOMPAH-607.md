@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T09:11:52.268443Z'
+updated_at: '2026-08-07T09:19:32.556150Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: ''
@@ -755,5 +755,10 @@ author: oompah
 created: 2026-08-07 09:11
 ---
 Branch quality gate passed for `39285e9c3db19ae0df1757ae3e49d74204ffca49` using `make test` in 697.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 09:19
+---
+Owner recovery: this is already-merged provenance (PR #605, original reviewed head contained in main). The watchdog erroneously reopened it, a no-op worker verified the fix on current main, and the exact current-main gate 39285e9c3 passed 16,000+ tests. A new review cannot exist because the accepted head is main itself. Restoring Merged now; OOMPAH-871 will durably suppress future reopen/redispatch of provenance-only terminal records.
 ---
 <!-- COMMENTS:END -->
