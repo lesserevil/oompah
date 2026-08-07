@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-906
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Keep isolated quality-gate HOME from invalidating the trusted native validation
   guard
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T21:47:20.306703Z'
+updated_at: '2026-08-07T21:47:58.674446Z'
 work_branch: null
 target_branch: null
 review_url: null
