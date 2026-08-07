@@ -136,6 +136,7 @@ class TestEmptyBacklog:
             "policy_incompatibility_count",
             "failure_count",
             "retry_exhausted_count",
+            "transport_retry_pending_count",
             "quarantined_count",
             "stale_after_seconds",
             "scan_complete",
@@ -365,6 +366,57 @@ class TestLaunchAndTransportFailures:
 
 
 class TestRetryExhaustion:
+    def test_transport_recovery_is_not_candidate_exhaustion(self):
+        """A pre-verdict delivery failure surfaces a recovery signal, not no_auditor."""
+        from dataclasses import replace
+
+        timeout = replace(
+            _attempt(
+                "attempt-timeout",
+                failure_reason="run_command result delivery timed out after 30s",
+                ended_at=NOW.isoformat(),
+            ),
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+        )
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=[timeout]))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=2,
+        )
+
+        assert health.transport_retry_pending_count == 1
+        assert health.retry_exhausted_count == 0
+        alerts = terminal_audit_health_alerts(health)
+        sources = {alert["source"] for alert in alerts}
+        assert HEALTH_ALERT_PREFIX + "transport_retry_pending" in sources
+        assert HEALTH_ALERT_PREFIX + "retry_exhausted" not in sources
+
+    def test_transport_retry_budget_becomes_actionable_after_bound(self):
+        """Transport recovery cannot retry forever when the provider remains down."""
+        from dataclasses import replace
+
+        attempts = [
+            replace(
+                _attempt(
+                    f"attempt-timeout-{index}",
+                    failure_reason="forced provider shutdown before verdict",
+                    ended_at=NOW.isoformat(),
+                ),
+                failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+            )
+            for index in range(2)
+        ]
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=attempts))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=2,
+        )
+
+        assert health.transport_retry_pending_count == 0
+        assert health.retry_exhausted_count == 1
+
     def test_retry_exhaustion_is_active_until_the_record_recovers(self):
         """An audit that used max_attempts increments retry_exhausted_count."""
         attempts = [

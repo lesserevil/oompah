@@ -244,11 +244,13 @@ def _lane(
     *,
     now: datetime,
     max_attempts: int = 3,
+    max_transport_retries: int = 3,
     attempt_id: str = "attempt-1",
 ) -> AuditorDispatchLane:
     return AuditorDispatchLane(
         _Selector(candidates),
         max_attempts=max_attempts,
+        max_transport_retries=max_transport_retries,
         attempt_ttl_seconds=60,
         clock=lambda: now,
         id_factory=lambda: attempt_id,
@@ -560,52 +562,61 @@ def test_transient_failure_with_backoff_enables_later_retry():
     assert recovery_ready.reason is None
 
 
-def test_exhausted_candidates_after_multiple_failures():
-    """Multiple transient failures against all candidates leaves audit exhausted."""
+def test_transport_failures_retry_same_candidate_without_consuming_capacity():
+    """OOMPAH-870: delivery timeout retries the sole verdict-capable auditor."""
     from oompah.terminal_audit import FailureClassification
 
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)
-    candidates = [
-        Candidate("provider-a", "model-a"),
-        Candidate("provider-b", "model-b"),
-    ]
-    lane = _lane(candidates, now=now, max_attempts=2)
+    candidate = Candidate("provider-haiku", "haiku")
+    attempt_ids = iter(("attempt-timeout", "attempt-recovered"))
+    lane = AuditorDispatchLane(
+        _Selector([candidate]),
+        max_attempts=1,
+        max_transport_retries=2,
+        attempt_ttl_seconds=60,
+        clock=lambda: now,
+        id_factory=lambda: next(attempt_ids),
+    )
 
     record = _record()
 
-    # First candidate fails with transient error
+    # The provider never receives a result acknowledgement, then forced ACP
+    # shutdown ends before the auditor can submit a verdict.
     plan1, _ = lane.plan(record, [], branch_key="branch-1")
     assert plan1 is not None
     persisted1 = lane.persist_plan(record, plan1)
     failed1 = lane.finish_attempt(
         persisted1,
         plan1.attempt_id,
-        reason="transport error",
+        reason="run_command result delivery timed out after 30s",
         failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
     )
+    assert AuditorDispatchLane.attempted_pairs(failed1) == set()
+    assert len(AuditorDispatchLane.transport_retry_attempts(failed1)) == 1
 
-    # Second candidate fails with transient error
+    # The immutable audit id/fingerprint stays intact, and the only eligible
+    # candidate can retry after backoff instead of being treated as exhausted.
     plan2, _ = lane.plan(failed1, [], branch_key="branch-1")
     assert plan2 is not None
-    persisted2 = lane.persist_plan(failed1, plan2)
-    failed2 = lane.finish_attempt(
-        persisted2,
-        plan2.attempt_id,
-        reason="timeout",
-        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+    assert (plan2.candidate.provider_id, plan2.candidate.model) == (
+        "provider-haiku",
+        "haiku",
     )
+    assert plan2.rotation_count == 1
+    recovered = lane.persist_plan(failed1, plan2)
+    passed = replace(
+        recovered.attempts[-1],
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.PASS,
+    )
+    assert passed.verdict is Verdict.PASS
+    assert recovered.audit_id == record.audit_id
+    assert recovered.evidence_fingerprint == record.evidence_fingerprint
 
-    # All candidates exhausted
-    plan3, reason = lane.plan(failed2, [], branch_key="branch-1")
-    assert plan3 is None
-    assert reason is not None
-    assert reason.reason == "all_attempted"
-    assert len(failed2.attempts) == 2
 
-
-def test_successful_retry_after_transient_failure():
-    """Auditor can succeed on second attempt after transient failure on first."""
-    from oompah.terminal_audit import FailureClassification, Verdict
+def test_policy_rejection_still_rotates_and_consumes_candidate():
+    """Policy denial is substantive capacity use, unlike transport failure."""
+    from oompah.terminal_audit import FailureClassification
 
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)
     candidates = [
@@ -616,79 +627,148 @@ def test_successful_retry_after_transient_failure():
 
     record = _record()
 
-    # First attempt: launch fails with infrastructure error
+    # First candidate is rejected by the auditor command policy before a
+    # verdict, which is a substantive candidate incompatibility.
     plan1, _ = lane.plan(record, [], branch_key="branch-1")
     assert plan1 is not None
     persisted1 = lane.persist_plan(record, plan1)
     failed1 = lane.finish_attempt(
         persisted1,
         plan1.attempt_id,
-        reason="provider temporarily unavailable",
-        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+        reason="auditor policy denial limit reached",
+        failure_classification=FailureClassification.POLICY_INCOMPATIBILITY,
     )
+    assert AuditorDispatchLane.attempted_pairs(failed1) == {
+        ("provider-a", "model-a")
+    }
+    assert len(AuditorDispatchLane.substantive_attempts(failed1)) == 1
 
-    # Second attempt: rotated to new candidate and succeeds
+    # Candidate rotation remains intact for substantive/policy rejection.
     plan2, _ = lane.plan(failed1, [], branch_key="branch-1")
     assert plan2 is not None
     assert (plan2.candidate.provider_id, plan2.candidate.model) == ("provider-b", "model-b")
-    persisted2 = lane.persist_plan(failed1, plan2)
-
-    # Simulate successful completion by marking the second attempt with passing verdict
-    completed_attempts = [
-        # First attempt: marked failed with infrastructure error
-        failed1.attempts[0],
-        # Second attempt: marked successful
-        replace(
-            persisted2.attempts[-1],
-            verdict=Verdict.PASS,
-            request_state=RequestState.PENDING,
-        ),
-    ]
-    completed = replace(persisted2, attempts=completed_attempts)
-
-    # Verify audit history shows both attempts
-    assert len(completed.attempts) == 2
-    assert completed.attempts[0].failure_classification == FailureClassification.INFRASTRUCTURE_ERROR
-    assert completed.attempts[1].verdict == Verdict.PASS
 
 
-def test_two_transport_failures_rotate_to_third_healthy_candidate():
-    """A healthy independent transport remains eligible after two failures."""
-    from oompah.terminal_audit import FailureClassification, Verdict
+def test_transport_retry_budget_is_bounded_without_consuming_candidate():
+    """A repeating delivery failure becomes actionable only after its budget."""
+    from oompah.terminal_audit import FailureClassification
 
     now = datetime(2026, 8, 2, tzinfo=timezone.utc)
-    candidates = [
-        Candidate("provider-a", "model-a"),
-        Candidate("provider-b", "model-b"),
-        Candidate("provider-c", "model-c"),
-    ]
-    lane = _lane(candidates, now=now, max_attempts=3)
+    lane = _lane(
+        [Candidate("provider-a", "model-a")],
+        now=now,
+        max_attempts=1,
+        max_transport_retries=2,
+    )
     record = _record()
 
-    for expected_provider in ("provider-a", "provider-b"):
+    for _ in range(2):
         plan, reason = lane.plan(record, [], branch_key="branch-1")
         assert reason is None
         assert plan is not None
-        assert plan.candidate.provider_id == expected_provider
+        assert plan.candidate.provider_id == "provider-a"
         record = lane.finish_attempt(
             lane.persist_plan(record, plan),
             plan.attempt_id,
-            reason="provider-private oversized result denied by audit policy",
+            reason="forced provider shutdown before verdict",
             failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
         )
 
-    healthy, reason = lane.plan(record, [], branch_key="branch-1")
-    assert reason is None
-    assert healthy is not None
-    assert healthy.candidate.provider_id == "provider-c"
-    persisted = lane.persist_plan(record, healthy)
-    completed = replace(
-        persisted.attempts[-1],
-        verdict=Verdict.PASS,
-        request_state=RequestState.PENDING,
+    no_plan, reason = lane.plan(record, [], branch_key="branch-1")
+    assert no_plan is None
+    assert reason is not None
+    assert reason.reason == "all_attempted"
+    assert AuditorDispatchLane.attempted_pairs(record) == set()
+
+
+def test_zero_transport_retry_budget_allows_initial_audit_only():
+    """Zero means no recovery retry, not no initial candidate capacity."""
+    from oompah.terminal_audit import FailureClassification
+
+    now = datetime(2026, 8, 2, tzinfo=timezone.utc)
+    lane = _lane(
+        [Candidate("provider-a", "model-a")],
+        now=now,
+        max_attempts=1,
+        max_transport_retries=0,
     )
-    assert completed.verdict == Verdict.PASS
-    assert healthy.rotation_count == 2
+    first, reason = lane.plan(_record(), [], branch_key="branch-1")
+    assert reason is None
+    assert first is not None
+    failed = lane.finish_attempt(
+        lane.persist_plan(_record(), first),
+        first.attempt_id,
+        reason="forced provider shutdown before verdict",
+        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+    )
+
+    retry, exhaustion = lane.plan(failed, [], branch_key="branch-1")
+    assert retry is None
+    assert exhaustion is not None
+    assert exhaustion.reason == "all_attempted"
+
+
+def test_restart_preserves_transport_backoff_and_live_attempt_fence():
+    """Restart recovery preserves the retry class without launching a duplicate."""
+    from oompah.terminal_audit import FailureClassification
+
+    now = datetime(2026, 8, 7, 12, 0, 0, tzinfo=timezone.utc)
+    candidate = Candidate("provider-haiku", "haiku")
+    first = AuditorDispatchLane(
+        _Selector([candidate]),
+        max_attempts=1,
+        max_transport_retries=2,
+        attempt_ttl_seconds=60,
+        clock=lambda: now,
+        id_factory=lambda: "attempt-before-restart",
+    )
+    plan, _ = first.plan(_record(), [], branch_key="branch-1", now=now)
+    assert plan is not None
+    failed = first.finish_attempt(
+        first.persist_plan(_record(), plan),
+        plan.attempt_id,
+        reason="forced provider shutdown before verdict",
+        retry_after=(now + timedelta(seconds=30)).isoformat(),
+        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+    )
+
+    restarted = AuditorDispatchLane(
+        _Selector([candidate]),
+        max_attempts=1,
+        max_transport_retries=2,
+        attempt_ttl_seconds=60,
+        clock=lambda: now,
+        id_factory=lambda: "attempt-after-restart",
+    )
+    cooling = restarted.recover(failed, active_attempt_identities=set(), now=now)
+    assert not cooling.ready
+    assert "backoff" in (cooling.reason or "")
+
+    ready_at = now + timedelta(seconds=31)
+    recovered = restarted.recover(
+        failed,
+        active_attempt_identities=set(),
+        now=ready_at,
+    )
+    assert recovered.ready
+    retry_plan, reason = restarted.plan(
+        recovered.record,
+        [],
+        branch_key="branch-1",
+        now=ready_at,
+    )
+    assert reason is None
+    assert retry_plan is not None
+    assert retry_plan.candidate == candidate
+
+    running = restarted.persist_plan(recovered.record, retry_plan)
+    live = restarted.recover(
+        running,
+        active_attempt_identities={_active_identity(running, retry_plan.attempt_id)},
+        now=ready_at,
+    )
+    assert not live.ready
+    assert live.attempt_id == retry_plan.attempt_id
 
 
 def test_duplicate_tick_coalescing_prevents_duplicate_dispatch():

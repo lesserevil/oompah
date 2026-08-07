@@ -132,6 +132,12 @@ These `.env` settings control the dispatch lane.
 # independent providers). Must be a positive integer.
 OOMPAH_AUDIT_MAX_ATTEMPTS=3
 
+# Maximum pre-verdict transport or finalization failures that may retry
+# without consuming an independent candidate. The same verdict-capable
+# provider/model can be retried after bounded backoff. Set to 0 to make the
+# first such failure actionable; default: 3.
+OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES=3
+
 # Time-to-live (seconds) for a running auditor attempt.
 # A live auditor session older than this is considered abandoned and eligible
 # for retry. An attempt with no live worker is reclaimed immediately.
@@ -416,6 +422,21 @@ When Oompah restarts with pending audits in flight:
 3. A running attempt whose worker is still live is honored until
    `OOMPAH_AUDIT_ATTEMPT_TTL` expires, at which point it is reclaimed.
 4. No duplicate audits are created. Recovery is idempotent.
+
+### Transport Recovery and Capacity
+
+A forced ACP shutdown or a tool-result delivery timeout before an auditor
+submits a verdict is an infrastructure failure, not a completed audit. Oompah
+retains the exact audit ID, evidence fingerprint, revision binding, and attempt
+history, then retries after bounded backoff without consuming that
+provider/model's independent-candidate slot. The dashboard reports this as
+**transport recovery in progress**. It reports **retries exhausted** only once
+the substantive-candidate limit or the configured transport-retry limit is
+reached.
+
+Candidates whose ACP backend cannot submit `submit_audit_result` are excluded
+from usable capacity and reported as `missing_audit_capability`; they do not
+make a no-auditor state appear healthy.
 
 Do **not** edit `oompah.terminal_audit` metadata or manually move a task out
 of `In Validation`. The metadata is the recovery source of truth. A manual

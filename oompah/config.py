@@ -453,12 +453,6 @@ class ServiceConfig:
     # environment-only because they tune scheduler behaviour rather than
     # workflow structure.
     audit_max_attempts: int = 3
-    # Bounded retry budget for auditor transport/finalization failures.  A
-    # verdict-capable candidate whose attempt ended without a verdict due to
-    # infrastructure/finalization error retains its slot but consumes one
-    # unit of this budget on each retry, so a wedged transport eventually
-    # surfaces as ``no_auditor`` instead of dispatching forever.
-    audit_max_transport_retries: int = 3
     audit_attempt_ttl_seconds: int = 3600
     audit_priority: int = 100
     audit_lane_scan_limit: int = 32

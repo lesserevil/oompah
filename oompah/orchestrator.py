@@ -1371,7 +1371,15 @@ class Orchestrator:
         self.terminal_audit_workflow = TerminalAuditWorkflow(
             self.workflow_job_store,
             lease_owner="terminal-audit",
-            max_attempts=config.audit_max_attempts,
+            # The workflow job is an execution lease, not the
+            # independent-candidate ledger.  It sees both substantive audits
+            # and pre-verdict transport retries, so its bounded attempt count
+            # must cover both lanes.  AuditorDispatchLane remains the source
+            # of truth for the separate exhaustion rules.
+            max_attempts=(
+                config.audit_max_attempts
+                + max(0, int(getattr(config, "audit_max_transport_retries", 3)))
+            ),
         )
         self.workflow_shadow = WorkflowShadowEvaluator(
             mode=config.workflow_engine_mode,
@@ -41632,6 +41640,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         entry.identifier,
                         elapsed_ms,
                     )
+                if entry.is_auditor and tool_timeout_reason:
+                    # The tool child completed but ACP failed to acknowledge
+                    # its result before the bounded handoff deadline.  Fence
+                    # the exact attempt before forced shutdown so exit
+                    # cleanup records a retryable transport failure rather
+                    # than leaving it in progress (or scheduling ordinary
+                    # implementation work for an In Validation task).
+                    entry.forced_exit_reason = (
+                        "auditor_tool_result_delivery_timeout"
+                    )
+                    entry.forced_exit_error = tool_timeout_reason
                 terminated = await self._terminate_running(
                     issue_id, cleanup_workspace=False
                 )
@@ -41639,6 +41658,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     # Preflight claims are released by termination and become
                     # eligible for the screening lane again. They must never
                     # enter the ordinary implementation retry queue.
+                    continue
+                if entry.is_auditor:
+                    # _terminate_running persisted the exact auditor attempt
+                    # and requeued its durable audit lease.  The audit lane
+                    # owns the bounded retry; an ordinary task retry here can
+                    # reopen implementation and race the immutable audit.
                     continue
                 next_attempt = (entry.retry_attempt or 0) + 1
                 self._schedule_retry(
@@ -42384,10 +42409,23 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
                 await asyncio.to_thread(self._remove_audit_workspace, entry)
                 if ended:
+                    is_policy_failure = (
+                        entry.forced_exit_reason
+                        == "auditor_policy_denial_exhausted"
+                    )
                     self._post_comment(
                         entry.identifier,
-                        "Auditor attempt was stopped after repeated policy denials; "
-                        "a different independent candidate will be tried.",
+                        (
+                            "Auditor attempt was stopped after repeated policy "
+                            "denials; a different independent candidate will be "
+                            "tried."
+                            if is_policy_failure
+                            else (
+                                "Auditor transport/finalization ended before a "
+                                "verdict; the bounded audit retry will preserve "
+                                "candidate capacity."
+                            )
+                        ),
                         project_id=project_id,
                     )
 

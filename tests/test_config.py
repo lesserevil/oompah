@@ -694,6 +694,20 @@ class TestAuditDispatchConfiguration:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.audit_max_attempts >= 1
 
+    def test_audit_max_transport_retries_default_and_from_env(self, monkeypatch):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        assert ServiceConfig.from_workflow(wf).audit_max_transport_retries == 3
+
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", "2")
+        assert ServiceConfig.from_workflow(wf).audit_max_transport_retries == 2
+
+    def test_audit_max_transport_retries_negative_is_clamped_to_zero(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", "-1")
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+        assert cfg.audit_max_transport_retries == 0
+
     def test_audit_attempt_ttl_default(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
@@ -738,6 +752,7 @@ class TestAuditDispatchConfiguration:
         env_example = Path(__file__).parents[1] / ".env.example"
         content = env_example.read_text(encoding="utf-8")
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
+        assert "OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES" in content
         assert "OOMPAH_AUDIT_ATTEMPT_TTL" in content
         assert "OOMPAH_AUDIT_PRIORITY" in content
         assert "OOMPAH_AUDIT_LANE_SCAN_LIMIT" in content
