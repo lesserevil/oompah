@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:50:08.047171Z'
+updated_at: '2026-08-07T20:50:17.254290Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -396,5 +396,10 @@ author: oompah
 created: 2026-08-07 20:50
 ---
 YOLO: merged PR #746.
+---
+author: oompah
+created: 2026-08-07 20:50
+---
+Completion evidence: exact reviewed head 9ef4be055115bc8bcadb695d2b918bd37f554c6a passed the canonical full gate (15,955 passed, 7 skipped, 1 xfailed), PR #746 passed CI on Python 3.11/3.12/3.13 and merged as 89de987837dc38045af3c79fdd90ff0332677404.
 ---
 <!-- COMMENTS:END -->
