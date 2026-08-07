@@ -7298,9 +7298,15 @@ class TestContributorAuditorReservationOrchestration:
         assert error is not None
         assert "runtime authority" in error
 
-    def test_precontact_auditor_failure_releases_capacity_without_projection(self, tmp_path):
+    @pytest.mark.parametrize("release_persists", [True, False])
+    def test_precontact_auditor_failure_releases_capacity_without_projection(
+        self, tmp_path, release_persists
+    ):
         """Reservation is capacity only until the provider admission boundary."""
+        from oompah.auditor_dispatch import AuditDispatchPlan, AuditorDispatchLane
         from oompah.roles import Candidate
+        from oompah.terminal_audit import RequestState, TerminalAuditRecord
+        from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 
         auditor = _provider(
             pid="auditor", models=["audit-model"], default_model="audit-model"
@@ -7313,13 +7319,54 @@ class TestContributorAuditorReservationOrchestration:
         }
         issue = _make_issue("precontact-auditor")
         orch = _make_orchestrator(tmp_path)
-        self._wire(orch, [auditor], [Candidate(auditor.id, "audit-model")])
+        metadata: dict[str, dict] = {}
+        self._wire(
+            orch,
+            [auditor],
+            [Candidate(auditor.id, "audit-model")],
+            metadata_store=metadata,
+        )
         orch.config.budget_limit = 2.0
         self._running(orch, issue, "precontact-run")
         entry = orch.state.running[issue.id]
+        created_at = datetime.now(timezone.utc).isoformat()
+        plan = AuditDispatchPlan(
+            audit_id="precontact-audit",
+            attempt_id="precontact-attempt",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=EvidenceFingerprint("a" * 64),
+            candidate=Candidate(auditor.id, "audit-model"),
+            rotation_count=0,
+            branch_key="precontact-branch",
+            created_at=created_at,
+        )
+        record = TerminalAuditRecord(
+            audit_id=plan.audit_id,
+            project_id="legacy",
+            task_id=issue.identifier,
+            request_state=RequestState.PENDING,
+            target_state=plan.target_state,
+            evidence_fingerprint=plan.evidence_fingerprint,
+            created_at=created_at,
+        )
+        persisted = AuditorDispatchLane.persist_plan(record, plan)
+        metadata[issue.identifier] = {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[persisted],
+                attempt_history=[persisted.attempts[-1]],
+            ).to_dict()
+        }
         entry.is_auditor = True
+        entry.audit_id = plan.audit_id
+        entry.audit_attempt_id = plan.attempt_id
+        entry.branch_key = plan.branch_key
+        entry.auditor_authority_generation = orch._auditor_authority_generation(
+            issue.project_id,
+            issue.identifier,
+        )
         entry.provider_id = auditor.id
         entry.model_name = "audit-model"
+        orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
         orch._finish_audit_attempt = MagicMock(return_value=False)
@@ -7334,11 +7381,37 @@ class TestContributorAuditorReservationOrchestration:
             ]
             is False
         )
+        if not release_persists:
+            orch._save_state = MagicMock(return_value=False)
 
         asyncio.run(orch._on_worker_exit(issue.id, "interrupted", "setup failed", run_id=entry.run_id))
 
         assert orch.state.agent_totals.estimated_cost == 0.0
-        assert orch._audit_budget_reservations == {}
+        if release_persists:
+            assert orch._audit_budget_reservations == {}
+            assert issue.id not in orch.state.running
+        else:
+            assert set(orch._audit_budget_reservations) == {
+                _audit_reservation_key(orch, issue)
+            }
+            assert orch.state.running[issue.id] is entry
+            assert entry.retirement_pending is True
+            orch._save_state = MagicMock(return_value=True)
+            retired = asyncio.run(
+                orch._terminate_running_once(
+                    issue.id,
+                    False,
+                    expected_entry=entry,
+                )
+            )
+            assert retired is True
+            assert orch._audit_budget_reservations == {}
+            assert issue.id not in orch.state.running
+        restored = TerminalAuditMetadata.from_dict(
+            metadata[issue.identifier][METADATA_KEY]
+        ).pending_chain[0]
+        assert restored.request_state == RequestState.PENDING
+        assert restored.attempts == []
 
     def test_acp_lifecycle_stop_before_run_turn_has_zero_spend_and_health_change(
         self, tmp_path
@@ -7637,6 +7710,7 @@ class TestContributorAuditorReservationOrchestration:
             issue.id,
             cleanup_workspace=False,
             task_name_prefix="retire-revoked-auditor",
+            expected_entry=entry,
         )
         release_mark.set()
         contact.join(timeout=2)
