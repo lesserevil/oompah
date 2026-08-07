@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:33:51.824852Z'
-updated_at: '2026-08-07T21:02:18.746473Z'
+updated_at: '2026-08-07T21:12:17.099634Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-07 21:02
 ---
 Direct repair in progress on isolated branch compose-OOMPAH-763--O904 based on epic OOMPAH-763 lineage. Root cause confirmed: the one-second owner-loop publication acknowledgement timeout raises a generic RuntimeError after the status commit, so server logger.exception creates a false backend task and no exact-runtime retry is requested. Patch now uses a distinct retryable timeout type, warning-level classification, generation-fenced scheduled retirement retry, and API/coordinator regressions. Focused tests are queued behind the shared broker; no live checkout changes.
+---
+author: oompah
+created: 2026-08-07 21:12
+---
+Repair complete and pushed on origin/compose-OOMPAH-763--O904 at exact head 7574bd004d8fba1ce43122d036f68d2ec3fe4d6d, based on epic OOMPAH-763 lineage. The distinct owner-loop publication timeout now requests an exact-generation retirement retry; admitted retries are warning-only, while no-admission/scheduling failures and generic cleanup exceptions remain error-visible with truthful API diagnostics. Validation: 8 focused API/coordinator regressions passed, py_compile/diff check green, make check-secrets passed, independent revised-head review ACCEPT. Holding for cherry-pick into final OOMPAH-763 composition.
 ---
 <!-- COMMENTS:END -->
