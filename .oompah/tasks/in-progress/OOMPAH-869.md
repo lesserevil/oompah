@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-869
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make inherited validation-fence restart test deterministic under saturated
   gates
@@ -11,10 +11,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
-- ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T08:48:39.538081Z'
+updated_at: '2026-08-07T08:55:07.994470Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -297,5 +296,10 @@ author: oompah
 created: 2026-08-07 08:43
 ---
 Resubmitting unchanged exact head 519ec2e492dec109ab008ad3617a5489928f2a30 after operator scheduling preemption; focused validation remains green and the gate is serialized behind OOMPAH-865.
+---
+author: oompah
+created: 2026-08-07 08:55
+---
+The unchanged resubmission was immediately rejected by the cached result from operator-cancelled generation 8c6215cf, confirming OOMPAH-874. Retaking direct ownership and removing the false ci-fix label; exact head 519ec2e492dec109ab008ad3617a5489928f2a30 remains immutable. Hold until OOMPAH-874 lands or a supported cache rearm exists.
 ---
 <!-- COMMENTS:END -->
