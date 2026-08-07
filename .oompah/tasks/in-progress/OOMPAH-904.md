@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:33:51.824852Z'
-updated_at: '2026-08-07T20:12:54.951840Z'
+updated_at: '2026-08-07T21:02:18.746473Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,11 @@ The operation in `backend:server` should complete successfully, or degrade grace
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 21:02
+---
+Direct repair in progress on isolated branch compose-OOMPAH-763--O904 based on epic OOMPAH-763 lineage. Root cause confirmed: the one-second owner-loop publication acknowledgement timeout raises a generic RuntimeError after the status commit, so server logger.exception creates a false backend task and no exact-runtime retry is requested. Patch now uses a distinct retryable timeout type, warning-level classification, generation-fenced scheduled retirement retry, and API/coordinator regressions. Focused tests are queued behind the shared broker; no live checkout changes.
+---
+<!-- COMMENTS:END -->
