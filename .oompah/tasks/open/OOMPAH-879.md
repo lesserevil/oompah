@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T10:47:06.974761Z'
+updated_at: '2026-08-07T10:48:10.101600Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -25,13 +25,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: b4fc6ed2-17dd-46b8-8e3e-903b3d371548
-  claim_owner: 0c3fdd32-3af4-41c2-89eb-bba40d25c9aa
-  claimed_at: '2026-08-07T10:44:00.967265+00:00'
-  claim_expires_at: '2026-08-07T11:14:00.967265+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851,
+    OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860,
+    OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877,
+    OOMPAH-878.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-07T10:47:59.280554+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -45,6 +49,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
   updated_at: '2026-08-07T10:44:34.962991+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1854
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1854
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1854
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T10:47:59.279039+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-879__20260807T104455Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-879
+    source_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+    completed_at: '2026-08-07T10:47:59.311802+00:00'
 ---
 ## Summary
 
@@ -72,5 +102,15 @@ author: oompah
 created: 2026-08-07 10:47
 ---
 Live stale-generation reproduction during OOMPAH-877 sequencing (2026-08-07): the first prematurely dispatched direct epic-rebase helper captured integration.base_sha=04fa6781091efc6f11b952b9f1b35123facce64f. OOMPAH-854, OOMPAH-866, and possibly OOMPAH-846 will integrate into epic-OOMPAH-763 before the operator-owned rebase starts. The task CLI submit path sends no base_sha and _submission_record prefers the existing value, so an otherwise correct later submission would retain 04fa678 and omit newly integrated child ranges from the direct-rebase generation. The operator will work around this in flight by using the authenticated standard submit endpoint with explicit base_sha equal to the exact pre-rebase origin/epic-OOMPAH-763 head and CLI-equivalent clean/remote/branch/head evidence. Acceptance should cover refreshing/superseding an older helper generation after new child integration, while preserving the older value as forensic evidence until authoritative publication.
+---
+author: oompah
+created: 2026-08-07 10:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 34s
+- Log: OOMPAH-879__20260807T104455Z.jsonl
 ---
 <!-- COMMENTS:END -->
