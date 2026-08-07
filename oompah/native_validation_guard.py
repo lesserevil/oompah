@@ -27,6 +27,7 @@ import hmac
 import json
 import logging
 import os
+import pwd
 import secrets
 import select
 import shlex
@@ -36,6 +37,7 @@ import stat
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import deque
@@ -147,6 +149,347 @@ _WRAPPED_COMMANDS = frozenset(
 
 _BROKER_REGISTRY: dict[Path, "_NativeValidationLeaseBroker"] = {}
 _BROKER_REGISTRY_LOCK = threading.Lock()
+_OPAQUE_PROCESS_BASELINE_LOCK = threading.Lock()
+_OPAQUE_PROCESS_BASELINE_OWNER_PID: int | None = None
+_OPAQUE_PROCESS_BASELINE_CACHE: tuple[tuple[int, int], ...] | None = None
+
+
+def _reset_opaque_process_baseline_after_fork() -> None:
+    """Discard parent synchronization state and baselines in a forked child."""
+
+    global _OPAQUE_PROCESS_BASELINE_LOCK
+    global _OPAQUE_PROCESS_BASELINE_OWNER_PID
+    global _OPAQUE_PROCESS_BASELINE_CACHE
+    _OPAQUE_PROCESS_BASELINE_LOCK = threading.Lock()
+    _OPAQUE_PROCESS_BASELINE_OWNER_PID = None
+    _OPAQUE_PROCESS_BASELINE_CACHE = None
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_opaque_process_baseline_after_fork)
+
+
+def _broker_socket_path(
+    root: Path,
+    requested_path: str | os.PathLike[str] | None,
+) -> Path:
+    """Resolve a broker socket without weakening filesystem access controls.
+
+    The normal per-guard socket is preferred.  Deep task roots can exceed the
+    Unix-domain path limit, in which case the Codex runtime creates a random
+    child below its short, operator-owned socket directory and passes it here.
+    Do not silently fall back to an abstract socket: an abstract name is not
+    protected by the guard directory's filesystem permissions and may also be
+    unavailable across a sandbox namespace boundary.
+    """
+
+    candidate = root / _BROKER_SOCKET_NAME if requested_path is None else Path(
+        requested_path
+    )
+    if not candidate.is_absolute() or candidate.name != _BROKER_SOCKET_NAME:
+        raise RuntimeError("native validation broker socket path is invalid")
+    if len(os.fsencode(str(candidate))) >= 100:
+        raise RuntimeError("native validation broker socket path is too long")
+    if requested_path is None and candidate.parent != root:
+        raise RuntimeError("native validation broker socket escaped guard root")
+    return candidate
+
+
+def _operator_broker_socket_parent() -> Path:
+    """Return the raw passwd-home-derived socket parent independently of HOME.
+
+    Worker and test sandboxes intentionally replace ``HOME``. Resolving the
+    account home from the effective UID keeps this endpoint operator-owned and
+    short instead of moving it below a deep task path. Keep the path unresolved
+    so callers can reject symlinks instead of erasing their evidence.
+    """
+
+    operator_home = Path(pwd.getpwuid(os.geteuid()).pw_dir)
+    if (
+        not operator_home.is_absolute()
+        or Path(os.path.normpath(str(operator_home))) != operator_home
+    ):
+        raise RuntimeError("operator account home path is unsafe")
+    return operator_home / ".oompah" / "native-validation-sockets"
+
+
+def _validate_trusted_directory(
+    path: Path,
+    *,
+    operator_owned: bool,
+    private: bool = False,
+) -> os.stat_result:
+    """Validate one path component without following a symlink."""
+
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        raise RuntimeError(f"native validation directory is unavailable: {path}") from exc
+    mode = stat.S_IMODE(info.st_mode)
+    expected_owners = {os.geteuid()} if operator_owned else {0, os.geteuid()}
+    if (
+        stat.S_ISLNK(info.st_mode)
+        or not stat.S_ISDIR(info.st_mode)
+        or int(info.st_uid) not in expected_owners
+        or mode & (stat.S_IWGRP | stat.S_IWOTH)
+        or (private and mode != 0o700)
+    ):
+        raise RuntimeError(f"native validation directory is unsafe: {path}")
+    return info
+
+
+def _operator_home_path() -> Path:
+    """Return and verify the raw effective-account home path and its ancestors."""
+
+    socket_parent = _operator_broker_socket_parent()
+    operator_home = socket_parent.parent.parent
+    current = Path(operator_home.anchor)
+    for part in operator_home.parts[1:]:
+        current /= part
+        _validate_trusted_directory(
+            current,
+            operator_owned=current == operator_home,
+        )
+    _validate_trusted_directory(operator_home, operator_owned=True)
+    return operator_home
+
+
+def _tighten_private_operator_directory(path: Path) -> None:
+    """Set 0700 through a no-follow descriptor, never through a broad path."""
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise RuntimeError(f"native validation directory is unsafe: {path}") from exc
+    try:
+        info = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or int(info.st_uid) != os.geteuid()
+        ):
+            raise RuntimeError(f"native validation directory is unsafe: {path}")
+        os.fchmod(descriptor, 0o700)
+        if stat.S_IMODE(os.fstat(descriptor).st_mode) != 0o700:
+            raise RuntimeError(
+                f"native validation directory permissions are unsafe: {path}"
+            )
+    finally:
+        os.close(descriptor)
+
+
+def _prepare_operator_broker_socket_parent() -> Path:
+    """Create only dedicated operator directories and return a verified parent."""
+
+    operator_home = _operator_home_path()
+    current = operator_home
+    for name in (".oompah", "native-validation-sockets"):
+        child = current / name
+        _validate_trusted_directory(current, operator_owned=True)
+        try:
+            child.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        _tighten_private_operator_directory(child)
+        _validate_trusted_directory(child, operator_owned=True, private=True)
+        current = child
+    return current
+
+
+def _verified_operator_broker_socket_parent() -> Path:
+    """Revalidate the complete existing socket boundary without creating it."""
+
+    operator_home = _operator_home_path()
+    oompah_root = operator_home / ".oompah"
+    socket_parent = _operator_broker_socket_parent()
+    _validate_trusted_directory(
+        oompah_root,
+        operator_owned=True,
+        private=True,
+    )
+    _validate_trusted_directory(
+        socket_parent,
+        operator_owned=True,
+        private=True,
+    )
+    return socket_parent
+
+
+def _proc_entry_start_ticks(entry: Path) -> int | None:
+    """Return one proc entry's immutable process-generation identifier."""
+
+    try:
+        raw = (entry / "stat").read_text(encoding="utf-8")
+        return int(raw[raw.rfind(")") + 2 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _scan_opaque_same_user_processes(
+    proc_root: Path,
+) -> tuple[tuple[int, int], ...]:
+    """Return exact generations of same-user processes hidden by procfs."""
+
+    identities: set[tuple[int, int]] = set()
+    try:
+        entries = tuple(proc_root.iterdir())
+    except OSError:
+        return ()
+    for entry in entries:
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        try:
+            if entry.stat().st_uid != os.geteuid():
+                continue
+            (entry / "environ").read_bytes()
+            (entry / "cmdline").read_bytes()
+            for link_name in ("cwd", "exe", "root"):
+                os.readlink(entry / link_name)
+            tuple((entry / "fd").iterdir())
+        except FileNotFoundError:
+            continue
+        except PermissionError:
+            start_ticks = _proc_entry_start_ticks(entry)
+            if start_ticks is not None:
+                identities.add((int(entry.name), start_ticks))
+        except OSError:
+            continue
+    return tuple(sorted(identities))
+
+
+def _opaque_same_user_process_baseline(
+    proc_root: Path = Path("/proc"),
+) -> tuple[tuple[int, int], ...]:
+    """Snapshot pre-existing same-user processes hidden by proc permissions.
+
+    Such a process cannot have inherited a guard that does not exist yet.
+    Recording its exact PID generation keeps unrelated long-lived sessions
+    from retaining every future guard, while any process that becomes opaque
+    after installation remains an unknown reference and therefore fails
+    closed during retirement.
+
+    The real procfs snapshot is immutable for this process lifetime. Repeated
+    guard installations therefore cannot absorb a process that became opaque
+    after the first guard was installed, and avoid repeatedly walking every
+    same-user descriptor. A forked child rejects the inherited cache by owner
+    PID and takes its own baseline before installing its first guard.
+    """
+
+    if proc_root != Path("/proc"):
+        return _scan_opaque_same_user_processes(proc_root)
+    current_pid = os.getpid()
+    global _OPAQUE_PROCESS_BASELINE_OWNER_PID
+    global _OPAQUE_PROCESS_BASELINE_CACHE
+    with _OPAQUE_PROCESS_BASELINE_LOCK:
+        if (
+            _OPAQUE_PROCESS_BASELINE_OWNER_PID != current_pid
+            or _OPAQUE_PROCESS_BASELINE_CACHE is None
+        ):
+            _OPAQUE_PROCESS_BASELINE_CACHE = _scan_opaque_same_user_processes(
+                proc_root
+            )
+            _OPAQUE_PROCESS_BASELINE_OWNER_PID = current_pid
+        return _OPAQUE_PROCESS_BASELINE_CACHE
+
+
+def _validated_external_broker_socket(
+    socket_path: Path,
+    cleanup_dir: Path,
+) -> tuple[Path, Path] | None:
+    """Validate one random external socket child before unlinking it."""
+
+    try:
+        raw_socket = Path(socket_path)
+        raw_cleanup = Path(cleanup_dir)
+        expected_parent = _verified_operator_broker_socket_parent()
+        if (
+            not raw_socket.is_absolute()
+            or not raw_cleanup.is_absolute()
+            or raw_cleanup.parent != expected_parent
+            or raw_socket.parent != raw_cleanup
+            or raw_socket.name != _BROKER_SOCKET_NAME
+            or not raw_cleanup.name.startswith("nv-")
+        ):
+            return None
+        _validate_trusted_directory(
+            raw_cleanup,
+            operator_owned=True,
+            private=True,
+        )
+        try:
+            socket_info = raw_socket.lstat()
+        except FileNotFoundError:
+            socket_info = None
+        if socket_info is not None and (
+            stat.S_ISLNK(socket_info.st_mode)
+            or not stat.S_ISSOCK(socket_info.st_mode)
+            or int(socket_info.st_uid) != os.geteuid()
+            or stat.S_IMODE(socket_info.st_mode)
+            & (stat.S_IWGRP | stat.S_IWOTH)
+        ):
+            return None
+    except (OSError, RuntimeError):
+        return None
+    return raw_socket, raw_cleanup
+
+
+def _cleanup_validated_external_broker_socket(
+    socket_path: Path,
+    cleanup_dir: Path,
+) -> None:
+    """Remove only one validated random operator-owned socket child."""
+
+    validated = _validated_external_broker_socket(socket_path, cleanup_dir)
+    if validated is None:
+        return
+    resolved_socket, resolved_cleanup = validated
+    with contextlib.suppress(OSError):
+        resolved_socket.unlink()
+    with contextlib.suppress(OSError):
+        resolved_cleanup.rmdir()
+
+
+def create_native_validation_broker_socket(
+    *,
+    runtime_root: str | os.PathLike[str],
+    untrusted_roots: tuple[Path, ...],
+) -> tuple[Path | None, Path | None]:
+    """Return a local socket or a random protected endpoint for a deep root."""
+
+    root = Path(runtime_root).resolve()
+    local_socket = root / _BROKER_SOCKET_NAME
+    if len(os.fsencode(str(local_socket))) < 100:
+        return None, None
+    parent = _operator_broker_socket_parent()
+    if any(parent == root or root in parent.parents for root in untrusted_roots):
+        raise RuntimeError("native validation broker socket parent is task-writable")
+    parent = _prepare_operator_broker_socket_parent()
+    if any(parent == root or root in parent.parents for root in untrusted_roots):
+        raise RuntimeError("native validation broker socket parent is task-writable")
+    cleanup_dir = Path(tempfile.mkdtemp(prefix="nv-", dir=parent))
+    _validate_trusted_directory(
+        cleanup_dir,
+        operator_owned=True,
+    )
+    _tighten_private_operator_directory(cleanup_dir)
+    _validate_trusted_directory(
+        cleanup_dir,
+        operator_owned=True,
+        private=True,
+    )
+    socket_path = cleanup_dir / _BROKER_SOCKET_NAME
+    if len(os.fsencode(str(socket_path))) >= 100:
+        shutil.rmtree(cleanup_dir, ignore_errors=True)
+        raise RuntimeError("native validation broker socket path is too long")
+    if _validated_external_broker_socket(socket_path, cleanup_dir) is None:
+        shutil.rmtree(cleanup_dir, ignore_errors=True)
+        raise RuntimeError("native validation broker socket boundary is unsafe")
+    return socket_path, cleanup_dir
 
 
 def _peer_is_guard_launcher(peer_pid: int, root: Path) -> bool:
@@ -264,7 +607,7 @@ def _provider_registration_is_trusted(peer_pid: int, root: Path) -> bool:
     """Recognize only the exact service-spawned configured provider."""
 
     try:
-        raw = json.loads((root / _CONFIG_NAME).read_text(encoding="utf-8"))
+        raw = _load_verified_guard_config(root)
         creator = raw["creator"]
         bootstrap = raw["provider_bootstrap"]
         parent_pid = _process_parent_id(peer_pid)
@@ -273,7 +616,7 @@ def _provider_registration_is_trusted(peer_pid: int, root: Path) -> bool:
             for value in Path(f"/proc/{peer_pid}/cmdline").read_bytes().split(b"\0")
             if value
         )
-    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
     if (
         not isinstance(creator, dict)
@@ -422,6 +765,42 @@ def _peer_capability_descriptor_matches(
         if descriptor >= 0:
             with contextlib.suppress(OSError):
                 os.close(descriptor)
+
+
+def _peer_capability_descriptor_is_missing(peer_pid: int) -> bool:
+    """Return whether the declared capability descriptor was closed in transit.
+
+    Recovery is an availability path only for a descendant that inherited the
+    capability variable but lost the actual descriptor to ``close_fds``.  A
+    present descriptor with the wrong immutable identity is an active forgery,
+    not a recoverable absence, and must remain fail-closed.
+    """
+
+    try:
+        if peer_pid == os.getpid():
+            raw_descriptor = os.environ.get(_CAPABILITY_FD_ENV, "")
+        else:
+            environment = {
+                os.fsdecode(key): os.fsdecode(value)
+                for item in Path(f"/proc/{peer_pid}/environ").read_bytes().split(
+                    b"\0"
+                )
+                if item
+                for key, separator, value in (item.partition(b"="),)
+                if separator
+            }
+            raw_descriptor = environment.get(_CAPABILITY_FD_ENV, "")
+        raw_descriptor = raw_descriptor.strip()
+        if not raw_descriptor:
+            return True
+        if not raw_descriptor.isdigit():
+            return False
+        os.stat(f"/proc/{peer_pid}/fd/{int(raw_descriptor)}")
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return False
 
 
 def _sealed_capability_descriptor(secret: bytes) -> int:
@@ -688,6 +1067,8 @@ class _NativeValidationLeaseBroker:
         self,
         root: Path,
         *,
+        socket_path: Path,
+        socket_cleanup_dir: Path | None = None,
         validation_lease: ValidationResourceLease,
         owner: ValidationLeaseOwner,
         timeout_seconds: float,
@@ -699,7 +1080,20 @@ class _NativeValidationLeaseBroker:
         untrusted_executable_roots: tuple[str | os.PathLike[str], ...] = (),
     ) -> None:
         self.root = root
-        self.socket_path = root / _BROKER_SOCKET_NAME
+        if socket_cleanup_dir is not None:
+            validated_socket = _validated_external_broker_socket(
+                socket_path,
+                socket_cleanup_dir,
+            )
+            if validated_socket is None:
+                raise RuntimeError(
+                    "native validation broker socket boundary is unsafe"
+                )
+            socket_path, socket_cleanup_dir = validated_socket
+        elif socket_path.parent != root:
+            raise RuntimeError("native validation broker socket escaped guard root")
+        self.socket_path = socket_path
+        self.socket_cleanup_dir = socket_cleanup_dir
         self.validation_lease = validation_lease
         self.owner = owner
         self.timeout_seconds = max(float(timeout_seconds), 1.0)
@@ -737,9 +1131,37 @@ class _NativeValidationLeaseBroker:
         # inherited copy.
         self._capability_fd: int | None = None
         self._listener = socket.socket(socket.AF_UNIX, _BROKER_SOCKET_TYPE)
-        self.socket_path.unlink(missing_ok=True)
-        self._listener.bind(str(self.socket_path))
-        self.socket_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        if self.socket_path.exists() or self.socket_path.is_symlink():
+            self._listener.close()
+            raise RuntimeError("native validation broker socket already exists")
+        if self.socket_cleanup_dir is not None and (
+            _validated_external_broker_socket(
+                self.socket_path,
+                self.socket_cleanup_dir,
+            )
+            is None
+        ):
+            self._listener.close()
+            raise RuntimeError("native validation broker socket boundary is unsafe")
+        try:
+            self._listener.bind(str(self.socket_path))
+            os.chmod(
+                self.socket_path,
+                stat.S_IRUSR | stat.S_IWUSR,
+                follow_symlinks=False,
+            )
+            socket_info = self.socket_path.lstat()
+            if (
+                not stat.S_ISSOCK(socket_info.st_mode)
+                or int(socket_info.st_uid) != os.geteuid()
+                or stat.S_IMODE(socket_info.st_mode) != 0o600
+            ):
+                raise RuntimeError("native validation broker socket is unsafe")
+        except BaseException:
+            self._listener.close()
+            with contextlib.suppress(OSError):
+                self.socket_path.unlink()
+            raise
         self._listener.listen()
         self._listener.settimeout(0.2)
         self._thread = threading.Thread(
@@ -803,9 +1225,7 @@ class _NativeValidationLeaseBroker:
         close_descriptor = True
         try:
             capability_identity = _capability_descriptor_identity(descriptor)
-            config = json.loads(
-                (self.root / _CONFIG_NAME).read_text(encoding="utf-8")
-            )
+            config = _load_verified_guard_config(self.root)
             bootstrap = config.get("provider_bootstrap")
             if (
                 isinstance(bootstrap, dict)
@@ -939,17 +1359,60 @@ class _NativeValidationLeaseBroker:
             provider_identity = self._provider_identity
             secret = self._capability_secret
             capability_identity = self._capability_identity
+            capability_descriptor = self._capability_fd
         if (
             provider_identity is None
             or secret is None
             or capability_identity is None
             or not _process_descends_from(peer_pid, provider_identity)
-            or not _peer_capability_descriptor_matches(
-                peer_pid,
-                capability_identity,
-            )
         ):
             raise RuntimeError("native validation provider capability is unavailable")
+        inherited_capability = _peer_capability_descriptor_matches(
+            peer_pid,
+            capability_identity,
+        )
+        if not inherited_capability:
+            # A provider can legitimately start a child with ``close_fds``.
+            # That must not turn the already-installed, exact guard boundary
+            # into an availability failure: the child still reaches this
+            # immutable launcher, whose kernel executable identity and
+            # provider ancestry are both verified above.  Reissue only a
+            # duplicate of the broker-held sealed memfd to that exact shim,
+            # then require the ordinary nonce proof below.  A same-UID peer
+            # cannot request this recovery merely by knowing the socket path:
+            # _handle and this branch both require the root's trusted shim and
+            # live descent from the registered provider generation.
+            if (
+                capability_descriptor is None
+                or not _peer_capability_descriptor_is_missing(peer_pid)
+                or not _peer_is_guard_launcher(
+                    peer_pid,
+                    self.root,
+                )
+            ):
+                raise RuntimeError(
+                    "native validation provider capability is unavailable"
+                )
+            duplicate_descriptor = os.dup(capability_descriptor)
+            try:
+                connection.sendall(b"RECOVER\n")
+                sent = connection.sendmsg(
+                    [b"CAPABILITY\n"],
+                    [
+                        (
+                            socket.SOL_SOCKET,
+                            socket.SCM_RIGHTS,
+                            array.array("i", [duplicate_descriptor]),
+                        )
+                    ],
+                )
+                if sent != len(b"CAPABILITY\n"):
+                    raise RuntimeError(
+                        "native validation capability recovery was incomplete"
+                    )
+            finally:
+                with contextlib.suppress(OSError):
+                    os.close(duplicate_descriptor)
         nonce = secrets.token_bytes(32)
         connection.sendall(b"CHALLENGE " + nonce.hex().encode("ascii") + b"\n")
         proof_packet = _recv_packet(connection, 128)
@@ -1604,6 +2067,24 @@ class _NativeValidationLeaseBroker:
         self._cleanup_requested.set()
         with contextlib.suppress(OSError):
             self._listener.close()
+        # A cancelled session must not leave a connectable endpoint behind.
+        # Its random directory carries no executable guard state and can be
+        # removed as soon as the endpoint is unlinked; descendants already
+        # fail closed when their next connection cannot resolve the socket.
+        external_socket = (
+            _validated_external_broker_socket(
+                self.socket_path,
+                self.socket_cleanup_dir,
+            )
+            if self.socket_cleanup_dir is not None
+            else None
+        )
+        if self.socket_path.parent == self.root or external_socket is not None:
+            with contextlib.suppress(OSError):
+                self.socket_path.unlink()
+        if external_socket is not None:
+            with contextlib.suppress(OSError):
+                external_socket[1].rmdir()
         if self._thread is not threading.current_thread():
             self._thread.join()
         with self._handler_lock:
@@ -1791,6 +2272,8 @@ class _NativeValidationLeaseBroker:
 def _start_native_validation_broker(
     root: Path,
     *,
+    socket_path: Path,
+    socket_cleanup_dir: Path | None = None,
     validation_lease: ValidationResourceLease,
     owner: ValidationLeaseOwner,
     timeout_seconds: float,
@@ -1803,6 +2286,8 @@ def _start_native_validation_broker(
 ) -> _NativeValidationLeaseBroker:
     broker = _NativeValidationLeaseBroker(
         root,
+        socket_path=socket_path,
+        socket_cleanup_dir=socket_cleanup_dir,
         validation_lease=validation_lease,
         owner=owner,
         timeout_seconds=timeout_seconds,
@@ -1912,6 +2397,8 @@ def install_native_validation_guard(
     environment: Mapping[str, str],
     *,
     runtime_root: str | os.PathLike[str],
+    broker_socket: str | os.PathLike[str] | None = None,
+    broker_socket_cleanup_dir: str | os.PathLike[str] | None = None,
     validation_lease: ValidationResourceLease,
     owner: ValidationLeaseOwner,
     timeout_seconds: float,
@@ -1945,6 +2432,9 @@ def install_native_validation_guard(
     guarded.pop(_VALIDATION_MODE_ENV, None)
     guarded.pop(_VALIDATION_JUSTIFICATION_ENV, None)
     original_path = str(guarded.get("PATH") or os.defpath)
+    untrusted_roots = tuple(
+        Path(candidate).resolve() for candidate in provider_untrusted_roots
+    )
     root = Path(runtime_root).resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     root.chmod(0o700)
@@ -1958,10 +2448,6 @@ def install_native_validation_guard(
     creator_start_ticks = _process_start_ticks(creator_pid)
     if creator_start_ticks is None:
         raise RuntimeError("cannot fence native validation guard creator")
-    untrusted_roots = tuple(
-        Path(candidate).resolve() for candidate in provider_untrusted_roots
-    )
-
     config = {
         "state_path": str(validation_lease.state_path),
         "capacity": validation_lease.capacity,
@@ -1974,13 +2460,16 @@ def install_native_validation_guard(
         "shell": str(guarded.get("SHELL") or "/bin/sh"),
         "bash_env": str(bash_env),
         "bash_reentry_env": str(bash_reentry_env),
-        "broker_socket": str(root / _BROKER_SOCKET_NAME),
         "cancellation_path": str(root / _CANCELLATION_NAME),
         "untrusted_executable_roots": [str(candidate) for candidate in untrusted_roots],
         "creator": {
             "pid": creator_pid,
             "start_ticks": creator_start_ticks,
         },
+        "opaque_process_baseline": [
+            [pid, start_ticks]
+            for pid, start_ticks in _opaque_same_user_process_baseline()
+        ],
         "owner": {
             "kind": owner.kind,
             "project_id": owner.project_id,
@@ -2076,8 +2565,6 @@ def install_native_validation_guard(
                 }
             )
     config_path = root / _CONFIG_NAME
-    config_path.write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
-    config_path.chmod(0o400)
 
     launcher = guard_bin / "oompah-validation-guard"
     trusted_source_root = str(Path(__file__).resolve().parents[1])
@@ -2160,19 +2647,59 @@ def install_native_validation_guard(
     guarded[_GUARD_ENV] = str(guard_bin)
     guarded.pop(_BOUNDARY_GROUP_ENV, None)
     guarded.pop(_CAPABILITY_FD_ENV, None)
-    broker = _start_native_validation_broker(
-        root,
-        validation_lease=validation_lease,
-        owner=owner,
-        timeout_seconds=timeout_seconds,
-        validation_reuse_policy=validation_reuse_policy,
-        validation_reuse_authority_check=validation_reuse_authority_check,
-        validation_reuse_policy_handler=validation_reuse_policy_handler,
-        validation_command_handler=validation_command_handler,
-        executable_search_path=original_path,
-        untrusted_executable_roots=provider_untrusted_roots,
-    )
+    automatic_cleanup_dir: Path | None = None
+    socket_path = root / _BROKER_SOCKET_NAME
     try:
+        if broker_socket is None:
+            broker_socket, cleanup_dir = create_native_validation_broker_socket(
+                runtime_root=root,
+                untrusted_roots=untrusted_roots,
+            )
+            automatic_cleanup_dir = cleanup_dir
+        else:
+            cleanup_dir = (
+                Path(broker_socket_cleanup_dir)
+                if broker_socket_cleanup_dir is not None
+                else None
+            )
+        if broker_socket is not None:
+            socket_path = Path(broker_socket)
+        socket_path = _broker_socket_path(root, broker_socket)
+        if cleanup_dir is None:
+            if socket_path.parent != root:
+                raise RuntimeError("native validation broker socket escaped guard root")
+        else:
+            validated_external = _validated_external_broker_socket(
+                socket_path,
+                cleanup_dir,
+            )
+            if validated_external is None:
+                raise RuntimeError(
+                    "native validation broker cleanup directory is invalid"
+                )
+            socket_path, cleanup_dir = validated_external
+        config["broker_socket"] = str(socket_path)
+        if cleanup_dir is not None:
+            config["broker_socket_cleanup_dir"] = str(cleanup_dir)
+        broker = _start_native_validation_broker(
+            root,
+            socket_path=socket_path,
+            socket_cleanup_dir=cleanup_dir,
+            validation_lease=validation_lease,
+            owner=owner,
+            timeout_seconds=timeout_seconds,
+            validation_reuse_policy=validation_reuse_policy,
+            validation_reuse_authority_check=validation_reuse_authority_check,
+            validation_reuse_policy_handler=validation_reuse_policy_handler,
+            validation_command_handler=validation_command_handler,
+            executable_search_path=original_path,
+            untrusted_executable_roots=provider_untrusted_roots,
+        )
+        # Bind the protected endpoint before its path becomes visible in the
+        # immutable config.  No command process receives this environment
+        # until this function returns, so there is no pre-config consumer.
+        config_path.write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
+        config_path.chmod(0o400)
         if provider_bootstrap_entrypoint is None:
             capability_descriptor = broker.issue_local_test_capability()
             guarded[_CAPABILITY_FD_ENV] = str(capability_descriptor)
@@ -2180,24 +2707,59 @@ def install_native_validation_guard(
         # Installation has not returned an owner capable of retiring this
         # root. Do not strand its broker listener/thread after bootstrap fails.
         _stop_native_validation_broker(root, cleanup_outcome="transport_error")
+        if automatic_cleanup_dir is not None:
+            _cleanup_validated_external_broker_socket(
+                socket_path,
+                automatic_cleanup_dir,
+            )
         raise
     return guarded, root
 
 
-def _load_invocation_config(argv0: str) -> tuple[dict[str, object], Path]:
-    guard_bin = Path(os.path.abspath(argv0)).parent
-    config_path = guard_bin.parent / _CONFIG_NAME
-    # Reject a shell-selected lookalike config.  The service creates this file
-    # owner-readable and immutable to the sandboxed agent.
-    mode = stat.S_IMODE(config_path.stat().st_mode)
-    if mode != stat.S_IRUSR:
+def _load_verified_guard_config(root: Path) -> dict[str, object]:
+    """Load one immutable, owner-only regular guard configuration."""
+
+    config_path = root / _CONFIG_NAME
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(config_path, flags)
+    except OSError as exc:
         raise RuntimeError(
-            "native validation guard configuration has unsafe permissions"
-        )
-    raw = json.loads(config_path.read_text(encoding="utf-8"))
+            "native validation guard configuration is unavailable"
+        ) from exc
+    try:
+        info = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or int(info.st_uid) != os.geteuid()
+            or stat.S_IMODE(info.st_mode) != stat.S_IRUSR
+            or int(info.st_nlink) != 1
+        ):
+            raise RuntimeError(
+                "native validation guard configuration has unsafe permissions"
+            )
+        with os.fdopen(os.dup(descriptor), encoding="utf-8") as config_file:
+            raw = json.load(config_file)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            "native validation guard configuration is invalid"
+        ) from exc
+    finally:
+        os.close(descriptor)
     if not isinstance(raw, dict):
         raise RuntimeError("native validation guard configuration is invalid")
-    return raw, guard_bin
+    return raw
+
+
+def _load_invocation_config(argv0: str) -> tuple[dict[str, object], Path]:
+    guard_bin = Path(os.path.abspath(argv0)).parent
+    # Reject a shell-selected lookalike config.  The service creates this file
+    # owner-readable and immutable to the sandboxed agent.
+    return _load_verified_guard_config(guard_bin.parent), guard_bin
 
 
 def _real_executable(command: str, search_path: str, guard_bin: Path) -> str:
@@ -2329,9 +2891,25 @@ def _broker_socket(config: Mapping[str, object]) -> socket.socket:
     raw_path = str(config.get("broker_socket") or "").strip()
     if not raw_path:
         raise RuntimeError("native validation lease broker is unavailable")
+    socket_path = Path(raw_path)
+    raw_cleanup = str(config.get("broker_socket_cleanup_dir") or "").strip()
+    if raw_cleanup:
+        if _validated_external_broker_socket(
+            socket_path,
+            Path(raw_cleanup),
+        ) != (socket_path, Path(raw_cleanup)):
+            raise RuntimeError("native validation broker socket boundary is unsafe")
+    else:
+        cancellation_path = Path(str(config.get("cancellation_path") or ""))
+        if (
+            not socket_path.is_absolute()
+            or cancellation_path.name != _CANCELLATION_NAME
+            or socket_path != cancellation_path.parent / _BROKER_SOCKET_NAME
+        ):
+            raise RuntimeError("native validation broker socket boundary is unsafe")
     client = socket.socket(socket.AF_UNIX, _BROKER_SOCKET_TYPE)
     try:
-        client.connect(raw_path)
+        client.connect(str(socket_path))
     except BaseException:
         client.close()
         raise
@@ -2367,14 +2945,15 @@ def _register_native_validation_provider(
         raise
 
 
-def _capability_secret() -> bytes:
-    raw_descriptor = os.environ.get(_CAPABILITY_FD_ENV, "").strip()
-    try:
-        descriptor = int(raw_descriptor)
-    except ValueError as exc:
-        raise RuntimeError(
-            "native validation provider capability is unavailable"
-        ) from exc
+def _capability_secret(descriptor: int | None = None) -> bytes:
+    if descriptor is None:
+        raw_descriptor = os.environ.get(_CAPABILITY_FD_ENV, "").strip()
+        try:
+            descriptor = int(raw_descriptor)
+        except ValueError as exc:
+            raise RuntimeError(
+                "native validation provider capability is unavailable"
+            ) from exc
     try:
         _capability_descriptor_identity(descriptor)
         secret = os.pread(descriptor, 32, 0)
@@ -2399,6 +2978,13 @@ def _begin_boundary_request(
     )
     client.sendall(request)
     challenge_packet = _recv_packet(client, 128)
+    recovered_capability = -1
+    if challenge_packet == b"RECOVER\n":
+        recovered_capability = _receive_single_descriptor(
+            client,
+            expected_payload=b"CAPABILITY\n",
+        )
+        challenge_packet = _recv_packet(client, 128)
     prefix = b"CHALLENGE "
     if (
         len(challenge_packet) != len(prefix) + 64 + 1
@@ -2416,14 +3002,21 @@ def _begin_boundary_request(
     start_ticks = _process_start_ticks(os.getpid())
     if start_ticks is None:
         raise RuntimeError("native validation peer identity is unavailable")
-    proof = _capability_proof(
-        _capability_secret(),
-        nonce=nonce,
-        peer_pid=os.getpid(),
-        peer_start_ticks=start_ticks,
-        request=request,
-    )
-    client.sendall(f"PROVE {proof}\n".encode("ascii"))
+    try:
+        proof = _capability_proof(
+            _capability_secret(
+                recovered_capability if recovered_capability >= 0 else None
+            ),
+            nonce=nonce,
+            peer_pid=os.getpid(),
+            peer_start_ticks=start_ticks,
+            request=request,
+        )
+        client.sendall(f"PROVE {proof}\n".encode("ascii"))
+    finally:
+        if recovered_capability >= 0:
+            with contextlib.suppress(OSError):
+                os.close(recovered_capability)
 
 
 def _request_native_validation_lease(
@@ -2943,7 +3536,12 @@ def main() -> int:
     return 1  # pragma: no cover - os.execve replaces this process
 
 
-def _runtime_root_is_referenced(runtime_root: Path) -> bool:
+def _runtime_root_is_referenced(
+    runtime_root: Path,
+    *,
+    proc_root: Path = Path("/proc"),
+    opaque_process_baseline: frozenset[tuple[int, int]] = frozenset(),
+) -> bool:
     """Return whether a same-user live process still references a guard root.
 
     Guard directories are tiny, while deleting one too early turns a missing
@@ -2952,9 +3550,8 @@ def _runtime_root_is_referenced(runtime_root: Path) -> bool:
     """
 
     needle = os.fsencode(str(runtime_root.resolve()))
-    proc = Path("/proc")
     try:
-        entries = tuple(proc.iterdir())
+        entries = tuple(proc_root.iterdir())
     except OSError:
         return True
     for entry in entries:
@@ -2965,11 +3562,33 @@ def _runtime_root_is_referenced(runtime_root: Path) -> bool:
                 continue
         except OSError:
             continue
+        process_identity = (
+            int(entry.name),
+            _proc_entry_start_ticks(entry),
+        )
+        known_opaque = (
+            process_identity[1] is not None
+            and (process_identity[0], process_identity[1])
+            in opaque_process_baseline
+        )
+        environment = b""
         try:
             environment = (entry / "environ").read_bytes()
+        except FileNotFoundError:
+            continue
+        except PermissionError:
+            if not known_opaque:
+                return True
+        except OSError:
+            return True
+        command_line = b""
+        try:
             command_line = (entry / "cmdline").read_bytes()
         except FileNotFoundError:
             continue
+        except PermissionError:
+            if not known_opaque:
+                return True
         except OSError:
             return True
         if needle in environment or needle in command_line:
@@ -2979,6 +3598,10 @@ def _runtime_root_is_referenced(runtime_root: Path) -> bool:
                 linked = os.fsencode(os.readlink(entry / link_name))
             except FileNotFoundError:
                 continue
+            except PermissionError:
+                if known_opaque:
+                    continue
+                return True
             except OSError:
                 return True
             if needle in linked:
@@ -2987,6 +3610,10 @@ def _runtime_root_is_referenced(runtime_root: Path) -> bool:
             descriptors = tuple((entry / "fd").iterdir())
         except FileNotFoundError:
             continue
+        except PermissionError:
+            if known_opaque:
+                continue
+            return True
         except OSError:
             return True
         for descriptor in descriptors:
@@ -2994,6 +3621,10 @@ def _runtime_root_is_referenced(runtime_root: Path) -> bool:
                 linked = os.fsencode(os.readlink(descriptor))
             except FileNotFoundError:
                 continue
+            except PermissionError:
+                if known_opaque:
+                    continue
+                return True
             except OSError:
                 return True
             if needle in linked:
@@ -3001,17 +3632,38 @@ def _runtime_root_is_referenced(runtime_root: Path) -> bool:
     return False
 
 
+def _configured_opaque_process_baseline(
+    root: Path,
+) -> frozenset[tuple[int, int]] | None:
+    """Load the immutable pre-install opaque process generations."""
+
+    try:
+        raw = _load_verified_guard_config(root)
+        values = raw.get("opaque_process_baseline")
+        if values is None:
+            return frozenset()
+        if not isinstance(values, list) or any(
+            not isinstance(value, list)
+            or len(value) != 2
+            or any(
+                not isinstance(item, int)
+                or isinstance(item, bool)
+                or item <= 0
+                for item in value
+            )
+            for value in values
+        ):
+            return None
+        return frozenset((value[0], value[1]) for value in values)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
 def _lease_and_owner_from_runtime_root(
     root: Path,
 ) -> tuple[ValidationResourceLease, ValidationLeaseOwner]:
-    config_path = root / _CONFIG_NAME
-    mode = stat.S_IMODE(config_path.stat().st_mode)
-    if mode != stat.S_IRUSR:
-        raise RuntimeError(
-            "native validation guard configuration has unsafe permissions"
-        )
-    raw = json.loads(config_path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict) or not isinstance(raw.get("owner"), dict):
+    raw = _load_verified_guard_config(root)
+    if not isinstance(raw.get("owner"), dict):
         raise RuntimeError("native validation guard recovery metadata is invalid")
     owner_raw = raw["owner"]
     assert isinstance(owner_raw, dict)
@@ -3033,15 +3685,32 @@ def _lease_and_owner_from_runtime_root(
 
 def _runtime_root_creator_alive(root: Path) -> bool:
     try:
-        raw = json.loads((root / _CONFIG_NAME).read_text(encoding="utf-8"))
-        creator = raw.get("creator") if isinstance(raw, dict) else None
+        raw = _load_verified_guard_config(root)
+        creator = raw.get("creator")
         if not isinstance(creator, dict):
             return False
         return _process_start_ticks(int(creator["pid"])) == int(
             creator["start_ticks"]
         )
-    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
+
+
+def _retire_configured_broker_socket(root: Path) -> None:
+    """Remove an external per-install socket directory after guard retirement."""
+
+    try:
+        config = _load_verified_guard_config(root)
+        validated_external = _validated_external_broker_socket(
+            Path(str(config.get("broker_socket") or "")),
+            Path(str(config.get("broker_socket_cleanup_dir") or "")),
+        )
+        if validated_external is None:
+            return
+        socket_path, cleanup_dir = validated_external
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return
+    _cleanup_validated_external_broker_socket(socket_path, cleanup_dir)
 
 
 def retire_native_validation_guard(
@@ -3078,8 +3747,15 @@ def retire_native_validation_guard(
     validation_lease.cancel_owner(owner)
     if not supervisors_exited:
         return False
-    if _runtime_root_is_referenced(root):
+    opaque_process_baseline = _configured_opaque_process_baseline(root)
+    if opaque_process_baseline is None:
         return False
+    if _runtime_root_is_referenced(
+        root,
+        opaque_process_baseline=opaque_process_baseline,
+    ):
+        return False
+    _retire_configured_broker_socket(root)
     shutil.rmtree(root)
     return not root.exists()
 
@@ -3113,6 +3789,7 @@ __all__ = [
     "cleanup_retired_native_validation_guards",
     "complete_native_validation_command",
     "consume_native_validation_boundary",
+    "create_native_validation_broker_socket",
     "install_native_validation_guard",
     "main",
     "native_validation_provider_launcher",

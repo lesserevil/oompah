@@ -1692,6 +1692,30 @@ def test_release_metadata_failure_does_not_leak_flock_or_mask_result(
         assert lease.status().owner_count == 1
 
 
+def test_connection_context_closes_sqlite_descriptor_deterministically(tmp_path):
+    state_path = (tmp_path / "lease.sqlite3").resolve()
+    lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+
+    def state_descriptors() -> set[int]:
+        matches: set[int] = set()
+        for raw_descriptor in os.listdir("/proc/self/fd"):
+            try:
+                target = Path(
+                    os.readlink(f"/proc/self/fd/{raw_descriptor}")
+                ).resolve()
+            except OSError:
+                continue
+            if target == state_path:
+                matches.add(int(raw_descriptor))
+        return matches
+
+    baseline = state_descriptors()
+    for _ in range(20):
+        lease.status()
+
+    assert state_descriptors() == baseline
+
+
 def test_release_preserves_owner_while_background_descendant_holds_flock(tmp_path):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     handle = lease.acquire(_gate_owner("p1", "shell"))
@@ -1791,6 +1815,12 @@ def test_group_empty_proof_rejects_member_forked_after_proc_snapshot(
         return True
 
     monkeypatch.setattr(validation_lease_module, "_process_stat", lambda _pid: None)
+    real_exists = Path.exists
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda path: False if path == Path("/proc/123") else real_exists(path),
+    )
     monkeypatch.setattr(
         validation_lease_module,
         "_process_group_members",
