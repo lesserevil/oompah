@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T23:00:37.853497Z'
+updated_at: '2026-08-07T23:01:57.193519Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ created: 2026-08-07 23:00
 Integration could not verify `OOMPAH-887`: could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-887 is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head 6324701418ca2d3a18b5576286dfb28c9d979445; refusing to reset it
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-07 23:01
+---
+Final-CAS open-review race fixed at replacement exact head 5403e4b196cfae75cc7333d69b062d66c33fef8e on canonical OOMPAH-887. The earlier post-disposition cache check remains, and a second cache fence now runs after the final remote generation-current probe immediately before child promotion. Deterministic regression publishes an open OOMPAH-779 review during current-check #2 and proves no child transition occurs. Evidence: brokered full affected modules: 274 passed in 8.54s; py_compile, git diff --check, critical Ruff E9/F63/F7, and make check-secrets passed. Worktree is clean and exact head equals origin/OOMPAH-887.
 ---
 <!-- COMMENTS:END -->
