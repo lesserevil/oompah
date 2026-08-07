@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T09:33:42.295630Z'
+updated_at: '2026-08-07T09:33:50.269263Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -122,7 +122,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
     audit_ids:
     - audit-f64e3cfbf518
-    kind: result
+    - audit-a8bca1ec2de3
+    kind: override
     applied: true
     retired_at: '2026-08-07T09:31:45.299500+00:00'
   oompah.terminal_audit_result_intents:
@@ -138,6 +139,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:31:45.299518+00:00'
     applied_at: '2026-08-07T09:31:53.476995+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-bc572de428ae
@@ -158,7 +160,7 @@ oompah.terminal_audit:
       exhausting max_attempts. Preserve the verified Done outcome while OOMPAH-876
       fixes pre-verdict transport exhaustion.'
     created_at: '2026-08-07T09:33:33.776478+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -253,7 +255,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-867
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -265,6 +267,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T07:31:07.784061+00:00'
+    updated_at: '2026-08-07T09:33:47.322690+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-23d90ec08efa
@@ -730,5 +733,12 @@ created: 2026-08-07 09:31
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 09:33
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Exact repaired head 8b7ba2e54 passed the full make-test gate, independent static review, and 272 focused tests serial plus parallel; PR #735 merged it into main. Haiku, sonnet, and opus all terminated before a structured verdict, exhausting max_attempts. Preserve the verified Done outcome while OOMPAH-876 fixes pre-verdict transport exhaustion.
 ---
 <!-- COMMENTS:END -->
