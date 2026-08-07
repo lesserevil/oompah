@@ -39694,6 +39694,22 @@ class Orchestrator:
                 continue
             if not terminal_disposition_generation_still_current(child):
                 continue
+            # The final generation probe performs remote I/O.  An open-review
+            # webhook can arrive during that probe without moving a Git ref,
+            # so repeat the independent cache fence at the actual promotion
+            # edge rather than relying on the pre-probe observation alone.
+            open_review_branch = self._open_review_branch_for_issue_in_cache(
+                child, epic
+            )
+            if open_review_branch:
+                logger.warning(
+                    "Leaving epic child %s non-terminal: its open review "
+                    "branch %s appeared before promotion (epic %s landed)",
+                    child.identifier,
+                    open_review_branch,
+                    epic.identifier,
+                )
+                continue
             result = self._request_merged_via_coordinator(
                 child,
                 child_project_id,
