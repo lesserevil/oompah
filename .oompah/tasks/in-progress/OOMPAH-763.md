@@ -74,7 +74,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-07T14:04:44.089180Z'
+updated_at: '2026-08-07T14:11:21.146446Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-08-05 14:53
 ---
 Operator direction supersedes the prior checkpoint-only boundary: continue the systemic workflow program through completion, using child agents for safe independent work and allowing the Oompah server to implement dispatchable tasks where current capabilities permit. The project remains paused only while the bounded OOMPAH-505/523/807/821 validation batch and OOMPAH-815 repair drain; resume staged dispatch after that safe boundary.
+---
+author: oompah
+created: 2026-08-07 14:11
+---
+Operator safety pause applied to the oompah project after duplicate helper OOMPAH-896 force-pushed an exact head before its full gate completed. Direct-owner work continues on O877/O846/O879; scheduler dispatch stays paused until the single-writer isolated server-owned publish path is safe or the canonical shared epic is green and explicitly reconciled.
 ---
 <!-- COMMENTS:END -->
