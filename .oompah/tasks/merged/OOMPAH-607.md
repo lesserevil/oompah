@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T09:21:27.514640Z'
+updated_at: '2026-08-07T09:21:38.419090Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: ''
@@ -199,7 +199,7 @@ oompah.terminal_audit:
       review is structurally impossible for a no-diff main head. Restore terminal
       provenance pending OOMPAH-871 deployment.'
     created_at: '2026-08-07T09:21:23.915866+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-607
@@ -210,6 +210,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T07:24:55.157719+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Merged
+    evidence_fingerprint: 220324ec55419cf72474495c63cbd567b0cc52d39bbdfdf4f1a03a717b0495b7
+    audit_ids:
+    - audit-269a81d7e2e1
+    - audit-48d8fb52ec07
+    - audit-6604aca888bd
+    - audit-079b588f5dba
+    - audit-2e1fb970924e
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T09:21:35.360481+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-607
@@ -223,6 +236,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:24:55.157728+00:00'
     applied_at: '2026-08-07T07:25:02.896902+00:00'
+    retired_by_override: true
   version: 1
   pending_chain:
   - version: 1
@@ -321,7 +335,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -333,12 +347,13 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:10:52.852119+00:00'
+    updated_at: '2026-08-07T09:21:35.360428+00:00'
   - version: 1
     audit_id: audit-079b588f5dba
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -352,12 +367,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:21:00.886620+00:00'
     selected_ref: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    updated_at: '2026-08-07T09:21:35.360450+00:00'
   - version: 1
     audit_id: audit-2e1fb970924e
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -371,6 +387,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:21:00.886620+00:00'
     selected_ref: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    updated_at: '2026-08-07T09:21:35.360463+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3d919736a8a3
@@ -822,5 +839,12 @@ author: oompah
 created: 2026-08-07 09:21
 ---
 Restore already-merged PR #605 provenance after erroneous watchdog reopen; current main exact gate passed.
+---
+author: oompah
+created: 2026-08-07 09:21
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #605 is already merged and the task fix is contained in current main; exact current-main head 39285e9c3 passed the full gate, while a replacement review is structurally impossible for a no-diff main head. Restore terminal provenance pending OOMPAH-871 deployment.
 ---
 <!-- COMMENTS:END -->
