@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-08-07T11:56:49.714381Z'
+updated_at: '2026-08-07T12:27:44.994668Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -100,6 +100,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-333fc6401a16: '2026-07-31T10:53:20.639142+00:00'
     attempt-56a47bc40600: '2026-07-31T10:55:38.894280+00:00'
+    attempt-f13f25696452: '2026-08-07T12:27:38.224097+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-654
+    target_state: Archived
+    evidence_fingerprint: 102b18a94497d35df073bd295b9f534eecde929ab63fde573a9fc8fa37f74339
+    audit_ids:
+    - audit-f00169c6e096
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T12:27:38.224109+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-654
+    audit_id: audit-f00169c6e096
+    attempt_id: attempt-f13f25696452
+    target_state: Archived
+    evidence_fingerprint: 102b18a94497d35df073bd295b9f534eecde929ab63fde573a9fc8fa37f74339
+    status: Archived
+    audit_ids:
+    - audit-f00169c6e096
+    applied: false
+    created_at: '2026-08-07T12:27:38.224127+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -175,7 +198,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-654
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,7 +207,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f13f25696452
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -196,6 +219,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-654
       selected_ref: b64cbc85adca310a10f767692302e004343f14cd
       selected_sha: b64cbc85adca310a10f767692302e004343f14cd
+      verdict: pass
+      completed_at: '2026-08-07T12:27:38.223857+00:00'
+      ended_at: '2026-08-07T12:27:38.223857+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -204,7 +230,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T11:56:10.541503+00:00'
     selected_ref: b64cbc85adca310a10f767692302e004343f14cd
     selected_sha: b64cbc85adca310a10f767692302e004343f14cd
-    updated_at: '2026-08-07T11:56:37.093150+00:00'
+    updated_at: '2026-08-07T12:27:38.223857+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-333fc6401a16
