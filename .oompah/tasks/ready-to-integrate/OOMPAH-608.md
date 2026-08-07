@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T10:37:59.283381Z'
+updated_at: '2026-08-07T10:45:08.768784Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: ''
@@ -782,6 +782,20 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 ---
 author: oompah
 created: 2026-08-07 10:37
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/606
+Reviewed head: `6d0cda5660632aaed34c722198fff17a913a66af`
+Accepted submission head: `f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6`
+Source branch: `OOMPAH-608`
+Target branch: `main`
+Reason: review head 6d0cda5660632aaed34c722198fff17a913a66af does not match accepted submission head f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 10:45
 ---
 Superseded review preserved during standalone Ready reconciliation.
 
