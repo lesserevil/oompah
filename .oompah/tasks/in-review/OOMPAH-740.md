@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T04:20:47.688899Z'
+updated_at: '2026-08-07T04:39:34.114391Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -218,5 +218,10 @@ author: oompah
 created: 2026-08-07 04:20
 ---
 Dedicated CI run 31129704050 tested exact corrected head 231d2b8a7 and produced 15,759 passed, 14 skipped, 1 xfailed, 14 failed on Python 3.13. None of the 14 is the O740 subprocess-timeout regression: two permission tests fail because the self-hosted runner executes as root; five XDG/runtime permission tests fail for the same reason; five dashboard/full-sync tests fail because system node lacks node:assert/strict; two storage cleanup tests hit Python 3.13 NotImplementedError for chmod(..., follow_symlinks=False). This runner is not an equivalent hosted matrix environment, so no O740 product/test mutation will be made to mask it. Dedicated-runner compatibility is tracked in OOMPAH-868. The corrected dashboard timeout tests already pass focused serial/parallel and had independent static acceptance.
+---
+author: oompah
+created: 2026-08-07 04:39
+---
+Replacement hosted matrix attempt on exact head 231d2b8a7 passed Python 3.11 and 3.13. Python 3.12 reached 15,779 passing tests, then the unrelated validation-resource restart test raced its fixed 0.5s child lifetime and incorrectly expected a 0.05s acquisition timeout after the child had already released the kernel fence. The same exact O740 head already has a prior fully green hosted matrix. Filed OOMPAH-869 for deterministic child/fence synchronization and reran only the failed Python 3.12 job; no O740 product mutation was made.
 ---
 <!-- COMMENTS:END -->
