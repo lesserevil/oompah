@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T09:43:01.098531Z'
+updated_at: '2026-08-07T09:43:11.328207Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -153,8 +153,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-f116ee35fbfd
-    applied: false
+    applied: true
     created_at: '2026-08-07T09:42:59.582986+00:00'
+    applied_at: '2026-08-07T09:43:09.961801+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -596,5 +597,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 9s
 - Log: OOMPAH-643__20260731T080402Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:43
+---
+Needs Human — Archived audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
