@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-876
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Retry auditor transport failures without consuming substantive candidate capacity
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:18:52.809764Z'
+updated_at: '2026-08-07T12:19:22.318330Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1a55decb-2423-4b34-b99f-193422d02ede
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-876
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-876
   base_branch: epic-OOMPAH-768
   base_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
-  updated_at: '2026-08-07T12:09:46.440042+00:00'
+  head_sha: 001ee04b940b98ab3167495fd5c8f9711a020404
+  submitted_at: '2026-08-07T12:19:02.150317+00:00'
+  updated_at: '2026-08-07T12:19:02.150317+00:00'
 oompah.task_costs:
   total_input_tokens: 11240362
   total_output_tokens: 31819
@@ -375,5 +377,10 @@ author: oompah
 created: 2026-08-07 12:18
 ---
 Completion: delivered and pushed exact head 001ee04b940b98ab3167495fd5c8f9711a020404. Pre-verdict auditor transport/finalization failures retain eligible candidate capacity and retry under a separate bounded durable budget/backoff; policy or structured substantive outcomes still consume/rotate; incapable subscription Codex ACP candidates remain excluded with missing_audit_capability; restart preserves audit/fingerprint/attempt fencing without duplicate launch; health distinguishes transport recovery from exhaustion, including correct zero-retry initial capacity. Focused and neighboring verification: 530 passed. Branch is clean and exactly up to date with origin.
+---
+author: oompah
+created: 2026-08-07 12:19
+---
+Retry pre-verdict auditor transport/finalization failures under a separate bounded budget without consuming substantive candidate capacity; preserve durable audit identity and restart fencing; distinguish capability misconfiguration, transport recovery, and true exhaustion in operator health. Focused and adjacent suites: 530 passed; pushed head 001ee04b940b98ab3167495fd5c8f9711a020404.
 ---
 <!-- COMMENTS:END -->
