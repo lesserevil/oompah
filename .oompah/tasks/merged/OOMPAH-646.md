@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T21:18:49.784433Z'
+updated_at: '2026-08-07T21:19:03.058205Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: ''
@@ -212,6 +212,28 @@ oompah.terminal_audit:
       as bb82f7f39510f0e02886307291812f2f8b3e6901 after all required CI checks succeeded.'
     created_at: '2026-08-07T21:18:36.579753+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain the verified merged revision as terminal provenance after PR #747
+      merged exact head 38806932e609860b2c81e84253a09df515ff4e5b.'
+    marked_at: '2026-08-07T21:19:01.392861+00:00'
+    updated_at: '2026-08-07T21:19:01.392861+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain the verified merged revision as terminal provenance after PR
+        #747 merged exact head 38806932e609860b2c81e84253a09df515ff4e5b.'
+      recorded_at: '2026-08-07T21:19:01.392861+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
