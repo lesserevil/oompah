@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-644
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Make native task reads atomic across status-file moves
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T18:17:33.323086Z'
+updated_at: '2026-08-07T18:39:19.251464Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -258,6 +258,25 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-07-31T18:16:55.443513+00:00'
     updated_at: '2026-07-31T18:17:31.295589+00:00'
+  - version: 1
+    audit_id: audit-c71d6e78e93e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47abe11a184f1bec6c2672081847bd79b377303a308a368c92916a027b550324
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T18:39:14.976276+00:00'
+    selected_ref: ab4cab20c0697076098bd429d529fd3d8d3434e9
+    selected_sha: ab4cab20c0697076098bd429d529fd3d8d3434e9
   attempt_history:
   - version: 1
     attempt_id: attempt-ab69e882ab0d
