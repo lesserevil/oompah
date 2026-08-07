@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:16:12.155503Z'
-updated_at: '2026-08-07T13:16:12.155503Z'
+updated_at: '2026-08-07T13:16:52.862270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live recurrence after merged OOMPAH-725, OOMPAH-825, and OOMPAH-829: OOMPAH-660 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 13:16
+---
+Held in Backlog only until OOMPAH-877 publishes the already-repaired shared epic head. Opening it during the live epic rebase would branch from stale authority and create avoidable integration conflict; promote it immediately after that exact CAS push. No manual task/state-file workaround was applied because the native parent-rollup overwrite is the bug under test.
+---
+<!-- COMMENTS:END -->
