@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T17:55:00.628395Z'
+updated_at: '2026-08-07T18:01:15.212071Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
@@ -175,5 +175,20 @@ author: oompah
 created: 2026-08-07 17:55
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-07 18:01
+---
+Understanding: Implementing atomic idempotent create-once tracker operations. The core issue is that TrackerProtocol.create_issue has no idempotency key, so a retry after a lost response can create a second epic-rebase helper task.
+
+Plan:
+1. Add TrackerCreateOnceUnsupportedError to tracker.py
+2. Add create_issue_once(creation_marker, title, ...) to TrackerProtocol
+3. Implement create_issue_once atomically on OompahMarkdownTracker: under the write lock, scan for existing task with marker in body; if found return it; if not, call create_issue (RLock is re-entrant so no deadlock)
+4. Fail-closed implementation on GitHub/GitLab trackers (raise TrackerCreateOnceUnsupportedError)
+5. Update _file_rebase_task in orchestrator.py to use create_issue_once for native trackers, and add recovery path for authority_creation_reserved=True that calls create_issue_once instead of returning None
+6. Write all required tests
+
+Key files: oompah/tracker.py, oompah/oompah_md_tracker.py, oompah/github_tracker.py, oompah/gitlab_tracker.py, oompah/orchestrator.py, tests/test_oompah_md_tracker.py, tests/test_tracker_protocol.py, tests/test_epic_rebase_state.py
 ---
 <!-- COMMENTS:END -->
