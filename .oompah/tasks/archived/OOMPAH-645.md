@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-08-07T16:14:20.983005Z'
+updated_at: '2026-08-07T16:14:30.056022Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
