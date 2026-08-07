@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T14:27:29.856865Z'
+updated_at: '2026-08-07T17:46:08.752902Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -22,25 +22,22 @@ review_number: '621'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: 4a1bb0e26842985230ec626f23ddef4727bf4b92c77c3423b2df84e9e0e9abb1
+  task_fingerprint: b67bf60fb633ae9af5637c4c698bc3a0eab536086a66ca860b484c4f33d6776e
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T11:21:27.879571+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: "No implementation or tracker mutation performed.\n\nFocus handoff: duplicate_detector\
-    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \nEvidence: Active\
-    \ OOMPAH-655 and OOMPAH-657 address service isolation and immutable gate snapshots,\
-    \ not duplicate-preflight deduplication. Historical OOMPAH-529\u2013532, OOMPAH-535,\
-    \ and OOMPAH-540 are terminal and therefore excluded as duplicate targets; they\
-    \ cover prerequisite evidence, claims, scheduling, lifecycle recovery, and dependency\
-    \ bypass\u2014not this deferred-tick regression."
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 2c294cf9-16f3-4db5-a11e-280f1bd8c8a4
+  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
+  claimed_at: '2026-08-07T17:45:52.960330+00:00'
+  claim_expires_at: '2026-08-07T18:15:52.960330+00:00'
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8faade4e-a799-4a63-866b-4617d74ec8c7
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: f6f87ba9-e288-4104-a03b-4e693ee12fc6
 oompah.task_costs:
   total_input_tokens: 928553
   total_output_tokens: 28098
@@ -153,6 +150,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-658
     source_sha: 6e27fb150b7bd711c98c7aa5c94e355200dfa325
     completed_at: '2026-07-31T13:42:15.788803+00:00'
+  - run_id: e87aced7867649a0a5045f3b1f04a0cc--contributor-a1867c30e539
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: duplicate_detector
+    source_branch: OOMPAH-658
+    source_sha: null
+    completed_at: ''
 oompah.integration:
   version: 2
   state: ready
@@ -1183,5 +1188,10 @@ created: 2026-08-07 14:27
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 17:46
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
 ---
 <!-- COMMENTS:END -->
