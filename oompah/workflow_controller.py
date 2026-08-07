@@ -982,17 +982,42 @@ class UniversalTotalityLivenessController:
                     evaluated_identities=expected_identities,
                     full_project_scope=authority_is_project_wide,
                 )
-                reconciliation = self.scheduler.reconcile_accepted(
-                    decisions,
-                    snapshot_generation=generation,
-                    record_metrics=False,
-                    authoritative_project_ids=(
-                        authoritative_projects if full_coverage else None
-                    ),
-                    expected_identities=(
-                        membership_identities if full_coverage else None
-                    ),
-                )
+                try:
+                    reconciliation = self.scheduler.reconcile_accepted(
+                        decisions,
+                        snapshot_generation=generation,
+                        record_metrics=False,
+                        authoritative_project_ids=(
+                            authoritative_projects if full_coverage else None
+                        ),
+                        expected_identities=(
+                            membership_identities if full_coverage else None
+                        ),
+                    )
+                except Exception:
+                    # Reconciliation intentionally uses several short SQLite
+                    # transactions.  A later write can therefore fail after an
+                    # earlier membership, cursor, or job write committed.  Put
+                    # the last published authority back before the caller turns
+                    # this accepted generation into a durable scan-failure
+                    # publication.  If restoration itself cannot be proven,
+                    # discard the in-memory handoff: the accepted-but-unpublished
+                    # generation then remains ineligible for worker claims.
+                    try:
+                        restored = self.store.restore_snapshot_authority(
+                            authority_checkpoint,
+                            snapshot_generation=generation,
+                        )
+                    except Exception:
+                        self._inflight_generations.discard(generation)
+                        raise
+                    if not restored:
+                        self._inflight_generations.discard(generation)
+                        raise RuntimeError(
+                            "failed workflow reconciliation could not restore "
+                            "its durable authority checkpoint"
+                        )
+                    raise
                 if (
                     not reconciliation.snapshot_accepted
                     or self._liveness_policy is not policy

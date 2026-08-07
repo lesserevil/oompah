@@ -412,6 +412,76 @@ def test_publish_failure_rolls_back_observe_before_versioned_failure_commit(
     assert controller.health_snapshot()["controller"]["passes"] == 1
 
 
+def test_reconciliation_failure_restores_partial_durable_authority(
+    controller,
+    monkeypatch,
+):
+    existing = issue("In Validation", identifier="TASK-existing")
+    added = issue("In Validation", identifier="TASK-added")
+    controller.full_sync((existing,), facts=fact_map(existing))
+    before_membership = controller.store.snapshot_membership()
+    before_cursor = controller.store.schedule_cursor(
+        project_id="project-a", task_id=existing.identifier
+    )
+    before_jobs = {
+        job.job_id: job
+        for job in controller.store.list_jobs()
+        if job.workflow_managed
+    }
+    generation = controller.begin_scan()
+    reconcile_schedule = controller.store.reconcile_schedule
+    calls = 0
+
+    def fail_after_first_schedule(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected reconciliation failure")
+        return reconcile_schedule(**kwargs)
+
+    monkeypatch.setattr(
+        controller.store,
+        "reconcile_schedule",
+        fail_after_first_schedule,
+    )
+
+    with pytest.raises(OSError, match="injected reconciliation failure"):
+        controller.full_sync(
+            (existing, added),
+            facts=fact_map(existing, added),
+            snapshot_generation=generation,
+        )
+
+    assert calls == 2
+    assert controller.store.snapshot_membership() == before_membership
+    assert controller.store.schedule_cursor(
+        project_id="project-a", task_id=existing.identifier
+    ) == before_cursor
+    assert {
+        job.job_id: job
+        for job in controller.store.list_jobs()
+        if job.job_id in before_jobs
+    } == before_jobs
+    added_jobs = controller.store.list_jobs(task_id=added.identifier)
+    assert added_jobs
+    assert all(job.state is WorkflowJobState.SUPERSEDED for job in added_jobs)
+
+    persisted: list[dict] = []
+    failure = controller.record_liveness_scan_failure(
+        "OSError",
+        snapshot_generation=generation,
+        persist_liveness_state=lambda state: persisted.append(dict(state)),
+    )
+
+    assert failure.snapshot_generation == generation
+    assert failure.last_error == "OSError"
+    assert persisted[0]["accepted_snapshot_generation"] == generation
+    assert all(
+        job.state is WorkflowJobState.SUPERSEDED
+        for job in controller.store.list_jobs(task_id=added.identifier)
+    )
+
+
 @pytest.mark.parametrize("worker_mutation", ("complete", "checkpoint"))
 def test_failed_publication_cannot_rollback_cross_connection_worker_progress(
     controller,

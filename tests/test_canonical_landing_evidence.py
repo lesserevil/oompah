@@ -5,6 +5,7 @@ and protection against attack vectors like evidence tampering, forgery, and stal
 evidence acceptance.
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import subprocess
 import threading
@@ -704,6 +705,108 @@ def test_direct_rebase_persists_child_mapping_and_restart_restores_it(tmp_path):
         project_id=project.id,
         epic_identifier="OOMPAH-740",
     )
+
+
+def test_direct_rebase_mapping_is_not_consumable_when_persistence_fails(
+    tmp_path,
+):
+    scenario = _mapped_child_scenario(tmp_path)
+    failed = _landing_harness(
+        tmp_path / "failed-state.json",
+        scenario.project,
+        [scenario.child],
+    )
+    failed._save_state = lambda **_updates: False
+
+    persisted = failed._persist_direct_epic_child_landing_evidence(
+        current=Issue(
+            id="R-failed",
+            identifier="R-failed",
+            title="Rebase epic-OOMPAH-740 onto main",
+            parent_id="OOMPAH-740",
+        ),
+        project=scenario.project,
+        project_id=scenario.project.id,
+        epic_id="OOMPAH-740",
+        old_sha=scenario.source_sha,
+        published_sha=scenario.target_sha,
+    )
+
+    assert persisted is False
+    assert failed._canonical_child_landing_evidence == {}
+    assert failed._canonical_child_landing_generations == {}
+    assert not failed._child_has_durable_landing_evidence(
+        scenario.child,
+        container_branches=("epic-OOMPAH-740",),
+        repo_path=str(scenario.repo),
+        project_id=scenario.project.id,
+        epic_identifier="OOMPAH-740",
+    )
+
+
+def test_direct_rebase_completion_stops_before_audit_on_mapping_save_failure():
+    project = Project(
+        id="project-1",
+        name="test",
+        repo_url="https://example.invalid/test",
+        repo_path="/unused",
+        default_branch="main",
+    )
+    record = IntegrationRecord(
+        state="integrated",
+        task_branch="epic-OOMPAH-740",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        integrated_sha="b" * 40,
+    )
+    current = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-OOMPAH-740 onto main",
+        parent_id="OOMPAH-740",
+        project_id=project.id,
+        integration=record,
+    )
+    cancelled: list[str] = []
+    staged: list[str] = []
+    harness = Orchestrator.__new__(Orchestrator)
+    harness.project_store = SimpleNamespace(
+        get=lambda _project_id: project,
+        epic_branch_name=lambda _epic_id: "epic-OOMPAH-740",
+        reconcile_published_epic_worktree=lambda *_args, **_kwargs: SimpleNamespace(
+            completed=True,
+            old_sha="a" * 40,
+            status="completed",
+            reason=None,
+        ),
+    )
+    harness._tracker_for_project = lambda _project_id: SimpleNamespace()
+    harness._clear_integration_delivery_alert = lambda *_args: None
+    harness._persist_direct_epic_child_landing_evidence = (
+        lambda **_kwargs: False
+    )
+    harness.integration_queue = SimpleNamespace(
+        cancel=lambda *_args, **_kwargs: cancelled.append("cancelled")
+    )
+
+    async def stage_terminal(**_kwargs):
+        staged.append("staged")
+
+    harness.request_terminal_transition = stage_terminal
+
+    completed, message, returned_record = asyncio.run(
+        harness.complete_direct_epic_maintenance_submission(
+            current,
+            record,
+            project.id,
+        )
+    )
+
+    assert completed is False
+    assert "could not be durably persisted" in message
+    assert returned_record == record
+    assert cancelled == []
+    assert staged == []
 
 
 def test_child_mapping_is_identity_scoped_and_descendants_do_not_inherit_it(tmp_path):

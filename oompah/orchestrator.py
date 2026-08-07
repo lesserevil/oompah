@@ -4360,19 +4360,24 @@ class Orchestrator:
                 len(restored),
             )
 
-    def _persist_canonical_child_landing_evidence(self) -> None:
+    def _persist_canonical_child_landing_evidence(self) -> bool:
         """Atomically persist mappings and their per-epic generation fence."""
 
         mappings = {
             key: mapping.to_dict()
             for key, mapping in self._canonical_child_landing_evidence.items()
         }
-        self._save_state(
+        saved = self._save_state(
             canonical_child_landing_evidence=mappings,
             canonical_child_landing_generations=dict(
                 self._canonical_child_landing_generations
             ),
         )
+        if not saved:
+            logger.error(
+                "Canonical child landing evidence was not durably persisted"
+            )
+        return saved
 
     # ------------------------------------------------------------------
     # Shared-worktree absorption evidence (OOMPAH-219)
@@ -26690,14 +26695,14 @@ class Orchestrator:
         epic_id: str,
         old_sha: str,
         published_sha: str,
-    ) -> None:
+    ) -> bool:
         """Record verified child ranges affected by a direct epic rebase."""
 
         old_sha = str(old_sha or "").strip().lower()
         published_sha = str(published_sha or "").strip().lower()
         scope = self._canonical_child_landing_scope_key(project_id, epic_id)
 
-        def clear_scope() -> None:
+        def drop_scope_from_memory() -> None:
             self._canonical_child_landing_evidence = {
                 key: mapping
                 for key, mapping in self._canonical_child_landing_evidence.items()
@@ -26706,23 +26711,32 @@ class Orchestrator:
                 ) != scope
             }
             self._canonical_child_landing_generations.pop(scope, None)
-            self._persist_canonical_child_landing_evidence()
+
+        def persist_scope() -> bool:
+            if self._persist_canonical_child_landing_evidence():
+                return True
+            # These records are lifecycle authority, not a best-effort cache.
+            # Never let the current process consume a generation which did not
+            # cross the durable service-state boundary.
+            drop_scope_from_memory()
+            return False
+
+        def clear_scope() -> bool:
+            drop_scope_from_memory()
+            return persist_scope()
 
         if not (
             re.fullmatch(r"[0-9a-f]{40}", old_sha)
             and re.fullmatch(r"[0-9a-f]{40}", published_sha)
         ):
-            clear_scope()
-            return
+            return clear_scope()
         repo_path = str(getattr(project, "repo_path", "") or "").strip()
         if not repo_path or not os.path.isdir(repo_path):
-            clear_scope()
-            return
+            return clear_scope()
         if not self._git_commit_is_real(
             repo_path, old_sha
         ) or not self._git_commit_is_real(repo_path, published_sha):
-            clear_scope()
-            return
+            return clear_scope()
 
         generation = self._direct_epic_rebase_generation(
             project_id=project_id,
@@ -26751,8 +26765,7 @@ class Orchestrator:
             repo_path, published_sha, target_branch
         )
         if target_base is None:
-            self._persist_canonical_child_landing_evidence()
-            return
+            return persist_scope()
 
         parent = Issue(
             id=epic_id,
@@ -26774,8 +26787,7 @@ class Orchestrator:
             container_refs,
             base_sha=target_base,
         ):
-            self._persist_canonical_child_landing_evidence()
-            return
+            return persist_scope()
         created_at = datetime.now(timezone.utc).isoformat()
         for child in children:
             if _is_epic_issue(child):
@@ -26850,7 +26862,7 @@ class Orchestrator:
                     project_id, epic_id, child_id
                 )
             ] = mapping
-        self._persist_canonical_child_landing_evidence()
+        return persist_scope()
 
     def _trusted_completion_evidence_landed(
         self,
@@ -49429,7 +49441,7 @@ class Orchestrator:
         # Persist child-scoped old->canonical ranges after the published head
         # has been reconciled.  This is deliberately independent of child ref
         # names and is idempotent across restart recovery.
-        self._persist_direct_epic_child_landing_evidence(
+        child_mapping_persisted = self._persist_direct_epic_child_landing_evidence(
             current=current,
             project=project,
             project_id=str(project_id),
@@ -49439,6 +49451,13 @@ class Orchestrator:
             ).strip().lower(),
             published_sha=published_sha,
         )
+        if not child_mapping_persisted:
+            message = (
+                "published epic head reconciled but canonical child landing "
+                "authority could not be durably persisted"
+            )
+            logger.error("%s for %s", message, current.identifier)
+            return False, message, integrated
         
         # Cancel any stale concurrent ordinary integration rows created by
         # background sync before this direct path acquired authority.  Direct
