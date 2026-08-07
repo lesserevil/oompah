@@ -147,6 +147,17 @@ OOMPAH_AUDIT_PRIORITY=100
 # Limits the audit lane's CPU time per tick. Set to 0 for no cap.
 # Recommended: 32–64.
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
+
+# Maximum age (seconds) of a durable, exact provider/model health
+# observation. Missing or older observations are probed before reservation;
+# probe failure is not treated as healthy.
+OOMPAH_PROVIDER_HEALTH_TTL_SECONDS=300
+
+# Conservative input/output sizes used to reserve paid auditor capacity
+# before an implementation provider can start. With OOMPAH_BUDGET_LIMIT set,
+# every paid auditor model needs exact model_costs rates.
+OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS=65536
+OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS=32768
 ```
 
 #### Global Settings That Affect Auditors
@@ -193,7 +204,7 @@ and avoids `no_auditor` failures when one provider is temporarily unavailable.
    See `docs/multi-provider-roles.md` for the request shape.
 
 **Project whitelist:** If the project configuration includes a provider
-whitelist (`allowed_provider_ids`), only providers on that whitelist may be
+whitelist (`provider_whitelist`), only providers on that whitelist may be
 used as auditor candidates. Providers not on the whitelist are excluded from
 candidate selection even if they appear in `.oompah/roles.json`. Ensure at
 least two independently-listed providers are on the whitelist to guarantee

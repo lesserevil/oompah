@@ -661,13 +661,21 @@ class TestAuditDispatchConfiguration:
     def setup_method(self):
         """Clear OOMPAH_AUDIT_* env vars so tests run in a clean environment."""
         for key in list(os.environ):
-            if key.startswith("OOMPAH_AUDIT_") or key.startswith("OOMPAH_VERIFY_COMPLETION"):
+            if (
+                key.startswith("OOMPAH_AUDIT_")
+                or key.startswith("OOMPAH_VERIFY_COMPLETION")
+                or key == "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS"
+            ):
                 os.environ.pop(key, None)
 
     def teardown_method(self):
         """Restore clean environment after each test."""
         for key in list(os.environ):
-            if key.startswith("OOMPAH_AUDIT_") or key.startswith("OOMPAH_VERIFY_COMPLETION"):
+            if (
+                key.startswith("OOMPAH_AUDIT_")
+                or key.startswith("OOMPAH_VERIFY_COMPLETION")
+                or key == "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS"
+            ):
                 os.environ.pop(key, None)
 
     def test_audit_max_attempts_default(self):
@@ -705,6 +713,28 @@ class TestAuditDispatchConfiguration:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.audit_attempt_ttl == 7200
 
+    def test_auditor_health_and_projection_defaults(self):
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.provider_health_ttl_seconds == 300
+        assert cfg.audit_projected_input_tokens == 65536
+        assert cfg.audit_projected_output_tokens == 32768
+
+    def test_auditor_health_and_projection_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_PROVIDER_HEALTH_TTL_SECONDS", "45")
+        monkeypatch.setenv("OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS", "12000")
+        monkeypatch.setenv("OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS", "3400")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.provider_health_ttl_seconds == 45
+        assert cfg.audit_projected_input_tokens == 12000
+        assert cfg.audit_projected_output_tokens == 3400
+
     def test_audit_priority_default(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
@@ -739,6 +769,9 @@ class TestAuditDispatchConfiguration:
         content = env_example.read_text(encoding="utf-8")
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
         assert "OOMPAH_AUDIT_ATTEMPT_TTL" in content
+        assert "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS" in content
+        assert "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS" in content
+        assert "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS" in content
         assert "OOMPAH_AUDIT_PRIORITY" in content
         assert "OOMPAH_AUDIT_LANE_SCAN_LIMIT" in content
 
@@ -747,6 +780,8 @@ class TestAuditDispatchConfiguration:
         assert doc_path.exists(), "docs/auditor-dispatch-operations.md must exist"
         content = doc_path.read_text(encoding="utf-8")
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
+        assert "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS" in content
+        assert "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS" in content
         assert "Needs Human" in content
         assert "override" in content.lower()
 

@@ -25,6 +25,9 @@ from fastapi.testclient import TestClient
 from oompah.models import ModelProvider
 from oompah.provider_health import (
     ERROR_REASONS,
+    PROVIDER_HEALTH_CACHE,
+    ProviderHealthCache,
+    ProviderProbeAuthorityError,
     ProviderTestResult,
     _normalize_acp_error,
     _normalize_http_error,
@@ -229,6 +232,68 @@ def fake_acp_backend_crashing():
 # ---------------------------------------------------------------------------
 
 
+class TestProviderHealthCache:
+    def test_model_scoped_result_and_config_change_invalidation(self):
+        provider = _make_provider(models=["one", "two"], default_model="one")
+        cache = ProviderHealthCache()
+        cache.record_failure(provider, model="one", reason="timeout")
+
+        assert cache.get(provider, "one")["success"] is False
+        assert cache.get(provider, "two") is None
+
+        provider.base_url = "http://changed.example/v1"
+        assert cache.get(provider, "one") is None
+
+        cache.record_failure(provider, model="one", reason="auth_failed")
+        provider.api_key = "sk-rotated-test-key"
+        assert cache.get(provider, "one") is None
+
+    def test_probe_denial_prevents_http_transport(self):
+        provider = _make_provider()
+        with patch("urllib.request.urlopen") as urlopen:
+            with pytest.raises(ProviderProbeAuthorityError, match="revoked"):
+                run_health_check(
+                    provider,
+                    before_transport_contact=lambda: "provider policy revoked",
+                )
+
+        urlopen.assert_not_called()
+
+    def test_durable_exact_model_observation_survives_restart_and_expires(self, tmp_path):
+        provider = _make_provider(models=["one", "two"], default_model="one")
+        path = tmp_path / "provider-health.json"
+        first = ProviderHealthCache(str(path))
+        assert first.record_failure(provider, model="two", reason="timeout")
+        observed_at = first.get(provider, "two")["observed_at"]
+
+        restarted = ProviderHealthCache(str(path))
+
+        assert restarted.get(
+            provider,
+            "two",
+            max_age_seconds=30,
+            now=observed_at + 29,
+        )["error_reason"] == "timeout"
+        assert restarted.get(
+            provider,
+            "two",
+            max_age_seconds=30,
+            now=observed_at + 31,
+        ) is None
+        assert restarted.get(provider, "one") is None
+
+    def test_corrupt_durable_ledger_is_actionably_unavailable(self, tmp_path):
+        path = tmp_path / "provider-health.json"
+        path.write_text("{not-json", encoding="utf-8")
+
+        cache = ProviderHealthCache(str(path))
+
+        assert "unreadable" in cache.persistence_error()
+        assert not cache.record_failure(
+            _make_provider(), model="gpt-test", reason="timeout"
+        )
+
+
 class TestPickModel:
     def test_prefers_default_model(self):
         p = _make_provider(models=["a", "b"], default_model="b")
@@ -345,6 +410,16 @@ class TestTestProviderUnit:
 
         assert result.model == "small-model"
         assert result.success is True
+
+    def test_explicit_model_probe_uses_exact_model_in_request(self):
+        p = _make_provider(models=["default-model", "audit-model"], default_model="default-model")
+        with patch("urllib.request.urlopen") as mock_open:
+            mock_open.return_value = self._mock_urlopen(_openai_success_response("4"))
+            result = run_health_check(p, "audit-model")
+
+        request = mock_open.call_args.args[0]
+        assert json.loads(request.data)["model"] == "audit-model"
+        assert result.model == "audit-model"
 
     def test_success_picks_first_model_when_no_default(self):
         p = _make_provider(models=["alpha", "beta"])
@@ -589,9 +664,12 @@ def health_client(tmp_path):
     fresh_store = ProviderStore(path=str(tmp_path / "providers.json"))
     original = srv._provider_store
     srv._provider_store = fresh_store
+    PROVIDER_HEALTH_CACHE.configure(str(tmp_path / "provider-health.json"))
+    PROVIDER_HEALTH_CACHE.clear()
     try:
         yield TestClient(srv.app), fresh_store
     finally:
+        PROVIDER_HEALTH_CACHE.clear()
         srv._provider_store = original
 
 
@@ -634,6 +712,48 @@ class TestProviderTestEndpoint:
         assert body["response_text"] == "4"
         assert "error_reason" not in body
 
+    @pytest.mark.parametrize("outcome", ["success", "exception"])
+    def test_mutated_manual_probe_never_publishes_under_replacement_signature(
+        self, health_client, outcome
+    ):
+        """A result from old immutable inputs cannot certify their replacement."""
+        client, store = health_client
+        provider = store.create(
+            name="MutableProbe",
+            base_url="http://old-provider.invalid/v1",
+            api_key="old-key",
+            models=["probe-model"],
+            default_model="probe-model",
+        )
+
+        def mutate_after_contact(snapshot, model=None, **kwargs):
+            assert kwargs["before_transport_contact"]() is None
+            store.update(
+                provider.id,
+                base_url="http://replacement.invalid/v1",
+                api_key="replacement-key",
+            )
+            if outcome == "exception":
+                raise RuntimeError("old transport failed")
+            return ProviderTestResult(
+                provider_id=snapshot.id,
+                provider_name=snapshot.name,
+                model="probe-model",
+                success=True,
+                latency_ms=1.0,
+            )
+
+        with patch(
+            "oompah.provider_health.run_health_check",
+            side_effect=mutate_after_contact,
+        ):
+            response = client.post(f"/api/v1/providers/{provider.id}/test")
+
+        assert response.status_code == 200
+        assert response.json()["error_reason"] == "health_unknown"
+        current = store.get(provider.id)
+        assert PROVIDER_HEALTH_CACHE.get(current, "probe-model") is None
+
     # ------------------------------------------------------------------
     # AC2: missing credentials / auth failure
     # ------------------------------------------------------------------
@@ -673,6 +793,10 @@ class TestProviderTestEndpoint:
         body = r.json()
         assert body["success"] is False
         assert body["error_reason"] == "timeout"
+        cached = PROVIDER_HEALTH_CACHE.get(p, "gpt-slow")
+        assert cached is not None
+        assert cached["success"] is False
+        assert cached["error_reason"] == "timeout"
 
     # ------------------------------------------------------------------
     # AC4: rate limit / overload

@@ -94,6 +94,9 @@ from oompah.acp_backends.base import (
     AcpBackendOptions,
     AcpBackendSession,
     BackendEvent,
+    begin_transport_contact,
+    cancel_transport_contact,
+    mark_transport_contacted,
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
@@ -760,11 +763,21 @@ class CodexAcpBackendSession(AcpBackendSession):
             self._status = "errored"
             return
 
+        admission_error = begin_transport_contact(self._options)
+        if admission_error is not None:
+            self._last_error = admission_error
+            self._status = "interrupted"
+            return
+        transport_permit = True
         try:
             self._streamed_result = run_streamed(
                 self._agent, input=self._options.prompt
             )
+            mark_transport_contacted(self._options)
+            transport_permit = False
         except Exception as exc:
+            cancel_transport_contact(self._options)
+            transport_permit = False
             self._last_error = f"Runner.run_streamed failed: {exc!r}"
             logger.warning(self._last_error)
             yield self._emit(
@@ -1037,6 +1050,7 @@ class CodexAcpBackendSession(AcpBackendSession):
             self._status = "errored"
             return
 
+        transport_permit = False
         try:
             yield self._emit(
                 "acp_session_start",
@@ -1055,12 +1069,22 @@ class CodexAcpBackendSession(AcpBackendSession):
             )
 
             self._cli_abort = asyncio.Event()
+            admission_error = begin_transport_contact(self._options)
+            if admission_error is not None:
+                self._last_error = admission_error
+                self._status = "interrupted"
+                return
+            transport_permit = True
             try:
                 streamed = await thread.run_streamed(
                     self._options.prompt,
                     TurnOptions(signal=self._cli_abort),
                 )
+                mark_transport_contacted(self._options)
+                transport_permit = False
             except Exception as exc:
+                cancel_transport_contact(self._options)
+                transport_permit = False
                 self._last_error = f"Codex CLI run_streamed failed: {exc!r}"
                 logger.warning(self._last_error)
                 yield self._emit(
@@ -1110,6 +1134,8 @@ class CodexAcpBackendSession(AcpBackendSession):
                 )
                 self._status = "errored"
         finally:
+            if transport_permit:
+                cancel_transport_contact(self._options)
             self._cli_abort = None
             # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
             self._cleanup_worker_runtime_dir()

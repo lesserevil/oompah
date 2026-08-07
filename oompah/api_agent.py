@@ -1561,7 +1561,12 @@ _HTTP_TIMEOUT = 600
 
 
 def _http_post(
-    url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLContext
+    url: str,
+    headers: dict[str, str],
+    body: bytes,
+    ssl_ctx: ssl.SSLContext,
+    *,
+    before_transport_contact: Callable[[], str | None] | None = None,
 ) -> dict[str, Any]:
     """Blocking HTTP POST that returns parsed JSON.
 
@@ -1573,6 +1578,17 @@ def _http_post(
     """
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
+        # Keep authority admission at the actual blocking transport edge.  In
+        # particular, callers must not run this callback on the async loop
+        # before handing work to ``to_thread``: lifecycle revocation could win
+        # during that scheduling gap and the stale thread would still open a
+        # socket.  The callback is synchronous so its CAS and ``urlopen`` are
+        # adjacent in this worker thread with no await or other user hook
+        # between them.
+        if before_transport_contact is not None:
+            denial = before_transport_contact()
+            if denial is not None:
+                raise RuntimeError(denial)
         with urllib.request.urlopen(
             req, context=ssl_ctx, timeout=_HTTP_TIMEOUT
         ) as resp:
@@ -1854,6 +1870,7 @@ class ApiAgentSession:
         validation_reuse_policy_handler: Callable[..., object] | None = None,
         project_store: Any = None,
         submission_handler: Any = None,
+        before_transport_contact: Callable[[], str | None] | None = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1920,6 +1937,16 @@ class ApiAgentSession:
         self.validation_reuse_policy_handler = validation_reuse_policy_handler
         self.project_store = project_store
         self.submission_handler = submission_handler
+        # The orchestrator owns provider-contact authority, but the decisive
+        # check must run in the blocking HTTP thread immediately before
+        # ``urlopen``.  Keep it one-shot across in-session HTTP retries and
+        # later turns: once the first request has consumed the permit, that
+        # admitted run owns its already-frozen transport configuration until
+        # normal lifecycle cancellation retires it.
+        self.before_transport_contact = before_transport_contact
+        self._transport_contact_lock = threading.Lock()
+        self._transport_contacted = False
+        self._transport_admission_denial: str | None = None
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -1930,6 +1957,36 @@ class ApiAgentSession:
             else None
         )
         self._ssl_ctx = _build_ssl_context()
+
+    @property
+    def transport_contacted(self) -> bool:
+        """Whether the first API request consumed its transport permit."""
+
+        with self._transport_contact_lock:
+            return self._transport_contacted
+
+    def _admit_transport_once(self) -> str | None:
+        """Consume the orchestrator permit at the first real HTTP edge.
+
+        ``_call_api`` may retry a request or make later model turns. Those
+        requests belong to the already-admitted run and must not invoke a
+        mutable authority callback again. A denial is sticky so no later
+        retry can turn a rejected generation into an allowed request.
+        """
+
+        with self._transport_contact_lock:
+            if self._transport_contacted:
+                return None
+            if self._transport_admission_denial is not None:
+                return self._transport_admission_denial
+            callback = self.before_transport_contact
+            if callback is not None:
+                denial = callback()
+                if denial is not None:
+                    self._transport_admission_denial = str(denial)
+                    return self._transport_admission_denial
+            self._transport_contacted = True
+            return None
 
     def _log_event(self, kind: str, **fields: Any) -> None:
         """Append one JSONL record to ``self.log_path`` (best-effort).
@@ -2648,9 +2705,21 @@ class ApiAgentSession:
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                response = await asyncio.to_thread(
-                    _http_post, self._url, headers, body, self._ssl_ctx
-                )
+                if self.before_transport_contact is None:
+                    # Preserve the four-argument integration API for callers
+                    # and tests that do not install an authority callback.
+                    response = await asyncio.to_thread(
+                        _http_post, self._url, headers, body, self._ssl_ctx
+                    )
+                else:
+                    response = await asyncio.to_thread(
+                        _http_post,
+                        self._url,
+                        headers,
+                        body,
+                        self._ssl_ctx,
+                        before_transport_contact=self._admit_transport_once,
+                    )
                 # Mirror of the "request" log above so each turn has a
                 # complete sent/received pair on disk.
                 self._log_event(
