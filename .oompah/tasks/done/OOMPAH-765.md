@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T14:32:34.742982Z'
+updated_at: '2026-08-07T14:32:50.250132Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -126,7 +126,10 @@ oompah.terminal_audit:
     audit_ids:
     - audit-d5e425f65f54
     - audit-ee426236368b
-    kind: result
+    - audit-17b3b9d996a9
+    - audit-7824718e2a68
+    - audit-0ba79960c14a
+    kind: override
     applied: true
     retired_at: '2026-08-04T17:05:37.648154+00:00'
   - project_id: proj-14849f1b
@@ -155,6 +158,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T17:05:37.648174+00:00'
     applied_at: '2026-08-04T17:05:45.153364+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
     audit_id: audit-17b3b9d996a9
@@ -170,6 +174,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:07:55.125992+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
     audit_id: audit-ee426236368b
@@ -182,6 +187,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:13:29.020231+00:00'
     applied_at: '2026-08-07T13:13:39.339854+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
     audit_id: audit-0ba79960c14a
@@ -194,6 +200,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:51:10.084505+00:00'
     applied_at: '2026-08-07T13:51:18.023094+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-be794adf2cbe
@@ -212,7 +219,7 @@ oompah.terminal_audit:
       OOMPAH-763 remains unlanded; later Merged audit exhaustion came from pause and
       rollup churn, not a code defect.
     created_at: '2026-08-07T14:32:30.875419+00:00'
-    applied: false
+    applied: true
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
@@ -1093,5 +1100,17 @@ created: 2026-08-07 13:51
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-07 14:32
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Restore the exact auditor-approved Done result at c7bfbcc3 while parent OOMPAH-763 remains unlanded; later Merged audit exhaustion came from pause and rollup churn, not a code defect.
+---
+author: oompah
+created: 2026-08-07 14:32
+---
+Owner restored the independently audited Done state pending parent epic landing.
 ---
 <!-- COMMENTS:END -->
