@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:31:15.571049Z'
-updated_at: '2026-08-07T14:48:34.419799Z'
+updated_at: '2026-08-07T14:48:46.698117Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -120,5 +120,10 @@ created: 2026-08-07 14:48
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
+---
+author: oompah
+created: 2026-08-07 14:48
+---
+Archived as a superseded duplicate of completed OOMPAH-877.
 ---
 <!-- COMMENTS:END -->
