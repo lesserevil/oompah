@@ -5974,6 +5974,147 @@ class TestLabelMergedEpics:
         assert "target epic-OOMPAH-763@" in instruction
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
 
+    def test_final_escalation_cas_defers_when_target_moves(self, tmp_path):
+        """Movement after disposition computation must block Needs Human."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, _project, epic, child, tracker, source, _base_sha, child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def advance_at_mutation_edge(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{child_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=advance_at_mutation_edge,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_final_promotion_cas_defers_when_target_moves(self, tmp_path):
+        """Movement after disposition computation must block Merged."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, _project, epic, child, tracker, source, base_sha, _child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def rewind_at_mutation_edge(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{base_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=rewind_at_mutation_edge,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_generation_that_moves_twice_defers_without_terminal_mutation(
+        self, tmp_path
+    ):
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, _project, epic, child, tracker, source, base_sha, child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def move_each_generation(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            target_sha = child_sha if current_checks == 1 else base_sha
+            subprocess.run(
+                [
+                    "git",
+                    "push",
+                    "-q",
+                    "--force",
+                    "origin",
+                    f"{target_sha}:refs/heads/epic-OOMPAH-763",
+                ],
+                cwd=source,
+                check=True,
+            )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=move_each_generation,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
     def test_oompah_779_genuinely_unlanded_uses_current_generation(self, tmp_path):
         orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
             tmp_path, landing="unlanded"
@@ -6021,6 +6162,27 @@ class TestLabelMergedEpics:
 
         tracker.mark_needs_human.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_missing_configured_checkout_defers_terminal_action(self, tmp_path):
+        orch, project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="exact"
+        )
+        project.repo_path = str(tmp_path / "configured-checkout-is-missing")
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
 
     @pytest.mark.parametrize("parent_state", [MERGED, ARCHIVED])
     def test_ready_child_of_pruned_terminal_parent_uses_landed_head(
@@ -6517,6 +6679,7 @@ class TestLabelMergedEpics:
 
     def test_marks_epic_and_children_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(identifier="epic-1", issue_type="epic", state="Backlog")
         c1 = _make_issue(identifier="c1", state="Done")
@@ -6726,6 +6889,7 @@ class TestLabelMergedEpics:
     def test_landed_epic_does_not_promote_stranded_done_child(self, tmp_path):
         """A Done child with unlanded commits remains recoverable."""
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(
             identifier="EXOCOMP-4",
@@ -6783,6 +6947,7 @@ class TestLabelMergedEpics:
 
     def test_done_epic_is_marked_merged_after_rollup_pr_lands(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(identifier="epic-1", issue_type="epic", state="Done")
         c1 = _make_issue(identifier="c1", state="Done", parent_id="epic-1")
@@ -7440,6 +7605,7 @@ class TestLabelMergedEpics:
         tmp_path,
     ):
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         orch.project_store.epic_branch_name.side_effect = (
             lambda epic_id: f"epic-{epic_id.replace('/', '_').replace('#', '_')}"

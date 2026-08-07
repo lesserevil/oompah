@@ -28381,12 +28381,19 @@ class Orchestrator:
         a branch movement during fetch retries the whole generation once.
         """
 
+        # A truly repository-less legacy project has no remote generation to
+        # fence and retains its historical tracker-only reconciliation.  A
+        # configured checkout that disappeared or is no longer a Git worktree
+        # is instead an authority failure: treating both cases as ``None``
+        # would let Done children mutate through the legacy path precisely
+        # when their canonical refs cannot be observed.
+        if not repo_path:
+            return None, None
         if not (
-            repo_path
-            and os.path.isdir(repo_path)
+            os.path.isdir(repo_path)
             and os.path.exists(os.path.join(repo_path, ".git"))
         ):
-            return None, None
+            return None, "configured repository checkout is unavailable"
 
         targets = tuple(
             branch
