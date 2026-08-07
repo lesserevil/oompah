@@ -16,11 +16,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import oompah.orchestrator as orchestrator_module
 from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.provenance_suppression import (
     PROVENANCE_SUPPRESSION_KEY,
+    ProvenanceGuardedTracker,
     authorize_new_revision,
     mark_provenance_only,
 )
@@ -138,6 +140,23 @@ def _make_orchestrator(tmp_path, tracker: _MetadataTracker) -> Orchestrator:
 
 def _owner() -> ContributorIdentity:
     return ContributorIdentity(identity="alice", source="github")
+
+
+def test_managed_project_tracker_is_centrally_guarded(tmp_path, monkeypatch):
+    tracker = _MetadataTracker()
+    project = _make_project()
+    project.tracker_kind = "provenance-test"
+    monkeypatch.setitem(
+        orchestrator_module.ADAPTER_REGISTRY,
+        "provenance-test",
+        lambda **_kwargs: tracker,
+    )
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    resolved = orch._new_tracker_for_project(project)
+
+    assert isinstance(resolved, ProvenanceGuardedTracker)
+    assert not hasattr(resolved, "wrapped_tracker")
 
 
 def _seed_suppression(tracker: _MetadataTracker, identifier: str) -> None:

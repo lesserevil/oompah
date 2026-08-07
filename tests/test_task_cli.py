@@ -823,6 +823,71 @@ class TestCmdSetStatus:
         assert "audit-5" in out
 
 
+class TestCmdTerminalProvenance:
+    def test_retain_posts_project_scoped_owner_action(self):
+        args = _make_args(
+            subcommand="terminal-provenance",
+            identifier="owner/repo#5",
+            project="proj-1",
+            action="retain",
+            reason="Retain the merged record as provenance",
+            actor="owner",
+        )
+        with _make_http_mock(
+            {"suppressed": True, "authority_generation": 0}
+        ) as http_mock:
+            task_cli._cmd_terminal_provenance("http://localhost:8080", args)
+
+        assert http_mock.call_args.args == (
+            "POST",
+            "http://localhost:8080/api/v1/projects/proj-1/tasks/5/terminal-provenance/retain",
+        )
+        assert http_mock.call_args.kwargs["data"] == {
+            "issue_key": "owner/repo#5",
+            "reason": "Retain the merged record as provenance",
+            "actor_login": "owner",
+        }
+
+    def test_new_revision_posts_reason_and_reports_open_status(self, capsys):
+        args = _make_args(
+            subcommand="terminal-provenance",
+            identifier="TASK-5",
+            project="proj-1",
+            action="new-revision",
+            reason="Start a corrected revision",
+            actor=None,
+        )
+        with _make_http_mock(
+            {"status": "Open", "suppressed": False, "authority_generation": 3}
+        ) as http_mock:
+            task_cli._cmd_terminal_provenance("http://localhost:8080", args)
+
+        assert http_mock.call_args.kwargs["data"] == {
+            "issue_key": "TASK-5",
+            "reason": "Start a corrected revision",
+        }
+        assert "New revision authorized" in capsys.readouterr().out
+
+    def test_reconciles_actor_with_authenticated_session(self, monkeypatch):
+        args = _make_args(
+            subcommand="terminal-provenance",
+            identifier="TASK-5",
+            project="proj-1",
+            action="retain",
+            reason="Retain record",
+            actor="alice",
+        )
+        monkeypatch.setattr(
+            task_cli,
+            "_session_auth",
+            ClientCredentials(username="alice", password="secret"),
+        )
+        with _make_http_mock() as http_mock:
+            task_cli._cmd_terminal_provenance("http://localhost:8080", args)
+
+        assert "actor_login" not in http_mock.call_args.kwargs["data"]
+
+
 class TestCmdAddLabel:
     def test_posts_to_labels_endpoint(self):
         args = _make_args(
@@ -1418,6 +1483,24 @@ class TestBuildParser:
         assert args.status == "Done"
         assert args.summary == "All done"
 
+    def test_terminal_provenance_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "terminal-provenance",
+                "TASK-1",
+                "new-revision",
+                "--project",
+                "proj-1",
+                "--reason",
+                "Corrected implementation is requested",
+            ]
+        )
+        assert args.subcommand == "terminal-provenance"
+        assert args.action == "new-revision"
+        assert args.project == "proj-1"
+        assert args.reason == "Corrected implementation is requested"
+
     def test_submit_subcommand_parses(self):
         parser = task_cli.build_parser()
         args = parser.parse_args(
@@ -1648,6 +1731,42 @@ class TestMainDispatch:
         with patch.object(task_cli, "_cmd_set_status") as mock_fn:
             task_cli.main(["set-status", "TASK-1", "Done"])
         mock_fn.assert_called_once()
+
+    def test_main_dispatches_terminal_provenance(self):
+        with patch.object(task_cli, "_cmd_terminal_provenance") as command:
+            task_cli.main(
+                [
+                    "terminal-provenance",
+                    "TASK-1",
+                    "retain",
+                    "--project",
+                    "proj-1",
+                    "--reason",
+                    "Terminal evidence retained",
+                ]
+            )
+        command.assert_called_once()
+
+    def test_worker_capability_cannot_invoke_terminal_provenance(
+        self, monkeypatch
+    ):
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "scoped-capability")
+        with (
+            patch.object(task_cli, "_cmd_terminal_provenance") as command,
+            pytest.raises(SystemExit, match="not granted"),
+        ):
+            task_cli.main(
+                [
+                    "terminal-provenance",
+                    "TASK-1",
+                    "retain",
+                    "--project",
+                    "proj-1",
+                    "--reason",
+                    "Terminal evidence retained",
+                ]
+            )
+        command.assert_not_called()
 
     def test_main_dispatches_submit(self):
         with patch.object(task_cli, "_cmd_submit") as mock_fn:

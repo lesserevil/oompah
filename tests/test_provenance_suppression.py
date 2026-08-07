@@ -16,7 +16,9 @@ import pytest
 from oompah.provenance_suppression import (
     MARKER_VERSION,
     PROVENANCE_SUPPRESSION_KEY,
+    ProvenanceGuardedTracker,
     ProvenanceSuppression,
+    ProvenanceSuppressionBlockedError,
     ProvenanceSuppressionError,
     RevisionAuthorization,
     authorize_new_revision,
@@ -68,6 +70,34 @@ class _MemoryTracker:
         with self._guard:
             self.set_calls += 1
             self.metadata[key] = copy.deepcopy(value)
+
+
+class _StatusTracker(_MemoryTracker):
+    def __init__(self, metadata: dict[str, object] | None = None) -> None:
+        super().__init__(metadata)
+        self.updates: list[tuple[str, dict[str, object]]] = []
+
+    def update_issue(self, identifier: str, **fields: object) -> None:
+        self.updates.append((identifier, dict(fields)))
+
+    def reopen_issue(self, identifier: str) -> None:
+        self.updates.append((identifier, {"status": "Open"}))
+
+    def mark_needs_human(
+        self, identifier: str, comment: str, author: str = "oompah"
+    ) -> None:
+        self.updates.append(
+            (
+                identifier,
+                {"status": "Needs Human", "comment": comment, "author": author},
+            )
+        )
+
+    def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
+        self.updates.append((identifier, {"status": "Done", "reason": reason}))
+
+    def archive_issue(self, identifier: str) -> None:
+        self.updates.append((identifier, {"status": "Archived"}))
 
 
 def _store(tracker: _MemoryTracker | None = None) -> TerminalAuditMetadataStore:
@@ -482,3 +512,98 @@ class TestMutationGuards:
         assert store.read("TASK-1").is_quarantined
         with pytest.raises(TerminalAuditMetadataQuarantinedError):
             authorize_new_revision(store, "TASK-1", _owner(), "revise")
+
+
+class TestProvenanceGuardedTracker:
+    def _guarded(
+        self, tracker: _StatusTracker, locks: _LockStore
+    ) -> ProvenanceGuardedTracker:
+        return ProvenanceGuardedTracker(tracker, locks, "proj-1")
+
+    def test_central_fence_blocks_every_nonterminal_status_surface(self) -> None:
+        tracker = _StatusTracker()
+        locks = _LockStore()
+        store = TerminalAuditMetadataStore(tracker, locks, "proj-1")
+        mark_provenance_only(store, "TASK-1", _owner(), "retained")
+        guarded = self._guarded(tracker, locks)
+
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            guarded.update_issue("TASK-1", status="Open")
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            guarded.reopen_issue("TASK-1")
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            guarded.mark_needs_human("TASK-1", "operator needed")
+
+        assert tracker.updates == []
+
+    def test_non_status_metadata_remains_available_but_all_status_is_frozen(self) -> None:
+        tracker = _StatusTracker()
+        locks = _LockStore()
+        store = TerminalAuditMetadataStore(tracker, locks, "proj-1")
+        mark_provenance_only(store, "TASK-1", _owner(), "retained")
+        guarded = self._guarded(tracker, locks)
+
+        guarded.update_issue("TASK-1", title="Historical record")
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            guarded.update_issue("TASK-1", status="Merged")
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            guarded.close_issue("TASK-1", reason="already complete")
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            guarded.archive_issue("TASK-1")
+
+        assert tracker.updates == [
+            ("TASK-1", {"title": "Historical record"}),
+        ]
+
+    def test_owner_revision_release_allows_open_and_survives_restart(self) -> None:
+        tracker = _StatusTracker()
+        locks = _LockStore()
+        store = TerminalAuditMetadataStore(tracker, locks, "proj-1")
+        mark_provenance_only(store, "TASK-1", _owner(), "retained")
+
+        first = self._guarded(tracker, locks)
+        with pytest.raises(ProvenanceSuppressionBlockedError):
+            first.update_issue("TASK-1", status="Open")
+
+        authorize_new_revision(store, "TASK-1", _owner(), "new revision")
+        restarted = self._guarded(tracker, locks)
+        restarted.update_issue("TASK-1", status="Open")
+
+        assert tracker.updates == [("TASK-1", {"status": "Open"})]
+
+    def test_unreadable_metadata_fails_closed_without_payload(self) -> None:
+        class _UnreadableTracker(_StatusTracker):
+            def get_metadata(self, _identifier: str) -> dict[str, object]:
+                raise RuntimeError("secret-payload-must-not-escape")
+
+        tracker = _UnreadableTracker()
+        guarded = self._guarded(tracker, _LockStore())
+
+        with pytest.raises(ProvenanceSuppressionBlockedError) as caught:
+            guarded.update_issue("TASK-1", status="Open")
+
+        assert "secret-payload-must-not-escape" not in str(caught.value)
+        assert tracker.updates == []
+
+    def test_unsupported_version_is_sanitized(self) -> None:
+        tracker = _StatusTracker(
+            {
+                METADATA_KEY: {
+                    "version": 1,
+                    "pending_chain": [],
+                    "attempt_history": [],
+                    PROVENANCE_SUPPRESSION_KEY: {
+                        "version": "secret-version-value",
+                    },
+                }
+            }
+        )
+        status = load_provenance_suppression_status(
+            TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1"),
+            "TASK-1",
+        )
+        alert = describe_malformed_marker(status, "TASK-1")
+
+        assert status.malformed is True
+        assert "secret-version-value" not in status.malformed_reason
+        assert "secret-version-value" not in alert

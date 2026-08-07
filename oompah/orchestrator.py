@@ -183,8 +183,9 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.provenance_suppression import (
-    load_provenance_suppression_status,
     describe_malformed_marker,
+    load_provenance_suppression_status,
+    ProvenanceGuardedTracker,
 )
 from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
@@ -3981,11 +3982,21 @@ class Orchestrator:
                 extra["state_branch_name"] = project.state_branch_name
                 if getattr(project, "state_branch_shadow_write", False) is True:
                     extra["state_branch_shadow_write"] = True
-        return factory(
+        tracker = factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
             cwd=project.repo_path,
             **extra,
+        )
+        # This project-scoped facade is the final authority boundary for
+        # autonomous status writes.  Domain-specific callers still perform
+        # early checks for useful diagnostics, but no newly added watchdog or
+        # recovery path can bypass a durable provenance-only marker merely by
+        # calling the tracker adapter directly.
+        return ProvenanceGuardedTracker(
+            tracker,
+            self.project_store,
+            str(project.id),
         )
 
     def _has_managed_projects(self) -> bool:
@@ -4068,20 +4079,18 @@ class Orchestrator:
     ) -> Any:
         """Return the current provenance-suppression status for one issue.
 
-        A ``None`` project_id or an unknown project returns a permissive
-        (not suppressed, not malformed) status: this helper is a fence for
-        watchdog/reconciliation callers, not a policy source of truth, and
-        it must not itself synthesize a suppression state on incomplete
-        input. A tracker error returns a permissive status so a temporary
-        failure to read the marker cannot silently pin an issue as
-        provenance-only.
+        A ``None`` project_id returns a permissive status for legacy
+        standalone trackers, which cannot persist this project-scoped marker.
+        Managed-project lookup and metadata failures fail closed: otherwise a
+        transient cache miss or restart race could reopen the exact terminal
+        provenance record this fence exists to protect.
         """
 
         from oompah.provenance_suppression import (
             SuppressionStatus,
         )
 
-        default = SuppressionStatus(
+        permissive = SuppressionStatus(
             suppressed=False,
             malformed=False,
             malformed_reason="",
@@ -4089,28 +4098,29 @@ class Orchestrator:
             authority_generation=0,
         )
         if not project_id:
-            return default
+            return permissive
+        blocked = SuppressionStatus(
+            suppressed=True,
+            malformed=True,
+            malformed_reason=(
+                "provenance-suppression metadata could not be read safely"
+            ),
+            marker=None,
+            authority_generation=0,
+        )
         try:
             if tracker is None:
-                # Only consult the cached tracker on the dispatch hot path.
-                # Constructing a new tracker synchronously here would cross
-                # a boundary this fence does not own; a temporary miss
-                # returns default (no suppression) rather than delay
-                # dispatch or crash on partially-configured test doubles.
-                cached = getattr(self, "_project_trackers", None) or {}
-                tracker = cached.get(str(project_id))
-                if tracker is None:
-                    return default
+                tracker = self._tracker_for_project(str(project_id))
         except (ProjectError, TrackerError):
-            return default
+            return blocked
         except Exception as exc:  # noqa: BLE001 - fence must never crash callers
             logger.debug(
-                "Skipping provenance-suppression check for %s in %s: %s",
+                "Could not establish provenance-suppression fence for %s in %s: %s",
                 getattr(issue, "identifier", "?"),
                 project_id,
                 exc,
             )
-            return default
+            return blocked
         try:
             store = TerminalAuditMetadataStore(
                 tracker, self.project_store, str(project_id)
@@ -4123,7 +4133,7 @@ class Orchestrator:
                 project_id,
                 exc,
             )
-            return default
+            return blocked
 
     def _honor_provenance_suppression(
         self,

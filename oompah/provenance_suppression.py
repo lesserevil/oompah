@@ -42,7 +42,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from oompah.statuses import TERMINAL_STATUSES, canonicalize_status
+from oompah.statuses import OPEN, TERMINAL_STATUSES, canonicalize_status
 from oompah.terminal_audit import ContributorIdentity
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
@@ -50,6 +50,7 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadataQuarantinedError,
     TerminalAuditMetadataStore,
 )
+from oompah.tracker import TrackerError, TrackerProtocol
 
 
 def _probe_metadata_shape(
@@ -168,7 +169,7 @@ class RevisionAuthorization:
             actor = ContributorIdentity.from_dict(actor_raw)
         except (TypeError, ValueError) as exc:
             raise ProvenanceSuppressionError(
-                f"RevisionAuthorization.actor is invalid: {exc}"
+                "RevisionAuthorization.actor is structurally invalid"
             ) from exc
         kind = raw.get("kind")
         reason = raw.get("reason")
@@ -287,9 +288,11 @@ class ProvenanceSuppression:
             )
         version = raw.get("version")
         if version != MARKER_VERSION:
+            # Persisted tracker metadata is untrusted.  Never interpolate the
+            # attacker-controlled value into an exception that may become an
+            # operator alert or log line.
             raise ProvenanceSuppressionError(
-                f"unsupported ProvenanceSuppression version {version!r}; "
-                f"expected {MARKER_VERSION}"
+                f"unsupported ProvenanceSuppression version; expected {MARKER_VERSION}"
             )
         suppressed = raw.get("suppressed")
         if not isinstance(suppressed, bool):
@@ -319,7 +322,7 @@ class ProvenanceSuppression:
                 actor = ContributorIdentity.from_dict(raw_actor)
             except (TypeError, ValueError) as exc:
                 raise ProvenanceSuppressionError(
-                    f"ProvenanceSuppression.actor is invalid: {exc}"
+                    "ProvenanceSuppression.actor is structurally invalid"
                 ) from exc
         raw_history = raw.get("history", [])
         if not isinstance(raw_history, list):
@@ -412,9 +415,11 @@ def load_provenance_suppression_status(
     ok, payload = _probe_metadata_shape(store, identifier)
     if not ok:
         return SuppressionStatus(
-            suppressed=False,
-            malformed=False,
-            malformed_reason="",
+            suppressed=True,
+            malformed=True,
+            malformed_reason=(
+                "provenance-suppression metadata could not be read safely"
+            ),
             marker=None,
             authority_generation=0,
         )
@@ -457,11 +462,13 @@ def load_provenance_suppression_status(
         )
     try:
         marker = read_provenance_suppression(document)
-    except ProvenanceSuppressionError as exc:
+    except ProvenanceSuppressionError:
         return SuppressionStatus(
             suppressed=True,
             malformed=True,
-            malformed_reason=str(exc),
+            malformed_reason=(
+                "stored provenance-suppression marker is malformed"
+            ),
             marker=None,
             authority_generation=0,
         )
@@ -491,11 +498,11 @@ def describe_malformed_marker(status: SuppressionStatus, identifier: str) -> str
     a per-task alert with the identifier already scoped it in.
     """
 
-    reason = status.malformed_reason or "malformed provenance-suppression metadata"
     return (
         f"Provenance-suppression metadata for {identifier} is malformed and cannot "
         "be honored automatically; leaving status unchanged. "
-        f"Reason: {reason}. An operator must resolve the metadata before any "
+        "The marker is unsupported, structurally invalid, or temporarily "
+        "unreadable. An operator must resolve the metadata before any "
         "watchdog or reconciliation path may reopen or redispatch this task."
     )
 
@@ -562,7 +569,7 @@ def mark_provenance_only(
         except ProvenanceSuppressionError as exc:
             raise ProvenanceSuppressionError(
                 "cannot mark a task provenance-only while its stored marker is "
-                f"malformed: {exc}"
+                "structurally invalid"
             ) from exc
         if existing is not None and existing.suppressed:
             outcome["marker"] = existing
@@ -637,7 +644,7 @@ def authorize_new_revision(
         except ProvenanceSuppressionError as exc:
             raise ProvenanceSuppressionError(
                 "cannot authorize a new revision while the stored provenance "
-                f"marker is malformed: {exc}"
+                "marker is structurally invalid"
             ) from exc
         base_history = existing.history if existing is not None else tuple()
         base_generation = (
@@ -679,6 +686,177 @@ def authorize_new_revision(
     return SuppressionMutationResult(marker=marker, changed=bool(outcome["changed"]))
 
 
+class ProvenanceSuppressionBlockedError(TrackerError):
+    """A durable provenance fence refused a tracker status mutation."""
+
+
+class ProvenanceOwnerRevisionNotFoundError(TrackerError):
+    """The owner-authorized revision target does not exist in the project."""
+
+
+class ProvenanceOwnerRevisionStateError(TrackerError):
+    """The target is not in a state eligible for an owner revision."""
+
+
+class ProvenanceGuardedTracker:
+    """Project-scoped tracker facade enforcing provenance suppression.
+
+    Individual watchdog and reconciliation callers are useful places to emit
+    domain-specific diagnostics, but they are not a sufficient authority
+    boundary: new recovery paths can otherwise forget the marker and reopen a
+    terminal record.  Every managed-project tracker returned by the
+    orchestrator is wrapped in this facade, making ``update_issue`` and the
+    protocol's status-changing convenience methods share one durable fence.
+
+    The dedicated :meth:`authorize_owner_revision` operation encapsulates its
+    fail-safe Open write and marker clearance under the same project lock;
+    callers cannot obtain a general-purpose raw status writer from this
+    facade.  Every ordinary status-changing method is frozen while suppression
+    is active, including terminal-to-terminal audit or auto-archive writes.
+    Malformed or unreadable marker metadata likewise rejects all status
+    mutations until an operator repairs it; error text never includes the
+    persisted payload.
+    """
+
+    def __init__(
+        self,
+        tracker: TrackerProtocol,
+        project_store: Any,
+        project_id: str,
+    ) -> None:
+        if not isinstance(project_id, str) or not project_id.strip():
+            raise ValueError("project_id must be a non-empty string")
+        self._provenance_tracker = tracker
+        self._provenance_project_store = project_store
+        self._provenance_project_id = project_id
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._provenance_tracker, name)
+
+    def _assert_status_mutation_allowed(
+        self,
+        identifier: str,
+    ) -> None:
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            store = TerminalAuditMetadataStore(
+                self._provenance_tracker,
+                self._provenance_project_store,
+                self._provenance_project_id,
+            )
+            status = load_provenance_suppression_status(store, identifier)
+            if status.malformed:
+                raise ProvenanceSuppressionBlockedError(
+                    f"Status mutation for {identifier} is blocked because its "
+                    "provenance-suppression metadata is malformed or unreadable."
+                )
+            if status.suppressed:
+                raise ProvenanceSuppressionBlockedError(
+                    f"Status mutation for {identifier} is blocked because the task "
+                    "is retained only as terminal provenance; a project owner must "
+                    "authorize a new revision first."
+                )
+
+    def update_issue(self, identifier: str, **fields: str) -> None:
+        if "status" not in fields:
+            self._provenance_tracker.update_issue(identifier, **fields)
+            return
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            self._assert_status_mutation_allowed(identifier)
+            self._provenance_tracker.update_issue(identifier, **fields)
+
+    def reopen_issue(self, identifier: str) -> None:
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            self._assert_status_mutation_allowed(identifier)
+            self._provenance_tracker.reopen_issue(identifier)
+
+    def mark_needs_human(
+        self,
+        identifier: str,
+        comment: str,
+        author: str = "oompah",
+    ) -> None:
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            self._assert_status_mutation_allowed(identifier)
+            self._provenance_tracker.mark_needs_human(
+                identifier,
+                comment,
+                author=author,
+            )
+
+    def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            self._assert_status_mutation_allowed(identifier)
+            self._provenance_tracker.close_issue(identifier, reason=reason)
+
+    def archive_issue(self, identifier: str) -> None:
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            self._assert_status_mutation_allowed(identifier)
+            self._provenance_tracker.archive_issue(identifier)
+
+    def authorize_owner_revision(
+        self,
+        identifier: str,
+        actor: ContributorIdentity,
+        reason: str,
+    ) -> SuppressionMutationResult:
+        """Open one suppressed record and durably authorize its new revision.
+
+        The caller must authenticate ``actor`` as the project owner before
+        invoking this method.  The narrowly scoped operation deliberately
+        exposes neither the underlying tracker nor an arbitrary status value.
+        Open is persisted before suppression is cleared, so an interrupted
+        request remains fail-closed as Open + suppressed and can be retried.
+        """
+
+        if not isinstance(actor, ContributorIdentity):
+            raise TypeError("actor must be a ContributorIdentity")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            current = self._provenance_tracker.fetch_issue_detail(identifier)
+            if current is None:
+                raise ProvenanceOwnerRevisionNotFoundError(
+                    "owner revision target was not found"
+                )
+            store = TerminalAuditMetadataStore(
+                self._provenance_tracker,
+                self._provenance_project_store,
+                self._provenance_project_id,
+            )
+            suppression = load_provenance_suppression_status(store, identifier)
+            if suppression.malformed:
+                raise ProvenanceSuppressionError(
+                    "stored provenance-suppression metadata is structurally invalid"
+                )
+            if not suppression.suppressed:
+                raise ProvenanceOwnerRevisionStateError(
+                    "owner revision requires an actively suppressed record"
+                )
+            current_status = canonicalize_status(current.state)
+            if current_status != OPEN and current_status not in TERMINAL_STATUSES:
+                raise ProvenanceOwnerRevisionStateError(
+                    "owner revision requires a terminal or Open retry state"
+                )
+            if current_status != OPEN:
+                self._provenance_tracker.update_issue(identifier, status=OPEN)
+            return authorize_new_revision(store, identifier, actor, reason)
+
+
 def issue_is_terminal(issue: Any) -> bool:
     """Return whether ``issue`` currently occupies a terminal lifecycle state."""
 
@@ -689,8 +867,12 @@ def issue_is_terminal(issue: Any) -> bool:
 __all__ = [
     "MARKER_VERSION",
     "PROVENANCE_SUPPRESSION_KEY",
+    "ProvenanceGuardedTracker",
     "ProvenanceSuppression",
+    "ProvenanceSuppressionBlockedError",
     "ProvenanceSuppressionError",
+    "ProvenanceOwnerRevisionNotFoundError",
+    "ProvenanceOwnerRevisionStateError",
     "RevisionAuthorization",
     "SuppressionMutationResult",
     "SuppressionStatus",

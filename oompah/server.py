@@ -125,6 +125,15 @@ from oompah.terminal_audit_metadata import (
     METADATA_KEY as TERMINAL_AUDIT_METADATA_KEY,
     TerminalAuditMetadata,
     TerminalAuditMetadataError,
+    TerminalAuditMetadataQuarantinedError,
+    TerminalAuditMetadataStore,
+)
+from oompah.provenance_suppression import (
+    ProvenanceOwnerRevisionNotFoundError,
+    ProvenanceOwnerRevisionStateError,
+    ProvenanceSuppressionError,
+    issue_is_terminal,
+    mark_provenance_only,
 )
 from oompah.validation_resource_lease import (
     VALIDATION_KIND_WORKER,
@@ -197,6 +206,7 @@ from oompah.transition_gate import (
     build_gate_rejection_comment,
     build_owner_override_comment,
     check_intake_transition,
+    is_project_owner,
 )
 from oompah.agent_profile_store import (
     AgentProfileStore,
@@ -11737,6 +11747,337 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     await _publish_owner_claim_state(orch)
     await broadcast_issues()
     return JSONResponse({"released": removed})
+
+
+def _provenance_suppression_context(
+    orch,
+    project_id: str,
+    identifier: str,
+    body: dict[str, Any],
+):
+    """Resolve one project-scoped task for provenance-suppression control.
+
+    The route includes a safe identifier placeholder for GitHub-backed tasks;
+    callers carry their full identifier in ``issue_key``.  Always resolve the
+    tracker through the supplied project so this owner-only operation cannot
+    act on an identically named task in another project.
+    """
+
+    project = orch.project_store.get(project_id)
+    if project is None:
+        return None, None, None, None, JSONResponse(
+            {"error": {"code": "not_found", "message": "project not found"}},
+            status_code=404,
+        )
+    resolved_identifier = _resolve_identifier(identifier, body)
+    if not resolved_identifier:
+        return None, None, None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "issue_key must be a non-empty string",
+                }
+            },
+            status_code=400,
+        )
+    try:
+        tracker = orch._tracker_for_project(project_id)
+        resolved_identifier = _canonicalize_project_issue_identifier(
+            tracker, resolved_identifier
+        )
+        issue = tracker.fetch_issue_detail(resolved_identifier)
+    except Exception as exc:  # noqa: BLE001 - tracker is an external boundary
+        logger.debug(
+            "Provenance-suppression lookup failed for %s/%s (%s)",
+            project_id,
+            resolved_identifier,
+            type(exc).__name__,
+        )
+        tracker = None
+        issue = None
+    if tracker is None or issue is None:
+        return None, None, None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": "task was not found in this project",
+                }
+            },
+            status_code=404,
+        )
+    issue.project_id = project_id
+    return project, tracker, issue, resolved_identifier, None
+
+
+def _provenance_suppression_owner(
+    body: dict[str, Any], request: Request, project: Any
+) -> tuple[str, JSONResponse | None]:
+    """Bind suppression control to an authenticated project owner.
+
+    This endpoint deliberately does not retain the legacy unauthenticated
+    actor fallback.  Clearing the durable dispatch fence is an explicit owner
+    authority change and must be attributable to a server-authenticated Basic
+    principal.
+    """
+
+    principal = _authenticated_principal(request)
+    if (
+        principal is None
+        or not principal.is_authenticated
+        or principal.source != "basic"
+    ):
+        return "", JSONResponse(
+            {
+                "error": {
+                    "code": "authentication",
+                    "message": (
+                        "Provenance suppression control requires an "
+                        "authenticated project owner."
+                    ),
+                }
+            },
+            status_code=401,
+        )
+    actor_login, actor_error = _resolve_authorization_actor(body, request)
+    if actor_error is not None:
+        return "", actor_error
+    if not actor_login or not is_project_owner(actor_login, project):
+        return "", JSONResponse(
+            {
+                "error": {
+                    "code": "owner_required",
+                    "message": (
+                        "Only an authenticated project owner may control "
+                        "terminal provenance suppression."
+                    ),
+                }
+            },
+            status_code=403,
+        )
+    return actor_login, None
+
+
+def _provenance_suppression_reason(
+    body: dict[str, Any],
+) -> tuple[str, JSONResponse | None]:
+    """Require the durable audit reason used by both owner actions."""
+
+    raw_reason = body.get("reason")
+    reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
+    if reason:
+        return reason, None
+    return "", JSONResponse(
+        {
+            "error": {
+                "code": "validation",
+                "message": "reason is required and must be a non-empty string",
+            }
+        },
+        status_code=400,
+    )
+
+
+async def _publish_provenance_suppression_change(
+    orch, project_id: str, identifier: str
+) -> None:
+    """Invalidate derived task state after a durable authority mutation."""
+
+    _api_cache.invalidate("issues:all")
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+    request_refresh = getattr(orch, "request_refresh", None)
+    if callable(request_refresh):
+        request_refresh()
+    await broadcast_issues()
+
+
+@app.post(
+    "/api/v1/projects/{project_id}/tasks/{identifier}/terminal-provenance/{action}"
+)
+async def api_terminal_provenance_action(
+    project_id: str, identifier: str, action: str, request: Request
+):
+    """Apply an authenticated owner action to a terminal provenance record.
+
+    ``retain`` marks a terminal record as provenance-only.  ``new-revision``
+    asks the guarded tracker to restore lifecycle status to Open and then
+    clear suppression while bumping the durable
+    authority generation.  That order makes a failed request fail closed: a
+    retry sees the intentional Open-but-still-suppressed partial state and
+    only needs to complete the metadata authorization.
+    """
+
+    normalized_action = action.strip().lower()
+    if normalized_action not in {"retain", "new-revision"}:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "action must be either 'retain' or 'new-revision'",
+                }
+            },
+            status_code=400,
+        )
+    body, error = await _owner_claim_request_body(request)
+    if error is not None:
+        return error
+    assert body is not None
+    reason, error = _provenance_suppression_reason(body)
+    if error is not None:
+        return error
+    orch = _get_orchestrator()
+    project_for_auth = orch.project_store.get(project_id)
+    if project_for_auth is None:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": "project not found"}},
+            status_code=404,
+        )
+    # Authenticate and bind the actor before task lookup.  Besides avoiding
+    # actor spoofing, this keeps unknown-task details behind the project-owner
+    # boundary.
+    actor_login, error = _provenance_suppression_owner(
+        body, request, project_for_auth
+    )
+    if error is not None:
+        return error
+    project, tracker, issue, resolved_identifier, error = (
+        _provenance_suppression_context(orch, project_id, identifier, body)
+    )
+    if error is not None:
+        return error
+    assert (
+        project is not None
+        and tracker is not None
+        and issue is not None
+        and resolved_identifier is not None
+    )
+
+    store = TerminalAuditMetadataStore(tracker, orch.project_store, project_id)
+    try:
+        if normalized_action == "retain":
+            async with _submission_authority_lock(orch, issue.id):
+                with orch.project_store.project_write_lock(project_id):
+                    current = tracker.fetch_issue_detail(resolved_identifier)
+                    if current is None:
+                        return JSONResponse(
+                            {
+                                "error": {
+                                    "code": "not_found",
+                                    "message": "task was not found in this project",
+                                }
+                            },
+                            status_code=404,
+                        )
+                    if not issue_is_terminal(current):
+                        return JSONResponse(
+                            {
+                                "error": {
+                                    "code": "invalid_state",
+                                    "message": "Only an existing terminal task may be retained as provenance-only.",
+                                }
+                            },
+                            status_code=409,
+                        )
+                    result = mark_provenance_only(
+                        store,
+                        resolved_identifier,
+                        ContributorIdentity(actor_login, "api"),
+                        reason,
+                    )
+                    status = current.state
+        else:
+            async with _submission_authority_lock(orch, issue.id):
+                owner_revision = getattr(tracker, "authorize_owner_revision", None)
+                if not callable(owner_revision):
+                    logger.error(
+                        "Managed tracker for %s lacks the provenance authority facade",
+                        project_id,
+                    )
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "unavailable",
+                                "message": "The terminal provenance action is unavailable for this project.",
+                            }
+                        },
+                        status_code=503,
+                    )
+                result = await _run_api_io(
+                    owner_revision,
+                    resolved_identifier,
+                    ContributorIdentity(actor_login, "api"),
+                    reason,
+                )
+                status = OPEN
+    except ProvenanceOwnerRevisionNotFoundError:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": "task was not found in this project",
+                }
+            },
+            status_code=404,
+        )
+    except ProvenanceOwnerRevisionStateError:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "invalid_state",
+                    "message": "A new revision requires a currently suppressed terminal task or Open retry state.",
+                }
+            },
+            status_code=409,
+        )
+    except (ProvenanceSuppressionError, TerminalAuditMetadataQuarantinedError) as exc:
+        logger.warning(
+            "Terminal provenance action %s rejected for %s/%s (%s)",
+            normalized_action,
+            project_id,
+            resolved_identifier,
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "suppression_metadata_invalid",
+                    "message": "Existing provenance-suppression metadata must be repaired before it can be changed.",
+                }
+            },
+            status_code=409,
+        )
+    except Exception as exc:  # noqa: BLE001 - tracker persistence boundary
+        logger.error(
+            "Unable to apply terminal provenance action %s to %s/%s (%s)",
+            normalized_action,
+            project_id,
+            resolved_identifier,
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "The terminal provenance action could not be persisted.",
+                }
+            },
+            status_code=503,
+        )
+    await _publish_provenance_suppression_change(
+        orch, project_id, resolved_identifier
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "action": normalized_action,
+            "project_id": project_id,
+            "identifier": resolved_identifier,
+            "owner_login": actor_login,
+            "status": status,
+            "suppressed": result.marker.suppressed,
+            "authority_generation": result.marker.authority_generation,
+            "changed": result.changed,
+        }
+    )
 
 
 @app.patch("/api/v1/issues/{identifier}")

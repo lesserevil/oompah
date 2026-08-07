@@ -42,6 +42,24 @@ ALLOWLISTED_CALLS: dict[AllowlistKey, str] = {
         "update_issue",
     ): "Low-level tracker persistence implementation for Archived.",
     (
+        "oompah/provenance_suppression.py",
+        "ProvenanceGuardedTracker.close_issue",
+        "close_issue",
+    ): (
+        "Final managed-tracker authority facade: it rejects every terminal or "
+        "nonterminal status write while durable provenance suppression is active, "
+        "then delegates the already-authorized protocol operation unchanged."
+    ),
+    (
+        "oompah/provenance_suppression.py",
+        "ProvenanceGuardedTracker.archive_issue",
+        "archive_issue",
+    ): (
+        "Final managed-tracker authority facade: it rejects every terminal or "
+        "nonterminal status write while durable provenance suppression is active, "
+        "then delegates the already-authorized protocol operation unchanged."
+    ),
+    (
         "oompah/orchestrator.py",
         "Orchestrator._reset_orphaned_in_progress",
         "update_issue",
