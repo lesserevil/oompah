@@ -61,6 +61,10 @@ def _orchestrator() -> Orchestrator:
         )
     )
     orchestrator._record_audit_outcome_ownership = MagicMock()
+    orchestrator._audit_reservation_key_for_issue = MagicMock(
+        return_value="audit-reservation-key"
+    )
+    orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
     orchestrator._audit_metrics = {"exhaustion_count": 0, "last_error": None}
     return orchestrator
 
@@ -87,6 +91,10 @@ def test_workspace_failure_exhaustion_is_not_reported_as_no_auditor() -> None:
     assert result.failure_classification == FailureClassification.INFRASTRUCTURE_ERROR
     assert "rearm this terminal audit" in result.message
     assert "move the task back to Open" not in result.message
+    orchestrator._audit_reservation_key_for_issue.assert_called_once_with(issue)
+    orchestrator._reconcile_and_release_audit_budget.assert_called_once_with(
+        "audit-reservation-key"
+    )
 
 
 def test_genuine_candidate_exhaustion_remains_no_auditor() -> None:
@@ -109,6 +117,10 @@ def test_genuine_candidate_exhaustion_remains_no_auditor() -> None:
     result = orchestrator.terminal_transition_coordinator.apply_audit_result.await_args.args[1]
     assert result.verdict == Verdict.FAIL
     assert result.failure_classification == FailureClassification.NO_AUDITOR
+    orchestrator._audit_reservation_key_for_issue.assert_called_once_with(issue)
+    orchestrator._reconcile_and_release_audit_budget.assert_called_once_with(
+        "audit-reservation-key"
+    )
 
 
 def test_auditor_cleanup_targets_attempt_workspace_only() -> None:
@@ -284,6 +296,10 @@ def test_unsafe_metadata_archive_is_not_recorded_as_transport_failure() -> None:
         )
     )
     orchestrator._record_audit_outcome_ownership = MagicMock()
+    orchestrator._audit_reservation_key_for_issue = MagicMock(
+        return_value="metadata-audit-reservation-key"
+    )
+    orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
     orchestrator._audit_metrics = {"last_error": None}
     issue, record = _metadata_issue_and_record()
     snapshot = orchestrator._revisionless_archive_evidence(issue, record)
@@ -297,3 +313,7 @@ def test_unsafe_metadata_archive_is_not_recorded_as_transport_failure() -> None:
     assert result.verdict == Verdict.FAIL
     assert result.failure_classification == FailureClassification.UNSAFE_ARCHIVE
     assert result.failure_classification != FailureClassification.INFRASTRUCTURE_ERROR
+    orchestrator._audit_reservation_key_for_issue.assert_called_once_with(issue)
+    orchestrator._reconcile_and_release_audit_budget.assert_called_once_with(
+        "metadata-audit-reservation-key"
+    )
