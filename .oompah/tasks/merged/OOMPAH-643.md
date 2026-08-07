@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T20:09:27.272522Z'
+updated_at: '2026-08-07T20:09:33.662696Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: ''
