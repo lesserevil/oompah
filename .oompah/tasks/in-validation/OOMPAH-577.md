@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T19:39:16.161809Z'
+updated_at: '2026-08-07T19:39:53.754870Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -173,13 +173,26 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T19:39:14.737952+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T19:39:24.737925+00:00'
+    - version: 1
+      attempt_id: attempt-b33f271a7675
+      target_state: Archived
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 80e2c5927e01fa8dd501f592e9e8062ec6229b01926107d735232bfc4bf86daf
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T19:39:51.715218+00:00'
+      ended_at: '2026-08-07T19:39:51.715218+00:00'
+      failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+      next_retry_at: '2026-08-07T19:40:11.715187+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T06:08:51.515138+00:00'
-    updated_at: '2026-08-07T19:39:14.737952+00:00'
+    updated_at: '2026-08-07T19:39:51.715218+00:00'
   - version: 1
     audit_id: audit-2344c7a84197
     project_id: proj-14849f1b
@@ -266,6 +279,19 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T19:39:14.737952+00:00'
     failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
     next_retry_at: '2026-08-07T19:39:24.737925+00:00'
+  - version: 1
+    attempt_id: attempt-b33f271a7675
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 80e2c5927e01fa8dd501f592e9e8062ec6229b01926107d735232bfc4bf86daf
+    failure_classification: infrastructure_error
+    created_at: '2026-08-07T19:39:51.715218+00:00'
+    ended_at: '2026-08-07T19:39:51.715218+00:00'
+    failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+    next_retry_at: '2026-08-07T19:40:11.715187+00:00'
 oompah.task_costs:
   total_input_tokens: 564411
   total_output_tokens: 8745
