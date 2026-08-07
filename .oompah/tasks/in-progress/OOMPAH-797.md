@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-797
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Qualify the workflow engine with a multi-project 100-task soak
 parent: OOMPAH-767
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:28.518646Z'
-updated_at: '2026-08-04T21:31:16.149778Z'
+updated_at: '2026-08-07T18:22:47.568474Z'
 work_branch: null
 target_branch: null
 review_url: null
