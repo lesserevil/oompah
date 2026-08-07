@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-08-07T10:03:18.156240Z'
+updated_at: '2026-08-07T10:03:46.357059Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -219,7 +219,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -269,7 +269,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-575
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -350,6 +350,44 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:10:45.933348+00:00'
+  - version: 1
+    audit_id: audit-2098f15b1a6b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f25dcaee904569df7b5387a5b6f7b6098dafa67095408d61235428f1a854e173
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T10:03:42.548044+00:00'
+    selected_ref: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+    selected_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+  - version: 1
+    audit_id: audit-c3d3f39ba02f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f25dcaee904569df7b5387a5b6f7b6098dafa67095408d61235428f1a854e173
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T10:03:42.548044+00:00'
+    selected_ref: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+    selected_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
   attempt_history:
   - version: 1
     attempt_id: attempt-f2dbc8673586
