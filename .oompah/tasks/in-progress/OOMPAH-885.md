@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-885
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-07T12:41:29.315884Z'
-updated_at: '2026-08-07T12:42:50.614737Z'
+updated_at: '2026-08-07T12:43:07.572815Z'
 work_branch: null
 target_branch: main
 review_url: null
