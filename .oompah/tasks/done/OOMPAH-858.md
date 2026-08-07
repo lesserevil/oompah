@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-07T09:12:12.065140Z'
+updated_at: '2026-08-07T09:12:22.607635Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -139,7 +139,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 293cd0442ad02b5c12cd5085db8c265202d73898d61b953b98c0d3cfcf1f1935
     audit_ids:
     - audit-fb1d28300666
-    kind: result
+    - audit-606c3a2d184d
+    kind: override
     applied: true
     retired_at: '2026-08-06T20:25:02.271305+00:00'
   oompah.terminal_audit_result_intents:
@@ -155,6 +156,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T19:06:36.218527+00:00'
     applied_at: '2026-08-06T19:06:44.262912+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-858
     audit_id: audit-fb1d28300666
@@ -167,6 +169,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T20:25:02.271329+00:00'
     applied_at: '2026-08-06T20:25:10.819852+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-435de70a83d2
@@ -186,7 +189,7 @@ oompah.terminal_audit:
       so retain the already-validated Done outcome while OOMPAH-876 fixes systemic
       auditor retry/capacity handling.
     created_at: '2026-08-07T09:12:05.242628+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -656,5 +659,12 @@ author: oompah
 created: 2026-08-07 09:11
 ---
 Owner resolution: the exact integrated repair at 72cc4481c already received an independent static ACCEPT and passed its 154-test serial and parallel focused matrices plus secret scan. Terminal audit is exhausted only because every verdict-capable configured candidate contributed to this unusually long repair history. Applying a one-task owner terminal override rather than reopening validated implementation. OOMPAH-876 tracks the systemic auditor-capacity/retry defect.
+---
+author: oompah
+created: 2026-08-07 09:12
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Exact integrated head 72cc4481c has independent acceptance and green serial/parallel focused validation; all configured verdict-capable auditors are contributor-excluded, so retain the already-validated Done outcome while OOMPAH-876 fixes systemic auditor retry/capacity handling.
 ---
 <!-- COMMENTS:END -->

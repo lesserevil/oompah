@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T09:09:19.148041Z'
+updated_at: '2026-08-07T09:12:32.473651Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -249,5 +249,10 @@ author: oompah
 created: 2026-08-07 09:09
 ---
 Understanding: I will trace exact-gate cancellation from lease recording through quality finalization, queue recovery, CI-fix dispatch, owner claims, and alert projection. I’ll preserve test-failure behavior, add focused regression coverage for cancellation/resume/takeover, then run the affected suites.
+---
+author: oompah
+created: 2026-08-07 09:12
+---
+Discovery: exact in-process gate interrupts already retry, but durable ValidationResourceLease cancellation can terminate the subprocess without telling BranchQualityGate, so the resulting nonzero exit is misclassified as ci_failure. Lease tombstones also have no cancellation provenance. Separately, retry dispatch’s final pre-start checks do not consult the persisted temporary human-only takeover fence.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T09:12:06.033354Z'
+updated_at: '2026-08-07T09:12:26.539069Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/607
@@ -118,9 +118,9 @@ oompah.integration:
   task_branch: OOMPAH-641
   base_branch: main
   base_sha: d4501e4a208a9295776854e477414e81c1b6b69c
-  head_sha: da31ef4be079544368bd09899b4e248f2953b3ee
-  submitted_at: '2026-07-31T06:20:08.268662+00:00'
-  updated_at: '2026-07-31T06:20:33.067178+00:00'
+  head_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+  submitted_at: '2026-08-07T09:12:01.013972+00:00'
+  updated_at: '2026-08-07T09:12:01.013972+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/607
 oompah.review_number: '607'
 oompah.work_branch: OOMPAH-641
@@ -579,5 +579,10 @@ author: oompah
 created: 2026-08-07 09:11
 ---
 COMPLETION: Hardened shared-child review handoff to normalize both work_branch and branch_name to the authoritative epic branch before returning, while keeping metadata persistence best-effort and avoiding redundant writes. Added partial-identity regression coverage and the exact EXOCOMP-57 stale-own-branch independent-reconciliation regression. Verification: focused epic/reconciliation suites 250 passed; terminal mutation scan 8/8 allowlisted; full gate 15,864 passed, 7 skipped, 1 xfailed, with the single Makefile setup assertion reproduced cleanly after removing the test-runtime override. Commit 5f51f13ac pushed to origin/OOMPAH-641; worktree clean and up to date.
+---
+author: oompah
+created: 2026-08-07 09:12
+---
+Hardened shared epic child branch identity and added stale-own-branch reconciliation regressions; tests and terminal mutation scan pass.
 ---
 <!-- COMMENTS:END -->
