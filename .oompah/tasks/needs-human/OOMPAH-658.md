@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T14:19:51.989157Z'
+updated_at: '2026-08-07T14:20:02.705655Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -236,8 +236,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-28a6f007cbe4
-    applied: false
+    applied: true
     created_at: '2026-08-07T14:19:48.965656+00:00'
+    applied_at: '2026-08-07T14:19:59.714521+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1161,5 +1162,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 56s
 - Log: OOMPAH-658__20260807T141111Z.jsonl
+---
+author: oompah
+created: 2026-08-07 14:19
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

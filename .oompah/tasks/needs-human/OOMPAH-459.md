@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:15:29.241619Z'
+updated_at: '2026-08-07T14:20:14.403485Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -65,6 +65,31 @@ oompah.work_branch: epic-OOMPAH-459
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    infrastructure-exhausted-audit-2f8a02a3fbeb-3: '2026-08-07T14:20:03.985054+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Done
+    evidence_fingerprint: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+    audit_ids:
+    - audit-2f8a02a3fbeb
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T14:20:03.985061+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    audit_id: audit-2f8a02a3fbeb
+    attempt_id: infrastructure-exhausted-audit-2f8a02a3fbeb-3
+    target_state: Done
+    evidence_fingerprint: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+    status: Needs Human
+    audit_ids:
+    - audit-2f8a02a3fbeb
+    applied: true
+    created_at: '2026-08-07T14:20:03.985071+00:00'
+    applied_at: '2026-08-07T14:20:11.409370+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -72,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -117,13 +142,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T14:15:27.791816+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T14:16:07.791803+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-2f8a02a3fbeb-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T14:20:03.984974+00:00'
+      completed_at: '2026-08-07T14:20:03.984974+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Merged
     created_at: '2026-07-30T04:16:21.411299+00:00'
-    updated_at: '2026-08-07T14:15:27.791816+00:00'
+    updated_at: '2026-08-07T14:20:03.984974+00:00'
   - version: 1
     audit_id: audit-f48fab3abffb
     project_id: proj-14849f1b
@@ -423,5 +460,12 @@ author: oompah
 created: 2026-07-30 04:16
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 14:20
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->

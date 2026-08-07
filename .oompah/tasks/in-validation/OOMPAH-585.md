@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-07T14:19:05.493495Z'
+updated_at: '2026-08-07T14:20:20.702032Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -925,7 +925,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -950,6 +950,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T14:18:45.834327+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-07T14:18:55.834285+00:00'
+    - version: 1
+      attempt_id: attempt-59207a92fcc6
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+      created_at: '2026-08-07T14:20:15.531228+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T14:20:15.531228+00:00'
+      branch_key: epic-OOMPAH-585
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -958,7 +974,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:13:05.253827+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T14:18:45.834327+00:00'
+    updated_at: '2026-08-07T14:20:15.531228+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -1293,6 +1309,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T14:18:45.834327+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T14:18:55.834285+00:00'
+  - version: 1
+    attempt_id: attempt-59207a92fcc6
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    created_at: '2026-08-07T14:20:15.531228+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T14:20:15.531228+00:00'
+    branch_key: epic-OOMPAH-585
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 559
   total_output_tokens: 16346
@@ -2278,5 +2310,10 @@ author: oompah
 created: 2026-08-07 14:19
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-07 14:20
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
