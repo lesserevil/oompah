@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T21:57:53.996693Z'
+updated_at: '2026-08-07T22:02:50.501578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-07 21:57
 ---
 Direct fix implemented in isolated branch OOMPAH-906. Xdist workers now preserve the quality gate's trusted pre-worker HOME outside task-writable high-churn tmp roots, fail closed when a configured gate HOME overlaps /tmp, /var/tmp, or configured gate temp/run roots, and remove the external per-worker HOME during teardown. Evidence so far: worker-isolation unit suite 20 passed; the exact three OOMPAH-869 managed-native failures passed 3/3 under simulated gate + xdist and the canonical broker; broader parallel/Codex/quality-gate suite passed 174/174; Ruff, py_compile, diff check, and secret scan pass. Final xdist module rerun and commit/push remain.
+---
+author: oompah
+created: 2026-08-07 22:02
+---
+Implementation is committed and pushed on origin/OOMPAH-906 at exact SHA 273c3ddb683abe295f2c878b022d899896ebd618. The change preserves the trusted exact-gate HOME for per-worker native-validation guard state, continues to isolate temp/XDG state beneath each worker run root, fails closed for HOME under /tmp, /var/tmp, or configured writable gate roots, and cleans external worker HOME state during teardown. Validation: 20 focused worker-isolation tests passed; the exact three OOMPAH-869 false-failure nodes passed 3/3 under simulated gate + real xdist using the canonical broker; 174 affected parallel/Codex/quality-gate tests passed; final Ruff, py_compile, git diff --check, and secret scan passed. uv.lock setup-only drift from local environment creation was reverted and excluded. Branch is clean and exactly matches origin. Handoff: cherry-pick 273c3ddb683abe295f2c878b022d899896ebd618 into the systemic composition; do not mutate OOMPAH-869's review head.
 ---
 <!-- COMMENTS:END -->
