@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T07:10:20.702813Z'
+updated_at: '2026-08-07T07:10:45.108801Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -47,7 +47,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-577
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -71,7 +71,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f6ea0cf6c239
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -82,13 +82,18 @@ oompah.terminal_audit:
       started_at: '2026-08-07T07:10:03.150107+00:00'
       branch_key: OOMPAH-577
       candidate_rotation_count: 1
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-07T07:10:29.385257+00:00'
+      failure_reason: 'terminal audit evidence has no safely resolvable revision for
+        OOMPAH-577 (tried: origin/OOMPAH-577)'
+      next_retry_at: '2026-08-07T07:10:49.385204+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Review
     created_at: '2026-07-31T06:06:13.348111+00:00'
-    updated_at: '2026-08-07T07:10:03.150107+00:00'
+    updated_at: '2026-08-07T07:10:29.385257+00:00'
   - version: 1
     audit_id: audit-534d62772883
     project_id: proj-14849f1b
@@ -142,7 +147,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-f6ea0cf6c239
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,6 +158,11 @@ oompah.terminal_audit:
     started_at: '2026-08-07T07:10:03.150107+00:00'
     branch_key: OOMPAH-577
     candidate_rotation_count: 1
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-07T07:10:29.385257+00:00'
+    failure_reason: 'terminal audit evidence has no safely resolvable revision for
+      OOMPAH-577 (tried: origin/OOMPAH-577)'
+    next_retry_at: '2026-08-07T07:10:49.385204+00:00'
 oompah.task_costs:
   total_input_tokens: 22
   total_output_tokens: 549
@@ -237,5 +247,10 @@ Run #2 [attempt=2, profile=auditor, role=— -> unknown/unknown]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 9s
+---
+author: oompah
+created: 2026-08-07 07:10
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-577 (tried: origin/OOMPAH-577). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T06:16:24.136979Z'
+updated_at: '2026-08-07T07:10:49.551077Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -209,6 +209,23 @@ oompah.terminal_audit:
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:06:07.644926+00:00'
+  - version: 1
+    audit_id: audit-f297117f1fd8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7a57879e56dad192d61669dd1eacfdf9d6ecf0b8eafcb99b5380e2c65132475
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T07:10:45.933348+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f2dbc8673586

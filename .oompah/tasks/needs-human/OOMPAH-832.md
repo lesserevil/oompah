@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T07:10:26.174497Z'
+updated_at: '2026-08-07T07:10:43.008414Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -103,6 +103,31 @@ oompah.target_branch: main
 oompah.review_head: faa217b41a87ed3a1869a4fe38947778a55fe4fe
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-0fbeacc19e56-1: '2026-08-07T07:10:31.725780+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-832
+    target_state: Done
+    evidence_fingerprint: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+    audit_ids:
+    - audit-0fbeacc19e56
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:10:31.725793+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-832
+    audit_id: audit-0fbeacc19e56
+    attempt_id: no-auditor-audit-0fbeacc19e56-1
+    target_state: Done
+    evidence_fingerprint: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+    status: Needs Human
+    audit_ids:
+    - audit-0fbeacc19e56
+    applied: true
+    created_at: '2026-08-07T07:10:31.725810+00:00'
+    applied_at: '2026-08-07T07:10:40.006881+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -110,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-832
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -131,13 +156,25 @@ oompah.terminal_audit:
       branch_key: OOMPAH-832
       ended_at: '2026-08-07T07:10:13.720886+00:00'
       failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: no-auditor-audit-0fbeacc19e56-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 473e52757f3f82457e970c5d2b8ac7895607b4f23fd824d642829e8cfd757091
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:10:31.725607+00:00'
+      completed_at: '2026-08-07T07:10:31.725607+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-07T05:09:55.490568+00:00'
-    updated_at: '2026-08-07T05:10:30.957832+00:00'
+    updated_at: '2026-08-07T07:10:31.725607+00:00'
   - version: 1
     audit_id: audit-87e8dfa62ac7
     project_id: proj-14849f1b
@@ -306,5 +343,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 2s
 - Log: OOMPAH-832__20260807T051054Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:10
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
