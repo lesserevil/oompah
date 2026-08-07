@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-07T05:31:57.922842Z'
+updated_at: '2026-08-07T05:32:11.505343Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: ''
@@ -175,6 +175,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T20:51:19.218537+00:00'
     applied_at: '2026-08-06T20:51:29.078140+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9929262f9672
+    project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 744df6db79fdcd399181bb19d918c5d718f3268a90e21e00b18df356ec43877b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner workaround for OOMPAH-870: accepted head f2b319c1182cd654112db622a0498171e508dead
+      is already contained in current main and the original implementation merged
+      via PR 593. A zero-diff replacement review cannot exist.'
+    created_at: '2026-08-07T05:32:05.540934+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
