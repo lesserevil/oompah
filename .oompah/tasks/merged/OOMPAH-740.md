@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-07T05:37:16.195000Z'
+updated_at: '2026-08-07T05:37:30.425884Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -365,5 +365,10 @@ created: 2026-08-07 05:37
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner recovery after planned service restart terminated the terminal auditor before verdict publication. PR 731 merged corrected head 231d2b8a7e44089a3ab3ad9676e3656883c607b1 as 7daf26e683d9f57afa703c4e832c768b853f6a3c; hosted CI is green on Python 3.11, 3.12, and 3.13, focused corrected tests pass serial and parallel, and independent static review accepted the exact patch.
+---
+author: oompah
+created: 2026-08-07 05:37
+---
+Reconciled to Merged from merged-review and green exact-head evidence after restart interrupted terminal verdict publication.
 ---
 <!-- COMMENTS:END -->
