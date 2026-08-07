@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T13:49:59.441150Z'
+updated_at: '2026-08-07T13:51:21.062146Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -117,6 +117,7 @@ oompah.terminal_audit:
     attempt-6ded794f8821: '2026-08-04T17:05:37.648142+00:00'
     attempt-b0e5cbc58f63: '2026-08-04T17:08:47.135164+00:00'
     attempt-865102d62e6c: '2026-08-07T13:13:29.020197+00:00'
+    no-auditor-audit-0ba79960c14a-3: '2026-08-07T13:51:10.084465+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
@@ -134,8 +135,9 @@ oompah.terminal_audit:
     evidence_fingerprint: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
     audit_ids:
     - audit-17b3b9d996a9
+    - audit-0ba79960c14a
     kind: result
-    applied: false
+    applied: true
     retired_at: '2026-08-04T17:08:47.135181+00:00'
     lifecycle_reconciled: true
     reconciled_to: Done
@@ -180,6 +182,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:13:29.020231+00:00'
     applied_at: '2026-08-07T13:13:39.339854+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    audit_id: audit-0ba79960c14a
+    attempt_id: no-auditor-audit-0ba79960c14a-3
+    target_state: Merged
+    evidence_fingerprint: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    status: Needs Human
+    audit_ids:
+    - audit-0ba79960c14a
+    applied: true
+    created_at: '2026-08-07T13:51:10.084505+00:00'
+    applied_at: '2026-08-07T13:51:18.023094+00:00'
   oompah.terminal_override_records: []
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
@@ -359,7 +373,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-765
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -403,7 +417,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c8973bf921d7
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -416,6 +430,22 @@ oompah.terminal_audit:
       selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
       selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T13:50:58.353323+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-0ba79960c14a-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T13:51:10.084249+00:00'
+      completed_at: '2026-08-07T13:51:10.084249+00:00'
+      selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+      selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -424,7 +454,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:39:30.386721+00:00'
     selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
-    updated_at: '2026-08-07T13:42:01.048030+00:00'
+    updated_at: '2026-08-07T13:51:10.084249+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ded794f8821
@@ -541,7 +571,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-c8973bf921d7
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -554,6 +584,8 @@ oompah.terminal_audit:
     selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T13:50:58.353323+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -1036,5 +1068,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 18s
 - Log: OOMPAH-765__20260807T134259Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:51
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-07T13:49:54.599568Z'
+updated_at: '2026-08-07T13:51:28.098139Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -2127,5 +2127,18 @@ author: oompah
 created: 2026-08-07 13:49
 ---
 The parent epic OOMPAH-584 merged from epic-OOMPAH-584, but this task was In Review with work branch epic-OOMPAH-588. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-07 13:51
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #30)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 602 is merged
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->

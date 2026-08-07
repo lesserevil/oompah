@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-07T13:50:36.541642Z'
+updated_at: '2026-08-07T13:51:04.000017Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -2201,5 +2201,15 @@ author: oompah
 created: 2026-08-07 13:49
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-07 13:50
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-07 13:51
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
