@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: In Progress
+status: In Validation
 priority: 0
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:55:04.186251Z'
+updated_at: '2026-08-07T12:55:49.110761Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
@@ -126,6 +126,25 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-08-04T14:43:55.858596+00:00'
     updated_at: '2026-08-04T14:44:20.218984+00:00'
+  - version: 1
+    audit_id: audit-a69fc1614a16
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e410ab35e5a6bf95f6c0fb4e037303058915bf7ed1e85e0ee4dd1d9e3a48306e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T12:55:37.708645+00:00'
+    selected_ref: origin/epic-OOMPAH-764
+    selected_sha: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
@@ -246,5 +265,10 @@ author: oompah
 created: 2026-08-07 12:53
 ---
 Correction to the immediately preceding workaround note: the first Done override raced the PR-closure webhook and was rejected before changing state. After refreshing, the owner override was retried against the current generation; PR #742 remains closed because its patch set is already contained.
+---
+author: oompah
+created: 2026-08-07 12:55
+---
+Patch-equivalent nested epic work is already contained in epic-OOMPAH-763; stale PR #742 is closed. Requesting audited Done because the deployed server cannot yet verify the truthful nested Merged transition.
 ---
 <!-- COMMENTS:END -->
