@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T18:20:34.105182Z'
+updated_at: '2026-08-07T19:24:39.837046Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
@@ -196,7 +196,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -230,7 +230,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -330,6 +330,44 @@ oompah.terminal_audit:
     selected_ref: 0957d99556f3200361fa225ba313a7b5db53daa6
     selected_sha: 0957d99556f3200361fa225ba313a7b5db53daa6
     updated_at: '2026-08-07T10:33:57.139885+00:00'
+  - version: 1
+    audit_id: audit-19e451ad4be7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T19:24:38.221111+00:00'
+    selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+    selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+  - version: 1
+    audit_id: audit-f0f396469843
+    project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 10b97eb9d96bc2f823a93dc4913fd26ede48b41e684ee681216418265e943a15
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T19:24:38.221111+00:00'
+    selected_ref: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+    selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
   attempt_history:
   - version: 1
     attempt_id: attempt-2ae62c68e14f

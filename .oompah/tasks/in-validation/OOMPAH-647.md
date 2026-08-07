@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-08-07T18:20:43.631478Z'
+updated_at: '2026-08-07T19:24:33.881339Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: ''
@@ -198,7 +198,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -232,7 +232,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -346,6 +346,44 @@ oompah.terminal_audit:
     selected_ref: 79fbad71a4c5e735916e16db6fd546d455da3022
     selected_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
     updated_at: '2026-08-07T10:33:36.225930+00:00'
+  - version: 1
+    audit_id: audit-9fb22cbede0f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-647
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T19:24:29.847300+00:00'
+    selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+    selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+  - version: 1
+    audit_id: audit-54f3838ee199
+    project_id: proj-14849f1b
+    task_id: OOMPAH-647
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e3ffb9cf10a8c914fda01e6df0769626989ff9bd10fd4bf82386897467f2bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-07T19:24:29.847300+00:00'
+    selected_ref: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
+    selected_sha: 18e405d8e6db9549f70e032bc846ce1e4763e6f8
   attempt_history:
   - version: 1
     attempt_id: attempt-d19fa24aa57b
