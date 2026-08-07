@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:32:41.182836Z'
-updated_at: '2026-08-07T14:53:54.368622Z'
+updated_at: '2026-08-07T14:54:03.319551Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -45,7 +45,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:53:50.253765+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-893
+    target_state: Archived
+    evidence_fingerprint: 44c83dbc9179ca19728449b3578c96b746ba168e553426bdf4d28697218ef285
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:54:01.665179+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -68,5 +78,12 @@ author: oompah
 created: 2026-08-07 13:41
 ---
 Fenced as duplicate epic-rebase helper recurrence #10 for the same unresolved epic-OOMPAH-763 generation. Direct-owner claim prevents scheduler execution while canonical OOMPAH-877 repairs four final-gate failures and OOMPAH-879/O891/O892 implement single-writer, credential-isolated server-owned CAS publishing. Do not implement or publish from this duplicate.
+---
+author: oompah
+created: 2026-08-07 14:54
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
