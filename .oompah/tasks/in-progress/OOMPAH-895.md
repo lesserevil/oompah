@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:48:23.442638Z'
-updated_at: '2026-08-07T13:53:34.604741Z'
+updated_at: '2026-08-07T13:54:06.988916Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -75,5 +75,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 12s
 - Log: OOMPAH-895__20260807T135227Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:54
+---
+Fenced as duplicate epic-rebase helper recurrence #11 for the same unresolved epic-OOMPAH-763 generation. Root owner takeover retires any scheduler runtime; do not implement or publish. Canonical OOMPAH-877 final exact-head gate is running, while OOMPAH-879/O891/O892 implement generation-safe server-owned publishing.
 ---
 <!-- COMMENTS:END -->

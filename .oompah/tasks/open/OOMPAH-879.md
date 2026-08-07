@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T13:47:08.850028Z'
+updated_at: '2026-08-07T13:54:09.488353Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-08-07 13:41
 ---
 Recurrence #10 observed as OOMPAH-893 after canonical OOMPAH-877 full gate completed with four failures and before any publish. Root fenced it before implementation. Extend recurrence coverage through OOMPAH-893: one unresolved authority generation must have exactly one durable helper despite validation delay/failure.
+---
+author: oompah
+created: 2026-08-07 13:54
+---
+Recurrence #11 observed as OOMPAH-895 after canonical OOMPAH-877 final full gate began. Root applied direct-owner takeover immediately. Extend generation regression through O895, including the case where a duplicate reaches scheduler claim/In Progress before the canonical helper publishes.
 ---
 <!-- COMMENTS:END -->
