@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:05:17.749469Z'
+updated_at: '2026-08-07T13:11:16.005897Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.duplicate_screening:
     generation between refresh and Needs Human escalation, reproduced live on OOMPAH-779;
     its single-generation revalidation and defer-on-refresh-failure acceptance criteria
     remain unimplemented.
-oompah.agent_run_id: 753ddaf7-6faf-4bda-8238-19655d7b8832
+oompah.agent_run_id: 8cd4224b-f3d0-4bca-8983-870f6dff27b7
 ---
 ## Summary
 
