@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:02:23.163009Z'
-updated_at: '2026-08-07T21:10:47.206367Z'
+updated_at: '2026-08-07T21:10:57.499124Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,7 +91,39 @@ oompah.terminal_audit:
     reason: Duplicate of completed OOMPAH-879; no distinct implementation or revision
       exists.
     created_at: '2026-08-07T21:10:43.258102+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-883
+    target_state: Archived
+    evidence_fingerprint: ac451a10c798da9973a01f052752d86e63c4f5ffa0dc9cc69338c9ecb2b85100
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T21:10:52.246558+00:00'
+  oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain metadata-only Archived duplicate provenance pointing to completed
+      OOMPAH-879.
+    marked_at: '2026-08-07T21:10:55.927072+00:00'
+    updated_at: '2026-08-07T21:10:55.927072+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain metadata-only Archived duplicate provenance pointing to completed
+        OOMPAH-879.
+      recorded_at: '2026-08-07T21:10:55.927072+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
@@ -145,5 +177,12 @@ author: oompah
 created: 2026-08-07 21:10
 ---
 Read-only evidence audit confirms this task is a duplicate of completed OOMPAH-879. It has no implementation branch, ref, worktree, submitted head, or PR and requires no distinct code. Closing as Archived duplicate rather than carrying a false non-terminal owner.
+---
+author: oompah
+created: 2026-08-07 21:10
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Duplicate of completed OOMPAH-879; no distinct implementation or revision exists.
 ---
 <!-- COMMENTS:END -->
