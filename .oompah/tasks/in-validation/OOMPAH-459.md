@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:30:53.735084Z'
+updated_at: '2026-08-07T14:31:13.283148Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -183,12 +183,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-50a2fed65dce
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+      created_at: '2026-08-07T14:31:04.382261+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T14:31:04.382261+00:00'
+      branch_key: epic-OOMPAH-459
+      selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+      selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -197,6 +212,7 @@ oompah.terminal_audit:
     created_at: '2026-07-31T13:36:44.630895+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    updated_at: '2026-08-07T14:31:04.382261+00:00'
   - version: 1
     audit_id: audit-9cce4c37ec04
     project_id: proj-14849f1b
@@ -274,6 +290,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T14:15:27.791816+00:00'
     failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
     next_retry_at: '2026-08-07T14:16:07.791803+00:00'
+  - version: 1
+    attempt_id: attempt-50a2fed65dce
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    created_at: '2026-08-07T14:31:04.382261+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T14:31:04.382261+00:00'
+    branch_key: epic-OOMPAH-459
+    selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
 ---
 ## Summary
 
@@ -501,5 +532,15 @@ created: 2026-08-07 14:27
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 14:31
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 14:31
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
