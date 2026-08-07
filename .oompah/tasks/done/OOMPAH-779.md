@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T12:50:06.747727Z'
+updated_at: '2026-08-07T12:50:16.963325Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.terminal_audit:
       f1e7925b and target epic-OOMPAH-763. The 12:32 unlanded diagnostic was stale.
       Follow-up OOMPAH-887 tracks generation-consistent landing revalidation.'
     created_at: '2026-08-07T12:49:58.978530+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-779
@@ -76,6 +76,18 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-04T16:10:30.590956+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    evidence_fingerprint: d56597acc1edba76f5769a89792c0aef5f3841080ca4fea989f96faa914c0177
+    audit_ids:
+    - audit-30c009a9ca43
+    - audit-0006f51f444e
+    - audit-2a8e57633d32
+    - audit-cdcfd665d497
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T12:50:13.639231+00:00'
   oompah.terminal_audit_result_intents: []
   queued_comment_posted: true
   version: 1
@@ -119,7 +131,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-779
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -133,12 +145,13 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:40:05.716254+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    updated_at: '2026-08-07T12:50:13.639184+00:00'
   - version: 1
     audit_id: audit-cdcfd665d497
     project_id: proj-14849f1b
     task_id: OOMPAH-779
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,6 +165,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:40:05.716254+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    updated_at: '2026-08-07T12:50:13.639213+00:00'
   attempt_history: []
 oompah.work_branch: epic-OOMPAH-765
 ---
@@ -193,5 +207,12 @@ author: oompah
 created: 2026-08-07 12:32
 ---
 The parent epic OOMPAH-765 merged from epic-OOMPAH-765, but this task was Done with work branch epic-OOMPAH-765. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-779 branch epic-OOMPAH-765 has 1 unlanded commit(s), including 40e46bf8e41c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-07 12:50
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Live recovery: exact implementation commit 40e46bf8e41c is an ancestor of current origin/epic-OOMPAH-763; parent OOMPAH-765 audit records merge commit f1e7925b and target epic-OOMPAH-763. The 12:32 unlanded diagnostic was stale. Follow-up OOMPAH-887 tracks generation-consistent landing revalidation.
 ---
 <!-- COMMENTS:END -->
