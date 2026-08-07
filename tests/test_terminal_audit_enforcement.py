@@ -1836,6 +1836,7 @@ def test_lifecycle_actual_orchestrator_propagates_scm_outage_without_status_writ
     orchestrator.project_store = project_store
     orchestrator.workflow_job_store = SimpleNamespace()
     orchestrator._alerts = []
+    orchestrator._alerts_lock = threading.RLock()
     validator = lambda issue, target, project_id: (
         Orchestrator._validate_terminal_transition(
             orchestrator,
@@ -2001,6 +2002,7 @@ def test_lifecycle_v1_live_shaped_46_row_migration_converges_44_plus_2(
     orchestrator.project_store = project_store
     orchestrator.workflow_job_store = SimpleNamespace()
     orchestrator._alerts = []
+    orchestrator._alerts_lock = threading.RLock()
 
     def validate(issue, target, project_id):
         return Orchestrator._validate_terminal_transition(
