@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-08-07T11:49:55.667350Z'
+updated_at: '2026-08-07T11:50:08.577035Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -568,12 +568,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-15fe456991fe
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+      created_at: '2026-08-07T11:50:06.811489+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T11:50:06.811489+00:00'
+      branch_key: epic-OOMPAH-426
+      selected_ref: origin/main
+      selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
     requested_by:
       version: 1
       identity: orchestrator
@@ -581,6 +596,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T11:49:50.437475+00:00'
     selected_ref: origin/main
     selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
+    updated_at: '2026-08-07T11:50:06.811489+00:00'
   - version: 1
     audit_id: audit-407967100eea
     project_id: proj-14849f1b
@@ -800,6 +816,21 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-07T11:41:55.102525+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-15fe456991fe
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+    created_at: '2026-08-07T11:50:06.811489+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T11:50:06.811489+00:00'
+    branch_key: epic-OOMPAH-426
+    selected_ref: origin/main
+    selected_sha: c9f16e399efcbe1a0e9ac70948c8fac2d9262017
 ---
 ## Summary
 
