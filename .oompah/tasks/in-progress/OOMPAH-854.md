@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-07T11:49:58.241118Z'
+updated_at: '2026-08-07T12:10:42.960067Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -554,5 +554,10 @@ author: oompah
 created: 2026-08-07 11:49
 ---
 Second exact combined-tree gate at 357149ce completed in 1144.95s with 3 failures / 16,546 passes. Repair v3 is in progress under direct claim 43660cfd: replacement generations again make issue-level retirement report incomplete while exact old bearer/retry capabilities are revoked; the one stale telemetry expectation is corrected; cross-project lock independence now uses a deterministic barrier instead of a loaded-host 100ms timing assumption. Static diff/py_compile pass and independent read-only review approved. Exact 3-node broker rerun is durably queued behind O873's active exact gate; no validation bypass.
+---
+author: oompah
+created: 2026-08-07 12:10
+---
+Repair v3 is committed and pushed at exact head b5a699b31. Verification on this head: the 3 exact combined-gate regressions pass; affected modules tests/test_auditor_termination_cleanup.py, tests/test_project_locks.py, tests/test_task_handoff.py, and tests/test_task_cost_telemetry pass 201/201 in 9.48s; terminal mutation scan 8/8, secret scan, py_compile, and diff check pass. Submission is intentionally deferred until OOMPAH-877 advances the stale epic branch; this private head will then rebase onto that current epic so the next full exact gate is not wasted on a stale base.
 ---
 <!-- COMMENTS:END -->
