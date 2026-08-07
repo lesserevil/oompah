@@ -184,6 +184,37 @@ class TestFreshNormalQueue:
         assert health.in_progress_count == 1
         assert health.pending_count == 0
 
+    def test_aged_in_progress_is_not_a_pending_backlog(self):
+        """A running or resource-waiting auditor is not queued backlog."""
+        rec = _record(request_state=RequestState.IN_PROGRESS)
+        health = build_terminal_audit_health(
+            [_obs(rec)],
+            now=NOW + timedelta(seconds=DEFAULT_STALE_AFTER_SECONDS + 1),
+        )
+
+        assert health.pending_count == 0
+        assert health.in_progress_count == 1
+        assert health.oldest_pending_at is None
+        assert health.oldest_pending_age_seconds is None
+        assert health.stale_pending_count == 0
+        assert health.projects["project-1"].get("stale_pending_count", 0) == 0
+        assert terminal_audit_health_alerts(health) == []
+
+    def test_impossible_zero_pending_backlog_facts_do_not_emit_an_alert(self):
+        """The projection rejects an inconsistent legacy or cached bundle."""
+        health = TerminalAuditHealth(
+            pending_count=0,
+            oldest_pending_at=NOW.isoformat(),
+            oldest_pending_age_seconds=DEFAULT_STALE_AFTER_SECONDS + 1,
+            stale_pending_count=1,
+        )
+
+        assert not [
+            alert
+            for alert in terminal_audit_health_alerts(health)
+            if alert["source"] == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
+
     def test_stale_threshold_not_reached_is_healthy(self):
         """A record at exactly stale_after_seconds - 1 must not be stale."""
         rec = _record()
@@ -205,21 +236,25 @@ class TestFreshNormalQueue:
 
 
 class TestAgedBacklogAndStaleValidation:
-    def test_aged_backlog_surfaces_warning_alert(self):
-        """A record older than stale_after_seconds must surface a backlog_age alert."""
+    def test_aged_backlog_surfaces_task_local_info(self):
+        """Stale pending work remains informational while recovery owns it."""
         rec = _record()
         health = build_terminal_audit_health(
             [_obs(rec)],
             now=NOW + timedelta(seconds=DEFAULT_STALE_AFTER_SECONDS + 1),
         )
+        assert health.pending_count == 1
         assert health.stale_pending_count == 1
+        assert health.oldest_pending_age_seconds == DEFAULT_STALE_AFTER_SECONDS + 1
         alerts = terminal_audit_health_alerts(health)
         sources = [a["source"] for a in alerts]
         assert HEALTH_ALERT_PREFIX + "backlog_age" in sources, (
             f"Expected backlog_age alert, got: {sources}"
         )
         backlog_alert = next(a for a in alerts if "backlog_age" in a["source"])
-        assert backlog_alert["level"] == "warning"
+        assert backlog_alert["level"] == "info"
+        assert backlog_alert["action_required"] is False
+        assert backlog_alert["recovery_state"] == "automatic_recovery"
 
     def test_stale_in_validation_no_record_surfaces_validation_alert(self):
         """An In Validation task with no audit record beyond threshold is stale."""
@@ -425,6 +460,10 @@ class TestRecoveryAndAlertClearing:
         # Now simulate recovery: empty queue
         health2 = build_terminal_audit_health([], now=NOW + timedelta(seconds=1))
         assert not health2.degraded
+        assert health2.pending_count == 0
+        assert health2.stale_pending_count == 0
+        assert health2.oldest_pending_at is None
+        assert health2.oldest_pending_age_seconds is None
         alerts = terminal_audit_health_alerts(health2)
         assert alerts == [], f"Expected no alerts after recovery: {alerts}"
 

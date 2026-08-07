@@ -30,6 +30,10 @@ from oompah.terminal_audit_metadata import (
     MetadataQuarantine,
     TerminalAuditMetadata,
 )
+from oompah.terminal_audit_health import (
+    AuditHealthObservation,
+    HEALTH_ALERT_PREFIX,
+)
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
@@ -56,6 +60,25 @@ class _MetadataTracker:
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         return self.issues.get(identifier)
+
+
+def _aged_pending_observation() -> AuditHealthObservation:
+    old_timestamp = "2000-01-01T00:00:00+00:00"
+    pending = TerminalAuditRecord(
+        audit_id="audit-stale",
+        project_id="project-a",
+        task_id="TASK-STALE",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("d" * 64),
+        request_state=RequestState.PENDING,
+        created_at=old_timestamp,
+    )
+    return AuditHealthObservation(
+        project_id="project-a",
+        issue_identifier="TASK-STALE",
+        issue_created_at=old_timestamp,
+        record=pending,
+    )
 
 
 def _no_auditor_record(
@@ -670,6 +693,62 @@ def test_snapshot_exposes_finalization_failure_separately(tmp_path: Path) -> Non
             str(alert["source"]).endswith("finalization_failures")
             for alert in snapshot["alerts"]
         )
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_partial_health_scan_keeps_one_generation_of_facts_and_alerts(
+    tmp_path: Path,
+) -> None:
+    """A partial scan cannot pair empty current counts with an older alert."""
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    observation = _aged_pending_observation()
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [observation], scan_complete=True, scan_error_count=0
+        )
+        orchestrator._refresh_terminal_audit_health(
+            [], scan_complete=False, scan_error_count=1
+        )
+
+        incomplete = orchestrator.get_snapshot()
+        health = incomplete["terminal_audit_health"]
+        assert health == incomplete["health"]["terminal_audit"]
+        assert health["pending_count"] == 1
+        assert health["stale_pending_count"] == 1
+        assert health["oldest_pending_age_seconds"] is not None
+        assert health["scan_complete"] is False
+        assert health["scan_error_count"] == 1
+        health_alerts = {
+            alert["source"]: alert
+            for alert in incomplete["alerts"]
+            if str(alert.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
+        }
+        backlog = health_alerts[HEALTH_ALERT_PREFIX + "backlog_age"]
+        assert "across 1 pending audit(s)" in backlog["detail"]
+        assert HEALTH_ALERT_PREFIX + "scan" in health_alerts
+
+        orchestrator._refresh_terminal_audit_health(
+            [], scan_complete=True, scan_error_count=0
+        )
+        recovered = orchestrator.get_snapshot()
+        assert recovered["terminal_audit_health"]["pending_count"] == 0
+        assert recovered["terminal_audit_health"]["stale_pending_count"] == 0
+        assert recovered["terminal_audit_health"]["oldest_pending_at"] is None
+        assert (
+            recovered["terminal_audit_health"]["oldest_pending_age_seconds"]
+            is None
+        )
+        assert not [
+            alert
+            for alert in recovered["alerts"]
+            if alert.get("source") == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
