@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T09:03:05.892168Z'
+updated_at: '2026-08-07T09:03:40.916640Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -79,6 +79,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-865
     source_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
     completed_at: '2026-08-06T19:11:08.170498+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-690fb40503ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-865
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T09:03:33.098057+00:00'
+    selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+    selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+  attempt_history: []
 ---
 ## Summary
 
@@ -195,5 +219,10 @@ author: oompah
 created: 2026-08-07 08:33
 ---
 Stabilized combined-gate event-loop/focus/audit-workspace tests with deterministic synchronization and exact resource-release assertions.
+---
+author: oompah
+created: 2026-08-07 09:03
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
