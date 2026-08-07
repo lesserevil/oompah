@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-851
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Make every tick-test dispatch mock honor the timing mapping contract
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-07T19:20:07.776230Z'
+updated_at: '2026-08-07T19:21:19.684257Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -75,6 +75,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-851
     source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
     completed_at: '2026-08-06T04:43:24.799880+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3be8cbb0bb70
+    project_id: proj-14849f1b
+    task_id: OOMPAH-851
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 004695e34c16994dbe93a54d9b082ebed06decf0b6302154f3ce2e7fe22517d1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T19:21:14.225137+00:00'
+    selected_ref: 87bfe5f6198a383778eb4e3d39f41fcaa50500d0
+    selected_sha: 87bfe5f6198a383778eb4e3d39f41fcaa50500d0
+  attempt_history: []
 ---
 ## Summary
 
@@ -132,5 +156,10 @@ author: oompah
 created: 2026-08-07 19:20
 ---
 Made every tick-test dispatch double return a faithful timing mapping, added deterministic slow-path/static contract coverage, and optimized the guard without weakening fail-closed detection. Restacked onto shared epic 6df7dcbe1; all 651 affected tests pass both parallel and serial; check-secrets and diff checks pass.
+---
+author: oompah
+created: 2026-08-07 19:21
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
