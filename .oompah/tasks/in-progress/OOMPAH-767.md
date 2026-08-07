@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:58.011307Z'
-updated_at: '2026-08-06T16:12:15.823998Z'
+updated_at: '2026-08-07T18:21:25.058982Z'
 work_branch: null
 target_branch: null
 review_url: null
