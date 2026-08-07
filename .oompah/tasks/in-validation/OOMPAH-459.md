@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: Open
+status: In Validation
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T14:27:13.143337Z'
+updated_at: '2026-08-07T14:28:39.412789Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -97,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -212,6 +212,24 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T14:07:33.053461+00:00'
+    selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+  - version: 1
+    audit_id: audit-d0d4c70ac281
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: Open
+    created_at: '2026-08-07T14:28:34.123822+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
   attempt_history:
