@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-619
 type: epic
-status: Merged
+status: In Validation
 priority: 1
 title: Unify CLI authentication sources and align the installed client
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T21:34:13.823278Z'
+updated_at: '2026-08-07T21:53:57.252520Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -160,6 +160,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T21:27:50.017008+00:00'
     updated_at: '2026-07-31T21:33:47.206790+00:00'
+  - version: 1
+    audit_id: audit-08210eeb9df6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-619
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c5cf9a080b29a7e60084087fea03010defa018005ff5b6ee2b5b4b600e0b455e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T21:53:53.021531+00:00'
+    selected_ref: origin/main
+    selected_sha: bb82f7f39510f0e02886307291812f2f8b3e6901
   attempt_history:
   - version: 1
     attempt_id: attempt-3a4b0536b50d
