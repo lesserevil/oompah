@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-872
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Resolve the service checkout to a safe management project for operational error
   filing
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T10:48:38.750724Z'
+updated_at: '2026-08-07T10:49:34.743069Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -108,6 +108,31 @@ oompah.target_branch: main
 oompah.review_head: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-5b3c5f4c2a0d-3: '2026-08-07T10:49:23.247360+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-872
+    target_state: Done
+    evidence_fingerprint: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+    audit_ids:
+    - audit-5b3c5f4c2a0d
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T10:49:23.247373+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-872
+    audit_id: audit-5b3c5f4c2a0d
+    attempt_id: no-auditor-audit-5b3c5f4c2a0d-3
+    target_state: Done
+    evidence_fingerprint: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+    status: Needs Human
+    audit_ids:
+    - audit-5b3c5f4c2a0d
+    applied: true
+    created_at: '2026-08-07T10:49:23.247389+00:00'
+    applied_at: '2026-08-07T10:49:31.691347+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-872
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -161,7 +186,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d2f2f4f24fec
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -174,6 +199,22 @@ oompah.terminal_audit:
       selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
       selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T10:49:17.741188+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-5b3c5f4c2a0d-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 53a58cc7a12c31c8a9a7ae79fdb721edce406cf65b95a26d03d77407bc873f83
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T10:49:23.247100+00:00'
+      completed_at: '2026-08-07T10:49:23.247100+00:00'
+      selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
+      selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     requested_by:
       version: 1
       identity: yolo-merge
@@ -182,7 +223,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:45:34.532405+00:00'
     selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
-    updated_at: '2026-08-07T10:41:36.372773+00:00'
+    updated_at: '2026-08-07T10:49:23.247100+00:00'
   - version: 1
     audit_id: audit-46b8ca9873dd
     project_id: proj-14849f1b
@@ -243,7 +284,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-d2f2f4f24fec
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -256,6 +297,8 @@ oompah.terminal_audit:
     selected_ref: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     selected_sha: 0458f8f72b38d61bf81f1629a3d050d51c25bc8d
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T10:49:17.741188+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -458,5 +501,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 49s
 - Log: OOMPAH-872__20260807T104155Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:49
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
