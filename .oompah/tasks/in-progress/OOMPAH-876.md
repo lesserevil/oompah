@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:53:48.765533Z'
+updated_at: '2026-08-07T09:54:01.805074Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-07 09:53
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 09:54
+---
+Additional live reproduction: OOMPAH-414 reached Needs Human on Archived after the YOLO-reopen Claude/opus transport terminated (0 turns, 6 tool calls) and max attempts exhausted. No code verdict rejected the work; owner override restored terminal provenance.
 ---
 <!-- COMMENTS:END -->
