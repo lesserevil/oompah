@@ -22,10 +22,15 @@ _ISOLATED_ENV_KEYS = (
     "XDG_CONFIG_HOME",
     "XDG_DATA_HOME",
 )
-_RUNNER_ENV_KEYS = ("OOMPAH_PYTEST_RUN_ROOT",)
+_RUNNER_ENV_KEYS = (
+    "OOMPAH_PYTEST_RUN_ROOT",
+    "OOMPAH_PYTEST_CANDIDATE_RUN_ROOT",
+)
 _WORKER_HOME_ROOT_ENV = "OOMPAH_PYTEST_WORKER_HOME_ROOT"
+_TRUSTED_HOME_ROOT_ENV = "OOMPAH_PYTEST_TRUSTED_HOME_ROOT"
 _GATE_ENV_KEYS = (
     "OOMPAH_PYTEST_GATE",
+    _TRUSTED_HOME_ROOT_ENV,
     _WORKER_HOME_ROOT_ENV,
     "OOMPAH_TEST_SERVER_PORT",
     "OOMPAH_SERVER_PORT",
@@ -74,6 +79,7 @@ def _quality_gate_untrusted_roots(
         "OOMPAH_TEMP_ROOT",
         "OOMPAH_PYTEST_TEMP_ROOT",
         "OOMPAH_PYTEST_RUN_ROOT",
+        "OOMPAH_PYTEST_CANDIDATE_RUN_ROOT",
     ):
         value = str(current.get(key, "")).strip()
         if value:
@@ -103,6 +109,16 @@ def _gate_worker_home_parent(
         raise RuntimeError("quality-gate worker HOME must be absolute")
 
     resolved_home = raw_home.resolve(strict=False)
+    configured_trusted_home = str(current.get(_TRUSTED_HOME_ROOT_ENV, "")).strip()
+    if configured_trusted_home:
+        trusted_home = _resolved_environment_path(
+            configured_trusted_home,
+            working_directory,
+        )
+        if resolved_home != trusted_home:
+            raise RuntimeError(
+                "quality-gate HOME does not match its launcher-provided capability"
+            )
     parent = resolved_home / "pytest-workers"
     # The runner owns this exact directory.  Following a pre-existing symlink
     # would let candidate-controlled state redirect both guard creation and

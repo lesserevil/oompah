@@ -89,6 +89,8 @@ def test_runner_expands_tilde_temp_root_under_home(tmp_path: Path):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     env = os.environ.copy()
+    env.pop(_WORKER_HOME_ROOT_ENV, None)
+    env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
     env["HOME"] = str(fake_home)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     env["OOMPAH_PYTEST_TEMP_ROOT"] = "~/.oompah/tmp"
@@ -153,31 +155,49 @@ def test_worker_environment_isolates_home_temp_and_cache(tmp_path: Path):
 def test_quality_gate_worker_home_stays_outside_task_writable_tmp():
     """An xdist worker must preserve the gate's trusted HOME boundary."""
 
-    worker_root = Path("/tmp/oompah-gate/pytest/run.ABC/popen-gw3")
+    worker_root = Path("/oompah-gate/tmp/pytest/run.ABC/popen-gw3")
     current = {
         "OOMPAH_PYTEST_GATE": "1",
-        "HOME": "/home/oompah",
-        "TMPDIR": "/tmp/oompah-gate",
-        "TMP": "/tmp/oompah-gate",
-        "TEMP": "/tmp/oompah-gate",
-        "OOMPAH_TEMP_ROOT": "/tmp/oompah-gate",
-        "OOMPAH_PYTEST_TEMP_ROOT": "/tmp/oompah-gate",
-        "OOMPAH_PYTEST_RUN_ROOT": "/tmp/oompah-gate/pytest/run.ABC",
-        _WORKER_HOME_ROOT_ENV: "/home/oompah/pytest-workers/run.ABC",
+        "HOME": "/oompah-gate-trusted",
+        "OOMPAH_PYTEST_TRUSTED_HOME_ROOT": "/oompah-gate-trusted",
+        "OOMPAH_PYTEST_CANDIDATE_RUN_ROOT": "/oompah-gate",
+        "TMPDIR": "/oompah-gate/tmp",
+        "TMP": "/oompah-gate/tmp",
+        "TEMP": "/oompah-gate/tmp",
+        "OOMPAH_TEMP_ROOT": "/oompah-gate/tmp",
+        "OOMPAH_PYTEST_TEMP_ROOT": "/oompah-gate/tmp",
+        "OOMPAH_PYTEST_RUN_ROOT": "/oompah-gate/tmp/pytest/run.ABC",
+        _WORKER_HOME_ROOT_ENV: "/oompah-gate-trusted/pytest-workers/session",
     }
 
     home = _worker_home_path(worker_root, current)
 
-    assert home == Path("/home/oompah/pytest-workers/run.ABC/popen-gw3")
+    assert home == Path("/oompah-gate-trusted/pytest-workers/session/popen-gw3")
     runtime_parent = home / ".oompah" / "native-validation-guards"
     for untrusted in (
         Path("/tmp"),
         Path("/var/tmp"),
+        Path(current["OOMPAH_PYTEST_CANDIDATE_RUN_ROOT"]),
         Path(current["TMPDIR"]),
         worker_root,
     ):
         assert runtime_parent != untrusted
         assert untrusted not in runtime_parent.parents
+
+
+def test_quality_gate_rejects_home_outside_server_owned_capability():
+    current = {
+        "OOMPAH_PYTEST_GATE": "1",
+        "HOME": "/oompah-gate/home",
+        "OOMPAH_PYTEST_TRUSTED_HOME_ROOT": "/oompah-gate-trusted",
+        "OOMPAH_PYTEST_CANDIDATE_RUN_ROOT": "/oompah-gate",
+    }
+
+    with pytest.raises(RuntimeError, match="launcher-provided capability"):
+        _worker_home_path(
+            Path("/oompah-gate/tmp/pytest/run.ABC/popen-gw2"),
+            current,
+        )
 
 
 @pytest.mark.parametrize(
@@ -358,6 +378,8 @@ def _run_runner_with_fake_pytest(
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     env = os.environ.copy()
+    env.pop(_WORKER_HOME_ROOT_ENV, None)
+    env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
     env.update(
         {
             "HOME": str(fake_home),
@@ -404,6 +426,8 @@ def test_runner_rejects_symlinked_worker_home_parent(tmp_path: Path):
     escape.mkdir()
     (fake_home / "pytest-workers").symlink_to(escape, target_is_directory=True)
     env = os.environ.copy()
+    env.pop(_WORKER_HOME_ROOT_ENV, None)
+    env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
     env.update(
         {
             "HOME": str(fake_home),
@@ -423,6 +447,37 @@ def test_runner_rejects_symlinked_worker_home_parent(tmp_path: Path):
     assert result.returncode == 2
     assert "refusing symlinked quality-gate worker HOME parent" in result.stderr
     assert not tuple(escape.iterdir())
+
+
+def test_runner_rejects_invalid_preallocated_home_before_allocating(tmp_path: Path):
+    fake_home = tmp_path / "home"
+    invalid_root = tmp_path / "outside" / "session"
+    gate_temp = tmp_path / "gate-temp"
+    fake_home.mkdir()
+    invalid_root.mkdir(parents=True)
+    env = os.environ.copy()
+    env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
+    env.update(
+        {
+            "HOME": str(fake_home),
+            "OOMPAH_PYTEST_TEMP_ROOT": str(gate_temp),
+            _WORKER_HOME_ROOT_ENV: str(invalid_root),
+        }
+    )
+
+    result = subprocess.run(
+        [str(RUNNER), "serial", "tests/not-run.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "worker HOME root must be below" in result.stderr
+    assert not gate_temp.exists()
+    assert not (fake_home / "pytest-workers").exists()
 
 
 def test_worker_environment_is_restored_before_each_test(monkeypatch, tmp_path: Path):

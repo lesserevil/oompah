@@ -12,6 +12,7 @@ import shutil
 import signal
 import socket
 import sqlite3
+import stat
 import subprocess
 import sys
 import tarfile
@@ -37,6 +38,21 @@ _EVIDENCE_VERSION = 2
 _OOMPAH_652_SAFETY_HEAD = "ec0ec7d89fb8804571fcf7e780558e6d979b73ea"
 
 _SANDBOX_RUN_ROOT = Path("/oompah-gate")
+_SANDBOX_TRUSTED_HOME_ROOT = Path("/oompah-gate-trusted")
+_SANDBOX_WORKER_HOME_ROOT = _SANDBOX_TRUSTED_HOME_ROOT / "pytest-workers" / "session"
+_GATE_ROOT_PREFIX = "oompah-quality-gate-"
+_TRUSTED_GATE_ROOT_PREFIX = "oompah-quality-gate-trusted-"
+_GATE_ROOT_OWNER_FILE = ".oompah-gate-owner.json"
+_GATE_ROOT_MAX_AGE_SECONDS = 24 * 60 * 60
+_GATE_ROOT_SCAVENGE_LIMIT = 256
+_GATE_ROOT_NAME_PATTERN = (
+    rf"(?:{re.escape(_TRUSTED_GATE_ROOT_PREFIX)}|"
+    rf"{re.escape(_GATE_ROOT_PREFIX)})[a-z0-9_]{{8}}"
+)
+_GATE_ROOT_QUARANTINE_PATTERN = re.compile(
+    rf"^\.(?P<root>{_GATE_ROOT_NAME_PATTERN})"
+    r"\.scavenge-[1-9][0-9]*-[1-9][0-9]*$"
+)
 
 
 class _SandboxUnavailable(RuntimeError):
@@ -240,6 +256,7 @@ class BranchQualityGate:
     _active_generations: dict[int, str | None] = {}
     _active_owners: dict[int, QualityGateOwner | None] = {}
     _active_snapshots: dict[int, Path] = {}
+    _active_gate_root_identities: dict[str, tuple[int, int]] = {}
     # Durable tombstones for cancelled generations: set before the gate
     # spawns so that pre-spawn authority withdrawals (during snapshot
     # creation or between Popen and registration) are guaranteed to stop
@@ -274,10 +291,14 @@ class BranchQualityGate:
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self.safety_head = safety_head
-        self._sandbox_launcher = sandbox_launcher or self._sandbox_command
+        # Preserve the three-argument injected-launcher contract used by
+        # tests and downstream embedders.  Only the built-in launcher needs
+        # the fourth, server-owned trusted-home capability.
+        self._sandbox_launcher = sandbox_launcher
         self.validation_lease = validation_lease
         self._lock = threading.Lock()
         self._key_locks: dict[str, _KeyLockEntry] = {}
+        self._scavenge_stale_gate_roots()
 
     @classmethod
     def _terminate_active_processes(
@@ -711,24 +732,595 @@ class BranchQualityGate:
             return False, f"Cannot verify git ancestry: {exc}"
 
     @staticmethod
-    def _gate_run_root() -> Path:
-        """Create an operator-owned, private root for one candidate command."""
-        root = Path(tempfile.mkdtemp(prefix="oompah-quality-gate-"))
-        os.chmod(root, 0o700)
-        for relative in ("home", "tmp", "cache", "config", "data", "lifecycle"):
-            path = root / relative
-            path.mkdir(mode=0o700)
-        return root
+    def _gate_process_identity(pid: int) -> tuple[str, int | None]:
+        """Return ``(alive|dead|unknown, start_ticks)`` for one Linux PID."""
+        try:
+            raw = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return "dead", None
+        except OSError:
+            return "unknown", None
+        try:
+            return "alive", int(raw[raw.rfind(")") + 2 :].split()[19])
+        except (ValueError, IndexError):
+            return "unknown", None
 
     @staticmethod
-    def _cleanup_gate_run_root(root: Path) -> None:
+    def _gate_root_owner_path(root: Path) -> Path:
+        # Keep liveness evidence beside, never inside, the candidate-writable
+        # bind.  The hidden host-temp parent is absent from the bwrap sandbox.
+        return root.parent / f".{root.name}{_GATE_ROOT_OWNER_FILE}"
+
+    @classmethod
+    def _unlink_gate_root_owner(cls, root: Path) -> None:
+        try:
+            cls._gate_root_owner_path(root).unlink(missing_ok=True)
+        except OSError as exc:
+            # The root lifecycle has already completed.  A sidecar failure is
+            # separately age-bounded by the startup scavenger and must not
+            # turn successful root cleanup into a false failure.
+            logger.warning("Failed to remove gate-root owner sidecar %s: %s", root, exc)
+
+    @classmethod
+    def _register_gate_root(cls, root: Path) -> tuple[int, int]:
+        metadata = root.stat()
+        identity = (int(metadata.st_dev), int(metadata.st_ino))
+        with cls._processes_lock:
+            cls._active_gate_root_identities[str(root)] = identity
+        return identity
+
+    @classmethod
+    def _forget_gate_root(cls, root: Path) -> None:
+        with cls._processes_lock:
+            cls._active_gate_root_identities.pop(str(root), None)
+
+    @classmethod
+    def _write_gate_root_owner(cls, root: Path) -> None:
+        process_state, start_ticks = cls._gate_process_identity(os.getpid())
+        if process_state != "alive" or start_ticks is None:
+            raise OSError("cannot record quality-gate process identity")
+        root_metadata = root.stat()
+        payload = json.dumps(
+            {
+                "pid": os.getpid(),
+                "process_start_ticks": start_ticks,
+                "root_device": int(root_metadata.st_dev),
+                "root_inode": int(root_metadata.st_ino),
+                "created_at": time.time(),
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        owner_path = cls._gate_root_owner_path(root)
+        descriptor = os.open(
+            owner_path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o400,
+        )
+        try:
+            os.fchmod(descriptor, 0o400)
+            remaining = memoryview(payload)
+            while remaining:
+                written = os.write(descriptor, remaining)
+                if written <= 0:
+                    raise OSError("cannot write quality-gate owner metadata")
+                remaining = remaining[written:]
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    @classmethod
+    def _stale_gate_root(
+        cls,
+        root: Path,
+        *,
+        now: float,
+    ) -> tuple[int, int] | None:
+        root_descriptor: int | None = None
+        try:
+            root_descriptor = os.open(
+                root,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            metadata = os.fstat(root_descriptor)
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
+                return None
+            identity = (int(metadata.st_dev), int(metadata.st_ino))
+            with cls._processes_lock:
+                if str(root) in cls._active_gate_root_identities:
+                    # Process memory, unlike files below either bind, cannot
+                    # be backdated or replaced by the candidate harness.
+                    return None
+
+            owner_path = cls._gate_root_owner_path(root)
+            try:
+                owner_descriptor = os.open(
+                    owner_path,
+                    os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                )
+            except OSError:
+                return (
+                    identity
+                    if now - metadata.st_mtime >= _GATE_ROOT_MAX_AGE_SECONDS
+                    else None
+                )
+            try:
+                owner_metadata = os.fstat(owner_descriptor)
+                if (
+                    not stat.S_ISREG(owner_metadata.st_mode)
+                    or owner_metadata.st_uid != os.getuid()
+                    or owner_metadata.st_size > 4096
+                ):
+                    raise ValueError("invalid gate-root owner metadata")
+                payload = os.read(owner_descriptor, 4097)
+            finally:
+                os.close(owner_descriptor)
+            try:
+                owner = json.loads(payload.decode("utf-8"))
+                pid = int(owner["pid"])
+                expected_ticks = int(owner["process_start_ticks"])
+                owner_identity = (
+                    int(owner["root_device"]),
+                    int(owner["root_inode"]),
+                )
+                if owner_identity != identity:
+                    raise ValueError("gate-root owner identity mismatch")
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                return (
+                    identity
+                    if now - owner_metadata.st_mtime >= _GATE_ROOT_MAX_AGE_SECONDS
+                    else None
+                )
+            process_state, actual_ticks = cls._gate_process_identity(pid)
+            if process_state == "unknown":
+                return None
+            if process_state == "dead" or actual_ticks != expected_ticks:
+                return identity
+            return None
+        except OSError:
+            return None
+        finally:
+            if root_descriptor is not None:
+                os.close(root_descriptor)
+
+    @classmethod
+    def _remove_stale_gate_root(
+        cls,
+        root: Path,
+        expected_identity: tuple[int, int],
+    ) -> bool:
+        """Quarantine and remove only the exact inode classified stale."""
+        with cls._processes_lock:
+            if str(root) in cls._active_gate_root_identities:
+                return False
+        parent_descriptor: int | None = None
+        root_descriptor: int | None = None
+        quarantine_name = (
+            f".{root.name}.scavenge-{os.getpid()}-{time.time_ns()}"
+        )
+        try:
+            parent_descriptor = os.open(
+                root.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            root_descriptor = os.open(
+                root.name,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_descriptor,
+            )
+            current = os.fstat(root_descriptor)
+            if (int(current.st_dev), int(current.st_ino)) != expected_identity:
+                return False
+            with cls._processes_lock:
+                if str(root) in cls._active_gate_root_identities:
+                    return False
+            os.rename(
+                root.name,
+                quarantine_name,
+                src_dir_fd=parent_descriptor,
+                dst_dir_fd=parent_descriptor,
+            )
+            quarantined = os.stat(
+                quarantine_name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (int(quarantined.st_dev), int(quarantined.st_ino)) != expected_identity:
+                if not root.exists():
+                    os.rename(
+                        quarantine_name,
+                        root.name,
+                        src_dir_fd=parent_descriptor,
+                        dst_dir_fd=parent_descriptor,
+                    )
+                return False
+        except OSError:
+            return False
+        finally:
+            if root_descriptor is not None:
+                os.close(root_descriptor)
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+
+        quarantine = root.parent / quarantine_name
+        try:
+            shutil.rmtree(quarantine)
+        except OSError as exc:
+            logger.warning("Failed to remove quarantined gate root %s: %s", root, exc)
+            try:
+                if not root.exists() and quarantine.exists():
+                    quarantine.rename(root)
+            except OSError:
+                pass
+            return False
+        cls._unlink_gate_root_owner(root)
+        return True
+
+    @classmethod
+    def _abandoned_gate_quarantine(
+        cls,
+        quarantine: Path,
+        *,
+        now: float,
+    ) -> tuple[str, tuple[int, int]] | None:
+        """Identify an aged quarantine left by a hard service crash.
+
+        A stale root is atomically renamed before recursive deletion.  If the
+        service dies between those operations, the next generation must be
+        able to finish cleanup without treating an arbitrary dot-directory as
+        operator-owned.  Require the exact generated name, the external owner
+        record, its inode binding, and a dead/reused owner identity.
+        """
+        match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(quarantine.name)
+        if match is None:
+            return None
+        root_name = match.group("root")
+        root = quarantine.parent / root_name
+        quarantine_descriptor: int | None = None
+        owner_descriptor: int | None = None
+        try:
+            quarantine_descriptor = os.open(
+                quarantine,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            metadata = os.fstat(quarantine_descriptor)
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
+                return None
+            identity = (int(metadata.st_dev), int(metadata.st_ino))
+            with cls._processes_lock:
+                if (
+                    str(root) in cls._active_gate_root_identities
+                    or str(quarantine) in cls._active_gate_root_identities
+                    or identity in cls._active_gate_root_identities.values()
+                ):
+                    return None
+
+            if now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS:
+                return None
+
+            try:
+                owner_descriptor = os.open(
+                    cls._gate_root_owner_path(root),
+                    os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                )
+            except OSError:
+                # The atomic rename itself is durable ownership evidence.  A
+                # missing sidecar must not make an exact aged quarantine
+                # immortal after a crash during metadata cleanup.
+                return root_name, identity
+            owner_metadata = os.fstat(owner_descriptor)
+            if (
+                not stat.S_ISREG(owner_metadata.st_mode)
+                or owner_metadata.st_uid != os.getuid()
+                or owner_metadata.st_size > 4096
+            ):
+                return (
+                    (root_name, identity)
+                    if now - owner_metadata.st_mtime
+                    >= _GATE_ROOT_MAX_AGE_SECONDS
+                    else None
+                )
+            payload = os.read(owner_descriptor, 4097)
+            try:
+                owner = json.loads(payload.decode("utf-8"))
+                owner_identity = (
+                    int(owner["root_device"]),
+                    int(owner["root_inode"]),
+                )
+                pid = int(owner["pid"])
+                expected_ticks = int(owner["process_start_ticks"])
+                if owner_identity != identity:
+                    raise ValueError("gate-root owner identity mismatch")
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                return (
+                    (root_name, identity)
+                    if now - owner_metadata.st_mtime
+                    >= _GATE_ROOT_MAX_AGE_SECONDS
+                    else None
+                )
+            process_state, actual_ticks = cls._gate_process_identity(
+                pid
+            )
+            if process_state == "unknown":
+                return None
+            if (
+                process_state == "alive"
+                and actual_ticks == expected_ticks
+            ):
+                return None
+            return root_name, identity
+        except OSError:
+            return None
+        finally:
+            if owner_descriptor is not None:
+                os.close(owner_descriptor)
+            if quarantine_descriptor is not None:
+                os.close(quarantine_descriptor)
+
+    @classmethod
+    def _remove_abandoned_gate_quarantine(
+        cls,
+        quarantine: Path,
+        root_name: str,
+        expected_identity: tuple[int, int],
+    ) -> bool:
+        """Reclaim one exact abandoned quarantine with restart-safe fencing."""
+        root = quarantine.parent / root_name
+        with cls._processes_lock:
+            if (
+                str(root) in cls._active_gate_root_identities
+                or str(quarantine) in cls._active_gate_root_identities
+                or expected_identity in cls._active_gate_root_identities.values()
+            ):
+                return False
+        parent_descriptor: int | None = None
+        quarantine_descriptor: int | None = None
+        claimed_name = (
+            f".{root_name}.scavenge-{os.getpid()}-{time.time_ns()}"
+        )
+        try:
+            parent_descriptor = os.open(
+                quarantine.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            quarantine_descriptor = os.open(
+                quarantine.name,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_descriptor,
+            )
+            current = os.fstat(quarantine_descriptor)
+            if (int(current.st_dev), int(current.st_ino)) != expected_identity:
+                return False
+            with cls._processes_lock:
+                if (
+                    str(root) in cls._active_gate_root_identities
+                    or str(quarantine) in cls._active_gate_root_identities
+                    or expected_identity in cls._active_gate_root_identities.values()
+                ):
+                    return False
+            os.rename(
+                quarantine.name,
+                claimed_name,
+                src_dir_fd=parent_descriptor,
+                dst_dir_fd=parent_descriptor,
+            )
+            claimed = os.stat(
+                claimed_name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (int(claimed.st_dev), int(claimed.st_ino)) != expected_identity:
+                try:
+                    os.rename(
+                        claimed_name,
+                        quarantine.name,
+                        src_dir_fd=parent_descriptor,
+                        dst_dir_fd=parent_descriptor,
+                    )
+                except OSError:
+                    pass
+                return False
+        except OSError:
+            return False
+        finally:
+            if quarantine_descriptor is not None:
+                os.close(quarantine_descriptor)
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+
+        # A second hard crash leaves another name matching the same exact
+        # quarantine pattern, so a later generation can retry this operation.
+        claimed_path = quarantine.parent / claimed_name
+        try:
+            shutil.rmtree(claimed_path)
+        except OSError as exc:
+            logger.warning(
+                "Failed to remove abandoned gate-root quarantine %s: %s",
+                claimed_path,
+                exc,
+            )
+            return False
+        return True
+
+    @classmethod
+    def _scavenge_abandoned_gate_quarantines(
+        cls,
+        temp_root: Path,
+        *,
+        now: float,
+    ) -> int:
+        """Bound recovery of aged roots already renamed for deletion."""
+        try:
+            candidates = [
+                path
+                for path in temp_root.iterdir()
+                if _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path.name)
+            ]
+        except OSError:
+            return 0
+
+        def _candidate_mtime(path: Path) -> float:
+            try:
+                metadata = path.lstat()
+                if not stat.S_ISDIR(metadata.st_mode):
+                    return float("inf")
+                return metadata.st_mtime
+            except OSError:
+                return float("inf")
+
+        candidates.sort(key=_candidate_mtime)
+        removed = 0
+        for quarantine in candidates[:_GATE_ROOT_SCAVENGE_LIMIT]:
+            abandoned = cls._abandoned_gate_quarantine(quarantine, now=now)
+            if abandoned is None:
+                continue
+            root_name, identity = abandoned
+            if cls._remove_abandoned_gate_quarantine(
+                quarantine,
+                root_name,
+                identity,
+            ):
+                removed += 1
+        return removed
+
+    @classmethod
+    def _scavenge_orphan_gate_sidecars(cls, temp_root: Path, *, now: float) -> int:
+        """Age-bound external owner records whose exact root no longer exists."""
+        try:
+            entries = list(temp_root.iterdir())
+        except OSError:
+            return 0
+        candidates = [
+            path
+            for path in entries
+            if path.name.startswith(f".{_GATE_ROOT_PREFIX}")
+            and path.name.endswith(_GATE_ROOT_OWNER_FILE)
+        ]
+        quarantined_roots = {
+            match.group("root")
+            for path in entries
+            if (match := _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path.name))
+        }
+        removed = 0
+        suffix_length = len(_GATE_ROOT_OWNER_FILE)
+        for sidecar in candidates[:_GATE_ROOT_SCAVENGE_LIMIT]:
+            root_name = sidecar.name[1:-suffix_length]
+            root = temp_root / root_name
+            with cls._processes_lock:
+                root_is_active = str(root) in cls._active_gate_root_identities
+            if (
+                not root_name
+                or root.exists()
+                or root_is_active
+                or root_name in quarantined_roots
+            ):
+                continue
+            try:
+                metadata = sidecar.lstat()
+                if (
+                    stat.S_ISDIR(metadata.st_mode)
+                    or metadata.st_uid != os.getuid()
+                    or now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS
+                ):
+                    continue
+                sidecar.unlink()
+                removed += 1
+            except OSError:
+                continue
+        return removed
+
+    @classmethod
+    def _scavenge_stale_gate_roots(cls) -> int:
+        """Bound cleanup of roots abandoned by a dead service generation."""
+        temp_root = Path(tempfile.gettempdir()).resolve()
+        try:
+            candidates = [
+                path
+                for path in temp_root.iterdir()
+                if path.name.startswith((_GATE_ROOT_PREFIX, _TRUSTED_GATE_ROOT_PREFIX))
+            ]
+        except OSError:
+            return 0
+
+        def _candidate_mtime(path: Path) -> float:
+            try:
+                metadata = path.lstat()
+                if not stat.S_ISDIR(metadata.st_mode):
+                    return float("inf")
+                return metadata.st_mtime
+            except OSError:
+                return float("inf")
+
+        candidates.sort(key=_candidate_mtime)
+        removed = 0
+        now = time.time()
+        for root in candidates[:_GATE_ROOT_SCAVENGE_LIMIT]:
+            stale_identity = cls._stale_gate_root(root, now=now)
+            if stale_identity is None:
+                continue
+            if cls._remove_stale_gate_root(root, stale_identity):
+                removed += 1
+        quarantines_removed = cls._scavenge_abandoned_gate_quarantines(
+            temp_root,
+            now=now,
+        )
+        sidecars_removed = cls._scavenge_orphan_gate_sidecars(temp_root, now=now)
+        if removed:
+            logger.info("Scavenged %d stale quality-gate root(s)", removed)
+        if quarantines_removed:
+            logger.info(
+                "Scavenged %d abandoned quality-gate quarantine(s)",
+                quarantines_removed,
+            )
+        if sidecars_removed:
+            logger.info(
+                "Scavenged %d orphan quality-gate owner sidecar(s)",
+                sidecars_removed,
+            )
+        return removed + quarantines_removed
+
+    @classmethod
+    def _gate_run_root(cls) -> Path:
+        """Create an operator-owned, private root for one candidate command."""
+        root = Path(tempfile.mkdtemp(prefix=_GATE_ROOT_PREFIX))
+        try:
+            os.chmod(root, 0o700)
+            for relative in ("home", "tmp", "cache", "config", "data", "lifecycle"):
+                path = root / relative
+                path.mkdir(mode=0o700)
+            cls._write_gate_root_owner(root)
+            cls._register_gate_root(root)
+            return root
+        except Exception:
+            cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
+            shutil.rmtree(root, ignore_errors=True)
+            raise
+
+    @classmethod
+    def _cleanup_gate_run_root(cls, root: Path) -> None:
         """Remove only a root created by :meth:`_gate_run_root`."""
         try:
             resolved = root.resolve(strict=False)
             temp_root = Path(tempfile.gettempdir()).resolve()
             if (
                 resolved.parent != temp_root
-                or not resolved.name.startswith("oompah-quality-gate-")
+                or not resolved.name.startswith(_GATE_ROOT_PREFIX)
+                or resolved.name.startswith(_TRUSTED_GATE_ROOT_PREFIX)
                 or root.is_symlink()
                 or not root.exists()
                 or root.stat().st_uid != os.getuid()
@@ -736,10 +1328,80 @@ class BranchQualityGate:
                 logger.warning("Refusing to remove unexpected gate root %s", root)
                 return
             shutil.rmtree(root)
+            cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
         except FileNotFoundError:
-            pass
+            cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
         except OSError as exc:
             logger.warning("Failed to clean quality gate root %s: %s", root, exc)
+
+    @classmethod
+    def _gate_trusted_home_root(cls, run_root: Path) -> Path:
+        """Create a server-owned HOME capability separate from gate state.
+
+        The candidate's general writable state is mounted at
+        :data:`_SANDBOX_RUN_ROOT`.  Native-validation guard ownership cannot
+        be trusted anywhere below that mount, so allocate a unique sibling
+        and expose only this otherwise-empty directory at a distinct mount.
+        This protects guard state from the nested managed-Codex task sandbox;
+        the outer exact-gate candidate remains the in-process test harness and
+        necessarily writes the guard while exercising it.
+        """
+        root = Path(
+            tempfile.mkdtemp(
+                prefix=_TRUSTED_GATE_ROOT_PREFIX,
+                dir=run_root.parent,
+            )
+        )
+        try:
+            os.chmod(root, 0o700)
+            resolved = root.resolve(strict=True)
+            resolved_run_root = run_root.resolve(strict=True)
+            if (
+                root.is_symlink()
+                or resolved == resolved_run_root
+                or resolved_run_root in resolved.parents
+                or resolved in resolved_run_root.parents
+                or root.stat().st_uid != os.getuid()
+            ):
+                raise OSError("trusted gate HOME overlaps candidate run state")
+            worker_root = root / "pytest-workers" / "session"
+            worker_root.mkdir(mode=0o700, parents=True)
+            cls._write_gate_root_owner(root)
+            cls._register_gate_root(root)
+            return root
+        except Exception:
+            cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
+            shutil.rmtree(root, ignore_errors=True)
+            raise
+
+    @classmethod
+    def _cleanup_gate_trusted_home_root(cls, root: Path) -> None:
+        """Remove only a root created by :meth:`_gate_trusted_home_root`."""
+        try:
+            resolved = root.resolve(strict=False)
+            temp_root = Path(tempfile.gettempdir()).resolve()
+            if (
+                resolved.parent != temp_root
+                or not resolved.name.startswith(_TRUSTED_GATE_ROOT_PREFIX)
+                or root.is_symlink()
+                or not root.exists()
+                or root.stat().st_uid != os.getuid()
+            ):
+                logger.warning(
+                    "Refusing to remove unexpected trusted gate HOME %s", root
+                )
+                return
+            shutil.rmtree(root)
+            cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
+        except FileNotFoundError:
+            cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
+        except OSError as exc:
+            logger.warning("Failed to clean trusted gate HOME %s: %s", root, exc)
 
     @staticmethod
     def _snapshot_candidate_worktree(
@@ -878,7 +1540,12 @@ class BranchQualityGate:
         return snapshot
 
     @staticmethod
-    def _quality_gate_environment(run_root: Path) -> dict[str, str]:
+    def _quality_gate_environment(
+        run_root: Path,
+        trusted_home_root: Path,
+        *,
+        sandbox_visible: bool = True,
+    ) -> dict[str, str]:
         """Build the complete server-owned lifecycle environment for a gate."""
         # Do not inherit the server environment wholesale.  In particular,
         # inherited OOMPAH/PIP/UV variables can point at operator state even
@@ -892,9 +1559,25 @@ class BranchQualityGate:
         # The host root is bound at _SANDBOX_RUN_ROOT.  Export only that
         # sandbox-visible path: a host tempfile path would be inaccessible
         # after /tmp and /home are hidden by bubblewrap.
-        private_tmp = _SANDBOX_RUN_ROOT / "tmp"
-        private_lifecycle = _SANDBOX_RUN_ROOT / "lifecycle"
-        private_home = _SANDBOX_RUN_ROOT / "home"
+        visible_run_root = (
+            _SANDBOX_RUN_ROOT if sandbox_visible else run_root.resolve(strict=True)
+        )
+        visible_home_root = (
+            _SANDBOX_TRUSTED_HOME_ROOT
+            if sandbox_visible
+            else trusted_home_root.resolve(strict=True)
+        )
+        visible_worker_home_root = visible_home_root / "pytest-workers" / "session"
+        private_tmp = visible_run_root / "tmp"
+        private_lifecycle = visible_run_root / "lifecycle"
+        if (
+            trusted_home_root.resolve(strict=True) == run_root.resolve(strict=True)
+            or run_root.resolve(strict=True)
+            in trusted_home_root.resolve(strict=True).parents
+            or trusted_home_root.resolve(strict=True)
+            in run_root.resolve(strict=True).parents
+        ):
+            raise OSError("trusted gate HOME overlaps candidate run state")
         # Bind-and-close allocation is the portable interface available to the
         # existing Makefile contract.  The candidate still cannot select the
         # operator's configured port because this value is server-generated.
@@ -905,7 +1588,10 @@ class BranchQualityGate:
         environment.update(
             {
                 "OOMPAH_PYTEST_GATE": "1",
-                "OOMPAH_PYTEST_RUN_ROOT": str(_SANDBOX_RUN_ROOT),
+                "OOMPAH_PYTEST_RUN_ROOT": str(visible_run_root),
+                "OOMPAH_PYTEST_CANDIDATE_RUN_ROOT": str(visible_run_root),
+                "OOMPAH_PYTEST_TRUSTED_HOME_ROOT": str(visible_home_root),
+                "OOMPAH_PYTEST_WORKER_HOME_ROOT": str(visible_worker_home_root),
                 "OOMPAH_PYTEST_TEMP_ROOT": str(private_tmp),
                 "OOMPAH_TEMP_ROOT": str(private_tmp),
                 "OOMPAH_TEST_SERVER_PORT": private_port,
@@ -914,16 +1600,14 @@ class BranchQualityGate:
                 "OOMPAH_TEST_PID_META_FILE": str(
                     private_lifecycle / ".oompah.pid.meta"
                 ),
-                "HOME": str(private_home),
+                "HOME": str(visible_home_root),
                 "TMPDIR": str(private_tmp),
                 "TMP": str(private_tmp),
                 "TEMP": str(private_tmp),
-                "XDG_CACHE_HOME": str(_SANDBOX_RUN_ROOT / "cache"),
-                "XDG_CONFIG_HOME": str(_SANDBOX_RUN_ROOT / "config"),
-                "XDG_DATA_HOME": str(_SANDBOX_RUN_ROOT / "data"),
-                "PYTHONPYCACHEPREFIX": str(
-                    _SANDBOX_RUN_ROOT / "cache" / "pycache"
-                ),
+                "XDG_CACHE_HOME": str(visible_run_root / "cache"),
+                "XDG_CONFIG_HOME": str(visible_run_root / "config"),
+                "XDG_DATA_HOME": str(visible_run_root / "data"),
+                "PYTHONPYCACHEPREFIX": str(visible_run_root / "cache" / "pycache"),
             }
         )
         return environment
@@ -933,14 +1617,15 @@ class BranchQualityGate:
         command: str,
         repo_path: str,
         run_root: Path,
+        trusted_home_root: Path,
     ) -> list[str]:
         """Return a bubblewrap command with host lifecycle state hidden.
 
         The candidate command runs in a private mount, PID, and network
-        namespace.  The repository and one operator-created run root are the
-        only task-owned paths made visible.  If bubblewrap or unprivileged
-        namespaces are unavailable, the caller fails closed before starting
-        candidate code.
+        namespace.  The repository, one general run root, and one otherwise
+        empty trusted-HOME capability are the only writable host paths made
+        visible.  If bubblewrap or unprivileged namespaces are unavailable,
+        the caller fails closed before starting candidate code.
         """
         bubblewrap = shutil.which("bwrap")
         if not bubblewrap:
@@ -999,6 +1684,19 @@ class BranchQualityGate:
         repo = Path(repo_path).resolve()
         if not repo.is_dir() or repo.is_symlink():
             raise _SandboxUnavailable("quality-gate worktree is not a real directory")
+        trusted_home = trusted_home_root.resolve(strict=True)
+        resolved_run_root = run_root.resolve(strict=True)
+        if (
+            trusted_home_root.is_symlink()
+            or not trusted_home.is_dir()
+            or trusted_home == resolved_run_root
+            or resolved_run_root in trusted_home.parents
+            or trusted_home in resolved_run_root.parents
+            or trusted_home.stat().st_uid != os.getuid()
+        ):
+            raise _SandboxUnavailable(
+                "trusted quality-gate HOME overlaps candidate run state"
+            )
 
         # Start from an empty root rather than a read-only host root.  Candidate
         # code receives only a disposable source snapshot, its private gate
@@ -1188,6 +1886,7 @@ class BranchQualityGate:
 
         add_destination(repo)
         add_destination(_SANDBOX_RUN_ROOT)
+        add_destination(_SANDBOX_TRUSTED_HOME_ROOT)
         args.extend(
             [
                 "--bind",
@@ -1196,6 +1895,9 @@ class BranchQualityGate:
                 "--bind",
                 str(run_root),
                 str(_SANDBOX_RUN_ROOT),
+                "--bind",
+                str(trusted_home_root),
+                str(_SANDBOX_TRUSTED_HOME_ROOT),
                 *runtime_binds,
                 "--chdir",
                 str(repo),
@@ -1669,11 +2371,14 @@ class BranchQualityGate:
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
-            run_root = self._gate_run_root()
+            run_root: Path | None = None
+            trusted_home_root: Path | None = None
             snapshot: Path | None = None
             monitor_stop = threading.Event()
             monitor: threading.Thread | None = None
             try:
+                run_root = self._gate_run_root()
+                trusted_home_root = self._gate_trusted_home_root(run_root)
                 # --- Barrier 1: before snapshot creation ---
                 # Check authority before creating the immutable archive.
                 # cancel_generation() may have been called while we were
@@ -1753,11 +2458,21 @@ class BranchQualityGate:
                         )
 
                 try:
-                    sandboxed_command = self._sandbox_launcher(
-                        command,
-                        str(snapshot),
-                        run_root,
-                    )
+                    sandbox_visible_environment = True
+                    if self._sandbox_launcher is None:
+                        sandboxed_command = self._sandbox_command(
+                            command,
+                            str(snapshot),
+                            run_root,
+                            trusted_home_root,
+                        )
+                    else:
+                        sandbox_visible_environment = False
+                        sandboxed_command = self._sandbox_launcher(
+                            command,
+                            str(snapshot),
+                            run_root,
+                        )
                 except _TrustedRuntimeCorruption as exc:
                     return QualityGateResult(
                         status="infrastructure_error",
@@ -1781,7 +2496,11 @@ class BranchQualityGate:
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     sandboxed_command,
                     cwd=str(snapshot),
-                    env=self._quality_gate_environment(run_root),
+                    env=self._quality_gate_environment(
+                        run_root,
+                        trusted_home_root,
+                        sandbox_visible=sandbox_visible_environment,
+                    ),
                     shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -1978,7 +2697,10 @@ class BranchQualityGate:
                 # prevents one interrupted caller from clearing the tombstone
                 # while another is still waiting on this evidence-key lock.
                 _release_owned_generation()
-                self._cleanup_gate_run_root(run_root)
+                if trusted_home_root is not None:
+                    self._cleanup_gate_trusted_home_root(trusted_home_root)
+                if run_root is not None:
+                    self._cleanup_gate_run_root(run_root)
 
             result = QualityGateResult(
                 status="passed",

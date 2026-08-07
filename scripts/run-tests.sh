@@ -32,6 +32,7 @@ esac
 
 test_parent="${configured_root}/pytest"
 worker_home_parent="${HOME}/pytest-workers"
+preallocated_worker_home_root="${OOMPAH_PYTEST_WORKER_HOME_ROOT:-}"
 if [[ "${HOME}" != /* ]]; then
     echo "ERROR: quality-gate HOME must be absolute (got '${HOME}')." >&2
     exit 2
@@ -40,17 +41,51 @@ if [[ -L "${worker_home_parent}" ]]; then
     echo "ERROR: refusing symlinked quality-gate worker HOME parent '${worker_home_parent}'." >&2
     exit 2
 fi
+if [[ -n "${preallocated_worker_home_root}" ]]; then
+    test_worker_home_root="${preallocated_worker_home_root}"
+    case "${test_worker_home_root}" in
+        "${worker_home_parent}"/*)
+            ;;
+        *)
+            echo "ERROR: quality-gate worker HOME root must be below '${worker_home_parent}' (got '${test_worker_home_root}')." >&2
+            exit 2
+            ;;
+    esac
+    if [[ "$(dirname -- "${test_worker_home_root}")" != "${worker_home_parent}" ]] \
+        || [[ -L "${test_worker_home_root}" ]] \
+        || [[ ! -d "${test_worker_home_root}" ]]; then
+        echo "ERROR: preallocated quality-gate worker HOME root is invalid '${test_worker_home_root}'." >&2
+        exit 2
+    fi
+fi
+
+# Reject an invalid server-provided HOME capability before allocating either
+# disposable tree.  The EXIT trap is intentionally installed after allocation
+# because it assumes both roots exist, so every validation failure must happen
+# before the first allocation.
 mkdir -p "${test_parent}"
 chmod 700 "${test_parent}"
 test_run_root="$(mktemp -d "${test_parent}/run.XXXXXX")"
 mkdir -p "${worker_home_parent}"
 chmod 700 "${worker_home_parent}"
-test_worker_home_root="$(mktemp -d "${worker_home_parent}/run.XXXXXX")"
+if [[ -z "${preallocated_worker_home_root}" ]]; then
+    test_worker_home_root="$(mktemp -d "${worker_home_parent}/run.XXXXXX")"
+fi
 test_lifecycle_root="${test_run_root}/lifecycle"
 mkdir -p "${test_lifecycle_root}"
 
 cleanup_test_run() {
-    case "${test_worker_home_root}" in
+    if [[ -n "${preallocated_worker_home_root}" ]] \
+        && [[ "${test_worker_home_root}" == "${preallocated_worker_home_root}" ]] \
+        && [[ "$(dirname -- "${test_worker_home_root}")" == "${worker_home_parent}" ]]; then
+        if [[ -L "${worker_home_parent}" || -L "${test_worker_home_root}" ]]; then
+            echo "WARNING: refusing to follow symlinked preallocated pytest worker HOME state '${test_worker_home_root}'." >&2
+        else
+            rm -rf -- "${test_worker_home_root}"
+            rmdir -- "${worker_home_parent}" 2>/dev/null || true
+        fi
+    else
+        case "${test_worker_home_root}" in
         "${worker_home_parent}"/run.*)
             if [[ -L "${worker_home_parent}" || -L "${test_worker_home_root}" ]]; then
                 echo "WARNING: refusing to follow symlinked pytest worker HOME state '${test_worker_home_root}'." >&2
@@ -62,7 +97,8 @@ cleanup_test_run() {
         *)
             echo "WARNING: refusing to clean unexpected pytest worker HOME root '${test_worker_home_root}'." >&2
             ;;
-    esac
+        esac
+    fi
     case "${test_run_root}" in
         "${test_parent}"/run.*)
             rm -rf -- "${test_run_root}"
