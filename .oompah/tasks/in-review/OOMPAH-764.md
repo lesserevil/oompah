@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: Done
+status: In Review
 priority: 1
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T21:27:22.758313Z'
+updated_at: '2026-08-07T12:36:14.382514Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
