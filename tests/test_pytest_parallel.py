@@ -12,9 +12,11 @@ import pytest
 from tests.pytest_worker_isolation import (
     _PROCESS_GLOBAL_GROUP,
     _PROCESS_GLOBAL_MODULES,
+    _worker_home_path,
     build_worker_environment,
     pytest_collection_modifyitems,
     pytest_runtest_setup,
+    pytest_unconfigure,
 )
 
 
@@ -147,6 +149,90 @@ def test_worker_environment_isolates_home_temp_and_cache(tmp_path: Path):
         assert Path(result[key]).is_dir()
 
 
+def test_quality_gate_worker_home_stays_outside_task_writable_tmp():
+    """An xdist worker must preserve the gate's trusted HOME boundary."""
+
+    worker_root = Path("/tmp/oompah-gate/pytest/run.ABC/popen-gw3")
+    current = {
+        "OOMPAH_PYTEST_GATE": "1",
+        "HOME": "/home/oompah",
+        "TMPDIR": "/tmp/oompah-gate",
+        "TMP": "/tmp/oompah-gate",
+        "TEMP": "/tmp/oompah-gate",
+        "OOMPAH_TEMP_ROOT": "/tmp/oompah-gate",
+        "OOMPAH_PYTEST_TEMP_ROOT": "/tmp/oompah-gate",
+        "OOMPAH_PYTEST_RUN_ROOT": "/tmp/oompah-gate/pytest/run.ABC",
+    }
+
+    home = _worker_home_path(worker_root, current)
+
+    assert home == Path("/home/oompah/pytest-workers/popen-gw3")
+    runtime_parent = home / ".oompah" / "native-validation-guards"
+    for untrusted in (
+        Path("/tmp"),
+        Path("/var/tmp"),
+        Path(current["TMPDIR"]),
+        worker_root,
+    ):
+        assert runtime_parent != untrusted
+        assert untrusted not in runtime_parent.parents
+
+
+@pytest.mark.parametrize(
+    "configured_home",
+    [
+        "/tmp/oompah-gate/home",
+        "/var/tmp/oompah-gate/home",
+        "/tmp/oompah-gate/pytest/run.ABC/home",
+    ],
+)
+def test_quality_gate_worker_home_fails_closed_inside_untrusted_tmp(
+    configured_home: str,
+):
+    current = {
+        "OOMPAH_PYTEST_GATE": "1",
+        "HOME": configured_home,
+        "TMPDIR": "/tmp/oompah-gate",
+        "OOMPAH_PYTEST_RUN_ROOT": "/tmp/oompah-gate/pytest/run.ABC",
+    }
+
+    with pytest.raises(
+        RuntimeError,
+        match="overlaps task-writable temporary state",
+    ):
+        _worker_home_path(
+            Path("/tmp/oompah-gate/pytest/run.ABC/popen-gw2"),
+            current,
+        )
+
+
+def test_worker_unconfigure_removes_external_gate_home(
+    monkeypatch,
+    tmp_path: Path,
+):
+    trusted_home = (tmp_path / "trusted-home").resolve()
+    worker_home = trusted_home / "pytest-workers" / "popen-gw1"
+    worker_root = tmp_path / "pytest" / "run.ABC" / "popen-gw1"
+    worker_home.mkdir(parents=True)
+    worker_root.mkdir(parents=True)
+    (worker_home / "guard-state").write_text("retired", encoding="utf-8")
+    (worker_root / "test-state").write_text("retired", encoding="utf-8")
+    config = SimpleNamespace(
+        _oompah_worker_root=worker_root,
+        _oompah_worker_home=worker_home,
+        _oompah_saved_environment={"HOME": str(trusted_home)},
+        _oompah_saved_tempdir=None,
+    )
+    monkeypatch.setenv("HOME", str(worker_home))
+
+    pytest_unconfigure(config)  # type: ignore[arg-type]
+
+    assert not worker_home.exists()
+    assert not worker_root.exists()
+    assert not (trusted_home / "pytest-workers").exists()
+    assert os.environ["HOME"] == str(trusted_home)
+
+
 def test_worker_environment_is_restored_before_each_test(monkeypatch, tmp_path: Path):
     isolated = build_worker_environment(tmp_path / "gw2", os.environ)
     config = SimpleNamespace(
@@ -186,7 +272,6 @@ def test_active_xdist_worker_uses_its_private_run_tree():
 
     run_root = Path(os.environ["OOMPAH_PYTEST_RUN_ROOT"])
     for key in (
-        "HOME",
         "TMPDIR",
         "TMP",
         "TEMP",
@@ -195,6 +280,12 @@ def test_active_xdist_worker_uses_its_private_run_tree():
         "XDG_DATA_HOME",
     ):
         assert Path(os.environ[key]).is_relative_to(run_root)
+    home = Path(os.environ["HOME"])
+    if os.environ.get("OOMPAH_PYTEST_GATE") in {"1", "true", "yes"}:
+        assert not home.is_relative_to(run_root)
+        assert home.parent.name == "pytest-workers"
+    else:
+        assert home.is_relative_to(run_root)
 
 
 def test_process_owning_modules_share_one_xdist_group():

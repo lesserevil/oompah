@@ -41,12 +41,60 @@ _PROCESS_GLOBAL_MODULES = frozenset(
 _PROCESS_GLOBAL_GROUP = "oompah_process_global"
 
 
+def _worker_home_path(
+    worker_root: Path,
+    current: Mapping[str, str],
+) -> Path:
+    """Choose a per-worker HOME without moving trusted gate state into /tmp.
+
+    Parallel workers normally keep all of their state below ``worker_root``.
+    An exact quality gate deliberately puts high-churn pytest state on a
+    task-writable tmpfs, though, while its original HOME remains outside every
+    root writable by a managed native CLI.  Nesting the worker HOME below that
+    tmpfs would make the native validation guard reject its own trusted runtime
+    before managed-Codex tests reach their intended assertions.
+    """
+
+    gate_enabled = str(current.get("OOMPAH_PYTEST_GATE", "")).strip().lower()
+    if gate_enabled not in {"1", "true", "yes"}:
+        return worker_root / "home"
+
+    configured_home = str(current.get("HOME", "")).strip()
+    if not configured_home:
+        raise RuntimeError("quality-gate worker HOME is unavailable")
+    trusted_home = Path(configured_home).expanduser()
+    if not trusted_home.is_absolute():
+        raise RuntimeError("quality-gate worker HOME must be absolute")
+
+    untrusted_roots = {Path("/tmp"), Path("/var/tmp")}
+    for key in (
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "OOMPAH_TEMP_ROOT",
+        "OOMPAH_PYTEST_TEMP_ROOT",
+        "OOMPAH_PYTEST_RUN_ROOT",
+    ):
+        value = str(current.get(key, "")).strip()
+        if value and Path(value).is_absolute():
+            untrusted_roots.add(Path(value))
+    resolved_home = trusted_home.resolve()
+    if any(
+        resolved_home == root.resolve() or root.resolve() in resolved_home.parents
+        for root in untrusted_roots
+    ):
+        raise RuntimeError(
+            "quality-gate worker HOME overlaps task-writable temporary state"
+        )
+    return resolved_home / "pytest-workers" / worker_root.name
+
+
 def build_worker_environment(
     worker_root: Path,
     current: Mapping[str, str],
 ) -> dict[str, str]:
     """Return isolated HOME, temp, and XDG paths for one xdist worker."""
-    home = worker_root / "home"
+    home = _worker_home_path(worker_root, current)
     temp = worker_root / "tmp"
     cache = worker_root / "cache"
     config = worker_root / "config"
@@ -135,6 +183,7 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
     config._oompah_worker_root = worker_root  # type: ignore[attr-defined]
+    config._oompah_worker_home = Path(isolated["HOME"])  # type: ignore[attr-defined]
     config._oompah_saved_environment = saved_environment  # type: ignore[attr-defined]
     config._oompah_isolated_environment = {  # type: ignore[attr-defined]
         key: isolated[key]
@@ -184,6 +233,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Restore the worker process environment and remove its private root."""
     worker_root: Path | None = getattr(config, "_oompah_worker_root", None)
+    worker_home: Path | None = getattr(config, "_oompah_worker_home", None)
     saved: dict[str, str | None] | None = getattr(
         config, "_oompah_saved_environment", None
     )
@@ -197,3 +247,17 @@ def pytest_unconfigure(config: pytest.Config) -> None:
         else:
             os.environ[key] = value
     shutil.rmtree(worker_root, ignore_errors=True)
+    if worker_home is not None and worker_home != worker_root / "home":
+        saved_home = saved.get("HOME")
+        expected_parent = (
+            Path(saved_home).expanduser().resolve() / "pytest-workers"
+            if saved_home
+            else None
+        )
+        if expected_parent is not None and worker_home.parent == expected_parent:
+            shutil.rmtree(worker_home, ignore_errors=True)
+            try:
+                expected_parent.rmdir()
+            except OSError:
+                # Another xdist worker may still own a sibling HOME.
+                pass
