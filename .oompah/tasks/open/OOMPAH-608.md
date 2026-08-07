@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T08:56:09.240829Z'
+updated_at: '2026-08-07T09:05:44.392031Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -653,5 +653,19 @@ created: 2026-08-07 08:56
 Needs Human — Archived audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-07 09:05
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #3)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 606 is merged
+**Evidence head:** `6d0cda5660632aaed34c722198fff17a913a66af`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
