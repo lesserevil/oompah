@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T09:50:39.863702Z'
+updated_at: '2026-08-07T09:52:03.919858Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -741,5 +741,10 @@ author: oompah
 created: 2026-08-07 09:50
 ---
 Understanding: the implementation at commit 6d0cda566 was previously merged and independently audited PASS; the task was reopened only after a later auditor transport/workspace failure. I will reconcile this worktree with origin/main and the recorded merge, inspect the existing redaction boundary and focused tests for regressions, run the required focused suites, and resubmit without duplicating or weakening the credential-safety implementation.
+---
+author: oompah
+created: 2026-08-07 09:52
+---
+Discovery: the merged fix is present in oompah/auditor.py, but live review found two acceptance gaps in its boundary logic. _redact_credential_patterns normalizes every match, so a fully credential-shaped Bearer/API/password value is accepted instead of fail-closed; and _redact_safe_evidence replaces a credential-like key then continues while preserving its raw value. The tool schema/parser also only accept scalar evidence, so nested evidence is not recursively sanitized. I will tighten classification so only demonstrably inert placeholder syntax is normalized, reject high-confidence values with field/path-only feedback that never echoes content, and recursively sanitize bounded JSON evidence before persistence.
 ---
 <!-- COMMENTS:END -->
