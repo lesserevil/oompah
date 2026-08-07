@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T11:52:01.486078Z'
+updated_at: '2026-08-07T11:52:10.929489Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
