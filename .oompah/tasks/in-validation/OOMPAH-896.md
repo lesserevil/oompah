@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:09:04.922612Z'
+updated_at: '2026-08-07T14:11:50.908887Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -58,12 +58,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-896
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 051a0ab5bb043639fde33dad25b74633af1fcda826d603aee9dc3a17cc519ab7
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-37c526a7daa7
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 051a0ab5bb043639fde33dad25b74633af1fcda826d603aee9dc3a17cc519ab7
+      created_at: '2026-08-07T14:11:45.087483+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T14:11:45.087483+00:00'
+      branch_key: epic-OOMPAH-763
+      selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+      selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
     requested_by:
       version: 1
       identity: oompah-epic-maintenance
@@ -72,7 +87,23 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:08:11.947050+00:00'
     selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
     selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
-  attempt_history: []
+    updated_at: '2026-08-07T14:11:45.087483+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-37c526a7daa7
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 051a0ab5bb043639fde33dad25b74633af1fcda826d603aee9dc3a17cc519ab7
+    created_at: '2026-08-07T14:11:45.087483+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T14:11:45.087483+00:00'
+    branch_key: epic-OOMPAH-763
+    selected_ref: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+    selected_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
 ---
 ## Summary
 
