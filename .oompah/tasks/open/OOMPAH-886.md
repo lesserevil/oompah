@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T12:50:50.853251Z'
+updated_at: '2026-08-07T12:51:11.051046Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-08-07 12:42
 ---
 Filed from OOMPAH-879 final review. OOMPAH-879 ships the immediate no-duplicate fail-closed reservation; this task restores bounded liveness with a real atomic create-once contract after the authority fix lands.
+---
+author: oompah
+created: 2026-08-07 12:51
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
