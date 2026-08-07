@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-08-07T16:14:30.056022Z'
+updated_at: '2026-08-07T16:14:37.895207Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
@@ -257,8 +257,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-a26cbe01cd64
-    applied: false
+    applied: true
     created_at: '2026-08-07T16:14:19.048911+00:00'
+    applied_at: '2026-08-07T16:14:34.877832+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1010,5 +1011,28 @@ author: oompah
 created: 2026-08-07 16:11
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 16:14
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 9e4a0c877707d946a4504d664dba74811c2e0aac
+- merge_commit: 54be36f5dca92972dfb039c6f1eba6f4990235d3
+- impl_commit_on_main: 7782ae372 OOMPAH-645: Clear recovered transport failures when active replacement is running
+- pr_number: 623
+- guard_line_301: elif record.request_state == RequestState.PENDING:
+- guard_line_330: if record.request_state == RequestState.PENDING:
+- test_class_TestTransportFailureRecovery_line: tests/test_terminal_audit_health.py:549
+- test_class_TestMultiProjectIsolation_line: tests/test_terminal_audit_health.py:750
+- test_class_TestAlertTextRefersOnlyToUnresolvedAudits_line: tests/test_terminal_audit_health.py:826
+- origin_main_head: 41b1477682c6460a1bb55356ac44c799c9fa783a
+- branch_merged_into_main: true
+- prior_merged_audit: 2026-07-31 15:19 PASS by opus (Merged)
+- prior_done_audit: 2026-07-31 15:17 PASS by opus (Done)
+- prior_gate: make test passed in 378.7s at 9e4a0c877
 ---
 <!-- COMMENTS:END -->
