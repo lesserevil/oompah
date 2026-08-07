@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T14:00:40.066410Z'
-updated_at: '2026-08-07T14:03:29.352049Z'
-work_branch: null
+updated_at: '2026-08-07T14:03:40.593653Z'
+work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
 review_number: null
@@ -27,6 +27,15 @@ oompah.epic_rebase_target:
   parent_id: null
   resolution: confirmed_top_level
 oompah.agent_run_id: b61bedf0-87f6-4a14-952a-38f836b3a06c
+oompah.work_branch: epic-OOMPAH-763
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763
+  base_branch: epic-OOMPAH-763
+  base_sha: a70fe0bc9fe9d6259aa9ae12a6cede33d3626a3e
+  updated_at: '2026-08-07T14:03:37.084892+00:00'
 ---
 ## Summary
 
@@ -46,5 +55,10 @@ author: oompah
 created: 2026-08-07 14:03
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-07 14:03
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
