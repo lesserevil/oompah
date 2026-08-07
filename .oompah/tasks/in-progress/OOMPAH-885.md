@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:41:29.315884Z'
-updated_at: '2026-08-07T12:43:07.572815Z'
+updated_at: '2026-08-07T12:43:19.196223Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -39,3 +39,11 @@ This task was auto-filed because epic OOMPAH-763 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 12:43
+---
+Operator containment: direct-owner fenced immediately on discovery; no provider work or shared-worktree mutation is authorized. This is recurrence #7 of OOMPAH-879 and must remain fenced until that fix is deployed.
+---
+<!-- COMMENTS:END -->

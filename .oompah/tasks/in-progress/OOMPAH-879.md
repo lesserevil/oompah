@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T12:38:55.546394Z'
+updated_at: '2026-08-07T12:43:16.702818Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-08-07 12:38
 ---
 Live recurrence #6: OOMPAH-884 was auto-filed and dispatched while OOMPAH-877 plus four duplicate helpers were already fenced. It observed the operator's newly rebased local shared worktree and force-pushed unvalidated ca1c52744 to origin/epic-OOMPAH-763 at 12:30 UTC, before the focused semantic suite later reported three failures. The operator claimed OOMPAH-884 after tracing its agent log. Acceptance must cover a duplicate helper discovering another authority's completed local mutation and forbid its push, including generic force-with-lease syntax that lacks the exact recorded ref/SHA CAS.
+---
+author: oompah
+created: 2026-08-07 12:43
+---
+Live recurrence #7: OOMPAH-885 was auto-filed in Needs Rebase after duplicate O884 had already published ca1 and been owner-fenced, while authorized O877 was locally repairing the same shared epic against newer main. Operator acquired a direct-owner claim before dispatch. This confirms task-state changes and a newly stale target can keep minting helpers while an existing rebase authority remains live; generation authority must survive target-head churn and supersede/fence new helper identifiers before provider launch.
 ---
 <!-- COMMENTS:END -->
