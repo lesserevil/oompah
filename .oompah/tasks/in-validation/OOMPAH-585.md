@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-07T13:26:49.863880Z'
+updated_at: '2026-08-07T13:27:31.126329Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -816,7 +816,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -842,7 +842,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7d4282879f6f
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -855,6 +855,8 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
       candidate_rotation_count: 1
+      ended_at: '2026-08-07T13:27:29.594498+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -1165,7 +1167,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-7d4282879f6f
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -1178,6 +1180,8 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     candidate_rotation_count: 1
+    ended_at: '2026-08-07T13:27:29.594498+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
   total_input_tokens: 495
   total_output_tokens: 12047
