@@ -6068,6 +6068,58 @@ class TestLabelMergedEpics:
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
+    def test_open_review_published_during_revalidation_blocks_promotion(
+        self, tmp_path
+    ):
+        """A webhook cache update need not move Git refs to revoke promotion."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, project, epic, child, tracker, *_ = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def publish_open_review(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 1:
+                orch._reviews_cache = {
+                    project.id: [
+                        ReviewRequest(
+                            id="779",
+                            title=child.identifier,
+                            url="https://example.test/pr/779",
+                            author="alice",
+                            state="open",
+                            source_branch=child.identifier,
+                            target_branch="epic-OOMPAH-763",
+                            created_at="",
+                            updated_at="",
+                        )
+                    ]
+                }
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=publish_open_review,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 1
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
     def test_generation_that_moves_twice_defers_without_terminal_mutation(
         self, tmp_path
     ):
