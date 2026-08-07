@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-839
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Classify and preserve externally terminated quality-gate outcomes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:49:04.553399Z'
-updated_at: '2026-08-05T16:49:04.553399Z'
+updated_at: '2026-08-07T18:23:38.637802Z'
 work_branch: null
 target_branch: null
 review_url: null

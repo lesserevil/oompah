@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-811
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Atomically rearm integration ownership when rebase advances the task head
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-04T23:45:43.557358Z'
+updated_at: '2026-08-07T18:23:27.331503Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-811
 target_branch: null
 review_url: null

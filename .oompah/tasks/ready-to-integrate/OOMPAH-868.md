@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-846
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T04:20:51.177116Z'
+updated_at: '2026-08-07T18:23:41.241870Z'
 work_branch: null
 target_branch: null
 review_url: null

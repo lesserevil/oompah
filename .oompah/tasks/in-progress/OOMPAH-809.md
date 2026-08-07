@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-809
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Reserve workflow-repair capacity while terminal audits drain
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-06T03:54:50.272222Z'
+updated_at: '2026-08-07T18:23:16.269133Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-809
 target_branch: null
 review_url: null
