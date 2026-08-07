@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: Open
+status: In Progress
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-08-07T10:54:40.076183Z'
+updated_at: '2026-08-07T18:17:37.781959Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
