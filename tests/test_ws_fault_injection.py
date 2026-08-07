@@ -753,12 +753,16 @@ class TestLiveDashboardConvergence:
                     assert initial["data"]["running"] == completed_auditors
 
                     # Each transition is sent through the actual broadcast →
-                    # _send_ws → enveloped WebSocket path.  The injector drops
-                    # only the four completion envelopes.
+                    # _send_ws → enveloped WebSocket path on the connection's
+                    # own event loop.  The injector drops only the four
+                    # completion envelopes.
                     for remaining in range(3, -1, -1):
                         snapshot = _state_with_running(completed_auditors[:remaining])
                         server_module._update_state_snapshot(snapshot)
-                        asyncio.run(server_module._broadcast(server_module._current_state_message()))
+                        ws.portal.call(
+                            server_module._broadcast,
+                            server_module._current_state_message(),
+                        )
 
                     assert len(dropped) == 4
                     assert [message["delivery_seq"] for message in dropped] == sorted(
