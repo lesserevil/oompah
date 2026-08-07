@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T09:01:28.416628Z'
+updated_at: '2026-08-07T09:02:42.637512Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a9c09e04-3ce1-4b3b-bac1-480efa99c058
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 576
   total_output_tokens: 2311
@@ -100,6 +100,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-873
     source_sha: 45e2b83356dd041200d7cad0970c7e6f939dc757
     completed_at: '2026-08-07T07:21:21.273925+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-873
+  head_sha: 7910664b9ca415afe9f66ec309789d6bbd8e3870
+  submitted_at: '2026-08-07T09:02:28.345184+00:00'
+  updated_at: '2026-08-07T09:02:28.345184+00:00'
 ---
 ## Summary
 
@@ -211,5 +219,10 @@ author: oompah
 created: 2026-08-07 09:01
 ---
 Coordination reconciled: OOMPAH-872 commit 0458f8f72b38d61bf81f1629a3d050d51c25bc8d touches only management-tracker startup wiring in server.py and merge-tree shows no conflict with this snapshot work; OOMPAH-607 returned Ready to Integrate with no branch delta. Implementation review additionally moved refresh generation checks outside the snapshot lock, added immediate retry after refresh errors, reserved a revision for external source-generation races, and failed closed when a state-branch extension returns no generation. Validation commands (make test, make terminal-audit-scan, python -m py_compile) are currently blocked before execution because the managed validation guard attempts chmod on read-only /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3.locks. git diff --check passes; proceeding to commit/push so the service-owned exact-head gate can run in its writable host context.
+---
+author: oompah
+created: 2026-08-07 09:02
+---
+Bound native Markdown list/detail reads to exact state-branch generations; stopped state-branch list-only epic/parent rewrites; made lifecycle status moves atomic; rejected raced/unavailable snapshots without serving stale boards; preserved external and callback revision watermarks; made REST and WebSocket full-sync fail retryably when fresh data is unavailable; added paused-project, race, lifecycle, detail/list, and full-sync regression coverage plus docs. Coordination with OOMPAH-872 confirmed no interface/text conflict; OOMPAH-607 had no branch delta. Local validation commands were blocked before execution by the managed guard's read-only lease path; git diff --check passed and the exact-head service gate should run in the host context.
 ---
 <!-- COMMENTS:END -->
