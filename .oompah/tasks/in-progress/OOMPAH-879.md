@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T10:40:35.699435Z'
-updated_at: '2026-08-07T11:55:11.803624Z'
+updated_at: '2026-08-07T11:55:26.142292Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-879
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-08-07 11:55
 ---
 Live recurrence #4 while this fix is in progress: OOMPAH-881 auto-filed and launched a Claude/sonnet provider despite active direct claims on O877/O878/O880 and the same unchanged epic generation 04fa678. Owner takeover stopped it before shared-worktree mutation. Regression must cover repeated scheduler ticks continuing to mint new rebase task identifiers while earlier generation authorities are owner-fenced; task-ID uniqueness is not generation uniqueness.
+---
+author: oompah
+created: 2026-08-07 11:55
+---
+Additional live reproduction on 2026-08-07: OOMPAH-881 was auto-filed and dispatched for the same epic-OOMPAH-763 stale generation while OOMPAH-877, OOMPAH-878, and OOMPAH-880 already had active direct-owner claims. O881 reached a live Claude/sonnet provider (run c07d6c38901e49a58b9b9d1a4e5c7443) and announced it was about to run rebase. An authenticated direct-owner claim 0d873a86e39a4b7087e3374f3286f163 retired it before mutation; shared epic stayed clean at 04fa6781091efc6f11b952b9f1b35123facce64f. Acceptance must fence duplicate auto-file and dispatch across active direct-owner claims for every existing duplicate, not merely running rows.
 ---
 <!-- COMMENTS:END -->
