@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T14:32:50.250132Z'
+updated_at: '2026-08-07T14:32:55.931560Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -232,6 +232,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-d5e425f65f54
     created_at: '2026-08-05T08:07:55.125992+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain the exact Done provenance already accepted at c7bfbcc3 until parent
+      OOMPAH-763 lands; do not reopen implementation because of generic parent rollup
+      or retired auditor generations.
+    marked_at: '2026-08-07T14:32:52.959877+00:00'
+    updated_at: '2026-08-07T14:32:52.959877+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain the exact Done provenance already accepted at c7bfbcc3 until
+        parent OOMPAH-763 lands; do not reopen implementation because of generic parent
+        rollup or retired auditor generations.
+      recorded_at: '2026-08-07T14:32:52.959877+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
