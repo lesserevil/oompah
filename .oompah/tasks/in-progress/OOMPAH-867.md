@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T23:23:00.194844Z'
+updated_at: '2026-08-07T04:21:07.648551Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -324,5 +324,10 @@ author: oompah
 created: 2026-08-06 23:23
 ---
 Repair complete, uncommitted pending independent review and validation. The implementation now resolves and persists an immutable selected_ref/selected_sha at audit-request time, CAS-protects and propagates it through attempts/retries/rearm/restart, checks out only the persisted SHA, preserves legacy fingerprint bytes, migrates legacy unbound records, and fails closed for invalid/unreachable immutable evidence. Exact repair diff SHA256 5bcfeb9539c2fcea2aa887bc2e58e575e8b2e2b70379c09f1090320bb96e2507; cumulative diff SHA256 e4c47f30ebbea1b5ea8401e6d0168955125b5cd308be5ca14a337181e8bfba48. Static compilation/lint/diff/secret checks pass; pytest is intentionally queued behind active dedicated CI.
+---
+author: oompah
+created: 2026-08-07 04:21
+---
+Post-repair validation at exact uncommitted diff SHA256 43fa885b8757553f7482225bdfbde19059a010d262a13666fbc8116ee8b3b15e: six focused modules pass 377 serial and 377 parallel. This includes immutable binding persistence, legacy unreachable-evidence exhaustion, and exact Done/Merged binding-chain regressions. Independent final review remains required before commit/push/submit.
 ---
 <!-- COMMENTS:END -->
