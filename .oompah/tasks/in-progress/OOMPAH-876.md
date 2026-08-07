@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:10:33.256174Z'
+updated_at: '2026-08-07T12:11:42.761901Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -355,5 +355,10 @@ author: oompah
 created: 2026-08-07 12:10
 ---
 Understanding: continuing the preserved implementation for transport-safe auditor retries. I will audit the current diff and test gaps, ensure pre-verdict infrastructure failures retain candidate capacity under a durable bounded retry/backoff ledger, preserve authority/audit identity across restart, distinguish verdict-incapable configuration in health output, then run focused Makefile-backed checks before commit, push, and submission.
+---
+author: oompah
+created: 2026-08-07 12:11
+---
+Discovery: the preserved commit wires the root cause through oompah/orchestrator.py and oompah/auditor_dispatch.py: no-verdict forced exits are persisted as FINALIZATION_FAILURE/INFRASTRUCTURE_ERROR, only policy/substantive attempts consume provider-model capacity, and a separate transport budget/backoff controls retries. Durable workflow ownership covers the combined physical attempt bound. Health has a distinct transport-recovery signal. I am validating an apparent zero-retry health edge and the verdict-incapable candidate diagnostic before focused tests.
 ---
 <!-- COMMENTS:END -->
