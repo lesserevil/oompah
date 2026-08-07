@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:27:12.039459Z'
+updated_at: '2026-08-07T13:36:46.270284Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -915,5 +915,19 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 4s
 - Log: OOMPAH-657__20260807T132319Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:36
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #29)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 618 is merged
+**Evidence head:** `0212dada64768ed8f89e7b27f461f121c4a42299`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
