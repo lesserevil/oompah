@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T07:46:04.665643Z'
+updated_at: '2026-08-07T07:51:30.776152Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-07 07:46
 ---
 Implementation: Added an exact accepted-head containment check with target-ref refresh and immutable merge-base validation, plus a durable IntegrationRecord(state=integrated) no-op landing marker. Valid contained Ready submissions enter the existing terminal transition coordinator without review creation; replay detects the marker before forge lookup. Unknown containment keeps the ordinary review path available, and stale authority is rechecked before and after evidence persistence.
+---
+author: oompah
+created: 2026-08-07 07:51
+---
+Verification: The focused standalone reconciliation suite passes 64 tests, including exact-gated contained heads, canonical no-op replay, uncontained heads, and immutable SHA/target-ref containment. Directly affected terminal audit/fingerprint suites pass 183 tests. Python compilation and git diff checks pass. The repository's native  wrapper could not initialize because its validation lock path is read-only, so tests used the existing project test virtualenv directly; no test failure was observed.
 ---
 <!-- COMMENTS:END -->
