@@ -343,7 +343,10 @@ The coordinator stages requests; the **auditor** (`oompah/auditor.py` or similar
 - `verdict` — `PASS`, `FAIL`, `NEEDS_HUMAN`, or `ERROR`
 - `failure_classification` — required for `FAIL` verdicts
 - `message` — human-oriented explanation (assumed pre-redacted)
-- `safe_evidence` — small map of scalar evidence keys the coordinator may echo in the result comment
+- `safe_evidence` — small bounded JSON map; the result boundary recursively
+  validates nested objects/arrays, redacts explicit credential placeholders,
+  rejects complete credential-shaped values, and flattens safe leaves before
+  the coordinator may echo them in the result comment
 - `auditor` — `ContributorIdentity` of the writer
 - `attempt_id` — idempotency key; duplicate submissions are recognised and re-applied without side effects
 

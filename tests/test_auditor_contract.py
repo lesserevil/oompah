@@ -131,6 +131,16 @@ def test_api_auditor_tool_allowlist_excludes_mutators_and_includes_result_schema
     assert AUDITOR_RESULT_TOOL_SCHEMA["function"]["name"] == AUDITOR_RESULT_TOOL_NAME
     assert set(AUDITOR_ALLOWED_TOOLS).issubset(names | {AUDITOR_RESULT_TOOL_NAME})
 
+    evidence_schema = AUDITOR_RESULT_TOOL_SCHEMA["function"]["parameters"][
+        "properties"
+    ]["safe_evidence"]
+    assert evidence_schema["type"] == "object"
+    nested_types = {
+        item["type"]
+        for item in evidence_schema["additionalProperties"]["anyOf"]
+    }
+    assert nested_types == {"string", "object", "array"}
+
     policy = auditor_policy(task_identifier="TASK-1")
     workspace = __import__("pathlib").Path(".").resolve()
     assert _execute_tool(workspace, "write_file", {"path": "x", "content": "x"}, action_policy=policy).startswith("Error:")

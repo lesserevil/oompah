@@ -25,6 +25,7 @@ from oompah.auditor import (
     AUDITOR_RESULT_TOOL_NAME,
     AuditorTargetContract,
     _MAX_RESULT_MESSAGE_LENGTH,
+    _MAX_SAFE_EVIDENCE_DEPTH,
     _MAX_SAFE_EVIDENCE_ENTRIES,
     _MAX_SAFE_EVIDENCE_KEY_LENGTH,
     _MAX_SAFE_EVIDENCE_VALUE_LENGTH,
@@ -623,6 +624,22 @@ class TestOversizedOutput:
         assert result is None
         assert "exceeds maximum length" in (err or "")
 
+    def test_safe_evidence_nested_container_limit_is_enforced(self):
+        nested = {
+            f"key{i}": {} for i in range(_MAX_SAFE_EVIDENCE_ENTRIES + 1)
+        }
+        result, err = _parse(_valid_args(safe_evidence={"nested": nested}))
+        assert result is None
+        assert "maximum container item count" in (err or "")
+
+    def test_safe_evidence_nesting_depth_is_enforced(self):
+        nested: object = "ok"
+        for index in range(_MAX_SAFE_EVIDENCE_DEPTH + 1):
+            nested = {f"level{index}": nested}
+        result, err = _parse(_valid_args(safe_evidence={"nested": nested}))
+        assert result is None
+        assert "maximum nesting depth" in (err or "")
+
     def test_empty_message_is_rejected(self):
         """An empty message doesn't hit the size limit but should still be
         validated by the coordinator's needs_human check.  parse_auditor_result
@@ -644,7 +661,6 @@ class TestStatusInjection:
         result, err = _parse(args)
         assert result is None
         assert "invalid auditor result fields" in (err or "")
-        assert "status" in (err or "")
 
     def test_extra_state_field_is_rejected(self):
         args = _valid_args()
@@ -652,7 +668,15 @@ class TestStatusInjection:
         result, err = _parse(args)
         assert result is None
         assert "invalid auditor result fields" in (err or "")
-        assert "state" in (err or "")
+
+    def test_unknown_field_name_is_not_echoed(self):
+        unsafe_field = "ghp_" + ("A1b2C3d4" * 3)
+        args = _valid_args()
+        args[unsafe_field] = "injected"
+        result, err = _parse(args)
+        assert result is None
+        assert "invalid auditor result fields" in (err or "")
+        assert unsafe_field not in (err or "")
 
     def test_extra_task_id_field_is_rejected(self):
         """A model cannot supply task_id or project_id to override routing."""
@@ -698,27 +722,25 @@ class TestStatusInjection:
 
 
 class TestSecretLikeFields:
-    def test_credential_pattern_in_message_is_redacted_not_rejected(self):
-        """Inert credential-pattern examples in message are redacted and accepted."""
+    def test_explicit_bearer_placeholder_in_message_is_redacted(self):
+        """Inert credential syntax is normalized instead of blocking a verdict."""
         result, err = _parse(
-            _valid_args(message="Authorization: Bearer short-but-still-secret")
+            _valid_args(message="Bearer syntax uses Bearer sk-... in examples.")
         )
-        # Should be accepted, not rejected, with the bearer token redacted
         assert err is None
         assert result is not None
         assert "[REDACTED-bearer-token]" in result.message
 
-    def test_github_pat_example_in_safe_evidence_is_redacted(self):
-        """GitHub PAT patterns in safe_evidence values are redacted."""
-        result, err = _parse(
-            _valid_args(safe_evidence={"output": "ghp_ABCDEFGHIJKLMNOPabcdef1234"})
-        )
+    def test_explicit_github_placeholder_in_safe_evidence_is_redacted(self):
+        """A visibly synthetic token-shaped placeholder is safe to normalize."""
+        placeholder = "ghp_" + ("x" * 24)
+        result, err = _parse(_valid_args(safe_evidence={"output": placeholder}))
         assert err is None
         assert result is not None
         assert "[REDACTED-github-token]" in result.safe_evidence["output"]
 
-    def test_aws_key_example_in_safe_evidence_is_redacted(self):
-        """AWS key patterns in safe_evidence values are redacted."""
+    def test_published_aws_placeholder_is_redacted(self):
+        """The provider's well-known EXAMPLE value is demonstrably inert."""
         result, err = _parse(
             _valid_args(safe_evidence={"aws": "AKIAIOSFODNN7EXAMPLE"})  # pragma: allowlist secret
         )
@@ -726,79 +748,115 @@ class TestSecretLikeFields:
         assert result is not None
         assert "[REDACTED-aws-key]" in result.safe_evidence["aws"]
 
-    def test_jwt_pattern_in_safe_evidence_is_redacted_not_rejected(self):
-        """JWT-like patterns are redacted. Credential-like keys are redacted to generic marker."""
-        # Three Base64url segments resembling a JWT
-        jwt_like = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyLTEifQ.signature_data_1234"
-        result, err = _parse(_valid_args(safe_evidence={"token": jwt_like}))
-        # Both the key "token" and the JWT value should be handled via redaction
+    def test_explicit_jwt_placeholder_is_redacted(self):
+        jwt_placeholder = ".".join(["x" * 12] * 3)
+        result, err = _parse(_valid_args(safe_evidence={"output": jwt_placeholder}))
         assert err is None
         assert result is not None
-        # The credential-like key "token" gets redacted to a generic key
-        assert "[REDACTED" in str(result.safe_evidence)
+        assert "[REDACTED" in result.safe_evidence["output"]
 
-    def test_password_key_in_safe_evidence_is_redacted(self):
-        """Credential-like keys are redacted to a generic marker."""
+    def test_credential_assignment_placeholder_is_redacted(self):
         result, err = _parse(
-            _valid_args(safe_evidence={"password": "any_value_here"})
+            _valid_args(message="The documented form is password=<redacted>.")
         )
         assert err is None
         assert result is not None
-        # The key should be redacted
-        assert "[REDACTED-credential-key]" in result.safe_evidence
+        assert "[REDACTED-credential]" in result.message
 
-    def test_api_key_key_in_safe_evidence_is_redacted(self):
-        """API key credentials are handled through redaction."""
-        result, err = _parse(
-            _valid_args(safe_evidence={"api_key": "sk-1234567890abcdef1234567890abcdef"})  # pragma: allowlist secret
+    def test_complete_credential_values_are_rejected_without_observation(
+        self,
+        caplog,
+    ):
+        """Bearer/API/password values fail before persistence and are never echoed."""
+        bearer_value = "live-looking-bearer-value"
+        api_value = "sk-" + ("A1b2C3d4" * 4)
+        password_value = "correct-horse-battery-staple"
+        cases = (
+            (_valid_args(message=f"Authorization: Bearer {bearer_value}"), bearer_value),
+            (_valid_args(message=f"Observed API value {api_value}"), api_value),
+            (_valid_args(safe_evidence={"password": password_value}), password_value),
         )
-        # Should accept and redact
-        assert err is None
-        assert result is not None
 
-    def test_token_key_in_safe_evidence_is_redacted(self):
-        """Token keys are redacted."""
+        for payload, unsafe_value in cases:
+            received: list[AuditResult] = []
+            response = _submit(payload, handler=received.append)
+            assert response.startswith("Error:")
+            assert "explicit placeholder" in response
+            assert unsafe_value not in response
+            assert unsafe_value not in caplog.text
+            assert received == []
+
+    def test_complete_token_in_nested_evidence_has_path_only_feedback(self):
+        unsafe_value = "ghp_" + ("A1b2C3d4" * 3)
         result, err = _parse(
-            _valid_args(safe_evidence={"auth_token": "any_value"})
+            _valid_args(safe_evidence={"checks": {"provider": unsafe_value}})
         )
-        assert err is None
-        assert result is not None
-        # The key should be redacted
-        assert "[REDACTED-credential-key]" in result.safe_evidence
+        assert result is None
+        assert "safe_evidence.checks.provider value" in (err or "")
+        assert unsafe_value not in (err or "")
 
-    def test_client_secret_key_is_redacted(self):
-        """client_secret keys are redacted."""
-        result, err = _parse(
-            _valid_args(safe_evidence={"client_secret": "my_oauth_secret"})
-        )
-        assert err is None
-        assert result is not None
-        # The key should be redacted
-        assert "[REDACTED-credential-key]" in result.safe_evidence
-
-    def test_openai_key_pattern_in_value_is_redacted(self):
-        """OpenAI key patterns are redacted."""
+    def test_pem_header_without_material_is_redacted(self):
         result, err = _parse(
             _valid_args(
-                safe_evidence={"info": "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234"}  # pragma: allowlist secret
+                safe_evidence={"syntax": "-----BEGIN RSA PRIVATE KEY-----"}  # pragma: allowlist secret
             )
         )
         assert err is None
         assert result is not None
-        assert "[REDACTED-api-key]" in result.safe_evidence["info"]
+        assert "[REDACTED-private-key]" in result.safe_evidence["syntax"]
 
-    def test_pem_private_key_header_is_redacted(self):
-        """PEM private key headers are redacted."""
+    def test_pem_material_is_rejected_without_echo(self):
+        unsafe_material = "MIIEowIBAAKCAQ" + ("Z" * 24)
+        for separator in ("\n", " "):
+            result, err = _parse(
+                _valid_args(
+                    safe_evidence={
+                        "key_material": (
+                            "-----BEGIN RSA PRIVATE KEY-----"  # pragma: allowlist secret
+                            + separator
+                            + unsafe_material
+                        )
+                    }
+                )
+            )
+            assert result is None
+            assert unsafe_material not in (err or "")
+
+    def test_nested_safe_evidence_is_recursively_redacted_and_flattened(self):
         result, err = _parse(
             _valid_args(
                 safe_evidence={
-                    "key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQ..."  # pragma: allowlist secret
+                    "examples": {
+                        "headers": ["Bearer sk-...", "password=<redacted>"],
+                    },
+                    "tests": "42 passed",
                 }
             )
         )
         assert err is None
         assert result is not None
-        assert "[REDACTED-private-key]" in result.safe_evidence["key"]
+        assert result.safe_evidence == {
+            "examples.headers[0]": "[REDACTED-bearer-token]",
+            "examples.headers[1]": "[REDACTED-credential]",
+            "tests": "42 passed",
+        }
+
+    def test_nested_safe_evidence_rejects_non_json_scalar(self):
+        result, err = _parse(
+            _valid_args(safe_evidence={"tests": {"passed": True}})
+        )
+        assert result is None
+        assert "must be a string, object, or array" in (err or "")
+
+    def test_question_and_instruction_secrets_are_rejected_without_echo(self):
+        unsafe_value = "sk-" + ("D4c3B2a1" * 4)
+        for field_name in ("questions", "instructions"):
+            result, err = _parse(
+                _valid_args(**{field_name: [f"Inspect {unsafe_value}"]})
+            )
+            assert result is None
+            assert f"{field_name}[0]" in (err or "")
+            assert unsafe_value not in (err or "")
 
     def test_safe_regular_evidence_is_accepted(self):
         """Non-sensitive safe_evidence should not be rejected."""
@@ -817,7 +875,7 @@ class TestSecretLikeFields:
 
     def test_redaction_is_idempotent(self):
         """Redacting the same inert credential example twice produces the same output."""
-        message_with_bearer = "Authorization: Bearer short-but-still-secret"
+        message_with_bearer = "Documented syntax: Authorization: Bearer sk-..."
         
         # First submission
         result1, err1 = _parse(_valid_args(message=message_with_bearer))
@@ -839,7 +897,7 @@ class TestSecretLikeFields:
         # Simulates OOMPAH-589's attempted verdict discussing credential patterns
         message = (
             "Requirements discuss credential-safety patterns:\n"
-            "- Bearer tokens like 'Bearer sk-abc123xyz' are unsafe\n"
+            "- Bearer tokens like 'Bearer sk-...' are unsafe\n"
             "- GitHub PATs matching 'ghp_*' must be rejected\n"
             "Code audit confirms all examples are inert documentation."
         )
@@ -866,23 +924,20 @@ class TestSecretLikeFields:
         """OOMPAH-589 submitted 3x with identical payload; all 3 should succeed identically."""
         message = (
             "Audit complete. All tests passed. "
-            "Documentation mentions credential patterns like Bearer tokens (sk-...) for reference only."
+            "Documentation uses the inert syntax 'Bearer sk-...' for reference only."
         )
-        
-        results = []
+
+        received: list[AuditResult] = []
         for attempt in range(3):
-            result, err = _parse(_valid_args(
-                verdict="pass",
-                message=message,
-            ))
-            # Each submission should succeed independently
-            assert err is None, f"Attempt {attempt} failed: {err}"
-            assert result is not None
-            assert result.verdict == Verdict.PASS
-            results.append(result)
-        
-        # All three submissions should produce identical redacted messages (deterministic redaction)
-        assert results[0].message == results[1].message == results[2].message
+            response = _submit(
+                _valid_args(verdict="pass", message=message),
+                handler=received.append,
+            )
+            parsed_response = json.loads(response)
+            assert parsed_response["accepted"] is True, f"Attempt {attempt} failed"
+
+        assert len(received) == 3
+        assert received[0].message == received[1].message == received[2].message
 
     def test_secret_regex_matches_known_patterns(self):
         """Unit test the _RESULT_SECRET_RE pattern directly."""
