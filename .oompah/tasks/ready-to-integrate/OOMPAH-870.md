@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T07:56:59.592723Z'
+updated_at: '2026-08-07T07:59:00.646330Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ddfefe22-85b5-4ea1-ae01-9c3112f1d9e4
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46512
   total_output_tokens: 258
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-870
     source_sha: 45e2b83356dd041200d7cad0970c7e6f939dc757
     completed_at: '2026-08-07T07:16:55.339801+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-870
+  head_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+  submitted_at: '2026-08-07T07:58:47.339172+00:00'
+  updated_at: '2026-08-07T07:58:47.339172+00:00'
 ---
 ## Summary
 
@@ -143,5 +151,15 @@ author: oompah
 created: 2026-08-07 07:56
 ---
 Verification complete: Combined focused coverage passes 248 tests (65 standalone Ready reconciliation tests plus 183 terminal audit/fingerprint/coordinator tests). This includes a real coordinator test proving a contained head persists integrated evidence and stages the Done/Merged audit chain, as well as the review-capacity bypass, replay idempotence, stale/uncontained, and exact SHA containment cases.
+---
+author: oompah
+created: 2026-08-07 07:58
+---
+Completion: Delivered and pushed commit aaaebbfa5152e9942a1decd9ef2d319573ca0493. Ready reconciliation now gates and revalidates the exact accepted SHA, bypasses review capacity for confirmed zero-diff landings, persists integrated no-op evidence, and enters the terminal audit coordinator without forge review creation. Focused verification is green at 248 tests; branch status is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-07 07:59
+---
+Land already-contained Ready heads through durable no-op terminal audit without creating a forge review
 ---
 <!-- COMMENTS:END -->

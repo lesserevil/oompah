@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T07:30:31.593463Z'
+updated_at: '2026-08-07T07:59:04.416645Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -554,5 +554,10 @@ created: 2026-08-07 07:30
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 07:58
+---
+Owner workaround during the OOMPAH-867 graceful restart: PR #734 is merged at exact reviewed head 60a701e828d7fb5ebaa878e021639c93b0856cf7, but the stalled-task watchdog reopened the exhausted audit hold to Open at 07:30. OOMPAH-871 tracks and is actively fixing that provenance-only reopen. Direct claim prevents duplicate implementation; restoring/coalescing the existing Merged terminal chain without new code, gate, or PR.
 ---
 <!-- COMMENTS:END -->
