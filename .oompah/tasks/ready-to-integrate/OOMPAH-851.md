@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-851
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make every tick-test dispatch mock honor the timing mapping contract
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-07T19:19:52.915523Z'
+updated_at: '2026-08-07T19:20:07.776230Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e55aa871-5459-4d9e-836f-d3497b947fc0
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-851
 oompah.integration:
   version: 2
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-08-06 17:58
 ---
 The broad focused matrix exposed a real concurrent standalone-delivery alert race, not a timing-mock defect: durable capacity admitted one review, but a losing sweep re-armed a capacity-wait alert for that same winning task. Filed OOMPAH-863 with a deterministic barrier regression and made it a finish dependency so OOMPAH-851 cannot enter an exact integration gate that can reproduce the unrelated race. The OOMPAH-851 AST contract optimization remains preserved and its exact failing node will be rerun after OOMPAH-863 lands.
+---
+author: oompah
+created: 2026-08-07 19:20
+---
+Made every tick-test dispatch double return a faithful timing mapping, added deterministic slow-path/static contract coverage, and optimized the guard without weakening fail-closed detection. Restacked onto shared epic 6df7dcbe1; all 651 affected tests pass both parallel and serial; check-secrets and diff checks pass.
 ---
 <!-- COMMENTS:END -->
