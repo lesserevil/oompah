@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T10:35:21.346510Z'
+updated_at: '2026-08-07T10:35:30.763580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -351,5 +351,10 @@ FAILED tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate:
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 10:35
+---
+Fixed provenance-fence compatibility for unmarked legacy metadata surfaces; brokered focused regressions passed (469 tests).
 ---
 <!-- COMMENTS:END -->
