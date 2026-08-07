@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T19:47:00.863720Z'
+updated_at: '2026-08-07T19:47:08.156566Z'
 work_branch: OOMPAH-902
 target_branch: null
 review_url: null
@@ -55,7 +55,18 @@ oompah.terminal_audit:
       is healthy. The queued redundant auditor would repeat validation while blocking
       older repair waiters.'
     created_at: '2026-08-07T19:46:56.945413+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-902
+    target_state: Done
+    evidence_fingerprint: 17dbda63033607b48d8561f55bef3e8a1f0cd94be160c319894406f800612753
+    audit_ids:
+    - audit-8dbb97f0ae9e
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T19:47:06.604212+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -63,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-902
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -130,7 +141,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:11:12.986284+00:00'
     selected_ref: f09c0546f55c4994b8894e003874215ac3d8c816
     selected_sha: f09c0546f55c4994b8894e003874215ac3d8c816
-    updated_at: '2026-08-07T19:34:25.422016+00:00'
+    updated_at: '2026-08-07T19:47:06.604184+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bd594e4191e6
@@ -311,5 +322,12 @@ author: oompah
 created: 2026-08-07 19:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:47
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct operator review accepted the exact sandbox-security repair at f09c0546f55c4994b8894e003874215ac3d8c816: 50 focused tests passed, a real BranchQualityGate run passed 40 tests with only 11 explicitly proven nested-host-policy skips, scoped lint/diff/secret checks passed, and deployed epic revision eb08e86b9 is healthy. The queued redundant auditor would repeat validation while blocking older repair waiters.
 ---
 <!-- COMMENTS:END -->
