@@ -12,13 +12,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T22:02:50.501578Z'
-work_branch: null
+updated_at: '2026-08-07T22:03:11.685888Z'
+work_branch: OOMPAH-906
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-906
+  head_sha: 273c3ddb683abe295f2c878b022d899896ebd618
+  submitted_at: '2026-08-07T22:03:00.915026+00:00'
+  updated_at: '2026-08-07T22:03:00.915026+00:00'
+oompah.work_branch: OOMPAH-906
 ---
 ## Summary
 
