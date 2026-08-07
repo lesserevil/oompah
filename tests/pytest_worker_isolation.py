@@ -23,8 +23,10 @@ _ISOLATED_ENV_KEYS = (
     "XDG_DATA_HOME",
 )
 _RUNNER_ENV_KEYS = ("OOMPAH_PYTEST_RUN_ROOT",)
+_WORKER_HOME_ROOT_ENV = "OOMPAH_PYTEST_WORKER_HOME_ROOT"
 _GATE_ENV_KEYS = (
     "OOMPAH_PYTEST_GATE",
+    _WORKER_HOME_ROOT_ENV,
     "OOMPAH_TEST_SERVER_PORT",
     "OOMPAH_SERVER_PORT",
     "OOMPAH_TEST_PID_FILE",
@@ -41,9 +43,95 @@ _PROCESS_GLOBAL_MODULES = frozenset(
 _PROCESS_GLOBAL_GROUP = "oompah_process_global"
 
 
+def _resolved_environment_path(value: str, working_directory: Path) -> Path:
+    """Resolve an environment path using the subprocess's actual cwd."""
+
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        candidate = working_directory / candidate
+    return candidate.resolve(strict=False)
+
+
+def _quality_gate_untrusted_roots(
+    worker_root: Path,
+    current: Mapping[str, str],
+    *,
+    working_directory: Path,
+) -> tuple[Path, ...]:
+    """Return every root writable by the gate's candidate pytest process."""
+
+    candidates = [
+        Path("/tmp"),
+        Path("/var/tmp"),
+        Path(tempfile.gettempdir()),
+        working_directory,
+        worker_root,
+    ]
+    for key in (
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "OOMPAH_TEMP_ROOT",
+        "OOMPAH_PYTEST_TEMP_ROOT",
+        "OOMPAH_PYTEST_RUN_ROOT",
+    ):
+        value = str(current.get(key, "")).strip()
+        if value:
+            candidates.append(Path(value).expanduser())
+
+    roots: list[Path] = []
+    for candidate in candidates:
+        resolved = _resolved_environment_path(
+            str(candidate),
+            working_directory,
+        )
+        if resolved not in roots:
+            roots.append(resolved)
+    return tuple(roots)
+
+
+def _gate_worker_home_parent(
+    current: Mapping[str, str],
+    *,
+    working_directory: Path,
+) -> Path:
+    configured_home = str(current.get("HOME", "")).strip()
+    if not configured_home:
+        raise RuntimeError("quality-gate worker HOME is unavailable")
+    raw_home = Path(configured_home).expanduser()
+    if not raw_home.is_absolute():
+        raise RuntimeError("quality-gate worker HOME must be absolute")
+
+    resolved_home = raw_home.resolve(strict=False)
+    parent = resolved_home / "pytest-workers"
+    # The runner owns this exact directory.  Following a pre-existing symlink
+    # would let candidate-controlled state redirect both guard creation and
+    # later recursive cleanup outside the trusted HOME boundary.
+    if parent.is_symlink() or parent.resolve(strict=False) != parent:
+        raise RuntimeError("quality-gate worker HOME parent is a symlink escape")
+    return parent
+
+
+def _validate_gate_home_candidate(
+    candidate: Path,
+    *,
+    untrusted_roots: tuple[Path, ...],
+) -> Path:
+    if candidate.is_symlink():
+        raise RuntimeError("quality-gate worker HOME is a symlink escape")
+    resolved = candidate.resolve(strict=False)
+    if any(resolved == root or root in resolved.parents for root in untrusted_roots):
+        raise RuntimeError(
+            "quality-gate worker HOME overlaps task-writable temporary state"
+        )
+    return resolved
+
+
 def _worker_home_path(
     worker_root: Path,
     current: Mapping[str, str],
+    *,
+    working_directory: Path | None = None,
 ) -> Path:
     """Choose a per-worker HOME without moving trusted gate state into /tmp.
 
@@ -59,34 +147,86 @@ def _worker_home_path(
     if gate_enabled not in {"1", "true", "yes"}:
         return worker_root / "home"
 
-    configured_home = str(current.get("HOME", "")).strip()
-    if not configured_home:
-        raise RuntimeError("quality-gate worker HOME is unavailable")
-    trusted_home = Path(configured_home).expanduser()
-    if not trusted_home.is_absolute():
-        raise RuntimeError("quality-gate worker HOME must be absolute")
+    cwd = (working_directory or Path.cwd()).resolve(strict=False)
+    parent = _gate_worker_home_parent(current, working_directory=cwd)
+    configured_root = str(current.get(_WORKER_HOME_ROOT_ENV, "")).strip()
+    if configured_root:
+        session_root = _resolved_environment_path(configured_root, cwd)
+        if session_root.is_symlink() or session_root.parent != parent:
+            raise RuntimeError(
+                "quality-gate worker HOME root escapes its runner-owned parent"
+            )
+    else:
+        # Direct helper callers retain a bounded fallback.  A real xdist gate
+        # always receives a unique controller/runner-owned session root.
+        session_root = parent
 
-    untrusted_roots = {Path("/tmp"), Path("/var/tmp")}
-    for key in (
-        "TMPDIR",
-        "TMP",
-        "TEMP",
-        "OOMPAH_TEMP_ROOT",
-        "OOMPAH_PYTEST_TEMP_ROOT",
-        "OOMPAH_PYTEST_RUN_ROOT",
-    ):
-        value = str(current.get(key, "")).strip()
-        if value and Path(value).is_absolute():
-            untrusted_roots.add(Path(value))
-    resolved_home = trusted_home.resolve()
-    if any(
-        resolved_home == root.resolve() or root.resolve() in resolved_home.parents
-        for root in untrusted_roots
-    ):
-        raise RuntimeError(
-            "quality-gate worker HOME overlaps task-writable temporary state"
+    candidate = session_root / worker_root.name
+    return _validate_gate_home_candidate(
+        candidate,
+        untrusted_roots=_quality_gate_untrusted_roots(
+            worker_root,
+            current,
+            working_directory=cwd,
+        ),
+    )
+
+
+def _prepare_gate_worker_home_root(
+    current: Mapping[str, str],
+    *,
+    working_directory: Path,
+) -> Path:
+    """Create or validate one controller-owned external worker-HOME root."""
+
+    cwd = working_directory.resolve(strict=False)
+    parent = _gate_worker_home_parent(current, working_directory=cwd)
+    configured_root = str(current.get(_WORKER_HOME_ROOT_ENV, "")).strip()
+    if configured_root:
+        root = _resolved_environment_path(configured_root, cwd)
+        if root.is_symlink() or root.parent != parent:
+            raise RuntimeError(
+                "quality-gate worker HOME root escapes its runner-owned parent"
+            )
+    else:
+        parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(prefix="session.", dir=parent))
+
+    try:
+        validated = _validate_gate_home_candidate(
+            root,
+            untrusted_roots=_quality_gate_untrusted_roots(
+                Path(str(current.get("OOMPAH_PYTEST_RUN_ROOT") or cwd)),
+                current,
+                working_directory=cwd,
+            ),
         )
-    return resolved_home / "pytest-workers" / worker_root.name
+        validated.mkdir(mode=0o700, parents=True, exist_ok=True)
+        validated.chmod(0o700)
+        return validated
+    except Exception:
+        if root.parent == parent and root.name.startswith("session."):
+            shutil.rmtree(root, ignore_errors=True)
+        raise
+
+
+def _remove_runner_owned_home(path: Path, *, expected_parent: Path) -> bool:
+    """Remove one exact runner-owned directory without following symlinks."""
+
+    if expected_parent.is_symlink() or path.is_symlink():
+        return False
+    parent = expected_parent.resolve(strict=False)
+    resolved = path.resolve(strict=False)
+    if path.parent.resolve(strict=False) != parent or resolved != path:
+        return False
+    # Delete through the checked lexical entry.  Using ``resolved`` here would
+    # reintroduce a symlink-following cleanup primitive after validation.
+    shutil.rmtree(path, ignore_errors=True)
+    try:
+        parent.rmdir()
+    except OSError:
+        pass
+    return not path.exists()
 
 
 def build_worker_environment(
@@ -148,6 +288,20 @@ def pytest_configure(config: pytest.Config) -> None:
     """Give each xdist worker its own home, temp, and cache directories."""
     worker_input = getattr(config, "workerinput", None)
     if worker_input is None:
+        if str(os.environ.get("OOMPAH_PYTEST_GATE", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
+            saved_root = os.environ.get(_WORKER_HOME_ROOT_ENV)
+            root = _prepare_gate_worker_home_root(
+                os.environ,
+                working_directory=Path.cwd(),
+            )
+            os.environ[_WORKER_HOME_ROOT_ENV] = str(root)
+            config._oompah_gate_worker_home_root = root  # type: ignore[attr-defined]
+            config._oompah_gate_worker_home_parent = root.parent  # type: ignore[attr-defined]
+            config._oompah_saved_worker_home_root = saved_root  # type: ignore[attr-defined]
         return
 
     worker_id = _safe_worker_id(str(worker_input.get("workerid", "worker")))
@@ -232,6 +386,28 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Restore the worker process environment and remove its private root."""
+    gate_root: Path | None = getattr(
+        config,
+        "_oompah_gate_worker_home_root",
+        None,
+    )
+    gate_parent: Path | None = getattr(
+        config,
+        "_oompah_gate_worker_home_parent",
+        None,
+    )
+    if gate_root is not None and gate_parent is not None:
+        _remove_runner_owned_home(gate_root, expected_parent=gate_parent)
+        saved_root: str | None = getattr(
+            config,
+            "_oompah_saved_worker_home_root",
+            None,
+        )
+        if saved_root is None:
+            os.environ.pop(_WORKER_HOME_ROOT_ENV, None)
+        else:
+            os.environ[_WORKER_HOME_ROOT_ENV] = saved_root
+
     worker_root: Path | None = getattr(config, "_oompah_worker_root", None)
     worker_home: Path | None = getattr(config, "_oompah_worker_home", None)
     saved: dict[str, str | None] | None = getattr(
@@ -248,16 +424,7 @@ def pytest_unconfigure(config: pytest.Config) -> None:
             os.environ[key] = value
     shutil.rmtree(worker_root, ignore_errors=True)
     if worker_home is not None and worker_home != worker_root / "home":
-        saved_home = saved.get("HOME")
-        expected_parent = (
-            Path(saved_home).expanduser().resolve() / "pytest-workers"
-            if saved_home
-            else None
-        )
+        saved_root = saved.get(_WORKER_HOME_ROOT_ENV)
+        expected_parent = Path(saved_root).resolve(strict=False) if saved_root else None
         if expected_parent is not None and worker_home.parent == expected_parent:
-            shutil.rmtree(worker_home, ignore_errors=True)
-            try:
-                expected_parent.rmdir()
-            except OSError:
-                # Another xdist worker may still own a sibling HOME.
-                pass
+            _remove_runner_owned_home(worker_home, expected_parent=expected_parent)

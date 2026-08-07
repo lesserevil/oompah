@@ -12,6 +12,7 @@ import pytest
 from tests.pytest_worker_isolation import (
     _PROCESS_GLOBAL_GROUP,
     _PROCESS_GLOBAL_MODULES,
+    _WORKER_HOME_ROOT_ENV,
     _worker_home_path,
     build_worker_environment,
     pytest_collection_modifyitems,
@@ -162,11 +163,12 @@ def test_quality_gate_worker_home_stays_outside_task_writable_tmp():
         "OOMPAH_TEMP_ROOT": "/tmp/oompah-gate",
         "OOMPAH_PYTEST_TEMP_ROOT": "/tmp/oompah-gate",
         "OOMPAH_PYTEST_RUN_ROOT": "/tmp/oompah-gate/pytest/run.ABC",
+        _WORKER_HOME_ROOT_ENV: "/home/oompah/pytest-workers/run.ABC",
     }
 
     home = _worker_home_path(worker_root, current)
 
-    assert home == Path("/home/oompah/pytest-workers/popen-gw3")
+    assert home == Path("/home/oompah/pytest-workers/run.ABC/popen-gw3")
     runtime_parent = home / ".oompah" / "native-validation-guards"
     for untrusted in (
         Path("/tmp"),
@@ -206,12 +208,83 @@ def test_quality_gate_worker_home_fails_closed_inside_untrusted_tmp(
         )
 
 
+def test_quality_gate_validates_candidate_home_not_only_base_home():
+    current = {
+        "OOMPAH_PYTEST_GATE": "1",
+        "HOME": "/home/oompah",
+        "OOMPAH_TEMP_ROOT": "/home/oompah/pytest-workers",
+        "OOMPAH_PYTEST_RUN_ROOT": "/tmp/oompah-gate/pytest/run.ABC",
+        _WORKER_HOME_ROOT_ENV: "/home/oompah/pytest-workers/run.ABC",
+    }
+
+    with pytest.raises(
+        RuntimeError,
+        match="overlaps task-writable temporary state",
+    ):
+        _worker_home_path(
+            Path("/tmp/oompah-gate/pytest/run.ABC/popen-gw2"),
+            current,
+        )
+
+
+@pytest.mark.parametrize(
+    "root_name",
+    [
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "OOMPAH_TEMP_ROOT",
+        "OOMPAH_PYTEST_TEMP_ROOT",
+        "OOMPAH_PYTEST_RUN_ROOT",
+    ],
+)
+def test_quality_gate_resolves_relative_untrusted_root_against_worker_cwd(
+    root_name: str,
+):
+    current = {
+        "OOMPAH_PYTEST_GATE": "1",
+        "HOME": "/home/oompah",
+        root_name: "../pytest-workers",
+        _WORKER_HOME_ROOT_ENV: "/home/oompah/pytest-workers/run.ABC",
+    }
+
+    with pytest.raises(
+        RuntimeError,
+        match="overlaps task-writable temporary state",
+    ):
+        _worker_home_path(
+            Path("/srv/project/pytest/run.ABC/popen-gw2"),
+            current,
+            working_directory=Path("/home/oompah/project"),
+        )
+
+
+def test_quality_gate_rejects_symlinked_worker_home_parent(tmp_path: Path):
+    home = tmp_path / "home"
+    escape = tmp_path / "escape"
+    home.mkdir()
+    escape.mkdir()
+    (home / "pytest-workers").symlink_to(escape, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="symlink escape"):
+        _worker_home_path(
+            tmp_path / "run" / "popen-gw2",
+            {
+                "OOMPAH_PYTEST_GATE": "1",
+                "HOME": str(home),
+                "OOMPAH_PYTEST_RUN_ROOT": str(tmp_path / "run"),
+            },
+            working_directory=tmp_path,
+        )
+
+
 def test_worker_unconfigure_removes_external_gate_home(
     monkeypatch,
     tmp_path: Path,
 ):
     trusted_home = (tmp_path / "trusted-home").resolve()
-    worker_home = trusted_home / "pytest-workers" / "popen-gw1"
+    session_root = trusted_home / "pytest-workers" / "run.ABC"
+    worker_home = session_root / "popen-gw1"
     worker_root = tmp_path / "pytest" / "run.ABC" / "popen-gw1"
     worker_home.mkdir(parents=True)
     worker_root.mkdir(parents=True)
@@ -220,7 +293,10 @@ def test_worker_unconfigure_removes_external_gate_home(
     config = SimpleNamespace(
         _oompah_worker_root=worker_root,
         _oompah_worker_home=worker_home,
-        _oompah_saved_environment={"HOME": str(trusted_home)},
+        _oompah_saved_environment={
+            "HOME": str(trusted_home),
+            _WORKER_HOME_ROOT_ENV: str(session_root),
+        },
         _oompah_saved_tempdir=None,
     )
     monkeypatch.setenv("HOME", str(worker_home))
@@ -229,12 +305,131 @@ def test_worker_unconfigure_removes_external_gate_home(
 
     assert not worker_home.exists()
     assert not worker_root.exists()
-    assert not (trusted_home / "pytest-workers").exists()
+    assert not session_root.exists()
     assert os.environ["HOME"] == str(trusted_home)
 
 
+@pytest.mark.parametrize("partial_name", ["crashed-gw0", "config-failed-gw1"])
+def test_controller_unconfigure_removes_abandoned_worker_homes(
+    monkeypatch,
+    tmp_path: Path,
+    partial_name: str,
+):
+    parent = tmp_path / "trusted-home" / "pytest-workers"
+    session_root = parent / "run.ABC"
+    abandoned_home = session_root / partial_name
+    abandoned_home.mkdir(parents=True)
+    (abandoned_home / "partial-state").write_text("leftover", encoding="utf-8")
+    config = SimpleNamespace(
+        _oompah_gate_worker_home_root=session_root,
+        _oompah_gate_worker_home_parent=parent,
+        _oompah_saved_worker_home_root=None,
+    )
+    monkeypatch.setenv(_WORKER_HOME_ROOT_ENV, str(session_root))
+
+    pytest_unconfigure(config)  # type: ignore[arg-type]
+
+    assert not session_root.exists()
+    assert not parent.exists()
+    assert _WORKER_HOME_ROOT_ENV not in os.environ
+
+
+def _run_runner_with_fake_pytest(
+    tmp_path: Path,
+    *,
+    pytest_action: str,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -eu\n"
+        "if [[ \"${1-}\" == \"-c\" ]]; then\n"
+        "  echo 32123\n"
+        "  exit 0\n"
+        "fi\n"
+        'mkdir -p "${OOMPAH_PYTEST_WORKER_HOME_ROOT}/popen-gw0"\n'
+        'touch "${OOMPAH_PYTEST_WORKER_HOME_ROOT}/popen-gw0/partial"\n'
+        f"{pytest_action}\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(fake_home),
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "OOMPAH_PYTEST_TEMP_ROOT": str(tmp_path / "gate-temp"),
+        }
+    )
+
+    result = subprocess.run(
+        [str(RUNNER), "parallel", "tests/not-run-by-fake-python.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result, fake_home / "pytest-workers"
+
+
+def test_runner_removes_worker_home_after_xdist_process_is_killed(tmp_path: Path):
+    result, worker_parent = _run_runner_with_fake_pytest(
+        tmp_path,
+        pytest_action='kill -KILL "$$"',
+    )
+
+    assert result.returncode == 137
+    assert not worker_parent.exists()
+
+
+def test_runner_removes_worker_home_after_configuration_failure(tmp_path: Path):
+    result, worker_parent = _run_runner_with_fake_pytest(
+        tmp_path,
+        pytest_action="exit 4",
+    )
+
+    assert result.returncode == 4
+    assert not worker_parent.exists()
+
+
+def test_runner_rejects_symlinked_worker_home_parent(tmp_path: Path):
+    fake_home = tmp_path / "home"
+    escape = tmp_path / "escape"
+    fake_home.mkdir()
+    escape.mkdir()
+    (fake_home / "pytest-workers").symlink_to(escape, target_is_directory=True)
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(fake_home),
+            "OOMPAH_PYTEST_TEMP_ROOT": str(tmp_path / "gate-temp"),
+        }
+    )
+
+    result = subprocess.run(
+        [str(RUNNER), "serial", "tests/not-run.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "refusing symlinked quality-gate worker HOME parent" in result.stderr
+    assert not tuple(escape.iterdir())
+
+
 def test_worker_environment_is_restored_before_each_test(monkeypatch, tmp_path: Path):
-    isolated = build_worker_environment(tmp_path / "gw2", os.environ)
+    current = dict(os.environ)
+    current.pop("OOMPAH_PYTEST_GATE", None)
+    current.pop(_WORKER_HOME_ROOT_ENV, None)
+    isolated = build_worker_environment(tmp_path / "gw2", current)
     config = SimpleNamespace(
         _oompah_isolated_environment={
             key: isolated[key]
@@ -283,7 +478,8 @@ def test_active_xdist_worker_uses_its_private_run_tree():
     home = Path(os.environ["HOME"])
     if os.environ.get("OOMPAH_PYTEST_GATE") in {"1", "true", "yes"}:
         assert not home.is_relative_to(run_root)
-        assert home.parent.name == "pytest-workers"
+        assert home.parent == Path(os.environ[_WORKER_HOME_ROOT_ENV])
+        assert home.parent.parent.name == "pytest-workers"
     else:
         assert home.is_relative_to(run_root)
 
