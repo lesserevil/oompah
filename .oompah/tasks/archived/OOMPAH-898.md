@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-898
 type: task
-status: In Progress
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:17:57.854034Z'
-updated_at: '2026-08-07T14:27:03.021896Z'
+updated_at: '2026-08-07T14:56:42.174091Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -27,6 +27,29 @@ oompah.epic_rebase_target:
   target_branch: main
   parent_id: null
   resolution: confirmed_top_level
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e41d228aeec0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-898
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fff3cca55deed5cbf5ef48d60a26b3806b2dd3bf147b6ef191206671e4ae09b8
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published
+      exact full-gate-passing head e06bec549; this helper has no remaining independent
+      work or authority.
+    created_at: '2026-08-07T14:56:35.851562+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
