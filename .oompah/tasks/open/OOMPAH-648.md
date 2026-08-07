@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T20:00:14.479435Z'
+updated_at: '2026-08-07T20:01:27.762876Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -29,12 +29,12 @@ oompah.duplicate_screening:
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 1
-  retry_after: '2026-08-07T20:01:00.615845+00:00'
+  retry_count: 2
+  retry_after: '2026-08-07T20:03:21.266352+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bbcbeeb7-d30c-4682-8709-63c81b3746aa
+oompah.agent_run_id: 9933b8a0-6933-4ac7-8851-54874a9698b4
 oompah.task_costs:
   total_input_tokens: 26033567
   total_output_tokens: 68369
@@ -245,6 +245,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-648
+    source_sha: null
+    completed_at: ''
+  - run_id: d1c557f7b4dd4eaa8fd2ebe16cca8476--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
     focus: duplicate_detector
     source_branch: OOMPAH-648
     source_sha: null
@@ -1223,5 +1231,19 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 7s
+---
+author: oompah
+created: 2026-08-07 20:01
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 20:01
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 6s
 ---
 <!-- COMMENTS:END -->
