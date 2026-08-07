@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T09:31:07.087122Z'
+updated_at: '2026-08-07T09:32:47.595163Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -185,6 +185,27 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:30:57.300083+00:00'
     applied_at: '2026-08-07T09:31:05.741513+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-75cd2528cd3f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-845
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #734 merged at exact reviewed head 60a701e82 after a passing full
+      make-test gate; independent static review and 215 focused tests passed serial
+      and parallel. All three configured auditor transports terminated before a verdict,
+      so preserve verified Merged work while OOMPAH-876 repairs transport/candidate
+      exhaustion and OOMPAH-871 prevents provenance reopen.'
+    created_at: '2026-08-07T09:32:43.137459+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
