@@ -77,7 +77,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-07T21:48:47.945220Z'
+updated_at: '2026-08-07T22:13:27.155598Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-07 21:48
 ---
 Direct-owner composition checkpoint: current clean head 3a1928d6bb7d7b47a48a90a7d0e0a56e147bb96c includes current main and repairs the first full-gate failure (3 restart/cancellation regressions pass). The initial exact gate stopped at 1,457 passed on stale composed fixtures. Independent semantic review accepts workflow atomicity and the OOMPAH-843/OOMPAH-904 integration. Publication remains intentionally blocked while an isolated repair adds deterministic coverage for four review-lifecycle races: lock-order inversion, existing reservation duplicate-create suppression for epic/generic paths, close-between-create-and-publication fencing, and stale reviews API response preservation. A new exact full gate will run only after those blockers are composed.
+---
+author: oompah
+created: 2026-08-07 22:13
+---
+Review-lifecycle blocker repair composed at ad15ee70bbb79ff3c5dc951603b3070ec3731998. It establishes canonical lifecycle-before-tracker lock order, treats acquired_new=false reservations as wait/adoption signals in epic and generic paths, fences created-review parent+child publication against close/merge under issue ownership, and preserves still-open sibling reviews in API/TTL state when a close overtakes a fetch. Validation: 7 deterministic race regressions and 725 broader affected review tests pass; terminal mutation scan 9/9, secret scan, and diff check pass. Independent review of this exact commit is active. Full exact gate remains deferred until direct-owner OOMPAH-887 and the reviewed OOMPAH-906 gate-harness repair are incorporated, avoiding redundant full-suite runs.
 ---
 <!-- COMMENTS:END -->
