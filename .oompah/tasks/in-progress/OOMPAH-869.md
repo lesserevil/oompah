@@ -11,9 +11,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
+- human-only
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T07:20:57.325258Z'
+updated_at: '2026-08-07T07:22:15.784634Z'
 work_branch: null
 target_branch: null
 review_url: null
