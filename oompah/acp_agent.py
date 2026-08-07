@@ -98,6 +98,7 @@ class AcpAgentSession:
         max_turns: int | None = None,
         env: dict[str, str] | None = None,
         isolate_remote_write: bool = False,
+        epic_rebase_publish_enabled: bool = False,
         provider_auth_kind: str | None = None,
         tool_catalog: list[Any] | None = None,
         read_only: bool = False,
@@ -134,6 +135,7 @@ class AcpAgentSession:
         self.max_turns = max_turns
         self.env = env or {}
         self.isolate_remote_write = bool(isolate_remote_write)
+        self.epic_rebase_publish_enabled = bool(epic_rebase_publish_enabled)
         self.provider_auth_kind = provider_auth_kind
         self.tool_catalog = tool_catalog or []
         self.read_only = bool(read_only)
@@ -334,6 +336,7 @@ class AcpAgentSession:
             max_turns=self.max_turns,
             env=self.env or None,
             isolate_remote_write=self.isolate_remote_write,
+            epic_rebase_publish_enabled=self.epic_rebase_publish_enabled,
             provider_auth_kind=self.provider_auth_kind,
             tool_catalog=list(self.tool_catalog) if self.tool_catalog else None,
             read_only=self.read_only,
