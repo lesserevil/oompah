@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T19:24:53.125495Z'
+updated_at: '2026-08-07T19:27:40.909555Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -190,6 +190,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-d3c89591d481: '2026-07-31T12:59:21.526262+00:00'
     no-auditor-audit-ed465995092d-1: '2026-08-07T13:12:48.855034+00:00'
+    no-auditor-audit-cda420acdd59-0: '2026-08-07T19:27:29.234625+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-58de5613106a
@@ -219,6 +220,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T13:12:48.855046+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Done
+    evidence_fingerprint: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+    audit_ids:
+    - audit-cda420acdd59
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T19:27:29.234642+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-657
@@ -232,6 +242,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:12:48.855063+00:00'
     applied_at: '2026-08-07T13:12:57.216302+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    audit_id: audit-cda420acdd59
+    attempt_id: no-auditor-audit-cda420acdd59-0
+    target_state: Done
+    evidence_fingerprint: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+    status: Needs Human
+    audit_ids:
+    - audit-cda420acdd59
+    kind: result
+    applied: true
+    created_at: '2026-08-07T19:27:29.234660+00:00'
+    applied_at: '2026-08-07T19:27:39.425549+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -341,12 +364,26 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-657
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-cda420acdd59-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6c069a4bf3e50c1704e93785a45e0ee0e6a2463277670273c726df62be5bd6d7
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T19:27:29.234452+00:00'
+      completed_at: '2026-08-07T19:27:29.234452+00:00'
+      selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
+      selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
     requested_by:
       version: 1
       identity: oompah-cli
@@ -355,6 +392,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T19:24:48.940022+00:00'
     selected_ref: 0212dada64768ed8f89e7b27f461f121c4a42299
     selected_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+    updated_at: '2026-08-07T19:27:29.234452+00:00'
   - version: 1
     audit_id: audit-669199e560db
     project_id: proj-14849f1b
@@ -1110,5 +1148,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 19s
 - Log: OOMPAH-657__20260807T140318Z.jsonl
+---
+author: oompah
+created: 2026-08-07 19:27
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

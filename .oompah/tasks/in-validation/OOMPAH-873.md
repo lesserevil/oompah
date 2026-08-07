@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T19:27:17.740017Z'
+updated_at: '2026-08-07T19:27:32.425108Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -251,27 +251,12 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-873
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
-    attempts:
-    - version: 1
-      attempt_id: attempt-33ebb68d0299
-      target_state: Merged
-      request_state: in_progress
-      evidence_fingerprint:
-        version: 1
-        algorithm: sha256
-        digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
-      created_at: '2026-08-07T19:27:03.416913+00:00'
-      provider_id: prov-651d553c
-      model: sonnet
-      started_at: '2026-08-07T19:27:03.416913+00:00'
-      branch_key: OOMPAH-873
-      selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
-      selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    attempts: []
     requested_by:
       version: 1
       identity: lesserevil
@@ -280,7 +265,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:05:44.182570+00:00'
     selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
     selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
-    updated_at: '2026-08-07T19:27:03.416913+00:00'
+    updated_at: '2026-08-07T19:27:26.364355+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f377f7de4b20
@@ -319,21 +304,6 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T12:24:55.212301+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T12:25:15.212274+00:00'
-  - version: 1
-    attempt_id: attempt-33ebb68d0299
-    target_state: Merged
-    request_state: in_progress
-    evidence_fingerprint:
-      version: 1
-      algorithm: sha256
-      digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
-    created_at: '2026-08-07T19:27:03.416913+00:00'
-    provider_id: prov-651d553c
-    model: sonnet
-    started_at: '2026-08-07T19:27:03.416913+00:00'
-    branch_key: OOMPAH-873
-    selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
-    selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
 ---
 ## Summary
 
@@ -702,5 +672,15 @@ author: oompah
 created: 2026-08-07 19:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 19:27
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: interrupted, Duration: 20s
+- Log: OOMPAH-873__20260807T192724Z.jsonl
 ---
 <!-- COMMENTS:END -->
