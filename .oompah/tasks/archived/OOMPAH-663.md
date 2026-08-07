@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-08-07T15:18:38.394480Z'
+updated_at: '2026-08-07T15:18:48.929509Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -166,8 +166,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-4a4cb7e26353
-    applied: false
+    applied: true
     created_at: '2026-08-07T15:18:30.200488+00:00'
+    applied_at: '2026-08-07T15:18:44.153290+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -566,5 +567,27 @@ author: oompah
 created: 2026-08-07 15:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 15:18
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
+- merge_status: commit 3bfc42ec9 in origin/main
+- files_changed: oompah/acp_tools.py, oompah/orchestrator.py, oompah/server.py, oompah/terminal_audit.py, tests/test_terminal_fingerprint_canonicalization.py
+- canonical_function: compute_issue_evidence_fingerprint (oompah/terminal_audit.py:379)
+- entry_points: orchestrator.py:27447, server.py:4035, acp_tools.py:400
+- prior_done_audit: PASS 2026-07-31 14:37
+- prior_merged_audit: PASS 2026-07-31 14:40
+- branch_gate: make test PASS in 399.8s
+- test_results: 174 passed (3 new + 27 override + 116 coordinator + 28 audit)
+- regression_tests: test_integrated_task_audit_staged_and_overridden, test_genuinely_changed_integration_sha, test_api_override_canonical
+- acceptance_criteria: First override succeeds without restaging; no duplicate request needed; stale evidence rejected with 409; all paths use canonical computation
+- working_tree: clean
+- commit_trailer: Generated with https://github.com/lesserevil/oompah
 ---
 <!-- COMMENTS:END -->
