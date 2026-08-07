@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T05:44:29.729895Z'
+updated_at: '2026-08-07T05:56:15.065359Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -40,16 +40,18 @@ oompah.duplicate_screening:
     contributor retry rotation exhausting every configured auditor candidate; no existing
     active task covers reserving an independent terminal auditor across contributor
     escalation.'
-oompah.agent_run_id: 7af2d87e-b4e7-4db7-8a3a-1f06ae4f41c3
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-865
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-865
   base_branch: epic-OOMPAH-763
   base_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
-  updated_at: '2026-08-06T19:10:25.577168+00:00'
+  head_sha: 3e03359da9baed0a36b34dd9a301ad921f2cee96
+  submitted_at: '2026-08-07T05:56:04.065772+00:00'
+  updated_at: '2026-08-07T05:56:04.065772+00:00'
 oompah.task_costs:
   total_input_tokens: 45981
   total_output_tokens: 237
@@ -118,5 +120,10 @@ author: oompah
 created: 2026-08-07 05:44
 ---
 Implementation committed and pushed at 3e03359da9baed0a36b34dd9a301ad921f2cee96 on epic-OOMPAH-763--task-OOMPAH-865. Pre-rebase frozen patch passed 998 tests serial and 998 parallel; final focus-triage transport races passed directly and independent review accepted. Rebase onto current origin/epic-OOMPAH-763 completed without conflicts and preserved both incoming O856/O858 callbacks plus O865 budget/authority callbacks. A narrow post-rebase overlap gate remains before task submit.
+---
+author: oompah
+created: 2026-08-07 05:56
+---
+Reserve the final independent auditor across contributor retries with durable provider/model health, budget, contributor evidence, and exact transport-edge authority. Pre-rebase gate: 998 serial + 998 parallel; post-rebase overlap gate: 32 serial + 32 parallel; independent post-rebase review accepted exact head 3e03359da.
 ---
 <!-- COMMENTS:END -->
