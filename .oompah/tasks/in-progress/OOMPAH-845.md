@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T04:48:42.584882Z'
+updated_at: '2026-08-07T04:50:34.264179Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -366,5 +366,10 @@ author: oompah
 created: 2026-08-07 04:47
 ---
 Post-O740 integration preflight: origin/main is now 7daf26e68 and OOMPAH-845 remains at accepted head 7bb2362fc. A synthetic merge reports conflicts across stacked shared infrastructure files because the branch merge-base predates several patch-equivalent main integrations; this needs a proper rebase/restack, not conflict masking. The server quality-gate snapshot still points at obsolete head 6a799a148; a refresh was queued so the current 7bb head can be re-evaluated after the shared validation lease clears.
+---
+author: oompah
+created: 2026-08-07 04:50
+---
+Direct-owner acceleration: claimed OOMPAH-845 and preserved old head 7bb2362fc at archive/OOMPAH-845-pre-restack-20260807T0449Z. Restacked only the three contiguous O845 commits onto current origin/main 7daf26e68; new head is 100454635. git range-diff reports all three patches exactly equivalent, the worktree is clean, commit trailers are canonical, diff check passes, and make check-secrets passes. Focused serial/parallel validation is waiting behind the already-running exact OOMPAH-612 full gate; no force-push or submission will occur before that validation passes.
 ---
 <!-- COMMENTS:END -->
