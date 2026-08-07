@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T11:12:15.666992Z'
+updated_at: '2026-08-07T11:24:07.744172Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/739
@@ -159,7 +159,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,7 +193,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -293,6 +293,44 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T07:11:01.356889+00:00'
     updated_at: '2026-08-07T08:55:57.563352+00:00'
+  - version: 1
+    audit_id: audit-bca9ec9adb60
+    project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T11:23:54.672924+00:00'
+    selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+  - version: 1
+    audit_id: audit-9ae24abeda54
+    project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f30e145ad45369dc8eec577e59016df748767c57e66d1c611556346366d95aa3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T11:23:54.672924+00:00'
+    selected_ref: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+    selected_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
   attempt_history:
   - version: 1
     attempt_id: attempt-084f1d7c63d1
@@ -840,5 +878,10 @@ author: oompah
 created: 2026-08-07 11:11
 ---
 Branch quality gate passed for `f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6` using `make test` in 788.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 11:24
+---
+YOLO: merged PR #739.
 ---
 <!-- COMMENTS:END -->
