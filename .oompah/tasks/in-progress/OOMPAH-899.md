@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T17:51:48.442463Z'
+updated_at: '2026-08-07T17:52:46.707608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,32 @@ author: oompah
 created: 2026-08-07 17:51
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-07 17:52
+---
+**Understanding:** I've analyzed the issue and found the root cause: Makefile's start target has a hard-coded 10-second listener deadline that deletes PID/metadata files when exceeded, orphaning processes that later successfully bind the port.
+
+**Planned approach:**
+1. Add OOMPAH_LISTENER_STARTUP_TIMEOUT_SECONDS to .env.example with bounded range (5-120s, default 10s)
+2. Update Makefile start target to:
+   - Read timeout from env var
+   - Verify owned process identity via process_identity.py after timeout
+   - Only delete PID/metadata if process truly exited or identity changed (fail-closed)
+   - Distinguish late listener success from genuine startup failure
+3. Add tests covering:
+   - Slow startup exceeding configured wait that later succeeds
+   - Late-listener race detection
+   - Genuine no-listener timeout (fail-closed)
+   - PID reuse/metadata mismatch (fail-closed)
+   - Configuration bounds/validation
+4. Preserve all existing lifecycle semantics (restart, graceful, stop, status)
+
+**Key decisions:**
+- Retain PID/metadata on timeout when process exists and identity matches (identity-safe)
+- Re-check owned process identity after timeout before declaring failure
+- Preserve fail-closed behavior for security (PID reuse, foreign process, unverified identity)
+
+**Next:** Will explore existing lifecycle and startup tests to understand the current test patterns.
 ---
 <!-- COMMENTS:END -->
