@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T12:43:43.639085Z'
+updated_at: '2026-08-07T13:13:28.083981Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
@@ -142,6 +142,31 @@ oompah.target_branch: main
 oompah.review_head: 158a2d03f0651b955666ba31c25b3fb412973ccd
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-885ee2ef650c: '2026-08-07T13:13:15.933122+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    target_state: Done
+    evidence_fingerprint: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    audit_ids:
+    - audit-95e8a9b7c969
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T13:13:15.933134+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    audit_id: audit-95e8a9b7c969
+    attempt_id: attempt-885ee2ef650c
+    target_state: Done
+    evidence_fingerprint: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    status: In Validation
+    audit_ids:
+    - audit-95e8a9b7c969
+    applied: true
+    created_at: '2026-08-07T13:13:15.933150+00:00'
+    applied_at: '2026-08-07T13:13:24.899415+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -149,7 +174,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-871
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -175,7 +200,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-885ee2ef650c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -188,6 +213,9 @@ oompah.terminal_audit:
       selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
       selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-07T13:13:15.932891+00:00'
+      ended_at: '2026-08-07T13:13:15.932891+00:00'
     requested_by:
       version: 1
       identity: lesserevil
@@ -196,7 +224,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:32:13.858961+00:00'
     selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
     selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
-    updated_at: '2026-08-07T12:42:41.624613+00:00'
+    updated_at: '2026-08-07T13:13:15.932891+00:00'
   - version: 1
     audit_id: audit-f4c6b5b0a6ae
     project_id: proj-14849f1b
@@ -526,5 +554,25 @@ author: oompah
 created: 2026-08-07 12:43
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 13:13
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 158a2d03f0651b955666ba31c25b3fb412973ccd
+- main_merge_commit: 41b1477682c6460a1bb55356ac44c799c9fa783a
+- pr_number: 741
+- provenance_module_path: oompah/provenance_suppression.py
+- orchestrator_fence_sites: _should_dispatch, stalled-task-watchdog-reopen, terminal-open-review-reconciliation, stale-in-review-reopen
+- central_fence_class: ProvenanceGuardedTracker (update_issue/reopen_issue/mark_needs_human/close_issue/archive_issue/authorize_owner_revision)
+- api_endpoint: /api/v1/projects/{project_id}/tasks/{identifier}/terminal-provenance/{action}
+- cli_subcommand: oompah task terminal-provenance <id> <retain|new-revision>
+- malformed_handling: load_provenance_suppression_status returns suppressed+malformed with sanitized alert via describe_malformed_marker; no payload echoed
+- test_files: test_provenance_suppression.py, test_provenance_suppression_api.py, test_provenance_suppression_orchestrator.py, test_task_cli.py (+ neighbouring suites updated)
+- branch_gate_evidence: make test previously passed for 158a2d03f per trusted comment
 ---
 <!-- COMMENTS:END -->

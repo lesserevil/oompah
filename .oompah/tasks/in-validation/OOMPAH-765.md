@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T13:10:18.946162Z'
+updated_at: '2026-08-07T13:13:40.821658Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -92,6 +92,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-6ded794f8821: '2026-08-04T17:05:37.648142+00:00'
     attempt-b0e5cbc58f63: '2026-08-04T17:08:47.135164+00:00'
+    attempt-865102d62e6c: '2026-08-07T13:13:29.020197+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
@@ -99,6 +100,7 @@ oompah.terminal_audit:
     evidence_fingerprint: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
     audit_ids:
     - audit-d5e425f65f54
+    - audit-ee426236368b
     kind: result
     applied: true
     retired_at: '2026-08-04T17:05:37.648154+00:00'
@@ -142,6 +144,18 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:07:55.125992+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    audit_id: audit-ee426236368b
+    attempt_id: attempt-865102d62e6c
+    target_state: Done
+    evidence_fingerprint: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    status: In Validation
+    audit_ids:
+    - audit-ee426236368b
+    applied: true
+    created_at: '2026-08-07T13:13:29.020231+00:00'
+    applied_at: '2026-08-07T13:13:39.339854+00:00'
   oompah.terminal_override_records: []
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
@@ -247,7 +261,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-765
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -291,7 +305,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-865102d62e6c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -304,6 +318,9 @@ oompah.terminal_audit:
       selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
       selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-07T13:13:29.019968+00:00'
+      ended_at: '2026-08-07T13:13:29.019968+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -312,7 +329,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:39:30.386721+00:00'
     selected_ref: c7bfbcc3b638b3ea28d241852af6345164ba86f6
     selected_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
-    updated_at: '2026-08-07T13:10:02.033634+00:00'
+    updated_at: '2026-08-07T13:13:29.019968+00:00'
   - version: 1
     audit_id: audit-0ba79960c14a
     project_id: proj-14849f1b
@@ -800,5 +817,27 @@ author: oompah
 created: 2026-08-07 13:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 13:13
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+- previous_state: Done
+- requested_target: Done
+- quality_gate_command: make test
+- quality_gate_duration_s: 428.7
+- workflow_facts_path: oompah/workflow_facts.py
+- work_decision_path: oompah/work_decision.py
+- workflow_shadow_path: oompah/workflow_shadow.py
+- test_files: tests/test_workflow_facts.py, tests/test_work_decision.py, tests/test_workflow_shadow.py, tests/test_workflow_shadow_integration.py
+- design_docs: plans/workflow-facts.md, plans/work-decision-evaluator.md, plans/workflow-shadow-evaluation.md
+- epic_commit_chain: cc490d183, e34e3c58b, 73f5aeb26, b0ec9eb4e, 96b878f74, 40e46bf8e, c7bfbcc3b
+- parent_epic: OOMPAH-763
+- reconciliation_note: prior Merged audit reverted to Done because parent epic OOMPAH-763 has not landed on target branch
 ---
 <!-- COMMENTS:END -->
