@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T09:30:14.809638Z'
+updated_at: '2026-08-07T09:31:37.635177Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -120,7 +120,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-867
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,7 +164,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-69265e44fbd4
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -177,6 +177,8 @@ oompah.terminal_audit:
       selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
       selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T09:31:29.618387+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: lesserevil
@@ -242,7 +244,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-69265e44fbd4
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -255,6 +257,8 @@ oompah.terminal_audit:
     selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T09:31:29.618387+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
