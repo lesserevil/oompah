@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Validation
+status: Archived
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-08-07T22:55:53.297754Z'
+updated_at: '2026-08-07T22:59:05.816263Z'
 work_branch: OOMPAH-668
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/627
@@ -105,6 +105,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-59afcdbb0d80: '2026-07-31T22:50:22.543115+00:00'
     attempt-81f625a02166: '2026-07-31T22:51:44.870768+00:00'
+    attempt-34aeaaf32932: '2026-08-07T22:58:59.104483+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-668
@@ -124,6 +125,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T22:51:44.870792+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    target_state: Archived
+    evidence_fingerprint: fed37fc056d4e6f8890b318c7f5dfd2a1844b82b5f4aae77892864ac92ba85b7
+    audit_ids:
+    - audit-47affd6c02c3
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T22:58:59.104503+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-668
@@ -149,6 +159,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T22:51:44.870817+00:00'
     applied_at: '2026-07-31T22:51:50.015546+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    audit_id: audit-47affd6c02c3
+    attempt_id: attempt-34aeaaf32932
+    target_state: Archived
+    evidence_fingerprint: fed37fc056d4e6f8890b318c7f5dfd2a1844b82b5f4aae77892864ac92ba85b7
+    status: Archived
+    audit_ids:
+    - audit-47affd6c02c3
+    kind: result
+    applied: false
+    created_at: '2026-08-07T22:58:59.104525+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -224,7 +246,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-668
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -233,7 +255,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-34aeaaf32932
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -245,6 +267,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-668
       selected_ref: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
       selected_sha: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
+      verdict: pass
+      completed_at: '2026-08-07T22:58:59.104212+00:00'
+      ended_at: '2026-08-07T22:58:59.104212+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -253,7 +278,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T22:55:35.185882+00:00'
     selected_ref: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
     selected_sha: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
-    updated_at: '2026-08-07T22:55:45.348732+00:00'
+    updated_at: '2026-08-07T22:58:59.104212+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-59afcdbb0d80
