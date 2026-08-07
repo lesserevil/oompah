@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-07T16:39:59.458714Z'
+updated_at: '2026-08-07T17:41:15.238484Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -52,16 +52,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 5
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-863
   base_branch: epic-OOMPAH-763
-  base_sha: e06bec5490b9d55d169f7de439755c49eff35307
-  head_sha: 3e5ddd154985dc916a725244ba7fadf60db807e1
-  submitted_at: '2026-08-06T21:50:50.778719+00:00'
-  updated_at: '2026-08-07T16:39:52.780143+00:00'
-  last_error: "epic worktree has uncommitted task-owned changes; refusing to reset\
-    \ it:  M tests/test_event_driven_loop.py\n M tests/test_yolo_handlers.py"
+  base_sha: a85a36baf7b3ebcb45be27823755b5694a790a49
+  head_sha: dab5702e5a9527bed25a4b2cb65714a1f0fdac52
+  submitted_at: '2026-08-07T17:41:01.849386+00:00'
+  updated_at: '2026-08-07T17:41:01.849386+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2914
@@ -309,5 +307,10 @@ Integration could not verify `epic-OOMPAH-763--task-OOMPAH-863`: epic worktree h
  M tests/test_yolo_handlers.py
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-07 17:41
+---
+Rebased the accepted three-commit reservation-race repair onto exact shared epic a85a36baf, preserving the composed fixture corrections and concurrent contained-head behavior. Focused validation: review capacity 9/9 and standalone ready-to-integrate 69/69; secret scan and diff check passed. Published exact head dab5702e5a9527bed25a4b2cb65714a1f0fdac52.
 ---
 <!-- COMMENTS:END -->
