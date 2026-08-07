@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-08-07T09:42:18.118857Z'
+updated_at: '2026-08-07T09:42:23.690589Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -236,7 +236,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -279,6 +279,22 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-07T09:42:16.720705+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-dc4f8eaef86a
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+      created_at: '2026-08-07T09:42:20.857791+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T09:42:20.857791+00:00'
+      branch_key: epic-OOMPAH-414
+      selected_ref: origin/main
+      selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah
@@ -287,7 +303,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:42:41.721143+00:00'
     selected_ref: origin/main
     selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
-    updated_at: '2026-08-07T09:33:19.250918+00:00'
+    updated_at: '2026-08-07T09:42:20.857791+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d0ebf75eb257
@@ -378,6 +394,22 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-07T09:42:16.720705+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-dc4f8eaef86a
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+    created_at: '2026-08-07T09:42:20.857791+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T09:42:20.857791+00:00'
+    branch_key: epic-OOMPAH-414
+    selected_ref: origin/main
+    selected_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+    candidate_rotation_count: 2
 ---
 ## Summary
 
