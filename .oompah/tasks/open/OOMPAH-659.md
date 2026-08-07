@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T17:55:12.580054Z'
+updated_at: '2026-08-07T17:55:25.649761Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -114,6 +114,14 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
   - run_id: d29bfd35b9844fc4a20156ec45cb2dfb--contributor-57ff1a86c984
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: duplicate_detector
+    source_branch: OOMPAH-659
+    source_sha: null
+    completed_at: ''
+  - run_id: caadef1a49e943b5a14fe9a3567821c4--contributor-57ff1a86c984
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-terra

@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-07T17:47:29.807385Z'
+updated_at: '2026-08-07T17:55:23.030307Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -173,5 +173,29 @@ author: oompah
 created: 2026-08-07 17:47
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-07 17:55
+---
+**Understanding:** The bug is a live regression where an operator pause terminates running auditors, and that termination consumes the attempt budget exactly like a genuine provider failure.
+
+Root cause (traced through orchestrator.py):
+1. `pause()` calls `_terminate_all_running()` → `_terminate_running(issue_id)` for each running auditor
+2. `_terminating_worker_ids.add(issue_id)` prevents `_on_worker_exit` from firing
+3. In `_terminate_running` (line ~42307), `_finish_audit_attempt` is only called if `forced_exit_reason` is set — pause does NOT set this
+4. The audit record is left in IN_PROGRESS state in the tracker metadata
+5. On resume, `recover()` sees an IN_PROGRESS attempt with no live worker → marks it as 'abandoned' (PENDING) with the provider/model still in the attempt
+6. `plan()` in the dispatch loop calls `attempted_pairs()` — the abandoned attempt's (provider_id, model) is still counted → candidate excluded
+7. With 2 candidates total (policy denial + pause-abandoned), both are in `attempted_pairs()` → no more candidates → NEEDS_HUMAN
+
+Fix plan:
+1. Add `SCHEDULER_PAUSE = 'scheduler_pause'` to `FailureClassification` in `terminal_audit.py`
+2. In `orchestrator.py`:
+   - In `pause()`, before `_terminate_all_running()`, set `forced_exit_reason = 'scheduler_pause'` on all running auditor entries
+   - In `_finish_audit_attempt()`, map 'scheduler_pause' and 'lifecycle_drain_before_launch' to `FailureClassification.SCHEDULER_PAUSE`
+3. In `auditor_dispatch.py`:
+   - `attempted_pairs()`: exclude attempts with `SCHEDULER_PAUSE` classification
+   - `plan()`: exclude `SCHEDULER_PAUSE` attempts from the count check
+4. Write tests covering: pause-before-verdict retry, restart, post-verdict no-duplicate, mixed policy-denial+pause, owner-cancel semantics preserved
 ---
 <!-- COMMENTS:END -->
