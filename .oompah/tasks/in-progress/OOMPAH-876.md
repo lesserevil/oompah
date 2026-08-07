@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-876
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Retry auditor transport failures without consuming substantive candidate capacity
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:52:35.286201Z'
+updated_at: '2026-08-07T09:53:21.502834Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: af3cfb1b-8403-490b-b457-3a8081bd085a
+oompah.agent_run_id: 1d23cb04-ac65-49b3-8bf1-c91c752826aa
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-876
 oompah.integration:
   version: 2
