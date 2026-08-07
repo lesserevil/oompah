@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Needs Human
+status: Done
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T13:51:21.062146Z'
+updated_at: '2026-08-07T14:32:34.742982Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -194,7 +194,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:51:10.084505+00:00'
     applied_at: '2026-08-07T13:51:18.023094+00:00'
-  oompah.terminal_override_records: []
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-be794adf2cbe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Restore the exact auditor-approved Done result at c7bfbcc3 while parent
+      OOMPAH-763 remains unlanded; later Merged audit exhaustion came from pause and
+      rollup churn, not a code defect.
+    created_at: '2026-08-07T14:32:30.875419+00:00'
+    applied: false
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
