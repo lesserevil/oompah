@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:08:27.764265Z'
+updated_at: '2026-08-07T12:09:02.663373Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-07 12:07
 ---
 Agent completed without closing this issue (830s (11219152 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-08-07 12:09
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->

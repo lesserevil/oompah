@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:02:23.163009Z'
-updated_at: '2026-08-07T12:08:00.978308Z'
+updated_at: '2026-08-07T12:09:05.202579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-08-07 12:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-07 12:09
+---
+Deeper live-code analysis shows this is not an independent planner deadlock. _detect_and_repair_integration_queue_staleness_block already recognizes a Ready child blocked by terminal work reachable from the target, schedules the epic rebase first, and re-evaluates child integration afterward. It fired in this incident by creating OOMPAH-882. The actual defect was that it failed to reuse/fence the already-authorized OOMPAH-877 helper; that exact-generation duplicate filing/admission/push race is OOMPAH-879, now including the O882 recurrence. The operator workaround revised sequencing and safely retained the single rebase. Archive this duplicate rather than implement a second overlapping fix.
 ---
 <!-- COMMENTS:END -->
