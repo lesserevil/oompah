@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T09:03:40.916640Z'
+updated_at: '2026-08-07T09:15:38.478913Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -88,12 +88,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-865
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ef1dae62d434
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+      created_at: '2026-08-07T09:15:27.800078+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T09:15:27.800078+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-865
+      selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+      selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
     requested_by:
       version: 1
       identity: oompah-integration
@@ -102,7 +117,23 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:03:33.098057+00:00'
     selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
-  attempt_history: []
+    updated_at: '2026-08-07T09:15:27.800078+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-ef1dae62d434
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    created_at: '2026-08-07T09:15:27.800078+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T09:15:27.800078+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-865
+    selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+    selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
 ---
 ## Summary
 
@@ -224,5 +255,15 @@ author: oompah
 created: 2026-08-07 09:03
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 09:15
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-07 09:15
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
