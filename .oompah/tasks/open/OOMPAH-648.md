@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T19:58:59.953581Z'
+updated_at: '2026-08-07T20:00:04.592105Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -24,17 +24,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: origin/OOMPAH-648 does not match accepted head ca51c22b90785daec5d4dd7f0e29dc22045957cc
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-07T20:01:02.810410+00:00'
+  evidence: ''
+  claim_id: 3c39ff39-4783-4116-9bc5-2d893061c0cb
+  claim_owner: f68d3589-0c36-4c86-8c6c-d0fbd572f48b
+  claimed_at: '2026-08-07T19:59:48.574422+00:00'
+  claim_expires_at: '2026-08-07T20:29:48.574422+00:00'
+  retry_count: 0
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d6b93f23-40f5-443c-8e6f-7fa9623c8f7d
+oompah.agent_run_id: bbcbeeb7-d30c-4682-8709-63c81b3746aa
 oompah.task_costs:
   total_input_tokens: 26033567
   total_output_tokens: 68369
@@ -237,6 +237,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-648
+    source_sha: null
+    completed_at: ''
+  - run_id: 4ced2543daf3450c8cd31ec8050c0324--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-648
     source_sha: null
@@ -1201,5 +1209,19 @@ created: 2026-08-07 19:58
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 19:59
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 20:00
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 7s
 ---
 <!-- COMMENTS:END -->
