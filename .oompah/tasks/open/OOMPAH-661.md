@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T18:01:58.076497Z'
+updated_at: '2026-08-07T18:05:09.057888Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -25,18 +25,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'Implementation dispatch blocked before start: All candidates are used
-    by contributors.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 72af0f68-7e8d-477d-8527-b90b9dcc3b0f
+  claim_owner: 49784b9a-a068-4eb9-b3ab-0679503393f6
+  claimed_at: '2026-08-07T18:05:01.991100+00:00'
+  claim_expires_at: '2026-08-07T18:35:01.991100+00:00'
   retry_count: 2
-  retry_after: '2026-08-07T18:03:40.438632+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 18c6828c-0cf2-4e50-95a1-bba0ad517dd9
+oompah.agent_run_id: 5a210a77-4f3c-431e-bcf9-ec663807e3cc
 oompah.task_costs:
   total_input_tokens: 484317
   total_output_tokens: 33143
@@ -748,5 +747,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=— -> Claude/sonn
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 4s
+---
+author: oompah
+created: 2026-08-07 18:05
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
 ---
 <!-- COMMENTS:END -->
