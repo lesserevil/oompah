@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T03:47:11.199838Z'
+updated_at: '2026-08-07T03:48:50.209191Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -140,6 +140,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-200d14f6c680: '2026-07-31T02:45:07.986873+00:00'
     attempt-60d86ee9562c: '2026-07-31T02:47:25.569475+00:00'
+    no-auditor-audit-d7244a8797ac-0: '2026-08-07T03:48:38.735786+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Archived
+    evidence_fingerprint: 9951a13f8aebbe259b01691d978a59ec480afb2136e90b50ea11a9ad12f92877
+    audit_ids:
+    - audit-d7244a8797ac
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T03:48:38.735796+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    audit_id: audit-d7244a8797ac
+    attempt_id: no-auditor-audit-d7244a8797ac-0
+    target_state: Archived
+    evidence_fingerprint: 9951a13f8aebbe259b01691d978a59ec480afb2136e90b50ea11a9ad12f92877
+    status: Needs Human
+    audit_ids:
+    - audit-d7244a8797ac
+    applied: true
+    created_at: '2026-08-07T03:48:38.735810+00:00'
+    applied_at: '2026-08-07T03:48:47.245154+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -215,18 +239,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 9951a13f8aebbe259b01691d978a59ec480afb2136e90b50ea11a9ad12f92877
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-d7244a8797ac-0
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9951a13f8aebbe259b01691d978a59ec480afb2136e90b50ea11a9ad12f92877
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T03:48:38.735639+00:00'
+      completed_at: '2026-08-07T03:48:38.735639+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T03:47:07.470300+00:00'
+    updated_at: '2026-08-07T03:48:38.735639+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
@@ -459,5 +496,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 27s
 - Log: OOMPAH-581__20260731T024526Z.jsonl
+---
+author: oompah
+created: 2026-08-07 03:48
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
