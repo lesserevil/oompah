@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T14:00:02.659937Z'
+updated_at: '2026-08-07T14:00:14.158548Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -1021,5 +1021,15 @@ Steps to resolve:
   git push origin OOMPAH-657
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-08-07 14:00
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-07 14:00
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
