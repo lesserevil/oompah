@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-08-07T20:09:54.631943Z'
+updated_at: '2026-08-07T20:12:02.158609Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
