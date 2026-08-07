@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: In Progress
+status: Merged
 priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-08-07T09:55:36.520798Z'
+updated_at: '2026-08-07T09:56:20.180570Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -123,6 +123,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:52:39.535442+00:00'
     applied_at: '2026-08-07T09:52:49.655592+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-283ac1999e04
+    project_id: proj-14849f1b
+    task_id: OOMPAH-414
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9469139fdc3d69d72a8a0fe5b1fa90ccb8a1792a1d98aab2c7b224e29d929dd5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner recovery: current implementation is already merged with prior PASS
+      evidence; restore Merged after Archived transport exhaustion. OOMPAH-876 tracks
+      the systemic auditor failure.'
+    created_at: '2026-08-07T09:56:12.120743+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
