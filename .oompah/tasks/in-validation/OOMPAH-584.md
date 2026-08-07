@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T13:40:41.074783Z'
+updated_at: '2026-08-07T13:43:01.418556Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -33,6 +33,7 @@ oompah.terminal_audit:
     attempt-a2bcda188bfb: '2026-07-31T05:43:15.018394+00:00'
     attempt-67a46d7abb48: '2026-07-31T05:49:14.554776+00:00'
     no-auditor-audit-7d423beb5304-1: '2026-08-07T07:24:42.436472+00:00'
+    no-auditor-audit-d1cdbc7574d4-3: '2026-08-07T13:42:59.838981+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-584
@@ -43,6 +44,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T07:24:42.436484+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    target_state: Done
+    evidence_fingerprint: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    audit_ids:
+    - audit-d1cdbc7574d4
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T13:42:59.838997+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-584
@@ -56,6 +66,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T07:24:42.436502+00:00'
     applied_at: '2026-08-07T07:24:51.110119+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    audit_id: audit-d1cdbc7574d4
+    attempt_id: no-auditor-audit-d1cdbc7574d4-3
+    target_state: Done
+    evidence_fingerprint: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    status: Needs Human
+    audit_ids:
+    - audit-d1cdbc7574d4
+    applied: false
+    created_at: '2026-08-07T13:42:59.839017+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -206,7 +227,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -250,7 +271,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-25e8d1ac314c
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -263,6 +284,22 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T13:42:46.899440+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-d1cdbc7574d4-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T13:42:59.838773+00:00'
+      completed_at: '2026-08-07T13:42:59.838773+00:00'
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -271,7 +308,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:16:06.083367+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:28:58.945714+00:00'
+    updated_at: '2026-08-07T13:42:59.838773+00:00'
   - version: 1
     audit_id: audit-cc0932baf6f3
     project_id: proj-14849f1b
@@ -384,7 +421,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-25e8d1ac314c
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -397,6 +434,8 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T13:42:46.899440+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
   total_input_tokens: 478115
   total_output_tokens: 8971
