@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-779
 type: task
-status: Needs Human
+status: Done
 priority: 1
 title: Run WorkDecision in shadow mode and expose divergence diagnostics
 parent: OOMPAH-765
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T12:32:36.056646Z'
+updated_at: '2026-08-07T12:50:06.747727Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -48,6 +48,25 @@ oompah.terminal_audit:
       head is now the tip of epic-OOMPAH-765.'
     created_at: '2026-08-04T16:10:15.923579+00:00'
     applied: true
+  - version: 1
+    override_id: override-6fee36039a3f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d56597acc1edba76f5769a89792c0aef5f3841080ca4fea989f96faa914c0177
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Live recovery: exact implementation commit 40e46bf8e41c is an ancestor
+      of current origin/epic-OOMPAH-763; parent OOMPAH-765 audit records merge commit
+      f1e7925b and target epic-OOMPAH-763. The 12:32 unlanded diagnostic was stale.
+      Follow-up OOMPAH-887 tracks generation-consistent landing revalidation.'
+    created_at: '2026-08-07T12:49:58.978530+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-779

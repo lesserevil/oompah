@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T12:49:38.019338Z'
+updated_at: '2026-08-07T12:50:00.299996Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -823,5 +823,10 @@ created: 2026-08-07 12:48
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 12:50
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
