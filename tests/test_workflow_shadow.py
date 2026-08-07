@@ -45,6 +45,7 @@ def facts(*, token: str | None = None) -> WorkflowFacts:
         FactDomain.TERMINAL_AUDIT: {"phase": "none"},
         FactDomain.REVIEW_CI: {"ci": "none"},
         FactDomain.IMPLEMENTATION_AUTHORITY: {"lease_expires_at": None},
+        FactDomain.DUPLICATE_INVESTIGATION: {"lease_expires_at": None},
         FactDomain.RETRY_BUDGET: {"attempts": 0},
         FactDomain.LANDING: {"evidence_revisions": []},
         FactDomain.CONFIG: {"api_token": token} if token else {},
