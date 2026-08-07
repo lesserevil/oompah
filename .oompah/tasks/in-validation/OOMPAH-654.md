@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:55:56.888827Z'
+updated_at: '2026-08-07T11:56:14.515881Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -170,6 +170,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T10:50:36.583869+00:00'
     updated_at: '2026-07-31T10:55:38.894054+00:00'
+  - version: 1
+    audit_id: audit-f00169c6e096
+    project_id: proj-14849f1b
+    task_id: OOMPAH-654
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 102b18a94497d35df073bd295b9f534eecde929ab63fde573a9fc8fa37f74339
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-07T11:56:10.541503+00:00'
+    selected_ref: b64cbc85adca310a10f767692302e004343f14cd
+    selected_sha: b64cbc85adca310a10f767692302e004343f14cd
   attempt_history:
   - version: 1
     attempt_id: attempt-333fc6401a16
