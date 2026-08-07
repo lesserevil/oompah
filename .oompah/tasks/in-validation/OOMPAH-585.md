@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-07T14:16:05.278277Z'
+updated_at: '2026-08-07T14:18:51.193116Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -925,7 +925,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -934,7 +934,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6b6fb9f9c91b
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -946,6 +946,10 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-585
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      failure_classification: finalization_failure
+      ended_at: '2026-08-07T14:18:45.834327+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-07T14:18:55.834285+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -954,7 +958,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:13:05.253827+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T14:15:34.002730+00:00'
+    updated_at: '2026-08-07T14:18:45.834327+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -1273,7 +1277,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-6b6fb9f9c91b
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -1285,14 +1289,18 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-585
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    failure_classification: finalization_failure
+    ended_at: '2026-08-07T14:18:45.834327+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-07T14:18:55.834285+00:00'
 oompah.task_costs:
-  total_input_tokens: 525
-  total_output_tokens: 12394
+  total_input_tokens: 559
+  total_output_tokens: 16346
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 525
-      output_tokens: 12394
+      input_tokens: 559
+      output_tokens: 16346
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -1415,6 +1423,12 @@ oompah.task_costs:
     output_tokens: 347
     cost_usd: 0.0
     recorded_at: '2026-08-07T13:49:35.467381+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 34
+    output_tokens: 3952
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T14:18:45.863122+00:00'
 ---
 ## Summary
 
@@ -2249,5 +2263,15 @@ author: oompah
 created: 2026-08-07 14:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 14:18
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 11, Tool calls: 3
+- Tokens: 34 in / 4.0K out [4.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 52s
+- Log: OOMPAH-585__20260807T141609Z.jsonl
 ---
 <!-- COMMENTS:END -->
