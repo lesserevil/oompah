@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T13:59:56.513051Z'
+updated_at: '2026-08-07T14:02:47.521745Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -341,7 +341,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-da1816ab5355
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -354,6 +354,24 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
       candidate_rotation_count: 1
+      ended_at: '2026-08-07T14:02:32.776300+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-72e2326c58a7
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+      created_at: '2026-08-07T14:02:36.673312+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-07T14:02:36.673312+00:00'
+      branch_key: epic-OOMPAH-584
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -362,7 +380,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:16:06.083367+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:59:44.500214+00:00'
+    updated_at: '2026-08-07T14:02:36.673312+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -491,7 +509,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-da1816ab5355
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -504,6 +522,24 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     candidate_rotation_count: 1
+    ended_at: '2026-08-07T14:02:32.776300+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-72e2326c58a7
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    created_at: '2026-08-07T14:02:36.673312+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-07T14:02:36.673312+00:00'
+    branch_key: epic-OOMPAH-584
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 478353
   total_output_tokens: 9028
@@ -1012,5 +1048,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=— -> unknown/unkn
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6s
+---
+author: oompah
+created: 2026-08-07 14:02
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-07 14:02
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
