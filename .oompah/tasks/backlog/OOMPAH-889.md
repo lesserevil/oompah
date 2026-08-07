@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:16:12.155503Z'
-updated_at: '2026-08-07T13:16:52.862270Z'
+updated_at: '2026-08-07T13:34:33.713637Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-07 13:16
 ---
 Held in Backlog only until OOMPAH-877 publishes the already-repaired shared epic head. Opening it during the live epic rebase would branch from stale authority and create avoidable integration conflict; promote it immediately after that exact CAS push. No manual task/state-file workaround was applied because the native parent-rollup overwrite is the bug under test.
+---
+author: oompah
+created: 2026-08-07 13:34
+---
+Additional live recurrence: OOMPAH-764 is a nested epic with all canonical children terminal and stale PR #742 closed. Stale review reconciliation regressed it from audited Done to In Review. Three consecutive authenticated owner Done overrides were rejected with evidence-fingerprint mismatch even after fresh reads, so this is not ordinary request staleness; native epic rollup/metadata writes prevent the exact maintenance terminal repair from committing. Add OOMPAH-764 to the regression corpus and prove the repaired terminal status survives nested-parent rollup/review reconciliation.
 ---
 <!-- COMMENTS:END -->

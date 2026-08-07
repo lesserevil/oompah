@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T13:31:09.156151Z'
+updated_at: '2026-08-07T13:34:40.008408Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/743
@@ -176,6 +176,25 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-764
     selected_sha: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
     updated_at: '2026-08-07T12:56:34.085290+00:00'
+  - version: 1
+    audit_id: audit-0f26598f4399
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f3f89f5eae500c40c1c9c48fa529db5bece3a3475378ff00c8d60e68d0d58b4a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-07T13:34:38.424350+00:00'
+    selected_ref: origin/epic-OOMPAH-764
+    selected_sha: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
