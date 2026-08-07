@@ -6250,13 +6250,15 @@ class Orchestrator:
         """
 
         entry = coordinator.entry
+        replaced_token: str | None = None
         with self._provider_admission_lock:
             replacement = self._current_running_entry(issue_id)
             if replacement is not None and replacement is not entry:
-                # A newer runtime generation supersedes every remaining
-                # requirement for this exact retired entry.  In particular,
-                # the old coordinator must neither remove the replacement's
-                # workspace nor publish a retry that could compete with it.
+                # A newer runtime generation prevents this old coordinator
+                # from satisfying issue-scoped cleanup or retry requirements:
+                # reporting success could let shutdown treat the replacement
+                # as drained.  It must still withdraw every capability owned
+                # by the old generation without touching replacement state.
                 # Withdraw an exact old-generation capability if retirement
                 # published one before the replacement won; never touch a
                 # capability owned by another generation.
@@ -6264,36 +6266,37 @@ class Orchestrator:
                     authorization = self._post_retirement_retry_tokens.get(issue_id)
                     if authorization is not None and authorization[0] is entry:
                         self._post_retirement_retry_tokens.pop(issue_id, None)
-                # Mark the monotonic request union satisfied so the caller
-                # can publish the successful exact-generation retirement
-                # instead of looping or reporting a false failure.
-                if coordinator.cleanup_workspace:
-                    coordinator.cleanup_satisfied = True
-                if coordinator.post_retirement_retry:
-                    coordinator.retry_satisfied = True
-                return True
-            with self._retry_authority_lock:
-                authorization = self._post_retirement_retry_tokens.get(issue_id)
-                if authorization is not None and authorization[0] is not entry:
-                    return False
-            if coordinator.cleanup_workspace and not coordinator.cleanup_satisfied:
-                self._cleanup_retired_workspace(entry)
-                coordinator.cleanup_satisfied = True
-            if (
-                coordinator.post_retirement_retry
-                and not coordinator.retry_satisfied
-            ):
+                replaced_token = getattr(entry, "task_handoff_token", None)
+            else:
                 with self._retry_authority_lock:
                     authorization = self._post_retirement_retry_tokens.get(issue_id)
-                    if authorization is not None and authorization[0] is entry:
-                        coordinator.retry_satisfied = True
-                    else:
-                        coordinator.retry_satisfied = bool(
-                            self._publish_post_retirement_retry_token(issue_id, entry)
-                        )
-                if not coordinator.retry_satisfied:
-                    return False
-            return True
+                    if authorization is not None and authorization[0] is not entry:
+                        return False
+                if coordinator.cleanup_workspace and not coordinator.cleanup_satisfied:
+                    self._cleanup_retired_workspace(entry)
+                    coordinator.cleanup_satisfied = True
+                if (
+                    coordinator.post_retirement_retry
+                    and not coordinator.retry_satisfied
+                ):
+                    with self._retry_authority_lock:
+                        authorization = self._post_retirement_retry_tokens.get(issue_id)
+                        if authorization is not None and authorization[0] is entry:
+                            coordinator.retry_satisfied = True
+                        else:
+                            coordinator.retry_satisfied = bool(
+                                self._publish_post_retirement_retry_token(issue_id, entry)
+                            )
+                    if not coordinator.retry_satisfied:
+                        return False
+                return True
+
+        # Revocation may stop/join the server-owned renewal thread.  Keep it
+        # outside the provider-admission lock; the parent's handoff fence
+        # remains installed until this function returns, so no bearer request
+        # can enter during this short finalization window.
+        revoke_task_handoff_token(replaced_token)
+        return False
 
     async def _run_termination_coordinator(
         self,

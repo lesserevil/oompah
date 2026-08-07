@@ -901,7 +901,7 @@ class TestTerminateRunningWritesCostRecord:
                 cleanup_workspace=True,
                 post_retirement_retry=True,
             )
-        ) is True
+        ) is False
         assert orch.state.running[entry.identifier] is replacement
         assert remove_calls == []
         assert entry.identifier not in orch._post_retirement_retry_tokens
