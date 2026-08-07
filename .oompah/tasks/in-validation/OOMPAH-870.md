@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T09:18:21.681781Z'
+updated_at: '2026-08-07T09:18:43.564918Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
@@ -200,7 +200,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-870
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -223,6 +223,22 @@ oompah.terminal_audit:
       selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
       ended_at: '2026-08-07T09:18:18.363245+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-232f11d8605d
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+      created_at: '2026-08-07T09:18:42.184825+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T09:18:42.184825+00:00'
+      branch_key: OOMPAH-870
+      selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+      selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-cli
@@ -231,7 +247,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:52:20.557537+00:00'
     selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
-    updated_at: '2026-08-07T08:56:22.233925+00:00'
+    updated_at: '2026-08-07T09:18:42.184825+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d919149aed7
@@ -267,6 +283,22 @@ oompah.terminal_audit:
     selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
     ended_at: '2026-08-07T09:18:18.363245+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-232f11d8605d
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 168de75892a9c5f43182a985946be64d63a0498e28e3f581de94db2897f452c7
+    created_at: '2026-08-07T09:18:42.184825+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T09:18:42.184825+00:00'
+    branch_key: OOMPAH-870
+    selected_ref: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+    selected_sha: aaaebbfa5152e9942a1decd9ef2d319573ca0493
+    candidate_rotation_count: 1
 ---
 ## Summary
 
