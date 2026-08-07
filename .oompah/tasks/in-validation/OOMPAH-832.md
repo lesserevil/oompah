@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-07T07:14:14.790117Z'
+updated_at: '2026-08-07T07:17:33.812493Z'
 work_branch: OOMPAH-832
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/732
@@ -364,5 +364,10 @@ created: 2026-08-07 07:14
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 07:17
+---
+Owner workaround: PR #732 is merged and its accepted head faa217b41 is present on current main. The stalled-task watchdog reopened this audit hold even though no implementation remains; OOMPAH-871 tracks that reopen bug, and OOMPAH-865 is the auditor-candidate repair. Direct claim prevents duplicate implementation while restoring the existing Merged terminal chain; no new code, gate, or PR is warranted.
 ---
 <!-- COMMENTS:END -->

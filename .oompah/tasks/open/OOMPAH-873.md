@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T07:17:00.117273Z'
+updated_at: '2026-08-07T07:17:37.798782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,16 @@ Live regression after OOMPAH-664 and OOMPAH-691 through OOMPAH-695: the canonica
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 07:17
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 07:17
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
