@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:44:43.282351Z'
-updated_at: '2026-08-07T19:45:24.879942Z'
+updated_at: '2026-08-07T19:57:57.131634Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live direct-work reproduction on 2026-08-07 after OOMPAH-816/852 deployment: OOM
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 19:57
+---
+Direct implementation complete at 21633ebade7e9069d7a793029bab5a388ec658c1 (published as epic-OOMPAH-763--task-OOMPAH-905). After 21 default 30-second aging intervals, a live waiter enters durable FIFO starvation protection; later exact/auditor arrivals can no longer overtake it, while fresh exact work retains urgency before the bound. Telemetry exposes effective priority/protection/remaining time. Deterministic multiprocess, restart, cancellation, dead-requester, urgency, and capacity coverage passes: 498 tests. Included in the combined systemic epic validation batch; not separately submitted.
+---
+<!-- COMMENTS:END -->
