@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-868
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-07T20:37:40.038151Z'
+updated_at: '2026-08-07T20:37:59.666877Z'
 work_branch: OOMPAH-868
 target_branch: null
 review_url: null
@@ -338,5 +338,10 @@ FAILED tests/test_acp_codex_backend.py::TestCodexCliPath::test_managed_native_cl
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-07 20:37
+---
+Direct-owner fence reacquired solely to retire a redundant server exact gate started after the already-recorded exact-head gate passed and PR #746 was opened. PR #746 CI remains active; no implementation change or accepted-head change occurred.
 ---
 <!-- COMMENTS:END -->
