@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T18:27:23.281558Z'
-updated_at: '2026-08-07T18:59:23.044811Z'
+updated_at: '2026-08-07T18:59:35.710911Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-08-07 18:59
 ---
 Independent-review blocker repaired in amended local commit 25c0fe6ad2bf0dcf3cbaf3de4a8cc940dc5b4c4f (not pushed/submitted). test_default_sandbox_provides_immutable_synthetic_identity_and_tmpfs now accepts needs_rebase only when output starts with the complete quality-gate sandbox-unavailable chain through the exact observed  denial; malformed identity/tmpfs and generic sandbox regressions fail the assertion. Requested direct leased test passed 1/1. Final exact-head BranchQualityGate at 25c0fe6ad passed with 32 passed, 11 proven nested-host-policy skips in 3.97s for the narrowed regression, credential-isolation module, and original native pwd/getpwuid failure test.
+---
+author: oompah
+created: 2026-08-07 18:59
+---
+Correction to prior comment: the exact accepted denial text is: bwrap: No permissions to create a new namespace. The shell formatting in the prior progress message omitted that quoted phrase; code and tests were unaffected.
 ---
 <!-- COMMENTS:END -->
