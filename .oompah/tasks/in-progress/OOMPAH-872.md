@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:27:00.661610Z'
-updated_at: '2026-08-07T11:10:42.572915Z'
+updated_at: '2026-08-07T11:12:30.388985Z'
 work_branch: OOMPAH-872
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/737
@@ -547,5 +547,10 @@ author: oompah
 created: 2026-08-07 11:10
 ---
 Implementation (review): no new code delta was needed after the independent audit; the preserved commit already contains the focused projects.py/orchestrator.py/server.py implementation and regression suite. The audit confirmed the exact authority and fail-closed behavior described in the issue.
+---
+author: oompah
+created: 2026-08-07 11:12
+---
+Verification (continuation): dedicated resolver tests pass 12/12; directly affected managed/startup suites pass 53/53; terminal mutation scan passes 8/8; git diff --check is clean. The prior branch gate also passed make test at 0458f8f72. A wrapper-level rerun was blocked because the host validation guard targets the read-only service checkout; isolated direct-vet tests passed.
 ---
 <!-- COMMENTS:END -->
