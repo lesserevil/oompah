@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-05T08:07:10.445284Z'
+updated_at: '2026-08-07T13:13:09.087947Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -324,7 +324,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -811,6 +811,44 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-04T00:22:47.381547+00:00'
     updated_at: '2026-08-05T08:06:52.025178+00:00'
+  - version: 1
+    audit_id: audit-aecf926914a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T13:13:05.253827+00:00'
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+  - version: 1
+    audit_id: audit-6bc04524dcf6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-07T13:13:05.253827+00:00'
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
