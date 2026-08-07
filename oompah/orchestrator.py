@@ -1371,6 +1371,46 @@ class StandaloneFinishDependencyState:
     revision: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _LandingEvidenceGeneration:
+    """One authoritative remote-ref advertisement used for landing decisions.
+
+    Git remote-tracking refs are mutable process-wide state.  Keeping the
+    advertised commit IDs here lets every ancestry and patch-equivalence check
+    in one reconciliation pass use the same immutable inputs, even when
+    another fetch advances a named ref concurrently.
+    """
+
+    target_branches: tuple[str, ...]
+    candidate_branches: tuple[str, ...]
+    target_tips: tuple[tuple[str, str], ...]
+    candidate_tips: tuple[tuple[str, str | None], ...]
+    fingerprint: str
+
+    @property
+    def target_refs(self) -> tuple[str, ...]:
+        return tuple(sha for _branch, sha in self.target_tips)
+
+    def candidate_refs(self, branch: str) -> tuple[str, ...]:
+        tip_by_branch = dict(self.candidate_tips)
+        tip = tip_by_branch.get(branch)
+        return (tip,) if tip else ()
+
+    def citation(self, *, candidate_branches: Iterable[str] = ()) -> str:
+        selected_candidates = {
+            str(branch or "").strip() for branch in candidate_branches
+        }
+        refs = [
+            *(f"target {branch}@{sha[:12]}" for branch, sha in self.target_tips),
+            *(
+                f"candidate {branch}@{sha[:12] if sha else 'absent'}"
+                for branch, sha in self.candidate_tips
+                if not selected_candidates or branch in selected_candidates
+            ),
+        ]
+        return f"{self.fingerprint[:12]} ({', '.join(refs)})"
+
+
 # ---------------------------------------------------------------------------
 # YOLO merge-failure classification (oompah-zlz_2-btf.2)
 #
@@ -28246,6 +28286,213 @@ class Orchestrator:
 
         return True, None
 
+    @staticmethod
+    def _landing_evidence_remote_tips(
+        repo_path: str,
+        branches: tuple[str, ...],
+        *,
+        access_token: str | None = None,
+        forge_kind: str = "github",
+    ) -> tuple[dict[str, str] | None, str | None]:
+        """Read all relevant remote branch tips from one advertisement."""
+
+        unique_branches = tuple(
+            dict.fromkeys(str(branch or "").strip() for branch in branches)
+        )
+        unique_branches = tuple(branch for branch in unique_branches if branch)
+        if not unique_branches:
+            return {}, None
+        try:
+            with git_credential_environment(
+                forge_kind=forge_kind,
+                access_token=access_token,
+            ) as env:
+                result = subprocess.run(
+                    [
+                        "git",
+                        "ls-remote",
+                        "--heads",
+                        "origin",
+                        *(f"refs/heads/{branch}" for branch in unique_branches),
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                    env=env,
+                )
+        except subprocess.TimeoutExpired:
+            return None, "remote generation probe timed out"
+        except OSError:
+            return None, "remote generation probe could not start"
+        if result.returncode != 0:
+            return None, "remote generation probe failed"
+
+        expected = {f"refs/heads/{branch}": branch for branch in unique_branches}
+        tips: dict[str, str] = {}
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if len(fields) != 2 or fields[1] not in expected:
+                continue
+            sha = fields[0].strip().lower()
+            if not re.fullmatch(r"[0-9a-f]{40}", sha):
+                return None, "remote generation returned an invalid commit ID"
+            tips[expected[fields[1]]] = sha
+        return tips, None
+
+    @staticmethod
+    def _landing_evidence_tracking_tip(repo_path: str, branch: str) -> str | None:
+        """Resolve one fetched remote-tracking tip without a local fallback."""
+
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"refs/remotes/origin/{branch}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        sha = result.stdout.strip().lower()
+        return sha if result.returncode == 0 else None
+
+    def _refresh_landing_evidence_generation(
+        self,
+        repo_path: str,
+        *,
+        target_branches: tuple[str, ...],
+        candidate_branches: tuple[str, ...],
+        access_token: str | None = None,
+        forge_kind: str = "github",
+    ) -> tuple[_LandingEvidenceGeneration | None, str | None]:
+        """Refresh and freeze one exact target/candidate ref generation.
+
+        The advertisement is the authority generation.  Fetches are accepted
+        only when every advertised ref resolves to that exact SHA afterward;
+        a branch movement during fetch retries the whole generation once.
+        """
+
+        if not (
+            repo_path
+            and os.path.isdir(repo_path)
+            and os.path.exists(os.path.join(repo_path, ".git"))
+        ):
+            return None, None
+
+        targets = tuple(
+            branch
+            for branch in dict.fromkeys(
+                str(branch or "").strip() for branch in target_branches
+            )
+            if branch
+        )
+        candidates = tuple(
+            branch
+            for branch in dict.fromkeys(
+                str(branch or "").strip() for branch in candidate_branches
+            )
+            if branch and branch not in targets
+        )
+        all_branches = (*targets, *candidates)
+
+        movement_error = "authoritative refs moved while refreshing"
+        for _attempt in range(2):
+            advertised, probe_error = self._landing_evidence_remote_tips(
+                repo_path,
+                all_branches,
+                access_token=access_token,
+                forge_kind=forge_kind,
+            )
+            if advertised is None:
+                return None, probe_error or "remote generation probe failed"
+            missing_targets = [branch for branch in targets if branch not in advertised]
+            if missing_targets:
+                return None, (
+                    "authoritative target ref is missing: "
+                    + ", ".join(missing_targets)
+                )
+
+            fresh, refresh_error = self._refresh_landing_evidence_target_refs(
+                repo_path,
+                targets,
+                access_token=access_token,
+                forge_kind=forge_kind,
+            )
+            if not fresh:
+                return None, refresh_error or "target refresh failed"
+            fresh, refresh_error = self._refresh_landing_evidence_candidate_refs(
+                repo_path,
+                candidates,
+                access_token=access_token,
+                forge_kind=forge_kind,
+            )
+            if not fresh:
+                return None, refresh_error or "candidate refresh failed"
+
+            if any(
+                self._landing_evidence_tracking_tip(repo_path, branch) != sha
+                for branch, sha in advertised.items()
+            ):
+                continue
+            payload = "|".join(
+                f"{branch}={advertised.get(branch, 'absent')}"
+                for branch in all_branches
+            )
+            return (
+                _LandingEvidenceGeneration(
+                    target_branches=targets,
+                    candidate_branches=candidates,
+                    target_tips=tuple(
+                        (branch, advertised[branch]) for branch in targets
+                    ),
+                    candidate_tips=tuple(
+                        (branch, advertised.get(branch)) for branch in candidates
+                    ),
+                    fingerprint=hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+                ),
+                None,
+            )
+        return None, movement_error
+
+    def _landing_evidence_generation_is_current(
+        self,
+        repo_path: str,
+        generation: _LandingEvidenceGeneration,
+        *,
+        access_token: str | None = None,
+        forge_kind: str = "github",
+    ) -> tuple[bool, str | None]:
+        """Fence an escalation against movement after evidence computation."""
+
+        advertised, probe_error = self._landing_evidence_remote_tips(
+            repo_path,
+            (*generation.target_branches, *generation.candidate_branches),
+            access_token=access_token,
+            forge_kind=forge_kind,
+        )
+        if advertised is None:
+            return False, probe_error or "remote generation probe failed"
+        expected = {
+            **dict(generation.target_tips),
+            **dict(generation.candidate_tips),
+        }
+        current = {
+            branch: advertised.get(branch)
+            for branch in (*generation.target_branches, *generation.candidate_branches)
+        }
+        if current != expected:
+            return False, "authoritative refs moved after evidence computation"
+        return True, None
+
     def _child_has_durable_landing_evidence(
         self,
         child: Issue,
@@ -28254,6 +28501,7 @@ class Orchestrator:
         repo_path: str,
         project_id: str | None = None,
         epic_identifier: str | None = None,
+        container_refs: tuple[str, ...] | None = None,
     ) -> bool:
         """Check durable tracker/queue SHAs against a landed container ref.
 
@@ -28368,11 +28616,16 @@ class Orchestrator:
         if not candidate_evidence:
             return False
 
+        exact_container_refs = container_refs
         for container_branch in container_branches:
-            container_refs = self._resolve_git_branch_refs(repo_path, container_branch)
-            if not container_refs:
+            branch_refs = (
+                exact_container_refs
+                if exact_container_refs is not None
+                else self._resolve_git_branch_refs(repo_path, container_branch)
+            )
+            if not branch_refs:
                 continue
-            for container_ref in container_refs:
+            for container_ref in branch_refs:
                 for candidate_sha, base_sha in candidate_evidence:
                     if self._reported_commit_landed_on_refs(
                         repo_path,
@@ -28430,6 +28683,7 @@ class Orchestrator:
             expected_source_sha=expected_source_sha,
             container_branches=container_branches,
             repo_path=repo_path,
+            container_refs=exact_container_refs,
         ):
             return False
         return True
@@ -28477,6 +28731,7 @@ class Orchestrator:
         expected_source_sha: str,
         container_branches: tuple[str, ...],
         repo_path: str,
+        container_refs: tuple[str, ...] | None = None,
     ) -> bool:
         """Validate one mapping against its identity, generation, and Git."""
 
@@ -28513,12 +28768,14 @@ class Orchestrator:
         ):
             return False
 
-        container_refs = tuple(
-            ref
-            for branch in dict.fromkeys(container_branches)
-            for ref in self._resolve_git_branch_refs(repo_path, branch)
-        )
-        if not container_refs:
+        exact_container_refs = container_refs
+        if exact_container_refs is None:
+            exact_container_refs = tuple(
+                ref
+                for branch in dict.fromkeys(container_branches)
+                for ref in self._resolve_git_branch_refs(repo_path, branch)
+            )
+        if not exact_container_refs:
             return False
         # The target must be in the current canonical ref, not merely have a
         # matching tree.  The range-aware helper also ensures the canonical
@@ -28526,7 +28783,7 @@ class Orchestrator:
         return self._reported_commit_landed_on_refs(
             repo_path,
             mapping.target_sha,
-            container_refs,
+            exact_container_refs,
             base_sha=mapping.target_base_sha,
         )
 
@@ -28827,6 +29084,8 @@ class Orchestrator:
         *,
         expected_work_branch: str,
         container_branches: tuple[str, ...],
+        container_refs: tuple[str, ...] | None = None,
+        candidate_refs_by_branch: Mapping[str, tuple[str, ...]] | None = None,
     ) -> str | None:
         """Return why available Git evidence does not contain ``child`` work.
 
@@ -28870,11 +29129,15 @@ class Orchestrator:
             return None
 
         repo_path = os.fspath(repo_path)
-        container_refs = [
-            ref
-            for branch in dict.fromkeys(container_branches)
-            for ref in self._resolve_git_branch_refs(repo_path, branch)
-        ]
+        exact_container_refs = (
+            tuple(container_refs)
+            if container_refs is not None
+            else tuple(
+                ref
+                for branch in dict.fromkeys(container_branches)
+                for ref in self._resolve_git_branch_refs(repo_path, branch)
+            )
+        )
 
         # Consume the same trusted completion proof used while an epic review
         # is open.  This is important after a direct epic rebase: the original
@@ -28889,7 +29152,7 @@ class Orchestrator:
         if callable(trusted_evidence) and trusted_evidence(
             child,
             repo_path=repo_path,
-            branch_refs=tuple(container_refs),
+            branch_refs=exact_container_refs,
         ):
             return None
 
@@ -28908,6 +29171,7 @@ class Orchestrator:
             project_id=getattr(child, "project_id", None)
             or getattr(epic, "project_id", None),
             epic_identifier=epic.identifier,
+            container_refs=exact_container_refs,
         ):
             return None
 
@@ -28921,8 +29185,10 @@ class Orchestrator:
 
         found_candidate = False
         for candidate_branch in candidate_branches:
-            candidate_refs = self._resolve_git_branch_refs(
-                repo_path, candidate_branch
+            candidate_refs = (
+                tuple(candidate_refs_by_branch.get(candidate_branch, ()))
+                if candidate_refs_by_branch is not None
+                else self._resolve_git_branch_refs(repo_path, candidate_branch)
             )
             if not candidate_refs:
                 if (
@@ -28935,7 +29201,7 @@ class Orchestrator:
                     )
                 continue
             found_candidate = True
-            if not container_refs:
+            if not exact_container_refs:
                 return (
                     f"{child.identifier} has branch {candidate_branch}, but none "
                     f"of {', '.join(container_branches)} can be verified"
@@ -28943,7 +29209,7 @@ class Orchestrator:
 
             for candidate_ref in candidate_refs:
                 comparisons: list[tuple[str, list[str]]] = []
-                for container_ref in container_refs:
+                for container_ref in exact_container_refs:
                     try:
                         result = subprocess.run(
                             ["git", "cherry", container_ref, candidate_ref],
@@ -39071,21 +39337,6 @@ class Orchestrator:
             if project is not None and getattr(project, "repo_path", None)
             else ""
         )
-        landing_refs_fresh, landing_refresh_error = (
-            self._refresh_landing_evidence_target_refs(
-                repo_path,
-                containment_targets,
-                access_token=getattr(project, "access_token", None),
-                forge_kind=getattr(project, "forge_kind", "github"),
-            )
-        )
-        if not landing_refs_fresh:
-            logger.warning(
-                "Deferring Done-child landing reconciliation for epic %s: "
-                "authoritative target ref %s",
-                epic.identifier,
-                landing_refresh_error or "refresh failed",
-            )
 
         tracker = self._tracker_for_issue(epic)
         project_id = getattr(epic, "project_id", None) or ""
@@ -39114,43 +39365,162 @@ class Orchestrator:
         except Exception:  # noqa: BLE001
             children = []
 
-        candidate_refs_fresh = True
-        candidate_refresh_error: str | None = None
+        # One remote advertisement fences target and candidate refs together.
+        # Evidence helpers receive its immutable commit IDs rather than
+        # resolving mutable branch names independently.
+        candidate_branches_set: set[str] = set()
+        for child in children:
+            if canonicalize_status(child.state) != DONE:
+                continue
+            recorded_branch = str(
+                assigned_work_branch(child) or child.work_branch or ""
+            ).strip()
+            if recorded_branch and recorded_branch not in containment_targets:
+                candidate_branches_set.add(recorded_branch)
+            child_id = str(child.identifier or "").strip()
+            if child_id and child_id not in containment_targets:
+                candidate_branches_set.add(child_id)
+        candidate_branches = tuple(sorted(candidate_branches_set))
+        landing_generation, landing_refresh_error = (
+            self._refresh_landing_evidence_generation(
+                repo_path,
+                target_branches=containment_targets,
+                candidate_branches=candidate_branches,
+                access_token=getattr(project, "access_token", None),
+                forge_kind=getattr(project, "forge_kind", "github"),
+            )
+        )
+        if landing_refresh_error:
+            logger.warning(
+                "Deferring Done-child landing reconciliation for epic %s: %s",
+                epic.identifier,
+                landing_refresh_error,
+            )
 
-        # Collect candidate branches from Done children and refresh them.
-        # This ensures stale force-pushed rebases are not misjudged.  A
-        # candidate fetch failure is evidence that the source cannot be
-        # authoritatively compared, so defer Done-child reconciliation for
-        # this pass instead of using stale local refs.
-        if landing_refs_fresh:
-            candidate_branches_set: set[str] = set()
-            for child in children:
-                if canonicalize_status(child.state) == DONE:
-                    # Use both recorded work_branch and child identifier as
-                    # candidates (see _child_landing_evidence_block_reason).
-                    recorded_branch = (child.work_branch or "").strip()
-                    if recorded_branch and recorded_branch not in containment_targets:
-                        candidate_branches_set.add(recorded_branch)
-                    child_id = (child.identifier or "").strip()
-                    if child_id and child_id not in containment_targets:
-                        candidate_branches_set.add(child_id)
-            if candidate_branches_set:
-                candidate_branches = tuple(dict.fromkeys(candidate_branches_set))
-                candidate_refs_fresh, candidate_refresh_error = (
-                    self._refresh_landing_evidence_candidate_refs(
-                        repo_path,
-                        candidate_branches,
-                        access_token=getattr(project, "access_token", None),
-                        forge_kind=getattr(project, "forge_kind", "github"),
-                    )
+        def done_child_landing_reason(
+            child: Issue,
+            child_project_id: str,
+        ) -> str | None:
+            exact_container_refs = (
+                landing_generation.target_refs if landing_generation else None
+            )
+            candidate_refs_by_branch = (
+                {
+                    branch: landing_generation.candidate_refs(branch)
+                    for branch in landing_generation.candidate_branches
+                }
+                if landing_generation
+                else None
+            )
+            if self._child_has_durable_landing_evidence(
+                child,
+                container_branches=containment_targets,
+                repo_path=repo_path,
+                project_id=child_project_id,
+                epic_identifier=epic.identifier,
+                container_refs=exact_container_refs,
+            ):
+                logger.info(
+                    "Epic child %s has durable landing evidence reachable from "
+                    "%s in generation %s",
+                    child.identifier,
+                    ", ".join(containment_targets),
+                    landing_generation.fingerprint[:12]
+                    if landing_generation
+                    else "legacy-no-repository",
                 )
-                if not candidate_refs_fresh:
-                    logger.warning(
-                        "Deferring Done-child landing reconciliation for epic %s: "
-                        "authoritative candidate ref %s",
-                        epic.identifier,
-                        candidate_refresh_error or "refresh failed",
-                    )
+                return None
+            return self._child_landing_evidence_block_reason(
+                epic,
+                child,
+                expected_work_branch=epic_branch,
+                container_branches=containment_targets,
+                container_refs=exact_container_refs,
+                candidate_refs_by_branch=candidate_refs_by_branch,
+            )
+
+        def revalidate_done_child_disposition(
+            child: Issue,
+            child_project_id: str,
+            landing_reason: str | None,
+        ) -> tuple[bool, str | None]:
+            """CAS one computed disposition against the remote generation."""
+
+            nonlocal landing_generation, landing_refresh_error
+            if landing_generation is None:
+                return True, landing_reason
+            generation_is_current, generation_error = (
+                self._landing_evidence_generation_is_current(
+                    repo_path,
+                    landing_generation,
+                    access_token=getattr(project, "access_token", None),
+                    forge_kind=getattr(project, "forge_kind", "github"),
+                )
+            )
+            if generation_is_current:
+                return True, landing_reason
+
+            logger.info(
+                "Retrying Done-child landing reconciliation for %s: %s",
+                child.identifier,
+                generation_error or "evidence generation moved",
+            )
+            landing_generation, landing_refresh_error = (
+                self._refresh_landing_evidence_generation(
+                    repo_path,
+                    target_branches=containment_targets,
+                    candidate_branches=candidate_branches,
+                    access_token=getattr(project, "access_token", None),
+                    forge_kind=getattr(project, "forge_kind", "github"),
+                )
+            )
+            if landing_refresh_error or landing_generation is None:
+                logger.warning(
+                    "Leaving epic child %s Done after evidence refresh failed: %s",
+                    child.identifier,
+                    landing_refresh_error or "generation unavailable",
+                )
+                return False, landing_reason
+
+            refreshed_reason = done_child_landing_reason(child, child_project_id)
+            generation_is_current, generation_error = (
+                self._landing_evidence_generation_is_current(
+                    repo_path,
+                    landing_generation,
+                    access_token=getattr(project, "access_token", None),
+                    forge_kind=getattr(project, "forge_kind", "github"),
+                )
+            )
+            if not generation_is_current:
+                logger.warning(
+                    "Leaving epic child %s Done because evidence generation "
+                    "moved twice: %s",
+                    child.identifier,
+                    generation_error or "movement detected",
+                )
+                return False, refreshed_reason
+            return True, refreshed_reason
+
+        def terminal_disposition_generation_still_current(child: Issue) -> bool:
+            """Final fail-closed fence immediately before terminal mutation."""
+
+            if landing_generation is None:
+                return True
+            generation_is_current, generation_error = (
+                self._landing_evidence_generation_is_current(
+                    repo_path,
+                    landing_generation,
+                    access_token=getattr(project, "access_token", None),
+                    forge_kind=getattr(project, "forge_kind", "github"),
+                )
+            )
+            if not generation_is_current:
+                logger.warning(
+                    "Deferring terminal landing disposition for epic child %s: %s",
+                    child.identifier,
+                    generation_error or "evidence generation moved",
+                )
+            return generation_is_current
 
         for child in children:
             if self._job_deadline_exceeded("merged_labels"):
@@ -39206,7 +39576,7 @@ class Orchestrator:
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
             if child_status == DONE:
-                if not landing_refs_fresh or not candidate_refs_fresh:
+                if landing_refresh_error:
                     logger.info(
                         "Leaving epic child %s Done until authoritative refs for "
                         "epic %s can be refreshed",
@@ -39214,30 +39584,7 @@ class Orchestrator:
                         epic.identifier,
                     )
                     continue
-                # Check for durable integration evidence before requiring live branch ref.
-                # A child's branch may be pruned after successful integration; the
-                # integration record's integrated_sha is durable proof of landing.
-                if self._child_has_durable_landing_evidence(
-                    child,
-                    container_branches=containment_targets,
-                    repo_path=repo_path,
-                    project_id=child_project_id,
-                    epic_identifier=epic.identifier,
-                ):
-                    logger.info(
-                        "Epic child %s has durable landing evidence (integrated_sha "
-                        "reachable from %s); promoting despite pruned work branch",
-                        child.identifier,
-                        ", ".join(containment_targets),
-                    )
-                    landing_reason = None
-                else:
-                    landing_reason = self._child_landing_evidence_block_reason(
-                        epic,
-                        child,
-                        expected_work_branch=epic_branch,
-                        container_branches=containment_targets,
-                    )
+                landing_reason = done_child_landing_reason(child, child_project_id)
             if child_status == IN_VALIDATION:
                 logger.info(
                     "Leaving epic child %s In Validation while its terminal "
@@ -39245,17 +39592,66 @@ class Orchestrator:
                     child.identifier,
                 )
                 continue
+            open_review_checked = False
+            if child_status == DONE and not landing_reason:
+                open_review_checked = True
+                open_review_branch = self._open_review_branch_for_issue_in_cache(
+                    child, epic
+                )
+                if open_review_branch:
+                    logger.warning(
+                        "Leaving epic child %s non-terminal: its open review "
+                        "branch %s has not landed (epic %s landed)",
+                        child.identifier,
+                        open_review_branch,
+                        epic.identifier,
+                    )
+                    continue
+            if child_status == DONE:
+                disposition_current, landing_reason = (
+                    revalidate_done_child_disposition(
+                        child, child_project_id, landing_reason
+                    )
+                )
+                if not disposition_current:
+                    continue
+                if not landing_reason and not open_review_checked:
+                    open_review_branch = (
+                        self._open_review_branch_for_issue_in_cache(child, epic)
+                    )
+                    if open_review_branch:
+                        logger.warning(
+                            "Leaving epic child %s non-terminal: its open review "
+                            "branch %s has not landed (epic %s landed)",
+                            child.identifier,
+                            open_review_branch,
+                            epic.identifier,
+                        )
+                        continue
             if child_status != DONE or landing_reason:
                 evidence_detail = (
                     f" Git evidence: {landing_reason}."
                     if landing_reason
                     else ""
                 )
+                generation_citation = (
+                    landing_generation.citation(
+                        candidate_branches=(child_branch, child.identifier)
+                    )
+                    if landing_reason and landing_generation is not None
+                    else ""
+                )
+                generation_detail = (
+                    f" Evidence generation: {generation_citation}."
+                    if generation_citation
+                    else ""
+                )
                 instruction = (
                     f"The parent epic {epic.identifier} merged from "
                     f"{epic_branch}, but this task was {child_status or 'unknown'} "
                     f"with work branch {child_branch or 'unset'}. Its work is not "
-                    f"proven to be in the merged epic.{evidence_detail} "
+                    f"proven to be in the merged epic.{evidence_detail}"
+                    f"{generation_detail} "
                     "Inspect the task's agent "
                     "history and remote branches, recover any missing commits "
                     "through a new recovery epic or approved follow-up PR, then "
@@ -39283,6 +39679,10 @@ class Orchestrator:
                     )
                     continue
                 try:
+                    if child_status == DONE and not (
+                        terminal_disposition_generation_still_current(child)
+                    ):
+                        continue
                     self._mark_needs_human(
                         child_tracker,
                         child.identifier,
@@ -39296,22 +39696,7 @@ class Orchestrator:
                         exc,
                     )
                 continue
-            # A child can have its own PR/MR while its parent epic's rollup
-            # has already landed.  The parent landing is not evidence that
-            # the child's separate review landed.  In particular, replacing
-            # an actionable conflict-repair state with Merged here prevents
-            # the resolver from ever being dispatched.
-            open_review_branch = self._open_review_branch_for_issue_in_cache(
-                child, epic
-            )
-            if open_review_branch:
-                logger.warning(
-                    "Leaving epic child %s non-terminal: its open review branch %s "
-                    "has not landed (epic %s landed)",
-                    child.identifier,
-                    open_review_branch,
-                    epic.identifier,
-                )
+            if not terminal_disposition_generation_still_current(child):
                 continue
             result = self._request_merged_via_coordinator(
                 child,

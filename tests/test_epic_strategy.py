@@ -306,6 +306,125 @@ def _make_landing_evidence_repo(tmp_path, *, land_child: bool):
     return managed
 
 
+def _make_oompah_779_landing_repo(tmp_path, *, landing: str):
+    """Build the nested OOMPAH-779/OOMPAH-765/OOMPAH-763 topology."""
+
+    remote = tmp_path / "oompah-779-remote.git"
+    source = tmp_path / "oompah-779-source"
+    managed = tmp_path / "oompah-779-managed"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    subprocess.run(
+        ["git", "init", "-q", "--initial-branch=main", str(source)],
+        check=True,
+    )
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=source,
+        check=True,
+    )
+    (source / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=source, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=source, check=True
+    )
+    subprocess.run(
+        ["git", "branch", "epic-OOMPAH-763", base_sha], cwd=source, check=True
+    )
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", "epic-OOMPAH-765", base_sha],
+        cwd=source,
+        check=True,
+    )
+    (source / "oompah-779.txt").write_text("audited child work\n")
+    subprocess.run(["git", "add", "oompah-779.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "OOMPAH-779 exact audited work"],
+        cwd=source,
+        check=True,
+    )
+    child_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        [
+            "git",
+            "push",
+            "-q",
+            "origin",
+            "main",
+            "epic-OOMPAH-765",
+            "epic-OOMPAH-763",
+        ],
+        cwd=source,
+        check=True,
+    )
+    if landing == "exact":
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                f"{child_sha}:refs/heads/epic-OOMPAH-763",
+            ],
+            cwd=source,
+            check=True,
+        )
+    elif landing == "patch-equivalent":
+        subprocess.run(
+            ["git", "checkout", "-q", "epic-OOMPAH-763"],
+            cwd=source,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "cherry-pick", child_sha], cwd=source, check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "--amend",
+                "-q",
+                "-m",
+                "OOMPAH-779 conflict-resolved equivalent",
+            ],
+            cwd=source,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "push", "-q", "origin", "epic-OOMPAH-763"],
+            cwd=source,
+            check=True,
+        )
+    elif landing != "unlanded":
+        raise ValueError(f"unknown landing mode: {landing}")
+
+    subprocess.run(
+        ["git", "clone", "-q", "--branch", "main", str(remote), str(managed)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "fetch", "-q", "origin", "epic-OOMPAH-765", "epic-OOMPAH-763"],
+        cwd=managed,
+        check=True,
+    )
+    return managed, source, base_sha, child_sha
+
+
 def _make_pruned_historical_landing_repo(tmp_path):
     """Return a clone whose main contains a now-pruned task commit."""
     remote = tmp_path / "historical-remote.git"
@@ -5671,6 +5790,237 @@ class TestResolveEpicTargetBranch:
 class TestLabelMergedEpics:
     """When an epic→main PR merges, the epic and all its children become
     Merged."""
+
+    @staticmethod
+    def _oompah_779_scenario(tmp_path, *, landing: str):
+        managed, source, base_sha, child_sha = _make_oompah_779_landing_repo(
+            tmp_path, landing=landing
+        )
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(managed)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        epic = _make_issue(
+            identifier="OOMPAH-765",
+            issue_type="epic",
+            state=MERGED,
+            parent_id="OOMPAH-763",
+            project_id=project.id,
+            work_branch="epic-OOMPAH-765",
+        )
+        child = _make_issue(
+            identifier="OOMPAH-779",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=project.id,
+            work_branch="epic-OOMPAH-765",
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": f"Audit passed for exact completion commit {child_sha}",
+            }
+        ]
+        return orch, project, epic, child, tracker, source, base_sha, child_sha
+
+    @pytest.mark.parametrize("landing", ["exact", "patch-equivalent"])
+    def test_oompah_779_shared_child_uses_nested_target_generation(
+        self, tmp_path, landing
+    ):
+        """The audited OOMPAH-779 range is contained in OOMPAH-763."""
+
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing=landing
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_oompah_779_restart_discards_stale_local_target_snapshot(self, tmp_path):
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, project, epic, child, tracker, source, _base_sha, child_sha = scenario
+        stale, error = orch._refresh_landing_evidence_generation(
+            str(project.repo_path),
+            target_branches=("epic-OOMPAH-763",),
+            candidate_branches=("epic-OOMPAH-765", "OOMPAH-779"),
+        )
+        assert error is None and stale is not None
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                f"{child_sha}:refs/heads/epic-OOMPAH-763",
+            ],
+            cwd=source,
+            check=True,
+        )
+
+        restarted = _make_orch(tmp_path / "restarted", projects=[project])
+        with (
+            patch.object(restarted, "_tracker_for_issue", return_value=tracker),
+            patch.object(restarted, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                restarted,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            restarted._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert restarted.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_target_movement_recomputes_stale_unlanded_escalation(self, tmp_path):
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, _project, epic, child, tracker, source, _base_sha, child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        moved = False
+
+        def advance_target(*args, **kwargs):
+            nonlocal moved
+            if not moved:
+                moved = True
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{child_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=advance_target,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert moved is True
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_target_movement_recomputes_stale_contained_promotion(self, tmp_path):
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, _project, epic, child, tracker, source, base_sha, _child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        moved = False
+
+        def rewind_target(*args, **kwargs):
+            nonlocal moved
+            if not moved:
+                moved = True
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{base_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=rewind_target,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert moved is True
+        tracker.mark_needs_human.assert_called_once()
+        instruction = tracker.mark_needs_human.call_args.args[1]
+        assert "Evidence generation:" in instruction
+        assert "target epic-OOMPAH-763@" in instruction
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_oompah_779_genuinely_unlanded_uses_current_generation(self, tmp_path):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="unlanded"
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.mark_needs_human.assert_called_once()
+        instruction = tracker.mark_needs_human.call_args.args[1]
+        assert "unlanded commit" in instruction
+        assert "Evidence generation:" in instruction
+        assert "target epic-OOMPAH-763@" in instruction
+        assert "candidate epic-OOMPAH-765@" in instruction
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_oompah_779_generation_refresh_failure_defers_terminal_action(
+        self, tmp_path
+    ):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="unlanded"
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_remote_tips",
+                return_value=(None, "transport unavailable"),
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
 
     @pytest.mark.parametrize("parent_state", [MERGED, ARCHIVED])
     def test_ready_child_of_pruned_terminal_parent_uses_landed_head(
