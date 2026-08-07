@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T07:32:37.982931Z'
+updated_at: '2026-08-07T08:35:14.978679Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -183,7 +183,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,7 +192,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bf7b90a0c054
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -202,13 +202,28 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-07T07:23:35.127391+00:00'
       branch_key: OOMPAH-608
+      ended_at: '2026-08-07T08:35:02.317875+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-5a3556bc9219
+      target_state: Archived
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6697438b242a070fec98b4a57cb295327d27a09cae3b98730aafece647a8859a
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T08:35:13.554608+00:00'
+      ended_at: '2026-08-07T08:35:13.554608+00:00'
+      failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+      next_retry_at: '2026-08-07T08:35:33.554594+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T07:11:01.356889+00:00'
-    updated_at: '2026-08-07T07:23:35.127391+00:00'
+    updated_at: '2026-08-07T08:35:13.554608+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-084f1d7c63d1
@@ -239,7 +254,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-bf7b90a0c054
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -249,6 +264,21 @@ oompah.terminal_audit:
     model: haiku
     started_at: '2026-08-07T07:23:35.127391+00:00'
     branch_key: OOMPAH-608
+    ended_at: '2026-08-07T08:35:02.317875+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-5a3556bc9219
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6697438b242a070fec98b4a57cb295327d27a09cae3b98730aafece647a8859a
+    failure_classification: infrastructure_error
+    created_at: '2026-08-07T08:35:13.554608+00:00'
+    ended_at: '2026-08-07T08:35:13.554608+00:00'
+    failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
+    next_retry_at: '2026-08-07T08:35:33.554594+00:00'
 ---
 ## Summary
 
