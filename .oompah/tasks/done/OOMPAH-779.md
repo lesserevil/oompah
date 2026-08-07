@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T12:50:16.963325Z'
+updated_at: '2026-08-07T12:54:23.824837Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -166,6 +166,44 @@ oompah.terminal_audit:
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     updated_at: '2026-08-07T12:50:13.639213+00:00'
+  - version: 1
+    audit_id: audit-3b17fa83eb60
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d56597acc1edba76f5769a89792c0aef5f3841080ca4fea989f96faa914c0177
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T12:54:22.208319+00:00'
+    selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+  - version: 1
+    audit_id: audit-76a07a531a78
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d56597acc1edba76f5769a89792c0aef5f3841080ca4fea989f96faa914c0177
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T12:54:22.208319+00:00'
+    selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
   attempt_history: []
 oompah.work_branch: epic-OOMPAH-765
 ---
