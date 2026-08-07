@@ -3285,6 +3285,12 @@ def _fetch_open_reviews_for_api(
         except Exception as exc:
             logger.warning("Failed to fetch reviews for %s: %s", project.name, exc)
             continue
+        if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
+            logger.warning(
+                "Review provider reported an unsuccessful fetch for %s",
+                project.name,
+            )
+            continue
 
         reviews_by_project[project_id] = reviews
         successful_project_ids.add(project_id)

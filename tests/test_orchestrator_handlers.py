@@ -496,6 +496,58 @@ class TestHandleReviewCheck:
         assert orch._unmerged_review_branches == set()
         cache_set.assert_called_once_with("reviews:all", [], ttl_ms=10000)
 
+    def test_reviews_api_provider_failure_preserves_cache_and_capacity(
+        self,
+        tmp_path,
+    ):
+        """A provider-swallowed outage is not an authoritative empty list."""
+
+        from oompah.server import (
+            _fetch_open_reviews_for_api,
+            _sync_orchestrator_review_cache,
+        )
+
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        review = _make_review("742", "epic-OOMPAH-768")
+        orch._reviews_cache = {"proj-1": [review]}
+        orch._unmerged_review_branches = {review.source_branch}
+        orch.review_capacity_store.adopt(
+            project_id="proj-1",
+            task_id="OOMPAH-646",
+            source_branch=review.source_branch,
+            target_branch=review.target_branch,
+            review_id=review.id,
+            reservation_id="reservation-742",
+        )
+
+        provider = MagicMock()
+        provider.list_open_reviews.return_value = []
+        provider.last_open_reviews_fetch_ok = False
+        with patch("oompah.server.detect_provider", return_value=provider):
+            reviews, reviews_by_project, successful_project_ids = (
+                _fetch_open_reviews_for_api([project])
+            )
+
+        assert reviews == []
+        assert reviews_by_project == {}
+        assert successful_project_ids == set()
+
+        published = _sync_orchestrator_review_cache(
+            orch,
+            reviews_by_project,
+            successful_project_ids,
+            {"proj-1": orch._review_generation("proj-1")},
+        )
+
+        assert published == set()
+        assert orch._reviews_cache["proj-1"] == [review]
+        assert orch._unmerged_review_branches == {review.source_branch}
+        assert [
+            reservation.review_id
+            for reservation in orch.review_capacity_store.active("proj-1")
+        ] == ["742"]
+
     def test_handles_reviews_with_no_source_branch(self, tmp_path):
         """Reviews without a source_branch are excluded from _unmerged_review_branches."""
         orch = _make_orchestrator(tmp_path)
