@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T13:30:39.845088Z'
+updated_at: '2026-08-07T13:30:51.600943Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: ''
@@ -394,6 +394,8 @@ oompah.terminal_audit:
     ended_at: '2026-08-07T10:20:45.999691+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-07T10:21:05.999670+00:00'
+oompah.review_head: ''
+review_head: ''
 ---
 ## Summary
 
