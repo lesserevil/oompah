@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-08-07T02:56:52.071936Z'
+updated_at: '2026-08-07T03:11:52.796707Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -581,5 +581,28 @@ author: oompah
 created: 2026-08-07 02:56
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-07 03:11
+---
+Verification complete: All focused test suites for OOMPAH-576 pass.
+
+Test Results:
+- tests/test_projects.py: 125 passed (includes TestExistingWorktreeBranchValidation::test_wrong_branch_refuses_to_reset_registered_task_worktree regression test)
+- tests/test_integration_executor.py: 16 passed  
+- tests/test_integration_record.py: 11 passed
+- tests/test_task_handoff.py: 75 passed
+- tests/test_worker_submission.py: 14 passed (includes test_submit_endpoint_rejects_wrong_checkout_without_mutating_queue)
+
+Total: 241 tests passed
+
+Implementation covers all acceptance criteria:
+✓ Wrong-checkout submission (from default branch) returns actionable error before any tracker/queue/worktree mutation
+✓ Correct submissions from the assigned task checkout still integrate normally
+✓ Registered worktree with divergent branch is never reset/clean/checkout by stale queue rows
+✓ Branch validation happens at submit time (ACP + HTTP endpoints) and worktree preparation time
+✓ Integration executor returns branch_mismatch status without attempting reset
+
+The implementation successfully hardens task submission and integration worktree preparation to prevent the OOMPAH-483 regression where a wrong-checkout submission overwrote the recorded work branch and reset a live worktree.
 ---
 <!-- COMMENTS:END -->
