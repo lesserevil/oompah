@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T10:43:11.572864Z'
+updated_at: '2026-08-07T11:22:12.122951Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -313,5 +313,10 @@ author: oompah
 created: 2026-08-07 10:43
 ---
 Correction to the prior focused-test note: the O577 regression invocation is durably queued behind OOMPAH-854's exact gate at the canonical capacity=1 broker. An earlier tool status returned before the queued child had acquired the lease; do not read that as a completed pass. The queue itself is the expected non-bypass behavior. Final pass/fail will be posted after O854 releases and the child runs.
+---
+author: oompah
+created: 2026-08-07 11:22
+---
+Escalated native-provider bypass at 2026-08-07 11:22 UTC: the same server-managed OOMPAH-643 worker concurrently spawned THREE absent-from-broker full suites from its managed worktree (pytest PIDs 396580, 406117, 421878; each  with independent basetemp) while repaired OOMPAH-854 head 357149ce held the only exact-gate slot and OOMPAH-846 was the sole canonical waiter. This proves a worker can relaunch/overlap multiple full suites, not merely bypass once. Operator requested direct-owner retirement of OOMPAH-643 to preserve the authoritative O854 gate; acceptance must ensure the provider boundary serializes every child launch and prevents same-worker concurrent relaunches before the lease owner exits.
 ---
 <!-- COMMENTS:END -->
