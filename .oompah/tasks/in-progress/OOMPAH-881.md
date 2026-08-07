@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T11:44:20.677274Z'
-updated_at: '2026-08-07T11:49:41.864856Z'
+updated_at: '2026-08-07T11:50:47.631089Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-07 11:49
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-07 11:50
+---
+Understanding: The epic branch epic-OOMPAH-763 has fallen behind main and needs to be rebased onto origin/main. Plan: (1) fetch latest origin/main, (2) check current branch status and divergence, (3) run git rebase origin/main, (4) resolve any conflicts, (5) force-push with --force-with-lease.
 ---
 <!-- COMMENTS:END -->
