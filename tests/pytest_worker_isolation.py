@@ -41,6 +41,52 @@ _PROCESS_GLOBAL_MODULES = frozenset(
     }
 )
 _PROCESS_GLOBAL_GROUP = "oompah_process_global"
+_NATIVE_VALIDATION_PROCESS_MODULES = frozenset(
+    {
+        "test_acp_codex_backend.py",
+        "test_native_validation_guard.py",
+    }
+)
+
+
+def _drain_native_validation_brokers() -> None:
+    """Stop process-global brokers left by subprocess-level test fixtures."""
+
+    from oompah import native_validation_guard as guard_module
+
+    with guard_module._BROKER_REGISTRY_LOCK:
+        registered = tuple(guard_module._BROKER_REGISTRY.items())
+    for root, _broker in registered:
+        stopped = guard_module._stop_native_validation_broker(
+            root,
+            cleanup_outcome="transport_error",
+        )
+        assert stopped, f"native validation broker did not quiesce: {root}"
+    with guard_module._BROKER_REGISTRY_LOCK:
+        assert guard_module._BROKER_REGISTRY == {}
+    for root, broker in registered:
+        assert not broker._thread.is_alive(), (
+            f"native validation listener survived registry cleanup: {root}"
+        )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_native_validation_broker_lifecycle(request: pytest.FixtureRequest):
+    """Keep one serialized worker's native broker state test-local.
+
+    Production retirement and failed-install behavior have direct regressions;
+    this safety net prevents subprocess-focused tests that intentionally stop
+    before session retirement from contaminating later tests in the worker.
+    """
+
+    if Path(str(request.node.path)).name not in _NATIVE_VALIDATION_PROCESS_MODULES:
+        yield
+        return
+    _drain_native_validation_brokers()
+    try:
+        yield
+    finally:
+        _drain_native_validation_brokers()
 
 
 def build_worker_environment(

@@ -246,8 +246,10 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("exec rg pytest tests", False),
         ("time git status --short", False),
         ("bash -ce 'echo pytest'", False),
-        ("bash -O extglob -c \"npm '@(test)'\"", False),
-        ("npm '@(test)'", False),
+        # Script-looking npm arguments remain capacity-bearing even when
+        # quoting prevents this shell layer from expanding extglob syntax.
+        ("bash -O extglob -c \"npm '@(test)'\"", True),
+        ("npm '@(test)'", True),
         ("eval \"$VALIDATION_COMMAND\"", True),
         ("$VALIDATION_COMMAND", True),
         ("source ./validation-command.sh", True),
@@ -306,8 +308,11 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("printf -v HOME %s /malicious-home; git status --short", True),
         ("printf -v LOCAL_VALUE %s harmless; git status --short", True),
         ('printf -v "$GUARD_NAME" value; rg pytest tests', True),
-        ("printf '%s' HOME; git status --short", False),
-        ("printf -- '-v %s' HOME; git status --short", False),
+        # HOME-like argv following printf is intentionally ambiguous with the
+        # shell builtin's assignment form, so the following Git inspection
+        # cannot safely bypass capacity.
+        ("printf '%s' HOME; git status --short", True),
+        ("printf -- '-v %s' HOME; git status --short", True),
         ('unset "$GUARD_NAME"; rg pytest tests', True),
         ("PATH=/workspace/bin rg pytest tests", True),
         ("env -u OOMPAH_NATIVE_VALIDATION_GUARD rg pytest tests", True),
@@ -393,17 +398,38 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("rg --pre 'make test' pattern .", True),
         ("echo make test", False),
         ("git status --short", False),
+        # The first form contains shell redirection.  In the second, ``>`` is
+        # an npm argv token instead, but that ambiguous script invocation must
+        # remain conservatively capacity-bearing too.
         ("npm >out test", True),
-        ("npm '>' test", False),
+        ("npm '>' test", True),
         ("cargo test>out", True),
         ("cargo 'test>out'", True),
         ("pytest tests/test_one.py -$OPT", True),
-        ("pytest tests/test_one.py '-$OPT'", False),
+        # A focused pytest selector is capacity-bearing independent of whether
+        # this shell expands the option-looking argument.
+        ("pytest tests/test_one.py '-$OPT'", True),
         ("npm 'unterminated", True),
     ],
 )
-def test_classifier_is_heavy_first_and_inspection_only_checks_bypass(command, expected):
-    assert is_heavyweight_validation_command(command) is expected
+def test_classifier_is_heavy_first_and_inspection_only_checks_bypass(
+    command,
+    expected,
+    tmp_path,
+):
+    workspace = tmp_path / "workspace"
+    git_dir = workspace / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=workspace,
+    ) is expected
 
 
 def test_shell_line_continuation_is_removed_before_classification():
@@ -445,14 +471,25 @@ def test_persisted_git_config_environment_fails_closed():
     ) is True
 
 
-def test_safe_complete_git_config_environment_preserves_inspection():
+def test_safe_complete_git_config_environment_preserves_inspection(tmp_path):
+    workspace = tmp_path / "workspace"
+    git_dir = workspace / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "url.file:///blocked/.insteadOf",
+        "GIT_CONFIG_VALUE_0": "https://",
+    }
+
     assert is_heavyweight_validation_command(
         "git status --short",
-        command_environment={
-            "GIT_CONFIG_COUNT": "1",
-            "GIT_CONFIG_KEY_0": "url.file:///blocked/.insteadOf",
-            "GIT_CONFIG_VALUE_0": "https://",
-        },
+        command_environment=environment,
+        working_directory=workspace,
     ) is False
 
 
@@ -546,7 +583,9 @@ def test_effective_pytest_configuration_fails_closed(
     ) is True
 
 
-def test_focused_pytest_without_persisted_configuration_remains_light(tmp_path):
+def test_focused_pytest_without_persisted_configuration_remains_capacity_bearing(
+    tmp_path,
+):
     invocation_directory = tmp_path / "isolated" / "tests"
     invocation_directory.mkdir(parents=True)
 
@@ -554,7 +593,7 @@ def test_focused_pytest_without_persisted_configuration_remains_light(tmp_path):
         "pytest test_one.py::test_case",
         command_environment={},
         working_directory=invocation_directory,
-    ) is False
+    ) is True
     assert is_heavyweight_validation_command(
         "pytest @payload.py",
         command_environment={},
@@ -705,8 +744,10 @@ def test_persisted_repo_helper_config_fails_closed_but_safe_config_does_not(
         "[core]\n\trepositoryFormatVersion = 0\n",
         encoding="utf-8",
     )
+    environment = _isolated_git_config_environment(tmp_path)
     assert is_heavyweight_validation_command(
         "git status --short",
+        command_environment=environment,
         working_directory=tmp_path,
     ) is False
 
@@ -716,6 +757,7 @@ def test_persisted_repo_helper_config_fails_closed_but_safe_config_does_not(
     )
     assert is_heavyweight_validation_command(
         "git status --short",
+        command_environment=environment,
         working_directory=tmp_path,
     ) is True
 
@@ -841,7 +883,7 @@ def test_env_chdir_inspects_the_selected_repository_config(tmp_path):
     ) is True
 
 
-def test_env_unset_removes_inherited_git_execution_and_config_scope(tmp_path):
+def test_env_unset_of_git_execution_and_config_scope_fails_closed(tmp_path):
     invocation_directory = tmp_path / "invocation"
     inherited_home = tmp_path / "inherited-home"
     invocation_directory.mkdir()
@@ -856,11 +898,13 @@ def test_env_unset_removes_inherited_git_execution_and_config_scope(tmp_path):
         "GIT_EXTERNAL_DIFF": "/workspace/diff-helper",
     }
 
+    # Mutating HOME changes the startup/configuration scope.  Even when this
+    # particular mutation removes known helpers, it must remain fail-closed.
     assert is_heavyweight_validation_command(
         "env -u HOME --unset=GIT_EXTERNAL_DIFF git diff --stat",
         command_environment=environment,
         working_directory=invocation_directory,
-    ) is False
+    ) is True
 
 
 def test_prior_cd_segment_updates_git_repository_scope(tmp_path):
@@ -1008,11 +1052,13 @@ def test_prior_export_and_unset_segments_update_git_environment_scope(tmp_path):
         "GIT_DIR": str(tmp_path / "missing-inherited-git-dir"),
     }
 
+    # Exporting HOME is itself a configuration-scope mutation, even when the
+    # selected home currently contains only safe configuration.
     assert is_heavyweight_validation_command(
         "unset GIT_DIR; export HOME=" + str(safe_home) + "; git status --short",
         command_environment=environment,
         working_directory=invocation_directory,
-    ) is False
+    ) is True
     assert is_heavyweight_validation_command(
         "unset GIT_DIR; export HOME=" + str(helper_home) + "; git status --short",
         command_environment=environment,
@@ -1871,6 +1917,75 @@ def test_live_numeric_pid_with_stale_start_ticks_is_never_signaled(monkeypatch):
         replacement.wait(timeout=2)
 
 
+def test_process_group_termination_bounds_full_proc_scan_cadence(monkeypatch):
+    """Large hosts are not rescanned at 100 Hz during bounded cancellation."""
+
+    clock = 0.0
+    snapshots = 0
+    sleeps: list[float] = []
+
+    def monotonic() -> float:
+        return clock
+
+    def sleep(seconds: float) -> None:
+        nonlocal clock
+        sleeps.append(seconds)
+        clock += seconds
+
+    def persistent_group(_pid: int, _ticks: int):
+        nonlocal snapshots
+        snapshots += 1
+        return False, ((123, 456),)
+
+    monkeypatch.setattr(validation_lease_module.time, "monotonic", monotonic)
+    monkeypatch.setattr(validation_lease_module.time, "sleep", sleep)
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_original_process_group_snapshot",
+        persistent_group,
+    )
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_signal_exact_process_group_member",
+        lambda *_args, **_kwargs: True,
+    )
+
+    assert validation_lease_module._terminate_exact_process_group(
+        123,
+        456,
+        grace_seconds=0,
+    ) is False
+    assert snapshots <= 13
+    assert sleeps
+    assert min(sleeps) >= 0.05
+
+
+def test_zombie_group_leader_is_quiescent_before_parent_waits() -> None:
+    """Retirement does not deadlock on a child waiting to be reaped."""
+
+    process = subprocess.Popen(["true"], start_new_session=True)
+    start_ticks = validation_lease_module._process_start_ticks(process.pid)
+    assert start_ticks is not None
+    try:
+        _wait_for(
+            lambda: (
+                (current := validation_lease_module._process_stat(process.pid))
+                is not None
+                and current[0] == "Z"
+            )
+        )
+
+        gone, members = validation_lease_module._original_process_group_snapshot(
+            process.pid,
+            start_ticks,
+        )
+
+        assert gone is True
+        assert members == ()
+    finally:
+        process.wait(timeout=2)
+
+
 def test_cancel_owner_terminates_only_matching_attached_process_group(tmp_path):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     owner = _audit_owner("p1", "audit")
@@ -2705,11 +2820,11 @@ def test_successful_heavy_command_reports_duration_to_auditor_observer(tmp_path)
 
 
 @pytest.mark.parametrize(
-    ("target", "expected_outcome", "expected_success"),
+    ("target", "expected_outcome", "expected_success", "expected_scope"),
     [
-        ("test", "passed", True),
-        ("fail", "failed", False),
-        ("slow", "timed_out", False),
+        ("test", "passed", True, "full"),
+        ("fail", "failed", False, "opaque"),
+        ("slow", "timed_out", False, "opaque"),
     ],
 )
 def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
@@ -2717,6 +2832,7 @@ def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
     target,
     expected_outcome,
     expected_success,
+    expected_scope,
 ):
     (tmp_path / "Makefile").write_text(
         "test:\n\t@true\nfail:\n\t@false\nslow:\n\t@sleep 1\n",
@@ -2755,6 +2871,11 @@ def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
     assert telemetry_calls[1].kwargs["succeeded"] is expected_success
     assert telemetry_calls[0].kwargs["duration_seconds"] == 0
     assert telemetry_calls[1].kwargs["duration_seconds"] > 0
+    assert classify_validation_command(f"make {target}").scope == expected_scope
+    assert all(
+        call.kwargs["validation_scope"] == expected_scope
+        for call in telemetry_calls
+    )
     assert all(
         call.kwargs["audit_target"] is audit_target for call in telemetry_calls
     )

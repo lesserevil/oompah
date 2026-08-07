@@ -48,6 +48,7 @@ from typing import Any, Callable, Mapping
 
 from oompah.validation_resource_lease import (
     ValidationCommandClassification,
+    ValidationLeaseHandle,
     ValidationLeaseOwner,
     ValidationResourceLease,
     _is_dynamic_loader_environment_name,
@@ -152,6 +153,8 @@ _BROKER_REGISTRY_LOCK = threading.Lock()
 _OPAQUE_PROCESS_BASELINE_LOCK = threading.Lock()
 _OPAQUE_PROCESS_BASELINE_OWNER_PID: int | None = None
 _OPAQUE_PROCESS_BASELINE_CACHE: tuple[tuple[int, int], ...] | None = None
+_PROCESS_ANCESTRY_BASELINE_OWNER_PID: int | None = None
+_PROCESS_ANCESTRY_BASELINE_CACHE: tuple[tuple[int, int], ...] | None = None
 
 
 def _reset_opaque_process_baseline_after_fork() -> None:
@@ -160,9 +163,13 @@ def _reset_opaque_process_baseline_after_fork() -> None:
     global _OPAQUE_PROCESS_BASELINE_LOCK
     global _OPAQUE_PROCESS_BASELINE_OWNER_PID
     global _OPAQUE_PROCESS_BASELINE_CACHE
+    global _PROCESS_ANCESTRY_BASELINE_OWNER_PID
+    global _PROCESS_ANCESTRY_BASELINE_CACHE
     _OPAQUE_PROCESS_BASELINE_LOCK = threading.Lock()
     _OPAQUE_PROCESS_BASELINE_OWNER_PID = None
     _OPAQUE_PROCESS_BASELINE_CACHE = None
+    _PROCESS_ANCESTRY_BASELINE_OWNER_PID = None
+    _PROCESS_ANCESTRY_BASELINE_CACHE = None
 
 
 if hasattr(os, "register_at_fork"):
@@ -360,6 +367,74 @@ def _scan_opaque_same_user_processes(
         except OSError:
             continue
     return tuple(sorted(identities))
+
+
+def _scan_same_user_process_identities(
+    proc_root: Path,
+) -> tuple[tuple[int, int], ...]:
+    """Return exact generations present before a guard can be inherited."""
+
+    identities: set[tuple[int, int]] = set()
+    try:
+        entries = tuple(proc_root.iterdir())
+    except OSError:
+        return ()
+    for entry in entries:
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        try:
+            if entry.stat().st_uid != os.geteuid():
+                continue
+        except OSError:
+            continue
+        start_ticks = _proc_entry_start_ticks(entry)
+        if start_ticks is not None:
+            identities.add((int(entry.name), start_ticks))
+    return tuple(sorted(identities))
+
+
+def _process_ancestry_baseline(
+    proc_root: Path = Path("/proc"),
+    *,
+    creator_pid: int | None = None,
+) -> tuple[tuple[int, int], ...]:
+    """Return immutable unrelated pre-first-guard process generations.
+
+    Ancestors of the creating process are deliberately excluded. Linux can
+    reparent a detached guarded descendant only to PID 1 or an ancestor that
+    opted into subreaping; accepting one of those ancestors as unrelated
+    provenance would let the descendant launder its guarded origin.
+    """
+
+    normalized_creator = int(creator_pid or os.getpid())
+    creator_ancestry = _exact_process_ancestry(
+        normalized_creator,
+        proc_root=proc_root,
+    )
+    if creator_ancestry is None:
+        return ()
+    if proc_root != Path("/proc"):
+        baseline = _scan_same_user_process_identities(proc_root)
+        return tuple(
+            identity for identity in baseline if identity not in creator_ancestry
+        )
+    current_pid = os.getpid()
+    global _PROCESS_ANCESTRY_BASELINE_OWNER_PID
+    global _PROCESS_ANCESTRY_BASELINE_CACHE
+    with _OPAQUE_PROCESS_BASELINE_LOCK:
+        if (
+            _PROCESS_ANCESTRY_BASELINE_OWNER_PID != current_pid
+            or _PROCESS_ANCESTRY_BASELINE_CACHE is None
+        ):
+            _PROCESS_ANCESTRY_BASELINE_CACHE = (
+                _scan_same_user_process_identities(proc_root)
+            )
+            _PROCESS_ANCESTRY_BASELINE_OWNER_PID = current_pid
+        return tuple(
+            identity
+            for identity in _PROCESS_ANCESTRY_BASELINE_CACHE
+            if identity not in creator_ancestry
+        )
 
 
 def _opaque_same_user_process_baseline(
@@ -966,6 +1041,31 @@ def _peer_guard_invocation(
     return command_text, environment, working_directory
 
 
+def _prepare_bash_reentry_environment(
+    command: str,
+    config: Mapping[str, object],
+    environment: dict[str, str],
+) -> None:
+    """Mirror the trusted Bash shim's pre-classification environment."""
+
+    try:
+        command_tokens = shlex.split(command, posix=True)
+    except ValueError:
+        command_tokens = []
+    if not (
+        command_tokens
+        and os.path.basename(command_tokens[0]) == "bash"
+        and environment.get(_GUARD_ENV)
+        and environment.get("BASH_ENV")
+    ):
+        return
+    reentry_path = str(config.get("bash_reentry_env") or "").strip()
+    if not reentry_path:
+        raise RuntimeError("native Bash validation re-entry hook is unavailable")
+    environment["BASH_ENV"] = reentry_path
+    environment.pop(_BASH_ARGV0_ENV, None)
+
+
 @dataclass
 class _NativeValidationRun:
     command: str
@@ -1114,6 +1214,7 @@ class _NativeValidationLeaseBroker:
         self._handler_lock = threading.Lock()
         self._handler_threads: set[threading.Thread] = set()
         self._handler_connections: set[socket.socket] = set()
+        self._active_handles: set[ValidationLeaseHandle] = set()
         self._boundaries: deque[tuple[float, str, str]] = deque()
         self._seen_boundary_groups: set[str] = set()
         self._bound_item_ids: set[str] = set()
@@ -1497,6 +1598,17 @@ class _NativeValidationLeaseBroker:
                         self.root,
                     )
                 )
+                # The Bash shim replaces the primary BASH_ENV hook with its
+                # one-shot re-entry hook before classifying the invocation.
+                # Linux exposes the environment captured at exec through
+                # /proc, not this trusted in-process replacement, so mirror
+                # that exact transformation before independently classifying
+                # the authenticated peer in the broker.
+                _prepare_bash_reentry_environment(
+                    command,
+                    _load_verified_guard_config(self.root),
+                    command_environment,
+                )
                 if _command_identity(command) != command_identity:
                     raise RuntimeError("native validation command identity changed")
                 peer_process_group = _process_group_id(peer_pid)
@@ -1614,6 +1726,8 @@ class _NativeValidationLeaseBroker:
                     self.owner,
                     is_cancelled=cancelled,
                 )
+                with self._handler_lock:
+                    self._active_handles.add(handle)
                 if cancelled():
                     raise _BrokerAuthorityDenied(
                         "native validation authority was withdrawn"
@@ -1750,7 +1864,14 @@ class _NativeValidationLeaseBroker:
                 # accepted the LEASE descriptor transfer.
                 record_reuse_policy(transfer_policy)
                 handle.relinquish_transferred_descriptor()
+                with self._handler_lock:
+                    self._active_handles.discard(handle)
             except Exception as exc:
+                logger.debug(
+                    "Native validation broker denied request from peer %s",
+                    locals().get("peer_pid", "unknown"),
+                    exc_info=True,
+                )
                 defer_to_cleanup_supervisor = (
                     self._cleanup_requested.is_set()
                     and supervisor_observer is not None
@@ -1768,8 +1889,11 @@ class _NativeValidationLeaseBroker:
                 with contextlib.suppress(OSError):
                     connection.sendall(_broker_denial_response(exc))
             finally:
-                if handle is not None and not descriptor_transferred:
-                    handle.release()
+                if handle is not None:
+                    with self._handler_lock:
+                        self._active_handles.discard(handle)
+                    if not descriptor_transferred:
+                        handle.release()
 
     def _notify_validation_lifecycle(
         self,
@@ -2113,6 +2237,13 @@ class _NativeValidationLeaseBroker:
                     run.launch_state = "terminated"
         with contextlib.suppress(OSError):
             (self.root / _CANCELLATION_NAME).touch(mode=0o600, exist_ok=True)
+        # A telemetry callback can hold a request handler before descriptor
+        # transfer. Revoke those broker-owned handles directly; waiting for
+        # arbitrary user telemetry to return must not retain global capacity.
+        with self._handler_lock:
+            active_handles = tuple(self._active_handles)
+        for active_handle in active_handles:
+            active_handle.release()
         handler_deadline = time.monotonic() + 0.5
         for handler in handlers:
             if handler is not threading.current_thread():
@@ -2469,6 +2600,10 @@ def install_native_validation_guard(
         "opaque_process_baseline": [
             [pid, start_ticks]
             for pid, start_ticks in _opaque_same_user_process_baseline()
+        ],
+        "process_ancestry_baseline": [
+            [pid, start_ticks]
+            for pid, start_ticks in _process_ancestry_baseline()
         ],
         "owner": {
             "kind": owner.kind,
@@ -3347,7 +3482,15 @@ def _start_validation_lease_supervisor(
                 with contextlib.suppress(OSError):
                     os.close(status_read_descriptor)
             if publication is not None:
-                publication()
+                # The exact cause is committed and the supervisor has its ACK
+                # before user telemetry starts.  Publish on an authority-free
+                # daemon so a blocked telemetry sink cannot keep the broker
+                # registry, socket, or guard executable tree alive.
+                threading.Thread(
+                    target=publication,
+                    name=f"native-validation-post-ack-telemetry-{peer_pid}",
+                    daemon=True,
+                ).start()
 
         observer = threading.Thread(
             target=observe_terminal,
@@ -3381,7 +3524,6 @@ def main() -> int:
     """Shim entry point.  Successful execution never returns."""
 
     command = Path(sys.argv[0]).name
-    invocation = shlex.join([command, *(str(value) for value in sys.argv[1:])])
     config, guard_bin = _load_invocation_config(sys.argv[0])
     if command == _SUPERVISOR_LAUNCHER_NAME:
         return _supervise_validation_lease(config)
@@ -3400,15 +3542,7 @@ def main() -> int:
 
     if _cancelled():
         raise RuntimeError("native validation authority was withdrawn before launch")
-    if (
-        command == "bash"
-        and child_env.get(_GUARD_ENV)
-        and child_env.get("BASH_ENV")
-    ):
-        reentry_path = str(config.get("bash_reentry_env") or "").strip()
-        if not reentry_path:
-            raise RuntimeError("native Bash validation re-entry hook is unavailable")
-        child_env["BASH_ENV"] = reentry_path
+    _prepare_bash_reentry_environment(command, config, child_env)
 
     bootstrap_interpreter = _trusted_provider_bootstrap_interpreter(
         command,
@@ -3435,7 +3569,8 @@ def main() -> int:
         os.execve(bootstrap_interpreter, [command, *sys.argv[1:]], child_env)
 
     executable = _real_executable(command, search_path, guard_bin)
-    command_identity = _command_identity(_shim_command_text(command, sys.argv[1:]))
+    command_text = _shim_command_text(command, sys.argv[1:])
+    command_identity = _command_identity(command_text)
 
     # Give each provider command one stable identity before it reports the
     # boundary. Nested guarded Bash descendants inherit the value, allowing
@@ -3471,7 +3606,7 @@ def main() -> int:
         else ()
     )
     if not is_heavyweight_validation_command(
-        invocation,
+        command_text,
         executable_search_path=search_path,
         untrusted_executable_roots=untrusted_executable_roots,
         command_environment=child_env,
@@ -3536,11 +3671,109 @@ def main() -> int:
     return 1  # pragma: no cover - os.execve replaces this process
 
 
+def _proc_entry_process_details(
+    entry: Path,
+) -> tuple[str, int, int, int] | None:
+    """Return state, start generation, parent PID, and process-group ID."""
+
+    try:
+        raw = (entry / "stat").read_text(encoding="utf-8")
+        fields = raw[raw.rfind(")") + 2 :].split()
+        return fields[0], int(fields[19]), int(fields[1]), int(fields[2])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _exact_process_ancestry(
+    creator_pid: int,
+    *,
+    proc_root: Path = Path("/proc"),
+) -> frozenset[tuple[int, int]] | None:
+    """Return the creator's exact live ancestry, or fail closed.
+
+    A detached descendant can be adopted only by PID 1 or a subreaper in the
+    creator's ancestor chain.  Retirement must therefore never accept those
+    pre-guard generations as proof that a newly opaque process is unrelated.
+    Missing entries, unreadable generations, and cycles make that exclusion
+    impossible to establish and reject the entire unrelated-process baseline.
+    """
+
+    current_pid = int(creator_pid)
+    seen: set[int] = set()
+    ancestry: set[tuple[int, int]] = set()
+    while current_pid > 1 and current_pid not in seen:
+        seen.add(current_pid)
+        observed = _proc_entry_process_details(proc_root / str(current_pid))
+        if observed is None:
+            return None
+        ancestry.add((current_pid, observed[1]))
+        parent_pid = observed[2]
+        if parent_pid <= 1:
+            return frozenset(ancestry)
+        current_pid = parent_pid
+    return None
+
+
+def _opaque_process_is_provably_unrelated(
+    process_identity: tuple[int, int],
+    *,
+    proc_root: Path,
+    ancestry_baseline: frozenset[tuple[int, int]],
+    guarded_process_identities: frozenset[tuple[int, int]],
+    guarded_process_group_identities: frozenset[tuple[int, int]],
+) -> bool:
+    """Prove a new opaque process belongs to a pre-guard unrelated tree.
+
+    A live exact parent chain must reach a generation that predates every
+    guard in this service process without ever crossing this guard's provider
+    or command generations. Reparenting, PID churn, unreadable stat data, and
+    ancestry cycles all remain fail closed.
+    """
+
+    current_pid, expected_ticks = process_identity
+    seen: set[int] = set()
+    while current_pid > 1 and current_pid not in seen:
+        seen.add(current_pid)
+        identity = (current_pid, expected_ticks)
+        if identity in guarded_process_identities:
+            return False
+        entry = proc_root / str(current_pid)
+        observed = _proc_entry_process_details(entry)
+        if observed is None or observed[1] != expected_ticks:
+            return False
+        process_group = observed[3]
+        guarded_group = next(
+            (
+                group_identity
+                for group_identity in guarded_process_group_identities
+                if group_identity[0] == process_group
+            ),
+            None,
+        )
+        if guarded_group is not None and _proc_entry_start_ticks(
+            proc_root / str(process_group)
+        ) == guarded_group[1]:
+            return False
+        if identity in ancestry_baseline:
+            return True
+        parent_pid = observed[2]
+        if parent_pid <= 1:
+            return False
+        parent_ticks = _proc_entry_start_ticks(proc_root / str(parent_pid))
+        if parent_ticks is None:
+            return False
+        current_pid, expected_ticks = parent_pid, parent_ticks
+    return False
+
+
 def _runtime_root_is_referenced(
     runtime_root: Path,
     *,
     proc_root: Path = Path("/proc"),
     opaque_process_baseline: frozenset[tuple[int, int]] = frozenset(),
+    process_ancestry_baseline: frozenset[tuple[int, int]] = frozenset(),
+    guarded_process_identities: frozenset[tuple[int, int]] = frozenset(),
+    guarded_process_group_identities: frozenset[tuple[int, int]] = frozenset(),
 ) -> bool:
     """Return whether a same-user live process still references a guard root.
 
@@ -3550,10 +3783,20 @@ def _runtime_root_is_referenced(
     """
 
     needle = os.fsencode(str(runtime_root.resolve()))
+
+    def retain(pid: int | str, reason: str) -> bool:
+        logger.debug(
+            "Retaining native validation guard %s for process %s: %s",
+            runtime_root,
+            pid,
+            reason,
+        )
+        return True
+
     try:
         entries = tuple(proc_root.iterdir())
     except OSError:
-        return True
+        return retain("unknown", "procfs enumeration failed")
     for entry in entries:
         if not entry.name.isdigit() or int(entry.name) == os.getpid():
             continue
@@ -3562,73 +3805,97 @@ def _runtime_root_is_referenced(
                 continue
         except OSError:
             continue
+        details = _proc_entry_process_details(entry)
+        if details is not None and details[0] == "Z":
+            # Linux closes every descriptor before exposing a zombie. It can
+            # retain only an unreaped numeric PID/PGID, not executable guard
+            # authority or a delayed BASH_ENV reference.
+            continue
         process_identity = (
             int(entry.name),
-            _proc_entry_start_ticks(entry),
+            (
+                details[1]
+                if details is not None
+                else _proc_entry_start_ticks(entry)
+            ),
         )
         known_opaque = (
             process_identity[1] is not None
             and (process_identity[0], process_identity[1])
             in opaque_process_baseline
         )
+
+        def newly_opaque_requires_retention() -> bool:
+            if known_opaque or process_identity[1] is None:
+                return not known_opaque
+            return not _opaque_process_is_provably_unrelated(
+                (process_identity[0], process_identity[1]),
+                proc_root=proc_root,
+                ancestry_baseline=process_ancestry_baseline,
+                guarded_process_identities=guarded_process_identities,
+                guarded_process_group_identities=(
+                    guarded_process_group_identities
+                ),
+            )
+
         environment = b""
         try:
             environment = (entry / "environ").read_bytes()
         except FileNotFoundError:
             continue
         except PermissionError:
-            if not known_opaque:
-                return True
+            if newly_opaque_requires_retention():
+                return retain(entry.name, "environment is newly opaque")
         except OSError:
-            return True
+            return retain(entry.name, "environment inspection failed")
         command_line = b""
         try:
             command_line = (entry / "cmdline").read_bytes()
         except FileNotFoundError:
             continue
         except PermissionError:
-            if not known_opaque:
-                return True
+            if newly_opaque_requires_retention():
+                return retain(entry.name, "command line is newly opaque")
         except OSError:
-            return True
+            return retain(entry.name, "command-line inspection failed")
         if needle in environment or needle in command_line:
-            return True
+            return retain(entry.name, "environment or command line references root")
         for link_name in ("cwd", "exe", "root"):
             try:
                 linked = os.fsencode(os.readlink(entry / link_name))
             except FileNotFoundError:
                 continue
             except PermissionError:
-                if known_opaque:
+                if not newly_opaque_requires_retention():
                     continue
-                return True
+                return retain(entry.name, f"{link_name} is newly opaque")
             except OSError:
-                return True
+                return retain(entry.name, f"{link_name} inspection failed")
             if needle in linked:
-                return True
+                return retain(entry.name, f"{link_name} references root")
         try:
             descriptors = tuple((entry / "fd").iterdir())
         except FileNotFoundError:
             continue
         except PermissionError:
-            if known_opaque:
+            if not newly_opaque_requires_retention():
                 continue
-            return True
+            return retain(entry.name, "descriptor table is newly opaque")
         except OSError:
-            return True
+            return retain(entry.name, "descriptor table inspection failed")
         for descriptor in descriptors:
             try:
                 linked = os.fsencode(os.readlink(descriptor))
             except FileNotFoundError:
                 continue
             except PermissionError:
-                if known_opaque:
+                if not newly_opaque_requires_retention():
                     continue
-                return True
+                return retain(entry.name, "descriptor is newly opaque")
             except OSError:
-                return True
+                return retain(entry.name, "descriptor inspection failed")
             if needle in linked:
-                return True
+                return retain(entry.name, "descriptor references root")
     return False
 
 
@@ -3657,6 +3924,71 @@ def _configured_opaque_process_baseline(
         return frozenset((value[0], value[1]) for value in values)
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
+
+
+def _configured_process_ancestry_baseline(
+    root: Path,
+) -> frozenset[tuple[int, int]] | None:
+    """Load the immutable pre-first-guard ancestry generations."""
+
+    try:
+        raw = _load_verified_guard_config(root)
+        values = raw.get("process_ancestry_baseline")
+        if not isinstance(values, list) or any(
+            not isinstance(value, list)
+            or len(value) != 2
+            or any(
+                not isinstance(item, int)
+                or isinstance(item, bool)
+                or item <= 0
+                for item in value
+            )
+            for value in values
+        ):
+            return None
+        return frozenset((value[0], value[1]) for value in values)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _registered_guard_process_fences(
+    root: Path,
+) -> tuple[
+    frozenset[tuple[int, int]],
+    frozenset[tuple[int, int]],
+]:
+    """Snapshot exact provider/PID and command/PGID generations."""
+
+    with _BROKER_REGISTRY_LOCK:
+        broker = _BROKER_REGISTRY.get(root.resolve())
+    group_identities: set[tuple[int, int]] = set()
+    process_identities: set[tuple[int, int]] = set()
+    if broker is not None:
+        with broker._boundary_lock:
+            group_identities.update(
+                identity
+                for value in broker._seen_boundary_groups
+                if (identity := _decode_boundary_group(value)) is not None
+            )
+            process_identities.update(group_identities)
+            if broker._provider_identity is not None:
+                process_identities.add(broker._provider_identity)
+    try:
+        creator = _load_verified_guard_config(root).get("creator")
+        if isinstance(creator, dict):
+            creator_identity = (
+                int(creator.get("pid") or 0),
+                int(creator.get("start_ticks") or 0),
+            )
+            if all(value > 0 for value in creator_identity):
+                # A broken task ancestry can be adopted by a service
+                # subreaper instead of PID 1. Treat the creating process as a
+                # guarded fence too; an opaque direct child is ambiguous and
+                # therefore cannot authorize deletion.
+                process_identities.add(creator_identity)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return frozenset(process_identities), frozenset(group_identities)
 
 
 def _lease_and_owner_from_runtime_root(
@@ -3731,6 +4063,10 @@ def retire_native_validation_guard(
     root = Path(runtime_root).resolve()
     if not root.is_dir():
         return True
+    (
+        guarded_process_identities,
+        guarded_process_group_identities,
+    ) = _registered_guard_process_fences(root)
     # Let the live broker publish the exact cleanup cause before it creates
     # the cancellation fence. Otherwise its supervisor can observe that fence
     # first and collapse transport/session cleanup into authority withdrawal.
@@ -3750,11 +4086,26 @@ def retire_native_validation_guard(
     opaque_process_baseline = _configured_opaque_process_baseline(root)
     if opaque_process_baseline is None:
         return False
-    if _runtime_root_is_referenced(
+    process_ancestry_baseline = _configured_process_ancestry_baseline(root)
+    if process_ancestry_baseline is None:
+        return False
+    # A supervised peer can release its lease and exit immediately before its
+    # final procfs entries disappear.  One instantaneous scan would retain the
+    # guard until a later maintenance pass even though no descendant remains.
+    # Require the reference proof to stay positive through a short bounded
+    # quiescence window; a real delayed/background descendant remains visible
+    # and therefore continues to retain the fail-closed guard.
+    reference_deadline = time.monotonic() + 0.2
+    while _runtime_root_is_referenced(
         root,
         opaque_process_baseline=opaque_process_baseline,
+        process_ancestry_baseline=process_ancestry_baseline,
+        guarded_process_identities=guarded_process_identities,
+        guarded_process_group_identities=guarded_process_group_identities,
     ):
-        return False
+        if time.monotonic() >= reference_deadline:
+            return False
+        time.sleep(0.01)
     _retire_configured_broker_socket(root)
     shutil.rmtree(root)
     return not root.exists()
