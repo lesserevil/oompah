@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-08-07T09:25:32.632553Z'
+updated_at: '2026-08-07T09:26:16.962887Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -159,6 +159,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T09:10:41.536024+00:00'
     applied_at: '2026-08-07T09:10:50.436427+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7184b2886578
+    project_id: proj-14849f1b
+    task_id: OOMPAH-642
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c20735c9c1a8ae04785f1b164a700ba0ac386f697f1ef56c79cf935527d5f31
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #609 merged at af6e42339 after a passing full gate, and independent
+      audits already PASSed Done and Merged. The re-opened Archived audit failed before
+      review began; authorize the provenance-only archive while OOMPAH-871 fixes recurrence.'
+    created_at: '2026-08-07T09:26:10.638688+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
