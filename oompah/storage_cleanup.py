@@ -110,16 +110,29 @@ def _entry_size(path: Path) -> int:
 
 def _make_owned_tree_removable(path: Path) -> None:
     """Restore owner access to quarantined directories without following links."""
-    info = path.lstat()
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-        return
-    os.chmod(
-        path,
-        stat.S_IMODE(info.st_mode) | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR,
-        follow_symlinks=False,
-    )
-    with os.scandir(path) as entries:
-        children = [path / entry.name for entry in entries]
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        directory_fd = os.open(path, flags)
+    except OSError:
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            return
+        raise
+    try:
+        info = os.fstat(directory_fd)
+        if not stat.S_ISDIR(info.st_mode):
+            return
+        # Python 3.13 does not advertise chmod(..., follow_symlinks=False) on
+        # Linux. A no-follow directory descriptor is both portable and a
+        # stronger fence: fchmod updates the exact object inspected above.
+        os.fchmod(
+            directory_fd,
+            stat.S_IMODE(info.st_mode) | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR,
+        )
+        with os.scandir(directory_fd) as entries:
+            children = [path / entry.name for entry in entries]
+    finally:
+        os.close(directory_fd)
     for child in children:
         try:
             _make_owned_tree_removable(child)

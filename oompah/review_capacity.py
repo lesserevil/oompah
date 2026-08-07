@@ -471,10 +471,18 @@ class ReviewCapacityStore:
         self,
         project_id: str,
         open_review_ids: Iterable[str],
+        *,
+        minimum_committed_age_seconds: float = 0.0,
     ) -> int:
-        """Release committed reservations absent from a successful live listing."""
+        """Release sufficiently old committed rows absent from a live listing.
+
+        Forge list endpoints may briefly lag a successful create response. The
+        optional age fence prevents that stale-empty window from releasing a
+        just-committed reservation and admitting a duplicate review.
+        """
         ids = self._review_keys(open_review_ids)
         now = time.time()
+        minimum_age = max(0.0, float(minimum_committed_age_seconds))
         released = 0
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -482,7 +490,7 @@ class ReviewCapacityStore:
                 self._drop_expired_uncommitted(now)
                 rows = self._conn.execute(
                     """
-                    SELECT reservation_id, review_id
+                    SELECT reservation_id, review_id, acquired_at
                       FROM review_capacity_reservations
                      WHERE project_id = ?
                        AND released_at IS NULL
@@ -491,7 +499,10 @@ class ReviewCapacityStore:
                     (str(project_id),),
                 ).fetchall()
                 for row in rows:
-                    if str(row["review_id"]) not in ids:
+                    if (
+                        str(row["review_id"]) not in ids
+                        and now - float(row["acquired_at"]) >= minimum_age
+                    ):
                         self._conn.execute(
                             "UPDATE review_capacity_reservations "
                             "SET released_at = ? WHERE reservation_id = ?",

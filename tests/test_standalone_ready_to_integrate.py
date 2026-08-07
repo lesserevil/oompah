@@ -1240,9 +1240,10 @@ def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(
     original_capacity_reservation = orch_two._standalone_review_capacity_reservation
 
     def record_adoption(*args, **kwargs):
-        original_adopt(*args, **kwargs)
+        result = original_adopt(*args, **kwargs)
         adopted.set()
         assert release_adoption.wait(timeout=5)
+        return result
 
     def record_capacity_reservation(authority):
         assert threading.current_thread().name == "stale-lookup-loser"
@@ -1368,6 +1369,47 @@ def test_restart_recognizes_exact_uncommitted_reservation_without_false_wait(
         assert not _delivery_alerts(orch_two)
     finally:
         _close_orchestrator(orch_two)
+
+
+def test_overlapping_ready_sweep_is_coalesced_without_capacity_alert(harness):
+    """A loser must not report a wait while the winner owns review creation."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    project.max_in_flight_prs = 1
+    task = _issue("TASK-OVERLAPPING-SWEEP")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    create_started = threading.Event()
+    release_create = threading.Event()
+
+    def blocked_create(*_args, **_kwargs):
+        create_started.set()
+        assert release_create.wait(timeout=5)
+        return _review(task.identifier, review_id="603")
+
+    provider.create_review.side_effect = blocked_create
+    winner = threading.Thread(
+        name="ready-sweep-winner",
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    loser = threading.Thread(
+        name="ready-sweep-loser",
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    winner.start()
+    assert create_started.wait(timeout=5)
+    loser.start()
+    loser.join(timeout=5)
+    assert not loser.is_alive()
+    assert provider.find_pr_for_branch.call_count == 2
+    assert not _delivery_alerts(orch)
+
+    release_create.set()
+    winner.join(timeout=5)
+    assert not winner.is_alive()
+    assert provider.create_review.call_count == 1
+    assert not _delivery_alerts(orch)
 
 
 def test_service_restart_rediscovers_existing_review_without_duplicate(
@@ -2158,6 +2200,83 @@ def test_exact_open_webhook_persists_metadata_before_in_review(harness):
         project.default_branch,
     )
     tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
+
+
+def test_only_authoritative_reopen_webhook_clears_close_fence(harness):
+    """A late opened event loses; an explicit reopened event may re-adopt."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "1" * 40
+    task = _issue("TASK-REOPEN-WEBHOOK", branch="feature/reopen-webhook")
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T03:17:00+00:00",
+    )
+    observed = copy.deepcopy(task)
+    tracker.fetch_issues_by_states.return_value = [task]
+    live_review = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="716",
+        head_sha=accepted_head,
+    )
+    provider.find_pr_for_branch.return_value = live_review
+    orch.release_review_capacity(
+        project.id,
+        "716",
+        source_branch=task.work_branch,
+    )
+
+    common = {
+        "observed_issue": observed,
+        "project": project,
+        "tracker": tracker,
+        "provider": provider,
+        "repo_slug": "org/repo",
+        "review_id": "716",
+        "review_url": "https://github.com/org/repo/pull/716",
+        "source_branch": task.work_branch or "",
+        "target_branch": project.default_branch,
+        "review_head": accepted_head,
+    }
+    adopted, reason = orch.adopt_open_review_from_webhook(**common)
+
+    assert adopted is False
+    assert reason == "review closed before webhook adoption"
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+
+    metadata_attributes = {
+        "oompah.review_url": "review_url",
+        "oompah.review_number": "review_number",
+        "oompah.work_branch": "work_branch",
+        "oompah.target_branch": "target_branch",
+        "oompah.review_head": "review_head",
+    }
+
+    def persist_metadata(_identifier, key, value) -> None:
+        setattr(task, metadata_attributes[key], value)
+
+    def persist_status(_identifier, **fields) -> None:
+        task.state = fields["status"]
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+    tracker.update_issue.side_effect = persist_status
+    adopted, reason = orch.adopt_open_review_from_webhook(
+        **common,
+        reopened=True,
+    )
+
+    assert adopted is True
+    assert reason == ""
+    assert task.state == IN_REVIEW
+    assert [
+        row.review_id for row in orch.review_capacity_store.active(project.id)
+    ] == ["716"]
 
 
 def test_submit_wins_before_historical_review_cleanup(harness):

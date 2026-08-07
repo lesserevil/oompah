@@ -558,6 +558,82 @@ def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() 
     assert metrics.snapshot()["stale_discarded"] == 1
 
 
+def test_sync_pending_does_not_resurrect_a_worker_discard_after_restart() -> None:
+    """A recovery refresh cannot turn a lost worker into a running gauge."""
+    persisted: dict[str, object] = {}
+    metrics = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    fingerprint = EvidenceFingerprint("c" * 64)
+    stale = TerminalAuditRecord(
+        audit_id="audit-worker-lost",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+    )
+    live = TerminalAuditRecord(
+        audit_id="audit-live",
+        project_id="project-a",
+        task_id="TASK-2",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+    )
+    stale_entry = SimpleNamespace(
+        project_id=stale.project_id,
+        task_id=stale.task_id,
+        audit_id=stale.audit_id,
+        record=stale,
+    )
+    live_entry = SimpleNamespace(
+        project_id=live.project_id,
+        task_id=live.task_id,
+        audit_id=live.audit_id,
+        record=live,
+    )
+
+    metrics.record_running(*("project-a", "TASK-1", "audit-worker-lost"))
+    metrics.discard_missing_running([])
+    assert metrics.snapshot()["stale_discarded"] == 1
+
+    metrics.sync_pending([stale_entry, live_entry])
+    first = metrics.snapshot()
+    assert first["queued"] == 1
+    assert first["running"] == 0
+    assert first["oldest_queue_task_id"] == "TASK-2"
+    assert first["stale_discarded"] == 1
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    restarted.sync_pending([stale_entry, live_entry])
+    second = restarted.snapshot()
+    assert second["queued"] == 1
+    assert second["running"] == 0
+    assert second["stale_discarded"] == 1
+
+    # A coordinator-owned run event is a new proof of liveness and is allowed
+    # to re-arm the identity without increasing the lifetime stale counter.
+    restarted.record_running("project-a", "TASK-1", "audit-worker-lost")
+    assert restarted.snapshot()["running"] == 1
+    restarted.sync_pending([stale_entry, live_entry])
+    assert restarted.snapshot()["running"] == 1
+    assert restarted.snapshot()["stale_discarded"] == 1
+
+    # An owner override can be ahead of its final metadata cleanup during a
+    # crash window; that durable authority must also prevent rehydration.
+    restarted.record_overridden("project-a", "TASK-1", "audit-worker-lost")
+    restarted.sync_pending([stale_entry, live_entry])
+    assert restarted.snapshot()["running"] == 0
+    assert restarted.snapshot()["queued"] == 1
+    assert restarted.snapshot()["overridden"] == 1
+    assert restarted.snapshot()["stale_discarded"] == 1
+
+
 def test_queue_age_threshold_is_informational_not_actionable() -> None:
     now = datetime(2026, 7, 29, 12, tzinfo=timezone.utc)
     clock = _Clock(now)

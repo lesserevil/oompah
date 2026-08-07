@@ -89,6 +89,36 @@ def test_removes_stale_tree_with_read_only_directories_without_following_links(
     assert result.errors == []
 
 
+def test_read_only_cleanup_does_not_require_chmod_follow_symlinks(
+    tmp_path,
+    monkeypatch,
+):
+    temp = tmp_path / "temp"
+    logs = tmp_path / "logs"
+    temp.mkdir()
+    logs.mkdir()
+    stale_cache = temp / "build-cache"
+    read_only = stale_cache / "releases"
+    read_only.mkdir(parents=True)
+    (read_only / "payload").write_text("cached")
+    read_only.chmod(0o555)
+    _age(stale_cache)
+
+    real_chmod = os.chmod
+
+    def python_313_chmod(path, mode, *, dir_fd=None, follow_symlinks=True):
+        if follow_symlinks is False:
+            raise NotImplementedError("chmod: follow_symlinks unavailable")
+        return real_chmod(path, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "chmod", python_313_chmod)
+    _, _, result = _cleanup(tmp_path)
+
+    assert not stale_cache.exists()
+    assert result.cleaned_count == 1
+    assert result.errors == []
+
+
 def test_preserves_recent_unknown_active_vm_and_symlink_entries(tmp_path):
     temp = tmp_path / "temp"
     logs = tmp_path / "logs"

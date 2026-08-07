@@ -96,6 +96,38 @@ def test_release_on_close_or_merge_frees_slot(tmp_path):
     ) is not None
 
 
+def test_live_empty_listing_preserves_recent_commit_until_propagation_grace(
+    tmp_path,
+    monkeypatch,
+):
+    clock = [100.0]
+    monkeypatch.setattr("oompah.review_capacity.time.time", lambda: clock[0])
+    store = ReviewCapacityStore(str(tmp_path / "review-capacity.sqlite3"))
+    reservation = store.adopt(
+        project_id="proj-1",
+        task_id="TASK-1",
+        source_branch="branch-1",
+        target_branch="main",
+        review_id="101",
+        reservation_id="res-1",
+    )
+
+    assert store.reconcile_open_reviews(
+        "proj-1",
+        [],
+        minimum_committed_age_seconds=60,
+    ) == 0
+    assert store.active("proj-1") == [reservation]
+
+    clock[0] = 161.0
+    assert store.reconcile_open_reviews(
+        "proj-1",
+        [],
+        minimum_committed_age_seconds=60,
+    ) == 1
+    assert store.active("proj-1") == []
+
+
 def test_projects_do_not_share_review_capacity(tmp_path):
     store = ReviewCapacityStore(str(tmp_path / "review-capacity.sqlite3"))
     assert _acquire(store, project="proj-1", task="TASK-1", rid="res-1")

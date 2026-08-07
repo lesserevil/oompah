@@ -1956,11 +1956,16 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         proj.max_in_flight_prs = 1
         orch = _make_orch(tmp_path, projects=[proj])
         existing_review = MagicMock()
+        existing_review.id = "301"
         existing_review.source_branch = "other-task"
+        existing_review.target_branch = "main"
+        existing_review.state = "open"
         existing_review.draft = False
         orch._reviews_cache = {"proj-1": [existing_review]}
 
         provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [existing_review]
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
@@ -2000,8 +2005,14 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._review_quality_gate_passes = MagicMock(return_value=True)
         review = MagicMock()
         review.source_branch = "task-1"
+        review.target_branch = "main"
+        review.state = "open"
+        review.draft = False
         review.id = "99"
         orch._reviews_cache = {"proj-1": [review]}
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [review]
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
@@ -2016,7 +2027,15 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             agent_profile_name="default",
         )
 
-        result = orch._ensure_review_exists(entry, "proj-1")
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(2, ["abc123 feature"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is True
         orch._review_quality_gate_passes.assert_called_once_with(
@@ -2032,8 +2051,17 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         proj = _make_project_record(epic_strategy="flat")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._review_quality_gate_passes = MagicMock(return_value=False)
-        review = MagicMock(source_branch="task-1", id="99", draft=False)
+        review = MagicMock(
+            source_branch="task-1",
+            target_branch="main",
+            state="open",
+            id="99",
+            draft=False,
+        )
         orch._reviews_cache = {"proj-1": [review]}
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [review]
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         issue = _make_issue(identifier="task-1", project_id="proj-1")
@@ -2047,7 +2075,15 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             agent_profile_name="default",
         )
 
-        result = orch._ensure_review_exists(entry, "proj-1")
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(2, ["abc123 feature"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
         orch._review_quality_gate_passes.assert_called_once_with(
@@ -3240,10 +3276,15 @@ class TestOpenEpicMainPrs:
         )
         child = _make_issue(state="closed")
         existing_review = MagicMock()
+        existing_review.id = "253"
         existing_review.source_branch = "epic-epic-1"
+        existing_review.target_branch = "main"
+        existing_review.state = "open"
         existing_review.draft = False
         orch._reviews_cache = {"proj-1": [existing_review]}
         provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [existing_review]
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
@@ -3255,6 +3296,140 @@ class TestOpenEpicMainPrs:
         assert opened == 0
         provider.create_review.assert_not_called()
         push.assert_not_called()
+
+    def test_closed_review_stale_cache_cannot_readopt_until_live_reopen(
+        self,
+        tmp_path,
+    ):
+        """Close #742 wins over its cached-open row; a later live reopen wins."""
+
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        epic = _make_issue(
+            identifier="OOMPAH-768",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+            work_branch="epic-OOMPAH-768",
+        )
+        child = _make_issue(
+            identifier="OOMPAH-793",
+            state=DONE,
+            parent_id=epic.identifier,
+        )
+        review = ReviewRequest(
+            id="742",
+            title="Systemic workflow",
+            url="https://github.com/org/repo/pull/742",
+            author="oompah",
+            state="open",
+            source_branch="epic-OOMPAH-768",
+            target_branch="main",
+            created_at="2026-08-07T12:00:00+00:00",
+            updated_at="2026-08-07T12:50:00+00:00",
+            head_sha="a" * 40,
+        )
+        tracker = MagicMock()
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = review
+
+        orch.review_capacity_store.adopt(
+            project_id="proj-1",
+            task_id=epic.identifier,
+            source_branch=review.source_branch,
+            target_branch=review.target_branch,
+            review_id=review.id,
+            reservation_id="pre-close-742",
+        )
+        orch._reviews_cache = {"proj-1": [review]}
+
+        # The close webhook releases the ledger row, advances the generation,
+        # and prunes the cached copy.  Re-inject the old object to reproduce
+        # the live #742 recurrence exactly: cache-only evidence still cannot
+        # adopt capacity or move the epic back to In Review.
+        orch.release_review_capacity(
+            "proj-1",
+            review.id,
+            source_branch=review.source_branch,
+        )
+        orch._reviews_cache = {"proj-1": [review]}
+        provider.list_open_reviews.return_value = []
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=False,
+            ),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+        ):
+            assert orch._open_epic_main_prs([epic]) == 0
+
+        assert orch._reviews_cache["proj-1"] == []
+        assert orch.review_capacity_store.active("proj-1") == []
+        tracker.update_issue.assert_not_called()
+
+        # A later successful live-open observation is authoritative.  It
+        # clears the close fence, re-adopts the same review identity, and may
+        # align the task with In Review again.
+        provider.list_open_reviews.return_value = [review]
+        tracker.reset_mock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_review_quality_gate_passes", return_value=True),
+            patch.object(orch, "_sync_epic_review_child_states"),
+        ):
+            assert orch._open_epic_main_prs([epic]) == 0
+
+        active = orch.review_capacity_store.active("proj-1")
+        assert [row.review_id for row in active] == ["742"]
+        tracker.update_issue.assert_called_once_with(
+            epic.identifier,
+            status=IN_REVIEW,
+        )
+
+    def test_close_generation_rejects_inflight_review_cache_publication(
+        self,
+        tmp_path,
+    ):
+        """A poll begun before close cannot put the closed row back."""
+
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        review = ReviewRequest(
+            id="742",
+            title="Systemic workflow",
+            url="https://github.com/org/repo/pull/742",
+            author="oompah",
+            state="open",
+            source_branch="epic-OOMPAH-768",
+            target_branch="main",
+            created_at="2026-08-07T12:00:00+00:00",
+            updated_at="2026-08-07T12:50:00+00:00",
+        )
+        observed_generation = orch._review_generation("proj-1")
+        orch._reviews_cache = {"proj-1": [review]}
+
+        orch.release_review_capacity(
+            "proj-1",
+            review.id,
+            source_branch=review.source_branch,
+        )
+        published = orch._publish_review_cache_snapshot(
+            {"proj-1": [review]},
+            {"proj-1": observed_generation},
+        )
+
+        assert published["proj-1"] == []
+        assert orch._reviews_cache["proj-1"] == []
 
     def test_idempotent_when_existing_pr_is_missing_from_cache(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
@@ -3273,6 +3448,8 @@ class TestOpenEpicMainPrs:
         existing_review.target_branch = "main"
         existing_review.state = "open"
         provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [existing_review]
         provider.list_merged_branches.return_value = set()
         provider.find_pr_for_branch.return_value = existing_review
         tracker = MagicMock()
@@ -3333,6 +3510,8 @@ class TestOpenEpicMainPrs:
             draft=False,
         )
         provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [existing_review]
         provider.list_merged_reviews.return_value = []
         provider.find_pr_for_branch.return_value = existing_review
         with (
@@ -3357,13 +3536,7 @@ class TestOpenEpicMainPrs:
             "epic-epic-1",
             "main",
         )
-        adopt_capacity.assert_called_once_with(
-            project_id="proj-1",
-            task_id="epic-1",
-            source_branch="epic-epic-1",
-            target_branch="main",
-            review_id="254",
-        )
+        adopt_capacity.assert_not_called()
         sync_review.assert_not_called()
         provider.create_review.assert_not_called()
 
@@ -3387,6 +3560,8 @@ class TestOpenEpicMainPrs:
         existing_review.target_branch = "main"
         existing_review.state = "open"
         provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [existing_review]
         provider.list_merged_branches.return_value = set()
         provider.find_pr_for_branch.return_value = existing_review
         tracker = MagicMock()
@@ -3683,7 +3858,10 @@ class TestOpenEpicMainPrs:
         orch, proj = self._setup(tmp_path, strategy="stacked")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         existing_review = MagicMock()
+        existing_review.id = "301"
         existing_review.source_branch = "other-task"
+        existing_review.target_branch = "main"
+        existing_review.state = "open"
         existing_review.draft = False
         orch._reviews_cache = {"proj-1": [existing_review]}
         epic = _make_issue(
@@ -3691,6 +3869,8 @@ class TestOpenEpicMainPrs:
         )
         child = _make_issue(state="closed")
         provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [existing_review]
         provider.list_merged_branches.return_value = set()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
@@ -3980,8 +4160,21 @@ class TestOpenEpicMainPrs:
         ]
         child = _make_issue(identifier="c1", state="Done")
         provider = MagicMock()
+        created_review = MagicMock(
+            id="302",
+            source_branch="epic-epic-1",
+            target_branch="main",
+            state="open",
+            draft=False,
+        )
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.side_effect = [
+            [],
+            [],
+            [created_review],
+        ]
         provider.list_merged_branches.return_value = set()
-        provider.create_review.return_value = MagicMock(id="302")
+        provider.create_review.return_value = created_review
 
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),

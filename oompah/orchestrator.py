@@ -117,6 +117,7 @@ from oompah.integration_projection import (
     build_integration_dependency_projections,
 )
 from oompah.review_capacity import (
+    DEFAULT_REVIEW_RESERVATION_TTL_SECONDS,
     ReviewCapacityReservation,
     ReviewCapacityStore,
 )
@@ -1643,6 +1644,16 @@ class Orchestrator:
         self._workflow_shadow_scan_cursor = 0
         self._workflow_shadow_future: asyncio.Future[Any] | None = None
         self._workflow_controller_future: asyncio.Future[Any] | None = None
+        # Review cache publication, close/merge webhooks, and durable-capacity
+        # adoption are one lifecycle authority.  The monotonically increasing
+        # project generation prevents an in-flight cache refresh that started
+        # before a close webhook from publishing its now-stale ``open`` row.
+        # Closed-review fences also prevent a caller holding an older cached
+        # object from recreating a reservation after the webhook released it.
+        self._review_lifecycle_lock = threading.RLock()
+        self._review_lifecycle_generation: dict[str, int] = {}
+        self._closed_review_fences: dict[tuple[str, str], int] = {}
+        self._reviews_cache_generation: dict[str, int] = {}
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self._audit_rollback_fallback_path = (
             f"{self._state_path}.unadmitted-audit-rollbacks.json"
@@ -1903,10 +1914,10 @@ class Orchestrator:
         # lock so the winner is unambiguous.
         self._standalone_delivery_authority_lock = threading.RLock()
         # A maintenance tick can overlap another same-process tick while the
-        # winner is blocked in a quality gate or forge request.  Do not let a
-        # losing sweep wait behind the authority lock used to fence terminal
-        # transitions; the durable review-capacity store still coordinates
-        # delivery attempts across processes.
+        # winner is blocked in a quality gate or forge request. Coalesce those
+        # sweeps so a losing pass cannot publish a transient capacity wait
+        # while the winning pass owns the create reservation. The durable
+        # review-capacity store still coordinates delivery across processes.
         self._standalone_ready_reconciliation_lock = threading.Lock()
         self._standalone_delivery_authorities: dict[
             tuple[str, str], StandaloneDeliveryAuthority
@@ -8840,6 +8851,7 @@ class Orchestrator:
         source_branch: str,
         target_branch: str,
         review_head: str,
+        reopened: bool = False,
     ) -> tuple[bool, str]:
         """Atomically adopt one exact open-review webhook generation.
 
@@ -8951,6 +8963,7 @@ class Orchestrator:
             # local command runs.  Re-read the review before persisting any
             # metadata so passing evidence for the prior head cannot adopt a
             # replacement generation that arrived during the gate.
+            observed_review_generation = self._review_generation(str(project.id))
             try:
                 gated_review = provider.find_pr_for_branch(
                     repo_slug,
@@ -8966,43 +8979,62 @@ class Orchestrator:
             integration_revision = self._standalone_integration_generation_revision(
                 current
             )
-            if not self._write_review_metadata(
-                tracker,
-                identifier,
-                review_id=expected_review_id,
-                review_url=review_url,
-                source_branch=expected_source,
-                target_branch=expected_target,
-                review_head=expected_head,
-                strict=True,
-            ):
-                return False, "required review metadata could not be persisted"
-            try:
-                if callable(invalidate):
-                    invalidate()
-                persisted = tracker.fetch_issue_detail(identifier)
-            except Exception as exc:  # noqa: BLE001 - final tracker CAS fails closed
-                return False, f"persisted review evidence could not be verified: {exc}"
-            if not isinstance(persisted, Issue):
-                return False, "persisted review evidence is unavailable"
-            if (
-                self._standalone_integration_generation_revision(persisted)
-                != integration_revision
-                or str(persisted.work_branch or persisted.branch_name or "").strip()
-                != expected_source
-                or str(
-                    persisted.target_branch or project.default_branch or ""
-                ).strip()
-                != expected_target
-                or str(persisted.review_number or "").strip() != expected_review_id
-                or str(persisted.review_url or "").strip()
-                != str(review_url).strip()
-                or str(persisted.review_head or "").strip().lower() != expected_head
-            ):
-                return False, "required review metadata did not persist exactly"
-            if current_status != IN_REVIEW:
-                tracker.update_issue(identifier, status=IN_REVIEW)
-            return True, ""
+            with self._review_lifecycle_lock:
+                if not self._adopt_open_review_capacity(
+                    project_id=str(project.id),
+                    task_id=identifier,
+                    source_branch=expected_source,
+                    target_branch=expected_target,
+                    review_id=expected_review_id,
+                    authoritative=True,
+                    observed_generation=observed_review_generation,
+                    allow_reopen=reopened,
+                ):
+                    return False, "review closed before webhook adoption"
+                if not self._write_review_metadata(
+                    tracker,
+                    identifier,
+                    review_id=expected_review_id,
+                    review_url=review_url,
+                    source_branch=expected_source,
+                    target_branch=expected_target,
+                    review_head=expected_head,
+                    strict=True,
+                ):
+                    return False, "required review metadata could not be persisted"
+                try:
+                    if callable(invalidate):
+                        invalidate()
+                    persisted = tracker.fetch_issue_detail(identifier)
+                except Exception as exc:  # noqa: BLE001 - final tracker CAS fails closed
+                    return (
+                        False,
+                        f"persisted review evidence could not be verified: {exc}",
+                    )
+                if not isinstance(persisted, Issue):
+                    return False, "persisted review evidence is unavailable"
+                if (
+                    self._standalone_integration_generation_revision(persisted)
+                    != integration_revision
+                    or str(
+                        persisted.work_branch or persisted.branch_name or ""
+                    ).strip()
+                    != expected_source
+                    or str(
+                        persisted.target_branch or project.default_branch or ""
+                    ).strip()
+                    != expected_target
+                    or str(persisted.review_number or "").strip()
+                    != expected_review_id
+                    or str(persisted.review_url or "").strip()
+                    != str(review_url).strip()
+                    or str(persisted.review_head or "").strip().lower()
+                    != expected_head
+                ):
+                    return False, "required review metadata did not persist exactly"
+                if current_status != IN_REVIEW:
+                    tracker.update_issue(identifier, status=IN_REVIEW)
+                return True, ""
 
     async def accept_worker_submission(
         self,
@@ -13380,8 +13412,17 @@ class Orchestrator:
         with self._project_trackers_lock:
             tracker_generation = self._project_tracker_generation
             refresh_merged = self._merged_branches_dirty
-            # Reset per tick — shared by PR branches + YOLO.
-            self._reviews_cache = {}
+            review_project_ids = [
+                str(project.id) for project in self.project_store.list_all()
+            ]
+        # Capture lifecycle generations before any provider request. A close
+        # webhook may arrive while those requests are in flight; publication
+        # below keeps the webhook-pruned cache for any generation that moved.
+        with self._review_lifecycle_lock:
+            observed_review_generations = {
+                project_id: self._review_lifecycle_generation.get(project_id, 0)
+                for project_id in review_project_ids
+            }
 
         if refresh_merged:
             reviews_by_project, merged_branches = await asyncio.gather(
@@ -13396,7 +13437,8 @@ class Orchestrator:
                 # Provider I/O completed under an obsolete project config.
                 # Keep the aggregate conservative and retry the dirty merged
                 # branch snapshot on the next review lane pass.
-                self._reviews_cache = {}
+                with self._review_lifecycle_lock:
+                    self._reviews_cache = {}
                 self._unmerged_review_branches = set()
                 self._merged_branches = set()
                 self._merged_branches_dirty = True
@@ -13404,7 +13446,10 @@ class Orchestrator:
             if refresh_merged:
                 self._merged_branches = merged_branches
                 self._merged_branches_dirty = False
-            self._reviews_cache = reviews_by_project
+            reviews_by_project = self._publish_review_cache_snapshot(
+                reviews_by_project,
+                observed_review_generations,
+            )
             # Derive unmerged review branches from cached reviews.
             self._unmerged_review_branches = {
                 r.source_branch
@@ -16711,17 +16756,11 @@ class Orchestrator:
             return False
 
     def _reconcile_standalone_ready_to_integrate_tasks(self) -> None:
-        """Deliver stranded standalone submissions through their review path.
-
-        Epic children are recovered by :meth:`_sync_ready_integration_submissions`.
-        A top-level task instead owns a PR/MR against the project's default
-        branch.  This sweep is the restart-safe fallback for a task whose
-        submission reached the tracker but whose worker exited before review
-        creation completed.
-        """
+        """Run one exclusive same-process standalone Ready reconciliation."""
         if not self._standalone_ready_reconciliation_lock.acquire(blocking=False):
             logger.debug(
-                "Skipped overlapping standalone Ready reconciliation in this process"
+                "Skipped overlapping standalone Ready reconciliation in this "
+                "process"
             )
             return
         try:
@@ -16730,7 +16769,14 @@ class Orchestrator:
             self._standalone_ready_reconciliation_lock.release()
 
     def _reconcile_standalone_ready_to_integrate_tasks_locked(self) -> None:
-        """Run one exclusive same-process standalone Ready reconciliation."""
+        """Deliver stranded standalone submissions through their review path.
+
+        Epic children are recovered by :meth:`_sync_ready_integration_submissions`.
+        A top-level task instead owns a PR/MR against the project's default
+        branch. This sweep is the restart-safe fallback for a task whose
+        submission reached the tracker but whose worker exited before review
+        creation completed.
+        """
 
         for project in self.project_store.list_all():
             project_id = str(project.id)
@@ -16899,7 +16945,9 @@ class Orchestrator:
                 )
                 continue
 
-            review_capacity: tuple[int, int, bool] | None = None
+            review_capacity: tuple[int, int, bool] | None = (
+                self._project_review_capacity(project_id)
+            )
             for issue, dependency_state in eligible:
                 issue.project_id = project_id
                 task_id = issue.identifier
@@ -17374,6 +17422,10 @@ class Orchestrator:
                         self._standalone_review_capacity_reservation(authority)
                     )
                     if reservation is not None:
+                        # Another sweep may have won the CAS for this exact
+                        # delivery and still be completing forge/tracker work.
+                        # It is already the delivery path, not a capacity
+                        # failure for this task.
                         self._clear_standalone_delivery_alert(
                             project_id,
                             task_id,
@@ -17534,6 +17586,22 @@ class Orchestrator:
                     authority=authority,
                 )
                 if reservation is None:
+                    owned_reservation = self._standalone_review_capacity_reservation(
+                        authority
+                    )
+                    if owned_reservation is not None:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            authority=authority,
+                        )
+                        logger.info(
+                            "Standalone Ready task %s already owns review "
+                            "capacity reservation %s",
+                            task_id,
+                            owned_reservation.reservation_id,
+                        )
+                        return
                     review_count, review_limit, _ = review_capacity
                     # Capacity and an unavailable live listing are both
                     # retryable.  Neither means the submission is stranded,
@@ -18039,6 +18107,9 @@ class Orchestrator:
         with self.issue_transition_lock(issue_id).sync():
             if not self._standalone_delivery_authorized(authority, tracker):
                 return False, "delivery authority changed before open-review adoption"
+            observed_review_generation = self._review_generation(
+                authority.project_id
+            )
             try:
                 current_review = provider.find_pr_for_branch(repo_slug, work_branch)
             except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
@@ -18067,41 +18138,56 @@ class Orchestrator:
                     + (f": {mismatch_reason}" if mismatch_reason else ""),
                 )
             review_id = str(getattr(current_review, "id", "") or "").strip()
-            if not getattr(current_review, "draft", False):
-                self._adopt_open_review_capacity(
-                    project_id=authority.project_id,
-                    task_id=authority.task_id,
+            # Linearize the final capacity + tracker publication against a
+            # close webhook.  If close won first its fence rejects adoption;
+            # if this live-open observation won first, close runs afterwards
+            # and releases the just-published generation normally.
+            with self._review_lifecycle_lock:
+                if not getattr(current_review, "draft", False) and not (
+                    self._adopt_open_review_capacity(
+                        project_id=authority.project_id,
+                        task_id=authority.task_id,
+                        source_branch=work_branch,
+                        target_branch=target_branch,
+                        review_id=review_id,
+                        authority_generation=authority.generation,
+                        head_sha=review_head,
+                        authoritative=True,
+                        observed_generation=observed_review_generation,
+                        allow_reopen=True,
+                    )
+                ):
+                    return False, "review closed before capacity adoption"
+                if not self._clear_standalone_delivery_alert(
+                    authority.project_id,
+                    authority.task_id,
+                    authority=authority,
+                ):
+                    return False, "delivery authority changed before alert cleanup"
+                if not self._write_review_metadata(
+                    tracker,
+                    authority.task_id,
+                    review_id=review_id or None,
+                    review_url=getattr(current_review, "url", None),
                     source_branch=work_branch,
                     target_branch=target_branch,
-                    review_id=review_id,
-                    authority_generation=authority.generation,
-                    head_sha=review_head,
-                )
-            if not self._clear_standalone_delivery_alert(
-                authority.project_id,
-                authority.task_id,
-                authority=authority,
-            ):
-                return False, "delivery authority changed before alert cleanup"
-            if not self._write_review_metadata(
-                tracker,
-                authority.task_id,
-                review_id=review_id or None,
-                review_url=getattr(current_review, "url", None),
-                source_branch=work_branch,
-                target_branch=target_branch,
-                review_head=review_head,
-                authority=authority,
-            ):
-                return False, "delivery authority changed during review metadata write"
-            if not self._standalone_delivery_mutation(
-                authority,
-                tracker,
-                lambda: tracker.update_issue(authority.task_id, status=IN_REVIEW),
-                next_state=IN_REVIEW,
-            ):
-                return False, "delivery authority changed before In Review update"
-            return True, ""
+                    review_head=review_head,
+                    authority=authority,
+                ):
+                    return (
+                        False,
+                        "delivery authority changed during review metadata write",
+                    )
+                if not self._standalone_delivery_mutation(
+                    authority,
+                    tracker,
+                    lambda: tracker.update_issue(
+                        authority.task_id, status=IN_REVIEW
+                    ),
+                    next_state=IN_REVIEW,
+                ):
+                    return False, "delivery authority changed before In Review update"
+                return True, ""
 
     def _create_standalone_review_owned(
         self,
@@ -24454,10 +24540,84 @@ class Orchestrator:
         """
         if not project_id:
             return 0
-        reviews_cache = getattr(self, "_reviews_cache", {})
-        project_reviews = reviews_cache.get(project_id, [])
-        open_review_ids = self._open_review_ids(project_reviews)
-        return self.review_capacity_store.count(project_id, open_review_ids)
+        with self._review_lifecycle_lock:
+            reviews_cache = getattr(self, "_reviews_cache", {})
+            project_reviews = reviews_cache.get(project_id, [])
+            open_review_ids = self._open_review_ids(project_reviews)
+            return self.review_capacity_store.count(project_id, open_review_ids)
+
+    def _review_generation(self, project_id: str) -> int:
+        """Return the current close/reopen generation for one project."""
+
+        with self._review_lifecycle_lock:
+            return self._review_lifecycle_generation.get(str(project_id), 0)
+
+    def _publish_live_open_reviews(
+        self,
+        project_id: str,
+        reviews: list[Any],
+        *,
+        observed_generation: int,
+    ) -> bool:
+        """Publish one successful live listing if no webhook overtook it.
+
+        A provider request runs outside the lifecycle lock.  The generation
+        comparison is therefore the CAS boundary: a close webhook that lands
+        while the request is in flight wins, and the older response is
+        discarded.  A successful live-open result is authoritative enough to
+        clear a prior close fence (the forge has reopened the review), while a
+        successful empty result releases stale durable reservations.
+        """
+
+        project_key = str(project_id)
+        with self._review_lifecycle_lock:
+            current_generation = self._review_lifecycle_generation.get(
+                project_key, 0
+            )
+            if current_generation != observed_generation:
+                return False
+            live_reviews = list(reviews)
+            open_ids = self._open_review_ids(live_reviews)
+            for review_id in open_ids:
+                self._closed_review_fences.pop(
+                    (project_key, str(review_id)),
+                    None,
+                )
+            cache = dict(getattr(self, "_reviews_cache", {}) or {})
+            cache[project_key] = live_reviews
+            self._reviews_cache = cache
+            self._reviews_cache_generation[project_key] = current_generation
+            self._reconcile_review_capacity_from_live_reviews(
+                project_key,
+                live_reviews,
+            )
+            return True
+
+    def _publish_review_cache_snapshot(
+        self,
+        reviews_by_project: dict[str, list[Any]],
+        observed_generations: dict[str, int],
+    ) -> dict[str, list[Any]]:
+        """Publish a poll snapshot without reviving webhook-closed rows."""
+
+        with self._review_lifecycle_lock:
+            cache = {
+                str(project_id): list(reviews or [])
+                for project_id, reviews in (
+                    getattr(self, "_reviews_cache", {}) or {}
+                ).items()
+                if str(project_id) in observed_generations
+            }
+            for project_id, reviews in reviews_by_project.items():
+                project_key = str(project_id)
+                observed = observed_generations.get(project_key, 0)
+                current = self._review_lifecycle_generation.get(project_key, 0)
+                if current != observed:
+                    continue
+                cache[project_key] = list(reviews or [])
+                self._reviews_cache_generation[project_key] = current
+            self._reviews_cache = cache
+            return cache
 
     @staticmethod
     def _open_review_ids(reviews: Any) -> set[str]:
@@ -24508,6 +24668,9 @@ class Orchestrator:
             self.review_capacity_store.reconcile_open_reviews(
                 project_id,
                 self._open_review_ids(reviews),
+                minimum_committed_age_seconds=(
+                    DEFAULT_REVIEW_RESERVATION_TTL_SECONDS
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - capacity must not stop a tick
             logger.warning(
@@ -24528,6 +24691,7 @@ class Orchestrator:
         empty list.  Returning ``None`` makes callers defer and retry without
         arming a stranded-delivery alert.
         """
+        observed_generation = self._review_generation(project_id)
         try:
             reviews = provider.list_open_reviews(repo_slug)
             if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
@@ -24548,6 +24712,17 @@ class Orchestrator:
                 "Could not obtain live review capacity for %s: %s",
                 project_id,
                 exc,
+            )
+            return None
+        if not self._publish_live_open_reviews(
+            project_id,
+            reviews,
+            observed_generation=observed_generation,
+        ):
+            logger.info(
+                "Discarded stale live review listing for %s after a newer "
+                "webhook lifecycle event",
+                project_id,
             )
             return None
         return reviews
@@ -24701,12 +24876,48 @@ class Orchestrator:
         *,
         source_branch: str | None = None,
     ) -> None:
-        """Public webhook/maintenance hook for a closed or merged review."""
-        self._release_review_capacity(
-            project_id,
-            review_id=review_id,
-            source_branch=source_branch,
-        )
+        """Fence and release a webhook-observed closed or merged review."""
+        if not project_id:
+            return
+        project_key = str(project_id)
+        review_key = str(review_id or "").strip()
+        source_key = str(source_branch or "").strip()
+        with self._review_lifecycle_lock:
+            generation = self._review_lifecycle_generation.get(project_key, 0) + 1
+            self._review_lifecycle_generation[project_key] = generation
+            if review_key:
+                self._closed_review_fences[(project_key, review_key)] = generation
+
+            # The webhook is newer than every object currently in the cache.
+            # Remove both identity and branch matches while holding the same
+            # lock used by live-cache publication and capacity adoption.
+            cache = dict(getattr(self, "_reviews_cache", {}) or {})
+            cached_reviews = list(cache.get(project_key, []) or [])
+            cache[project_key] = [
+                review
+                for review in cached_reviews
+                if not (
+                    (
+                        review_key
+                        and str(getattr(review, "id", "") or "").strip()
+                        == review_key
+                    )
+                    or (
+                        source_key
+                        and str(
+                            getattr(review, "source_branch", "") or ""
+                        ).strip()
+                        == source_key
+                    )
+                )
+            ]
+            self._reviews_cache = cache
+            self._reviews_cache_generation[project_key] = generation
+            self._release_review_capacity(
+                project_key,
+                review_id=review_key or None,
+                source_branch=source_key or None,
+            )
 
     def _adopt_open_review_capacity(
         self,
@@ -24718,34 +24929,54 @@ class Orchestrator:
         review_id: Any,
         authority_generation: str | None = None,
         head_sha: str | None = None,
-    ) -> None:
-        """Associate a pre-existing open review with durable capacity state.
+        authoritative: bool = False,
+        observed_generation: int | None = None,
+        allow_reopen: bool = False,
+    ) -> bool:
+        """Associate one authoritatively open review with durable capacity.
 
-        Standalone adoption supplies the exact authority and review head that
-        were just verified under task ownership.  Other reconciliation paths
-        may not have that evidence, so their absent values must not erase an
-        exact reservation already persisted by a concurrent delivery sweep.
+        Cache objects alone are deliberately insufficient.  Callers must have
+        completed a successful live forge observation, or must be handling an
+        explicit reopen webhook whose final live observation is fenced by
+        ``observed_generation``.
         """
         review_id = str(review_id or "").strip()
-        if not review_id:
-            return
-        try:
-            self.review_capacity_store.adopt(
-                project_id=project_id,
-                task_id=task_id,
-                source_branch=source_branch,
-                target_branch=target_branch,
-                review_id=review_id,
-                reservation_id=str(uuid.uuid4()),
-                authority_generation=authority_generation,
-                head_sha=head_sha,
+        if not review_id or not authoritative:
+            return False
+        project_key = str(project_id)
+        with self._review_lifecycle_lock:
+            current_generation = self._review_lifecycle_generation.get(
+                project_key, 0
             )
-        except Exception as exc:  # noqa: BLE001 - existing review is authoritative
-            logger.warning(
-                "Could not persist existing review reservation for %s: %s",
-                task_id,
-                exc,
-            )
+            if (
+                observed_generation is not None
+                and current_generation != observed_generation
+            ):
+                return False
+            fence_key = (project_key, review_id)
+            if fence_key in self._closed_review_fences:
+                if not allow_reopen:
+                    return False
+                self._closed_review_fences.pop(fence_key, None)
+            try:
+                self.review_capacity_store.adopt(
+                    project_id=project_key,
+                    task_id=task_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                    review_id=review_id,
+                    reservation_id=str(uuid.uuid4()),
+                    authority_generation=authority_generation,
+                    head_sha=head_sha,
+                )
+            except Exception as exc:  # noqa: BLE001 - live review is authoritative
+                logger.warning(
+                    "Could not persist existing review reservation for %s: %s",
+                    task_id,
+                    exc,
+                )
+                return False
+            return True
 
     def _epic_in_flight_count(self, parent_id: str) -> int:
         """Number of branch-writing children that share ``parent_id``.
@@ -30989,14 +31220,6 @@ class Orchestrator:
                 epic_branch,
             )
             if existing_review is not None:
-                if not getattr(existing_review, "draft", False):
-                    self._adopt_open_review_capacity(
-                        project_id=project_id,
-                        task_id=issue.identifier,
-                        source_branch=epic_branch,
-                        target_branch=target_branch,
-                        review_id=getattr(existing_review, "id", None),
-                    )
                 if not self._review_quality_gate_passes(
                     project,
                     issue,
@@ -31004,12 +31227,34 @@ class Orchestrator:
                     target_branch,
                 ):
                     continue
-                self._ensure_epic_in_review_metadata(
-                    project_id,
-                    issue,
-                    existing_review,
-                    epic_branch,
-                )
+                # Publish capacity and tracker state as one lifecycle
+                # generation.  A close webhook that arrived during the gate
+                # installs a fence and wins this race without an In Review
+                # regression.
+                with self._review_lifecycle_lock:
+                    if not getattr(existing_review, "draft", False) and not (
+                        self._adopt_open_review_capacity(
+                            project_id=project_id,
+                            task_id=issue.identifier,
+                            source_branch=epic_branch,
+                            target_branch=target_branch,
+                            review_id=getattr(existing_review, "id", None),
+                            authoritative=True,
+                        )
+                    ):
+                        logger.info(
+                            "Skipped stale epic review #%s for %s after a "
+                            "newer close/merge observation",
+                            getattr(existing_review, "id", "?"),
+                            issue.identifier,
+                        )
+                        continue
+                    self._ensure_epic_in_review_metadata(
+                        project_id,
+                        issue,
+                        existing_review,
+                        epic_branch,
+                    )
                 continue
 
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
@@ -31220,24 +31465,23 @@ class Orchestrator:
         project_id: str,
         epic_branch: str,
     ) -> ReviewRequest | Any | None:
-        """Return an open review for ``epic_branch`` from cache or forge."""
-        reviews = getattr(self, "_reviews_cache", {}).get(project_id, []) or []
+        """Return an authoritatively live open review for ``epic_branch``.
+
+        The per-tick cache is intentionally not an adoption source.  A close
+        webhook may have released the review after that snapshot was built.
+        The successful live listing also reconciles the durable ledger, so an
+        empty result releases stale committed reservations.
+        """
+        reviews = self._live_open_reviews_for_capacity(
+            provider,
+            slug,
+            str(project_id),
+        )
+        if reviews is None:
+            return None
         for review in reviews:
             if self._review_matches_open_branch(review, epic_branch):
                 return review
-
-        try:
-            review = provider.find_pr_for_branch(slug, epic_branch)
-        except Exception as exc:  # noqa: BLE001 - best-effort idempotency guard
-            logger.debug(
-                "find_pr_for_branch failed while checking epic PR %s/%s: %s",
-                slug,
-                epic_branch,
-                exc,
-            )
-            return None
-        if self._review_matches_open_branch(review, epic_branch):
-            return review
         return None
 
     def _epic_branch_landed_on_target(
@@ -34546,37 +34790,20 @@ class Orchestrator:
         if entry.issue and entry.issue.target_branch:
             target_branch = entry.issue.target_branch
 
-        # Check if a review already exists for this branch
+        # A cached review is only a hint.  It cannot adopt durable capacity or
+        # move tracker state because a close webhook may have released that
+        # exact review after the cache snapshot was built.  The live listing
+        # below is the authoritative idempotency check.
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
         for r in reviews:
             if r.source_branch == branch:
-                if not getattr(r, "draft", False):
-                    self._adopt_open_review_capacity(
-                        project_id=project_id,
-                        task_id=entry.identifier,
-                        source_branch=branch,
-                        target_branch=target_branch,
-                        review_id=getattr(r, "id", None),
-                    )
-                # Gate the exact current head before marking In Review so a
-                # forge CI failure followed by a repaired head cannot bypass
-                # the configured branch gate.  Cached same-head PASS keeps
-                # unchanged heads single-flight; gate failure routes the
-                # task through the normal retryable Needs CI Fix flow via
-                # _record_quality_gate_failure and preserves the open review.
-                if (
-                    entry.issue is not None
-                    and not self._review_quality_gate_passes(
-                        project,
-                        entry.issue,
-                        branch,
-                        target_branch,
-                        preferred_path=entry.workspace_path,
-                    )
-                ):
-                    return False  # gate handled failure; leave review open
-                self._mark_task_in_review(entry, project_id, r)
-                return True  # review already exists
+                logger.debug(
+                    "Ignoring cache-only review #%s for %s until live forge "
+                    "confirmation",
+                    getattr(r, "id", "?"),
+                    entry.identifier,
+                )
+                break
 
         commits_ahead = 0
         commit_lines: list[str] = []
@@ -34665,13 +34892,6 @@ class Orchestrator:
                     and not getattr(live_review, "draft", False)
                     and getattr(live_review, "source_branch", None) == branch
                 ):
-                    self._adopt_open_review_capacity(
-                        project_id=str(project_id),
-                        task_id=entry.identifier,
-                        source_branch=branch,
-                        target_branch=target_branch,
-                        review_id=getattr(live_review, "id", None),
-                    )
                     # Gate the exact current head before marking In Review so
                     # a forge CI failure followed by a repaired head cannot
                     # bypass the configured branch gate.  Cached same-head
@@ -34689,7 +34909,18 @@ class Orchestrator:
                         )
                     ):
                         return False
-                    self._mark_task_in_review(entry, project_id, live_review)
+                    with self._review_lifecycle_lock:
+                        adopted = self._adopt_open_review_capacity(
+                            project_id=str(project_id),
+                            task_id=entry.identifier,
+                            source_branch=branch,
+                            target_branch=target_branch,
+                            review_id=getattr(live_review, "id", None),
+                            authoritative=True,
+                        )
+                        if not adopted:
+                            return True
+                        self._mark_task_in_review(entry, project_id, live_review)
                     return True
 
         if review_required or commit_error:
