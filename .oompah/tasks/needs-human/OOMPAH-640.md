@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-08-07T08:52:55.273906Z'
+updated_at: '2026-08-07T09:10:17.063084Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -127,6 +127,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-50ba79464bb3-2: '2026-07-31T07:10:59.822460+00:00'
+    infrastructure-exhausted-audit-beb713efc129-3: '2026-08-07T09:10:07.119112+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-4bd14405754f
@@ -148,6 +149,29 @@ oompah.terminal_audit:
       3.13 all completed successfully. Two configured independent auditor transports
       were attempted and terminated without a verdict, leaving no independent candidate.'
     created_at: '2026-07-31T07:12:44.433704+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Merged
+    evidence_fingerprint: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    audit_ids:
+    - audit-beb713efc129
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T09:10:07.119123+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    audit_id: audit-beb713efc129
+    attempt_id: infrastructure-exhausted-audit-beb713efc129-3
+    target_state: Merged
+    evidence_fingerprint: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    status: Needs Human
+    audit_ids:
+    - audit-beb713efc129
+    applied: true
+    created_at: '2026-08-07T09:10:07.119137+00:00'
+    applied_at: '2026-08-07T09:10:15.552140+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -216,7 +240,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-640
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -261,13 +285,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-07T08:52:53.832637+00:00'
       failure_reason: 'terminal audit revision binding failed before launch: ProjectError'
       next_retry_at: '2026-08-07T08:53:33.832623+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-beb713efc129-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-07T09:10:07.118994+00:00'
+      completed_at: '2026-08-07T09:10:07.118994+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T06:55:14.228060+00:00'
-    updated_at: '2026-08-07T08:52:53.832637+00:00'
+    updated_at: '2026-08-07T09:10:07.118994+00:00'
   - version: 1
     audit_id: audit-c63ac83352b6
     project_id: proj-14849f1b
@@ -725,5 +761,12 @@ created: 2026-07-31 07:12
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Owner audit override after independent auditor exhaustion: exact task head 5a5f4867f2d5c640069b16fe6eaf45e09a54c963 is an ancestor of current origin/main; PR #608 merged as d7027de514d1fcee1cf3e150f9f02b11b3168071; the recorded exact-head make test branch gate passed; GitHub CI test jobs for Python 3.11, 3.12, and 3.13 all completed successfully. Two configured independent auditor transports were attempted and terminated without a verdict, leaving no independent candidate.
+---
+author: oompah
+created: 2026-08-07 09:10
+---
+Needs Human — Merged audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
