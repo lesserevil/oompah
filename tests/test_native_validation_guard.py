@@ -4802,8 +4802,8 @@ def test_withdrawn_owner_remains_fenced_by_detached_descendant(
     real_make = real_bin / "make"
     real_make.write_text(
         "#!/bin/bash\n"
-        "setsid bash -c 'trap \"\" TERM; sleep 30' &\n"
-        "printf '%s' \"$!\" > \"$OOMPAH_TEST_DESCENDANT_PID\"\n"
+        "setsid bash -c 'printf \"%s\" \"$BASHPID\" > \"$OOMPAH_TEST_DESCENDANT_PID\"; "
+        "trap \"\" TERM; sleep 30' &\n"
         "sleep 30\n",
         encoding="utf-8",
     )
@@ -4837,10 +4837,10 @@ def test_withdrawn_owner_remains_fenced_by_detached_descendant(
         except ProcessLookupError:
             return False
 
-    # The shell publishes $! immediately after fork, before the child is
-    # guaranteed to have completed setsid(). Cancellation before this proof
-    # can correctly kill it as a member of the guarded command group and does
-    # not exercise the detached-descendant fence this test intends to cover.
+    # ``setsid`` may fork when its caller is already a process-group leader.
+    # The inner shell publishes its own PID only after it owns the detached
+    # session, so the cancellation below cannot accidentally target the
+    # transient ``setsid`` parent instead of the inherited-descriptor holder.
     _wait_until(descendant_is_detached)
     if withdrawal == "cancelled":
         (root / "cancelled").touch()

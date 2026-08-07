@@ -21,6 +21,7 @@ from oompah.authority_boundary import auditor_policy
 from oompah.models import Issue
 from oompah.prompt import render_auditor_prompt, render_prompt
 from oompah.provenance import DELIMITER
+from oompah.validation_resource_lease import ValidationResourceLease
 
 
 def _issue(**overrides):
@@ -51,6 +52,18 @@ def _target():
         attempt_id="attempt-7",
         previous_state="In Validation",
     )
+
+
+@pytest.fixture
+def auditor_validation_context(tmp_path: Path):
+    """Provide the trusted ownership required for capacity-bearing Git probes.
+
+    O892 treats Git as heavyweight when its effective configuration can invoke
+    helpers.  A completion auditor must then have both its target contract and
+    a validation-resource lease before the command can execute.
+    """
+
+    return _target(), ValidationResourceLease(tmp_path / "validation.sqlite3")
 
 
 def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
@@ -494,8 +507,14 @@ def test_repeated_arbitrary_code_mutation_and_redirects_remain_fatal(tmp_path: P
     assert len(denials) == 3
 
 
-def test_git_merge_base_inspection_does_not_consume_policy_budget():
-    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+def test_git_merge_base_inspection_does_not_consume_policy_budget(
+    auditor_validation_context,
+):
+    target, validation_lease = auditor_validation_context
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
     denials: list[str] = []
 
     result = _execute_tool(
@@ -504,6 +523,8 @@ def test_git_merge_base_inspection_does_not_consume_policy_budget():
         {"command": "git merge-base --is-ancestor HEAD HEAD"},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     assert not result.startswith("Error:")
@@ -708,9 +729,14 @@ def test_acp_agent_passes_auditor_policy_to_backend(monkeypatch):
 )
 def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
     command: str,
+    auditor_validation_context,
 ):
     """Verify EXOCOMP-241 rev-list forms are allowed and don't consume policy budget."""
-    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    target, validation_lease = auditor_validation_context
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
     denials: list[str] = []
 
     result = _execute_tool(
@@ -719,6 +745,8 @@ def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
         {"command": command},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     # Command should execute (not denied)
@@ -737,9 +765,14 @@ def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
 )
 def test_git_rev_list_unsupported_read_only_variants_are_recoverable(
     command: str,
+    auditor_validation_context,
 ):
     """Verify unsupported but safe rev-list variants return recoverable errors."""
-    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    target, validation_lease = auditor_validation_context
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
     denials: list[str] = []
 
     result = _execute_tool(
@@ -748,6 +781,8 @@ def test_git_rev_list_unsupported_read_only_variants_are_recoverable(
         {"command": command},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     # May be denied as unsupported read-only syntax, but must be recoverable
@@ -797,6 +832,7 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
         project_id=target.project_id,
     )
     denials: list[str] = []
+    validation_lease = ValidationResourceLease(tmp_path / "validation.sqlite3")
 
     # Use a rev-list variant that might not be explicitly supported yet
     # but is still read-only
@@ -806,6 +842,8 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
         {"command": "git rev-list --abbrev-commit HEAD~5..HEAD"},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     # May be rejected as unsupported read-only syntax, but recoverable
