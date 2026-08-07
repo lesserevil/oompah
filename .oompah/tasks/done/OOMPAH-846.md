@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-846
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Enforce validation-resource leases for every spawned worker command path
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-07T11:22:35.165812Z'
+updated_at: '2026-08-07T16:23:07.207419Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -113,6 +113,31 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-846
     source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
     completed_at: '2026-08-06T04:17:28.863316+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1a835ced0d9a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-846
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9aae64ba2f498223bac2e5a5ad669f05205a716acb1aee100b2471f9e45f2658
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Two independent security reviews accepted the fail-closed repair at pushed
+      head fbe3923669925f6208298607677f67877d503c86; canonical broker validation is
+      green (907/907 full matrix and 135/135 corrected-control module), secret/diff
+      checks pass, and the owner is finalizing the verified systemic enforcement fix
+      while preserving the terminal audit ledger.
+    created_at: '2026-08-07T16:23:01.859760+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -323,5 +348,19 @@ author: oompah
 created: 2026-08-07 11:22
 ---
 Correction to the preceding comment: each OOMPAH-643 process ran python -m pytest against tests/ with verbose output and four xdist workers, using an independent basetemp. The shell formatting in the prior comment stripped that command fragment; all identifiers and concurrency facts remain accurate.
+---
+author: oompah
+created: 2026-08-07 16:23
+---
+Final implementation evidence for exact pushed head fbe3923669925f6208298607677f67877d503c86 on origin/epic-OOMPAH-763--task-OOMPAH-846:
+
+- Exact lifecycle/ancestry regressions: 7/7 passed through the canonical validation broker.
+- Focused process/lease/parallel/observability cluster: 696/696 passed.
+- Six-module ACP/API/native/parallel/observability/lease matrix: 907/907 passed in 108.35s.
+- Corrected true post-baseline sibling control plus subreaper-laundering regression: 2/2 passed; impacted native guard module: 135/135 passed in 73.50s.
+- make check-secrets and git diff --check passed.
+- Two independent read-only security reviews ACCEPTED the final fail-closed ancestry design and deterministic controls.
+
+The task branch is linear atop e06bec549 and pushed; terminal provenance should retain this exact head and evidence.
 ---
 <!-- COMMENTS:END -->
