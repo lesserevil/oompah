@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: In Validation
+status: Done
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T15:05:03.985299Z'
+updated_at: '2026-08-07T15:16:39.690182Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -91,6 +91,7 @@ oompah.terminal_audit:
     infrastructure-exhausted-audit-2f8a02a3fbeb-3: '2026-08-07T14:20:03.985054+00:00'
     attempt-1aec9a7c7ff4: '2026-08-07T14:43:37.180293+00:00'
     attempt-1971fd832d8e: '2026-08-07T15:03:23.785730+00:00'
+    attempt-79e8b0c96641: '2026-08-07T15:16:34.205304+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
@@ -119,6 +120,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T15:03:23.785748+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Done
+    evidence_fingerprint: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    audit_ids:
+    - audit-d0d4c70ac281
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T15:16:34.205326+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
@@ -156,6 +166,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T15:03:23.785767+00:00'
     applied_at: '2026-08-07T15:03:33.236140+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    audit_id: audit-d0d4c70ac281
+    attempt_id: attempt-79e8b0c96641
+    target_state: Done
+    evidence_fingerprint: 5450be7a168341836dbd941b41e6bbe6cc5dfb8cafd2b66665bf6c06a6620c4c
+    status: Done
+    audit_ids:
+    - audit-d0d4c70ac281
+    applied: false
+    created_at: '2026-08-07T15:16:34.205350+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -344,7 +365,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -353,7 +374,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-79e8b0c96641
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -365,6 +386,9 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-459
       selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
       selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+      verdict: pass
+      completed_at: '2026-08-07T15:16:34.205005+00:00'
+      ended_at: '2026-08-07T15:16:34.205005+00:00'
     requested_by:
       version: 1
       identity: orchestrator
@@ -372,7 +396,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:28:34.123822+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
-    updated_at: '2026-08-07T15:04:53.087387+00:00'
+    updated_at: '2026-08-07T15:16:34.205005+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3ae4bc120dca
