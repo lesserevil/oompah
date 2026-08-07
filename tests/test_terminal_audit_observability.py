@@ -832,7 +832,16 @@ async def test_audit_launch_publishes_in_progress_health_observation(
                 "_bind_audit_record_revision",
                 return_value=pending,
             ),
-            patch.object(orchestrator, "_audit_selector", return_value=selector),
+            patch.object(
+                orchestrator,
+                "_prepare_audit_selector",
+                new=AsyncMock(return_value=(selector, None)),
+            ),
+            patch.object(
+                orchestrator,
+                "_terminal_audit_validation_configuration_error",
+                return_value=None,
+            ),
             patch.object(orchestrator, "_audit_branch_busy", return_value=False),
             patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
             patch.object(

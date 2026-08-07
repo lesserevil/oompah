@@ -10,7 +10,7 @@ import sys
 import types
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -33,7 +33,7 @@ from oompah.acp_backends.base import turn_deadline_exceeded
 from oompah.authority_boundary import auditor_policy
 from oompah.config import ServiceConfig
 from oompah.models import Issue, Project
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, _AuditCandidateScan
 from oompah.projects import ProjectError, ProjectStore
 from oompah.prompt import render_prompt
 from oompah.quality_gate import (
@@ -865,15 +865,23 @@ def test_dispatch_preflight_leaves_impossible_audit_pending_without_attempt(
     audit_store = SimpleNamespace(read=lambda _identifier: document)
     persist = Mock(return_value=True)
     dispatch = Mock(side_effect=AssertionError("auditor launched"))
-    selector = Mock(side_effect=AssertionError("auditor selector built"))
+    selector = AsyncMock(side_effect=AssertionError("auditor selector built"))
     health_refresh = Mock()
     try:
-        monkeypatch.setattr(orchestrator, "_dispatch_is_blocked", lambda: False)
+        monkeypatch.setattr(
+            orchestrator,
+            "_dispatch_is_blocked",
+            lambda _issue=None: False,
+        )
         monkeypatch.setattr(orchestrator, "_is_rate_limited", lambda: False)
         monkeypatch.setattr(orchestrator, "_available_slots", lambda: 1)
-        monkeypatch.setattr(orchestrator, "_fetch_audit_candidates", lambda: [issue])
+        monkeypatch.setattr(
+            orchestrator,
+            "_fetch_audit_candidates",
+            lambda: _AuditCandidateScan((issue,)),
+        )
         monkeypatch.setattr(orchestrator, "_audit_store", lambda _issue: audit_store)
-        monkeypatch.setattr(orchestrator, "_audit_selector", selector)
+        monkeypatch.setattr(orchestrator, "_prepare_audit_selector", selector)
         monkeypatch.setattr(orchestrator, "_running_values_snapshot", lambda: [])
         monkeypatch.setattr(orchestrator, "_audit_update_record", persist)
         monkeypatch.setattr(orchestrator, "_dispatch", dispatch)
