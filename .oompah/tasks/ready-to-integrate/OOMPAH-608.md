@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T10:16:32.525084Z'
+updated_at: '2026-08-07T10:16:55.959712Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7e09fd8e-0a26-4a1e-86ce-6877f444d13f
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 420810
   total_output_tokens: 17715
@@ -111,13 +111,14 @@ oompah.work_contributors:
     source_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
     completed_at: '2026-08-07T09:39:20.169609+00:00'
 oompah.integration:
-  version: 1
+  version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-608
-  head_sha: 6d0cda5660632aaed34c722198fff17a913a66af
-  submitted_at: '2026-07-30T18:38:36.717123+00:00'
-  updated_at: '2026-07-30T18:38:36.717123+00:00'
+  base_branch: main
+  head_sha: f7d188422c1c6277e1fa29d2de1031bf0ea5c3c6
+  submitted_at: '2026-08-07T10:16:40.510848+00:00'
+  updated_at: '2026-08-07T10:16:40.510848+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/606
 oompah.review_number: '606'
 oompah.work_branch: OOMPAH-608
@@ -761,5 +762,10 @@ author: oompah
 created: 2026-08-07 10:16
 ---
 Completion: delivered and pushed commit f7d188422. Auditor result normalization now accepts credential-syntax placeholders without persisting them, recursively sanitizes bounded evidence, rejects genuine-looking Bearer/API/password/private-key material before handler invocation, and emits only safe field/path correction guidance. Contract/design documentation and regression coverage are included. Exact-head focused validation: 477 passed; Ruff, terminal mutation scan, git diff checks, and full secret scan passed. Branch is clean and synchronized with origin/OOMPAH-608.
+---
+author: oompah
+created: 2026-08-07 10:16
+---
+Hardened auditor verdict normalization: explicit credential placeholders are deterministically redacted; complete credential-shaped values fail closed without echo or persistence; nested safe evidence is recursively bounded, sanitized, and flattened; field-safe retry guidance and regression coverage added. Focused exact-head suites: 477 passed; secret and mutation scans passed.
 ---
 <!-- COMMENTS:END -->
