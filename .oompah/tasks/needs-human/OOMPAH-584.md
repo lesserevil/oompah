@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Validation
+status: Needs Human
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T07:24:16.344669Z'
+updated_at: '2026-08-07T07:24:54.043845Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -32,6 +32,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-a2bcda188bfb: '2026-07-31T05:43:15.018394+00:00'
     attempt-67a46d7abb48: '2026-07-31T05:49:14.554776+00:00'
+    no-auditor-audit-7d423beb5304-1: '2026-08-07T07:24:42.436472+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    target_state: Archived
+    evidence_fingerprint: 558a6d3efaab1118e8eae4747f1255fb9e5eb8db28546a3d40d497e440bf0eed
+    audit_ids:
+    - audit-7d423beb5304
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:24:42.436484+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    audit_id: audit-7d423beb5304
+    attempt_id: no-auditor-audit-7d423beb5304-1
+    target_state: Archived
+    evidence_fingerprint: 558a6d3efaab1118e8eae4747f1255fb9e5eb8db28546a3d40d497e440bf0eed
+    status: Needs Human
+    audit_ids:
+    - audit-7d423beb5304
+    applied: true
+    created_at: '2026-08-07T07:24:42.436502+00:00'
+    applied_at: '2026-08-07T07:24:51.110119+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -137,7 +161,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -158,13 +182,25 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-584
       ended_at: '2026-08-07T07:24:09.432220+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-7d423beb5304-1
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 558a6d3efaab1118e8eae4747f1255fb9e5eb8db28546a3d40d497e440bf0eed
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:24:42.436303+00:00'
+      completed_at: '2026-08-07T07:24:42.436303+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-07T06:09:01.019828+00:00'
-    updated_at: '2026-08-07T07:11:28.421830+00:00'
+    updated_at: '2026-08-07T07:24:42.436303+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -578,5 +614,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 21s
 - Log: OOMPAH-584__20260807T071153Z.jsonl
+---
+author: oompah
+created: 2026-08-07 07:24
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

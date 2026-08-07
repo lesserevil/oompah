@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Validation
+status: Needs Human
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T07:10:58.015318Z'
+updated_at: '2026-08-07T07:25:05.788260Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -163,6 +163,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-269a81d7e2e1-2: '2026-07-31T06:47:32.662269+00:00'
+    no-auditor-audit-48d8fb52ec07-0: '2026-08-07T07:24:55.157712+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-d20e80a69e24
@@ -181,6 +182,29 @@ oompah.terminal_audit:
       and all GitHub CI matrix jobs passed; independent auditor candidates were exhausted
       by transport termination.'
     created_at: '2026-07-31T06:49:06.406486+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Merged
+    evidence_fingerprint: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+    audit_ids:
+    - audit-48d8fb52ec07
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T07:24:55.157719+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    audit_id: audit-48d8fb52ec07
+    attempt_id: no-auditor-audit-48d8fb52ec07-0
+    target_state: Merged
+    evidence_fingerprint: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+    status: Needs Human
+    audit_ids:
+    - audit-48d8fb52ec07
+    applied: true
+    created_at: '2026-08-07T07:24:55.157728+00:00'
+    applied_at: '2026-08-07T07:25:02.896902+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -249,18 +273,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-48d8fb52ec07-0
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T07:24:55.157619+00:00'
+      completed_at: '2026-08-07T07:24:55.157619+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T06:25:49.441224+00:00'
+    updated_at: '2026-08-07T07:24:55.157619+00:00'
   - version: 1
     audit_id: audit-6604aca888bd
     project_id: proj-14849f1b
@@ -607,5 +644,12 @@ created: 2026-07-31 06:49
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Verified PR #605 merged, branch head is contained in main, branch gate and all GitHub CI matrix jobs passed; independent auditor candidates were exhausted by transport termination.
+---
+author: oompah
+created: 2026-08-07 07:25
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
