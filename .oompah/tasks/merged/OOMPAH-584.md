@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T14:06:38.661600Z'
+updated_at: '2026-08-07T14:06:46.244711Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -97,8 +97,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-cc0932baf6f3
-    applied: false
+    applied: true
     created_at: '2026-08-07T14:06:28.361318+00:00'
+    applied_at: '2026-08-07T14:06:43.692614+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1082,5 +1083,28 @@ author: oompah
 created: 2026-08-07 14:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 14:06
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit_on_main: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- merge_commit_subject: Merge pull request #603 from lesserevil/epic-OOMPAH-584
+- merge_first_parent: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- merge_second_parent: a3a577a489650c602ec3c62bd242eb53de631af4
+- current_origin_main: 41b1477682c6460a1bb55356ac44c799c9fa783a
+- prior_origin_main_at_merge: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- epic_head_ancestor_of_main: yes (git merge-base --is-ancestor a3a577a48 origin/main -> exit 0)
+- merge_commit_ancestor_of_main: yes (git merge-base --is-ancestor bb0fd760c origin/main -> exit 0)
+- remote_branch_deleted: origin/epic-OOMPAH-584 not present in refs listing
+- pr_number: 603
+- prior_done_audit: Audit PASS — Done recorded 2026-07-31 05:43 for head a3a577a48 with full gate 14,163 passed / 7 skipped / 1 xfailed
+- prior_merged_audit: Audit PASS — Merged recorded 2026-07-31 05:49 for the same merge commit bb0fd760c
+- children_merged: OOMPAH-585, OOMPAH-586, OOMPAH-587, OOMPAH-588 (per prior audits)
+- current_local_head: 41b1477682c6460a1bb55356ac44c799c9fa783a
 ---
 <!-- COMMENTS:END -->
