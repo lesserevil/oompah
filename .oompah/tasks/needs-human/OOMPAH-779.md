@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T12:32:31.603068Z'
+updated_at: '2026-08-07T12:32:36.056646Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-04 17:02
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 12:32
+---
+The parent epic OOMPAH-765 merged from epic-OOMPAH-765, but this task was Done with work branch epic-OOMPAH-765. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-779 branch epic-OOMPAH-765 has 1 unlanded commit(s), including 40e46bf8e41c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
