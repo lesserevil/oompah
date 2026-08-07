@@ -97,8 +97,6 @@ from oompah.integration import (
     IntegrationRecord,
     _compute_evidence_fingerprint,
     _compute_child_landing_fingerprint,
-    accepted_submission_branch,
-    assigned_work_branch,
     classify_conflict_repair_failure,
     is_direct_epic_maintenance_issue,
     parse_integration_record,
@@ -26038,6 +26036,7 @@ class Orchestrator:
         record = getattr(child, "integration", None)
 
         candidate_evidence: list[tuple[str, str | None]] = []
+        mapping_candidate_evidence: list[tuple[str, str]] = []
         if record is not None and record.state == "integrated":
             for value in (record.integrated_sha, record.head_sha):
                 sha = str(value or "").strip()
@@ -26045,6 +26044,19 @@ class Orchestrator:
                     candidate_evidence.append(
                         (sha, str(record.base_sha or "").strip() or None)
                     )
+            # A canonical child mapping represents one exact durable child
+            # range, not merely any historical revision with the same task
+            # identity.  Prefer the post-integration SHA because that is the
+            # canonical source recorded after the executor rebases the task.
+            # ``head_sha`` is the compatibility fallback for older records.
+            mapping_base_sha = str(record.base_sha or "").strip().lower()
+            mapping_source_sha = str(
+                record.integrated_sha or record.head_sha or ""
+            ).strip().lower()
+            if mapping_base_sha and mapping_source_sha:
+                mapping_candidate_evidence.append(
+                    (mapping_base_sha, mapping_source_sha)
+                )
 
         effective_project_id = str(
             project_id or getattr(child, "project_id", None) or ""
@@ -26069,26 +26081,52 @@ class Orchestrator:
             for item in queue_items:
                 if str(item.task_id).strip() not in child_aliases:
                     continue
-                has_candidate = bool(str(item.candidate_head_sha or "").strip())
-                candidate_sha = str(
+                # OOMPAH-858 introduced a canonical candidate generation on
+                # queue rows.  Once present, the submitted head is superseded
+                # and cannot identify either ordinary landing evidence or a
+                # direct-rebase child mapping.  ``getattr`` keeps restoration
+                # compatible with queue snapshots written before that schema.
+                has_candidate = bool(
+                    str(getattr(item, "candidate_head_sha", None) or "").strip()
+                )
+                queue_source_sha = str(
                     (
-                        item.candidate_head_sha
+                        getattr(item, "candidate_head_sha", None)
                         if has_candidate
-                        else item.head_sha
+                        else getattr(item, "head_sha", None)
                     )
                     or ""
                 ).strip()
-                candidate_base = str(
+                queue_base_sha = str(
                     (
-                        item.candidate_base_sha
+                        getattr(item, "candidate_base_sha", None)
                         if has_candidate
-                        else item.base_sha
+                        else getattr(item, "base_sha", None)
                     )
                     or ""
                 ).strip()
-                if candidate_sha:
+                if record is None and queue_source_sha:
                     candidate_evidence.append(
-                        (candidate_sha, candidate_base or None)
+                        (queue_source_sha, queue_base_sha or None)
+                    )
+                # The queue is a compatibility authority only when tracker
+                # integration metadata is absent.  If metadata exists in a
+                # non-integrated or newer generation, an older integrated row
+                # must not resurrect a stale mapping for the same child ID.
+                if (
+                    record is not None
+                    or str(item.state or "").strip() != "integrated"
+                ):
+                    continue
+                if str(item.epic_id or "").strip() != str(
+                    epic_identifier or getattr(child, "parent_id", None) or ""
+                ).strip():
+                    continue
+                mapping_base_sha = queue_base_sha.lower()
+                mapping_source_sha = queue_source_sha.lower()
+                if mapping_base_sha and mapping_source_sha:
+                    mapping_candidate_evidence.append(
+                        (mapping_base_sha, mapping_source_sha)
                     )
 
         candidate_evidence = list(dict.fromkeys(candidate_evidence))
@@ -26140,11 +26178,21 @@ class Orchestrator:
         )
         if mapping is None or mapping.generation != expected_generation:
             return False
+        # Fail closed unless exactly one current durable candidate range
+        # identifies this child.  This prevents a mapping for an earlier
+        # revision from authorizing newer work under the same task ID, and it
+        # prevents conflicting tracker/queue generations from being guessed.
+        mapping_candidate_evidence = list(dict.fromkeys(mapping_candidate_evidence))
+        if len(mapping_candidate_evidence) != 1:
+            return False
+        expected_base_sha, expected_source_sha = mapping_candidate_evidence[0]
         if not self._canonical_child_landing_mapping_is_valid(
             mapping,
             project_id=mapping_project_id,
             epic_id=mapping_epic_id,
             child_id=child_id,
+            expected_base_sha=expected_base_sha,
+            expected_source_sha=expected_source_sha,
             container_branches=container_branches,
             repo_path=repo_path,
         ):
@@ -26190,6 +26238,8 @@ class Orchestrator:
         project_id: str,
         epic_id: str,
         child_id: str,
+        expected_base_sha: str,
+        expected_source_sha: str,
         container_branches: tuple[str, ...],
         repo_path: str,
     ) -> bool:
@@ -26199,6 +26249,8 @@ class Orchestrator:
             mapping.project_id != project_id
             or mapping.epic_id != epic_id
             or mapping.child_id != child_id
+            or mapping.base_sha != str(expected_base_sha or "").strip().lower()
+            or mapping.source_sha != str(expected_source_sha or "").strip().lower()
             or not mapping.is_evidence_fresh()
         ):
             return False
