@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-08-07T11:18:08.587325Z'
+updated_at: '2026-08-07T11:18:48.738960Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
@@ -194,7 +194,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ef089af0a0e2
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -206,6 +206,24 @@ oompah.terminal_audit:
       branch_key: OOMPAH-652
       selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
       selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
+      ended_at: '2026-08-07T11:18:38.820474+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-93efe144e3fc
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
+      created_at: '2026-08-07T11:18:47.026836+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T11:18:47.026836+00:00'
+      branch_key: OOMPAH-652
+      selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
+      selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
@@ -214,7 +232,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:53:05.465536+00:00'
     selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
     selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
-    updated_at: '2026-08-07T11:02:18.926368+00:00'
+    updated_at: '2026-08-07T11:18:47.026836+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cd1d35c63d9
@@ -245,7 +263,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ef089af0a0e2
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -257,6 +275,24 @@ oompah.terminal_audit:
     branch_key: OOMPAH-652
     selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
     selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
+    ended_at: '2026-08-07T11:18:38.820474+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-93efe144e3fc
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac73ac756cf6b638fdb4770289493060e1380d882840781b07d74a37409aa2f3
+    created_at: '2026-08-07T11:18:47.026836+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T11:18:47.026836+00:00'
+    branch_key: OOMPAH-652
+    selected_ref: ccba12b3fe59f251d16746d164a8723edd6109fa
+    selected_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
+    candidate_rotation_count: 1
 ---
 ## Summary
 
