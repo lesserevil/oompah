@@ -12,13 +12,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T04:34:54.862296Z'
+updated_at: '2026-08-07T04:35:34.753216Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 077f3f68e3b381aff73ebec786cc81ad4f29999f676618a095ac0225de6ca31d
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: ba5222cb-ec51-4d96-883d-83e5fbd520d8
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-07T04:35:22.969033+00:00'
+  claim_expires_at: '2026-08-07T05:05:22.969033+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: a6a1b6a4-6099-4aff-8385-8f0692731757
 ---
 ## Summary
 
@@ -30,3 +48,16 @@ Hosted CI on exact OOMPAH-740 head 231d2b8a7 passed Python 3.11 and 3.13 but Pyt
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 04:35
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-07 04:35
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
