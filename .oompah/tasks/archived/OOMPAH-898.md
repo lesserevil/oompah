@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:17:57.854034Z'
-updated_at: '2026-08-07T14:56:42.174091Z'
+updated_at: '2026-08-07T14:56:53.335680Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -46,7 +46,17 @@ oompah.terminal_audit:
       exact full-gate-passing head e06bec549; this helper has no remaining independent
       work or authority.
     created_at: '2026-08-07T14:56:35.851562+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-898
+    target_state: Archived
+    evidence_fingerprint: fff3cca55deed5cbf5ef48d60a26b3806b2dd3bf147b6ef191206671e4ae09b8
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:56:47.944443+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -69,5 +79,12 @@ author: oompah
 created: 2026-08-07 14:27
 ---
 Fenced as recurrence 13 of the duplicate epic-rebase authority bug. The project is paused and a direct-owner claim prevents dispatch. Canonical recovery remains OOMPAH-877 against the protected local head; remote epic-OOMPAH-763 remains ca1c527. Do not launch or mutate the shared epic worktree. Permanent repair is tracked by OOMPAH-879 with OOMPAH-891 and OOMPAH-892.
+---
+author: oompah
+created: 2026-08-07 14:56
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
 ---
 <!-- COMMENTS:END -->
