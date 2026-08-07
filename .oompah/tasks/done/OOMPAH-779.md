@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T12:54:23.824837Z'
+updated_at: '2026-08-07T17:36:52.200433Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -171,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-779
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -190,7 +190,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-779
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -202,6 +202,44 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-07T12:54:22.208319+00:00'
+    selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+  - version: 1
+    audit_id: audit-9fe2c641a9db
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4083f79d9641a27e75062d175962b284ef7958a9d825dc92b26a2a3d81e3f9bd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T17:36:50.707341+00:00'
+    selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+  - version: 1
+    audit_id: audit-ae9c8dc64f5d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4083f79d9641a27e75062d175962b284ef7958a9d825dc92b26a2a3d81e3f9bd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-07T17:36:50.707341+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
   attempt_history: []
