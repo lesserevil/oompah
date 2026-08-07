@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-08-07T18:17:50.939840Z'
+updated_at: '2026-08-07T19:26:56.901884Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: ''
@@ -347,9 +347,10 @@ oompah.integration:
   attempts: 0
   task_branch: OOMPAH-577
   base_branch: main
-  head_sha: ac686a3a1db0aabc150a5391b9d89c311ad2bbac
-  submitted_at: '2026-08-07T12:57:57.157953+00:00'
-  updated_at: '2026-08-07T12:57:57.157953+00:00'
+  base_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+  head_sha: 3b1ed0cd2bb09325372a4328a7c3354caec9c9fc
+  submitted_at: '2026-08-07T19:26:45.469113+00:00'
+  updated_at: '2026-08-07T19:26:45.469113+00:00'
 oompah.review_head: ''
 review_head: ''
 ---
@@ -2189,5 +2190,10 @@ Target branch: `main`
 Reason: review head 7fc9aa8ae3b26f8e65466053f06bf7190d78c832 does not match accepted submission head ac686a3a1db0aabc150a5391b9d89c311ad2bbac
 
 This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
+---
+author: oompah
+created: 2026-08-07 19:26
+---
+Restacked the previously accepted dashboard-convergence stabilization onto current main and republished the exact OOMPAH-577 branch. The task had already reached Ready to Integrate before direct takeover; this submission preserves that accepted delta for protected-branch integration.
 ---
 <!-- COMMENTS:END -->
