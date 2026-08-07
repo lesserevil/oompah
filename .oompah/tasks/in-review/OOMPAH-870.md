@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-870
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Land already-contained Ready heads without requiring a zero-diff forge review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:09.733359Z'
-updated_at: '2026-08-07T08:11:28.511462Z'
+updated_at: '2026-08-07T08:11:39.399693Z'
 work_branch: OOMPAH-870
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/736
