@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-764
 type: epic
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
 children:
@@ -13,10 +13,12 @@ children:
 - OOMPAH-800
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
+- epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T12:36:28.013045Z'
+updated_at: '2026-08-07T12:40:47.493635Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/742
@@ -231,5 +233,10 @@ author: oompah
 created: 2026-08-04 21:27
 ---
 The evidence-backed Merged transition was rejected because the current server could not resolve/verify parent OOMPAH-763, despite Git proving epic-OOMPAH-764 is already an ancestor of epic-OOMPAH-763. This is the parent/child proof-cycle defect covered by active OOMPAH-791; leave the truthful landed evidence recorded here and retry reconciliation after OOMPAH-791 is available.
+---
+author: oompah
+created: 2026-08-07 12:40
+---
+YOLO: Merge conflict detected on MR #742. Rebase `epic-OOMPAH-764` onto epic-OOMPAH-763 and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
