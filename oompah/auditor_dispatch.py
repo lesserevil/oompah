@@ -32,6 +32,33 @@ from oompah.terminal_audit import (
 )
 
 
+# A transport or finalization failure did not produce a substantive verdict.
+# The candidate is still independently verdict-capable, so the same
+# (provider, model) pair remains eligible for retry within a bounded
+# infrastructure budget instead of permanently consuming a candidate slot.
+_TRANSPORT_FAILURE_CLASSIFICATIONS: frozenset[FailureClassification] = frozenset(
+    {
+        FailureClassification.INFRASTRUCTURE_ERROR,
+        FailureClassification.FINALIZATION_FAILURE,
+    }
+)
+
+
+def _is_transport_retry(attempt: AuditAttempt) -> bool:
+    """Return whether *attempt* ended in a retryable transport failure.
+
+    A verdict is always substantive: even a nonterminal ``ERROR`` verdict
+    means the auditor produced a structured result and the candidate has
+    exercised its verdict channel.  Only attempts that ended without a
+    verdict and are tagged as an infrastructure/finalization failure are
+    treated as transport retries.
+    """
+
+    if attempt.verdict is not None:
+        return False
+    return attempt.failure_classification in _TRANSPORT_FAILURE_CLASSIFICATIONS
+
+
 def utc_now() -> datetime:
     """Return an aware UTC timestamp; a seam for deterministic tests."""
 
@@ -159,16 +186,24 @@ class AuditorDispatchLane:
         selector: AuditorCandidateSelector,
         *,
         max_attempts: int = 3,
+        max_transport_retries: int = 3,
         attempt_ttl_seconds: int = 3600,
         clock: Callable[[], datetime] = utc_now,
         id_factory: Callable[[], str] | None = None,
     ) -> None:
         if max_attempts <= 0:
             raise ValueError("max_attempts must be positive")
+        if max_transport_retries < 0:
+            raise ValueError("max_transport_retries must be non-negative")
         if attempt_ttl_seconds <= 0:
             raise ValueError("attempt_ttl_seconds must be positive")
         self.selector = selector
         self.max_attempts = max_attempts
+        # Bounded infrastructure/finalization retry budget.  A transport
+        # failure never consumes an independent-candidate slot, but the
+        # scheduler still needs an upper bound so a wedged transport cannot
+        # dispatch forever without visible progress.
+        self.max_transport_retries = max_transport_retries
         self.attempt_ttl_seconds = attempt_ttl_seconds
         self.clock = clock
         self.id_factory = id_factory or (lambda: f"attempt-{uuid.uuid4().hex[:12]}")
@@ -273,14 +308,55 @@ class AuditorDispatchLane:
         return max(current, key=_record_execution_authority_key)
 
     @staticmethod
+    def is_transport_failure(attempt: AuditAttempt) -> bool:
+        """Whether *attempt* ended in a retryable transport/finalization failure.
+
+        A verdict is always substantive: even a nonterminal ``ERROR`` verdict
+        means the auditor produced a structured result and the candidate has
+        exercised its verdict channel.  Only attempts that ended without a
+        verdict and are tagged as an infrastructure/finalization failure
+        remain eligible for retry against the same (provider, model) pair.
+        """
+
+        return _is_transport_retry(attempt)
+
+    @staticmethod
     def attempted_pairs(record: TerminalAuditRecord) -> set[tuple[str, str]]:
-        """Return provider/model pairs already used by this audit."""
+        """Return provider/model pairs consumed substantively by this audit.
+
+        A transport or finalization failure did not exercise the candidate's
+        verdict channel, so its (provider, model) pair is not marked
+        consumed.  Policy denials and any verdicted attempt (PASS, FAIL,
+        NEEDS_HUMAN, ERROR) still consume the candidate.
+        """
 
         return {
             (attempt.provider_id, attempt.model)
             for attempt in record.attempts
-            if attempt.provider_id and attempt.model
+            if attempt.provider_id
+            and attempt.model
+            and not _is_transport_retry(attempt)
         }
+
+    @staticmethod
+    def substantive_attempts(record: TerminalAuditRecord) -> list[AuditAttempt]:
+        """Attempts that consumed a candidate: any verdict or policy denial."""
+
+        return [
+            attempt
+            for attempt in record.attempts
+            if not _is_transport_retry(attempt)
+        ]
+
+    @staticmethod
+    def transport_retry_attempts(record: TerminalAuditRecord) -> list[AuditAttempt]:
+        """Attempts that ended in a retryable transport/finalization failure."""
+
+        return [
+            attempt
+            for attempt in record.attempts
+            if _is_transport_retry(attempt)
+        ]
 
     def current_attempt(self, record: TerminalAuditRecord) -> AuditAttempt | None:
         """Return the latest launch attempt, if it is still in progress."""
@@ -398,13 +474,30 @@ class AuditorDispatchLane:
         branch_key: str,
         now: datetime | None = None,
     ) -> tuple[AuditDispatchPlan | None, NoCandidateReason | None]:
-        """Select a fresh candidate and build the attempt to persist."""
+        """Select a fresh candidate and build the attempt to persist.
 
-        attempts = len(record.attempts)
-        if attempts >= self.max_attempts:
+        Substantive attempts (any verdict, or a policy denial without
+        verdict) count against ``max_attempts``.  Transport/finalization
+        failures instead count against a separate bounded retry budget
+        ``max_transport_retries`` so a wedged transport cannot dispatch
+        forever, but a transient outage does not permanently consume the
+        sole verdict-capable candidate.
+        """
+
+        substantive_used = len(self.substantive_attempts(record))
+        transport_used = len(self.transport_retry_attempts(record))
+        if substantive_used >= self.max_attempts:
             return None, NoCandidateReason(
                 "all_attempted",
-                f"Audit reached the maximum of {self.max_attempts} attempts.",
+                f"Audit reached the maximum of {self.max_attempts} substantive attempts.",
+            )
+        if transport_used >= self.max_transport_retries:
+            return None, NoCandidateReason(
+                "all_attempted",
+                (
+                    f"Audit exhausted the infrastructure retry budget of "
+                    f"{self.max_transport_retries} transport attempt(s)."
+                ),
             )
         candidates, reason = self.selector.select_candidates(
             contributors, exclude=self.attempted_pairs(record)
@@ -424,7 +517,9 @@ class AuditorDispatchLane:
                 target_state=record.target_state,
                 evidence_fingerprint=record.evidence_fingerprint,
                 candidate=candidate,
-                rotation_count=attempts,
+                # Persisted rotation count reflects total attempts so audit
+                # history and health metrics keep chronological ordering.
+                rotation_count=len(record.attempts),
                 branch_key=branch_key,
                 created_at=created,
                 previous_state=record.previous_state,

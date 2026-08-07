@@ -503,6 +503,13 @@ class ServiceConfig:
     # routing to Needs Human when all independent candidates are exhausted.
     # Configurable via OOMPAH_AUDIT_MAX_ATTEMPTS. Default: 3.
     audit_max_attempts: int = 3
+    # Bounded retry budget for auditor transport/finalization failures.
+    # These retries do not consume an independent-candidate slot because no
+    # verdict was submitted; they exist so a transient transport outage or
+    # forced provider shutdown cannot strand a valid merged task in Needs
+    # Human/no_auditor while a bounded retry remains.
+    # Configurable via OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES. Default: 3.
+    audit_max_transport_retries: int = 3
     # Recovery grace (seconds) when a caller cannot supply a live-worker
     # registry. The service itself reclaims missing workers immediately and
     # lets phase-specific liveness deadlines supervise live workers.
@@ -944,6 +951,9 @@ class ServiceConfig:
             int(self.stalled_task_watchdog_interval_seconds), 60
         )
         self.audit_max_attempts = max(int(self.audit_max_attempts), 1)
+        self.audit_max_transport_retries = max(
+            int(self.audit_max_transport_retries), 0
+        )
         self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
         self.audit_priority = max(int(self.audit_priority), 1)
         self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
@@ -1180,6 +1190,9 @@ class ServiceConfig:
             max_retry_backoff_ms=_env_int("OOMPAH_MAX_RETRY_BACKOFF_MS", agent.get("max_retry_backoff_ms"), 300000),
             audit_max_attempts=_parse_positive_env_int(
                 "OOMPAH_AUDIT_MAX_ATTEMPTS", 3
+            ),
+            audit_max_transport_retries=_env_int(
+                "OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", None, 3
             ),
             audit_attempt_ttl=_parse_positive_env_int(
                 "OOMPAH_AUDIT_ATTEMPT_TTL", 3600
@@ -1511,6 +1524,8 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
 
     if config.audit_max_attempts <= 0:
         errors.append("audit_max_attempts must be positive")
+    if config.audit_max_transport_retries < 0:
+        errors.append("audit_max_transport_retries must be non-negative")
     if config.audit_attempt_ttl <= 0:
         errors.append("audit_attempt_ttl must be positive")
     if config.audit_lane_scan_limit < 0:

@@ -24,6 +24,17 @@ from oompah.terminal_audit import (
 DEFAULT_STALE_AFTER_SECONDS: int = 3600
 HEALTH_ALERT_PREFIX: str = "terminal_audit_health:"
 
+# Classifications that describe a retryable transport/finalization outage.
+# Kept aligned with :mod:`oompah.auditor_dispatch` so a scheduler that
+# retries these attempts does not appear to exhaust independent-candidate
+# capacity in dashboards.
+_TRANSPORT_FAILURE_CLASSIFICATIONS: frozenset[FailureClassification] = frozenset(
+    {
+        FailureClassification.INFRASTRUCTURE_ERROR,
+        FailureClassification.FINALIZATION_FAILURE,
+    }
+)
+
 
 def _parse_timestamp(value: Any) -> datetime | None:
     """Parse an ISO-8601 timestamp string into an aware UTC datetime."""
@@ -102,6 +113,11 @@ class TerminalAuditHealth:
     configuration_error_count: int = 0
     finalization_failure_count: int = 0
     retry_exhausted_count: int = 0
+    # Records whose latest attempt failed on transport/finalization and
+    # still have a bounded infrastructure retry remaining.  These are
+    # actionable operator signals about transport health but they must not
+    # be reported as substantive candidate exhaustion.
+    transport_retry_pending_count: int = 0
     quarantined_count: int = 0
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS
     scan_complete: bool = True
@@ -128,6 +144,7 @@ class TerminalAuditHealth:
             or self.stale_pending_count
             or self.stale_in_validation_count
             or self.retry_exhausted_count
+            or self.transport_retry_pending_count
             or self.quarantined_count
             or not self.scan_complete
         )
@@ -147,6 +164,7 @@ class TerminalAuditHealth:
             "finalization_failure_count": self.finalization_failure_count,
             "failure_count": self.failure_count,
             "retry_exhausted_count": self.retry_exhausted_count,
+            "transport_retry_pending_count": self.transport_retry_pending_count,
             "quarantined_count": self.quarantined_count,
             "stale_after_seconds": self.stale_after_seconds,
             "scan_complete": self.scan_complete,
@@ -175,6 +193,7 @@ class TerminalAuditHealth:
             "configuration_error_count",
             "finalization_failure_count",
             "retry_exhausted_count",
+            "transport_retry_pending_count",
             "quarantined_count",
             "stale_after_seconds",
             "scan_error_count",
@@ -264,15 +283,28 @@ def build_terminal_audit_health(
     now: datetime | None = None,
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS,
     max_attempts: int = 3,
+    max_transport_retries: int = 3,
     scan_complete: bool = True,
     scan_error_count: int = 0,
 ) -> TerminalAuditHealth:
-    """Build current health from a successful or partially successful scan."""
+    """Build current health from a successful or partially successful scan.
+
+    ``max_attempts`` bounds substantive candidate rotations (any verdict or
+    policy denial).  ``max_transport_retries`` bounds retryable transport
+    or finalization failures.  Substantive exhaustion (Needs Human without
+    a healthy independent candidate) is reported as ``retry_exhausted_count``
+    while a pending record still working through the infrastructure retry
+    budget is reported as ``transport_retry_pending_count`` so operator
+    dashboards can distinguish a transient transport outage from candidate
+    exhaustion.
+    """
 
     if stale_after_seconds <= 0:
         raise ValueError("stale_after_seconds must be positive")
     if max_attempts <= 0:
         raise ValueError("max_attempts must be positive")
+    if max_transport_retries < 0:
+        raise ValueError("max_transport_retries must be non-negative")
 
     current_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
 
@@ -286,6 +318,7 @@ def build_terminal_audit_health(
     configuration_errors = 0
     finalization_failures = 0
     exhausted = 0
+    transport_retry_pending = 0
     quarantined = 0
     oldest: datetime | None = None
     projects: dict[str, dict[str, int]] = {}
@@ -391,10 +424,32 @@ def build_terminal_audit_health(
         # IN_PROGRESS it has not yet failed, so the retry budget is not yet
         # consumed from an operator perspective.
         if record.request_state == RequestState.PENDING:
-            attempts_used = len(record.attempts)
-            if attempts_used >= max_attempts:
+            # Distinguish substantive candidate exhaustion from an active
+            # infrastructure retry.  A transport/finalization failure did not
+            # produce a verdict and does not consume a candidate slot, so we
+            # count only the substantive attempts against ``max_attempts``.
+            substantive_used = sum(
+                1
+                for attempt in record.attempts
+                if attempt.verdict is not None
+                or attempt.failure_classification
+                not in _TRANSPORT_FAILURE_CLASSIFICATIONS
+            )
+            transport_used = len(record.attempts) - substantive_used
+            substantive_exhausted = substantive_used >= max_attempts
+            transport_exhausted = transport_used >= max_transport_retries
+            if substantive_exhausted or transport_exhausted:
                 exhausted += 1
                 increment(observation.project_id, "retry_exhausted_count")
+            elif transport_used > 0:
+                # The audit still has a bounded transport-retry budget
+                # remaining; do not report substantive exhaustion, but keep
+                # a distinct signal so operator dashboards can tell a
+                # transient outage apart from a healthy backlog.
+                transport_retry_pending += 1
+                increment(
+                    observation.project_id, "transport_retry_pending_count"
+                )
 
             for attempt in record.attempts:
                 if attempt.request_state != RequestState.PENDING:
@@ -433,6 +488,7 @@ def build_terminal_audit_health(
         configuration_error_count=configuration_errors,
         finalization_failure_count=finalization_failures,
         retry_exhausted_count=exhausted,
+        transport_retry_pending_count=transport_retry_pending,
         quarantined_count=quarantined,
         stale_after_seconds=stale_after_seconds,
         scan_complete=scan_complete,
@@ -538,6 +594,22 @@ def terminal_audit_health_alerts(
             ),
             "Add a healthy independent auditor or route the affected records to operator review.",
             action_required=True,
+        )
+
+    if health.transport_retry_pending_count:
+        add(
+            "transport_retry_pending",
+            "warning",
+            "Terminal-audit transport recovery is in progress",
+            (
+                f"{health.transport_retry_pending_count} pending audit(s) are "
+                "retrying after a transport or finalization failure without "
+                "consuming an independent-candidate slot."
+            ),
+            (
+                "Restore the auditor transport; the scheduler will resume "
+                "automatically without a substantive verdict penalty."
+            ),
         )
 
     age = health.oldest_pending_age_seconds
