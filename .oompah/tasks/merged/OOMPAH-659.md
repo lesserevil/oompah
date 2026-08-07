@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T20:19:31.249701Z'
+updated_at: '2026-08-07T20:19:50.969745Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -214,7 +214,9 @@ oompah.terminal_audit:
     evidence_fingerprint: 30c09f3dce6d46574763a22aeaeab2353f843d3875c8feaf48628818d2f2c745
     audit_ids:
     - audit-ad8765d07973
-    kind: result
+    - audit-62a88de713f5
+    - audit-506a7bd5874f
+    kind: override
     applied: true
     retired_at: '2026-07-31T13:44:54.451398+00:00'
   - project_id: proj-14849f1b
@@ -239,6 +241,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T13:43:05.795787+00:00'
     applied_at: '2026-07-31T13:43:09.374692+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-659
     audit_id: audit-ad8765d07973
@@ -251,6 +254,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T13:44:54.451420+00:00'
     applied_at: '2026-07-31T13:44:59.524567+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-659
     audit_id: audit-506a7bd5874f
@@ -263,6 +267,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:35:54.684152+00:00'
     applied_at: '2026-08-07T14:36:02.215586+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-b89b95b0ef5d
@@ -281,7 +286,29 @@ oompah.terminal_audit:
       507534cf21032d8bd94ce6e9d5dcd4d1497b3a65; all Python 3.11/3.12/3.13 CI checks
       passed and the merge commit is an ancestor of current main.'
     created_at: '2026-08-07T20:19:26.894175+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain exact merged PR #620 provenance and eliminate stale non-terminal
+      state.'
+    marked_at: '2026-08-07T20:19:46.744218+00:00'
+    updated_at: '2026-08-07T20:19:46.744218+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain exact merged PR #620 provenance and eliminate stale non-terminal
+        state.'
+      recorded_at: '2026-08-07T20:19:46.744218+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -880,5 +907,22 @@ created: 2026-08-07 18:25
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 20:19
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #620 merged exact head cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50 as 507534cf21032d8bd94ce6e9d5dcd4d1497b3a65; all Python 3.11/3.12/3.13 CI checks passed and the merge commit is an ancestor of current main.
+---
+author: oompah
+created: 2026-08-07 20:19
+---
+Already merged by PR #620 with complete CI.
+---
+author: oompah
+created: 2026-08-07 20:19
+---
+Already merged by PR #620 with complete CI.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T13:33:18.878058Z'
+updated_at: '2026-08-07T20:19:40.803141Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -705,5 +705,10 @@ author: oompah
 created: 2026-08-07 13:33
 ---
 Live recurrence on PR #742: close webhook released reservation 018f at 12:52:21, then epic reconciliation trusted stale cached state=open and re-adopted the closed PR as reservation bd762 at 12:53:45, blocking OOMPAH-647 until owner replayed the close webhook at 13:27. Root cause: _find_open_epic_review uses cached review before authoritative forge lookup; _adopt_open_review_capacity can recreate a released review ID; live review-capacity reconciliation is not called. Required fix/tests within this task: a close/merge webhook must fence cache and ledger generations; cache-only data must never adopt capacity or regress a task to In Review; only a fresh successful live-open observation or authoritative reopened event may adopt; successful live empty result releases stale rows. Reproduce exact sequence close #742 + stale cached open #742 + epic reconciliation => no reservation, no In Review regression, no capacity block; verify a later authoritative reopen can re-adopt.
+---
+author: oompah
+created: 2026-08-07 20:19
+---
+Direct repair restacked onto current origin/main. Implemented project review-lifecycle generations, close/merge fences, cache pruning, stale poll CAS rejection, authoritative live-open ledger reconciliation, explicit reopen handling, and same-process standalone sweep coalescing. Focused review-capacity/standalone/webhook/cache/epic coverage is green: 755 passed. Terminal mutation scan and secret scan pass. Performing final review and branch commit/push now.
 ---
 <!-- COMMENTS:END -->
