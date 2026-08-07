@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-08-07T14:07:53.961745Z'
+updated_at: '2026-08-07T14:11:33.004171Z'
 work_branch: OOMPAH-653
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/619
@@ -294,12 +294,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-653
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 88e40d7a544a7bae36bcd649fcdfa6207ebbd522ba6fc5a946fc2268e5d5836e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-a317e3818f47
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 88e40d7a544a7bae36bcd649fcdfa6207ebbd522ba6fc5a946fc2268e5d5836e
+      created_at: '2026-08-07T14:11:31.512800+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T14:11:31.512800+00:00'
+      branch_key: OOMPAH-653
+      selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+      selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
     requested_by:
       version: 1
       identity: oompah
@@ -308,6 +323,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T14:07:49.826294+00:00'
     selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
     selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+    updated_at: '2026-08-07T14:11:31.512800+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cc7eaef92086
@@ -335,6 +351,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T13:29:03.824320+00:00'
     branch_key: OOMPAH-653
+  - version: 1
+    attempt_id: attempt-a317e3818f47
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 88e40d7a544a7bae36bcd649fcdfa6207ebbd522ba6fc5a946fc2268e5d5836e
+    created_at: '2026-08-07T14:11:31.512800+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T14:11:31.512800+00:00'
+    branch_key: OOMPAH-653
+    selected_ref: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+    selected_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
 ---
 ## Summary
 
