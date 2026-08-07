@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-883
 type: task
-status: In Progress
+status: Archived
 priority: null
 title: Break epic-rebase and child-integration ordering deadlocks
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:02:23.163009Z'
-updated_at: '2026-08-07T18:24:57.886278Z'
+updated_at: '2026-08-07T21:10:47.206367Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,6 +73,28 @@ oompah.work_contributors:
     source_branch: OOMPAH-883
     source_sha: a57b76354493a38e9147c255d9cbd4215e7bbec6
     completed_at: '2026-08-07T12:09:26.224228+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0b568a54c40c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-883
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac451a10c798da9973a01f052752d86e63c4f5ffa0dc9cc69338c9ecb2b85100
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Duplicate of completed OOMPAH-879; no distinct implementation or revision
+      exists.
+    created_at: '2026-08-07T21:10:43.258102+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -118,5 +140,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 32s
 - Log: OOMPAH-883__20260807T120809Z.jsonl
+---
+author: oompah
+created: 2026-08-07 21:10
+---
+Read-only evidence audit confirms this task is a duplicate of completed OOMPAH-879. It has no implementation branch, ref, worktree, submitted head, or PR and requires no distinct code. Closing as Archived duplicate rather than carrying a false non-terminal owner.
 ---
 <!-- COMMENTS:END -->
