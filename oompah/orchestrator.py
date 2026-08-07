@@ -168,12 +168,14 @@ from oompah.repo_hygiene import (
 )
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
     OverrideRecord,
     RequestState,
     TargetState,
+    TerminalAuditRecord,
     Verdict,
     build_revision_candidate_list,
     compute_issue_evidence_fingerprint,
@@ -6954,6 +6956,11 @@ class Orchestrator:
                 or existing.evidence_fingerprint != record.evidence_fingerprint
             ):
                 return document
+            if existing.selected_sha is not None and (
+                existing.selected_ref != record.selected_ref
+                or existing.selected_sha != record.selected_sha
+            ):
+                return document
             chain = [
                 record if existing.audit_id == record.audit_id else existing
                 for existing in document.pending_chain
@@ -7061,16 +7068,19 @@ class Orchestrator:
         issue: Issue,
         record,
         reason: str,
+        *,
+        infrastructure_exhausted: bool | None = None,
     ) -> None:
         """Route exhausted or unconfigured audits to actionable Needs Human."""
 
         from oompah.terminal_transition_coordinator import AuditResult
 
-        infrastructure_exhausted = bool(record.attempts) and all(
-            attempt.failure_classification
-            == FailureClassification.INFRASTRUCTURE_ERROR
-            for attempt in record.attempts
-        )
+        if infrastructure_exhausted is None:
+            infrastructure_exhausted = bool(record.attempts) and all(
+                attempt.failure_classification
+                == FailureClassification.INFRASTRUCTURE_ERROR
+                for attempt in record.attempts
+            )
         if infrastructure_exhausted:
             message = (
                 "Independent auditor launches exhausted their retry budget because "
@@ -7234,6 +7244,86 @@ class Orchestrator:
 
                 if self._audit_branch_busy(issue, branch_key):
                     continue
+                if len(record.attempts) >= lane.max_attempts:
+                    latest_attempt = record.attempts[-1] if record.attempts else None
+                    binding_exhausted = bool(
+                        record.selected_sha is None
+                        and latest_attempt is not None
+                        and latest_attempt.provider_id is None
+                        and latest_attempt.model is None
+                        and latest_attempt.failure_classification
+                        == FailureClassification.INFRASTRUCTURE_ERROR
+                        and str(latest_attempt.failure_reason or "").startswith(
+                            "terminal audit revision binding failed before launch"
+                        )
+                    )
+                    await self._route_no_auditor(
+                        issue,
+                        record,
+                        f"Audit reached the maximum of {lane.max_attempts} attempts.",
+                        infrastructure_exhausted=True if binding_exhausted else None,
+                    )
+                    continue
+                try:
+                    bound_record = await asyncio.get_running_loop().run_in_executor(
+                        self._tick_pool,
+                        self._bind_audit_record_revision,
+                        issue,
+                        record,
+                    )
+                except Exception as exc:  # noqa: BLE001 - bounded infrastructure retry
+                    retry_after = timestamp(
+                        datetime.now(timezone.utc)
+                        + timedelta(
+                            milliseconds=self._backoff_delay(len(record.attempts) + 1)
+                        )
+                    )
+                    failed = lane.record_prelaunch_failure(
+                        record,
+                        reason=(
+                            "terminal audit revision binding failed before launch: "
+                            f"{type(exc).__name__}"
+                        ),
+                        retry_after=retry_after,
+                    )
+                    if failed is None:
+                        await self._route_no_auditor(
+                            issue,
+                            record,
+                            f"Audit reached the maximum of {lane.max_attempts} attempts.",
+                        )
+                        continue
+                    failed_attempt = failed.attempts[-1]
+                    failure_persisted = await asyncio.get_running_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda r=failed, a=failed_attempt: self._audit_update_record(
+                            store,
+                            issue,
+                            r,
+                            append_attempt=a,
+                        ),
+                    )
+                    if failure_persisted:
+                        logger.warning(
+                            "Terminal audit revision binding failed for %s; "
+                            "durable infrastructure attempt %s/%s recorded",
+                            issue.identifier,
+                            len(failed.attempts),
+                            lane.max_attempts,
+                        )
+                    continue
+                if bound_record != record:
+                    binding_persisted = await asyncio.get_running_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda r=bound_record: self._audit_update_record(
+                            store,
+                            issue,
+                            r,
+                        ),
+                    )
+                    if not binding_persisted:
+                        continue
+                    record = bound_record
                 metadata = await asyncio.get_running_loop().run_in_executor(
                     self._tick_pool, self._tracker_for_issue(issue).get_metadata, issue.identifier
                 )
@@ -17596,17 +17686,9 @@ class Orchestrator:
     ) -> str:
         """Create a detached workspace for the exact auditable revision.
 
-        Implementation workspace selection intentionally follows parent-epic
-        and work-branch metadata.  Auditors must not: terminal branches may
-        already be deleted, and an audit is a read-only view rather than a new
-        implementation attempt.  Prefer persisted immutable revisions, then a
-        still-published source branch.  A Merged-to-Archived retention audit
-        may safely fall back to the fetched default-branch tip because the
-        audited work is already part of that branch.
-
-        This method uses the unified revision candidate resolver to ensure
-        fingerprint/workspace parity: both must use the same candidate selection
-        logic and ordered precedence.
+        Candidate selection happened before the attempt was persisted. The
+        detached, read-only launch accepts only that immutable binding and
+        never resolves a mutable branch again.
         """
 
         if not issue.project_id:
@@ -17614,66 +17696,113 @@ class Orchestrator:
             self.workspace_mgr.run_before_run(workspace.path)
             return workspace.path
 
-        project = self.project_store.get(issue.project_id)
-        if project is None:
+        if self.project_store.get(issue.project_id) is None:
             raise ProjectError(f"Unknown project: {issue.project_id}")
-
-        # Build ordered revision candidates using the unified resolver.
-        # This ensures consistency with fingerprinting logic.
-        candidates = build_revision_candidate_list(
-            issue,
-            issue.project_id,
-            target_state=plan.target_state,
-            previous_state=plan.previous_state,
-        )
-
-        # Collect all revisions to try, in order.
-        revisions: list[str] = list(candidates.iter_for_workspace())
-
-        # If default fallback is allowed and no immutable SHAs were available,
-        # add the default branch as final fallback. Default fallback is only
-        # for legacy records that never persisted a source SHA.
-        previous_status = canonicalize_status(plan.previous_state or "")
-        default_fallback_allowed = (
-            plan.target_state == TargetState.MERGED
-            or (
-                plan.target_state == TargetState.ARCHIVED
-                and previous_status in {MERGED, ARCHIVED}
+        try:
+            binding = AuditRevisionBinding(
+                plan.selected_ref or "",
+                plan.selected_sha or "",
             )
-        )
-        if default_fallback_allowed and not candidates.immutable_shas_available:
-            default_ref = f"origin/{project.default_branch}"
-            if default_ref not in revisions:
-                revisions.append(default_ref)
+        except ValueError as exc:
+            raise ProjectError(
+                "terminal audit attempt has no persisted immutable revision binding"
+            ) from exc
 
         workspace_identifier = self._audit_workspace_identifier(
             issue.identifier,
             plan.attempt_id,
         )
+        workspace, resolved_sha = self.project_store.create_detached_audit_worktree(
+            issue.project_id,
+            workspace_identifier,
+            binding.selected_sha,
+        )
+        if resolved_sha.lower() != binding.selected_sha:
+            raise ProjectError(
+                "terminal audit workspace resolved a different commit than its "
+                "persisted revision binding"
+            )
+        logger.info(
+            "Auditor workspace bound issue=%s attempt=%s ref=%s sha=%s",
+            issue.identifier,
+            plan.attempt_id,
+            binding.selected_ref,
+            binding.selected_sha,
+        )
+        return workspace
+
+    def _bind_audit_record_revision(
+        self,
+        issue: Issue,
+        record: TerminalAuditRecord,
+    ) -> TerminalAuditRecord:
+        """Resolve and freeze one exact repository revision for ``record``."""
+
+        issue_project_id = str(issue.project_id or "")
+        issue_task_id = str(issue.identifier or "")
+        if (
+            not issue_project_id
+            or record.project_id != issue_project_id
+            or record.task_id != issue_task_id
+        ):
+            raise ProjectError(
+                "terminal audit revision binding scope does not match its issue"
+            )
+        if record.selected_ref is not None or record.selected_sha is not None:
+            binding = AuditRevisionBinding(
+                record.selected_ref or "",
+                record.selected_sha or "",
+            )
+            return replace(
+                record,
+                selected_ref=binding.selected_ref,
+                selected_sha=binding.selected_sha,
+            )
+        current_fingerprint = compute_issue_evidence_fingerprint(
+            issue,
+            issue_project_id,
+        )
+        if current_fingerprint != record.evidence_fingerprint:
+            raise ProjectError(
+                "terminal audit revision binding evidence fingerprint is stale"
+            )
+        project = self.project_store.get(issue_project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {issue_project_id}")
+
+        try:
+            candidates = build_revision_candidate_list(
+                issue,
+                issue_project_id,
+                target_state=record.target_state,
+                previous_state=record.previous_state,
+                default_branch=project.default_branch,
+            )
+        except ValueError as exc:
+            raise ProjectError(str(exc)) from exc
+
         unavailable: list[str] = []
-        for revision in revisions:
+        for candidate in candidates.candidates:
             try:
-                workspace, resolved_sha = (
-                    self.project_store.create_detached_audit_worktree(
-                        issue.project_id,
-                        workspace_identifier,
-                        revision,
-                    )
+                selected_sha = self.project_store.resolve_audit_revision(
+                    issue_project_id,
+                    candidate.revision,
                 )
-                logger.info(
-                    "Auditor workspace resolved issue=%s attempt=%s revision=%s sha=%s",
-                    issue.identifier,
-                    plan.attempt_id,
-                    revision,
-                    resolved_sha,
-                )
-                return workspace
             except ProjectError as exc:
                 if "revision is unavailable" not in str(exc):
                     raise
-                unavailable.append(revision)
+                unavailable.append(candidate.revision)
+                if candidates.immutable_shas_available:
+                    break
+                continue
+            binding = AuditRevisionBinding(candidate.revision, selected_sha)
+            return replace(
+                record,
+                selected_ref=binding.selected_ref,
+                selected_sha=binding.selected_sha,
+            )
 
-        tried = ", ".join(unavailable) if unavailable else "no persisted revision"
+        tried = ", ".join(unavailable) if unavailable else "no permitted revision"
         raise ProjectError(
             "terminal audit evidence has no safely resolvable revision "
             f"for {issue.identifier} (tried: {tried})"

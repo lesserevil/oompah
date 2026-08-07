@@ -7,12 +7,11 @@ import pytest
 
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
     RequestState,
-    RevisionCandidate,
-    RevisionCandidateList,
     TargetState,
     TerminalAuditRecord,
     Verdict,
@@ -114,6 +113,35 @@ class TestSerialization:
         restored = TerminalAuditRecord.from_dict(data)
 
         assert restored.attempts == []
+
+    def test_revision_binding_round_trips_and_legacy_record_remains_readable(
+        self,
+    ) -> None:
+        sha = "c" * 40
+        original = replace(
+            _record(),
+            selected_ref="origin/epic-OOMPAH-768",
+            selected_sha=sha,
+            attempts=[
+                replace(
+                    _record().attempts[0],
+                    selected_ref="origin/epic-OOMPAH-768",
+                    selected_sha=sha,
+                )
+            ],
+        )
+
+        assert TerminalAuditRecord.from_dict(original.to_dict()) == original
+        legacy = _record().to_dict()
+        assert TerminalAuditRecord.from_dict(legacy).selected_sha is None
+
+    def test_revision_binding_is_all_or_nothing_and_immutable_ref_matches_sha(
+        self,
+    ) -> None:
+        with pytest.raises(ValueError, match="supplied together"):
+            replace(_record(), selected_ref="origin/main")
+        with pytest.raises(ValueError, match="must equal"):
+            AuditRevisionBinding("a" * 40, "b" * 40)
 
     @pytest.mark.parametrize(
         "record_type, payload, missing",
@@ -364,6 +392,35 @@ class TestEpicBranchResolution:
         )
         assert fp == fp_expected
 
+    def test_ordinary_head_sha_preserves_legacy_branch_and_sha_shape(self) -> None:
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="Description",
+            work_branch="task-work",
+            integration=Mock(
+                state="ready",
+                task_branch="task-work",
+                head_sha="a" * 40,
+                integrated_sha=None,
+                base_branch="main",
+                base_sha="b" * 40,
+            ),
+        )
+
+        actual = compute_issue_evidence_fingerprint(issue, "proj-1")
+
+        assert actual == compute_evidence_fingerprint(
+            requirements_text="Description",
+            project_id="proj-1",
+            task_id="TASK-1",
+            source_branch="task-work",
+            source_sha="a" * 40,
+            target_branch="main",
+            target_sha="b" * 40,
+        )
+
     def test_compute_fingerprint_falls_back_through_candidates(self) -> None:
         """Branch resolution tries candidates in order: source_branch, work_branch, integration, branch_name, epic."""
         issue = Issue(
@@ -387,7 +444,7 @@ class TestEpicBranchResolution:
 
 
 class TestRevisionCandidateList:
-    """Tests for unified revision candidate resolver (OOMPAH-867)."""
+    """Tests for immutable terminal-audit revision authority."""
 
     def test_standalone_epic_without_work_branch_resolves_epic_branch(self) -> None:
         """Standalone epic with no work_branch should resolve epic-EPIC-42."""
@@ -401,11 +458,8 @@ class TestRevisionCandidateList:
         )
         
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
-        # Should have epic-EPIC-42 as a candidate
-        revisions = list(candidates.iter_for_workspace())
-        assert "origin/epic-EPIC-42" in revisions
-        assert candidates.first_for_fingerprint() == "origin/epic-EPIC-42"
+
+        assert list(candidates.iter_for_workspace()) == ["origin/epic-EPIC-42"]
 
     def test_nested_epic_tries_parent_branch_first(self) -> None:
         """Nested epic should try parent epic branch first, then own branch."""
@@ -420,12 +474,9 @@ class TestRevisionCandidateList:
         )
         
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
+
         revisions = list(candidates.iter_for_workspace())
-        # Parent branch should come first
-        assert revisions[0] == "origin/epic-EPIC-42"
-        # Child's own branch should be available as fallback
-        assert "origin/epic-CHILD-1" in revisions
+        assert revisions == ["origin/epic-EPIC-42", "origin/epic-CHILD-1"]
 
     def test_immutable_sha_takes_precedence(self) -> None:
         """When immutable SHA is present, it takes precedence over branches."""
@@ -437,13 +488,13 @@ class TestRevisionCandidateList:
             work_branch=None,
             issue_type="epic",
         )
-        # Dynamically add source_sha since Issue doesn't have it as a field
         issue.source_sha = "abc123def456abc123def456abc123def456abc1"
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
-        # SHA should be first candidate
-        assert candidates.first_for_fingerprint() == "abc123def456abc123def456abc123def456abc1"
+
+        assert list(candidates.iter_for_workspace()) == [
+            "abc123def456abc123def456abc123def456abc1"
+        ]
         assert candidates.immutable_shas_available is True
 
     def test_immutable_sha_prevents_branch_fallback(self) -> None:
@@ -457,13 +508,11 @@ class TestRevisionCandidateList:
             issue_type="epic",
         )
         issue.source_sha = "abc123def456abc123def456abc123def456abc1"
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
-        # Only SHA should be yielded, not branches
+
         revisions = list(candidates.iter_for_workspace())
-        assert len(revisions) == 1
-        assert revisions[0] == "abc123def456abc123def456abc123def456abc1"
+        assert revisions == ["abc123def456abc123def456abc123def456abc1"]
 
     def test_explicit_work_branch_takes_precedence_over_epic_branch(self) -> None:
         """Explicit work_branch should be tried first, with epic branch as fallback."""
@@ -477,14 +526,12 @@ class TestRevisionCandidateList:
         )
         
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
+
         revisions = list(candidates.iter_for_workspace())
-        # Explicit work_branch should come first
-        assert revisions[0] == "origin/custom-epic-work"
-        # epic-EPIC-42 should also be available as a fallback
-        assert "origin/epic-EPIC-42" in revisions
-        # And fingerprint should use the explicit branch (first candidate)
-        assert candidates.first_for_fingerprint() == "origin/custom-epic-work"
+        assert revisions == [
+            "origin/custom-epic-work",
+            "origin/epic-EPIC-42",
+        ]
 
     def test_non_epic_task_does_not_get_epic_branches(self) -> None:
         """Regular tasks should not try to resolve epic branches."""
@@ -497,9 +544,8 @@ class TestRevisionCandidateList:
         )
         
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
+
         revisions = list(candidates.iter_for_workspace())
-        # Should not try epic-TASK-1
         assert all(not rev.endswith("epic-TASK-1") for rev in revisions)
 
     def test_default_branch_not_added_without_permission(self) -> None:
@@ -513,19 +559,18 @@ class TestRevisionCandidateList:
             work_branch=None,
         )
         
-        # DONE audits don't allow default fallback
         candidates = build_revision_candidate_list(
-            issue, "proj-1", target_state=TargetState.DONE, previous_state="Open"
+            issue,
+            "proj-1",
+            target_state=TargetState.DONE,
+            previous_state="Open",
+            default_branch="main",
         )
-        
-        # The resolver doesn't add default itself; caller must add it if needed
-        # This just verifies it's not included by the resolver
-        revisions = list(candidates.iter_for_workspace())
-        # Should only have epic branch, not default
-        assert all("origin/main" not in rev for rev in revisions)
 
-    def test_fingerprint_candidate_uses_first_revision(self) -> None:
-        """Fingerprinting should use the first candidate only."""
+        revisions = list(candidates.iter_for_workspace())
+        assert "origin/main" not in revisions
+
+    def test_merged_default_branch_is_last_candidate(self) -> None:
         issue = Issue(
             id="EPIC-42",
             identifier="EPIC-42",
@@ -534,31 +579,28 @@ class TestRevisionCandidateList:
             work_branch="explicit-work",
             issue_type="epic",
         )
-        issue.source_branch = "explicit-source"
-        
-        candidates = build_revision_candidate_list(issue, "proj-1")
-        
-        # Fingerprint should use first candidate (source_branch comes before work_branch)
-        fp_candidate = candidates.first_for_fingerprint()
-        assert fp_candidate == "origin/explicit-source"
 
-    def test_multiple_immutable_shas_in_order(self) -> None:
-        """Multiple immutable SHAs should be tried in order."""
+        candidates = build_revision_candidate_list(
+            issue,
+            "proj-1",
+            target_state=TargetState.MERGED,
+            default_branch="main",
+        )
+
+        assert list(candidates.iter_for_workspace())[-1] == "origin/main"
+
+    def test_invalid_recorded_immutable_revision_fails_closed(self) -> None:
         issue = Issue(
             id="TASK-1",
             identifier="TASK-1",
             title="Task",
             description="Description",
+            work_branch="mutable-fallback",
         )
-        issue.source_sha = "aaa123aaa123aaa123aaa123aaa123aaa123aaa1"
-        issue.target_sha = "bbb456bbb456bbb456bbb456bbb456bbb456bbb4"
-        
-        candidates = build_revision_candidate_list(issue, "proj-1")
-        
-        revisions = list(candidates.iter_for_workspace())
-        # Both SHAs should be present in order
-        assert revisions[0] == "aaa123aaa123aaa123aaa123aaa123aaa123aaa1"
-        assert "bbb456bbb456bbb456bbb456bbb456bbb456bbb4" in revisions
+        issue.source_sha = "abbreviated"
+
+        with pytest.raises(ValueError, match="full Git object ID"):
+            build_revision_candidate_list(issue, "proj-1")
 
     def test_integration_record_provides_immutable_sha(self) -> None:
         """Integration record integrated_sha provides immutable precedence."""
@@ -568,8 +610,6 @@ class TestRevisionCandidateList:
             title="Task",
             description="Description",
         )
-        
-        # Use valid hex SHA-1 values (40 hex chars)
         issue.integration = Mock(
             integrated_sha="abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1",
             head_sha="def2def2def2def2def2def2def2def2def2def2",
@@ -578,10 +618,21 @@ class TestRevisionCandidateList:
             task_branch="my-task",
             state="integrated",
         )
-        
+
         candidates = build_revision_candidate_list(issue, "proj-1")
-        
-        revisions = list(candidates.iter_for_workspace())
-        # Integration SHAs should be tried in the expected order
-        assert "abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1" in revisions
-        assert "def2def2def2def2def2def2def2def2def2def2" in revisions
+
+        assert list(candidates.iter_for_workspace()) == [
+            "abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1"
+        ]
+
+    def test_integrated_record_without_integrated_sha_fails_closed(self) -> None:
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            work_branch="mutable-fallback",
+            integration=Mock(state="integrated", integrated_sha=None),
+        )
+
+        with pytest.raises(ValueError, match="missing its immutable revision"):
+            build_revision_candidate_list(issue, "proj-1")

@@ -103,6 +103,37 @@ def test_plan_persist_and_finish_preserves_launch_identity():
     assert ended.attempts[0].failure_reason == "rate limit"
 
 
+def test_plan_and_retry_preserve_immutable_revision_binding():
+    now = datetime(2026, 7, 29, tzinfo=timezone.utc)
+    lane = _lane(
+        [Candidate("provider-a", "model-a"), Candidate("provider-b", "model-b")],
+        now=now,
+        attempt_id="attempt-1",
+    )
+    record = replace(
+        _record(),
+        selected_ref="origin/epic-OOMPAH-768",
+        selected_sha="a" * 40,
+    )
+
+    plan, _ = lane.plan(record, [], branch_key="epic:OOMPAH-768")
+    assert plan is not None
+    persisted = lane.persist_plan(record, plan)
+    assert persisted.attempts[0].selected_ref == record.selected_ref
+    assert persisted.attempts[0].selected_sha == record.selected_sha
+
+    failed = lane.finish_attempt(persisted, plan.attempt_id, reason="transport")
+    retry_lane = _lane(
+        [Candidate("provider-a", "model-a"), Candidate("provider-b", "model-b")],
+        now=now,
+        attempt_id="attempt-2",
+    )
+    retry, _ = retry_lane.plan(failed, [], branch_key="epic:OOMPAH-768")
+    assert retry is not None
+    assert retry.selected_ref == record.selected_ref
+    assert retry.selected_sha == record.selected_sha
+
+
 def test_rotation_excludes_rate_limited_candidate_and_selects_next():
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)
     candidates = [Candidate("provider-a", "model-a"), Candidate("provider-b", "model-b")]

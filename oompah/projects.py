@@ -2252,33 +2252,7 @@ class ProjectStore:
             requested = str(revision or "").strip()
             if not requested:
                 raise ProjectError("terminal audit requires a revision")
-
-            try:
-                self._run_network_git(
-                    project,
-                    ["git", "fetch", "origin"],
-                    cwd=project.repo_path,
-                    timeout=60,
-                )
-                resolved = subprocess.run(
-                    ["git", "rev-parse", "--verify", f"{requested}^{{commit}}"],
-                    cwd=project.repo_path,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=10,
-                )
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                raise ProjectError(
-                    f"terminal audit revision lookup failed: {exc}"
-                ) from exc
-            resolved_sha = resolved.stdout.strip()
-            if resolved.returncode != 0 or not re.fullmatch(
-                r"[0-9a-fA-F]{40,64}", resolved_sha
-            ):
-                raise ProjectError(
-                    f"terminal audit revision is unavailable: {requested}"
-                )
+            resolved_sha = self._resolve_audit_revision_locked(project, requested)
 
             wt_path = self.worktree_path_for(project_id, workspace_identifier)
             if os.path.isdir(wt_path):
@@ -2331,6 +2305,62 @@ class ProjectStore:
                 resolved_sha,
             )
             return wt_path, resolved_sha
+
+    def resolve_audit_revision(self, project_id: str, revision: str) -> str:
+        """Resolve one audit candidate to a full object ID without a worktree.
+
+        The terminal-audit scheduler calls this once before it persists an
+        attempt. Subsequent attempts use only the returned object ID, so a
+        branch update cannot change the evidence being audited after restart.
+        """
+
+        with self.project_write_lock(project_id):
+            project = self._projects.get(project_id)
+            if not project:
+                raise ProjectError(f"Unknown project: {project_id}")
+            requested = str(revision or "").strip()
+            if not requested:
+                raise ProjectError("terminal audit requires a revision")
+            return self._resolve_audit_revision_locked(project, requested)
+
+    def _resolve_audit_revision_locked(
+        self,
+        project: Project,
+        requested: str,
+    ) -> str:
+        """Resolve ``requested`` while the caller owns the project write lock."""
+
+        try:
+            fetched = self._run_network_git(
+                project,
+                ["git", "fetch", "origin"],
+                cwd=project.repo_path,
+                timeout=60,
+            )
+            if requested.startswith("origin/") and fetched.returncode != 0:
+                raise ProjectError(
+                    "terminal audit revision lookup failed: remote fetch failed"
+                )
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{requested}^{{commit}}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except ProjectError:
+            raise
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(f"terminal audit revision lookup failed: {exc}") from exc
+        resolved_sha = resolved.stdout.strip().lower()
+        if resolved.returncode != 0 or not re.fullmatch(
+            r"[0-9a-f]{40,64}", resolved_sha
+        ):
+            raise ProjectError(
+                f"terminal audit revision is unavailable: {requested}"
+            )
+        return resolved_sha
 
     def epic_worktree_path_for(self, project_id: str, epic_identifier: str) -> str:
         """Path used for the shared epic worktree under epic_strategy='shared'.

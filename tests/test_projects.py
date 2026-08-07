@@ -62,6 +62,30 @@ def _store_with_one_project(tmp_path):
 
 
 class TestDetachedAuditWorktree:
+    def test_resolves_revision_without_creating_a_worktree(self, tmp_path):
+        store, repo = _store_with_one_project(tmp_path)
+        sha = "A" * 40
+        fetch = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        resolved = subprocess.CompletedProcess([], 0, stdout=f"{sha}\n", stderr="")
+
+        with (
+            patch("oompah.projects.subprocess.run", side_effect=[fetch, resolved]),
+            patch("oompah.projects._git_worktree_add_with_recovery") as add,
+        ):
+            actual = store.resolve_audit_revision("proj-sync1", "origin/main")
+
+        assert actual == sha.lower()
+        add.assert_not_called()
+        assert repo.exists()
+
+    def test_branch_resolution_fails_closed_when_remote_fetch_fails(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        failed_fetch = subprocess.CompletedProcess([], 1, stdout="", stderr="offline")
+
+        with patch("oompah.projects.subprocess.run", return_value=failed_fetch):
+            with pytest.raises(ProjectError, match="remote fetch failed"):
+                store.resolve_audit_revision("proj-sync1", "origin/main")
+
     def test_creates_branchless_worktree_at_resolved_commit(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
         sha = "a" * 40
