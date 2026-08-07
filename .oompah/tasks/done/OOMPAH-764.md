@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T14:02:12.352078Z'
+updated_at: '2026-08-07T14:02:20.764129Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/743
@@ -84,7 +84,7 @@ oompah.terminal_audit:
       and prior validation/audit evidence passed. Restore audited Done after deploying
       OOMPAH-871 terminal-provenance fencing.'
     created_at: '2026-08-07T14:02:05.032604+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-764
@@ -107,6 +107,18 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-07T12:56:34.085325+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    evidence_fingerprint: f3f89f5eae500c40c1c9c48fa529db5bece3a3475378ff00c8d60e68d0d58b4a
+    audit_ids:
+    - audit-a70c8beeb684
+    - audit-017862c7aec9
+    - audit-a69fc1614a16
+    - audit-0f26598f4399
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T14:02:17.515075+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -202,7 +214,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-764
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -216,6 +228,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:34:38.424350+00:00'
     selected_ref: origin/epic-OOMPAH-764
     selected_sha: 73f5aeb26fc91f62a0bd9ac5ba544582b761f811
+    updated_at: '2026-08-07T14:02:17.515035+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
@@ -368,5 +381,12 @@ created: 2026-08-07 13:58
 **Evidence result:** `rebase_resolved`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 14:02
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: PR #743 is closed; prior PR #742 was also closed because the nested epic patch is already contained in epic-OOMPAH-763. All canonical children are terminal and prior validation/audit evidence passed. Restore audited Done after deploying OOMPAH-871 terminal-provenance fencing.
 ---
 <!-- COMMENTS:END -->
