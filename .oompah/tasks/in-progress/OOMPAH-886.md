@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-886
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Add atomic idempotent create-once tracker operations
 parent: OOMPAH-763
@@ -12,8 +12,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T12:58:17.827441Z'
-work_branch: null
+updated_at: '2026-08-07T17:51:43.196901Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
 review_number: null
@@ -43,7 +43,26 @@ oompah.duplicate_screening:
     a TrackerProtocol/native tracker atomic create-once idempotency contract for ambiguous
     create responses. OOMPAH-879 intentionally supplies only the immediate fail-closed
     reservation; OOMPAH-886 is the distinct liveness completion.'
-oompah.agent_run_id: 3c8bd66f-68ab-4674-90f8-6bf7e87745f2
+oompah.agent_run_id: ed5c3526-df0c-4669-ac41-00ba51d22f01
+oompah.work_contributors:
+  runs:
+  - run_id: 58a7d3726e5c4310b95d2456e1ceb9d2--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-886
+    source_sha: null
+    completed_at: ''
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-886
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763--task-OOMPAH-886
+  base_branch: epic-OOMPAH-763
+  base_sha: a85a36baf7b3ebcb45be27823755b5694a790a49
+  updated_at: '2026-08-07T17:51:36.300695+00:00'
 ---
 ## Summary
 
@@ -80,5 +99,15 @@ author: oompah
 created: 2026-08-07 12:51
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877, OOMPAH-878, OOMPAH-879, OOMPAH-880, OOMPAH-881, OOMPAH-882, OOMPAH-884, OOMPAH-885, OOMPAH-887. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-07 17:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-07 17:51
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

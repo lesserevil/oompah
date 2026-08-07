@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-899
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make lifecycle startup timeout safe for late listeners
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T17:49:51.323314Z'
+updated_at: '2026-08-07T17:51:33.900424Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f0851d52-6576-472e-9059-fb5f851965d8
+oompah.agent_run_id: fd3dd034-0536-4be9-b23f-496bca110fcb
 oompah.work_contributors:
   runs:
   - run_id: 7156b2cad40b444fa758569c7dbf71a8--contributor-4256b9f40773
@@ -73,6 +73,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-899
     source_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     completed_at: '2026-08-07T17:49:38.227057+00:00'
+  - run_id: e5a1eba653ff4e3e9c3c0ad0111d2b4f--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-899
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1983
@@ -143,5 +151,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 59s
 - Log: OOMPAH-899__20260807T174851Z.jsonl
+---
+author: oompah
+created: 2026-08-07 17:51
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
