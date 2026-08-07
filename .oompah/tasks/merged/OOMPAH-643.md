@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-08-07T20:09:40.543620Z'
+updated_at: '2026-08-07T20:10:03.942358Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: ''
@@ -215,6 +215,28 @@ oompah.terminal_audit:
       retires the redundant post-merge audit.'
     created_at: '2026-08-07T20:09:25.669713+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain terminal provenance for merged PR #745, accepted head 1ba8872eef1517e4ec0774f21e8a8a6558d22097,
+      with all required CI checks successful.'
+    marked_at: '2026-08-07T20:10:02.251595+00:00'
+    updated_at: '2026-08-07T20:10:02.251595+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain terminal provenance for merged PR #745, accepted head 1ba8872eef1517e4ec0774f21e8a8a6558d22097,
+        with all required CI checks successful.'
+      recorded_at: '2026-08-07T20:10:02.251595+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -963,5 +985,10 @@ created: 2026-08-07 20:09
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: PR #745 merged exact accepted head 1ba8872eef1517e4ec0774f21e8a8a6558d22097 into main after all Python 3.11, 3.12, and 3.13 CI jobs passed; owner override retires the redundant post-merge audit.
+---
+author: oompah
+created: 2026-08-07 20:09
+---
+Merged by PR #745 after exact-head CI passed on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
