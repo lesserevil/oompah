@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T22:52:05.402322Z'
+updated_at: '2026-08-07T22:58:44.968488Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ created: 2026-08-07 22:52
 Integration could not verify `OOMPAH-887`: could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-887 is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head d68fedf117116e31b62c1cf6d92c451ed248b015; refusing to reset it
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-07 22:58
+---
+Independent exact-head review blocker fixed at replacement exact head 6324701418ca2d3a18b5576286dfb28c9d979445 on canonical branch OOMPAH-887. The open-child-review cache fence now runs after landing-generation disposition revalidation, so a concurrent webhook publication that does not move Git refs still revokes promotion before the final generation CAS. Deterministic regression publishes a separate OOMPAH-779 review inside the first generation-current probe and proves the child remains Done with no final promotion attempt. Evidence: brokered full affected modules tests/test_epic_strategy.py and tests/test_merged_labels_scope.py: 273 passed in 8.34s; py_compile, git diff --check, and critical Ruff E9/F63/F7 passed; make check-secrets passed. Worktree is clean and HEAD equals origin/OOMPAH-887.
 ---
 <!-- COMMENTS:END -->
