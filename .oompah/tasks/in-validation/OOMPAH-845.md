@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-07T08:34:15.381264Z'
+updated_at: '2026-08-07T08:34:21.758378Z'
 work_branch: OOMPAH-845
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/734
@@ -197,12 +197,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-845
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e2b057b80f0d
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+      created_at: '2026-08-07T08:34:18.160927+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-07T08:34:18.160927+00:00'
+      branch_key: OOMPAH-845
+      selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+      selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
     requested_by:
       version: 1
       identity: yolo-merge
@@ -211,6 +226,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T06:04:20.178475+00:00'
     selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
     selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+    updated_at: '2026-08-07T08:34:18.160927+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2753f2ad908d
@@ -227,6 +243,21 @@ oompah.terminal_audit:
     branch_key: OOMPAH-845
     ended_at: '2026-08-07T07:23:17.995858+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-e2b057b80f0d
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2c629d51a32a95173908f9bb26aa43fd279280ff5d935a3edee72bc9ada13399
+    created_at: '2026-08-07T08:34:18.160927+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-07T08:34:18.160927+00:00'
+    branch_key: OOMPAH-845
+    selected_ref: 60a701e828d7fb5ebaa878e021639c93b0856cf7
+    selected_sha: 60a701e828d7fb5ebaa878e021639c93b0856cf7
 ---
 ## Summary
 
