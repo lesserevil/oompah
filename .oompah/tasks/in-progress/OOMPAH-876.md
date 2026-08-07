@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:11:42.761901Z'
+updated_at: '2026-08-07T12:17:12.777638Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -360,5 +360,10 @@ author: oompah
 created: 2026-08-07 12:11
 ---
 Discovery: the preserved commit wires the root cause through oompah/orchestrator.py and oompah/auditor_dispatch.py: no-verdict forced exits are persisted as FINALIZATION_FAILURE/INFRASTRUCTURE_ERROR, only policy/substantive attempts consume provider-model capacity, and a separate transport budget/backoff controls retries. Durable workflow ownership covers the combined physical attempt bound. Health has a distinct transport-recovery signal. I am validating an apparent zero-retry health edge and the verdict-incapable candidate diagnostic before focused tests.
+---
+author: oompah
+created: 2026-08-07 12:17
+---
+Implementation: completed the preserved change set. Auditor dispatch now separates no-verdict infrastructure/finalization attempts from substantive candidate use, retries the same eligible candidate under OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES and durable backoff, classifies forced ACP tool-result delivery shutdowns in orchestrator exit cleanup, expands workflow lease capacity across both bounded lanes, and exposes transport-recovery health separately from retry exhaustion. Existing selector policy excludes verdict-incapable subscription Codex ACP providers with missing_audit_capability. I also fixed health's zero-retry edge so a fresh audit remains available for its initial launch.
 ---
 <!-- COMMENTS:END -->
