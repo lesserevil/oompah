@@ -304,6 +304,8 @@ class AgentSession:
         read_timeout_ms: int = 5000,
         turn_timeout_ms: int = 3_600_000,
         env: dict[str, str] | None = None,
+        isolate_remote_write: bool = False,
+        provider_auth_kind: str | None = None,
         before_transport_contact: Callable[[], str | None] | None = None,
         on_transport_contact: Callable[[], None] | None = None,
         on_precontact_admission_cancelled: Callable[[], None] | None = None,
@@ -313,6 +315,8 @@ class AgentSession:
         self.read_timeout_ms = read_timeout_ms
         self.turn_timeout_ms = turn_timeout_ms
         self.env = dict(env or {})
+        self.isolate_remote_write = bool(isolate_remote_write)
+        self.provider_auth_kind = provider_auth_kind
         self.before_transport_contact = before_transport_contact
         self.on_transport_contact = on_transport_contact
         self.on_precontact_admission_cancelled = (
@@ -382,11 +386,24 @@ class AgentSession:
             self.command,
             self.workspace_path,
         )
+        if self.isolate_remote_write:
+            # A legacy CLI combines provider transport and an unrestricted
+            # native shell in one child process.  It cannot safely receive
+            # the provider credential required for transport while keeping
+            # that shell out of the operator credential/network domain.
+            # Direct rebase work must use an API/ACP bridged catalog instead.
+            raise AgentError(
+                "direct CLI agents are unavailable for shared-epic rebase work; "
+                "select an API/ACP bridged provider",
+                error_class="isolated_cli_unavailable",
+            )
         try:
             # Prepare the agent environment (includes XDG_RUNTIME_DIR fallback)
             agent_env = agent_environment(
                 {**os.environ, **self.env},
                 workspace_path=self.workspace_path,
+                isolate_remote_write=self.isolate_remote_write,
+                provider_auth_kind=self.provider_auth_kind,
             )
 
             # Track the temporary worker runtime directory for cleanup (OOMPAH-686)
@@ -419,10 +436,9 @@ class AgentSession:
 
             self._transport_starting = True
             try:
+                process_args = ["bash", "-lc", self.command]
                 self._process = await asyncio.create_subprocess_exec(
-                    "bash",
-                    "-lc",
-                    self.command,
+                    *process_args,
                     cwd=self.workspace_path,
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,

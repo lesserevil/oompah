@@ -586,6 +586,7 @@ class CodexAcpBackendSession(AcpBackendSession):
 
         return build_codex_tool_catalog(
             self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
             tool_liveness=self._options.tool_liveness,
             project_store=self._options.project_store,
             project_id=self._options.project_id,
@@ -631,6 +632,20 @@ class CodexAcpBackendSession(AcpBackendSession):
         """
         if self._stop_requested:
             self._status = "interrupted"
+            return
+
+        if self._options.isolate_remote_write and self._billing_model == "subscription":
+            # The subscription CLI performs provider transport and exposes a
+            # native shell in the same process.  Unlike the API backend it
+            # cannot route every command through oompah's restricted MCP
+            # executor, so handing it OAuth credentials would defeat the
+            # shared-epic authority boundary.
+            self._last_error = (
+                "Codex subscription CLI is unavailable for shared-epic rebase "
+                "work; select a per-token API/bridged provider"
+            )
+            self._status = "errored"
+            yield self._emit("acp_session_error", payload={"error": self._last_error})
             return
 
         initial_prompt = self._options.prompt
@@ -694,15 +709,29 @@ class CodexAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            provider_auth_kind=self._options.provider_auth_kind,
         )
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         
-        # Push the api_key into the process env if present in options
-        # so the SDK's default client picks it up.
+        # Bind provider credentials to this SDK run.  Mutating process-global
+        # ``os.environ`` lets concurrent sessions observe one another's key
+        # and makes credential rotation non-deterministic.
         api_key = agent_env.get("OPENAI_API_KEY") or agent_env.get("OOMPAH_CODEX_API_KEY")
+        run_config = None
         if api_key:
-            os.environ.setdefault("OPENAI_API_KEY", api_key)
+            OpenAIProvider = getattr(sdk, "OpenAIProvider", None)
+            RunConfig = getattr(sdk, "RunConfig", None)
+            if OpenAIProvider is None or RunConfig is None:
+                self._last_error = (
+                    "openai-agents SDK lacks scoped OpenAI provider support; "
+                    "refusing to expose a provider key process-wide"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
+            run_config = RunConfig(model_provider=OpenAIProvider(api_key=api_key))
 
         try:
             tools = self._build_tool_catalog()
@@ -780,9 +809,10 @@ class CodexAcpBackendSession(AcpBackendSession):
             return
         transport_permit = True
         try:
-            self._streamed_result = run_streamed(
-                self._agent, input=self._options.prompt
-            )
+            run_kwargs: dict[str, Any] = {"input": self._options.prompt}
+            if run_config is not None:
+                run_kwargs["run_config"] = run_config
+            self._streamed_result = run_streamed(self._agent, **run_kwargs)
             mark_transport_contacted(self._options)
             transport_permit = False
         except Exception as exc:
@@ -903,9 +933,11 @@ class CodexAcpBackendSession(AcpBackendSession):
         cli_env = agent_environment(
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            provider_auth_kind=self._options.provider_auth_kind,
         )
         self._worker_runtime_dir = cli_env.get("OOMPAH_WORKER_RUNTIME_DIR")
-        if self._options.task_handoff_token:
+        if self._options.task_handoff_token and not self._options.isolate_remote_write:
             cli_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
                 cli_env[TASK_HANDOFF_PROJECT_ENV] = self._options.project_id

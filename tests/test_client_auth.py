@@ -26,6 +26,7 @@ Security test coverage:
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import tempfile
 from pathlib import Path
@@ -779,6 +780,107 @@ class TestEndToEnd:
                 "PYTHONHOME",
             )
         )
+
+    def test_epic_rebase_environment_is_a_clean_credential_domain(self):
+        """Rebase workers cannot inherit an arbitrary credential route."""
+        clean = agent_environment(
+            {
+                "PATH": "/bin",
+                "LANG": "C.UTF-8",
+                "HOME": "/operator/home",
+                "SSH_AUTH_SOCK": "/run/user/1000/ssh-agent.sock",
+                "GIT_ASKPASS": "/operator/askpass",
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "credential.helper",
+                "GIT_CONFIG_VALUE_0": "/operator/helper",
+                "GITHUB_TOKEN": "forge-secret",
+                "GH_TOKEN": "forge-secret",
+                "GITLAB_TOKEN": "forge-secret",
+                "OOMPAH_GIT_PASSWORD": "forge-secret",
+                "ARBITRARY_SECRET_NAME": "forge-secret",
+                "OOMPAH_TASK_HANDOFF_TOKEN": "task-grant",
+                "OOMPAH_TASK_HANDOFF_PROJECT_ID": "proj-1",
+                "OOMPAH_TASK_HANDOFF_TASK_ID": "TASK-1",
+            },
+            isolate_remote_write=True,
+        )
+        try:
+            assert clean["HOME"] != "/operator/home"
+            assert clean["GIT_CONFIG_GLOBAL"] == os.devnull
+            assert clean["GIT_CONFIG_NOSYSTEM"] == "1"
+            assert clean["GIT_TERMINAL_PROMPT"] == "0"
+            assert clean["GIT_ASKPASS"] == "/bin/false"
+            assert clean["GIT_SSH_COMMAND"] == "/bin/false"
+            assert os.path.isdir(clean["HOME"])
+            for key in (
+                "SSH_AUTH_SOCK",
+                "GIT_CONFIG_COUNT",
+                "GIT_CONFIG_KEY_0",
+                "GIT_CONFIG_VALUE_0",
+                "GITHUB_TOKEN",
+                "GH_TOKEN",
+                "GITLAB_TOKEN",
+                "OOMPAH_GIT_PASSWORD",
+                "ARBITRARY_SECRET_NAME",
+                "OOMPAH_TASK_HANDOFF_TOKEN",
+                "OOMPAH_TASK_HANDOFF_PROJECT_ID",
+                "OOMPAH_TASK_HANDOFF_TASK_ID",
+            ):
+                assert key not in clean
+        finally:
+            shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
+
+    def test_isolated_codex_auth_copies_only_explicit_auth_artifact(self, tmp_path):
+        operator_home = tmp_path / "operator-home"
+        codex_home = operator_home / ".codex"
+        codex_home.mkdir(parents=True)
+        (codex_home / "auth.json").write_text('{"access_token":"model-token"}')
+        (operator_home / ".gitconfig").write_text("[credential]\nhelper = store\n")
+        (operator_home / ".ssh").mkdir()
+
+        clean = agent_environment(
+            {"PATH": "/bin", "HOME": str(operator_home)},
+            isolate_remote_write=True,
+            provider_auth_kind="codex_subscription",
+        )
+        try:
+            copied_auth = Path(clean["CODEX_HOME"]) / "auth.json"
+            assert copied_auth.read_text() == '{"access_token":"model-token"}'
+            assert copied_auth.stat().st_mode & 0o777 == 0o600
+            assert not (Path(clean["HOME"]) / ".gitconfig").exists()
+            assert not (Path(clean["HOME"]) / ".ssh").exists()
+            assert clean["GIT_CONFIG_GLOBAL"] == os.devnull
+        finally:
+            shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
+
+    def test_unknown_isolated_provider_layout_fails_closed(self):
+        with pytest.raises(OSError, match="unknown isolated worker provider"):
+            agent_environment(
+                {"PATH": "/bin"},
+                isolate_remote_write=True,
+                provider_auth_kind="unrecognised-wrapper",
+            )
+
+    def test_isolated_opencode_auth_uses_only_xdg_auth_artifact(self, tmp_path):
+        operator_home = tmp_path / "operator-home"
+        source_data = operator_home / ".local" / "share"
+        source_auth = source_data / "opencode" / "auth.json"
+        source_auth.parent.mkdir(parents=True)
+        source_auth.write_text('{"provider":"model-token"}')
+        (operator_home / ".gitconfig").write_text("[credential]\nhelper = store\n")
+
+        clean = agent_environment(
+            {"PATH": "/bin", "HOME": str(operator_home)},
+            isolate_remote_write=True,
+            provider_auth_kind="opencode_subscription",
+        )
+        try:
+            copied_auth = Path(clean["XDG_DATA_HOME"]) / "opencode" / "auth.json"
+            assert copied_auth.read_text() == '{"provider":"model-token"}'
+            assert copied_auth.stat().st_mode & 0o777 == 0o600
+            assert not (Path(clean["HOME"]) / ".gitconfig").exists()
+        finally:
+            shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
 
 
 class TestCurrentClientEnvironment:

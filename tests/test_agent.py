@@ -46,6 +46,25 @@ async def test_start_creates_dedicated_posix_session(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_epic_rebase_session_rejects_unbridged_cli_transport(tmp_path, monkeypatch):
+    """A CLI's provider transport and native shell cannot be separated."""
+    session = AgentSession("agent", str(tmp_path), isolate_remote_write=True)
+    monkeypatch.setenv("HOME", "/operator/home")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("GITHUB_TOKEN", "forge-secret")
+
+    with patch(
+        "oompah.agent.asyncio.create_subprocess_exec",
+        new=AsyncMock(),
+    ) as create_process:
+        with pytest.raises(AgentError, match="API/ACP bridged provider") as exc:
+            await session.start()
+
+    assert exc.value.error_class == "isolated_cli_unavailable"
+    create_process.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_start_admits_immediately_before_subprocess_and_marks_contact(tmp_path):
     events: list[str] = []
 

@@ -5681,6 +5681,198 @@ class TestRunWorkerCandidateFailover:
         )
         return orch
 
+    @pytest.mark.parametrize(
+        ("focus", "target_provider", "expected_reason"),
+        [
+            (
+                Focus(name="feature", role="Feature", description="feature"),
+                None,
+                "missing_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    provider_id="",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    provider_id="deleted-provider",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    model_role="",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    model_role="deleted-role",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+        ],
+    )
+    def test_acp_launch_rejects_unresolved_post_focus_provider_before_defaults(
+        self, tmp_path, focus, target_provider, expected_reason
+    ):
+        """A bad focus must not inherit an ACP backend or credential source."""
+        issue = _make_issue("acp-provider-admission")
+        provider_store = MagicMock()
+        provider_store.get.return_value = None
+        orch = _make_orchestrator(tmp_path, provider_store=provider_store)
+        provider_store.reset_mock()
+        orch._duplicate_preflight_focus = MagicMock(return_value=focus)
+        orch._resolve_model = MagicMock(
+            side_effect=AssertionError("provider model/default derivation reached")
+        )
+        orch._reserve_auditor_for_contributor = AsyncMock()
+        orch._stage_work_contributor_launch = AsyncMock()
+        target = DispatchTarget(
+            role_name=None,
+            provider=target_provider,
+            model="fallback",
+            candidate_key="fallback/fallback",
+            source="test",
+        )
+
+        with patch("oompah.acp_agent.AcpAgentSession") as session, patch(
+            "oompah.orchestrator.PROVIDER_HEALTH_CACHE.configuration_signature"
+        ) as configuration_signature:
+            with pytest.raises(ProviderStartupError) as exc_info:
+                asyncio.run(
+                    orch._run_acp_worker(
+                        issue,
+                        0,
+                        _profile(mode="acp"),
+                        target=target,
+                    )
+                )
+
+        assert exc_info.value.reason == expected_reason
+        provider_store.get_default.assert_not_called()
+        orch._resolve_model.assert_not_called()
+        orch._reserve_auditor_for_contributor.assert_not_awaited()
+        orch._stage_work_contributor_launch.assert_not_awaited()
+        configuration_signature.assert_not_called()
+        session.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("focus", "target_provider", "expected_reason"),
+        [
+            (
+                Focus(name="feature", role="Feature", description="feature"),
+                None,
+                "missing_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    provider_id="",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    provider_id="deleted-provider",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    model_role="",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+            (
+                Focus(
+                    name="feature",
+                    role="Feature",
+                    description="feature",
+                    model_role="deleted-role",
+                ),
+                _provider(pid="fallback", models=["fallback"]),
+                "invalid_focus_provider",
+            ),
+        ],
+    )
+    def test_api_launch_rejects_unresolved_post_focus_provider_before_defaults(
+        self, tmp_path, focus, target_provider, expected_reason
+    ):
+        """API dispatch has the same post-focus provider admission fence."""
+        issue = _make_issue("api-provider-admission")
+        provider_store = MagicMock()
+        provider_store.get.return_value = None
+        orch = _make_orchestrator(tmp_path, provider_store=provider_store)
+        provider_store.reset_mock()
+        orch._duplicate_preflight_focus = MagicMock(return_value=focus)
+        orch._resolve_model = MagicMock(
+            side_effect=AssertionError("provider model/default derivation reached")
+        )
+        orch._reserve_auditor_for_contributor = AsyncMock()
+        orch._stage_work_contributor_launch = AsyncMock()
+        target = DispatchTarget(
+            role_name=None,
+            provider=target_provider,
+            model="fallback",
+            candidate_key="fallback/fallback",
+            source="test",
+        )
+
+        with patch("oompah.orchestrator.ApiAgentSession") as session, patch(
+            "oompah.orchestrator.snapshot_provider_for_probe"
+        ) as credential_snapshot, patch(
+            "oompah.orchestrator.PROVIDER_HEALTH_CACHE.configuration_signature"
+        ) as configuration_signature:
+            with pytest.raises(ProviderStartupError) as exc_info:
+                asyncio.run(
+                    orch._run_api_worker(
+                        issue,
+                        0,
+                        _profile(mode="api"),
+                        target_provider,
+                        target=target,
+                    )
+                )
+
+        assert exc_info.value.reason == expected_reason
+        provider_store.get_default.assert_not_called()
+        orch._resolve_model.assert_not_called()
+        orch._reserve_auditor_for_contributor.assert_not_awaited()
+        orch._stage_work_contributor_launch.assert_not_awaited()
+        credential_snapshot.assert_not_called()
+        configuration_signature.assert_not_called()
+        session.assert_not_called()
+
     def test_first_candidate_success_no_failover(self, tmp_path):
         """When the first candidate succeeds, no failover occurs."""
         from oompah.orchestrator import ProviderStartupError, DispatchTarget
