@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Validation
+status: Needs Human
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T13:43:01.418556Z'
+updated_at: '2026-08-07T13:43:14.060972Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -75,8 +75,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-d1cdbc7574d4
-    applied: false
+    applied: true
     created_at: '2026-08-07T13:42:59.839017+00:00'
+    applied_at: '2026-08-07T13:43:10.770473+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -892,5 +893,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 33s
 - Log: OOMPAH-584__20260807T132913Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:43
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
