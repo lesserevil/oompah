@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-644
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Make native task reads atomic across status-file moves
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-08-07T18:39:55.389264Z'
+updated_at: '2026-08-07T18:44:08.558889Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -109,6 +109,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-710535de2bba-2: '2026-07-31T08:54:27.004450+00:00'
+    attempt-bcd1f4fe385b: '2026-08-07T18:44:04.504766+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-b9bd25c5c20a
@@ -159,7 +160,28 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-07-31T18:17:31.295631+00:00'
-  oompah.terminal_audit_result_intents: []
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Archived
+    evidence_fingerprint: 47abe11a184f1bec6c2672081847bd79b377303a308a368c92916a027b550324
+    audit_ids:
+    - audit-c71d6e78e93e
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T18:44:04.504788+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    audit_id: audit-c71d6e78e93e
+    attempt_id: attempt-bcd1f4fe385b
+    target_state: Archived
+    evidence_fingerprint: 47abe11a184f1bec6c2672081847bd79b377303a308a368c92916a027b550324
+    status: Archived
+    audit_ids:
+    - audit-c71d6e78e93e
+    kind: result
+    applied: false
+    created_at: '2026-08-07T18:44:04.504807+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -263,7 +285,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-644
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -272,7 +294,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bcd1f4fe385b
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -284,6 +306,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-644
       selected_ref: ab4cab20c0697076098bd429d529fd3d8d3434e9
       selected_sha: ab4cab20c0697076098bd429d529fd3d8d3434e9
+      verdict: pass
+      completed_at: '2026-08-07T18:44:04.504541+00:00'
+      ended_at: '2026-08-07T18:44:04.504541+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -292,7 +317,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T18:39:14.976276+00:00'
     selected_ref: ab4cab20c0697076098bd429d529fd3d8d3434e9
     selected_sha: ab4cab20c0697076098bd429d529fd3d8d3434e9
-    updated_at: '2026-08-07T18:39:48.440180+00:00'
+    updated_at: '2026-08-07T18:44:04.504541+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ab69e882ab0d
