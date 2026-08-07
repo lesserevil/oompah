@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T09:31:12.257305Z'
+updated_at: '2026-08-07T09:31:26.732033Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -98,7 +98,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-865
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -121,6 +121,22 @@ oompah.terminal_audit:
       selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
       ended_at: '2026-08-07T09:31:10.864061+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-b7f7606cd7e3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+      created_at: '2026-08-07T09:31:19.448292+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T09:31:19.448292+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-865
+      selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+      selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
@@ -129,7 +145,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:03:33.098057+00:00'
     selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
-    updated_at: '2026-08-07T09:15:27.800078+00:00'
+    updated_at: '2026-08-07T09:31:19.448292+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ef1dae62d434
@@ -148,6 +164,22 @@ oompah.terminal_audit:
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
     ended_at: '2026-08-07T09:31:10.864061+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-b7f7606cd7e3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    created_at: '2026-08-07T09:31:19.448292+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T09:31:19.448292+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-865
+    selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+    selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -289,5 +321,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 14m 5s
 - Log: OOMPAH-865__20260807T091600Z.jsonl
+---
+author: oompah
+created: 2026-08-07 09:31
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
