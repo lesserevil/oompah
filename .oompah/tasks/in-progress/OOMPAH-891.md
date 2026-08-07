@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:11.042474Z'
-updated_at: '2026-08-07T14:20:59.742654Z'
+updated_at: '2026-08-07T14:29:47.704530Z'
 work_branch: epic-OOMPAH-879--task-OOMPAH-891
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-08-07 14:20
 ---
 Correction: the affected launch method is _run_acp_worker. The previous comment's shell formatting omitted that method name; the required fix and scope are unchanged.
+---
+author: oompah
+created: 2026-08-07 14:29
+---
+Independent acceptance review now passes. Both ACP and API launch paths enforce final focus-resolved provider admission before backend defaults, credential snapshots, reservations, staging, signatures, or session construction. The five-case parity matrix covers absent provider, empty or deleted provider_id, and empty or deleted model_role. Static diff checks are clean. Brokered focused validation is being queued behind the definitive shared-epic gate; no commit or push yet.
 ---
 <!-- COMMENTS:END -->

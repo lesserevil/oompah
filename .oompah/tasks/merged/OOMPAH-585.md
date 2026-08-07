@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-07T14:20:27.096821Z'
+updated_at: '2026-08-07T14:29:52.795575Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -49,6 +49,7 @@ oompah.terminal_audit:
     attempt-5c5fbd712133: '2026-08-04T00:15:30.974786+00:00'
     attempt-1b487fdb9d5c: '2026-08-04T00:39:21.014886+00:00'
     no-auditor-audit-aecf926914a2-3: '2026-08-07T13:50:11.389376+00:00'
+    attempt-59207a92fcc6: '2026-08-07T14:29:48.573044+00:00'
   oompah.terminal_override_records: []
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
@@ -65,8 +66,9 @@ oompah.terminal_audit:
     - audit-a42d41c14848
     - audit-1f697e890a52
     - audit-613578696210
+    - audit-6bc04524dcf6
     kind: result
-    applied: false
+    applied: true
     retired_at: '2026-08-03T20:51:35.221544+00:00'
     lifecycle_reconciled: true
     reconciled_to: Done
@@ -228,6 +230,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T13:50:11.389425+00:00'
     applied_at: '2026-08-07T13:50:20.368794+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    audit_id: audit-6bc04524dcf6
+    attempt_id: attempt-59207a92fcc6
+    target_state: Merged
+    evidence_fingerprint: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    status: Merged
+    audit_ids:
+    - audit-6bc04524dcf6
+    applied: false
+    created_at: '2026-08-07T14:29:48.573095+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
@@ -925,7 +938,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -953,7 +966,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-59207a92fcc6
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -966,6 +979,9 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-07T14:29:48.572763+00:00'
+      ended_at: '2026-08-07T14:29:48.572763+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -974,7 +990,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:13:05.253827+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T14:20:15.531228+00:00'
+    updated_at: '2026-08-07T14:29:48.572763+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
