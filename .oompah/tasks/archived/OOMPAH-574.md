@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-08-07T02:58:27.991745Z'
+updated_at: '2026-08-07T02:58:37.340718Z'
 work_branch: OOMPAH-574
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/598
@@ -121,8 +121,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-758155b093a2
-    applied: false
+    applied: true
     created_at: '2026-08-07T02:58:24.248680+00:00'
+    applied_at: '2026-08-07T02:58:34.215921+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -574,5 +575,27 @@ author: oompah
 created: 2026-08-07 02:48
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 02:58
+---
+Audit PASS — Archived
+
+Implementation complete and merged. Explicit retry of failed quality gates now re-executes even with unchanged head SHA. All 13,702 tests pass including 8 new OOMPAH-574 tests. Acceptance criteria satisfied: forced re-execution of failed/timed_out/error cached results; passed results reuse preserved; no concurrent duplicates; retry intent wired through API.
+
+Safe evidence:
+- merge_commit: c8ab3957b
+- pr_number: 598
+- implementation_commit: 4faf51fca
+- docs_commit: af72cf7cc
+- merged_into_main: true
+- total_tests_passed: 13702
+- total_tests_skipped: 7
+- quality_gate_retry_forced_present: true
+- integration_queue_retry_forced_column_present: true
+- integration_executor_wiring_present: true
+- orchestrator_wiring_present: true
+- explicit_retry_tests_passing: 8 tests pass
+- acceptance_criteria_satisfied: all
 ---
 <!-- COMMENTS:END -->
