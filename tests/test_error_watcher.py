@@ -1041,6 +1041,26 @@ class TestProjectLogWatcherManager:
         p.log_path = log_path
         return p
 
+    @staticmethod
+    def _close_coro_side_effect(*tasks):
+        """Return a side_effect that closes coroutines and returns mock tasks in order.
+
+        ``asyncio.ensure_future(watcher.start())`` evaluates ``watcher.start()``
+        first, producing a real coroutine.  When ``ensure_future`` is mocked that
+        coroutine is never scheduled, so Python's GC later emits a
+        ``RuntimeWarning: coroutine … was never awaited`` that can surface as a
+        ``PytestUnraisableExceptionWarning`` in an unrelated test.  This helper
+        closes the coroutine immediately inside the mock so no warning leaks out.
+        """
+        remaining = list(tasks)
+
+        def _side_effect(coro):
+            if asyncio.iscoroutine(coro):
+                coro.close()
+            return remaining.pop(0) if remaining else MagicMock()
+
+        return _side_effect
+
     def test_sync_starts_watcher_for_project_with_log_path(self):
         factory = MagicMock()
         factory.return_value = MagicMock()
@@ -1052,9 +1072,11 @@ class TestProjectLogWatcherManager:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            # Patch asyncio.ensure_future to avoid actually starting coroutines
+            # Patch asyncio.ensure_future to avoid actually starting coroutines.
+            # Use side_effect to close the coroutine so no 'never awaited' warning leaks.
+            mock_task = MagicMock()
             with patch("oompah.error_watcher.asyncio.ensure_future") as mock_future:
-                mock_future.return_value = MagicMock()
+                mock_future.side_effect = self._close_coro_side_effect(mock_task)
                 manager.sync_watchers(projects)
 
             assert "p1" in manager._watchers
@@ -1085,7 +1107,7 @@ class TestProjectLogWatcherManager:
         try:
             with patch("oompah.error_watcher.asyncio.ensure_future") as mock_future:
                 mock_task = MagicMock()
-                mock_future.return_value = mock_task
+                mock_future.side_effect = self._close_coro_side_effect(mock_task)
                 manager.sync_watchers(projects)
                 assert "p1" in manager._watchers
 
@@ -1109,7 +1131,9 @@ class TestProjectLogWatcherManager:
             with patch("oompah.error_watcher.asyncio.ensure_future") as mock_future:
                 mock_task1 = MagicMock()
                 mock_task2 = MagicMock()
-                mock_future.side_effect = [mock_task1, mock_task2]
+                mock_future.side_effect = self._close_coro_side_effect(
+                    mock_task1, mock_task2
+                )
 
                 manager.sync_watchers(projects)
                 old_watcher = manager._watchers["p1"][0]
@@ -1139,7 +1163,9 @@ class TestProjectLogWatcherManager:
         asyncio.set_event_loop(loop)
         try:
             with patch("oompah.error_watcher.asyncio.ensure_future") as mock_future:
-                mock_future.return_value = MagicMock()
+                mock_future.side_effect = self._close_coro_side_effect(
+                    MagicMock(), MagicMock()
+                )
                 manager.sync_watchers(projects)
                 assert len(manager._watchers) == 2
 

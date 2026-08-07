@@ -33,6 +33,120 @@ from oompah.orchestrator import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+_OWNED_ORCHESTRATOR_RESOURCES: list[
+    tuple[tuple[tuple[str, Any], ...], tuple[tuple[str, Any], ...]]
+] = []
+
+
+def _remember_orchestrator_resources(orch: Orchestrator) -> None:
+    """Retain the exact pools and stores opened by a test orchestrator."""
+
+    stores = tuple(
+        (name, store)
+        for name in (
+            "coordination_store",
+            "integration_queue",
+            "review_capacity_store",
+            "workflow_job_store",
+            "task_transition_journal",
+        )
+        if (store := getattr(orch, name, None)) is not None
+    )
+    _OWNED_ORCHESTRATOR_RESOURCES.append(
+        (
+            (
+                ("_tick_pool", orch._tick_pool),
+                ("_refresh_pool", orch._refresh_pool),
+            ),
+            stores,
+        )
+    )
+
+
+@pytest.fixture(autouse=True)
+def _close_owned_orchestrator_resources():
+    """Close every helper-owned resource and report all cleanup failures."""
+
+    first_owned = len(_OWNED_ORCHESTRATOR_RESOURCES)
+    try:
+        yield
+    finally:
+        owned = _OWNED_ORCHESTRATOR_RESOURCES[first_owned:]
+        del _OWNED_ORCHESTRATOR_RESOURCES[first_owned:]
+        cleanup_errors: list[str] = []
+        for owner_index, (pools, stores) in enumerate(reversed(owned), start=1):
+            for resource_name, pool in pools:
+                try:
+                    pool.shutdown(wait=True, cancel_futures=False)
+                except Exception as exc:  # noqa: BLE001 - close every resource
+                    cleanup_errors.append(
+                        f"orchestrator {owner_index} {resource_name} shutdown "
+                        f"failed: {exc!r}"
+                    )
+                live_threads = [
+                    thread.name
+                    for thread in getattr(pool, "_threads", ())
+                    if thread.is_alive()
+                ]
+                if live_threads:
+                    cleanup_errors.append(
+                        f"orchestrator {owner_index} {resource_name} retained "
+                        f"live threads: {', '.join(live_threads)}"
+                    )
+            for resource_name, store in stores:
+                try:
+                    store.close()
+                except Exception as exc:  # noqa: BLE001 - close every resource
+                    cleanup_errors.append(
+                        f"orchestrator {owner_index} {resource_name} close "
+                        f"failed: {exc!r}"
+                    )
+        if cleanup_errors:
+            pytest.fail("helper-owned resource leakage: " + "; ".join(cleanup_errors))
+
+
+def _close_event_loop_and_executor(loop: asyncio.AbstractEventLoop) -> None:
+    """Drain loop-owned tasks and join its default executor before close."""
+
+    cleanup_errors: list[str] = []
+    executor = getattr(loop, "_default_executor", None)
+    pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+    if pending:
+        for task in pending:
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception as exc:  # noqa: BLE001 - continue executor cleanup
+            cleanup_errors.append(f"pending task drain failed: {exc!r}")
+        cleanup_errors.append(
+            "event loop retained pending tasks: "
+            + ", ".join(sorted(task.get_name() for task in pending))
+        )
+    try:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+    except Exception as exc:  # noqa: BLE001 - continue executor cleanup
+        cleanup_errors.append(f"async-generator shutdown failed: {exc!r}")
+    try:
+        loop.run_until_complete(loop.shutdown_default_executor())
+    except Exception as exc:  # noqa: BLE001 - loop close must still run
+        cleanup_errors.append(f"default-executor shutdown failed: {exc!r}")
+    if executor is not None:
+        live_threads = [
+            thread.name
+            for thread in getattr(executor, "_threads", ())
+            if thread.is_alive()
+        ]
+        if live_threads:
+            cleanup_errors.append(
+                "default executor retained live threads: "
+                + ", ".join(live_threads)
+            )
+    loop.close()
+    asyncio.set_event_loop(None)
+    if cleanup_errors:
+        pytest.fail("event-loop resource leakage: " + "; ".join(cleanup_errors))
+
+
 def _make_config(**overrides) -> ServiceConfig:
     """Minimal ServiceConfig for testing."""
     cfg = ServiceConfig(tracker_kind="oompah_md")
@@ -41,12 +155,14 @@ def _make_config(**overrides) -> ServiceConfig:
     return cfg
 
 
-def _make_orchestrator(tmp_path, config=None) -> Orchestrator:
+def _make_orchestrator(tmp_path, config=None, project_store=None) -> Orchestrator:
     orch = Orchestrator(
         config=config or _make_config(),
         workflow_path="WORKFLOW.md",
+        project_store=project_store,
         state_path=str(tmp_path / "state.json"),
     )
+    _remember_orchestrator_resources(orch)
     return orch
 
 
@@ -277,8 +393,7 @@ class TestUnpausePostsEvent:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def test_posts_refresh_requested_event(self, tmp_path, event_loop):
         orch = _make_orchestrator(tmp_path)
@@ -317,8 +432,7 @@ class TestWorkerExitPostsEvent:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def _make_running_entry(self, issue_id: str = "issue-1") -> Any:
         from oompah.models import RunningEntry, Issue
@@ -451,8 +565,7 @@ class TestRetryTimerPostsEvent:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def test_retry_fired_event_posted(self, tmp_path, event_loop):
         orch = _make_orchestrator(tmp_path)
@@ -550,8 +663,7 @@ class TestRunEventDrivenLoop:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def _make_orch_with_mocked_tick(self, tmp_path):
         """Create an orchestrator where _tick() and startup are no-ops."""
@@ -844,8 +956,7 @@ class TestDrainBackgroundWork:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def _mock_pools(self, orch):
         orch._tick_pool = MagicMock()
@@ -935,8 +1046,7 @@ class TestGracefulRestartShutdownEvent:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def test_shutdown_event_type_exists(self):
         """SHUTDOWN event type is defined in DispatchEventType."""
@@ -1104,6 +1214,7 @@ class TestGracefulRestartShutdownEvent:
         "superseding_state",
         ["Merged", "Archived", "In Validation", "Needs Human"],
     )
+    @pytest.mark.timeout(20)
     def test_restart_recovery_preserves_superseding_state(
         self, tmp_path, event_loop, superseding_state
     ):
@@ -1233,17 +1344,15 @@ class TestRetryTimerResetsInProgressOnRelease:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
-        loop.close()
-        asyncio.set_event_loop(None)
+        _close_event_loop_and_executor(loop)
 
     def _make_retry_orch(self, tmp_path):
         project_store = MagicMock()
         project_store.list_all.return_value = []
-        return Orchestrator(
+        return _make_orchestrator(
+            tmp_path,
             config=_make_config(),
-            workflow_path="WORKFLOW.md",
             project_store=project_store,
-            state_path=str(tmp_path / "state.json"),
         )
 
     def _make_retry_entry(self, issue_id: str):
@@ -1321,11 +1430,14 @@ class TestRetryTimerResetsInProgressOnRelease:
         mock_tracker = MagicMock()
         orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
         orch.state.running[issue_id] = MagicMock()
+        orch._terminate_running = AsyncMock(return_value=True)
         orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
 
         event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+        event_loop.run_until_complete(orch._drain_scheduled_terminations())
 
         mock_tracker.update_issue.assert_not_called()
+        orch._terminate_running.assert_awaited_once_with(issue_id, False)
 
     def test_does_not_reset_when_issue_already_open(
         self, tmp_path, event_loop

@@ -1791,6 +1791,11 @@ class Orchestrator:
         # termination path and reporting a normal exit before shutdown finishes.
         self._terminating_worker_ids: set[str] = set()
         self._scheduled_termination_ids: set[str] = set()
+        self._scheduled_termination_tasks: dict[str, asyncio.Task[bool]] = {}
+        # Shutdown closes this admission gate before draining the tracked
+        # tasks.  A foreign thread may already have queued ``_schedule`` on
+        # the dispatch loop, so the callback itself must re-check the gate.
+        self._termination_scheduling_closed = False
 
     # --- Bounded per-project refresh helpers (TASK-467.2) ---
 
@@ -3572,11 +3577,14 @@ class Orchestrator:
     ) -> None:
         """Schedule worker retirement on the loop that owns provider sessions."""
 
+        if self._termination_scheduling_closed:
+            return
         dispatch_loop = self._dispatch_loop
 
         def _schedule() -> None:
             if (
-                issue_id not in self.state.running
+                self._termination_scheduling_closed
+                or issue_id not in self.state.running
                 or issue_id in self._scheduled_termination_ids
                 or issue_id in self._terminating_worker_ids
             ):
@@ -3586,9 +3594,12 @@ class Orchestrator:
                 self._terminate_running(issue_id, cleanup_workspace),
                 name=f"{task_name_prefix}-{issue_id}",
             )
+            self._scheduled_termination_tasks[issue_id] = task
 
             def _finished(completed: asyncio.Task) -> None:
                 self._scheduled_termination_ids.discard(issue_id)
+                if self._scheduled_termination_tasks.get(issue_id) is completed:
+                    self._scheduled_termination_tasks.pop(issue_id, None)
                 try:
                     completed.result()
                 except asyncio.CancelledError:
@@ -3605,7 +3616,19 @@ class Orchestrator:
             if self._running_loop() is dispatch_loop:
                 _schedule()
             else:
-                dispatch_loop.call_soon_threadsafe(_schedule)
+                try:
+                    dispatch_loop.call_soon_threadsafe(_schedule)
+                except RuntimeError:
+                    # The owner loop may close between is_running() and the
+                    # thread-safe enqueue.  Shutdown already owns retirement
+                    # once admission is fenced; otherwise retain an explicit
+                    # diagnostic instead of leaking the callback exception.
+                    if not self._termination_scheduling_closed:
+                        logger.warning(
+                            "Worker termination owner loop closed before "
+                            "callback admission issue_id=%s",
+                            issue_id,
+                        )
             return
         try:
             asyncio.get_running_loop()
@@ -3617,6 +3640,28 @@ class Orchestrator:
             )
             return
         _schedule()
+
+    async def _drain_scheduled_terminations(self) -> None:
+        """Wait until every tracked fire-and-forget retirement has finished."""
+
+        while True:
+            scheduled = tuple(self._scheduled_termination_tasks.items())
+            if not scheduled:
+                return
+            await asyncio.gather(
+                *(asyncio.shield(task) for _issue_id, task in scheduled),
+                return_exceptions=True,
+            )
+            # Done callbacks normally remove these entries.  Retire them here
+            # too so a caller does not depend on one more loop turn merely to
+            # observe that the drain completed.
+            for issue_id, task in scheduled:
+                if (
+                    task.done()
+                    and self._scheduled_termination_tasks.get(issue_id) is task
+                ):
+                    self._scheduled_termination_tasks.pop(issue_id, None)
+                    self._scheduled_termination_ids.discard(issue_id)
 
     def _record_auditor_policy_denial(
         self,
@@ -6318,6 +6363,9 @@ class Orchestrator:
                 await _run_tick()
 
         finally:
+            # Fence callbacks queued from foreign threads before observing and
+            # draining the current scheduled-termination set.
+            self._termination_scheduling_closed = True
             full_sync_task.cancel()
             try:
                 await full_sync_task
@@ -6337,6 +6385,14 @@ class Orchestrator:
     async def stop(self) -> None:
         """Gracefully stop the orchestrator."""
         self._stopping = True
+        # See ``_schedule_running_termination``: setting this before the first
+        # await prevents a queued call_soon_threadsafe callback from creating a
+        # new fire-and-forget task after the drain has observed an empty set.
+        self._termination_scheduling_closed = True
+        # Let already-scheduled retirements finish before walking the same
+        # runtimes directly; two concurrent _terminate_running calls can race
+        # over one provider/session cleanup.
+        await self._drain_scheduled_terminations()
         # Terminate all running agents
         for issue_id, entry in self._running_items_snapshot():
             await self._terminate_running(issue_id, cleanup_workspace=False)
@@ -6367,6 +6423,7 @@ class Orchestrator:
         short-lived test or graceful restart must not leave a worker that can
         mutate tracker state after its event loop and fixtures have gone away.
         """
+        await self._drain_scheduled_terminations()
         futures = [
             future
             for future in (
