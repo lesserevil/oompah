@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-07T20:15:22.150280Z'
+updated_at: '2026-08-07T20:15:31.973436Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ author: oompah
 created: 2026-08-06 18:05
 ---
 Stuck-state re-evaluation: this task had remained In Progress with no runtime and no owner since the 04:18 recovery checkpoint. The checkpoint is intact at bf7244786, but independent review found fail-open parent/hard-start lookup, stale-private-branch overwrite, non-atomic generation, and missing recovery semantics. Those paths overlap the production durable-domain stack that is still present only on the OOMPAH-804/OOMPAH-768 lineage. Added a hard-start dependency on OOMPAH-768 and returned the task to Backlog so the board truthfully represents an intentional lineage wait instead of phantom active work. Resume by replaying/reimplementing the narrow lineage fence after OOMPAH-768 is assembled; do not submit bf7244786 as-is. The erroneous stranded In Progress state is the old deployed liveness/reconciliation gap already covered by OOMPAH-796 and the systemic OOMPAH-770 program, so no duplicate bug was filed.
+---
+author: oompah
+created: 2026-08-07 20:15
+---
+Direct owner claim taken per operator instruction. The hard-start dependency on OOMPAH-768 remains authoritative: implementation will begin only after the OOMPAH-768 lineage is assembled and reachable, while this lease prevents autonomous dispatch on the stale base.
 ---
 <!-- COMMENTS:END -->
