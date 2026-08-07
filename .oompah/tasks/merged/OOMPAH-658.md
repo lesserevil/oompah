@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-08-07T20:18:46.096445Z'
+updated_at: '2026-08-07T20:18:52.980783Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -259,7 +259,9 @@ oompah.terminal_audit:
     evidence_fingerprint: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
     audit_ids:
     - audit-851d2f008316
-    kind: result
+    - audit-8140a0bd5721
+    - audit-28a6f007cbe4
+    kind: override
     applied: true
     retired_at: '2026-07-31T14:06:36.702028+00:00'
   - project_id: proj-14849f1b
@@ -284,6 +286,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:01:10.101650+00:00'
     applied_at: '2026-07-31T14:01:13.827041+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-658
     audit_id: audit-851d2f008316
@@ -296,6 +299,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:06:36.702050+00:00'
     applied_at: '2026-07-31T14:06:42.161318+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-658
     audit_id: audit-28a6f007cbe4
@@ -308,6 +312,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:19:48.965656+00:00'
     applied_at: '2026-08-07T14:19:59.714521+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-a235b404916c
@@ -326,7 +331,7 @@ oompah.terminal_audit:
       ef2938146bf828ddc8d8d677501f4fad61d65a73; all Python 3.11/3.12/3.13 CI checks
       passed and the merge commit is an ancestor of current main.'
     created_at: '2026-08-07T20:18:41.599074+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -1440,5 +1445,12 @@ author: oompah
 created: 2026-08-07 18:19
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-658/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-07 20:18
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #621 merged exact head 6e27fb150b7bd711c98c7aa5c94e355200dfa325 as ef2938146bf828ddc8d8d677501f4fad61d65a73; all Python 3.11/3.12/3.13 CI checks passed and the merge commit is an ancestor of current main.
 ---
 <!-- COMMENTS:END -->
