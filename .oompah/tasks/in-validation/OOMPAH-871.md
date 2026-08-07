@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T12:22:27.273212Z'
+updated_at: '2026-08-07T12:32:26.380471Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
@@ -130,6 +130,49 @@ oompah.review_number: '741'
 oompah.work_branch: OOMPAH-871
 oompah.target_branch: main
 oompah.review_head: 158a2d03f0651b955666ba31c25b3fb412973ccd
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-95e8a9b7c969
+    project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T12:32:13.858961+00:00'
+    selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
+    selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
+  - version: 1
+    audit_id: audit-f4c6b5b0a6ae
+    project_id: proj-14849f1b
+    task_id: OOMPAH-871
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T12:32:13.858961+00:00'
+    selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
+    selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
+  attempt_history: []
 ---
 ## Summary
 
@@ -366,5 +409,15 @@ author: oompah
 created: 2026-08-07 12:21
 ---
 Branch quality gate passed for `158a2d03f0651b955666ba31c25b3fb412973ccd` using `make test` in 661.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 12:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 12:32
+---
+YOLO: merged PR #741.
 ---
 <!-- COMMENTS:END -->

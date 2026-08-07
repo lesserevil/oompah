@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-779
 type: task
-status: Done
+status: Needs Human
 priority: 1
 title: Run WorkDecision in shadow mode and expose divergence diagnostics
 parent: OOMPAH-765
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T08:40:07.704697Z'
+updated_at: '2026-08-07T12:32:31.603068Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
