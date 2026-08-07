@@ -66,6 +66,13 @@ def _record(*, infrastructure_attempts: bool) -> TerminalAuditRecord:
 
 def _orchestrator() -> Orchestrator:
     orchestrator = Orchestrator.__new__(Orchestrator)
+    # The dispatch lane retries a durable, pre-admission rollback journal
+    # before inspecting records.  This fixture deliberately bypasses
+    # ``Orchestrator.__init__`` so model the empty recovered-journal state
+    # explicitly rather than skipping that lifecycle fence.
+    orchestrator._audit_rollback_persistence_failed = False
+    orchestrator._audit_rollback_lock = threading.RLock()
+    orchestrator._pending_audit_rollbacks = {}
     orchestrator.terminal_transition_coordinator = SimpleNamespace(
         apply_audit_result=AsyncMock(
             return_value=SimpleNamespace(success=True, applied_status="Needs Human")

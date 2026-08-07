@@ -1268,7 +1268,14 @@ class TestSharedModeDispatchGating:
         orch._tracker_for_issue = MagicMock(return_value=parent_tracker)
         orch._reviews_cache = {}
 
-        assert orch._should_dispatch(child) is False
+        # O879 admission fences direct rebase work to one observed remote
+        # generation before the normal shared-epic in-flight gate runs.
+        with patch.object(
+            orch,
+            "_observe_epic_rebase_generation",
+            return_value=("generation-1", "epic-head", "main-head"),
+        ):
+            assert orch._should_dispatch(child) is False
         reason, _count = orch.state.reject_streak[child.id]
         assert "shared_epic_busy=TASK-462" in reason
 
@@ -1409,7 +1416,14 @@ class TestSharedModeDispatchGating:
         )
         orch._tracker_for_issue = MagicMock(return_value=parent_tracker)
 
-        ready = orch._select_dispatchable(children)
+        # Both helpers observe the same canonical generation. The first
+        # admission records its authority; the second must not replace it.
+        with patch.object(
+            orch,
+            "_observe_epic_rebase_generation",
+            return_value=("generation-1", "epic-head", "main-head"),
+        ):
+            ready = orch._select_dispatchable(children)
 
         assert [issue.identifier for issue in ready] == ["TASK-462.7"]
 
@@ -1493,7 +1507,14 @@ class TestWorkspaceAllocation:
             priority=0,
         )
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_observe_epic_rebase_generation",
+                return_value=("generation-1", "epic-head", "main-head"),
+            ),
+        ):
             wp, epic_ret = orch._create_workspace_for_issue(issue)
 
         assert wp == "/wt/epic-1"
@@ -1505,18 +1526,17 @@ class TestWorkspaceAllocation:
             "proj-1", "epic-1"
         )
         orch.project_store.create_worktree.assert_not_called()
-        # _prepare_epic_rebase_helper_target records the resolved target first
-        assert tracker.set_metadata_field.call_args_list[0].args == (
-            "TASK-REBASE",
-            "oompah.target_branch",
-            "main",
-        )
-        assert tracker.set_metadata_field.call_args_list[1].args == (
-            "TASK-REBASE",
-            "oompah.work_branch",
-            "epic-epic-1",
-        )
-        integration = tracker.set_metadata_field.call_args_list[2].args[2]
+        metadata = {
+            args.args[1]: args.args[2]
+            for args in tracker.set_metadata_field.call_args_list
+        }
+        assert metadata["oompah.target_branch"] == "main"
+        assert metadata["oompah.work_branch"] == "epic-epic-1"
+        authority = metadata["oompah.epic_rebase_authority"]
+        assert authority["generation"] == "generation-1"
+        assert authority["task_id"] == "TASK-REBASE"
+        assert authority["epic_identifier"] == "epic-1"
+        integration = metadata["oompah.integration"]
         assert integration["task_branch"] == "epic-epic-1"
         assert integration["base_branch"] == "epic-epic-1"
 
