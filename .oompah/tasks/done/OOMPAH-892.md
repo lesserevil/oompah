@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T16:21:52.021962Z'
+updated_at: '2026-08-07T16:21:59.258172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
     reason: Direct-owner implementation at pushed head f4053078b7c5ce02d6fa4629edc05d520615c1e9
       passed focused and matrix validation plus independent security review.
     created_at: '2026-08-07T16:21:46.738539+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-892
+    target_state: Done
+    evidence_fingerprint: e7adb657d72086903f4744395dbcc192caafda7b98110fe6ab438b5e764cfb40
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-07T16:21:57.524574+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -79,5 +89,12 @@ author: oompah
 created: 2026-08-07 16:21
 ---
 Final independent security review ACCEPTed pushed head f4053078b7c5ce02d6fa4629edc05d520615c1e9. Verified server-owned trusted repo/URL/Git environment, replacement-free candidate and ancestry validation, exact force-with-lease plus post-push target revalidation, complete durable prepared/published recovery evidence, exact current winner/generation gates, stripped worker credentials, denied remote shell pushes, and authority propagation through Claude/Codex/OpenCode rebuilt catalogs. Validation: focused 5/5, publish matrix 679/679, rebase/authority 235/235, ACP/session/boundary 224/224; secret scan clean.
+---
+author: oompah
+created: 2026-08-07 16:21
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation at pushed head f4053078b7c5ce02d6fa4629edc05d520615c1e9 passed focused and matrix validation plus independent security review.
 ---
 <!-- COMMENTS:END -->
