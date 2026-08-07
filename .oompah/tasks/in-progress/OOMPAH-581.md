@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T06:11:23.737803Z'
+updated_at: '2026-08-07T07:12:10.494539Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7553842d-87b0-466e-9ecb-443bc7a68aae
+oompah.agent_run_id: 6734cc22-feac-4bad-b936-eb5a912c754a
 oompah.task_costs:
   total_input_tokens: 96571
   total_output_tokens: 23239
@@ -787,5 +787,15 @@ created: 2026-08-07 06:11
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-07 07:12
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-07 07:12
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
