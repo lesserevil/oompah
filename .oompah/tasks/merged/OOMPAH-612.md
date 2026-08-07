@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-07T05:33:06.015849Z'
+updated_at: '2026-08-07T05:33:21.151605Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: ''
@@ -661,5 +661,10 @@ created: 2026-08-07 05:33
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner workaround for OOMPAH-870: accepted head f2b319c1182cd654112db622a0498171e508dead is already contained in current main, passed the exact full gate in 649.0 seconds, and the original implementation merged via PR 595. A zero-diff replacement review cannot exist.
+---
+author: oompah
+created: 2026-08-07 05:33
+---
+Reconciled to Merged from containment plus exact-gate evidence; OOMPAH-870 tracks the automatic Ready fast-path.
 ---
 <!-- COMMENTS:END -->
