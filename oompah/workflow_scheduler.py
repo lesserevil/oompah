@@ -74,12 +74,17 @@ def _job_key(
 @dataclass(frozen=True, slots=True)
 class WorkflowReconcileResult:
     snapshot_generation: int
+    snapshot_accepted: bool
     decisions_seen: int
     decisions_applied: int
     stale_rejected: int
     jobs_created: int
     jobs_replayed: int
     jobs_superseded: int
+    jobs_required: int
+    jobs_materialized: int
+    schedules_required: int
+    schedules_materialized: int
     truncated: bool
 
 
@@ -185,20 +190,18 @@ class WorkflowJobScheduler:
             for action in decision.durable_jobs
         )
 
-    def reconcile(
-        self,
-        decisions: Sequence[WorkDecision],
-        *,
-        snapshot_generation: int | None = None,
-    ) -> WorkflowReconcileResult:
-        """Boundedly materialize one snapshot with durable stale-scan fencing."""
+    def accept_snapshot_generation(self, snapshot_generation: int) -> bool:
+        """Claim the newest captured generation before evaluating its rows."""
 
-        generation = (
-            self.begin_scan() if snapshot_generation is None else snapshot_generation
-        )
-        if isinstance(generation, bool) or int(generation) < 1:
-            raise ValueError("snapshot_generation must be a positive integer")
-        generation = int(generation)
+        return self.store.accept_snapshot_generation(snapshot_generation)
+
+    def snapshot_generation_is_current(self, snapshot_generation: int) -> bool:
+        return self.store.snapshot_generation_is_current(snapshot_generation)
+
+    @staticmethod
+    def _ordered_decisions(
+        decisions: Sequence[WorkDecision],
+    ) -> list[WorkDecision]:
         normalized = tuple(decisions)
         if any(not isinstance(item, WorkDecision) for item in normalized):
             raise TypeError("decisions must contain WorkDecision values")
@@ -209,17 +212,204 @@ class WorkflowJobScheduler:
             if previous is not None and (
                 previous.decision_revision != decision.decision_revision
             ):
-                raise ValueError("one snapshot contains conflicting task decisions")
+                raise ValueError(
+                    "one snapshot contains conflicting task decisions"
+                )
             by_task[key] = decision
-        ordered = [by_task[key] for key in sorted(by_task)]
-        truncated = len(ordered) > self.decision_limit
+        return [by_task[key] for key in sorted(by_task)]
+
+    def _materialized_totals(
+        self, decisions: Sequence[WorkDecision]
+    ) -> tuple[int, int]:
+        schedules = jobs = 0
+        for decision in decisions:
+            cursor = self.store.schedule_cursor(
+                project_id=decision.project_id,
+                task_id=decision.task_id,
+            )
+            if (
+                cursor is None
+                or cursor.decision_revision != decision.decision_revision
+                or not cursor.materialized
+            ):
+                continue
+            specs = self._specs(decision, cursor)
+            if not self.store.schedule_specs_materialized(
+                project_id=decision.project_id,
+                task_id=decision.task_id,
+                decision_revision=decision.decision_revision,
+                job_generation=cursor.job_generation,
+                idempotency_keys=tuple(
+                    spec.idempotency_key for spec in specs
+                ),
+            ):
+                continue
+            schedules += 1
+            jobs += len(specs)
+        return schedules, jobs
+
+    @staticmethod
+    def _rejected_result(
+        generation: int,
+        ordered: Sequence[WorkDecision],
+        *,
+        truncated: bool,
+    ) -> WorkflowReconcileResult:
+        return WorkflowReconcileResult(
+            snapshot_generation=generation,
+            snapshot_accepted=False,
+            decisions_seen=0,
+            decisions_applied=0,
+            stale_rejected=len(ordered),
+            jobs_created=0,
+            jobs_replayed=0,
+            jobs_superseded=0,
+            jobs_required=sum(
+                len(decision.durable_jobs) for decision in ordered
+            ),
+            jobs_materialized=0,
+            schedules_required=len(ordered),
+            schedules_materialized=0,
+            truncated=truncated,
+        )
+
+    def rejected_snapshot(
+        self,
+        snapshot_generation: int,
+        decisions: Sequence[WorkDecision] = (),
+    ) -> WorkflowReconcileResult:
+        """Describe a stale pass without mutating scheduler metrics or work."""
+
+        if (
+            isinstance(snapshot_generation, bool)
+            or int(snapshot_generation) < 1
+        ):
+            raise ValueError("snapshot_generation must be a positive integer")
+        ordered = self._ordered_decisions(decisions)
+        return self._rejected_result(
+            int(snapshot_generation),
+            ordered,
+            truncated=len(ordered) > self.decision_limit,
+        )
+
+    def reconcile(
+        self,
+        decisions: Sequence[WorkDecision],
+        *,
+        snapshot_generation: int | None = None,
+        authoritative_project_ids: Sequence[str] | None = None,
+        expected_identities: Sequence[tuple[str, str]] | None = None,
+    ) -> WorkflowReconcileResult:
+        """Claim and boundedly materialize one globally fenced snapshot."""
+
+        generation = (
+            self.begin_scan() if snapshot_generation is None else snapshot_generation
+        )
+        if isinstance(generation, bool) or int(generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(generation)
+        ordered = self._ordered_decisions(decisions)
+        membership = (
+            tuple(expected_identities)
+            if expected_identities is not None
+            else tuple((item.project_id, item.task_id) for item in ordered)
+        )
+        authoritative = (
+            tuple(authoritative_project_ids)
+            if authoritative_project_ids is not None
+            else tuple(sorted({project_id for project_id, _task_id in membership}))
+        )
+        if not self.accept_snapshot_generation(generation):
+            return self._rejected_result(
+                generation,
+                ordered,
+                truncated=len(ordered) > self.decision_limit,
+            )
+        result = self.reconcile_accepted(
+            ordered,
+            snapshot_generation=generation,
+            record_metrics=False,
+            authoritative_project_ids=authoritative,
+            expected_identities=membership,
+        )
+        if not result.snapshot_accepted:
+            return result
+        published, _ = self.store.publish_snapshot_generation(
+            generation,
+            lambda: None,
+        )
+        if not published:
+            return self._rejected_result(
+                generation,
+                ordered,
+                truncated=result.truncated,
+            )
+        self.record_reconcile_metrics(result)
+        return result
+
+    def reconcile_accepted(
+        self,
+        decisions: Sequence[WorkDecision],
+        *,
+        snapshot_generation: int,
+        record_metrics: bool = True,
+        authoritative_project_ids: Sequence[str] | None = None,
+        expected_identities: Sequence[tuple[str, str]] | None = None,
+    ) -> WorkflowReconcileResult:
+        """Materialize a generation already claimed before evaluation."""
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(snapshot_generation)
+        all_decisions = self._ordered_decisions(decisions)
+        truncated = len(all_decisions) > self.decision_limit
+        if not self.snapshot_generation_is_current(generation):
+            return self._rejected_result(
+                generation, all_decisions, truncated=truncated
+            )
+        if (authoritative_project_ids is None) != (expected_identities is None):
+            raise ValueError(
+                "authoritative_project_ids and expected_identities must be provided together"
+            )
+        membership_superseded = 0
+        if authoritative_project_ids is not None and expected_identities is not None:
+            expected_identity_set = set(expected_identities)
+            membership = self.store.reconcile_snapshot_membership(
+                snapshot_generation=generation,
+                authoritative_project_ids=authoritative_project_ids,
+                expected_identities=expected_identities,
+                evaluated_identities=tuple(
+                    (item.project_id, item.task_id)
+                    for item in all_decisions
+                    if (item.project_id, item.task_id) in expected_identity_set
+                ),
+            )
+            if not membership.accepted:
+                return self._rejected_result(
+                    generation, all_decisions, truncated=truncated
+                )
+            membership_superseded = membership.jobs_superseded
+        selected = all_decisions
         if truncated:
             offset = self.store.allocate_decision_window(
-                total=len(ordered), limit=self.decision_limit
+                total=len(all_decisions),
+                limit=self.decision_limit,
+                snapshot_generation=generation,
             )
-            ordered = (ordered[offset:] + ordered[:offset])[: self.decision_limit]
-        applied = stale = created = replayed = superseded = 0
-        for decision in ordered:
+            if offset is None:
+                return self._rejected_result(
+                    generation, all_decisions, truncated=True
+                )
+            selected = (
+                all_decisions[offset:] + all_decisions[:offset]
+            )[: self.decision_limit]
+        applied = stale = created = replayed = 0
+        superseded = membership_superseded
+        activated: dict[tuple[str, str], WorkflowScheduleCursor] = {}
+        # Stage every evaluated semantic cursor before publication. Job creation
+        # remains bounded below, but an unselected changed task's older job can
+        # no longer pass the generic claim fence in the interim.
+        for decision in all_decisions:
             cursor = self.store.activate_schedule(
                 project_id=decision.project_id,
                 task_id=decision.task_id,
@@ -229,12 +419,18 @@ class WorkflowJobScheduler:
             if not cursor.accepted:
                 stale += 1
                 continue
+            activated[(decision.project_id, decision.task_id)] = cursor
+        for decision in selected:
+            cursor = activated.get((decision.project_id, decision.task_id))
+            if cursor is None:
+                continue
+            specs = self._specs(decision, cursor)
             write = self.store.reconcile_schedule(
                 project_id=decision.project_id,
                 task_id=decision.task_id,
                 snapshot_generation=generation,
                 job_generation=cursor.job_generation,
-                specs=self._specs(decision, cursor),
+                specs=specs,
             )
             if not write.accepted:
                 stale += 1
@@ -243,20 +439,47 @@ class WorkflowJobScheduler:
             created += write.created
             replayed += write.replayed
             superseded += write.superseded
-        with self._metrics_lock:
-            self._reconciled_decisions += applied
-            self._stale_decisions += stale
-            self._last_error = None
-        return WorkflowReconcileResult(
+        if not self.snapshot_generation_is_current(generation):
+            return self._rejected_result(
+                generation, all_decisions, truncated=truncated
+            )
+        schedules_materialized, jobs_materialized = (
+            self._materialized_totals(all_decisions)
+        )
+        if not self.snapshot_generation_is_current(generation):
+            return self._rejected_result(
+                generation, all_decisions, truncated=truncated
+            )
+        result = WorkflowReconcileResult(
             snapshot_generation=generation,
-            decisions_seen=len(ordered),
+            snapshot_accepted=True,
+            decisions_seen=len(selected),
             decisions_applied=applied,
             stale_rejected=stale,
             jobs_created=created,
             jobs_replayed=replayed,
             jobs_superseded=superseded,
+            jobs_required=sum(
+                len(decision.durable_jobs) for decision in all_decisions
+            ),
+            jobs_materialized=jobs_materialized,
+            schedules_required=len(all_decisions),
+            schedules_materialized=schedules_materialized,
             truncated=truncated,
         )
+        if record_metrics:
+            self.record_reconcile_metrics(result)
+        return result
+
+    def record_reconcile_metrics(self, result: WorkflowReconcileResult) -> None:
+        """Commit counters only after the caller's authority publish succeeds."""
+
+        if not result.snapshot_accepted:
+            return
+        with self._metrics_lock:
+            self._reconciled_decisions += result.decisions_applied
+            self._stale_decisions += result.stale_rejected
+            self._last_error = None
 
     async def run_due(self, *, limit: int | None = None) -> WorkflowRunBatch:
         """Run a bounded fair batch; durable claims serialize each task."""

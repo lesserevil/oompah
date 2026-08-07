@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
@@ -48,7 +48,10 @@ from oompah.workflow_facts import (
     LandingState,
     WorkflowFacts,
 )
-from oompah.workflow_reasons import AlertSeverity, LIVENESS_SLOS
+from oompah.workflow_reasons import (
+    AlertSeverity,
+    build_liveness_slos,
+)
 
 WORK_DECISION_SCHEMA_VERSION = 1
 SATISFIED_DEPENDENCY_STATUSES = frozenset({DONE, MERGED, ARCHIVED})
@@ -373,7 +376,7 @@ def _reassessment(status: str, collected_at: str) -> str | None:
     contract = STATUS_CONTRACTS.get(status)
     if contract is None or contract.reassessment.slo_key is None:
         return None
-    slo = LIVENESS_SLOS[contract.reassessment.slo_key]
+    slo = build_liveness_slos()[contract.reassessment.slo_key]
     return _render_time(
         _parse_time(collected_at, "collected_at")
         + timedelta(seconds=slo.max_reassessment_seconds)
@@ -431,6 +434,18 @@ def _valid_lease(value: Mapping[str, Any], now: datetime) -> bool:
         return False
 
 
+def _valid_active_job(value: Mapping[str, Any]) -> bool:
+    """Require an explicit live observation tied to a stable job identity."""
+
+    return bool(
+        value.get("actively_working") is True
+        and str(
+            value.get("active_job_id")
+            or value.get("job_id")
+            or value.get("audit_id")
+            or ""
+        ).strip()
+    )
 def _owner_for_status(status: str) -> WorkflowOwner:
     contract = STATUS_CONTRACTS.get(status)
     if contract is None or not contract.owners:
@@ -541,7 +556,7 @@ def _implementation_decision(
             job="implementation_recovery",
         )
     value = _mapping(authority.value)
-    if _valid_lease(value, now):
+    if _valid_active_job(value) or _valid_lease(value, now):
         owner = (
             WorkflowOwner.DIRECT_OWNER
             if value.get("ownership_source") == "direct_owner"
@@ -641,7 +656,7 @@ def _validation_decision(
             alert=AlertSeverity.WARNING,
         )
     if value.get("phase") == "active":
-        if _valid_lease(value, now):
+        if _valid_active_job(value) or _valid_lease(value, now):
             return _decision(
                 task,
                 facts,
@@ -937,7 +952,7 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     )
 
 
-def evaluate_task(
+def _evaluate_task_default_policy(
     task: Issue | Mapping[str, Any],
     facts: WorkflowFacts,
     *,
@@ -1176,11 +1191,12 @@ def evaluate_task(
     if view.status == DECOMPOSED:
         return _rollup_decision(view, facts)
     if view.status == DUPLICATE_CANDIDATE:
-        authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
+        authority = facts.fact(FactDomain.DUPLICATE_INVESTIGATION)
         value = (
             _mapping(authority.value) if authority.state is FactState.KNOWN else None
         )
-        if value and _valid_lease(value, decision_now):
+        active_duplicate_job = bool(value and _valid_active_job(value))
+        if value and (active_duplicate_job or _valid_lease(value, decision_now)):
             return _decision(
                 view,
                 facts,
@@ -1202,3 +1218,38 @@ def evaluate_task(
     if view.status == DONE:
         return _landing_decision(view, facts)
     raise AssertionError(f"unhandled canonical workflow status: {view.status}")
+
+
+def evaluate_task(
+    task: Issue | Mapping[str, Any],
+    facts: WorkflowFacts,
+    *,
+    now: datetime | None = None,
+    liveness_slo_seconds: Mapping[str, int] | None = None,
+) -> WorkDecision:
+    """Evaluate with an isolated runtime reassessment policy.
+
+    The taxonomy defaults remain suitable for library callers. The service
+    always injects its environment-derived policy, and replacing the absolute
+    deadline here ensures controller escalation and health use the same value.
+    """
+
+    decision = _evaluate_task_default_policy(task, facts, now=now)
+    if decision.next_reassessment_at is None:
+        return decision
+    contract = STATUS_CONTRACTS.get(decision.status)
+    slo_key = contract.reassessment.slo_key if contract is not None else None
+    if slo_key is None:
+        return decision
+    policy = build_liveness_slos(liveness_slo_seconds)
+    deadline = _render_time(
+        _parse_time(facts.collected_at, "collected_at")
+        + timedelta(seconds=policy[slo_key].max_reassessment_seconds)
+    )
+    if deadline == decision.next_reassessment_at:
+        return decision
+    return replace(
+        decision,
+        next_reassessment_at=deadline,
+        decision_revision=None,
+    )

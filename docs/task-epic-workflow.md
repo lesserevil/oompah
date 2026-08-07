@@ -121,6 +121,48 @@ refresh the decision and its visibility; it does not automatically promote a
 Backlog task or fabricate a requestor answer. Implementations may reassess
 sooner than the contract ceiling but cannot report SLO compliance after it.
 
+Operators configure the effective ceilings only through `.env`, using
+`OOMPAH_WORKFLOW_LIVENESS_SLO_<SLO_KEY>_SECONDS` (for example,
+`OOMPAH_WORKFLOW_LIVENESS_SLO_DISPATCH_LATENCY_SECONDS`). `.env.example`
+lists every supported key and default. Values must be positive seconds. A
+reload rebases an unchanged decision from its last evidence progress time;
+each refresh does not renew the deadline. These settings also never extend an
+authoritative worker, audit, or integration lease.
+
+The effective mapping has a content-derived policy epoch. Controller scans,
+health projection, reload cleanup, and persisted reconstruction all publish
+that same epoch; reload atomically swaps the complete immutable mapping rather
+than mutating individual thresholds during a scan.
+
+Each authoritative scan captures a durable global generation before reading
+any tracker. Only the newest generation may evaluate, materialize recovery
+jobs, update counters, or publish liveness state. The final bounded publish
+holds the same durable generation fence across the service-state write, so a
+slow older scan or scan failure cannot overwrite a newer result. Recovery
+windows persist semantic materialization markers and rotate until all current
+decisions are reconciled; an incomplete window cannot report healthy merely
+because its selected jobs succeeded.
+
+Successful project scans also replace a bounded durable task-membership set.
+Tasks proved terminal or absent have queued, retrying, and running recovery
+jobs superseded and their schedule cursors retired. A failed project source
+retains its last-known membership instead. Workers may claim managed recovery
+jobs only when that membership and the captured, accepted, and published
+generations agree. If the service-state callback or durable publication marker
+fails, the affected successful-project membership and cursors are removed and
+its managed jobs are superseded before that generation can publish a scan
+failure. Jobs enqueued directly through the domain-neutral store are not
+workflow-managed and are not superseded by schedule reconciliation.
+
+Cumulative recovery and escalation totals use a fixed-size persisted signature
+ledger. The ledger never forgets a previously observed signature when task
+records rotate out of the bounded dashboard projection, preventing unchanged
+rows from inflating totals after eviction or restart.
+Missing, wrong-schema, or corrupt persisted liveness state saturates this
+ledger and reconstructs unknown task progress from a conservative historical
+deadline. A fresh scan therefore cannot turn lost history into a renewed green
+SLO window.
+
 ```mermaid
 flowchart TD
     Request[New request] --> Entry{Entry point}

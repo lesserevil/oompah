@@ -243,10 +243,12 @@ from oompah.terminal_transition_coordinator import (
     TransitionResult,
     accepted_audit_recovery_action,
 )
+from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.work_decision import PermittedAction
 from oompah.workflow_facts import FactDomain, WorkflowFactCollector
-from oompah.workflow_jobs import WorkflowJobStore
+from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
+from oompah.workflow_liveness_metrics import workflow_liveness_health_alerts
 from oompah.workflow_shadow import (
     LegacyWorkflowProjection,
     WorkflowShadowEvaluator,
@@ -1530,9 +1532,25 @@ class Orchestrator:
             mode=config.workflow_engine_mode,
             max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
         )
+        self.workflow_controller = UniversalTotalityLivenessController(
+            store=self.workflow_job_store,
+            decision_limit=config.workflow_shadow_scan_limit,
+            facts_provider=self._collect_universal_workflow_facts,
+            liveness_max_task_records=(
+                config.workflow_liveness_max_task_records
+            ),
+            liveness_max_project_records=(
+                config.workflow_liveness_max_project_records
+            ),
+            liveness_snapshot_stale_seconds=(
+                config.workflow_liveness_snapshot_stale_seconds
+            ),
+            liveness_slo_seconds=config.workflow_liveness_slo_seconds,
+        )
         self._workflow_shadow_generation = 0
         self._workflow_shadow_generation_lock = threading.Lock()
         self._workflow_shadow_future: asyncio.Future[Any] | None = None
+        self._workflow_controller_future: asyncio.Future[Any] | None = None
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self._audit_rollback_fallback_path = (
             f"{self._state_path}.unadmitted-audit-rollbacks.json"
@@ -1769,6 +1787,9 @@ class Orchestrator:
         self._last_auto_archive_monotonic: float | None = None
         self._started_monotonic: float = time.monotonic()
         state_data = self._load_state()
+        self.workflow_controller.restore_liveness_state(
+            state_data.get("workflow_liveness")
+        )
         persisted_cycle_repairs = state_data.get("container_cycle_repairs", {})
         self._container_cycle_repairs: dict[str, dict[str, Any]] = (
             {
@@ -4864,6 +4885,14 @@ class Orchestrator:
         """Persist paused state to disk."""
         self._save_state(paused=self._paused)
 
+    def _persist_workflow_liveness_state(
+        self, state: Mapping[str, Any]
+    ) -> None:
+        """Require the authority transaction's liveness save to be durable."""
+
+        if not self._save_state(workflow_liveness=dict(state)):
+            raise OSError("workflow liveness state was not durably saved")
+
     def _set_maintenance_cursor(self, name: str, value: str | None) -> None:
         cursors = getattr(self, "_maintenance_cursors", {})
         if value is None:
@@ -4873,7 +4902,9 @@ class Orchestrator:
         self._maintenance_cursors = cursors
         self._save_state(maintenance_cursors=cursors)
 
-    def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
+    def _reload_config_locked(
+        self, config: ServiceConfig, prompt_template: str
+    ) -> None:
         """Apply new config and prompt template from workflow reload.
 
         Also refreshes the agent profile store and re-seeds
@@ -4907,6 +4938,17 @@ class Orchestrator:
         self.workflow_shadow.max_diagnostic_bytes = (
             config.workflow_diagnostic_max_bytes
         )
+        self.workflow_controller.reconfigure_liveness(
+            max_task_records=config.workflow_liveness_max_task_records,
+            max_project_records=config.workflow_liveness_max_project_records,
+            snapshot_stale_seconds=(
+                config.workflow_liveness_snapshot_stale_seconds
+            ),
+            slo_seconds=config.workflow_liveness_slo_seconds,
+        )
+        self._persist_workflow_liveness_state(
+            self.workflow_controller.liveness_state()
+        )
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
@@ -4938,6 +4980,12 @@ class Orchestrator:
             config.full_sync_interval_ms,
             config.max_concurrent_agents,
         )
+
+    def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
+        """Atomically swap config and liveness policy against controller scans."""
+
+        with self.workflow_controller.liveness_observation_lock:
+            self._reload_config_locked(config, prompt_template)
 
     def replace_agent_profiles(
         self,
@@ -10289,6 +10337,15 @@ class Orchestrator:
                 self._quiesced = True
                 self._provider_admission_generation += 1
         await self._restore_persisted_retries()
+        if self.config.workflow_engine_mode == "enforce":
+            recovered = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                self.workflow_controller.recover_startup,
+            )
+            logger.info(
+                "Universal workflow controller startup recovery: %s",
+                recovered,
+            )
         if restart_recovery_pending:
             self._schedule_restart_issue_recovery_for_resume()
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
@@ -10547,6 +10604,7 @@ class Orchestrator:
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,
                 self._workflow_shadow_future,
+                self._workflow_controller_future,
             )
             if future is not None
         ]
@@ -10662,17 +10720,67 @@ class Orchestrator:
     def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
 
+        def active_durable_job(
+            current: Issue,
+            actions: set[str],
+        ) -> dict[str, Any] | None:
+            rows = self.workflow_job_store.list_jobs(
+                project_id=str(current.project_id or "legacy"),
+                task_id=current.identifier,
+                states=(WorkflowJobState.RUNNING,),
+                limit=100,
+            )
+            row = next(
+                (
+                    candidate
+                    for candidate in reversed(rows)
+                    if candidate.action in actions
+                ),
+                None,
+            )
+            if row is None:
+                return None
+            lease = (
+                datetime.fromtimestamp(
+                    row.lease_expires_at, tz=timezone.utc
+                ).isoformat()
+                if row.lease_expires_at is not None
+                else None
+            )
+            return {
+                "owner_id": row.lease_owner,
+                "active_job_id": row.job_id,
+                "job_id": row.job_id,
+                "actively_working": bool(
+                    row.lease_owner
+                    and row.lease_expires_at is not None
+                    and row.lease_expires_at > time.time()
+                ),
+                "lease_expires_at": lease,
+            }
+
         def implementation_authority(current: Issue) -> dict[str, Any]:
+            if canonicalize_status(current.state) == DUPLICATE_CANDIDATE:
+                return {"lease_expires_at": None}
+            durable = active_durable_job(
+                current,
+                {"implementation_dispatch", "implementation_recovery"},
+            )
+            if durable is not None:
+                return {**durable, "ownership_source": "workflow_job"}
             running = self._workflow_shadow_running_entry(current, auditor=False)
             if running is not None:
+                active_job_id = str(
+                    getattr(current, "assignment_id", None)
+                    or getattr(getattr(running, "session", None), "session_id", None)
+                    or f"{running.identifier}:{running.started_at.isoformat()}"
+                )
                 return {
-                    "owner_id": getattr(running, "run_id", None),
-                    "generation": getattr(running, "run_id", None)
-                    or getattr(current, "assignment_id", None),
+                    "owner_id": active_job_id,
+                    "generation": active_job_id,
                     "ownership_source": "scheduler",
-                    "lease_expires_at": (
-                        datetime.now(timezone.utc) + timedelta(seconds=60)
-                    ).isoformat(),
+                    "actively_working": True,
+                    "active_job_id": active_job_id,
                 }
             claim = self._owner_claim_for_issue(current.id, current.project_id)
             if claim is not None and claim.expires_at > time.time():
@@ -10687,22 +10795,64 @@ class Orchestrator:
             return {"lease_expires_at": None}
 
         def terminal_audit(current: Issue) -> dict[str, Any]:
+            durable = active_durable_job(
+                current,
+                {"terminal_audit", "terminal_audit_recovery"},
+            )
+            if durable is not None:
+                return {**durable, "phase": "active"}
             running = self._workflow_shadow_running_entry(current, auditor=True)
             if running is not None:
+                active_job_id = str(
+                    getattr(current, "assignment_id", None)
+                    or getattr(getattr(running, "session", None), "session_id", None)
+                    or f"{running.identifier}:{running.started_at.isoformat()}"
+                )
                 return {
                     "phase": "active",
-                    "audit_id": getattr(running, "audit_id", None),
-                    "owner_id": getattr(running, "run_id", None),
-                    "lease_expires_at": (
-                        datetime.now(timezone.utc) + timedelta(seconds=60)
-                    ).isoformat(),
+                    "audit_id": active_job_id,
+                    "owner_id": active_job_id,
+                    "actively_working": True,
+                    "active_job_id": active_job_id,
                 }
             return {"phase": "queued"}
 
+        def duplicate_investigation(current: Issue) -> dict[str, Any]:
+            if canonicalize_status(current.state) != DUPLICATE_CANDIDATE:
+                return {"lease_expires_at": None}
+            durable = active_durable_job(
+                current, {"duplicate_investigation"}
+            )
+            if durable is not None:
+                return {
+                    **durable,
+                    "ownership_source": "duplicate_workflow_job",
+                }
+            running = self._workflow_shadow_running_entry(current, auditor=False)
+            if running is None:
+                return {"lease_expires_at": None}
+            active_job_id = str(
+                getattr(current, "assignment_id", None)
+                or getattr(getattr(running, "session", None), "session_id", None)
+                or f"{running.identifier}:{running.started_at.isoformat()}"
+            )
+            return {
+                "owner_id": active_job_id,
+                "generation": active_job_id,
+                "ownership_source": "duplicate_scheduler",
+                "actively_working": True,
+                "active_job_id": active_job_id,
+            }
+
         def review_ci(current: Issue) -> dict[str, Any] | None:
             review = self._workflow_shadow_review(current)
-            if review is None:
+            durable = active_durable_job(
+                current, {"review_monitor", "review_refresh"}
+            )
+            if review is None and durable is None:
                 return None
+            if review is None:
+                return durable
             ci_status = getattr(review, "ci_status", None)
             return {
                 "review_id": getattr(review, "id", None),
@@ -10712,6 +10862,7 @@ class Orchestrator:
                 "conflict": bool(getattr(review, "has_conflicts", False)),
                 "mergeable": not bool(getattr(review, "has_conflicts", False)),
                 "head_sha": getattr(review, "head_sha", None),
+                **(durable or {}),
             }
 
         def retry_budget(current: Issue) -> dict[str, Any]:
@@ -10731,6 +10882,7 @@ class Orchestrator:
             FactDomain.TERMINAL_AUDIT: terminal_audit,
             FactDomain.REVIEW_CI: review_ci,
             FactDomain.IMPLEMENTATION_AUTHORITY: implementation_authority,
+            FactDomain.DUPLICATE_INVESTIGATION: duplicate_investigation,
             FactDomain.RETRY_BUDGET: retry_budget,
             FactDomain.CONFIG: lambda _current: {
                 "coordination_policy_denied": False,
@@ -10972,6 +11124,131 @@ class Orchestrator:
             "snapshot_generation": generation,
         }
 
+    def _run_workflow_controller_sweep(self) -> dict[str, Any]:
+        """Run the universal totality/liveness pass in enforce mode.
+
+        The controller owns only facts, decisions, and durable recovery jobs.
+        Legacy tracker status writers remain responsible for their domain until
+        their individual cutovers replace them with leased workflow workers.
+        """
+
+        if self.config.workflow_engine_mode != "enforce":
+            return {"evaluated": 0, "mode": self.config.workflow_engine_mode}
+        generation = self.workflow_controller.begin_scan()
+        try:
+            projects = list(self.project_store.list_all())
+            tracker_projects: list[tuple[str, TrackerProtocol]] = []
+            source_scan_complete = True
+            source_errors: dict[str, str] = {}
+            authoritative_project_ids: set[str] = set()
+            if projects:
+                configured_project_ids = {str(project.id) for project in projects}
+                for project in projects:
+                    try:
+                        tracker_projects.append(
+                            (
+                                str(project.id),
+                                self._tracker_for_project(project.id),
+                            )
+                        )
+                    except Exception as exc:  # noqa: BLE001 - fail closed
+                        source_scan_complete = False
+                        source_errors[str(project.id)] = type(exc).__name__
+                        logger.debug(
+                            "Universal workflow tracker unavailable "
+                            "project=%s error=%s",
+                            project.id,
+                            type(exc).__name__,
+                        )
+            else:
+                configured_project_ids = {"legacy"}
+                tracker_projects.append(("legacy", self.tracker))
+            candidates: list[Issue] = []
+            for project_id, tracker in tracker_projects:
+                try:
+                    issues = list(tracker.fetch_all_issues())
+                except Exception as exc:  # noqa: BLE001 - isolate one project
+                    source_scan_complete = False
+                    source_errors[project_id] = type(exc).__name__
+                    logger.debug(
+                        "Universal workflow scan skipped project %s: %s",
+                        project_id,
+                        type(exc).__name__,
+                    )
+                    continue
+                authoritative_project_ids.add(project_id)
+                for issue in issues:
+                    if (
+                        canonicalize_status(issue.state)
+                        in LIFECYCLE_FINAL_STATUSES
+                    ):
+                        continue
+                    candidates.append(
+                        issue
+                        if str(issue.project_id or "") == project_id
+                        else replace(issue, project_id=project_id)
+                    )
+            authoritative_project_ids.update(
+                project_id
+                for project_id, _task_id, _generation in (
+                    self.workflow_job_store.snapshot_membership()
+                )
+                if project_id not in configured_project_ids
+            )
+            candidates.sort(
+                key=lambda item: (
+                    str(item.project_id or ""),
+                    item.identifier,
+                )
+            )
+            result = self.workflow_controller.full_sync(
+                candidates,
+                facts=self._collect_universal_workflow_facts,
+                source_scan_complete=source_scan_complete,
+                source_errors=source_errors,
+                authoritative_project_ids=tuple(
+                    sorted(authoritative_project_ids)
+                ),
+                snapshot_generation=generation,
+                persist_liveness_state=(
+                    self._persist_workflow_liveness_state
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - next safety pass retries
+            logger.exception("Universal workflow controller sweep failed")
+            liveness = self.workflow_controller.record_liveness_scan_failure(
+                type(exc).__name__,
+                snapshot_generation=generation,
+                persist_liveness_state=(
+                    self._persist_workflow_liveness_state
+                ),
+            )
+            if liveness.snapshot_generation == generation:
+                self._notify_state_only()
+            return {
+                "evaluated": 0,
+                "mode": "enforce",
+                "error": type(exc).__name__,
+                "snapshot_generation": generation,
+                "accepted": liveness.snapshot_generation == generation,
+            }
+        liveness = self.workflow_controller.liveness_snapshot()
+        if result.accepted:
+            self._notify_state_only()
+        return {
+            "evaluated": len(result.decisions),
+            "accepted": result.accepted,
+            "action_required": len(result.action_required),
+            "jobs_created": result.reconciliation.jobs_created,
+            "jobs_replayed": result.reconciliation.jobs_replayed,
+            "jobs_superseded": result.reconciliation.jobs_superseded,
+            "truncated": result.truncated,
+            "snapshot_generation": result.snapshot_generation,
+            "liveness_status": liveness.status,
+            "liveness_scan_complete": liveness.scan_complete,
+            "mode": "enforce",
+        }
+
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
 
@@ -11137,6 +11414,24 @@ class Orchestrator:
             self._workflow_shadow_future = (
                 asyncio.get_running_loop().run_in_executor(
                     self._tick_pool, self._run_workflow_shadow_sweep
+                )
+            )
+
+        # Enforce mode adds the universal totality/liveness controller to the
+        # same bounded maintenance lane. The durable scheduler is the only
+        # mutation-capable path here; tracker statuses remain owned by their
+        # domain cutovers until their workers are installed.
+        if (
+            self.config.workflow_engine_mode == "enforce"
+            and (
+                self._workflow_controller_future is None
+                or self._workflow_controller_future.done()
+            )
+        ):
+            self._workflow_controller_future = (
+                asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    self._run_workflow_controller_sweep,
                 )
             )
 
@@ -54570,11 +54865,38 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         validation_resource_action_required = (
             validation_resource_state.get("status") == "action_required"
         )
+        with self.workflow_controller.liveness_observation_lock:
+            workflow_liveness = self.workflow_controller.liveness.snapshot(
+                now=now
+            )
+            workflow_liveness_enabled = (
+                self.config.workflow_engine_mode == "enforce"
+            )
+            workflow_liveness_config = {
+                "max_task_records": (
+                    self.config.workflow_liveness_max_task_records
+                ),
+                "max_project_records": (
+                    self.config.workflow_liveness_max_project_records
+                ),
+                "snapshot_stale_seconds": (
+                    self.config.workflow_liveness_snapshot_stale_seconds
+                ),
+                "slo_seconds": dict(
+                    self.config.workflow_liveness_slo_seconds
+                ),
+                "policy_epoch": workflow_liveness.policy_epoch,
+            }
         raw_alerts = (
             self._alerts_snapshot()
             + self._quality_gate_dashboard_alerts(quality_gate_state)
             + self._credential_error_alerts()
             + auth_health_alerts()
+            + (
+                workflow_liveness_health_alerts(workflow_liveness)
+                if workflow_liveness_enabled
+                else []
+            )
         )
         return {
             "generated_at": now.isoformat(),
@@ -54602,6 +54924,21 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "workflow_engine_mode": self.config.workflow_engine_mode,
                 "workflow_shadow_scan_limit": (
                     self.config.workflow_shadow_scan_limit
+                ),
+                "workflow_liveness_max_task_records": (
+                    workflow_liveness_config["max_task_records"]
+                ),
+                "workflow_liveness_max_project_records": (
+                    workflow_liveness_config["max_project_records"]
+                ),
+                "workflow_liveness_snapshot_stale_seconds": (
+                    workflow_liveness_config["snapshot_stale_seconds"]
+                ),
+                "workflow_liveness_slo_seconds": dict(
+                    workflow_liveness_config["slo_seconds"]
+                ),
+                "workflow_liveness_policy_epoch": (
+                    workflow_liveness_config["policy_epoch"]
                 ),
             },
             "integration_queue": [
@@ -54684,6 +55021,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "quality_gates": quality_gate_state,
             "validation_resources": validation_resource_state,
             "workflow_jobs": self.workflow_job_store.health_snapshot(),
+            "workflow_controller": self.workflow_controller.health_snapshot(),
+            "workflow_liveness": {
+                "enabled": workflow_liveness_enabled,
+                **workflow_liveness.to_dict(),
+            },
             "workflow_shadow": self.workflow_shadow.summary(),
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
@@ -54693,11 +55035,19 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         self, "_audit_health", TerminalAuditHealth()
                     ).degraded
                     or validation_resource_action_required
+                    or (
+                        workflow_liveness_enabled
+                        and workflow_liveness.degraded
+                    )
                     else "healthy"
                 ),
                 "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
                 "quality_gates": quality_gate_state,
                 "validation_resources": validation_resource_state,
+                "workflow_liveness": {
+                    "enabled": workflow_liveness_enabled,
+                    **workflow_liveness.to_dict(),
+                },
             },
             "auth_health": auth_health_snapshot(),
             # The state API and websocket share this exact presentation

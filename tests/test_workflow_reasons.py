@@ -22,6 +22,8 @@ from oompah.workflow_reasons import (
     AlertSeverity,
     ReasonClass,
     WorkflowReason,
+    build_liveness_policy,
+    build_liveness_slos,
     build_workflow_reason,
     validate_reason_taxonomy,
     validate_workflow_reason,
@@ -252,3 +254,40 @@ def test_static_taxonomy_is_valid_and_read_only():
         LIVENESS_SLOS["custom"] = LIVENESS_SLOS[  # type: ignore[index]
             "dispatch_latency"
         ]
+
+
+def test_effective_liveness_policy_is_validated_isolated_and_immutable():
+    configured = build_liveness_slos({"dispatch_latency": 17})
+    policy = build_liveness_policy({"dispatch_latency": 17})
+    same_policy = build_liveness_policy({"dispatch_latency": 17})
+    changed_policy = build_liveness_policy({"dispatch_latency": 18})
+    reason = build_workflow_reason(
+        "dispatch.eligible",
+        OPEN,
+        observed_at=NOW,
+        evidence={"candidate_generation": "generation-1"},
+        liveness_slo_seconds={"dispatch_latency": 17},
+    )
+
+    assert configured["dispatch_latency"].max_reassessment_seconds == 17
+    assert policy.epoch == same_policy.epoch
+    assert policy.epoch != changed_policy.epoch
+    assert policy.seconds["dispatch_latency"] == 17
+    assert (
+        LIVENESS_SLOS["dispatch_latency"].max_reassessment_seconds
+        != configured["dispatch_latency"].max_reassessment_seconds
+    )
+    assert reason.reassess_at == (NOW + timedelta(seconds=17)).isoformat()
+    assert validate_workflow_reason(
+        reason, liveness_slo_seconds={"dispatch_latency": 17}
+    ) == ()
+    with pytest.raises(TypeError):
+        configured["dispatch_latency"] = LIVENESS_SLOS[  # type: ignore[index]
+            "dispatch_latency"
+        ]
+    with pytest.raises(TypeError):
+        policy.seconds["dispatch_latency"] = 18  # type: ignore[index]
+    with pytest.raises(ValueError, match="unknown"):
+        build_liveness_slos({"not_a_policy": 1})
+    with pytest.raises(ValueError, match="positive"):
+        build_liveness_slos({"dispatch_latency": 0})

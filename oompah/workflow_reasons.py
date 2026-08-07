@@ -13,6 +13,8 @@ or dropping evidence.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -89,6 +91,15 @@ class LivenessSLO:
     max_reassessment_seconds: int
     breach_reason_code: str
     description: str
+
+
+@dataclass(frozen=True, slots=True)
+class LivenessPolicy:
+    """One immutable, content-versioned runtime liveness policy."""
+
+    epoch: str
+    slos: Mapping[str, LivenessSLO]
+    seconds: Mapping[str, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,6 +294,67 @@ LIVENESS_SLOS: Mapping[str, LivenessSLO] = MappingProxyType(
         )
     }
 )
+
+
+def build_liveness_slos(
+    overrides: Mapping[str, int] | None = None,
+) -> Mapping[str, LivenessSLO]:
+    """Return an isolated effective SLO policy with validated overrides.
+
+    ``LIVENESS_SLOS`` remains the public taxonomy/default contract. Runtime
+    services use this builder so environment-specific ceilings never mutate
+    process globals or leak between orchestrators.
+    """
+
+    normalized = dict(overrides or {})
+    unknown = set(normalized) - set(LIVENESS_SLOS)
+    if unknown:
+        raise ValueError(
+            "unknown workflow liveness SLO keys: "
+            + ", ".join(sorted(unknown))
+        )
+    effective: dict[str, LivenessSLO] = {}
+    for key, default in LIVENESS_SLOS.items():
+        raw = normalized.get(key, default.max_reassessment_seconds)
+        if isinstance(raw, bool):
+            raise ValueError(f"workflow liveness SLO {key} must be positive")
+        try:
+            seconds = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"workflow liveness SLO {key} must be positive"
+            ) from exc
+        if seconds < 1:
+            raise ValueError(f"workflow liveness SLO {key} must be positive")
+        effective[key] = LivenessSLO(
+            key=default.key,
+            max_reassessment_seconds=seconds,
+            breach_reason_code=default.breach_reason_code,
+            description=default.description,
+        )
+    return MappingProxyType(effective)
+
+
+def build_liveness_policy(
+    overrides: Mapping[str, int] | None = None,
+) -> LivenessPolicy:
+    """Build one immutable policy shared by a controller and its tracker."""
+
+    slos = build_liveness_slos(overrides)
+    seconds = MappingProxyType(
+        {
+            key: slo.max_reassessment_seconds
+            for key, slo in slos.items()
+        }
+    )
+    encoded = json.dumps(
+        dict(seconds), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return LivenessPolicy(
+        epoch=hashlib.sha256(encoded).hexdigest(),
+        slos=slos,
+        seconds=seconds,
+    )
 
 
 def _reason(
@@ -523,6 +595,7 @@ def build_workflow_reason(
     observed_at: datetime,
     evidence: Mapping[str, Any],
     reassessment_seconds: int | None = None,
+    liveness_slo_seconds: Mapping[str, int] | None = None,
 ) -> WorkflowReason:
     """Build and validate a known reason instance."""
 
@@ -535,7 +608,7 @@ def build_workflow_reason(
     missing = [field for field in definition.evidence_fields if field not in evidence]
     if missing:
         raise ValueError(f"reason {code!r} is missing evidence fields: {missing!r}")
-    slo = LIVENESS_SLOS[definition.slo_key]
+    slo = build_liveness_slos(liveness_slo_seconds)[definition.slo_key]
     seconds = (
         slo.max_reassessment_seconds
         if reassessment_seconds is None
@@ -561,7 +634,11 @@ def build_workflow_reason(
     )
 
 
-def validate_workflow_reason(reason: WorkflowReason) -> tuple[str, ...]:
+def validate_workflow_reason(
+    reason: WorkflowReason,
+    *,
+    liveness_slo_seconds: Mapping[str, int] | None = None,
+) -> tuple[str, ...]:
     """Return schema/contract violations for a reason instance."""
 
     errors: list[str] = []
@@ -590,7 +667,7 @@ def validate_workflow_reason(reason: WorkflowReason) -> tuple[str, ...]:
     ]
     if missing:
         errors.append(f"missing evidence fields: {missing!r}")
-    slo = LIVENESS_SLOS[definition.slo_key]
+    slo = build_liveness_slos(liveness_slo_seconds)[definition.slo_key]
     if (reassess - observed).total_seconds() > slo.max_reassessment_seconds:
         errors.append(f"reassessment exceeds SLO {definition.slo_key!r}")
     return tuple(errors)
@@ -664,6 +741,9 @@ if _taxonomy_errors:
 __all__ = [
     "AlertSeverity",
     "LIVENESS_SLOS",
+    "LivenessPolicy",
+    "build_liveness_policy",
+    "build_liveness_slos",
     "LivenessSLO",
     "REASON_DEFINITIONS",
     "REASON_SCHEMA_VERSION",

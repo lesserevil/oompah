@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
 
 from oompah.work_decision import PermittedAction, WorkDecision
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobLeaseLost,
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
@@ -106,12 +109,24 @@ def test_bounded_decision_window_resumes_after_restart(tmp_path):
 
     reopened = WorkflowJobStore(path)
     try:
-        WorkflowJobScheduler(store=reopened, decision_limit=2).reconcile(decisions)
+        converged = WorkflowJobScheduler(
+            store=reopened, decision_limit=2
+        ).reconcile(decisions)
         assert {job.task_id for job in reopened.list_jobs()} == {
             "OOMPAH-1",
             "OOMPAH-2",
             "OOMPAH-3",
         }
+        assert converged.jobs_materialized == 3
+        assert converged.schedules_materialized == 3
+        claimable = set()
+        for index in range(3):
+            claimed = reopened.claim_next(
+                lease_owner=f"restart-worker-{index}", lease_seconds=30
+            )
+            assert claimed is not None
+            claimable.add(claimed.task_id)
+        assert claimable == {"OOMPAH-1", "OOMPAH-2", "OOMPAH-3"}
     finally:
         reopened.close()
 
@@ -135,6 +150,184 @@ def test_stale_slow_scan_cannot_replace_newer_task_schedule(store):
     assert cursor.decision_revision == decision(evidence="facts-2").decision_revision
 
 
+def test_concurrent_global_fence_rejects_old_task_absent_from_newer_snapshot(
+    store,
+):
+    scheduler = WorkflowJobScheduler(store=store)
+    slow_generation = scheduler.begin_scan()
+    slow_ready = Event()
+    release_slow = Event()
+
+    def finish_slow_scan():
+        slow_ready.set()
+        assert release_slow.wait(timeout=2)
+        return scheduler.reconcile(
+            (decision(task="OOMPAH-old"),),
+            snapshot_generation=slow_generation,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future = pool.submit(finish_slow_scan)
+        assert slow_ready.wait(timeout=2)
+        newer = scheduler.reconcile(())
+        release_slow.set()
+        stale = future.result(timeout=2)
+
+    assert newer.snapshot_accepted
+    assert not stale.snapshot_accepted
+    assert stale.stale_rejected == 1
+    assert store.list_jobs() == ()
+    assert store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-old"
+    ) is None
+    assert scheduler.health_snapshot()["scheduler"]["stale_decisions"] == 0
+
+
+def test_newer_authoritative_snapshot_retires_published_task_across_restart(
+    tmp_path,
+):
+    path = str(tmp_path / "retired-membership.sqlite3")
+    first_store = WorkflowJobStore(path)
+    first_scheduler = WorkflowJobScheduler(store=first_store)
+    published = first_scheduler.reconcile((decision(task="OOMPAH-retired"),))
+
+    assert published.jobs_created == 1
+    assert first_store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-retired"
+    ) is not None
+
+    retired = first_scheduler.reconcile(
+        (),
+        authoritative_project_ids=("project-a",),
+    )
+
+    assert retired.snapshot_accepted
+    assert retired.jobs_superseded == 1
+    assert first_store.get(first_store.list_jobs()[0].job_id).state is (
+        WorkflowJobState.SUPERSEDED
+    )
+    assert first_store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-retired"
+    ) is None
+    assert first_store.snapshot_membership() == ()
+    first_store.close()
+
+    reopened = WorkflowJobStore(path)
+    try:
+        assert reopened.schedule_cursor(
+            project_id="project-a", task_id="OOMPAH-retired"
+        ) is None
+        assert reopened.snapshot_membership() == ()
+        assert reopened.claim_next(
+            lease_owner="worker-after-restart", lease_seconds=30
+        ) is None
+        assert reopened.health_snapshot()["schedule_cursor_count"] == 0
+    finally:
+        reopened.close()
+
+
+def test_schedule_reconciliation_never_supersedes_direct_enqueue_jobs(store):
+    direct = store.enqueue(direct_spec("manual-job"))
+    scheduler = WorkflowJobScheduler(store=store)
+
+    first = scheduler.reconcile((decision(evidence="facts-1"),))
+    first_managed = next(
+        job for job in store.list_jobs() if job.workflow_managed
+    )
+    second = scheduler.reconcile((decision(evidence="facts-2"),))
+    second_managed = [
+        job
+        for job in store.list_jobs()
+        if job.workflow_managed and job.job_id != first_managed.job_id
+    ]
+
+    assert first.jobs_created == 1
+    assert second.jobs_created == 1
+    assert store.get(direct.job_id).state is WorkflowJobState.QUEUED
+    assert not store.get(direct.job_id).workflow_managed
+    assert store.get(first_managed.job_id).state is WorkflowJobState.SUPERSEDED
+    assert len(second_managed) == 1
+    assert second_managed[0].state is WorkflowJobState.QUEUED
+
+    retired = scheduler.reconcile(
+        (), authoritative_project_ids=("project-a",)
+    )
+
+    assert retired.jobs_superseded == 1
+    assert store.get(direct.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(second_managed[0].job_id).state is WorkflowJobState.SUPERSEDED
+
+
+def test_v4_migration_never_reclassifies_direct_job_as_workflow_managed(tmp_path):
+    path = str(tmp_path / "migration.sqlite3")
+    first = WorkflowJobStore(path)
+    direct = first.enqueue(direct_spec("workflow-decision:looks-managed"))
+    first._conn.execute(  # noqa: SLF001 - simulate an existing v4 cursor
+        """
+        INSERT INTO workflow_schedule_cursors(
+            project_id, task_id, snapshot_generation, decision_revision,
+            job_generation, materialized_job_generation, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("project-a", "OOMPAH-1", 0, "old", "generation-1", "generation-1", 0),
+    )
+    first._conn.execute(  # noqa: SLF001 - exercise the migration boundary
+        "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
+        ("workflow_jobs_version", "4"),
+    )
+    first._conn.commit()  # noqa: SLF001
+    first.close()
+
+    reopened = WorkflowJobStore(path)
+    try:
+        assert not reopened.get(direct.job_id).workflow_managed
+        WorkflowJobScheduler(store=reopened).reconcile((decision(evidence="facts-2"),))
+        assert reopened.get(direct.job_id).state is WorkflowJobState.QUEUED
+        assert not reopened.get(direct.job_id).workflow_managed
+    finally:
+        reopened.close()
+
+
+def test_newer_authoritative_snapshot_revokes_active_claim_for_absent_task(store):
+    scheduler = WorkflowJobScheduler(store=store)
+    scheduler.reconcile(
+        tuple(
+            decision(task=task)
+            for task in ("OOMPAH-a-retry", "OOMPAH-b-running", "OOMPAH-c-queued")
+        )
+    )
+    retry_claim = store.claim_next(lease_owner="worker-a", lease_seconds=30)
+    assert retry_claim is not None
+    waiting = store.fail(
+        retry_claim.job_id,
+        retry_claim.lease_token,
+        category=WorkflowFailureCategory.TRANSPORT,
+        error="provider unavailable",
+        retryable=True,
+        retry_delay_seconds=60,
+    )
+    claimed = store.claim_next(lease_owner="worker-b", lease_seconds=30)
+
+    assert claimed is not None
+    assert claimed.state is WorkflowJobState.RUNNING
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+
+    retired = scheduler.reconcile(
+        (),
+        authoritative_project_ids=("project-a",),
+    )
+
+    assert retired.jobs_superseded == 3
+    assert all(
+        job.state is WorkflowJobState.SUPERSEDED
+        for job in store.list_jobs()
+    )
+    assert store.get(claimed.job_id).state is WorkflowJobState.SUPERSEDED
+    with pytest.raises(WorkflowJobLeaseLost, match="lease"):
+        store.renew(claimed.job_id, claimed.lease_token, lease_seconds=30)
+    assert store.claim_next(lease_owner="worker-c", lease_seconds=30) is None
+
+
 def test_duplicate_scheduling_replays_one_durable_job(store):
     scheduler = WorkflowJobScheduler(store=store)
     current = decision()
@@ -143,8 +336,12 @@ def test_duplicate_scheduling_replays_one_durable_job(store):
     second = scheduler.reconcile((current,))
 
     assert first.jobs_created == 1
+    assert first.jobs_required == 1
+    assert first.jobs_materialized == 1
     assert second.jobs_created == 0
     assert second.jobs_replayed == 1
+    assert second.jobs_required == 1
+    assert second.jobs_materialized == 1
     assert len(store.list_jobs()) == 1
     assert (
         store.schedule_cursor(project_id="project-a", task_id="OOMPAH-1").job_generation
@@ -262,6 +459,9 @@ def test_health_snapshot_exposes_queue_lease_retry_and_cursor_state(store, clock
     assert health["jobs"]["leases"] == {"running": 1, "expired": 1}
     assert health["jobs"]["schedule_cursor_count"] == 1
     assert health["jobs"]["latest_snapshot_generation"] == 1
+    assert health["jobs"]["captured_snapshot_generation"] == 1
+    assert health["jobs"]["accepted_snapshot_generation"] == 1
+    assert health["jobs"]["published_snapshot_generation"] == 1
     assert "lease_token" not in str(health)
     assert running.lease_token not in str(health)
 
@@ -377,16 +577,41 @@ def test_reconciliation_is_bounded_and_deterministic(store):
 
     assert result.decisions_seen == 2
     assert result.truncated is True
+    assert result.jobs_required == 3
+    assert result.jobs_materialized == 2
+    assert result.schedules_required == 3
+    assert result.schedules_materialized == 2
     assert [job.task_id for job in store.list_jobs()] == ["OOMPAH-1", "OOMPAH-2"]
 
-    scheduler.reconcile(
+    converged = scheduler.reconcile(
         tuple(decision(task=f"OOMPAH-{number}") for number in (3, 1, 2))
     )
+    assert converged.jobs_required == 3
+    assert converged.jobs_materialized == 3
+    assert converged.schedules_required == 3
+    assert converged.schedules_materialized == 3
     assert [job.task_id for job in store.list_jobs()] == [
         "OOMPAH-1",
         "OOMPAH-2",
         "OOMPAH-3",
     ]
+
+
+def test_zero_job_semantic_cleanup_window_cannot_report_false_green(store):
+    scheduler = WorkflowJobScheduler(store=store, decision_limit=2)
+    decisions = tuple(
+        decision(task=f"OOMPAH-{number}", jobs=())
+        for number in range(3)
+    )
+
+    first = scheduler.reconcile(decisions)
+    converged = scheduler.reconcile(decisions)
+
+    assert first.jobs_required == first.jobs_materialized == 0
+    assert first.schedules_required == 3
+    assert first.schedules_materialized == 2
+    assert converged.schedules_materialized == 3
+    assert store.list_jobs() == ()
 
 
 def test_explicit_zero_snapshot_generation_is_rejected(store):

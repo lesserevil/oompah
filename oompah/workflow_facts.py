@@ -125,6 +125,7 @@ class FactDomain(str, Enum):
     REVIEW_CI = "review_ci"
     LANDING = "landing"
     IMPLEMENTATION_AUTHORITY = "implementation_authority"
+    DUPLICATE_INVESTIGATION = "duplicate_investigation"
     RETRY_BUDGET = "retry_budget"
     CONFIG = "config"
 
