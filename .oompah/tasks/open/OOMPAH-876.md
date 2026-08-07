@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T08:51:15.639323Z'
+updated_at: '2026-08-07T09:33:11.107263Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Acceptance criteria: a transient auditor transport/finalization failure cannot s
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 09:33
+---
+Additional live reproduction: OOMPAH-845's Merged audit consumed haiku, sonnet, and opus; each transport terminated before producing a structured verdict (17m, 12m, 14m), then the audit exhausted max_attempts=3 and entered Needs Human despite merged exact-head gate evidence. Owner override restored Merged. Regression coverage should include repeated pre-verdict transport termination across the whole configured pool and prove candidate capacity is not substantively consumed.
+---
+<!-- COMMENTS:END -->
