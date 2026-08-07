@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T08:12:47.199415Z'
+updated_at: '2026-08-07T08:14:06.526944Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-08-07 08:12
 ---
 Independent early review (while implementation remains in progress): the current durable-marker diff is not yet acceptance-complete. No reachable owner-authorized API/CLI/transition path currently invokes mark_provenance_only or authorize_new_revision, so suppression cannot be set or explicitly cleared. Current fences cover dispatch/watchdog and two review reconciliations, but not shared-absorption, epic-child rollup, restart recovery, or auto-archive paths. These are blocking if still absent at the frozen head; please either cover the required transition surfaces with tests or document and prove why they cannot reopen provenance-only work.
+---
+author: oompah
+created: 2026-08-07 08:14
+---
+Independent review follow-up: current draft remains REJECT until these are resolved: (1) mark/authorize helpers merely accept a caller-supplied ContributorIdentity and do not bind to authenticated project-owner authority; (2) autonomous restart recovery, shared absorption, late review handoff, close/unpushed/integration gates, and merge-conflict/CI escalations can still mutate provenance-only terminal work before _should_dispatch; (3) tests must exercise real orchestrator/restart calls, not marker models only; (4) unsupported marker version currently interpolates raw metadata into ProvenanceSuppressionError, so malformed-marker alert text can leak attacker-controlled/sensitive payload. Use an auth-bound reachable entry point, a central fenced status-transition boundary or complete coverage of reopeners, and sanitized structural errors.
 ---
 <!-- COMMENTS:END -->
