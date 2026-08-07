@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T07:48:35.149605Z'
+updated_at: '2026-08-07T08:12:34.747454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -176,5 +176,16 @@ created: 2026-08-07 07:48
 3. Owner-initiated 'new revision' explicitly clears the marker and bumps an authority generation. This is the only path that returns the task to a dispatchable state.
 4. Malformed provenance metadata is quarantined (existing MetadataQuarantine path) and surfaces an operator alert — never silently mutates status.
 5. Tests: watchdog ticks + restart recovery leave the record non-dispatchable; owner-authored revision creates a new authority generation; stale branch/review observations cannot reopen; malformed metadata does not mutate status.
+---
+author: oompah
+created: 2026-08-07 08:12
+---
+**Discovery**: The critical reopen path for a Merged/Archived-provenance-only task is \`_reconcile_terminal_open_reviews\` in \`oompah/orchestrator.py:23393\` — it observes a cached open review and demotes a Merged task to \`In Review\`/\`Needs CI Fix\`/\`Needs Rebase\`. This is exactly the 'documentation-only accepted head and another full validation/review cycle' the bug describes.
+
+Additional reopen paths that need fencing: \`_execute_stalled_watchdog_reopen_locked\`, \`_reopen_stale_in_review_task\`, dispatch eligibility in \`_should_dispatch\`. The shared-worktree absorption reopen already skips terminal state so it inherits the fence.
+
+Design: persist a durable \`ProvenanceSuppression\` marker inside the existing \`TerminalAuditMetadata\` envelope under key \`oompah.terminal_provenance_suppression\`. This inherits the metadata store's project write lock, quarantine handling, and redaction rules. The marker carries a monotonically increasing \`authority_generation\` bumped only by \`authorize_new_revision(actor, reason)\` — this is the only path that returns a suppressed record to a dispatchable state and survives service restart naturally because the marker is tracker-durable.
+
+**Implementation**: Added new module \`oompah/provenance_suppression.py\` with pure logic. Integrated into the orchestrator at four sites: \`_reconcile_terminal_open_reviews\`, \`_reopen_stale_in_review_task\`, \`_execute_stalled_watchdog_reopen_locked\`, and \`_should_dispatch\`. The fence emits an operator log line on suppression and an alert-severity log for malformed markers, and never mutates status in either case.
 ---
 <!-- COMMENTS:END -->
