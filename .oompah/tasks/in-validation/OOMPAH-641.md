@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T10:53:03.463720Z'
+updated_at: '2026-08-07T11:05:19.761920Z'
 work_branch: OOMPAH-641
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/738
@@ -42,8 +42,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 1057197
-  total_output_tokens: 29146
+  total_input_tokens: 1057200
+  total_output_tokens: 29302
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,8 +51,8 @@ oompah.task_costs:
       output_tokens: 25866
       cost_usd: 0.0
     unknown:
-      input_tokens: 27
-      output_tokens: 3280
+      input_tokens: 30
+      output_tokens: 3436
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 337
     cost_usd: 0.0
     recorded_at: '2026-08-07T08:41:36.937427+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 156
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T11:05:13.624042+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-641__20260731T060717Z
@@ -259,7 +265,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-641
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -268,7 +274,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5df322c28a86
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -280,6 +286,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-641
       selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
       selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+      failure_classification: finalization_failure
+      ended_at: '2026-08-07T11:05:13.620572+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-07T11:05:23.620542+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
@@ -288,7 +298,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:51:28.198397+00:00'
     selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
     selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
-    updated_at: '2026-08-07T10:52:43.212165+00:00'
+    updated_at: '2026-08-07T11:05:13.620572+00:00'
   - version: 1
     audit_id: audit-aa2204db9e01
     project_id: proj-14849f1b
@@ -338,7 +348,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-5df322c28a86
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -350,6 +360,10 @@ oompah.terminal_audit:
     branch_key: OOMPAH-641
     selected_ref: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
     selected_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+    failure_classification: finalization_failure
+    ended_at: '2026-08-07T11:05:13.620572+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-07T11:05:23.620542+00:00'
 oompah.review_head: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 review_head: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
 ---
@@ -699,5 +713,15 @@ author: oompah
 created: 2026-08-07 10:53
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 11:05
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 29, Tool calls: 8
+- Tokens: 3 in / 156 out [159 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 24s
+- Log: OOMPAH-641__20260807T105340Z.jsonl
 ---
 <!-- COMMENTS:END -->
