@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:22:05.891051Z'
+updated_at: '2026-08-07T13:23:07.880281Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3387f00f-4a10-4c38-8100-f5b004307861
+oompah.agent_run_id: c4ce98a2-a8e1-4a03-96da-1b2ac6594359
 oompah.task_costs:
   total_input_tokens: 5168916
   total_output_tokens: 56115
@@ -865,5 +865,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 45s
 - Log: OOMPAH-657__20260807T131923Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:23
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
