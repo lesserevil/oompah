@@ -247,7 +247,11 @@ from oompah.terminal_transition_coordinator import (
     accepted_audit_recovery_action,
 )
 from oompah.workflow_controller import UniversalTotalityLivenessController
-from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.workflow_contract import (
+    LIFECYCLE_FINAL_STATUSES,
+    TaskDisposition,
+    WorkflowOwner,
+)
 from oompah.work_decision import PermittedAction
 from oompah.workflow_facts import FactDomain, WorkflowFactCollector
 from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
