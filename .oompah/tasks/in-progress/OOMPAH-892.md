@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T13:30:27.249055Z'
-updated_at: '2026-08-07T15:07:36.570127Z'
+updated_at: '2026-08-07T16:05:47.040921Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-07 15:07
 ---
 Direct owner implementation started atop validated safety commit 28c0729e in the OOMPAH-879 worktree. Project remains paused. This final child will move all epic-rebase publication into a server-owned exact-CAS capability and leave workers with task/project/candidate identity only. No remote push is authorized from the worker path.
+---
+author: oompah
+created: 2026-08-07 16:05
+---
+Implemented server-owned epic-rebase CAS publication and pushed commit 635f91617a2187c980a362378261352d109fcf5c to task branch epic-OOMPAH-763--task-OOMPAH-879. Validation: exact regression nodes 5/5 passed; six-module matrix 679/679 passed with 2 warnings; git diff --check, py_compile, make terminal-audit-scan, and make check-secrets passed. The worker-facing tool accepts candidate SHA only; server re-resolves authority/project/remote/ref state under authority-then-project locks, verifies trusted-repo object/HEAD/target ancestry with replace refs disabled, performs exact force-with-lease CAS against the canonical remote, verifies the result, and durably supports idempotent recovery. No shared epic branch was pushed.
 ---
 <!-- COMMENTS:END -->
