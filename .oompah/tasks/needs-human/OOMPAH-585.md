@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-07T13:49:39.490820Z'
+updated_at: '2026-08-07T13:50:23.398944Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -48,6 +48,7 @@ oompah.terminal_audit:
     attempt-89b5e87eb738: '2026-08-04T00:03:11.550090+00:00'
     attempt-5c5fbd712133: '2026-08-04T00:15:30.974786+00:00'
     attempt-1b487fdb9d5c: '2026-08-04T00:39:21.014886+00:00'
+    no-auditor-audit-aecf926914a2-3: '2026-08-07T13:50:11.389376+00:00'
   oompah.terminal_override_records: []
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
@@ -70,6 +71,15 @@ oompah.terminal_audit:
     lifecycle_reconciled: true
     reconciled_to: Done
     retired_reason: shared_epic_parent_not_landed
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    target_state: Done
+    evidence_fingerprint: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    audit_ids:
+    - audit-aecf926914a2
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T13:50:11.389393+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
@@ -206,6 +216,18 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:52.025178+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    audit_id: audit-aecf926914a2
+    attempt_id: no-auditor-audit-aecf926914a2-3
+    target_state: Done
+    evidence_fingerprint: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    status: Needs Human
+    audit_ids:
+    - audit-aecf926914a2
+    applied: true
+    created_at: '2026-08-07T13:50:11.389425+00:00'
+    applied_at: '2026-08-07T13:50:20.368794+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
@@ -816,7 +838,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -860,7 +882,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2c28d2e7c672
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -873,6 +895,22 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
       candidate_rotation_count: 2
+      ended_at: '2026-08-07T13:50:07.113116+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-aecf926914a2-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T13:50:11.389126+00:00'
+      completed_at: '2026-08-07T13:50:11.389126+00:00'
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -881,7 +919,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:13:05.253827+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:27:34.027910+00:00'
+    updated_at: '2026-08-07T13:50:11.389126+00:00'
   - version: 1
     audit_id: audit-6bc04524dcf6
     project_id: proj-14849f1b
@@ -1201,7 +1239,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-2c28d2e7c672
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -1214,6 +1252,8 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
     candidate_rotation_count: 2
+    ended_at: '2026-08-07T13:50:07.113116+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
   total_input_tokens: 525
   total_output_tokens: 12394
@@ -2148,5 +2188,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 21m 55s
 - Log: OOMPAH-585__20260807T132755Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:50
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
