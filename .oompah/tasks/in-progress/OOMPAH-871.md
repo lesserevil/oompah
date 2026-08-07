@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-871
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Prevent provenance-only terminal tasks from watchdog reopen and redispatch
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
-- human-only
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T10:21:10.595561Z'
+updated_at: '2026-08-07T10:21:17.853607Z'
 work_branch: null
 target_branch: null
 review_url: null
