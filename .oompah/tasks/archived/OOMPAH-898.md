@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T14:17:57.854034Z'
-updated_at: '2026-08-07T14:56:53.335680Z'
+updated_at: '2026-08-07T14:57:09.576650Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -57,6 +57,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-07T14:56:47.944443+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain superseded duplicate archival after canonical rebase e06bec549;
+      do not reopen or redispatch this obsolete generation.
+    marked_at: '2026-08-07T14:57:05.023118+00:00'
+    updated_at: '2026-08-07T14:57:05.023118+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain superseded duplicate archival after canonical rebase e06bec549;
+        do not reopen or redispatch this obsolete generation.
+      recorded_at: '2026-08-07T14:57:05.023118+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
@@ -86,5 +108,10 @@ created: 2026-08-07 14:56
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Superseded duplicate epic-rebase helper. Canonical OOMPAH-877 published exact full-gate-passing head e06bec549; this helper has no remaining independent work or authority.
+---
+author: oompah
+created: 2026-08-07 14:57
+---
+Archived as a superseded duplicate of completed OOMPAH-877.
 ---
 <!-- COMMENTS:END -->
