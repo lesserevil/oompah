@@ -2,7 +2,7 @@
 id: OOMPAH-657
 type: task
 status: In Progress
-priority: null
+priority: 0
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
 children: []
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T13:58:32.142396Z'
+updated_at: '2026-08-07T14:00:02.659937Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 022144e0-35ff-4030-8f20-e0bb91c69e42
+oompah.agent_run_id: 0e010f24-8c33-4fe3-af3f-5c04fe5da1a5
 oompah.task_costs:
   total_input_tokens: 5168929
   total_output_tokens: 65211

@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-08-07T13:51:47.818881Z'
+updated_at: '2026-08-07T13:59:56.513051Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -324,7 +324,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0939fc679eba
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -336,6 +336,24 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-584
       selected_ref: origin/main
       selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      ended_at: '2026-08-07T13:59:40.470197+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-da1816ab5355
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+      created_at: '2026-08-07T13:59:44.500214+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T13:59:44.500214+00:00'
+      branch_key: epic-OOMPAH-584
+      selected_ref: origin/main
+      selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
@@ -344,7 +362,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T13:16:06.083367+00:00'
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
-    updated_at: '2026-08-07T13:51:23.491184+00:00'
+    updated_at: '2026-08-07T13:59:44.500214+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -456,7 +474,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-0939fc679eba
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -468,14 +486,32 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-584
     selected_ref: origin/main
     selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    ended_at: '2026-08-07T13:59:40.470197+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-da1816ab5355
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    created_at: '2026-08-07T13:59:44.500214+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T13:59:44.500214+00:00'
+    branch_key: epic-OOMPAH-584
+    selected_ref: origin/main
+    selected_sha: 41b1477682c6460a1bb55356ac44c799c9fa783a
+    candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 478115
-  total_output_tokens: 8971
+  total_input_tokens: 478353
+  total_output_tokens: 9028
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 349
-      output_tokens: 3401
+      input_tokens: 587
+      output_tokens: 3458
       cost_usd: 0.0
     opus:
       input_tokens: 477766
@@ -536,6 +572,12 @@ oompah.task_costs:
     output_tokens: 331
     cost_usd: 0.0
     recorded_at: '2026-08-07T13:40:34.978670+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 238
+    output_tokens: 57
+    cost_usd: 0.0
+    recorded_at: '2026-08-07T13:59:36.276476+00:00'
 oompah.agent_run_id: b1d8ec9a-282a-4935-8d82-ca5dc65deaa8
 oompah.work_contributors:
   runs:
@@ -941,5 +983,34 @@ author: oompah
 created: 2026-08-07 13:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 13:59
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 14
+- Tokens: 238 in / 57 out [295 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 0s
+- Log: OOMPAH-584__20260807T135151Z.jsonl
+---
+author: oompah
+created: 2026-08-07 13:59
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-07 13:59
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-07 13:59
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6s
 ---
 <!-- COMMENTS:END -->
