@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-08-07T08:53:17.008357Z'
+updated_at: '2026-08-07T08:53:27.156666Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -145,15 +145,15 @@ oompah.task_costs:
     cost_usd: 0.0
     recorded_at: '2026-08-07T08:39:03.069277+00:00'
 oompah.integration:
-  version: 1
+  version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-607
   base_branch: main
   base_sha: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
-  head_sha: b10b328ed7779cd3c72e7097a77f8ab4e69c1c90
-  submitted_at: '2026-07-30T19:00:13.697637+00:00'
-  updated_at: '2026-07-30T19:01:25.595721+00:00'
+  head_sha: 39285e9c3db19ae0df1757ae3e49d74204ffca49
+  submitted_at: '2026-08-07T08:53:15.444489+00:00'
+  updated_at: '2026-08-07T08:53:15.444489+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/605
 oompah.review_number: '605'
 oompah.work_branch: OOMPAH-607
@@ -719,5 +719,10 @@ author: oompah
 created: 2026-08-07 08:53
 ---
 Completion: OOMPAH-607 is verified at the exact merged head 39285e9c3. The canonical alias-to-project-ID flow and fail-closed terminal authorization regressions are present and the four focused suites pass (314 tests). The branch was pushed as origin/OOMPAH-607 and git status is clean/up to date. No duplicate implementation was added because the requested fix is already merged on main.
+---
+author: oompah
+created: 2026-08-07 08:53
+---
+Verified merged canonical project-alias terminal authorization fix; 314 focused tests pass and branch is pushed.
 ---
 <!-- COMMENTS:END -->
