@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-873
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make issue-list and full-sync snapshots match fresh state-branch detail reads
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:50:20.335247Z'
-updated_at: '2026-08-07T11:52:10.929489Z'
+updated_at: '2026-08-07T12:05:57.499489Z'
 work_branch: OOMPAH-873
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/740
@@ -124,6 +124,49 @@ oompah.review_number: '740'
 oompah.work_branch: OOMPAH-873
 oompah.target_branch: main
 oompah.review_head: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bee8b4d51a55
+    project_id: proj-14849f1b
+    task_id: OOMPAH-873
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T12:05:44.182570+00:00'
+    selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+  - version: 1
+    audit_id: audit-cfc60f7d9673
+    project_id: proj-14849f1b
+    task_id: OOMPAH-873
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d1f75018612009bf8e21aeacbd0667f95c13c7d7feb0de8627ab4750ad65be02
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-07T12:05:44.182570+00:00'
+    selected_ref: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+    selected_sha: 78aecdcf07412f6f4eabf9e735b7206a3faa93b7
+  attempt_history: []
 ---
 ## Summary
 
@@ -326,5 +369,15 @@ author: oompah
 created: 2026-08-07 11:51
 ---
 Branch quality gate passed for `78aecdcf07412f6f4eabf9e735b7206a3faa93b7` using `make test` in 652.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-07 12:05
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-07 12:05
+---
+YOLO: merged PR #740.
 ---
 <!-- COMMENTS:END -->
