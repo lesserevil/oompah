@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T10:15:25.427762Z'
+updated_at: '2026-08-07T10:16:32.525084Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -756,5 +756,10 @@ author: oompah
 created: 2026-08-07 10:15
 ---
 Verification: exact-head focused suites passed: 477 tests across ACP auditor bridge, auditor focus/contract/result API, terminal audit, terminal transition coordinator, and secret tests. Ruff checks and git diff whitespace checks passed. Terminal mutation scan passed (8/8 allowlisted). Full repository secret scan passed with exit 0. The managed make guard could not acquire its validation lease because its operator lock path is read-only in this sandbox; no full make test was repeated, consistent with the specialist handoff rule that the orchestrator runs the exact-head branch gate.
+---
+author: oompah
+created: 2026-08-07 10:16
+---
+Completion: delivered and pushed commit f7d188422. Auditor result normalization now accepts credential-syntax placeholders without persisting them, recursively sanitizes bounded evidence, rejects genuine-looking Bearer/API/password/private-key material before handler invocation, and emits only safe field/path correction guidance. Contract/design documentation and regression coverage are included. Exact-head focused validation: 477 passed; Ruff, terminal mutation scan, git diff checks, and full secret scan passed. Branch is clean and synchronized with origin/OOMPAH-608.
 ---
 <!-- COMMENTS:END -->
