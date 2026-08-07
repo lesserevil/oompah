@@ -15562,10 +15562,15 @@ async def api_test_provider(provider_id: str):
     Returns 404 only when the provider_id is not in the store at all.
     """
     from oompah.provider_health import (
+        PROVIDER_HEALTH_CACHE,
+        ProviderProbeAuthorityError,
+        ProviderTestResult,
         redact_sensitive_text,
         run_acp_health_check,
         run_health_check,
+        snapshot_provider_for_probe,
     )
+    from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 
     provider = _provider_store.get(provider_id)
     if provider is None:
@@ -15579,6 +15584,49 @@ async def api_test_provider(provider_id: str):
             status_code=404,
         )
 
+    provider, provider_signature, policy_generation = snapshot_provider_for_probe(
+        provider
+    )
+
+    def _contact_authority() -> str | None:
+        generation = policy_generation
+        while True:
+            with AUDITOR_POLICY_AUTHORITY.admission(generation) as current:
+                if not current:
+                    generation = AUDITOR_POLICY_AUTHORITY.generation()
+                    continue
+                live_provider = _provider_store.get(provider_id)
+                if live_provider is None:
+                    return "provider was removed before health probe contact"
+                if (
+                    PROVIDER_HEALTH_CACHE.configuration_signature(live_provider)
+                    != provider_signature
+                ):
+                    return "provider configuration changed before health probe contact"
+                return None
+
+    def _publish(result: ProviderTestResult) -> bool:
+        return PROVIDER_HEALTH_CACHE.record_if_configuration(
+            provider,
+            result,
+            expected_signature=provider_signature,
+            current_provider=lambda: _provider_store.get(provider_id),
+        )
+
+    def _stale_result() -> ProviderTestResult:
+        return ProviderTestResult(
+            provider_id=str(provider.id),
+            provider_name=str(provider.name),
+            model=str(getattr(provider, "default_model", None) or ""),
+            success=False,
+            latency_ms=0.0,
+            error_reason="health_unknown",
+            error_detail=(
+                "Provider configuration changed while the health probe was in "
+                "flight. Retry against the current provider configuration."
+            ),
+        )
+
     try:
         if provider.mode == "acp":
             # ACP providers are session-based (Claude Agent SDK / OpenAI
@@ -15586,10 +15634,30 @@ async def api_test_provider(provider_id: str):
             # probed by running a live turn — there is no synchronous HTTP
             # path. run_acp_health_check is async, so await it directly
             # rather than offloading to a thread.
-            result = await run_acp_health_check(provider)
+            result = await run_acp_health_check(
+                provider,
+                before_transport_contact=_contact_authority,
+            )
         else:
-            result = await asyncio.to_thread(run_health_check, provider)
+            result = await asyncio.to_thread(
+                run_health_check,
+                provider,
+                before_transport_contact=_contact_authority,
+            )
+    except ProviderProbeAuthorityError:
+        return JSONResponse(_stale_result().to_dict())
     except Exception as exc:
+        result = ProviderTestResult(
+            provider_id=str(provider.id),
+            provider_name=str(provider.name),
+            model=str(getattr(provider, "default_model", None) or ""),
+            success=False,
+            latency_ms=0.0,
+            error_reason="unknown_error",
+            error_detail=redact_sensitive_text(str(exc)),
+        )
+        if not _publish(result):
+            return JSONResponse(_stale_result().to_dict())
         logger.error(
             "Provider health-check error for %s: %s",
             provider_id,
@@ -15598,15 +15666,12 @@ async def api_test_provider(provider_id: str):
         return JSONResponse(
             {
                 "provider_id": provider_id,
-                "provider_name": provider.name,
-                "model": "",
-                "success": False,
-                "latency_ms": 0.0,
-                "error_reason": "unknown_error",
-                "error_detail": redact_sensitive_text(str(exc)[:300]),
+                **result.to_dict(),
             }
         )
 
+    if not _publish(result):
+        return JSONResponse(_stale_result().to_dict())
     return JSONResponse(result.to_dict())
 
 

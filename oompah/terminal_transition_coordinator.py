@@ -660,6 +660,7 @@ class TerminalTransitionCoordinator:
         metrics: Any | None = None,
         revoke_delivery_authority: Callable[[str, str], None] | None = None,
         revoke_auditor_authority: Callable[[str, str], None] | None = None,
+        release_audit_budget_reservation: Callable[[str, str], None] | None = None,
         clear_audit_alert: Callable[[str, str, str], None] | None = None,
         clear_integrated_audit_recovery_alert: Callable[[str, str], None]
         | None = None,
@@ -687,6 +688,10 @@ class TerminalTransitionCoordinator:
         # separate from delivery revocation: applying an auditor result must
         # not revoke the very auditor that is submitting it.
         self._revoke_auditor_authority = revoke_auditor_authority
+        # Run only after a successful owner override and after the project
+        # mutation lock has been released. The service retains the claim when
+        # a revoked auditor is still winding down and reconciles it on exit.
+        self._release_audit_budget_reservation = release_audit_budget_reservation
         # This callback is intentionally optional for tracker-neutral users.
         # The service wires it to its alert registry so retirement clears the
         # in-memory dashboard identity while the durable metadata remains the
@@ -2011,11 +2016,25 @@ class TerminalTransitionCoordinator:
                 )
             return outcome
 
-        return await asyncio.to_thread(
+        outcome = await asyncio.to_thread(
             self._run_project_serialized,
             project_id,
             _operation,
         )
+        if outcome.success and self._release_audit_budget_reservation is not None:
+            try:
+                self._release_audit_budget_reservation(
+                    project_id,
+                    current_issue.identifier,
+                )
+            except Exception:  # accounting cleanup cannot roll back an override
+                logger.warning(
+                    "failed to reconcile audit budget after owner override for %s/%s",
+                    project_id,
+                    current_issue.identifier,
+                    exc_info=True,
+                )
+        return outcome
 
     # ------------------------------------------------------------------
     # Internal helpers — all called while the project write lock is held

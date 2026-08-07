@@ -95,6 +95,12 @@ def _make_orchestrator(tmp_path, *, role_store: RoleStore | None = None) -> Orch
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
+
+    async def _allow_legacy_test_targets(_issue, targets):
+        return targets, None
+
+    orch._reserve_auditor_for_contributor = _allow_legacy_test_targets
+    orch._stage_work_contributor_launch = AsyncMock(return_value=None)
     return orch
 
 

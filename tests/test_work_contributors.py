@@ -34,6 +34,7 @@ from oompah.work_contributors import (
     collect_epic_contributors,
     load_contributors,
     merge_contributor_records,
+    contributor_run_identity,
     sha_is_ancestor,
 )
 
@@ -293,6 +294,22 @@ class TestMergeContributorRecords:
         existing = merge_contributor_records(existing, _make_contributor(run_id="r2"))
         existing = merge_contributor_records(existing, _make_contributor(run_id="r3"))
         assert len(existing["runs"]) == 3
+
+    def test_same_run_id_is_upserted_for_verified_completion(self):
+        pending = _make_contributor(
+            run_id="run-1", source_sha=None, completed_at=""
+        )
+        completed = _make_contributor(
+            run_id="run-1", source_sha="abc123", completed_at="2026-01-01Z"
+        )
+
+        merged = merge_contributor_records(
+            merge_contributor_records(None, pending), completed
+        )
+
+        assert len(merged["runs"]) == 1
+        assert merged["runs"][0]["source_sha"] == "abc123"
+        assert merged["runs"][0]["completed_at"] == "2026-01-01Z"
 
     def test_merge_different_providers_both_preserved(self):
         """Records from different providers are both stored."""
@@ -624,7 +641,9 @@ class TestBuildWorkContributorRecord:
         with patch.object(orch, "_worktree_head", return_value="abc123"):
             c = orch._build_work_contributor_record(entry)
         assert c is not None
-        assert c.run_id == "TASK-001__20260101T000000Z"
+        assert c.run_id == contributor_run_identity(
+            entry.run_id, "prov-xyz", "gpt-4o"
+        )
         assert c.provider_id == "prov-xyz"
         assert c.provider_name == "OpenAI"
         assert c.model_id == "gpt-4o"
@@ -681,14 +700,30 @@ class TestBuildWorkContributorRecord:
         entry = _make_running_entry(
             agent_log_path="/var/logs/TASK-042__20260201T120000Z.jsonl"
         )
+        entry.run_id = ""
         c = orch._build_work_contributor_record(entry)
         assert c is not None
         assert c.run_id == "TASK-042__20260201T120000Z"
+
+    def test_dispatch_run_id_precedes_log_path(self, tmp_path):
+        """Completion retains the base identity that derived its launch fence."""
+
+        orch = _make_orchestrator(tmp_path)
+        entry = _make_running_entry(agent_log_path="/logs/different.jsonl")
+        entry.run_id = "dispatch-run"
+
+        contributor = orch._build_work_contributor_record(entry)
+
+        assert contributor is not None
+        assert contributor.run_id == contributor_run_identity(
+            "dispatch-run", entry.provider_id, entry.model_name
+        )
 
     def test_run_id_fallback_when_no_log_path(self, tmp_path):
         """Without agent_log_path, run_id falls back to identifier__timestamp."""
         orch = _make_orchestrator(tmp_path)
         entry = _make_running_entry(identifier="TASK-123", agent_log_path=None)
+        entry.run_id = ""
         c = orch._build_work_contributor_record(entry)
         assert c is not None
         assert c.run_id.startswith("TASK-123__")
@@ -791,6 +826,120 @@ class TestWriteWorkContributorRecord:
         orch._project_trackers = {"__legacy__": mock_tracker}
         return orch, mock_tracker, metadata_store
 
+    def test_prelaunch_evidence_is_written_and_read_back_synchronously(self, tmp_path):
+        store: dict[str, dict] = {}
+        orch, tracker, store = self._make_orch_with_tracker(tmp_path, store)
+        issue = _make_issue("TASK-001")
+
+        orch._persist_work_contributor_launch(
+            issue,
+            run_id="run-launch",
+            provider_id="provider-1",
+            provider_name="Provider One",
+            model="default",
+            focus="feature",
+        )
+
+        contributor = load_contributors(store[issue.identifier])[0]
+        assert contributor.run_id == "run-launch"
+        assert contributor.provider_id == "provider-1"
+        assert contributor.model_id is None
+        assert contributor.completed_at == ""
+        assert tracker.get_metadata.call_count == 2
+
+    def test_prelaunch_write_without_readback_confirmation_fails(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {}
+        orch.tracker = tracker
+        issue = _make_issue("TASK-001")
+
+        with pytest.raises(RuntimeError, match="did not confirm"):
+            orch._persist_work_contributor_launch(
+                issue,
+                run_id="run-launch",
+                provider_id="provider-1",
+                provider_name="Provider One",
+                model="model-1",
+            )
+
+    def test_completion_enriches_the_stable_prelaunch_identity(self, tmp_path):
+        store: dict[str, dict] = {}
+        orch, _tracker, store = self._make_orch_with_tracker(tmp_path, store)
+        issue = _make_issue("TASK-001")
+        base_run_id = "dispatch-run"
+        identity = contributor_run_identity(base_run_id, "provider-1", "model-1")
+        orch._persist_work_contributor_launch(
+            issue,
+            run_id=identity,
+            provider_id="provider-1",
+            provider_name="Provider One",
+            model="model-1",
+        )
+        entry = _make_running_entry(
+            issue=issue,
+            provider_id="provider-1",
+            provider_name="Provider One",
+            model_name="model-1",
+        )
+        entry.run_id = base_run_id
+        orch._write_work_contributor_record(entry)
+
+        contributors = load_contributors(store[issue.identifier])
+        assert len(contributors) == 1
+        assert contributors[0].run_id == identity
+        assert contributors[0].completed_at
+
+    def test_competing_completion_writers_preserve_both_rows_across_restart(
+        self,
+        tmp_path,
+    ):
+        store: dict[str, dict] = {}
+        orch, _tracker, store = self._make_orch_with_tracker(tmp_path, store)
+        issue = _make_issue("TASK-001")
+        entries = []
+        for suffix in ("one", "two"):
+            entry = _make_running_entry(
+                issue=issue,
+                provider_id=f"provider-{suffix}",
+                provider_name=f"Provider {suffix}",
+                model_name=f"model-{suffix}",
+            )
+            entry.run_id = f"run-{suffix}"
+            entries.append(entry)
+            # Reproduce the production sequence: each launch first installs
+            # its crash-safe row, then completion writers race to enrich the
+            # same stable identities rather than appending unrelated rows.
+            orch._persist_work_contributor_launch(
+                issue,
+                run_id=contributor_run_identity(
+                    entry.run_id,
+                    entry.provider_id,
+                    entry.model_name,
+                ),
+                provider_id=entry.provider_id,
+                provider_name=entry.provider_name,
+                model=entry.model_name,
+            )
+
+        threads = [
+            threading.Thread(target=orch._write_work_contributor_record, args=(entry,))
+            for entry in entries
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+            assert not thread.is_alive()
+
+        restarted, _tracker, _store = self._make_orch_with_tracker(tmp_path, store)
+        metadata = restarted.tracker.get_metadata(issue.identifier)
+        contributors = load_contributors(metadata)
+        assert {value.provider_id for value in contributors} == {
+            "provider-one",
+            "provider-two",
+        }
+
     def test_writes_contributor_to_metadata(self, tmp_path):
         """Happy path: contributor record written into issue metadata."""
         store: dict[str, dict] = {}
@@ -829,6 +978,7 @@ class TestWriteWorkContributorRecord:
             model_name="model-a",
             issue=issue,
         )
+        entry1.run_id = "dispatch-t1"
         orch._write_work_contributor_record(entry1)
 
         # Second write
@@ -838,16 +988,19 @@ class TestWriteWorkContributorRecord:
             model_name="model-b",
             issue=issue,
         )
+        entry2.run_id = "dispatch-t2"
         orch._write_work_contributor_record(entry2)
 
         record = store["TASK-001"][METADATA_KEY]
         assert len(record["runs"]) == 2
         run_ids = {r["run_id"] for r in record["runs"]}
-        assert "TASK-001__t1" in run_ids
-        assert "TASK-001__t2" in run_ids
+        assert run_ids == {
+            contributor_run_identity("dispatch-t1", "prov-abc", "model-a"),
+            contributor_run_identity("dispatch-t2", "prov-abc", "model-b"),
+        }
 
-    def test_tracker_error_on_get_metadata_still_writes(self, tmp_path):
-        """If metadata read fails, we proceed with empty existing record."""
+    def test_tracker_error_on_get_metadata_fails_closed_without_write(self, tmp_path):
+        """A metadata read error cannot safely be overwritten by a blind upsert."""
         orch = _make_orchestrator(tmp_path)
         from oompah.tracker import TrackerError
         mock_tracker = MagicMock()
@@ -861,7 +1014,7 @@ class TestWriteWorkContributorRecord:
             issue=issue,
         )
         orch._write_work_contributor_record(entry)
-        mock_tracker.set_metadata_field.assert_called_once()
+        mock_tracker.set_metadata_field.assert_not_called()
 
     def test_tracker_error_on_set_metadata_is_swallowed(self, tmp_path):
         """If metadata write fails, exception is logged but not propagated."""
@@ -941,12 +1094,16 @@ class TestWriteWorkContributorRecord:
                 agent_log_path=f"/logs/TASK-001__{stem}.jsonl",
                 issue=issue,
             )
+            entry.run_id = stem
             orch._write_work_contributor_record(entry)
 
         record = store["TASK-001"][METADATA_KEY]
         assert len(record["runs"]) == 3
         run_ids = {r["run_id"] for r in record["runs"]}
-        assert run_ids == {"TASK-001__w1", "TASK-001__w2", "TASK-001__w3"}
+        assert run_ids == {
+            contributor_run_identity(stem, provider_id, model)
+            for stem, provider_id, _provider_name, model in workers
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1120,6 +1277,7 @@ class TestOnWorkerExitContributor:
             entry.model_name = "model-x"
             entry.focus_name = "feature"
             entry.agent_log_path = f"/logs/TASK-001__{stem}.jsonl"
+            entry.run_id = f"dispatch-{stem}"
             orch.state.running["TASK-001"] = entry
             asyncio.run(orch._on_worker_exit("TASK-001", "normal", None))
 
@@ -1127,5 +1285,7 @@ class TestOnWorkerExitContributor:
         assert record is not None
         assert len(record["runs"]) == 2
         run_ids = {r["run_id"] for r in record["runs"]}
-        assert "TASK-001__attempt-1" in run_ids
-        assert "TASK-001__attempt-2" in run_ids
+        assert run_ids == {
+            contributor_run_identity("dispatch-attempt-1", "prov-1", "model-x"),
+            contributor_run_identity("dispatch-attempt-2", "prov-1", "model-x"),
+        }

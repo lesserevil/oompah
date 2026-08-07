@@ -122,6 +122,8 @@ class AcpAgentSession:
         audit_result_handler: Any = None,
         validation_reuse_policy: dict[str, Any] | None = None,
         validation_reuse_authority_check: Callable[[], object] | None = None,
+        before_transport_contact: Callable[[], str | None] | None = None,
+        on_precontact_admission_cancelled: Callable[[], None] | None = None,
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -166,6 +168,13 @@ class AcpAgentSession:
         self.audit_result_handler = audit_result_handler
         self.validation_reuse_policy = validation_reuse_policy
         self.validation_reuse_authority_check = validation_reuse_authority_check
+        # This is the irreversible transport boundary owned by the
+        # orchestrator.  It runs after local stop/setup checks but before the
+        # backend's first ``run_turn`` call, which is the ACP contract's
+        # provider/subprocess edge.  A rejected admission is deliberately not
+        # transport evidence and must not poison provider health or spend.
+        self.before_transport_contact = before_transport_contact
+        self.on_precontact_admission_cancelled = on_precontact_admission_cancelled
         self.terminal_transition_coordinator = terminal_transition_coordinator
         # Mid-run comment injection queue (OOMPAH-211).
         self.comment_queue = comment_queue
@@ -180,6 +189,13 @@ class AcpAgentSession:
         self._backend = backend_cls()
         self._backend_session: AcpBackendSession | None = None
         self._stop_requested = False
+        self._transport_admitted = False
+        self._transport_contacted = False
+        # Live counters start at zero, which is not evidence that a paid
+        # provider's final bill was zero.  These flags move only when a
+        # terminal backend result is observed.
+        self._final_usage_observed = False
+        self._final_cost_observed = False
         # Surface a last_error attribute even when no session has run,
         # mirroring the legacy API. Cleared at run_task start, set by
         # the backend on failure.
@@ -244,9 +260,46 @@ class AcpAgentSession:
             else None
         )
 
+    @property
+    def transport_contacted(self) -> bool:
+        """Whether this session crossed its provider/subprocess boundary.
+
+        ``start_session`` only constructs a local backend handle.  The first
+        ``run_turn`` call is the backend contract's transport edge, so callers
+        can reliably distinguish local startup/termination from a real
+        provider outcome.
+        """
+
+        return self._transport_contacted
+
+    @property
+    def final_usage_observed(self) -> bool:
+        """Whether a terminal backend usage envelope was observed."""
+
+        return self._final_usage_observed
+
+    @property
+    def final_cost_observed(self) -> bool:
+        """Whether that terminal envelope reported an exact numeric cost."""
+
+        return self._final_cost_observed
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    def _cancel_precontact_admission(self) -> None:
+        """Return a granted-but-unused contact permit to the orchestrator."""
+
+        if not self._transport_admitted or self._transport_contacted:
+            return
+        self._transport_admitted = False
+        if self.on_precontact_admission_cancelled is None:
+            return
+        try:
+            self.on_precontact_admission_cancelled()
+        except Exception:  # pragma: no cover - defensive authority cleanup
+            logger.exception("Unable to roll back unused ACP contact admission")
 
     async def run_task(self) -> str:
         """Open a session, send the prompt, drive the message stream,
@@ -302,6 +355,9 @@ class AcpAgentSession:
             validation_reuse_authority_check=(
                 self.validation_reuse_authority_check
             ),
+            begin_transport_contact=self._begin_backend_transport_contact,
+            transport_contacted=self._mark_backend_transport_contacted,
+            cancel_transport_contact=self._cancel_precontact_admission,
         )
 
         try:
@@ -315,8 +371,28 @@ class AcpAgentSession:
             )
             return "errored"
 
+        # ``terminate()`` can race local backend construction.  Concrete
+        # backends receive the contact callbacks above and invoke them only
+        # at their actual SDK/network/Popen edge; never spend or publish
+        # health merely because a local backend handle was constructed.
+        if self._stop_requested:
+            await self.terminate()
+            return "interrupted"
+
         try:
             async for _ev in self._backend_session.run_turn():
+                if getattr(_ev, "kind", None) in {"result", "acp_result"}:
+                    # A terminal result is the backend's authoritative
+                    # roll-up, including a legitimate all-zero report.  Do
+                    # not infer this from initialized live counters.
+                    self._final_usage_observed = True
+                    payload = getattr(_ev, "payload", None)
+                    if isinstance(payload, dict):
+                        reported_cost = payload.get("total_cost_usd")
+                        if isinstance(reported_cost, (int, float)) and not isinstance(
+                            reported_cost, bool
+                        ):
+                            self._final_cost_observed = True
                 # The command helper keeps liveness ownership in
                 # ``result_pending`` until the backend has translated and
                 # emitted the provider-visible tool result.  All ACP
@@ -358,6 +434,34 @@ class AcpAgentSession:
                 self.backend_name, self.last_error,
             )
             return "errored"
+        finally:
+            # A backend that fails or is cancelled between admission and its
+            # true edge cannot leave the durable audit reservation marked as
+            # spend-eligible.  The helper is idempotent after real contact.
+            self._cancel_precontact_admission()
+
+    def _begin_backend_transport_contact(self) -> str | None:
+        """Fence one concrete backend immediately before provider contact."""
+
+        if self._stop_requested:
+            return "ACP provider launch was cancelled before transport contact"
+        if self.before_transport_contact is not None:
+            error = self.before_transport_contact()
+            if error is not None:
+                return error
+        self._transport_admitted = True
+        # A lifecycle drain can win inside the admission callback.  Do not
+        # let a backend cross its edge after that stop has become visible.
+        if self._stop_requested:
+            self._cancel_precontact_admission()
+            return "ACP provider launch was cancelled before transport contact"
+        return None
+
+    def _mark_backend_transport_contacted(self) -> None:
+        """Record actual backend contact, rather than assumed run_turn entry."""
+
+        self._transport_contacted = True
+        self._transport_admitted = False
 
     async def terminate(self) -> None:
         """Request that the active session stop. Safe to call multiple

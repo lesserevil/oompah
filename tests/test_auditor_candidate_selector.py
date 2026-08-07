@@ -19,6 +19,7 @@ Test organization follows the spec exactly.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -1216,7 +1217,12 @@ class TestAuditorCandidateSelectorPolicyGaps:
         selector = AuditorCandidateSelector(
             _make_role_store_with_roles({"default": role}),
             _make_provider_store({"provider": provider}),
-            health_results={"provider": {"success": False, "error_reason": "timeout"}},
+            health_results={
+                ("provider", "model"): {
+                    "success": False,
+                    "error_reason": "timeout",
+                }
+            },
         )
 
         selected, reason = selector.seed_auditor_role()
@@ -1225,6 +1231,27 @@ class TestAuditorCandidateSelectorPolicyGaps:
         assert reason is not None
         assert reason.reason == "all_unhealthy"
         assert "timeout" in reason.detail
+
+    def test_provider_level_health_cannot_authorize_a_different_model(self):
+        provider = _make_provider("provider", "Provider", ["one", "two"])
+        role = Role(
+            "default",
+            "priority",
+            [Candidate("provider", "two")],
+            datetime.now(timezone.utc),
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+            health_results={"provider": {"success": True}},
+        )
+
+        selected, reason = selector.seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "all_unhealthy"
+        assert "health_unknown" in reason.detail
 
     def test_provider_health_attribute_blocks_unhealthy_provider(self):
         provider = _make_provider("provider", "Provider", ["model"])
@@ -1359,3 +1386,127 @@ class TestAuditorCandidateSelectorPolicyGaps:
         assert selected is None
         assert reason is not None
         assert reason.reason == "all_over_budget"
+
+
+class TestContributorAuditorReservation:
+    """OOMPAH-865: contributor dispatch must leave a terminal auditor path."""
+
+    @staticmethod
+    def _selector(models: list[str], *, unhealthy: set[str] | None = None):
+        providers = {}
+        candidates = []
+        for model in models:
+            provider = _make_provider(
+                f"provider-{model}", model, [model], default_model=model
+            )
+            if model in (unhealthy or set()):
+                provider.healthy = False
+            providers[provider.id] = provider
+            candidates.append(Candidate(provider.id, model))
+        role = Role(
+            AUDITOR_ROLE_NAME,
+            "priority",
+            candidates,
+            datetime.now(timezone.utc),
+        )
+        return AuditorCandidateSelector(
+            _make_role_store_with_roles({AUDITOR_ROLE_NAME: role}),
+            _make_provider_store(providers),
+        ), candidates
+
+    def test_haiku_sonnet_opus_then_reserves_terra_for_terminal_audit(self):
+        """The O858 escalation chain never spends its final auditor candidate."""
+        selector, candidates = self._selector(["haiku", "sonnet", "opus", "terra"])
+        contributors: list[WorkContributor] = []
+        selected: list[str] = []
+
+        for candidate in candidates:
+            allowed, reserved, reason = selector.reserve_for_contributor_candidates(
+                [candidate], contributors
+            )
+            if allowed:
+                selected.append(candidate.model)
+                contributors.append(
+                    _make_contributor(candidate.provider_id, candidate.model)
+                )
+            else:
+                assert candidate.model == "terra"
+                assert reason is not None
+                assert reason.reason == "insufficient_independent_candidates"
+                assert reserved == candidate
+
+        assert selected == ["haiku", "sonnet", "opus"]
+
+    def test_same_decision_survives_restart_and_isolated_concurrent_tasks(self):
+        """The decision derives from durable evidence, not process-local rotation."""
+        selector, candidates = self._selector(["haiku", "sonnet", "opus", "terra"])
+        contributors = [
+            _make_contributor(candidates[0].provider_id, "haiku"),
+            _make_contributor(candidates[1].provider_id, "sonnet"),
+        ]
+
+        # A newly constructed selector represents a service restart.  A second
+        # task with the same persisted evidence must see the same reservation,
+        # even when both dispatch decisions are made concurrently.
+        restarted, _ = self._selector(["haiku", "sonnet", "opus", "terra"])
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first, second = list(
+                executor.map(
+                    lambda value: value.reserve_for_contributor_candidates(
+                        [candidates[2]], contributors
+                    ),
+                    (selector, restarted),
+                )
+            )
+
+        assert first[0] == [candidates[2]]
+        assert first[1] == candidates[3]
+        assert first[2] is None
+        assert second[0] == [candidates[2]]
+        assert second[1] == candidates[3]
+        assert second[2] is None
+
+    def test_dynamic_health_reassigns_reservation_without_consuming_last_healthy(self):
+        selector, candidates = self._selector(
+            ["haiku", "sonnet", "opus", "terra"], unhealthy={"terra"}
+        )
+        contributors = [_make_contributor(candidates[0].provider_id, "haiku")]
+
+        allowed, reserved, reason = selector.reserve_for_contributor_candidates(
+            [candidates[1], candidates[2]], contributors
+        )
+
+        assert allowed == [candidates[1]]
+        assert reserved == candidates[2]
+        assert reason is None
+
+    def test_dynamic_role_configuration_reassigns_reservation(self):
+        selector, candidates = self._selector(["haiku", "sonnet", "opus", "terra"])
+        contributors = [_make_contributor(candidates[0].provider_id, "haiku")]
+        role = selector.role_store.get(AUDITOR_ROLE_NAME)
+
+        before = selector.reserve_for_contributor_candidates(
+            [candidates[1], candidates[2], candidates[3]], contributors
+        )
+        role.candidates = role.candidates[:-1]  # operator removes terra at runtime
+        after = selector.reserve_for_contributor_candidates(
+            [candidates[1], candidates[2]], contributors
+        )
+
+        assert before[1] == candidates[3]
+        assert after[0] == [candidates[1]]
+        assert after[1] == candidates[2]
+        assert after[2] is None
+
+    def test_single_healthy_candidate_returns_actionable_predispatch_reason(self):
+        selector, candidates = self._selector(["terra"])
+
+        allowed, reserved, reason = selector.reserve_for_contributor_candidates(
+            candidates, []
+        )
+
+        assert allowed == []
+        assert reserved == candidates[0]
+        assert reason is not None
+        assert reason.reason == "insufficient_independent_candidates"
+        assert "Configure or restore" in reason.detail
