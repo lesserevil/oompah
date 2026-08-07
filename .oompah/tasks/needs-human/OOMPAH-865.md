@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: In Validation
+status: Needs Human
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T10:14:13.255086Z'
+updated_at: '2026-08-07T10:14:37.557404Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -103,6 +103,31 @@ oompah.work_contributors:
     completed_at: '2026-08-06T19:11:08.170498+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-690fb40503ee-3: '2026-08-07T10:14:25.953378+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-865
+    target_state: Done
+    evidence_fingerprint: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    audit_ids:
+    - audit-690fb40503ee
+    kind: result
+    applied: true
+    retired_at: '2026-08-07T10:14:25.953389+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-865
+    audit_id: audit-690fb40503ee
+    attempt_id: no-auditor-audit-690fb40503ee-3
+    target_state: Done
+    evidence_fingerprint: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    status: Needs Human
+    audit_ids:
+    - audit-690fb40503ee
+    applied: true
+    created_at: '2026-08-07T10:14:25.953402+00:00'
+    applied_at: '2026-08-07T10:14:34.507133+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -110,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-865
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -169,6 +194,20 @@ oompah.terminal_audit:
       candidate_rotation_count: 2
       ended_at: '2026-08-07T10:14:11.843820+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-690fb40503ee-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-07T10:14:25.953200+00:00'
+      completed_at: '2026-08-07T10:14:25.953200+00:00'
+      selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+      selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
     requested_by:
       version: 1
       identity: oompah-integration
@@ -177,7 +216,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:03:33.098057+00:00'
     selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
-    updated_at: '2026-08-07T09:51:09.002638+00:00'
+    updated_at: '2026-08-07T10:14:25.953200+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ef1dae62d434
@@ -413,5 +452,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 40s
 - Log: OOMPAH-865__20260807T095133Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:14
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
