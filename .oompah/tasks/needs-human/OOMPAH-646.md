@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-08-07T10:33:13.379262Z'
+updated_at: '2026-08-07T10:33:23.698630Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -153,8 +153,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-49e27b809392
-    applied: false
+    applied: true
     created_at: '2026-08-07T10:33:11.774993+00:00'
+    applied_at: '2026-08-07T10:33:22.355980+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -597,5 +598,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 42s
 - Log: OOMPAH-646__20260807T101219Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:33
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
