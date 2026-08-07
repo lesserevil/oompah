@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-08-07T11:32:38.584281Z'
+updated_at: '2026-08-07T11:33:04.545550Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -786,5 +786,10 @@ author: oompah
 created: 2026-08-07 11:32
 ---
 Verified already-merged delivery (0957d9955 / PR #615), restored required remote branch provenance, and confirmed a clean main-equivalent tree.
+---
+author: oompah
+created: 2026-08-07 11:33
+---
+Completion: submitted the already-delivered OOMPAH-649 work for integration. Recovery implementation 0957d9955 was merged in PR #615; this retry verified its merge ancestry, restored required remote submission provenance, and left a clean tree. Current terminal scan could not start because the native validation lease directory is read-only in this sandbox; no scanner/project failure occurred.
 ---
 <!-- COMMENTS:END -->
