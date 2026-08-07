@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from oompah import server as server_module
 from oompah.models import Issue, Project
+from oompah.orchestrator import RuntimeTerminationPublicationTimeout
 from oompah.server import app
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -1055,6 +1056,134 @@ def test_patch_owner_override_returns_committed_result_when_worker_cleanup_fails
             "message": "provider exit raced terminal cleanup",
         }
     ]
+
+
+def test_patch_owner_override_retries_runtime_publication_timeout(client, caplog):
+    """A lost owner-loop acknowledgement is retried without a false error alert."""
+
+    issue = Issue("task-cleanup-retry", "task-cleanup-retry", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    entry = SimpleNamespace(identifier=issue.identifier)
+    orch.state.running = {"run-retry": entry}
+    orch._terminate_running = AsyncMock(
+        side_effect=RuntimeTerminationPublicationTimeout(
+            "runtime owner loop did not acknowledge retirement child publication"
+        )
+    )
+    orch._schedule_running_termination = MagicMock(return_value=True)
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        caplog.at_level("WARNING", logger="oompah.server"),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-cleanup-retry",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Done"
+    assert response.json()["cleanup_diagnostics"] == [
+        {
+            "operation": "retire_running_worker",
+            "issue_id": "run-retry",
+            "message": (
+                "runtime-owner publication timed out; "
+                "exact-runtime retirement retry admitted"
+            ),
+        }
+    ]
+    orch._schedule_running_termination.assert_called_once_with(
+        "run-retry",
+        cleanup_workspace=True,
+        task_name_prefix="retry-post-commit-cleanup",
+        expected_entry=entry,
+    )
+    assert "exact-runtime retry admitted" in caplog.text
+    assert "Post-commit worker cleanup failed" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("schedule_result", "schedule_error", "expected_message", "expected_log"),
+    (
+        (
+            False,
+            None,
+            "exact-runtime retirement retry was not admitted",
+            "exact-runtime retry was not admitted",
+        ),
+        (
+            None,
+            RuntimeError("dispatch loop callback rejected"),
+            "exact-runtime retirement retry scheduling failed",
+            "cleanup retry scheduling failed",
+        ),
+    ),
+)
+def test_patch_owner_override_reports_cleanup_retry_admission_failure(
+    client,
+    caplog,
+    schedule_result,
+    schedule_error,
+    expected_message,
+    expected_log,
+):
+    """A retry that was not admitted remains an actionable cleanup error."""
+
+    issue = Issue(
+        "task-cleanup-unowned",
+        "task-cleanup-unowned",
+        "Task",
+        state="Open",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    entry = SimpleNamespace(identifier=issue.identifier)
+    orch.state.running = {"run-unowned": entry}
+    orch._terminate_running = AsyncMock(
+        side_effect=RuntimeTerminationPublicationTimeout(
+            "runtime owner loop did not acknowledge retirement child publication"
+        )
+    )
+    orch._schedule_running_termination = MagicMock(
+        return_value=schedule_result,
+        side_effect=schedule_error,
+    )
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        caplog.at_level("ERROR", logger="oompah.server"),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-cleanup-unowned",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Done"
+    assert response.json()["cleanup_diagnostics"] == [
+        {
+            "operation": "retire_running_worker",
+            "issue_id": "run-unowned",
+            "message": (
+                "runtime-owner publication timed out; " + expected_message
+            ),
+        }
+    ]
+    assert expected_log in caplog.text
 
 
 def test_patch_owner_override_rolls_back_fence_when_commit_fails(client):

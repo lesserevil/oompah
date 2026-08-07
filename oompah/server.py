@@ -13261,15 +13261,73 @@ async def api_update_issue(identifier: str, request: Request):
                                 issue_id, cleanup_workspace=(status_norm in terminal)
                             )
                         except Exception as exc:  # noqa: BLE001 - commit already won
-                            logger.exception(
-                                "Post-commit worker cleanup failed for %s",
-                                identifier,
+                            from oompah.orchestrator import (  # noqa: PLC0415
+                                RuntimeTerminationPublicationTimeout,
                             )
+                            retryable_publication_timeout = isinstance(
+                                exc,
+                                RuntimeTerminationPublicationTimeout,
+                            )
+                            cleanup_diagnostic = str(exc)
+                            if retryable_publication_timeout:
+                                try:
+                                    retry_admitted = bool(
+                                        orch._schedule_running_termination(
+                                            issue_id,
+                                            cleanup_workspace=(
+                                                status_norm in terminal
+                                            ),
+                                            task_name_prefix=(
+                                                "retry-post-commit-cleanup"
+                                            ),
+                                            expected_entry=entry,
+                                        )
+                                    )
+                                except Exception:  # noqa: BLE001 - retry admission failed
+                                    logger.exception(
+                                        "Post-commit worker cleanup retry scheduling "
+                                        "failed for %s",
+                                        identifier,
+                                    )
+                                    cleanup_diagnostic = (
+                                        "runtime-owner publication timed out; "
+                                        "exact-runtime retirement retry scheduling "
+                                        "failed"
+                                    )
+                                else:
+                                    if retry_admitted:
+                                        logger.warning(
+                                            "Post-commit worker cleanup publication "
+                                            "timed out for %s; exact-runtime retry "
+                                            "admitted",
+                                            identifier,
+                                        )
+                                        cleanup_diagnostic = (
+                                            "runtime-owner publication timed out; "
+                                            "exact-runtime retirement retry admitted"
+                                        )
+                                    else:
+                                        logger.error(
+                                            "Post-commit worker cleanup publication "
+                                            "timed out for %s; exact-runtime retry "
+                                            "was not admitted",
+                                            identifier,
+                                        )
+                                        cleanup_diagnostic = (
+                                            "runtime-owner publication timed out; "
+                                            "exact-runtime retirement retry was not "
+                                            "admitted"
+                                        )
+                            else:
+                                logger.exception(
+                                    "Post-commit worker cleanup failed for %s",
+                                    identifier,
+                                )
                             terminal_cleanup_diagnostics.append(
                                 {
                                     "operation": "retire_running_worker",
                                     "issue_id": str(issue_id),
-                                    "message": str(exc),
+                                    "message": cleanup_diagnostic,
                                 }
                             )
                         else:
