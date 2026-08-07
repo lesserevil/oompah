@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-08-07T14:05:23.075610Z'
+updated_at: '2026-08-07T14:05:41.818381Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -173,8 +173,8 @@ oompah.integration:
   task_branch: OOMPAH-657
   base_branch: main
   head_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
-  submitted_at: '2026-08-07T13:56:30.243567+00:00'
-  updated_at: '2026-08-07T13:56:30.243567+00:00'
+  submitted_at: '2026-08-07T14:05:34.864117+00:00'
+  updated_at: '2026-08-07T14:05:34.864117+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/618
 oompah.review_number: '618'
 oompah.work_branch: OOMPAH-657
@@ -1046,5 +1046,10 @@ author: oompah
 created: 2026-08-07 14:05
 ---
 Understanding: The worktree is clean and branch OOMPAH-657 is up to date with origin/OOMPAH-657 at head 0212dada64768ed8f89e7b27f461f121c4a42299 (the original merged PR #618 head). The previous agent submitted successfully but the orchestrator refused because it detected uncommitted files. Those files appear to have since been cleaned. The task implementation is complete — PR #618 was merged with all 83 focused tests passing and GitHub Actions CI passing for Python 3.11/3.12/3.13. Attempting to submit now.
+---
+author: oompah
+created: 2026-08-07 14:05
+---
+Implementation complete and merged in PR #618. Run branch quality gates from immutable exact-head snapshots: added dedicated detached worktrees for gate execution, pre-spawn SHA verification barriers, durable generation tombstones, Ready-to-Open integration row retirement, expired lease authority withdrawal. All 83 focused tests passed; make test passed in 370.5s; GitHub Actions CI passed for Python 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
