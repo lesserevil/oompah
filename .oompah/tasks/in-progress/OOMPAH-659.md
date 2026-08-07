@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-659
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Defer standalone full gates until finish dependencies are satisfied
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-08-07T18:25:37.000491Z'
+updated_at: '2026-08-07T18:26:08.765626Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620

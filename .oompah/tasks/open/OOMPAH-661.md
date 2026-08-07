@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-08-07T18:22:37.539331Z'
+updated_at: '2026-08-07T18:26:04.182420Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -829,5 +829,19 @@ author: oompah
 created: 2026-08-07 18:22
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-661/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-07 18:25
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #6)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 624 is merged
+**Evidence head:** `e1c6e394e6136ec8057fb41684049d9b97b4ca2e`
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
