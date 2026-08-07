@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T12:17:12.777638Z'
+updated_at: '2026-08-07T12:18:23.056939Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -365,5 +365,10 @@ author: oompah
 created: 2026-08-07 12:17
 ---
 Implementation: completed the preserved change set. Auditor dispatch now separates no-verdict infrastructure/finalization attempts from substantive candidate use, retries the same eligible candidate under OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES and durable backoff, classifies forced ACP tool-result delivery shutdowns in orchestrator exit cleanup, expands workflow lease capacity across both bounded lanes, and exposes transport-recovery health separately from retry exhaustion. Existing selector policy excludes verdict-incapable subscription Codex ACP providers with missing_audit_capability. I also fixed health's zero-retry edge so a fresh audit remains available for its initial launch.
+---
+author: oompah
+created: 2026-08-07 12:18
+---
+Verification: PASS. Focused auditor/candidate/termination/durable-finalization/health/config batch: 291 passed in 32.34s. Adjacent terminal-transition coordinator, terminal-audit workflow/observability, and tool-liveness batch: 239 passed in 76.81s. git diff --check passed. The managed native validation wrapper itself could not run make test-setup because its immutable state_path incorrectly targets read-only /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3; tests were therefore run serially from this worktree's existing .venv. The orchestrator remains responsible for the authoritative full make test gate at the review-ready head.
 ---
 <!-- COMMENTS:END -->
