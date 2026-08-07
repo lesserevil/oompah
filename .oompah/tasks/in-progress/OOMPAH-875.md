@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T09:26:59.961342Z'
+updated_at: '2026-08-07T09:37:00.973638Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-08-07 09:26
 ---
 Implementation committed locally as d9dd24a34 (not pushed/submitted per coordination instruction). The dedicated lane starts before tick work and on refresh/startup, coalesces active refreshes into one follow-up pass, uses an isolated executor while retaining the existing validation lease, and publishes run/claim-latency state. Added tests/test_integration_lane.py for slow-tick starvation, startup exactly-once, burst coalescing, and telemetry. git diff --check and py_compile pass. Focused execution is blocked: pytest and the project venv are absent; direct execution also fails before collection because the liquid package is unavailable. The validation broker remains untouched.
+---
+author: oompah
+created: 2026-08-07 09:37
+---
+Repaired review blocker and amended local commit to 682095362 (still not pushed/submitted). Freshly integrated audit staging and historical integrated-row replay no longer run inside the prompt integration future. A separate coalesced integration-audit future replays the durable cursor on the tick executor while Ready claims use the isolated integration executor; it is startup-gated by terminal-audit initialization and included in graceful background draining. Prompt self-rechecks now occur only after durable integration, avoiding backoff/cancel tight loops. Added deterministic coverage proving an actual Ready claim completes while 200-row audit replay is blocked, cross-thread refresh burst coalescing during a real slow tick, audit-wake coalescing, and shutdown waiting for slow audit replay. py_compile and git diff --check pass. No heavy test gate, push, submit, claim release, or restart performed.
 ---
 <!-- COMMENTS:END -->
