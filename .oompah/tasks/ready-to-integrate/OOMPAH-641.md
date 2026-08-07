@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-08-07T09:14:50.196085Z'
+updated_at: '2026-08-07T10:18:21.349668Z'
 work_branch: OOMPAH-641
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/607
+review_url: ''
 review_number: '607'
 merged_at: null
 oompah.duplicate_screening:
@@ -121,7 +121,7 @@ oompah.integration:
   head_sha: 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
   submitted_at: '2026-08-07T09:12:01.013972+00:00'
   updated_at: '2026-08-07T09:12:01.013972+00:00'
-oompah.review_url: https://github.com/lesserevil/oompah/pull/607
+oompah.review_url: ''
 oompah.review_number: '607'
 oompah.work_branch: OOMPAH-641
 oompah.target_branch: main
@@ -594,5 +594,19 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 27m 37s
 - Log: OOMPAH-641__20260807T084727Z.jsonl
+---
+author: oompah
+created: 2026-08-07 10:18
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/607
+Reviewed head: `da31ef4be079544368bd09899b4e248f2953b3ee`
+Accepted submission head: `5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8`
+Source branch: `OOMPAH-641`
+Target branch: `main`
+Reason: review head da31ef4be079544368bd09899b4e248f2953b3ee does not match accepted submission head 5f51f13ac98cbcb4633cbbab6db1b8d3ff4961e8
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
