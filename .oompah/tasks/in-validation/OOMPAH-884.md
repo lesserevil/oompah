@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-884
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-763 onto main
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:24:28.093323Z'
-updated_at: '2026-08-07T12:33:13.581549Z'
+updated_at: '2026-08-07T12:33:31.885487Z'
 work_branch: epic-OOMPAH-763
 target_branch: main
 review_url: null
@@ -64,6 +64,30 @@ oompah.task_costs:
     output_tokens: 295
     cost_usd: 0.0
     recorded_at: '2026-08-07T12:31:14.434947+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-514334cf0226
+    project_id: proj-14849f1b
+    task_id: OOMPAH-884
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4a16f1103d6b2ec7c945376d72bec626b6ab782be2ba1ce5e087c1ab1c0e14b1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-epic-maintenance
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-07T12:33:24.384353+00:00'
+    selected_ref: ca1c527440734830c17b09b49616c394008258f8
+    selected_sha: ca1c527440734830c17b09b49616c394008258f8
+  attempt_history: []
 ---
 ## Summary
 
@@ -113,5 +137,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 32s
 - Log: OOMPAH-884__20260807T122603Z.jsonl
+---
+author: oompah
+created: 2026-08-07 12:33
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T05:24:14.554398Z'
-updated_at: '2026-08-07T12:32:26.380471Z'
+updated_at: '2026-08-07T12:33:36.002555Z'
 work_branch: OOMPAH-871
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/741
@@ -139,12 +139,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-871
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ea91da6000d7
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+      created_at: '2026-08-07T12:33:21.851823+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-07T12:33:21.851823+00:00'
+      branch_key: OOMPAH-871
+      selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
+      selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
     requested_by:
       version: 1
       identity: lesserevil
@@ -153,6 +168,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:32:13.858961+00:00'
     selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
     selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
+    updated_at: '2026-08-07T12:33:21.851823+00:00'
   - version: 1
     audit_id: audit-f4c6b5b0a6ae
     project_id: proj-14849f1b
@@ -172,7 +188,22 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:32:13.858961+00:00'
     selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
     selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-ea91da6000d7
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3406012b66624d85ceab94bf4de7015a2f77d41443a2b2b2a7fa3226dda7bed
+    created_at: '2026-08-07T12:33:21.851823+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-07T12:33:21.851823+00:00'
+    branch_key: OOMPAH-871
+    selected_ref: 158a2d03f0651b955666ba31c25b3fb412973ccd
+    selected_sha: 158a2d03f0651b955666ba31c25b3fb412973ccd
 ---
 ## Summary
 
