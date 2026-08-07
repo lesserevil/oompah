@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T09:53:21.502834Z'
+updated_at: '2026-08-07T09:53:34.544699Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-07 09:52
 ---
 Additional live reproduction: OOMPAH-426 exhausted its rearmed Archived audit after a prior PASS/finalization failure. Attempt 3 again ended without a usable transport verdict and forced Needs Human despite unchanged merged provenance; owner override restored Archived. Transport retries must preserve substantive candidate capacity and durable PASS finalization must not relaunch unnecessary auditors.
+---
+author: oompah
+created: 2026-08-07 09:53
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
