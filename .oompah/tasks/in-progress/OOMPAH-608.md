@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-08-07T09:52:03.919858Z'
+updated_at: '2026-08-07T10:07:16.883541Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -746,5 +746,10 @@ author: oompah
 created: 2026-08-07 09:52
 ---
 Discovery: the merged fix is present in oompah/auditor.py, but live review found two acceptance gaps in its boundary logic. _redact_credential_patterns normalizes every match, so a fully credential-shaped Bearer/API/password value is accepted instead of fail-closed; and _redact_safe_evidence replaces a credential-like key then continues while preserving its raw value. The tool schema/parser also only accept scalar evidence, so nested evidence is not recursively sanitized. I will tighten classification so only demonstrably inert placeholder syntax is normalized, reject high-confidence values with field/path-only feedback that never echoes content, and recursively sanitize bounded JSON evidence before persistence.
+---
+author: oompah
+created: 2026-08-07 10:07
+---
+Implementation: tightened oompah/auditor.py so only explicit inert placeholders (masks, ellipses, synthetic x-runs, the published AWS EXAMPLE value, or header-only PEM syntax) are deterministically redacted. Complete credential-shaped message/list/evidence values and credential-like evidence keys now fail before the coordinator handler with field/path-only guidance that never echoes submitted content. safe_evidence now accepts bounded nested objects/arrays, recursively validates every key/leaf, and flattens safe leaves for the existing scalar coordinator contract. Unknown fields no longer echo model-controlled names. Updated the tool schema, coordinator design contract, and result/contract tests.
 ---
 <!-- COMMENTS:END -->
