@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:11:28.275102Z'
+updated_at: '2026-08-07T13:11:39.876260Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -89,5 +89,19 @@ author: oompah
 created: 2026-08-07 13:11
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-07 13:11
+---
+Agent failed: Epic worktree epic-OOMPAH-763 is dirty; drain or repair shared-mode work before dispatching private children. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-07 13:11
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
 ---
 <!-- COMMENTS:END -->
