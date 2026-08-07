@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T21:47:58.674446Z'
+updated_at: '2026-08-07T21:57:53.996693Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Exact isolated branch gates for OOMPAH-646 and OOMPAH-869 produced the same thre
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-07 21:57
+---
+Direct fix implemented in isolated branch OOMPAH-906. Xdist workers now preserve the quality gate's trusted pre-worker HOME outside task-writable high-churn tmp roots, fail closed when a configured gate HOME overlaps /tmp, /var/tmp, or configured gate temp/run roots, and remove the external per-worker HOME during teardown. Evidence so far: worker-isolation unit suite 20 passed; the exact three OOMPAH-869 managed-native failures passed 3/3 under simulated gate + xdist and the canonical broker; broader parallel/Codex/quality-gate suite passed 174/174; Ruff, py_compile, diff check, and secret scan pass. Final xdist module rerun and commit/push remain.
+---
+<!-- COMMENTS:END -->
