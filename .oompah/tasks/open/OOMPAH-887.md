@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T13:03:44.713295Z'
+updated_at: '2026-08-07T13:05:17.749469Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,23 +22,31 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 4bfc7a4793eddc7d2c72bcd997c6cd3662c69bebde2381b05f16da880b32ca0c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-07T13:05:11.677560+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
-    OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865, OOMPAH-866, OOMPAH-877, OOMPAH-878,
-    OOMPAH-879, OOMPAH-880, OOMPAH-881, OOMPAH-882, OOMPAH-884, OOMPAH-885, OOMPAH-886.'
+  evidence: Authoritative corpus review found related landed work (especially OOMPAH-632,
+    OOMPAH-696, and OOMPAH-866), but no active duplicate. Those tasks cover candidate-ref
+    refresh, durable integrated-SHA proof, and canonical rebase mappings. OOMPAH-887
+    specifically covers a later target movement producing a mixed/stale generation
+    between refresh and Needs Human escalation, reproduced live on OOMPAH-779; its
+    single-generation revalidation and defer-on-refresh-failure acceptance criteria
+    remain unimplemented.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-07T13:03:07.979875+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-07T13:05:11.677560+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Authoritative corpus review found related landed work (especially
+    OOMPAH-632, OOMPAH-696, and OOMPAH-866), but no active duplicate. Those tasks
+    cover candidate-ref refresh, durable integrated-SHA proof, and canonical rebase
+    mappings. OOMPAH-887 specifically covers a later target movement producing a mixed/stale
+    generation between refresh and Needs Human escalation, reproduced live on OOMPAH-779;
+    its single-generation revalidation and defer-on-refresh-failure acceptance criteria
+    remain unimplemented.
 oompah.agent_run_id: 753ddaf7-6faf-4bda-8238-19655d7b8832
 ---
 ## Summary
