@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-08T02:14:47.636042Z'
+updated_at: '2026-08-08T02:14:53.257665Z'
 work_branch: OOMPAH-666
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/632
@@ -199,8 +199,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-e1d1e3a9c1f2
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T02:14:41.731224+00:00'
+    applied_at: '2026-08-08T02:14:51.728721+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -690,5 +691,23 @@ author: oompah
 created: 2026-08-08 02:00
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 02:14
+---
+Audit PASS — Archived
+
+Terminal audit PASS: OOMPAH-666 dashboard vertical scrolling fix verified as complete, merged, and integrated. CSS layout constraints removed via min-height:0 at 4 locations (.main-area, .board, .column, .column-body). Regression test suite (4/4 passing) covers no-alert layout, alert transitions, flat-view scrolling, and horizontal/swimlane preservation. Dashboard smoke tests pass (111/111 on sample). Merge commit 8bac16ed4 fully integrated into main with 320+ subsequent commits. Ready for archive.
+
+Safe evidence:
+- merge_commit: 8bac16ed4 (Merge pull request #632 from lesserevil/OOMPAH-666)
+- accepted_head_sha: 5741f6a05613dd038d49c25e03a01eb37b04e71f
+- regression_tests: tests/test_dashboard_vertical_scroll.py: 4/4 passed
+- css_fixes_present[0]: .main-area: min-height: 0
+- css_fixes_present[1]: .board: min-height: 0
+- css_fixes_present[2]: .column: max-height: 100% + min-height: 0
+- css_fixes_present[3]: .column-body: overflow-y: auto + min-height: 0
+- dashboard_sample_tests: 111/111 sample tests passed
+- main_integration_status: 320 commits ahead of accepted_head_sha; merge fully integrated
 ---
 <!-- COMMENTS:END -->
