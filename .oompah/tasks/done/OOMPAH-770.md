@@ -18,7 +18,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-08T16:31:00.213300Z'
+updated_at: '2026-08-08T16:31:05.582485Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,17 @@ oompah.terminal_audit:
       This task scope and its completed dependency wave are contained in that validated
       head; owner override avoids fabricating a separate branch/integration generation.
     created_at: '2026-08-08T16:30:56.199918+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-770
+    target_state: Done
+    evidence_fingerprint: 02fbc812f8fddb7eaea74b739805db91d1b21710392021aa1c0465d65613f78f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:31:04.055799+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -72,5 +82,12 @@ author: oompah
 created: 2026-08-06 00:13
 ---
 Critical-path topology repair completed while project dispatch was paused. epic-OOMPAH-770 had no unique commits and was safely fast-forwarded from f1e7925b7263f980517f943291102c8c83335ed2 to exact parent epic-OOMPAH-763 head 58ffd477b19f370c7ed53a191e1a05580b016c85. The remote ref is verified and clean; this makes OOMPAH-806 and OOMPAH-807 code reachable for OOMPAH-796 and OOMPAH-821.
+---
+author: oompah
+created: 2026-08-08 16:31
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope and its completed dependency wave are contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

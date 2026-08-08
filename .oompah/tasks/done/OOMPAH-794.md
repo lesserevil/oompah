@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-794
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Delete superseded reconcilers, watchdog heuristics, and duplicate workflow
   predicates
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:23.320051Z'
-updated_at: '2026-08-08T12:03:02.994240Z'
+updated_at: '2026-08-08T16:31:12.787995Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,6 +22,30 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-88f928aaf4e4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-794
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2a08f2f770a1e58ef1aac5a7ccc67a8418c2c18ebc661fe5bcd610db7a0139ea
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope and its completed dependency wave are contained in that validated
+      head; owner override avoids fabricating a separate branch/integration generation.
+    created_at: '2026-08-08T16:31:08.862530+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
