@@ -3444,6 +3444,61 @@ def test_gate_orphan_sidecar_claim_restores_source_replaced_before_rename(
     assert not list(tmp_path.glob(f".{root_name}.sidecar-reap-*"))
 
 
+def test_gate_orphan_sidecar_final_unlink_detects_name_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-qqqqqqqq"
+    sidecar = tmp_path / f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
+    sidecar.write_text("expected evidence", encoding="utf-8")
+    old = time.time() - 10
+    os.utime(sidecar, (old, old))
+    displaced = tmp_path / "displaced-final-orphan-claim"
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+    original_unlink = os.unlink
+    swapped = False
+
+    def swap_at_unlink(path, *args, **kwargs):
+        nonlocal swapped
+        directory_fd = kwargs.get("dir_fd")
+        if (
+            isinstance(path, str)
+            and directory_fd is not None
+            and quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(path)
+            and not swapped
+        ):
+            swapped = True
+            os.rename(
+                path,
+                displaced.name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+            )
+            replacement_fd = os.open(
+                path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o400,
+                dir_fd=directory_fd,
+            )
+            os.write(replacement_fd, b"replacement evidence")
+            os.close(replacement_fd)
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", swap_at_unlink)
+    with BranchQualityGate._processes_lock:
+        generation = BranchQualityGate._gate_namespace_generation
+
+    assert not BranchQualityGate._remove_orphan_gate_sidecar(
+        sidecar,
+        root_name,
+        now=time.time(),
+        expected_namespace_generation=generation,
+    )
+    assert swapped
+    assert displaced.read_text(encoding="utf-8") == "expected evidence"
+
+
 def test_gate_sidecar_claim_crash_is_verified_then_reaped(tmp_path, monkeypatch):
     monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
     root_name = "oompah-quality-gate-eeeeeeee"
@@ -3518,6 +3573,48 @@ def test_gate_sidecar_claim_transient_recheck_failure_is_retried(
         time.sleep(0.01)
 
     assert failed
+    assert not claim.exists()
+    assert reaper is None
+
+
+def test_gate_sidecar_claim_protected_by_quarantine_is_revisited(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-pppppppp"
+    evidence = tmp_path / "protected-claim-source"
+    evidence.write_text("protected evidence", encoding="utf-8")
+    metadata = evidence.stat()
+    claim = tmp_path / (
+        f".{root_name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    evidence.rename(claim)
+    quarantine = tmp_path / f".{root_name}.scavenge-{os.getpid()}-{time.time_ns()}"
+    quarantine.mkdir(mode=0o700)
+
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+            attempts = BranchQualityGate._deferred_gate_discovery_attempts
+        if claim.exists() and reaper is not None and attempts > 0:
+            break
+        time.sleep(0.01)
+    assert claim.exists()
+    assert reaper is not None
+    assert attempts > 0
+
+    quarantine.rmdir()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not claim.exists() and reaper is None:
+            break
+        time.sleep(0.01)
     assert not claim.exists()
     assert reaper is None
 
@@ -3643,6 +3740,77 @@ def test_gate_sidecar_claim_recovery_never_promotes_path_swap(
     assert reaper is None
 
 
+def test_gate_sidecar_claim_final_unlink_detects_name_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-rrrrrrrr"
+    evidence = tmp_path / "final-claim-source"
+    evidence.write_text("expected authority", encoding="utf-8")
+    metadata = evidence.stat()
+    claim = tmp_path / (
+        f".{root_name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    evidence.rename(claim)
+    displaced = tmp_path / "displaced-final-recovery-claim"
+    claim_match = quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(claim.name)
+    assert claim_match is not None
+    original_unlink = os.unlink
+    swapped = False
+
+    def swap_at_unlink(path, *args, **kwargs):
+        nonlocal swapped
+        directory_fd = kwargs.get("dir_fd")
+        if (
+            isinstance(path, str)
+            and directory_fd is not None
+            and quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(path)
+            and not swapped
+        ):
+            swapped = True
+            os.rename(
+                path,
+                displaced.name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+            )
+            replacement_fd = os.open(
+                path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o400,
+                dir_fd=directory_fd,
+            )
+            os.write(replacement_fd, b"replacement authority")
+            os.close(replacement_fd)
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", swap_at_unlink)
+    try:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._deferred_gate_sidecar_phase = "verify"
+            BranchQualityGate._deferred_gate_sidecar_candidates = {
+                claim.name: claim
+            }
+            BranchQualityGate._deferred_gate_sidecar_protected.clear()
+        result = BranchQualityGate._recover_gate_sidecar_claim(
+            claim,
+            claim_match,
+            expected_namespace_generation=None,
+            require_sidecar_batch=True,
+            report_status=True,
+        )
+        assert result == quality_gate._GATE_REMOVAL_INCOMPLETE
+        assert swapped
+        assert displaced.read_text(encoding="utf-8") == "expected authority"
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._deferred_gate_sidecar_candidates.clear()
+            BranchQualityGate._deferred_gate_sidecar_protected.clear()
+            BranchQualityGate._deferred_gate_sidecar_phase = "collect"
+
+
 def test_gate_terminal_sidecar_unlink_retries_fresh_owner_without_restart(
     tmp_path,
     monkeypatch,
@@ -3677,6 +3845,70 @@ def test_gate_terminal_sidecar_unlink_retries_fresh_owner_without_restart(
         time.sleep(0.01)
 
     assert failed
+    assert not owner_path.exists()
+    assert not claims
+    assert reaper is None
+
+
+def test_gate_terminal_sidecar_retries_transient_claim_publication(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    assert BranchQualityGate._prepare_gate_container_removal(container)
+    shutil.rmtree(container)
+    original_unlink = Path.unlink
+    original_claim = quality_gate._rename_noreplace_at
+    unlink_failed = False
+    claim_failed = False
+
+    def fail_first_owner_unlink(path, *args, **kwargs):
+        nonlocal unlink_failed
+        if path == owner_path and not unlink_failed:
+            unlink_failed = True
+            raise OSError(errno.EIO, "injected transient owner unlink failure")
+        return original_unlink(path, *args, **kwargs)
+
+    def fail_first_claim_rename(
+        source_dir_fd,
+        source,
+        destination_dir_fd,
+        destination,
+    ):
+        nonlocal claim_failed
+        if source == owner_path.name and not claim_failed:
+            claim_failed = True
+            raise OSError(errno.EIO, "injected transient claim publication failure")
+        return original_claim(
+            source_dir_fd,
+            source,
+            destination_dir_fd,
+            destination,
+        )
+
+    monkeypatch.setattr(Path, "unlink", fail_first_owner_unlink)
+    monkeypatch.setattr(
+        quality_gate,
+        "_rename_noreplace_at",
+        fail_first_claim_rename,
+    )
+
+    assert not BranchQualityGate._unlink_gate_root_owner(container)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        claims = list(tmp_path.glob(f".{container.name}.sidecar-reap-*"))
+        if not owner_path.exists() and not claims and reaper is None:
+            break
+        time.sleep(0.01)
+
+    assert unlink_failed
+    assert claim_failed
     assert not owner_path.exists()
     assert not claims
     assert reaper is None

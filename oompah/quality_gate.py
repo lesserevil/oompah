@@ -943,12 +943,27 @@ class BranchQualityGate:
                 f"-{os.getpid()}-{time.time_ns()}"
             )
             with cls._processes_lock:
-                _rename_noreplace_at(
-                    parent_descriptor,
-                    sidecar.name,
-                    parent_descriptor,
-                    claimed_name,
-                )
+                try:
+                    _rename_noreplace_at(
+                        parent_descriptor,
+                        sidecar.name,
+                        parent_descriptor,
+                        claimed_name,
+                    )
+                except OSError as exc:
+                    if exc.errno in {errno.EEXIST, errno.ELOOP, errno.ENOTDIR}:
+                        raise
+                    # A no-clobber hard link is a second durable publication
+                    # protocol when renameat2 fails transiently.  Discovery
+                    # converts the canonical twin into another recognizable
+                    # claim before removing either link.
+                    os.link(
+                        sidecar.name,
+                        claimed_name,
+                        src_dir_fd=parent_descriptor,
+                        dst_dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
                 claimed = True
                 cls._gate_namespace_generation += 1
                 final_metadata = os.stat(
@@ -1606,11 +1621,18 @@ class BranchQualityGate:
                         root_name = _gate_sidecar_candidate_root_name(sidecar_name)
                         if root_name is None:
                             continue
-                        if root_name in protected:
-                            continue
                         claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(
                             sidecar_name
                         )
+                        if root_name in protected:
+                            if claim_match is not None:
+                                # A claim owns the only sidecar name.  Keep the
+                                # persistent pass alive until its matching
+                                # root/quarantine disappears; canonical
+                                # missing_ok cleanup cannot request a retry.
+                                with cls._processes_lock:
+                                    cls._deferred_gate_discovery_unresolved = True
+                            continue
                         if claim_match is not None:
                             sidecar_result = cls._recover_gate_sidecar_claim(
                                 sidecar,
@@ -1827,8 +1849,11 @@ class BranchQualityGate:
                 ) != identity:
                     return outcome(_GATE_REMOVAL_UNSAFE)
                 os.unlink(claimed_name, dir_fd=parent_descriptor)
-                claimed = False
                 cls._gate_namespace_generation += 1
+                if os.fstat(sidecar_descriptor).st_nlink != 0:
+                    claimed = False
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
+                claimed = False
                 return outcome(_GATE_REMOVAL_REMOVED)
         except FileNotFoundError:
             return outcome(_GATE_REMOVAL_UNSAFE)
@@ -1955,6 +1980,27 @@ class BranchQualityGate:
                         int(canonical_metadata.st_ino),
                     ) != expected_identity:
                         return outcome(_GATE_REMOVAL_UNSAFE)
+                    canonical_claim_name = (
+                        f".{root_name}.sidecar-reap-{expected_identity[0]}"
+                        f"-{expected_identity[1]}-{os.getpid()}-{time.time_ns()}"
+                    )
+                    _rename_noreplace_at(
+                        parent_descriptor,
+                        canonical_name,
+                        parent_descriptor,
+                        canonical_claim_name,
+                    )
+                    cls._gate_namespace_generation += 1
+                    canonical_claim_metadata = os.stat(
+                        canonical_claim_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        int(canonical_claim_metadata.st_dev),
+                        int(canonical_claim_metadata.st_ino),
+                    ) != expected_identity:
+                        return outcome(_GATE_REMOVAL_UNSAFE)
 
                 recheck_name = (
                     f".{root_name}.sidecar-reap-{expected_identity[0]}"
@@ -1979,6 +2025,8 @@ class BranchQualityGate:
                     return outcome(_GATE_REMOVAL_UNSAFE)
                 os.unlink(recheck_name, dir_fd=parent_descriptor)
                 cls._gate_namespace_generation += 1
+                if os.fstat(claim_descriptor).st_nlink != 0:
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 return outcome(_GATE_REMOVAL_REMOVED)
         except FileNotFoundError:
             return outcome(_GATE_REMOVAL_UNSAFE)
