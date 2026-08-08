@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -17,7 +17,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-08T12:02:13.665471Z'
+updated_at: '2026-08-08T19:39:31.447855Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -41,7 +41,26 @@ oompah.terminal_audit:
     attempt-8898fd424dfd: '2026-08-04T00:05:52.464796+00:00'
     attempt-7a2db28a77ef: '2026-08-04T00:16:38.962767+00:00'
     attempt-ca882ffb4086: '2026-08-04T00:38:44.944817+00:00'
-  oompah.terminal_override_records: []
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-769009b09e6d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator closure after repeated independent Merged audit passes and verified
+      ancestry in origin/main; OOMPAH-921 now guarantees the exact direct-owner claim
+      retires only after the committed terminal transition and cannot resurrect during
+      reconciliation.
+    created_at: '2026-08-08T19:39:27.238512+00:00'
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
@@ -453,6 +472,7 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-07-31T05:02:58.950383+00:00'
     updated_at: '2026-07-31T05:09:14.294662+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-2acc16bd16f2
     project_id: proj-14849f1b
@@ -487,6 +507,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T05:25:38.259925+00:00'
     updated_at: '2026-08-03T20:03:00.853768+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-7004db8abe11
     project_id: proj-14849f1b
@@ -521,6 +542,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T20:15:33.201375+00:00'
     updated_at: '2026-08-03T20:46:44.289572+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-07a917c35057
     project_id: proj-14849f1b
@@ -555,6 +577,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T20:47:02.406916+00:00'
     updated_at: '2026-08-03T21:21:36.981899+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-89e8d4be2e28
     project_id: proj-14849f1b
@@ -589,6 +612,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T21:22:46.050647+00:00'
     updated_at: '2026-08-03T21:43:34.874746+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-93942451e12d
     project_id: proj-14849f1b
@@ -623,6 +647,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T21:44:23.028843+00:00'
     updated_at: '2026-08-03T22:00:31.569671+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-562a4fd41918
     project_id: proj-14849f1b
@@ -657,6 +682,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T22:01:27.470860+00:00'
     updated_at: '2026-08-03T22:15:42.360122+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-a7e7191f988d
     project_id: proj-14849f1b
@@ -709,6 +735,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T22:17:47.691386+00:00'
     updated_at: '2026-08-03T22:44:30.830082+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-903923a4e0c3
     project_id: proj-14849f1b
@@ -743,6 +770,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T22:45:28.388137+00:00'
     updated_at: '2026-08-03T23:03:43.671149+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-0eff8a04ea82
     project_id: proj-14849f1b
@@ -777,6 +805,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T23:05:08.751193+00:00'
     updated_at: '2026-08-03T23:20:58.310380+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-e80087590083
     project_id: proj-14849f1b
@@ -811,6 +840,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T23:23:18.234705+00:00'
     updated_at: '2026-08-03T23:37:05.072386+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-9d80809425ed
     project_id: proj-14849f1b
@@ -845,6 +875,7 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-03T23:37:56.413213+00:00'
     updated_at: '2026-08-03T23:53:45.836808+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-49dd950c5599
     project_id: proj-14849f1b
@@ -879,6 +910,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T23:58:57.819848+00:00'
     updated_at: '2026-08-04T00:08:06.201306+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-e58553fbb0d7
     project_id: proj-14849f1b
@@ -913,6 +945,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-04T00:12:56.078817+00:00'
     updated_at: '2026-08-04T00:22:30.436091+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-f9e88a953bf2
     project_id: proj-14849f1b
@@ -947,6 +980,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-04T00:34:15.421621+00:00'
     updated_at: '2026-08-05T08:06:43.099368+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
