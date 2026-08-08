@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-08T06:36:33.809062Z'
-updated_at: '2026-08-08T07:39:42.116205Z'
+updated_at: '2026-08-08T12:03:30.766424Z'
 work_branch: null
 target_branch: null
 review_url: null
