@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-08T16:25:32.647363Z'
+updated_at: '2026-08-08T16:25:41.059514Z'
 work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
@@ -65,7 +65,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:25:26.636749+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-859
+    target_state: Done
+    evidence_fingerprint: 36e2c9fab332f60ac67f940350ea0dfd4fe96cc78c18dc154e8e433f74812bfe
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:25:39.140329+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -153,5 +163,12 @@ author: oompah
 created: 2026-08-08 07:39
 ---
 Direct composition checkpoint: the accepted OOMPAH-859 repair is integrated in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Combined affected validation passed 1076 tests, terminal-mutation and secret scans passed, and the exact full make test gate is currently running clean. The task will be terminalized only after that exact head publishes.
+---
+author: oompah
+created: 2026-08-08 16:25
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

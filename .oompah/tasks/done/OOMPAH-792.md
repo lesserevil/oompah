@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-792
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Run all historical systemic incidents as full-stack workflow scenarios
 parent: OOMPAH-767
@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-08T12:02:52.619278Z'
+updated_at: '2026-08-08T16:25:48.738318Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -117,6 +117,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-767--task-OOMPAH-792
     source_sha: 6ae941a31682dce6cd9346c3c4d7116a4c2db8ae
     completed_at: '2026-08-06T16:10:56.328308+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-36dd49f99f11
+    project_id: proj-14849f1b
+    task_id: OOMPAH-792
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8b9ca47b0fe8fabad0cd82852713c0ab4076e0a699f887b65f9bcee0db34a1c2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:25:42.646742+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
