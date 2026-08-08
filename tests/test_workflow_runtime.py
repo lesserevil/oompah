@@ -550,6 +550,90 @@ def test_shadow_runtime_evaluates_only_enabled_rollout_domains(tmp_path):
     store.close()
 
 
+def test_shadow_rollout_ignores_paused_projects_for_active_coverage(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    active_binding, active_journal = make_binding(
+        tmp_path,
+        NativeTracker([make_issue("TASK-ACTIVE", project_id="project-active")]),
+        store,
+        project_id="project-active",
+    )
+    paused_binding, paused_journal = make_binding(
+        tmp_path,
+        NativeTracker([make_issue("TASK-PAUSED", project_id="project-paused")]),
+        store,
+        project_id="project-paused",
+    )
+    paused_binding.dispatch_enabled = lambda: False
+    runtime = WorkflowRuntime(
+        project_bindings={
+            "project-active": active_binding,
+            "project-paused": paused_binding,
+        },
+        store=store,
+        journals={
+            "project-active": active_journal,
+            "project-paused": paused_journal,
+        },
+        mode="shadow",
+        domain_modes={
+            "implementation": "shadow",
+            "review": "off",
+            "integration": "off",
+            "epic": "off",
+        },
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-active"]["issues"] == 1
+    assert report["projects"]["project-paused"] == {
+        "skipped": True,
+        "reason": "project paused or orchestrator quiesced",
+    }
+    rollout = {row["domain"]: row for row in store.rollout_snapshot()}
+    assert rollout["implementation"]["successful_shadow_sweeps"] == 1
+    assert rollout["implementation"]["failed_shadow_sweeps"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_shadow_rollout_does_not_qualify_without_active_projects(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    binding, journal = make_binding(
+        tmp_path,
+        NativeTracker([make_issue("TASK-PAUSED")]),
+        store,
+    )
+    binding.dispatch_enabled = lambda: False
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        domain_modes={
+            "implementation": "shadow",
+            "review": "off",
+            "integration": "off",
+            "epic": "off",
+        },
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+
+    rollout = {row["domain"]: row for row in store.rollout_snapshot()}
+    assert rollout["implementation"]["successful_shadow_sweeps"] == 0
+    assert rollout["implementation"]["failed_shadow_sweeps"] == 1
+    assert (
+        rollout["implementation"]["last_error"]
+        == "shadow sweep did not cover every active project"
+    )
+    runtime.close()
+    store.close()
+
+
 def test_runtime_rejects_domain_map_with_different_aggregate_mode(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([make_issue("TASK-MODE")])

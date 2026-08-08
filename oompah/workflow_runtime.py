@@ -1317,7 +1317,16 @@ class WorkflowRuntime:
                     }
             with self._lock:
                 self._last_reconcile = report
-            project_results = tuple(report["projects"].values())
+            # Paused/quiesced projects are deliberately excluded from the
+            # shadow observation cut.  They must remain mutation-free, but
+            # they are not missing coverage for the enabled projects that the
+            # rollout is qualifying.  An entirely paused topology still fails
+            # closed because it provides no active-project evidence.
+            project_results = tuple(
+                report["projects"].get(project_id)
+                for project_id, binding in sorted(self.project_bindings.items())
+                if binding.enabled
+            )
             errors = [
                 str(value.get("error"))
                 for value in project_results
