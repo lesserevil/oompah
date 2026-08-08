@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:51:21.989830Z'
-updated_at: '2026-08-08T17:11:00.126306Z'
+updated_at: '2026-08-08T17:12:58.393487Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-08-08 17:11
 ---
 Implemented the shared recurrence fix at 8a0b6948a1089b625d4ba416bde1bfed1da7a424. Structured durable-transition REJECTED outcomes now return HTTP 409 transition_rejected and log at INFO, so illegal-edge/generation-required client conflicts no longer create error-watcher tasks or health warnings. Focused regression suite: 25 passed; terminal mutation scan and secret scan passed. Exact full gate is next.
+---
+author: oompah
+created: 2026-08-08 17:12
+---
+Correction to the prior progress comment: the amended commit's exact SHA is 8a0b6948ab0efb7a12f475b9f1cffc2d2a04a719. The short SHA remains 8a0b6948a; the earlier full SHA was copied from the pre-amend commit suffix and is not a Git object.
 ---
 <!-- COMMENTS:END -->
