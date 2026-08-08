@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-915
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Eliminate cross-thread project-lock deadlock in API status transitions
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:22.190077Z'
-updated_at: '2026-08-08T14:37:29.944803Z'
+updated_at: '2026-08-08T15:37:50.426479Z'
 work_branch: null
 target_branch: null
 review_url: null

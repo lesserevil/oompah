@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-913
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''OOMPAH-912:
   Open was not applied (waiting: transition.recovery_required)'')'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:23:18.279242Z'
-updated_at: '2026-08-08T14:37:24.735607Z'
+updated_at: '2026-08-08T15:37:41.934100Z'
 work_branch: null
 target_branch: null
 review_url: null
