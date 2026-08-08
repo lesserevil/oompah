@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-08T06:09:13.020206Z'
+updated_at: '2026-08-08T06:09:20.963215Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -174,8 +174,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-19d1d5d121ef
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T06:09:08.807230+00:00'
+    applied_at: '2026-08-08T06:09:19.343961+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -580,5 +581,23 @@ author: oompah
 created: 2026-08-08 06:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 06:09
+---
+Audit PASS — Archived
+
+Audit PASS — Archived. OOMPAH-674 is fully merged and safe to archive. Implementation is correct and complete; all focused tests pass; no unsafe_archive conditions found.
+
+Safe evidence:
+- merge_state: Branch fully merged; git log main..HEAD is empty. Merge commit cde640113 (PR #637) confirmed in main history. Main has 306 commits since accepted head 939abfda0.
+- accepted_head_sha: 939abfda0d393cd98d95b61a71fb92df7ea740d0
+- enrichment_helper: _enrich_state_snapshot() at oompah/server.py:3319 adds build_id, service_instance_id, http_auth (via _http_auth_reload_status()), api_metrics
+- enrichment_call_sites: oompah/server.py lines 2549, 2569 (broadcast paths), 2902, 2924 (WebSocket bootstrap/refresh), 3384, 3391 (REST /api/v1/state)
+- redaction_confirmed: _http_auth_reload_status() at line 1304 returns only {enabled, reload: {state, generation, retaining_last_known_good}} — no credentials
+- focused_tests: test_websocket_authenticated_bootstrap.py 14/14 pass in 0.99s; test_dashboard_authenticated_mutations 13/13; test_server_auth 73/73; test_state_api_responsiveness 19/19 — total 119/119
+- prior_audits: Two Opus auditors previously passed Done and Merged state audits for this task
+- historical_gate: Scheduler recorded: Branch quality gate passed for 15eea17a142a79a33d69464d6e6c608c23e1eac4 using make test in 399.0s
+- stale_gate_note: Full gate evidence is stale per scheduler; focused tests confirm implementation integrity; archive audit does not require re-merging
 ---
 <!-- COMMENTS:END -->
