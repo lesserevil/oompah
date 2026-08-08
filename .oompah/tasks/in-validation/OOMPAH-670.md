@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-08-01T01:41:04.919298Z'
+updated_at: '2026-08-08T01:59:08.158954Z'
 work_branch: OOMPAH-670
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/633
@@ -237,6 +237,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T01:19:36.788158+00:00'
     updated_at: '2026-08-01T01:40:44.711348+00:00'
+  - version: 1
+    audit_id: audit-32b7ffb76a06
+    project_id: proj-14849f1b
+    task_id: OOMPAH-670
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89a380acb8522068b2352c305d69dfb080bec4d32aef4d999ea8a7d303618a61
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T01:59:04.007462+00:00'
+    selected_ref: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
+    selected_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
   attempt_history:
   - version: 1
     attempt_id: attempt-3b57a399e34e
