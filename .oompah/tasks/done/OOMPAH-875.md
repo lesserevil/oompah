@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-08T07:18:10.211415Z'
+updated_at: '2026-08-08T07:18:18.408336Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null
@@ -127,7 +127,17 @@ oompah.terminal_audit:
       at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822; focused and
       full gates passed.'
     created_at: '2026-08-08T07:18:06.145002+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-875
+    target_state: Done
+    evidence_fingerprint: 0e9b797f1adaf7d06a5cd76cbd0e0e154ebb55f1ebb001d1d5b2e6f62cf85b50
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T07:18:17.123941+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -201,5 +211,12 @@ author: oompah
 created: 2026-08-07 09:58
 ---
 Implemented isolated prompt integration and historical audit lanes with scheduler-loop ownership, coalesced wakes, safe startup/shutdown drain, meaningful-mutation dispatch refreshes, and telemetry. Fixed idle pass feedback loop, direct epic-maintenance recovery wake, and cross-thread refresh ordering. Exact head 461b01548a2e; independent release review ACCEPT; brokered focused suite 128 passed; terminal mutation scan, secret scan, py_compile, and diff checks passed.
+---
+author: oompah
+created: 2026-08-08 07:18
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: accepted OOMPAH-875 lane-isolation repair plus composed fixture correction are contained in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822; focused and full gates passed.
 ---
 <!-- COMMENTS:END -->
