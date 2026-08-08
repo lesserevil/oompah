@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T06:36:33.809062Z'
-updated_at: '2026-08-08T06:38:31.273015Z'
+updated_at: '2026-08-08T06:38:47.726153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,17 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 97537807-728d-43ed-a51b-25fe97f97319
+oompah.work_contributors:
+  runs:
+  - run_id: 3d010ee020b44d19b140288b64f7d798--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-907
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -48,3 +59,21 @@ Live OOMPAH-795 repeatedly oscillates In Progress -> Open -> In Progress with no
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 06:38
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-08 06:38
+---
+Live evidence captured on 2026-08-08: OOMPAH-795 has no running agent and no owner claim. Orphan recovery changes In Progress to Open, then native epic rollup restores In Progress because OOMPAH-859 is non-terminal; this repeats approximately every two minutes and logs possible-state-loop plus 50 consecutive epic_rollup_parent rejections. Promoted to Open for direct repair after the systemic composition gate stabilizes.
+---
+author: oompah
+created: 2026-08-08 06:38
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
