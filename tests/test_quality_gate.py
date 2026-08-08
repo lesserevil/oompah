@@ -2389,6 +2389,60 @@ def test_gate_scavenger_age_bounds_quarantine_without_sidecar(
         shutil.rmtree(quarantine, ignore_errors=True)
 
 
+def test_gate_abandoned_cleanup_refuses_post_verification_quarantine_swap(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    identity = (container.stat().st_dev, container.stat().st_ino)
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    quarantine = container.with_name(
+        f".{container.name}.scavenge-2000000000-123456789"
+    )
+    container.rename(quarantine)
+    expected_moved = tmp_path / "expected-abandoned-container"
+    victim = tmp_path / "same-uid-victim"
+    victim.mkdir()
+    marker = victim / "keep"
+    marker.write_text("do not delete", encoding="utf-8")
+    claimed_paths: list[Path] = []
+    original_remove = BranchQualityGate._remove_gate_tree_at
+
+    def swap_before_delete(parent_fd, name, expected, root_fd):
+        claimed = tmp_path / name
+        claimed.rename(expected_moved)
+        victim.rename(claimed)
+        claimed_paths.append(claimed)
+        return original_remove(parent_fd, name, expected, root_fd)
+
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_remove_gate_tree_at",
+        staticmethod(swap_before_delete),
+    )
+    try:
+        assert not BranchQualityGate._remove_abandoned_gate_quarantine(
+            quarantine,
+            container.name,
+            identity,
+        )
+        assert len(claimed_paths) == 1
+        assert (claimed_paths[0] / "keep").read_text(encoding="utf-8") == (
+            "do not delete"
+        )
+        assert expected_moved.exists()
+        assert owner_path.exists()
+    finally:
+        for path in (*claimed_paths, expected_moved):
+            if path.exists():
+                assert BranchQualityGate._prepare_gate_container_removal(path)
+                shutil.rmtree(path, ignore_errors=True)
+        owner_path.unlink(missing_ok=True)
+
+
 def test_gate_normal_cleanup_repairs_candidate_controlled_modes(
     tmp_path,
     monkeypatch,
@@ -2435,6 +2489,52 @@ def test_gate_normal_cleanup_fences_container_inode_swap(tmp_path, monkeypatch):
         owner_path.unlink(missing_ok=True)
 
 
+def test_gate_normal_cleanup_refuses_post_verification_quarantine_swap(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    expected_moved = tmp_path / "expected-active-container"
+    victim = tmp_path / "same-uid-active-victim"
+    victim.mkdir()
+    marker = victim / "keep"
+    marker.write_text("do not delete", encoding="utf-8")
+    quarantine_paths: list[Path] = []
+    original_remove = BranchQualityGate._remove_gate_tree_at
+
+    def swap_before_delete(parent_fd, name, expected, root_fd):
+        quarantine = tmp_path / name
+        quarantine.rename(expected_moved)
+        victim.rename(quarantine)
+        quarantine_paths.append(quarantine)
+        return original_remove(parent_fd, name, expected, root_fd)
+
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_remove_gate_tree_at",
+        staticmethod(swap_before_delete),
+    )
+    try:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+        assert len(quarantine_paths) == 1
+        assert (quarantine_paths[0] / "keep").read_text(encoding="utf-8") == (
+            "do not delete"
+        )
+        assert expected_moved.exists()
+        assert owner_path.exists()
+    finally:
+        BranchQualityGate._forget_gate_root(container)
+        for path in (*quarantine_paths, expected_moved):
+            if path.exists():
+                assert BranchQualityGate._prepare_gate_container_removal(path)
+                shutil.rmtree(path, ignore_errors=True)
+        owner_path.unlink(missing_ok=True)
+
+
 def test_gate_normal_cleanup_restores_identity_mode_for_retry(
     tmp_path,
     monkeypatch,
@@ -2443,18 +2543,26 @@ def test_gate_normal_cleanup_restores_identity_mode_for_retry(
     run_root = BranchQualityGate._gate_run_root()
     container = run_root.parent
     identity_root = container / "identity"
-    original_rmtree = shutil.rmtree
+    original_remove = BranchQualityGate._remove_gate_tree_at
 
-    def fail_once(_path):
-        raise OSError("injected removal failure")
+    def fail_once(*_args):
+        return False
 
-    monkeypatch.setattr(shutil, "rmtree", fail_once)
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_remove_gate_tree_at",
+        staticmethod(fail_once),
+    )
     BranchQualityGate._cleanup_gate_run_root(run_root)
 
     assert container.exists()
     assert identity_root.stat().st_mode & 0o777 == 0o500
 
-    monkeypatch.setattr(shutil, "rmtree", original_rmtree)
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_remove_gate_tree_at",
+        staticmethod(original_remove),
+    )
     BranchQualityGate._cleanup_gate_run_root(run_root)
     assert not container.exists()
 

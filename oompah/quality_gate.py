@@ -878,18 +878,148 @@ class BranchQualityGate:
         return True
 
     @staticmethod
-    def _restore_gate_identity_mode(container: Path) -> bool:
-        """Restore the immutable identity-directory mode after a failed delete."""
-        identity_root = container / _GATE_IDENTITY_ROOT_NAME
+    def _restore_gate_identity_mode_at(container_descriptor: int) -> bool:
+        """Restore identity mode relative to an already verified container."""
+        identity_descriptor: int | None = None
         try:
-            metadata = identity_root.stat(follow_symlinks=False)
+            identity_descriptor = os.open(
+                _GATE_IDENTITY_ROOT_NAME,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=container_descriptor,
+            )
+            metadata = os.fstat(identity_descriptor)
             if (
                 not stat.S_ISDIR(metadata.st_mode)
-                or stat.S_ISLNK(metadata.st_mode)
                 or metadata.st_uid != os.geteuid()
             ):
                 return False
-            identity_root.chmod(0o500, follow_symlinks=False)
+            os.fchmod(identity_descriptor, 0o500)
+        except OSError:
+            return False
+        finally:
+            if identity_descriptor is not None:
+                os.close(identity_descriptor)
+        return True
+
+    @classmethod
+    def _restore_gate_identity_mode(cls, container: Path) -> bool:
+        """Restore identity mode below one no-follow container path."""
+        container_descriptor: int | None = None
+        try:
+            container_descriptor = os.open(
+                container,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            return cls._restore_gate_identity_mode_at(container_descriptor)
+        except OSError:
+            return False
+        finally:
+            if container_descriptor is not None:
+                os.close(container_descriptor)
+
+    @staticmethod
+    def _remove_gate_tree_at(
+        parent_descriptor: int,
+        name: str,
+        expected_identity: tuple[int, int],
+        root_descriptor: int,
+    ) -> bool:
+        """Delete one opened tree without following a substituted path.
+
+        The caller retains both the parent and exact root descriptors across
+        the quarantine rename.  Every child directory is opened with
+        ``O_NOFOLLOW`` and revalidated before its name is removed; the root
+        name is likewise compared with the retained inode immediately before
+        the final ``rmdir``.
+        """
+
+        def remove_children(directory_descriptor: int) -> bool:
+            try:
+                metadata = os.fstat(directory_descriptor)
+                if (
+                    not stat.S_ISDIR(metadata.st_mode)
+                    or metadata.st_uid != os.geteuid()
+                ):
+                    return False
+                os.fchmod(directory_descriptor, 0o700)
+                entries = sorted(
+                    os.listdir(directory_descriptor),
+                    key=lambda entry: entry == _GATE_IDENTITY_ROOT_NAME,
+                )
+                for entry in entries:
+                    entry_metadata = os.stat(
+                        entry,
+                        dir_fd=directory_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if entry_metadata.st_uid != os.geteuid():
+                        return False
+                    if stat.S_ISDIR(entry_metadata.st_mode):
+                        os.chmod(
+                            entry,
+                            0o700,
+                            dir_fd=directory_descriptor,
+                            follow_symlinks=False,
+                        )
+                        child_descriptor = os.open(
+                            entry,
+                            os.O_RDONLY
+                            | getattr(os, "O_DIRECTORY", 0)
+                            | getattr(os, "O_NOFOLLOW", 0),
+                            dir_fd=directory_descriptor,
+                        )
+                        try:
+                            child_metadata = os.fstat(child_descriptor)
+                            child_identity = (
+                                int(child_metadata.st_dev),
+                                int(child_metadata.st_ino),
+                            )
+                            if child_identity != (
+                                int(entry_metadata.st_dev),
+                                int(entry_metadata.st_ino),
+                            ) or not remove_children(child_descriptor):
+                                return False
+                            final_child = os.stat(
+                                entry,
+                                dir_fd=directory_descriptor,
+                                follow_symlinks=False,
+                            )
+                            if (
+                                int(final_child.st_dev),
+                                int(final_child.st_ino),
+                            ) != child_identity:
+                                return False
+                            os.rmdir(entry, dir_fd=directory_descriptor)
+                        finally:
+                            os.close(child_descriptor)
+                    else:
+                        os.unlink(entry, dir_fd=directory_descriptor)
+                return True
+            except OSError:
+                return False
+
+        root_metadata = os.fstat(root_descriptor)
+        if (
+            not stat.S_ISDIR(root_metadata.st_mode)
+            or root_metadata.st_uid != os.geteuid()
+            or (int(root_metadata.st_dev), int(root_metadata.st_ino))
+            != expected_identity
+            or not remove_children(root_descriptor)
+        ):
+            return False
+        try:
+            final_root = os.stat(
+                name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (int(final_root.st_dev), int(final_root.st_ino)) != expected_identity:
+                return False
+            os.rmdir(name, dir_fd=parent_descriptor)
         except OSError:
             return False
         return True
@@ -1089,6 +1219,45 @@ class BranchQualityGate:
                         dst_dir_fd=parent_descriptor,
                     )
                 return False
+            if not cls._remove_gate_tree_at(
+                parent_descriptor,
+                quarantine_name,
+                expected_identity,
+                root_descriptor,
+            ):
+                try:
+                    current_quarantine = os.stat(
+                        quarantine_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        int(current_quarantine.st_dev),
+                        int(current_quarantine.st_ino),
+                    ) == expected_identity:
+                        if allow_active_owner:
+                            cls._restore_gate_identity_mode_at(root_descriptor)
+                        try:
+                            os.stat(
+                                root.name,
+                                dir_fd=parent_descriptor,
+                                follow_symlinks=False,
+                            )
+                        except FileNotFoundError:
+                            os.rename(
+                                quarantine_name,
+                                root.name,
+                                src_dir_fd=parent_descriptor,
+                                dst_dir_fd=parent_descriptor,
+                            )
+                except OSError:
+                    pass
+                logger.warning("Failed to remove quarantined gate root %s", root)
+                return False
+            if allow_active_owner:
+                cls._forget_gate_root(root)
+            cls._unlink_gate_root_owner(root)
+            return True
         except OSError:
             return False
         finally:
@@ -1096,39 +1265,6 @@ class BranchQualityGate:
                 os.close(root_descriptor)
             if parent_descriptor is not None:
                 os.close(parent_descriptor)
-
-        quarantine = root.parent / quarantine_name
-        if not cls._prepare_gate_container_removal(quarantine):
-            try:
-                if not root.exists() and quarantine.exists():
-                    if allow_active_owner:
-                        cls._restore_gate_identity_mode(quarantine)
-                    quarantine.rename(root)
-            except OSError:
-                pass
-            return False
-        try:
-            shutil.rmtree(quarantine)
-        except OSError as exc:
-            logger.warning("Failed to remove quarantined gate root %s: %s", root, exc)
-            try:
-                if not root.exists() and quarantine.exists():
-                    restored = (
-                        cls._restore_gate_identity_mode(quarantine)
-                        if allow_active_owner
-                        else True
-                    )
-                    if restored:
-                        quarantine.rename(root)
-                    elif allow_active_owner:
-                        cls._forget_gate_root(root)
-            except OSError:
-                pass
-            return False
-        if allow_active_owner:
-            cls._forget_gate_root(root)
-        cls._unlink_gate_root_owner(root)
-        return True
 
     @classmethod
     def _abandoned_gate_quarantine(
@@ -1300,6 +1436,39 @@ class BranchQualityGate:
                 except OSError:
                     pass
                 return False
+            if not cls._remove_gate_tree_at(
+                parent_descriptor,
+                claimed_name,
+                expected_identity,
+                quarantine_descriptor,
+            ):
+                try:
+                    current_claimed = os.stat(
+                        claimed_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        int(current_claimed.st_dev),
+                        int(current_claimed.st_ino),
+                    ) == expected_identity:
+                        try:
+                            os.stat(
+                                quarantine.name,
+                                dir_fd=parent_descriptor,
+                                follow_symlinks=False,
+                            )
+                        except FileNotFoundError:
+                            os.rename(
+                                claimed_name,
+                                quarantine.name,
+                                src_dir_fd=parent_descriptor,
+                                dst_dir_fd=parent_descriptor,
+                            )
+                except OSError:
+                    pass
+                return False
+            return True
         except OSError:
             return False
         finally:
@@ -1307,27 +1476,6 @@ class BranchQualityGate:
                 os.close(quarantine_descriptor)
             if parent_descriptor is not None:
                 os.close(parent_descriptor)
-
-        # A second hard crash leaves another name matching the same exact
-        # quarantine pattern, so a later generation can retry this operation.
-        claimed_path = quarantine.parent / claimed_name
-        if not cls._prepare_gate_container_removal(claimed_path):
-            try:
-                if not quarantine.exists() and claimed_path.exists():
-                    claimed_path.rename(quarantine)
-            except OSError:
-                pass
-            return False
-        try:
-            shutil.rmtree(claimed_path)
-        except OSError as exc:
-            logger.warning(
-                "Failed to remove abandoned gate-root quarantine %s: %s",
-                claimed_path,
-                exc,
-            )
-            return False
-        return True
 
     @classmethod
     def _scavenge_abandoned_gate_quarantines(
