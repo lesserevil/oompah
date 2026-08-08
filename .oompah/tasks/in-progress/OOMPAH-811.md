@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-07T18:23:27.331503Z'
+updated_at: '2026-08-08T08:13:46.396381Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-811
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-04 23:45
 ---
 Dependency clarification: the task graph hard-starts OOMPAH-811 after OOMPAH-768, while OOMPAH-804 is required to complete OOMPAH-768. Therefore the earlier audit wording suggesting OOMPAH-811 land before OOMPAH-804 is superseded. OOMPAH-768 will finish using exact-ancestry serial integration that avoids the rebase-generation failure; OOMPAH-811 remains the durable post-768 repair for future rebases and must be implemented before relying on automatic head-rewrite gates elsewhere.
+---
+author: oompah
+created: 2026-08-08 08:13
+---
+Direct owner audit on the current systemic composition found the requested restart-safe rebase saga already present in the canonical durable integration workflow: rebase intent is persisted before Git mutation; prepare_task_publication advances queue authority with predecessor/publication-pending evidence; the tracker checkpoint is repaired under the task transition lock; complete_task_publication fences gate launch; exact-head/generation authority is revalidated throughout; stale/task-push/epic-head races route as superseded or retryable, while Needs CI Fix is reserved for ci_failure. Existing production-composed tests cover pre-push intent crash, post-push checkpoint recovery, queue-first tracker repair/CAS loss, exact gate-head binding, force-with-lease loss, concurrent resubmit, and genuine exact-head CI failure. I am treating OOMPAH-811 as implementation-complete on the systemic composition and will include these suites in the final exact-head gate before terminalizing it.
 ---
 <!-- COMMENTS:END -->
