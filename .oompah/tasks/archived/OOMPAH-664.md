@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-08-08T00:01:18.065711Z'
+updated_at: '2026-08-08T00:01:24.764646Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -260,8 +260,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-c02d3187c650
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T00:01:13.997332+00:00'
+    applied_at: '2026-08-08T00:01:23.309531+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1296,5 +1297,26 @@ author: oompah
 created: 2026-08-07 23:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 00:01
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 9fc14256e7912023844663ddfee2a9940c71e05f (Merge pull request #628 from lesserevil/OOMPAH-664)
+- rebased_tip_is_ancestor_of_merge: exit 0 — a79a28d01 is ancestor of 9fc14256e
+- pre_rebase_head_sha: 34c5751b727880fc621df76cb50e17ae5f9321c4
+- merged_branch_tip_sha: a79a28d01f485674532555d610a9f26d3051d367
+- gate_pass_pre_rebase: make test 430.0s at 34c5751b7
+- gha_ci_post_rebase: GHA run 30672935422: Python 3.11/3.12/3.13 all passed on a79a28d01
+- required_tests_present: 6/6: test_generation_bound_snapshot_rejects_newer_project_state, test_unavailable_generation_preserves_stale_snapshot_instead_of_empty_fresh_lane, test_detail_cache_is_rejected_when_project_generation_advances, test_tracker_callback_invalidates_only_matching_detail_project, test_generation_tracks_direct_mutation_checkpoint_and_restart, test_read_change_callback_runs_for_direct_write_and_checkpoint
+- tracker_generation_method: oompah/oompah_md_tracker.py:1095 get_state_branch_generation
+- tracker_callback_method: oompah/oompah_md_tracker.py:531 add_read_change_callback
+- server_source_generations_refs: 31 occurrences confirmed in oompah/server.py
+- prior_auditors: Two opus auditors submitted PASS for Done and Merged targets
+- gate_evidence_note: Scheduler marks stale because fingerprint references pre-rebase SHA; merged head a79a28d01 confirmed as ancestor of merge commit
 ---
 <!-- COMMENTS:END -->
