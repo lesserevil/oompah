@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-08T16:30:17.201426Z'
+updated_at: '2026-08-08T16:30:23.658217Z'
 work_branch: epic-OOMPAH-769
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -49,7 +49,17 @@ oompah.terminal_audit:
       is closed as Done until the parent review lands, after which Merged provenance
       can be recorded without violating shared-epic landing constraints.
     created_at: '2026-08-08T16:30:12.998770+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-769
+    target_state: Done
+    evidence_fingerprint: 3999310191440c7f9b410904382dce4702afc8c2b0ee62bbc0909a9f77978698
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:30:22.141498+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -64,3 +74,13 @@ Introduce a project-scoped TaskTransitionService that owns every task-status mut
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 16:30
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This nested epic scope is contained in the validated parent composition. It is closed as Done until the parent review lands, after which Merged provenance can be recorded without violating shared-epic landing constraints.
+---
+<!-- COMMENTS:END -->
