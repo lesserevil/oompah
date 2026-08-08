@@ -93,7 +93,7 @@ define port_in_use
 	fi
 endef
 
-.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial workflow-soak-ci workflow-soak terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -109,6 +109,8 @@ help:
 	@echo "  logs           Tail $(LOG_FILE)"
 	@echo "  test           Run pytest in parallel (OOMPAH_PYTEST_WORKERS, default: 4)"
 	@echo "  test-serial    Run pytest serially for race/debug diagnostics"
+	@echo "  workflow-soak-ci  Run the deterministic bounded 120-task workflow soak"
+	@echo "  workflow-soak  Run the longer deterministic operator workflow soak"
 	@echo "  terminal-audit-scan  Reject unauthorized direct terminal tracker writes"
 	@echo "  run-granian    Run oompah in the foreground using the Granian ASGI server (opt-in; see TASK-472)"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
@@ -426,6 +428,12 @@ test: test-setup terminal-audit-scan
 test-serial: test-setup
 	@OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
 		scripts/run-tests.sh serial
+
+workflow-soak-ci: test-setup
+	@$(PYTHON) scripts/workflow_soak.py --profile ci
+
+workflow-soak: test-setup
+	@$(PYTHON) scripts/workflow_soak.py --profile operator
 
 terminal-audit-scan: test-setup
 	@$(PYTHON) scripts/find_terminal_mutations.py oompah
