@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-887
 type: task
-status: Open
+status: Done
 priority: null
 title: Revalidate Done-child landing before Needs Human escalation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-08T03:57:12.329367Z'
+updated_at: '2026-08-08T03:57:16.529019Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
