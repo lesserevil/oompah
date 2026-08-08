@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-08T04:08:14.538470Z'
+updated_at: '2026-08-08T04:08:32.857659Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -38,8 +38,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 88a64ded-7a4c-4184-8e43-59b838628a0c
 oompah.task_costs:
-  total_input_tokens: 760430
-  total_output_tokens: 33125
+  total_input_tokens: 760476
+  total_output_tokens: 33625
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -47,8 +47,8 @@ oompah.task_costs:
       output_tokens: 23866
       cost_usd: 0.0
     unknown:
-      input_tokens: 74
-      output_tokens: 9259
+      input_tokens: 120
+      output_tokens: 9759
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 1486
     cost_usd: 0.0
     recorded_at: '2026-08-01T03:06:11.492683+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 46
+    output_tokens: 500
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T04:08:29.868005+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-673__20260801T023441Z
@@ -565,5 +571,15 @@ Safe evidence:
 - recovery_code: present in canonical_cli_cutover.py lines 545-572
 - docs_section: CLI/server mismatch recovery present in docs/cli-install.md
 - prior_full_gate: make test passed in 386.0s on b792568ef (prior auditor evidence, now stale fingerprint)
+---
+author: oompah
+created: 2026-08-08 04:08
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 22
+- Tokens: 46 in / 500 out [546 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 18s
+- Log: OOMPAH-673__20260808T040327Z.jsonl
 ---
 <!-- COMMENTS:END -->
