@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-08T03:02:14.736307Z'
+updated_at: '2026-08-08T03:09:03.797181Z'
 work_branch: OOMPAH-672
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/635
@@ -155,6 +155,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-bde7208b5a06: '2026-08-01T02:03:07.594009+00:00'
     attempt-494d6212c0b3: '2026-08-01T02:06:01.955014+00:00'
+    attempt-018b6ac2be0b: '2026-08-08T03:08:59.712174+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-672
@@ -174,6 +175,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T02:06:01.955025+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    target_state: Archived
+    evidence_fingerprint: 0383a510042ddff43740c6b198517b30e7cce638ca43fd12f6a8e0d73a4da0b0
+    audit_ids:
+    - audit-108d6f97e95c
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T03:08:59.712193+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-672
@@ -199,6 +209,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T02:06:01.955038+00:00'
     applied_at: '2026-08-01T02:06:07.701750+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    audit_id: audit-108d6f97e95c
+    attempt_id: attempt-018b6ac2be0b
+    target_state: Archived
+    evidence_fingerprint: 0383a510042ddff43740c6b198517b30e7cce638ca43fd12f6a8e0d73a4da0b0
+    status: Archived
+    audit_ids:
+    - audit-108d6f97e95c
+    kind: result
+    applied: false
+    created_at: '2026-08-08T03:08:59.712213+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -274,7 +296,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-672
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -283,7 +305,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-018b6ac2be0b
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -295,6 +317,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-672
       selected_ref: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
       selected_sha: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
+      verdict: pass
+      completed_at: '2026-08-08T03:08:59.711959+00:00'
+      ended_at: '2026-08-08T03:08:59.711959+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -303,7 +328,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T03:01:51.256719+00:00'
     selected_ref: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
     selected_sha: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
-    updated_at: '2026-08-08T03:02:01.384375+00:00'
+    updated_at: '2026-08-08T03:08:59.711959+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bde7208b5a06
