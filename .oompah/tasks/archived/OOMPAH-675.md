@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-675
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Keep the parallel pytest gate stable when workers terminate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-08T07:04:39.639057Z'
+updated_at: '2026-08-08T07:20:38.581665Z'
 work_branch: OOMPAH-675
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/639
@@ -122,6 +122,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-541cd6d55efe: '2026-08-01T06:23:32.905318+00:00'
     attempt-084f7ac8d3a7: '2026-08-01T06:25:10.919769+00:00'
+    attempt-b593353ae1cf: '2026-08-08T07:20:29.679618+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-675
@@ -141,6 +142,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T06:25:10.919791+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-675
+    target_state: Archived
+    evidence_fingerprint: 2cc4b87e1a3d61e682948313d277ae7e31b7f43c0e0327bca1ee7e9d880444c2
+    audit_ids:
+    - audit-5e55fd12f798
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T07:20:29.679631+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-675
@@ -166,6 +176,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T06:25:10.919818+00:00'
     applied_at: '2026-08-01T06:25:16.489034+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-675
+    audit_id: audit-5e55fd12f798
+    attempt_id: attempt-b593353ae1cf
+    target_state: Archived
+    evidence_fingerprint: 2cc4b87e1a3d61e682948313d277ae7e31b7f43c0e0327bca1ee7e9d880444c2
+    status: Archived
+    audit_ids:
+    - audit-5e55fd12f798
+    kind: result
+    applied: false
+    created_at: '2026-08-08T07:20:29.679647+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -241,7 +263,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-675
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -250,7 +272,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b593353ae1cf
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -262,6 +284,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-675
       selected_ref: d13a33d342e917c1ecb660e629a5e585724f2c11
       selected_sha: d13a33d342e917c1ecb660e629a5e585724f2c11
+      verdict: pass
+      completed_at: '2026-08-08T07:20:29.679438+00:00'
+      ended_at: '2026-08-08T07:20:29.679438+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -270,7 +295,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T07:04:01.639882+00:00'
     selected_ref: d13a33d342e917c1ecb660e629a5e585724f2c11
     selected_sha: d13a33d342e917c1ecb660e629a5e585724f2c11
-    updated_at: '2026-08-08T07:04:29.158440+00:00'
+    updated_at: '2026-08-08T07:20:29.679438+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-541cd6d55efe
