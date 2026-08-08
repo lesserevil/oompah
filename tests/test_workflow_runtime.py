@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -1521,6 +1522,289 @@ def test_reconcile_async_executes_effects_on_callers_event_loop(tmp_path):
 
     assert report["worker"]["processed"] == 1
     assert observed_loops == [expected_loop]
+    runtime.close()
+    store.close()
+
+
+def test_drain_waits_for_reconcile_before_store_close(tmp_path):
+    """An admitted reconcile remains explicit store-mutation authority."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-DRAIN-RECONCILE")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+    reconcile_entered = threading.Event()
+    release_reconcile = threading.Event()
+    original_record_rollout_sweep = store.record_rollout_sweep
+
+    def _blocked_record_rollout_sweep(*args, **kwargs):
+        reconcile_entered.set()
+        assert release_reconcile.wait(5), "reconcile barrier timed out"
+        return original_record_rollout_sweep(*args, **kwargs)
+
+    store.record_rollout_sweep = _blocked_record_rollout_sweep
+
+    async def _exercise():
+        await runtime.start()
+        reconcile_task = asyncio.create_task(runtime.reconcile_async())
+        drain_task = None
+        try:
+            assert await asyncio.to_thread(reconcile_entered.wait, 2)
+            assert runtime.pending_operation_count >= 1
+            with pytest.raises(
+                WorkflowRuntimeError,
+                match="cannot close workflow runtime while .* operation",
+            ):
+                runtime.close()
+
+            drain_task = asyncio.create_task(runtime.drain(timeout_seconds=2))
+            await asyncio.sleep(0)
+            assert runtime.health_snapshot()["draining"] is True
+            assert drain_task.done() is False
+            assert store._authority_lock_fd >= 0
+
+            release_reconcile.set()
+            report = await asyncio.wait_for(reconcile_task, timeout=2)
+            assert await asyncio.wait_for(drain_task, timeout=2) is True
+            assert report["mode"] == "shadow"
+            assert runtime.pending_operation_count == 0
+        finally:
+            release_reconcile.set()
+            await asyncio.gather(reconcile_task, return_exceptions=True)
+            if drain_task is not None:
+                await asyncio.gather(drain_task, return_exceptions=True)
+
+    asyncio.run(_exercise())
+    store.integrity_check()
+    runtime.close()
+    store.close()
+
+
+def test_cancelled_reconcile_retains_authority_until_thread_finishes(tmp_path):
+    """Caller cancellation cannot abandon a live reconcile worker thread."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-CANCEL-RECONCILE")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+    reconcile_entered = threading.Event()
+    release_reconcile = threading.Event()
+    original_record_rollout_sweep = store.record_rollout_sweep
+
+    def _blocked_record_rollout_sweep(*args, **kwargs):
+        reconcile_entered.set()
+        assert release_reconcile.wait(5), "reconcile barrier timed out"
+        return original_record_rollout_sweep(*args, **kwargs)
+
+    store.record_rollout_sweep = _blocked_record_rollout_sweep
+
+    async def _exercise():
+        await runtime.start()
+        reconcile_task = asyncio.create_task(runtime.reconcile_async())
+        drain_task = None
+        try:
+            assert await asyncio.to_thread(reconcile_entered.wait, 2)
+            reconcile_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await reconcile_task
+
+            assert runtime.pending_operation_count >= 1
+            with pytest.raises(
+                WorkflowRuntimeError,
+                match="cannot close workflow runtime while .* operation",
+            ):
+                runtime.close()
+
+            drain_task = asyncio.create_task(runtime.drain(timeout_seconds=2))
+            await asyncio.sleep(0)
+            assert drain_task.done() is False
+            assert store._authority_lock_fd >= 0
+
+            release_reconcile.set()
+            assert await asyncio.wait_for(drain_task, timeout=2) is True
+            assert runtime.pending_operation_count == 0
+        finally:
+            release_reconcile.set()
+            if drain_task is not None:
+                await asyncio.gather(drain_task, return_exceptions=True)
+
+    asyncio.run(_exercise())
+    store.integrity_check()
+    runtime.close()
+    store.close()
+
+
+def test_loop_teardown_cancellation_waits_for_executor_mutation(tmp_path):
+    """Loop teardown cannot hide a still-running executor mutation."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-CANCEL-EXECUTOR")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+    reconcile_entered = threading.Event()
+    release_reconcile = threading.Event()
+    original_record_rollout_sweep = store.record_rollout_sweep
+
+    def _blocked_record_rollout_sweep(*args, **kwargs):
+        reconcile_entered.set()
+        assert release_reconcile.wait(5), "reconcile barrier timed out"
+        return original_record_rollout_sweep(*args, **kwargs)
+
+    store.record_rollout_sweep = _blocked_record_rollout_sweep
+
+    async def _exercise():
+        await runtime.start()
+        reconcile_task = asyncio.create_task(runtime.reconcile_async())
+        drain_task = None
+        try:
+            assert await asyncio.to_thread(reconcile_entered.wait, 2)
+            owned_task = next(iter(runtime._reconcile_tasks))
+
+            # asyncio.run() cancels every remaining Task at exit. The owned
+            # task must defer that cancellation while its bare executor Future
+            # continues the uncancellable mutation.
+            owned_task.cancel()
+            await asyncio.sleep(0)
+
+            assert runtime.pending_operation_count >= 1
+            assert reconcile_task.done() is False
+            with pytest.raises(
+                WorkflowRuntimeError,
+                match="cannot close workflow runtime while .* operation",
+            ):
+                runtime.close()
+
+            drain_task = asyncio.create_task(runtime.drain(timeout_seconds=2))
+            await asyncio.sleep(0)
+            assert drain_task.done() is False
+            assert store._authority_lock_fd >= 0
+
+            release_reconcile.set()
+            with pytest.raises(asyncio.CancelledError):
+                await reconcile_task
+            assert await asyncio.wait_for(drain_task, timeout=2) is True
+            assert runtime.pending_operation_count == 0
+        finally:
+            release_reconcile.set()
+            if drain_task is not None:
+                await asyncio.gather(drain_task, return_exceptions=True)
+
+    asyncio.run(_exercise())
+    store.integrity_check()
+    runtime.close()
+    store.close()
+
+
+def test_cancelled_queued_reconcile_retains_authority_until_executor_runs(tmp_path):
+    """Cancellation cannot open a queue-to-executor ownership gap."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    runtime = WorkflowRuntime(
+        project_bindings={},
+        store=store,
+        journals={},
+        mode="off",
+    )
+    blocker_started = threading.Event()
+    release_blocker = threading.Event()
+
+    def _block_default_executor():
+        blocker_started.set()
+        assert release_blocker.wait(5), "executor barrier timed out"
+
+    async def _exercise():
+        loop = asyncio.get_running_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+        loop.set_default_executor(executor)
+        blocker = loop.run_in_executor(None, _block_default_executor)
+        for _ in range(100):
+            if blocker_started.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert blocker_started.is_set()
+
+        await runtime.start()
+        caller = asyncio.create_task(runtime.reconcile_async())
+        try:
+            for _ in range(100):
+                if executor._work_queue.qsize() >= 1:
+                    break
+                await asyncio.sleep(0)
+            assert executor._work_queue.qsize() >= 1
+
+            owned_task = next(iter(runtime._reconcile_tasks))
+            owned_task.cancel()
+            await asyncio.sleep(0)
+
+            assert caller.done() is False
+            assert runtime.pending_operation_count == 1
+            with pytest.raises(
+                WorkflowRuntimeError,
+                match="cannot close workflow runtime while 1 operation",
+            ):
+                runtime.close()
+
+            drain_task = asyncio.create_task(runtime.drain(timeout_seconds=2))
+            await asyncio.sleep(0)
+            assert drain_task.done() is False
+
+            release_blocker.set()
+            await blocker
+            with pytest.raises(asyncio.CancelledError):
+                await caller
+            assert await asyncio.wait_for(drain_task, timeout=2) is True
+            assert runtime.pending_operation_count == 0
+        finally:
+            release_blocker.set()
+
+    asyncio.run(_exercise())
+    store.integrity_check()
+    runtime.close()
+    store.close()
+
+
+def test_prestart_reconcile_task_cancellation_releases_admission(tmp_path):
+    """A task cancelled before its first turn cannot strand shutdown."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    runtime = WorkflowRuntime(
+        project_bindings={},
+        store=store,
+        journals={},
+        mode="off",
+    )
+
+    async def _exercise():
+        await runtime.start()
+        caller = asyncio.create_task(runtime.reconcile_async())
+        await asyncio.sleep(0)
+        owned_task = next(iter(runtime._reconcile_tasks))
+        assert owned_task.get_coro().cr_await is None
+
+        owned_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await caller
+        await asyncio.sleep(0)
+
+        assert runtime.pending_operation_count == 0
+        assert await runtime.drain(timeout_seconds=1) is True
+
+    asyncio.run(_exercise())
     runtime.close()
     store.close()
 

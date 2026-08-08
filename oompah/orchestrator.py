@@ -18,7 +18,7 @@ import threading
 import time
 import urllib.parse
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -2067,6 +2067,11 @@ class Orchestrator:
         )
         self._prompt_template: str = ""
         self._tick_task: asyncio.Task | None = None
+        self._scheduler_run_active = False
+        self._scheduler_startup_finished = threading.Event()
+        self._scheduler_startup_finished.set()
+        self._safe_stop_acknowledged: Future[None] = Future()
+        self._safe_stop_acknowledged.set_result(None)
         self._stopping = False
         # Lifecycle fences and the two irreversible dispatch boundaries share
         # one synchronization domain.  A lifecycle caller that returns after
@@ -8694,6 +8699,7 @@ class Orchestrator:
                 "quiesced": self._quiesced,
                 "stopping": self._stopping,
                 "restart_requested": self._restart_requested,
+                "safe_stop_acknowledged": self._safe_stop_acknowledged,
                 "admission_generation": self._provider_admission_generation,
             }
             if self._restart_in_progress:
@@ -8862,6 +8868,7 @@ class Orchestrator:
             with self._provider_admission_lock:
                 self._restart_requested = True
                 self._stopping = True
+                self._arm_safe_stop_acknowledgement_locked()
                 self._provider_admission_generation += 1
             self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         except BaseException:
@@ -8888,6 +8895,16 @@ class Orchestrator:
                         self._restart_requested = restart_snapshot[
                             "restart_requested"
                         ]
+                        previous_acknowledgement = restart_snapshot[
+                            "safe_stop_acknowledged"
+                        ]
+                        if (
+                            self._safe_stop_acknowledged
+                            is not previous_acknowledgement
+                            and not self._safe_stop_acknowledged.done()
+                        ):
+                            self._safe_stop_acknowledged.set_result(None)
+                        self._safe_stop_acknowledged = previous_acknowledgement
                         self._provider_admission_generation = restart_snapshot[
                             "admission_generation"
                         ]
@@ -11851,6 +11868,7 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._restart_requested = True
             self._stopping = True
+            self._arm_safe_stop_acknowledgement_locked()
             self._provider_admission_generation += 1
         # Post SHUTDOWN to wake the dispatch queue in case the loop IS alive
         # but blocked waiting on a queue.get().
@@ -12602,6 +12620,23 @@ class Orchestrator:
         )
 
     async def run(self) -> None:
+        """Run the scheduler with a shutdown-visible startup boundary."""
+
+        with self._provider_admission_lock:
+            if self._stopping:
+                return
+            if self._scheduler_run_active:
+                raise RuntimeError("orchestrator run overlap detected")
+            self._scheduler_run_active = True
+            self._scheduler_startup_finished.clear()
+        try:
+            await self._run_event_loop()
+        finally:
+            self._scheduler_startup_finished.set()
+            with self._provider_admission_lock:
+                self._scheduler_run_active = False
+
+    async def _run_event_loop(self) -> None:
         """Main event loop: event-driven dispatch with a periodic full-sync safety net.
 
         The loop blocks on the internal dispatch queue instead of sleeping for
@@ -12708,6 +12743,11 @@ class Orchestrator:
                 ", ".join(acp_profiles),
             )
 
+        # Shutdown may now stop waiting on startup. Tick admission below is
+        # separately serialized with the stop fence, so there is no unowned
+        # mutation window between these lifecycle phases.
+        self._scheduler_startup_finished.set()
+
         # Start the safety-net full-sync background task.
         full_sync_task = asyncio.create_task(
             self._full_sync_loop(), name="full-sync-loop"
@@ -12721,7 +12761,22 @@ class Orchestrator:
                     (time.monotonic() - self._last_full_sync),
                     self.config.full_sync_interval_ms / 1000,
                 )
-            await self._tick()
+            with self._provider_admission_lock:
+                if self._stopping:
+                    return
+                active_tick = self._tick_task
+                if active_tick is not None and not active_tick.done():
+                    raise RuntimeError("orchestrator tick overlap detected")
+                tick_task = asyncio.create_task(
+                    self._tick(), name="orchestrator-tick"
+                )
+                self._tick_task = tick_task
+            try:
+                await tick_task
+            finally:
+                with self._provider_admission_lock:
+                    if self._tick_task is tick_task:
+                        self._tick_task = None
             self._last_full_sync = time.monotonic()
 
         try:
@@ -12775,7 +12830,17 @@ class Orchestrator:
                 # Drain them before ``asyncio.run()`` closes the loop so the
                 # HTTP loop never has to await a foreign-loop Future during
                 # restart cleanup.
-                await self._drain_background_work()
+                with self._provider_admission_lock:
+                    stopping = self._stopping
+                    safe_stop_acknowledged = self._safe_stop_acknowledged
+                if stopping and not safe_stop_acknowledged.done():
+                    # The injected safe-stop task owns the final drain. Keep
+                    # asyncio.run() alive until that task can acknowledge, or
+                    # the runner will cancel it as soon as this main coroutine
+                    # returns and force a false-critical fallback stop.
+                    await asyncio.wrap_future(safe_stop_acknowledged)
+                else:
+                    await self._drain_background_work()
             except Exception:  # noqa: BLE001 -- shutdown must remain observable
                 logger.exception("Failed to drain orchestrator background work")
             finally:
@@ -12851,6 +12916,7 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._stopping = True
             self._provider_admission_generation += 1
+            self._arm_safe_stop_acknowledgement_locked()
         # Cancel retry timers
         for issue_id, retry in list(self.state.retry_attempts.items()):
             if retry.timer_handle and not retry.timer_handle.cancelled():
@@ -12869,8 +12935,17 @@ class Orchestrator:
         if terminated > 0:
             logger.info("Terminated %d quality gate process group(s)", terminated)
         self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
+        # Startup and an event tick are independent mutation-authority phases.
+        # Wait for both without awaiting the top-level ``run()`` task itself:
+        # that task owns asyncio.run(), which cancels injected stop waiters as
+        # soon as the main coroutine returns.
+        await self._drain_scheduler_startup()
+        await self._drain_active_tick()
         await self._drain_background_work()
         logger.info("Orchestrator stopped")
+        with self._provider_admission_lock:
+            if not self._safe_stop_acknowledged.done():
+                self._safe_stop_acknowledged.set_result(None)
         return True
 
     async def stop_until_safe(self) -> None:
@@ -12888,6 +12963,56 @@ class Orchestrator:
                     "and retrying"
                 )
             await asyncio.sleep(1.0)
+
+    async def _drain_scheduler_startup(self) -> None:
+        """Wait until admitted scheduler startup releases store authority."""
+
+        await asyncio.to_thread(self._scheduler_startup_finished.wait)
+
+    def _arm_safe_stop_acknowledgement_locked(self) -> None:
+        """Publish one pending process-boundary acknowledgement Future."""
+
+        if self._safe_stop_acknowledged.done():
+            self._safe_stop_acknowledged = Future()
+
+    async def _drain_active_tick(self) -> None:
+        """Wait until the current scheduler tick releases mutation authority."""
+
+        tick_task = self._tick_task
+        if tick_task is None:
+            return
+        if tick_task is asyncio.current_task():
+            raise RuntimeError("active orchestrator tick cannot drain itself")
+        current_loop = asyncio.get_running_loop()
+        try:
+            owner_loop = tick_task.get_loop()
+        except AttributeError:
+            owner_loop = current_loop
+
+        async def _wait_for_tick() -> None:
+            await asyncio.gather(asyncio.shield(tick_task), return_exceptions=True)
+
+        if tick_task.done():
+            try:
+                tick_task.result()
+            except (asyncio.CancelledError, Exception):
+                pass
+        elif owner_loop is current_loop:
+            await _wait_for_tick()
+        elif owner_loop.is_running():
+            waiter = _wait_for_tick()
+            try:
+                bridge = asyncio.run_coroutine_threadsafe(waiter, owner_loop)
+            except BaseException:
+                waiter.close()
+                raise
+            await asyncio.wrap_future(bridge)
+        else:
+            raise RuntimeError(
+                "active orchestrator tick belongs to a stopped event loop"
+            )
+        if self._tick_task is tick_task and tick_task.done():
+            self._tick_task = None
 
     async def _drain_background_work(self) -> None:
         """Wait for fire-and-forget maintenance and shut down owned pools.
@@ -25766,6 +25891,7 @@ class Orchestrator:
             with self._provider_admission_lock:
                 self._restart_requested = True
                 self._stopping = True
+                self._arm_safe_stop_acknowledgement_locked()
                 self._provider_admission_generation += 1
         except (subprocess.TimeoutExpired, OSError, ValueError) as exc:
             msg = f"Auto-update failed: {exc}"

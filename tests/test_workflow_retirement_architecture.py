@@ -110,7 +110,7 @@ def test_production_ownership_boundary_precedes_legacy_fixture_harness() -> None
 
 
 def test_runtime_bound_startup_cannot_arm_process_local_lifecycle_owners() -> None:
-    method = _method_tree(Orchestrator.run)
+    method = _method_tree(Orchestrator._run_event_loop)
     retired_startup_calls = {
         "_wake_integration_lane",
         "_reconcile_owner_duplicate_resolution_boundaries",
@@ -142,7 +142,7 @@ def test_runtime_bound_startup_cannot_arm_process_local_lifecycle_owners() -> No
 
     visit(method)
     assert unguarded == set()
-    calls = _self_calls(Orchestrator.run)
+    calls = _self_calls(Orchestrator._run_event_loop)
     assert "_recover_restart_issues" in calls
     assert "_restore_persisted_retries" in calls
 

@@ -344,6 +344,9 @@ class WorkflowRuntime:
         self.decision_limit = int(decision_limit)
         self.batch_size = int(batch_size)
         self._lock = threading.RLock()
+        self._reconcile_condition = threading.Condition(self._lock)
+        self._active_reconciles = 0
+        self._reconcile_tasks: set[asyncio.Task[dict[str, Any]]] = set()
         self._started = False
         self._draining = False
         self._last_reconcile: dict[str, Any] = {}
@@ -1227,8 +1230,43 @@ class WorkflowRuntime:
                     + ", ".join(sorted(unknown))
                 )
 
+    def _admit_reconcile(self) -> bool:
+        """Acquire one reconcile operation unless shutdown fenced admission."""
+
+        with self._reconcile_condition:
+            if not self._started:
+                raise WorkflowRuntimeError("workflow runtime must be started first")
+            if self._draining:
+                return False
+            self._active_reconciles += 1
+            return True
+
+    def _release_reconcile(self) -> None:
+        with self._reconcile_condition:
+            if self._active_reconciles <= 0:
+                raise WorkflowRuntimeError("workflow reconcile ownership underflow")
+            self._active_reconciles -= 1
+            self._reconcile_condition.notify_all()
+
+    def _wait_for_reconciles(self, timeout_seconds: float | None) -> bool:
+        with self._reconcile_condition:
+            return self._reconcile_condition.wait_for(
+                lambda: self._active_reconciles == 0,
+                timeout=timeout_seconds,
+            )
+
     def reconcile(self) -> dict[str, Any]:
         """Collect facts and materialize durable jobs for every project."""
+
+        if not self._admit_reconcile():
+            return {"mode": self.mode, "skipped": True}
+        try:
+            return self._reconcile_once()
+        finally:
+            self._release_reconcile()
+
+    def _reconcile_once(self) -> dict[str, Any]:
+        """Run one admitted synchronous reconciliation."""
 
         if not self._started:
             raise WorkflowRuntimeError("workflow runtime must be started first")
@@ -1697,6 +1735,75 @@ class WorkflowRuntime:
     async def reconcile_async(self) -> dict[str, Any]:
         """Async form used by the orchestrator's event-driven scheduler."""
 
+        if not self._admit_reconcile():
+            return {"mode": self.mode, "skipped": True}
+        try:
+            operation = asyncio.create_task(
+                self._run_owned_reconcile_async(),
+                name="workflow-runtime-reconcile",
+            )
+        except BaseException:
+            self._release_reconcile()
+            raise
+        with self._lock:
+            self._reconcile_tasks.add(operation)
+        operation.add_done_callback(self._reconcile_task_finished)
+        return await asyncio.shield(operation)
+
+    def _reconcile_task_finished(
+        self,
+        task: asyncio.Task[dict[str, Any]],
+    ) -> None:
+        with self._lock:
+            self._reconcile_tasks.discard(task)
+        try:
+            task.exception()
+        except asyncio.CancelledError:
+            pass
+        finally:
+            # The callback runs even when loop teardown cancels the task before
+            # its coroutine receives a first turn; a coroutine-local finally
+            # cannot cover that pre-start state.
+            self._release_reconcile()
+
+    async def _run_owned_reconcile_async(self) -> dict[str, Any]:
+        """Retain reconcile authority until the actual operation finishes."""
+
+        return await self._reconcile_async_once()
+
+    async def _run_sync_reconcile_async(self) -> dict[str, Any]:
+        """Keep a cancelled event-loop task fenced until its thread exits."""
+
+        # Keep the executor awaitable as a bare Future. asyncio.run() cancels
+        # every remaining Task during loop teardown, but it does not cancel
+        # this Future; the owned reconcile task below can therefore defer its
+        # cancellation until the executor target has actually returned.
+        thread_future = asyncio.get_running_loop().run_in_executor(
+            None,
+            self._reconcile_once,
+        )
+        current_task = asyncio.current_task()
+        cancellation_received = False
+        while not thread_future.done():
+            try:
+                await asyncio.shield(thread_future)
+            except asyncio.CancelledError:
+                cancellation_received = True
+                if current_task is not None and current_task.cancelling():
+                    current_task.uncancel()
+        if cancellation_received:
+            try:
+                thread_future.result()
+            except Exception:  # noqa: BLE001 - cancellation remains caller-visible
+                logger.exception(
+                    "Workflow reconcile thread failed while cancellation was deferred"
+                )
+            raise asyncio.CancelledError
+        return thread_future.result()
+
+    async def _reconcile_async_once(self) -> dict[str, Any]:
+        """Run one admitted reconciliation without nested ownership."""
+
         if self.mode != "off" and self._topology_source is not None:
             try:
                 current_topology = self._topology_source()
@@ -1725,7 +1832,7 @@ class WorkflowRuntime:
                         await result
                 return report
 
-        report = await asyncio.to_thread(self.reconcile)
+        report = await self._run_sync_reconcile_async()
         if self._handlers_configured and self.enforce:
             failed_projects = sorted(
                 project_id
@@ -1816,7 +1923,13 @@ class WorkflowRuntime:
     def pending_operation_count(self) -> int:
         """Operations which make closing stores unsafe."""
 
-        return self.worker.active_count + self.pending_mutation_count
+        with self._lock:
+            active_reconciles = self._active_reconciles
+        return (
+            active_reconciles
+            + self.worker.active_count
+            + self.pending_mutation_count
+        )
 
     async def _drain_handler_mutations(
         self, *, timeout_seconds: float | None
@@ -1856,7 +1969,14 @@ class WorkflowRuntime:
         deadline = (
             None if timeout_seconds is None else loop.time() + timeout_seconds
         )
-        worker_drained = await self.worker.drain(timeout_seconds=timeout_seconds)
+        reconciles_drained = await asyncio.to_thread(
+            self._wait_for_reconciles,
+            timeout_seconds,
+        )
+        if not reconciles_drained:
+            return False
+        remaining = None if deadline is None else max(0.0, deadline - loop.time())
+        worker_drained = await self.worker.drain(timeout_seconds=remaining)
         if not worker_drained:
             return False
         remaining = None if deadline is None else max(0.0, deadline - loop.time())

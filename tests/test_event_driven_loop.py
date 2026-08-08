@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
@@ -758,11 +759,16 @@ class TestRunEventDrivenLoop:
     def test_run_calls_tick_on_startup(self, tmp_path, event_loop):
         """run() runs an initial _tick() before entering the queue loop."""
         orch = self._make_orch_with_mocked_tick(tmp_path)
+        tick_started = asyncio.Event()
+
+        async def _tick():
+            tick_started.set()
+
+        orch._tick = AsyncMock(side_effect=_tick)
 
         async def _run_and_stop():
-            # Post a stop signal after a very short delay
             async def _stop():
-                await asyncio.sleep(0.01)
+                await asyncio.wait_for(tick_started.wait(), timeout=2.0)
                 orch._stopping = True
                 # Post a dummy event to unblock the queue.get()
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
@@ -985,6 +991,182 @@ class TestRunEventDrivenLoop:
 
         orch._drain_background_work.assert_awaited_once()
         assert orch._dispatch_loop is None
+
+    def test_graceful_stop_keeps_workflow_store_open_for_active_tick(
+        self,
+        tmp_path,
+        event_loop,
+    ):
+        """A reconcile tick retains its store authority through shutdown."""
+
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        tick_started = asyncio.Event()
+        release_tick = asyncio.Event()
+
+        async def _blocked_tick():
+            tick_started.set()
+            await release_tick.wait()
+            # This is the mutation boundary that used to race store closure
+            # during a graceful restart.
+            orch.workflow_job_store.integrity_check()
+
+        orch._tick = _blocked_tick
+        tick_drain_entered = asyncio.Event()
+        original_drain_active_tick = orch._drain_active_tick
+
+        async def _observed_drain_active_tick():
+            tick_drain_entered.set()
+            await original_drain_active_tick()
+
+        orch._drain_active_tick = _observed_drain_active_tick
+
+        async def _run_and_stop():
+            run_task = asyncio.create_task(orch.run())
+            await asyncio.wait_for(tick_started.wait(), timeout=2.0)
+
+            stop_task = asyncio.create_task(orch.stop())
+            await asyncio.wait_for(tick_drain_entered.wait(), timeout=2.0)
+
+            assert stop_task.done() is False
+            assert orch.workflow_job_store._authority_lock_fd >= 0
+
+            release_tick.set()
+            assert await asyncio.wait_for(stop_task, timeout=5.0) is True
+            await asyncio.wait_for(run_task, timeout=5.0)
+
+        event_loop.run_until_complete(_run_and_stop())
+        assert orch.workflow_job_store._authority_lock_fd == -1
+
+    def test_graceful_stop_keeps_store_open_during_scheduler_startup(
+        self,
+        tmp_path,
+        event_loop,
+    ):
+        """The run-task barrier also covers work before the initial tick."""
+
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        startup_entered = asyncio.Event()
+        release_startup = asyncio.Event()
+
+        async def _blocked_startup_cleanup():
+            startup_entered.set()
+            await release_startup.wait()
+            orch.workflow_job_store.integrity_check()
+
+        orch.startup_cleanup = _blocked_startup_cleanup
+        startup_drain_entered = asyncio.Event()
+        original_drain_scheduler_startup = orch._drain_scheduler_startup
+
+        async def _observed_drain_scheduler_startup():
+            startup_drain_entered.set()
+            await original_drain_scheduler_startup()
+
+        orch._drain_scheduler_startup = _observed_drain_scheduler_startup
+
+        async def _run_and_stop():
+            run_task = asyncio.create_task(orch.run())
+            await asyncio.wait_for(startup_entered.wait(), timeout=2.0)
+
+            stop_task = asyncio.create_task(orch.stop())
+            await asyncio.wait_for(startup_drain_entered.wait(), timeout=2.0)
+
+            assert stop_task.done() is False
+            assert orch.workflow_job_store._authority_lock_fd >= 0
+
+            release_startup.set()
+            assert await asyncio.wait_for(stop_task, timeout=5.0) is True
+            await asyncio.wait_for(run_task, timeout=5.0)
+
+        event_loop.run_until_complete(_run_and_stop())
+        assert orch.workflow_job_store._authority_lock_fd == -1
+
+    def test_run_declines_startup_after_stop_wins_admission(
+        self,
+        tmp_path,
+        event_loop,
+    ):
+        """A scheduler that loses the stop fence never touches closed stores."""
+
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        orch.startup_cleanup = AsyncMock(
+            side_effect=AssertionError("startup ran after shutdown")
+        )
+
+        async def _stop_then_run():
+            assert await orch.stop() is True
+            await orch.run()
+
+        event_loop.run_until_complete(_stop_then_run())
+        orch.startup_cleanup.assert_not_awaited()
+        assert orch.workflow_job_store._authority_lock_fd == -1
+
+    def test_threadsafe_stop_acknowledges_before_scheduler_loop_exits(
+        self,
+        tmp_path,
+    ):
+        """The injected safe-stop task is not cancelled with asyncio.run()."""
+
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        tick_entered = threading.Event()
+        stop_drain_entered = threading.Event()
+        release_stop_drain = threading.Event()
+        thread_errors = []
+
+        async def _brief_tick():
+            tick_entered.set()
+            await asyncio.sleep(0.05)
+
+        orch._tick = _brief_tick
+        original_drain_background_work = orch._drain_background_work
+
+        async def _blocked_stop_drain():
+            stop_drain_entered.set()
+            await asyncio.to_thread(release_stop_drain.wait)
+            await original_drain_background_work()
+
+        orch._drain_background_work = _blocked_stop_drain
+
+        def _run_scheduler():
+            try:
+                async def _main():
+                    asyncio.get_running_loop().set_default_executor(
+                        ThreadPoolExecutor(max_workers=1)
+                    )
+                    await orch.run()
+
+                asyncio.run(_main())
+            except BaseException as exc:  # pragma: no cover - asserted below
+                thread_errors.append(exc)
+
+        scheduler_thread = threading.Thread(
+            target=_run_scheduler,
+            name="test-orchestrator-loop",
+        )
+        scheduler_thread.start()
+        try:
+            assert tick_entered.wait(2)
+
+            stop_future = orch.stop_threadsafe()
+            assert stop_future is not None
+            assert stop_drain_entered.wait(2)
+            assert stop_future.done() is False
+            assert scheduler_thread.is_alive() is True
+
+            release_stop_drain.set()
+            stop_future.result(timeout=5)
+            scheduler_thread.join(timeout=5)
+
+            assert scheduler_thread.is_alive() is False
+            assert stop_future.cancelled() is False
+            assert thread_errors == []
+            assert orch.workflow_job_store._authority_lock_fd == -1
+        finally:
+            release_stop_drain.set()
+            if scheduler_thread.is_alive():
+                future = orch.stop_threadsafe()
+                if future is not None:
+                    future.result(timeout=5)
+                scheduler_thread.join(timeout=5)
 
     def test_full_sync_loop_posts_full_sync_events(self, tmp_path, event_loop):
         """_full_sync_loop() posts FULL_SYNC events at the configured interval."""
@@ -1352,29 +1534,34 @@ class TestGracefulRestartShutdownEvent:
             f"Expected exactly 1 SHUTDOWN event, got {len(shutdown_events)}"
         )
 
-    def test_run_loop_exits_on_shutdown_event_with_idle_queue(
+    def test_run_loop_exits_after_shutdown_event_and_safe_stop_ack(
         self, tmp_path, event_loop
     ):
-        """The run() loop exits when it receives a SHUTDOWN event, even with an idle queue.
+        """SHUTDOWN wakes an idle loop; safe-stop acknowledgment releases it.
 
         This is the core regression test: the dispatch loop must not block
         forever on _dispatch_queue.get() when graceful_restart() is called
-        while the queue is empty.
+        while the queue is empty. It also must not exit before the safe-stop
+        owner has completed the final resource drain.
         """
         orch = _make_orchestrator(tmp_path, config=_make_config(full_sync_interval_ms=600000))
         orch._tick = AsyncMock()
         orch.startup_cleanup = AsyncMock()
         orch._recover_restart_issues = AsyncMock()
+        tick_started = asyncio.Event()
+
+        async def _tick():
+            tick_started.set()
+
+        orch._tick = AsyncMock(side_effect=_tick)
 
         async def _run_and_graceful_restart():
             async def _trigger_restart():
-                # Wait for the loop to start and run the initial tick
-                await asyncio.sleep(0.02)
+                await asyncio.wait_for(tick_started.wait(), timeout=2.0)
                 # Call graceful_restart with an undrained running task
                 # (simulating a task that didn't finish before the drain timeout)
                 await orch.graceful_restart(drain_timeout_s=1)
-                # The loop should now wake up and exit
-                await asyncio.sleep(0.05)
+                await orch.stop_until_safe()
 
             run_task = asyncio.create_task(orch.run())
             await asyncio.gather(run_task, _trigger_restart())
