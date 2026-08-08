@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-843
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T04:03:46.596950Z'
+updated_at: '2026-08-08T04:04:16.164007Z'
 work_branch: OOMPAH-843
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 1c124e8f-f3dd-465e-a262-ecd736fcc0e6
 oompah.task_costs:
   total_input_tokens: 48109
   total_output_tokens: 553

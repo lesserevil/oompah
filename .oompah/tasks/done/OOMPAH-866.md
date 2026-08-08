@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-08T04:04:00.022590Z'
+updated_at: '2026-08-08T04:04:08.099890Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -375,5 +375,10 @@ created: 2026-08-08 04:03
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Project-owner reconciliation: the evolved OOMPAH-866 sequence 49ecd3324/8c1316e57/60e6623d6 is present in published epic-OOMPAH-763. Range-diff and a trial replay proved accepted-task semantic and byte-for-byte supersession; 201 focused canonical landing, parallel child, terminal audit, and submission tests passed, and the exact parent full gate passed 17,860 tests with zero failures.
+---
+author: oompah
+created: 2026-08-08 04:04
+---
+Integrated and validated on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
 ---
 <!-- COMMENTS:END -->
