@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-911
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Repair durable-transition regressions exposed by exact full gate
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T13:38:22.228736Z'
-updated_at: '2026-08-08T13:38:45.179045Z'
+updated_at: '2026-08-08T16:28:40.761917Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-146ff0f468fb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-911
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1cc41a2ce4aeb1ac2d7878f54690e2ff3e9dc08757d4f62989c6b1a870b621ea
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:28:36.962320+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
