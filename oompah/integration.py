@@ -631,6 +631,12 @@ class IntegrationRecord:
     # None means no evidence available; fail-closed validation treats this as
     # a missing landing proof until other validators pass.
     canonical_landing_evidence: dict[str, Any] | None = None
+    # A nested-epic dispatch can be waiting for exact branch ancestry without
+    # owning an implementation worker.  Persist the reason and generation so
+    # WorkDecision/UI projections remain truthful across restarts.
+    wait_reason: str | None = None
+    wait_generation: str | None = None
+    required_base_missing: tuple[str, ...] = ()
     version: int = INTEGRATION_RECORD_VERSION
 
     def __post_init__(self) -> None:
@@ -693,6 +699,16 @@ class IntegrationRecord:
             if isinstance(raw_cancellation, Mapping)
             else None
         )
+        raw_missing = value.get("required_base_missing")
+        required_base_missing = (
+            tuple(
+                str(item).strip()
+                for item in raw_missing
+                if str(item).strip()
+            )
+            if isinstance(raw_missing, (list, tuple))
+            else ()
+        )
         
         # Always store as current version when loading (migration v1 -> v2)
         return cls(
@@ -714,6 +730,9 @@ class IntegrationRecord:
             gate_outcome=_optional_text(value.get("gate_outcome")),
             gate_cancellation=cancellation,
             canonical_landing_evidence=landing_evidence,
+            wait_reason=_optional_text(value.get("wait_reason")),
+            wait_generation=_optional_text(value.get("wait_generation")),
+            required_base_missing=required_base_missing,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -737,6 +756,8 @@ class IntegrationRecord:
             "backoff_until",
             "repair_failure_reason",
             "gate_outcome",
+            "wait_reason",
+            "wait_generation",
         ):
             value = getattr(self, key)
             if value is not None:
@@ -747,6 +768,8 @@ class IntegrationRecord:
             result["canonical_landing_evidence"] = dict(self.canonical_landing_evidence)
         if self.gate_cancellation is not None:
             result["gate_cancellation"] = dict(self.gate_cancellation)
+        if self.required_base_missing:
+            result["required_base_missing"] = list(self.required_base_missing)
         return result
 
 

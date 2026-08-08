@@ -54,6 +54,24 @@ class RecoveryPublicationError(ProjectError):
 
 
 @dataclass(frozen=True)
+class NestedDispatchTopology:
+    """Exact local/remote refs used to admit one nested-epic worker.
+
+    The remote heads are the publication authority.  Local heads are retained
+    independently so recovery never chooses a remote ref by silently
+    overwriting a divergent local-only checkpoint.
+    """
+
+    target_branch: str
+    target_head: str
+    nested_branch: str
+    nested_head: str
+    private_branch: str | None = None
+    private_remote_head: str | None = None
+    private_local_head: str | None = None
+
+
+@dataclass(frozen=True)
 class RepositoryIdentity:
     """Stable local evidence for one Git repository checkout.
 
@@ -5493,6 +5511,414 @@ class ProjectStore:
                 epic_identifier,
                 branch_name=branch_name,
             )
+
+    def observe_nested_dispatch_topology(
+        self,
+        project_id: str,
+        *,
+        target_branch: str,
+        nested_branch: str,
+        private_branch: str | None = None,
+    ) -> NestedDispatchTopology:
+        """Refresh and return every ref that can determine a nested dispatch.
+
+        The two epic branches must be published.  A private task branch is
+        optional, but when it exists both its local and remote tips are kept in
+        the observation.  Callers can therefore reject divergence instead of
+        selecting whichever copy happened to be fetched last.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        target = str(target_branch or "").strip()
+        nested = str(nested_branch or "").strip()
+        private = str(private_branch or "").strip() or None
+        names = tuple(dict.fromkeys((target, nested, *([private] if private else []))))
+        if not target or not nested:
+            raise ProjectError("nested dispatch requires target and nested branches")
+
+        with self.project_write_lock(project_id):
+            for name in names:
+                checked = subprocess.run(
+                    ["git", "check-ref-format", f"refs/heads/{name}"],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if checked.returncode != 0:
+                    raise ProjectError(f"invalid nested dispatch branch {name!r}")
+
+            refs = tuple(f"refs/heads/{name}" for name in names)
+            advertised = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", *refs],
+                timeout=30,
+            )
+            if advertised.returncode != 0:
+                raise ProjectError(
+                    "could not observe nested dispatch refs: "
+                    f"{advertised.stderr.strip()[:500]}"
+                )
+            remote_heads: dict[str, str] = {}
+            for line in advertised.stdout.splitlines():
+                fields = line.split()
+                if len(fields) >= 2 and fields[1] in refs:
+                    remote_heads[fields[1].removeprefix("refs/heads/")] = (
+                        fields[0].strip().lower()
+                    )
+            for required in (target, nested):
+                if required not in remote_heads:
+                    raise ProjectError(f"origin/{required} is not published")
+
+            for name, head in remote_heads.items():
+                fetched = self._run_network_git(
+                    project,
+                    [
+                        "git",
+                        "fetch",
+                        "--no-tags",
+                        "--quiet",
+                        "origin",
+                        f"+refs/heads/{name}:refs/remotes/origin/{name}",
+                    ],
+                    timeout=60,
+                )
+                if fetched.returncode != 0:
+                    raise ProjectError(
+                        f"could not refresh origin/{name}: "
+                        f"{fetched.stderr.strip()[:500]}"
+                    )
+                resolved = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        f"refs/remotes/origin/{name}^{{commit}}",
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if (
+                    resolved.returncode != 0
+                    or resolved.stdout.strip().lower() != head
+                ):
+                    raise ProjectError(f"origin/{name} moved while it was fetched")
+
+            local_private: str | None = None
+            if private:
+                local = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        f"refs/heads/{private}^{{commit}}",
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if local.returncode == 0 and local.stdout.strip():
+                    local_private = local.stdout.strip().lower()
+
+            return NestedDispatchTopology(
+                target_branch=target,
+                target_head=remote_heads[target],
+                nested_branch=nested,
+                nested_head=remote_heads[nested],
+                private_branch=private,
+                private_remote_head=remote_heads.get(private) if private else None,
+                private_local_head=local_private,
+            )
+
+    def nested_dispatch_head_reachable(
+        self,
+        project_id: str,
+        *,
+        ancestor: str,
+        descendant: str,
+    ) -> bool:
+        """Return strict Git ancestry for an exact nested-dispatch pair."""
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        older = str(ancestor or "").strip().lower()
+        newer = str(descendant or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", older) or not re.fullmatch(
+            r"[0-9a-f]{40,64}", newer
+        ):
+            raise ProjectError("nested dispatch ancestry requires full object ids")
+        with self.project_write_lock(project_id):
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", older, newer],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        if result.returncode not in {0, 1}:
+            raise ProjectError(
+                "nested dispatch ancestry is unavailable: "
+                f"{result.stderr.strip()[:500]}"
+            )
+        return result.returncode == 0
+
+    def advance_nested_dispatch_topology(
+        self,
+        project_id: str,
+        *,
+        expected: NestedDispatchTopology,
+    ) -> NestedDispatchTopology:
+        """CAS-advance stale empty nested/private branches to their parent.
+
+        No branch with a unique commit is rewritten.  The nested epic is
+        published first; only after that exact remote publication is verified
+        may an existing private task ref advance.  Local and remote private
+        tips are validated independently so a local-only recovery checkpoint
+        can never be discarded by a remote-preference shortcut.
+        """
+
+        if not isinstance(expected, NestedDispatchTopology):
+            raise TypeError("expected must be NestedDispatchTopology")
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+
+        def _is_ancestor(older: str, newer: str) -> bool:
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", older, newer],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if result.returncode not in {0, 1}:
+                raise ProjectError(
+                    "nested dispatch ancestry is unavailable: "
+                    f"{result.stderr.strip()[:500]}"
+                )
+            return result.returncode == 0
+
+        def _checked_out_path(branch: str) -> str | None:
+            listing = subprocess.run(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if listing.returncode != 0:
+                raise ProjectError("could not inspect nested dispatch worktrees")
+            path: str | None = None
+            for line in listing.stdout.splitlines():
+                if line.startswith("worktree "):
+                    path = line.removeprefix("worktree ").strip()
+                elif line == f"branch refs/heads/{branch}":
+                    return path
+                elif not line.strip():
+                    path = None
+            return None
+
+        def _advance_local(branch: str, old_head: str | None, new_head: str) -> None:
+            if old_head is None or old_head == new_head:
+                return
+            checked_out = _checked_out_path(branch)
+            if checked_out:
+                status = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=checked_out,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                dirty = [
+                    line
+                    for line in status.stdout.splitlines()
+                    if not _is_generated_worktree_helper(
+                        line[3:].strip() if len(line) >= 3 else ""
+                    )
+                ]
+                if status.returncode != 0 or dirty:
+                    raise ProjectError(
+                        f"local branch {branch} has a dirty recovery worktree"
+                    )
+                reset = subprocess.run(
+                    ["git", "reset", "--hard", new_head],
+                    cwd=checked_out,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=30,
+                    env=_recovery_git_env(),
+                )
+                if reset.returncode != 0:
+                    raise ProjectError(
+                        f"could not advance checked-out branch {branch}: "
+                        f"{reset.stderr.strip()[:500]}"
+                    )
+                return
+            update = subprocess.run(
+                [
+                    "git",
+                    "update-ref",
+                    f"refs/heads/{branch}",
+                    new_head,
+                    old_head,
+                ],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if update.returncode != 0:
+                raise ProjectError(
+                    f"local branch {branch} changed during topology repair"
+                )
+
+        def _push(branch: str, old_head: str | None, new_head: str) -> None:
+            lease = f"--force-with-lease=refs/heads/{branch}:{old_head or ''}"
+            pushed = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "push",
+                    lease,
+                    "origin",
+                    f"{new_head}:refs/heads/{branch}",
+                ],
+                timeout=60,
+            )
+            if pushed.returncode != 0:
+                raise ProjectError(
+                    f"nested dispatch CAS push failed for {branch}: "
+                    f"{pushed.stderr.strip()[:500]}"
+                )
+
+        with self.project_write_lock(project_id):
+            current = self.observe_nested_dispatch_topology(
+                project_id,
+                target_branch=expected.target_branch,
+                nested_branch=expected.nested_branch,
+                private_branch=expected.private_branch,
+            )
+            if current != expected:
+                raise ProjectError("nested dispatch generation changed before repair")
+
+            target_head = current.target_head
+            if _is_ancestor(target_head, current.nested_head):
+                desired_nested_head = current.nested_head
+            elif _is_ancestor(current.nested_head, target_head):
+                desired_nested_head = target_head
+            else:
+                raise ProjectError(
+                    f"nested branch {current.nested_branch} has unique commits; "
+                    "automatic fast-forward is not authorized"
+                )
+            if current.nested_head != desired_nested_head:
+                _push(
+                    current.nested_branch,
+                    current.nested_head,
+                    desired_nested_head,
+                )
+                local_nested = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        f"refs/heads/{current.nested_branch}^{{commit}}",
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                local_nested_head = (
+                    local_nested.stdout.strip().lower()
+                    if local_nested.returncode == 0
+                    else None
+                )
+                if local_nested_head is not None:
+                    if not _is_ancestor(local_nested_head, desired_nested_head):
+                        raise ProjectError(
+                            f"local nested branch {current.nested_branch} diverged"
+                        )
+                    _advance_local(
+                        current.nested_branch,
+                        local_nested_head,
+                        desired_nested_head,
+                    )
+
+            private = current.private_branch
+            if private and (
+                current.private_remote_head is not None
+                or current.private_local_head is not None
+            ):
+                for label, head in (
+                    ("remote", current.private_remote_head),
+                    ("local", current.private_local_head),
+                ):
+                    if head is not None and not _is_ancestor(
+                        head, desired_nested_head
+                    ):
+                        raise ProjectError(
+                            f"{label} private branch {private} has unique commits; "
+                            "automatic advance is not authorized"
+                        )
+                if current.private_remote_head != desired_nested_head:
+                    _push(
+                        private,
+                        current.private_remote_head,
+                        desired_nested_head,
+                    )
+                _advance_local(
+                    private,
+                    current.private_local_head,
+                    desired_nested_head,
+                )
+
+            repaired = self.observe_nested_dispatch_topology(
+                project_id,
+                target_branch=current.target_branch,
+                nested_branch=current.nested_branch,
+                private_branch=private,
+            )
+            if repaired.nested_head != desired_nested_head:
+                raise ProjectError("nested epic publication was not durable")
+            if private and (
+                current.private_remote_head is not None
+                or current.private_local_head is not None
+            ) and (
+                repaired.private_remote_head != desired_nested_head
+                or (
+                    repaired.private_local_head is not None
+                    and repaired.private_local_head != desired_nested_head
+                )
+            ):
+                raise ProjectError("private branch publication was not durable")
+            return repaired
 
     def prepare_epic_branch_for_private_dispatch(
         self,

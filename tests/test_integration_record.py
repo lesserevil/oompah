@@ -31,6 +31,9 @@ def test_integration_record_round_trips_all_supported_evidence():
             "cancelled_by": "operator:alice",
             "reason": "critical-path preemption",
         },
+        wait_reason="nested_epic_base_stale",
+        wait_generation="generation-1",
+        required_base_missing=("epic-ABC-0", "ABC-1"),
     )
 
     assert IntegrationRecord.from_dict(record.to_dict()) == record

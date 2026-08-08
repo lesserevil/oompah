@@ -7,6 +7,7 @@ import contextlib
 import faulthandler
 import hashlib
 import importlib
+import json
 import logging
 import math
 import os
@@ -288,6 +289,7 @@ from oompah.workflow_controller import (
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
+    WorkflowJobSpec,
     WorkflowJobPublicationError,
     WorkflowJobLeaseLost,
     WorkflowJobState,
@@ -303,6 +305,8 @@ from oompah.workflow_shadow import (
 _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 _UNADMITTED_AUDIT_ROLLBACKS_STATE_KEY = "terminal_audit_unadmitted_rollbacks"
 _RETRY_ATTEMPTS_VERSION_STATE_KEY = "retry_attempts_version"
+_NESTED_DISPATCH_REPAIR_ACTION = "nested_dispatch_topology_repair"
+_NESTED_DISPATCH_REPAIR_LANE = "nested-dispatch-topology"
 
 # A structured verdict is a durable authority hand-off, not ordinary model
 # work.  Reserve one provider turn for submit_audit_result after the ordinary
@@ -406,6 +410,7 @@ from oompah.validation_resource_lease import (
 )
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
+    NestedDispatchTopology,
     ProjectError,
     ProjectStore,
     RecoveryPublicationError,
@@ -1601,6 +1606,52 @@ class _AuditCandidateScan:
     @property
     def scan_complete(self) -> bool:
         return self.scan_error_count == 0
+
+
+@dataclass(frozen=True, slots=True)
+class NestedDispatchEvidence:
+    """One immutable proof (or wait reason) for nested implementation work."""
+
+    project_id: str
+    task_id: str
+    task_authority: str
+    nested_epic_id: str
+    nested_authority: str
+    target_epic_id: str
+    target_authority: str
+    topology: NestedDispatchTopology | None
+    required_heads: tuple[tuple[str, str, str], ...]
+    topology_generation: str
+    generation: str
+    ready: bool
+    reason_code: str
+    missing: tuple[str, ...] = ()
+    detail: str | None = None
+
+    def payload(self) -> dict[str, Any]:
+        topology = self.topology
+        return {
+            "project_id": self.project_id,
+            "task_id": self.task_id,
+            "task_authority": self.task_authority,
+            "nested_epic_id": self.nested_epic_id,
+            "nested_authority": self.nested_authority,
+            "target_epic_id": self.target_epic_id,
+            "target_authority": self.target_authority,
+            "topology_generation": self.topology_generation,
+            "required_heads": [list(item) for item in self.required_heads],
+            "target_branch": topology.target_branch if topology else None,
+            "target_head": topology.target_head if topology else None,
+            "nested_branch": topology.nested_branch if topology else None,
+            "nested_head": topology.nested_head if topology else None,
+            "private_branch": topology.private_branch if topology else None,
+            "private_remote_head": (
+                topology.private_remote_head if topology else None
+            ),
+            "private_local_head": topology.private_local_head if topology else None,
+            "reason_code": self.reason_code,
+            "missing": list(self.missing),
+        }
 
 
 class Orchestrator:
@@ -33012,12 +33063,595 @@ class Orchestrator:
             f"{parent.identifier} lands there."
         )
 
+    @staticmethod
+    def _nested_dispatch_required_head(issue: Issue) -> str | None:
+        """Return exact code-bearing landing evidence for a hard-start task."""
+
+        integration = getattr(issue, "integration", None)
+        values = (
+            integration.get("integrated_sha")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "integrated_sha", None),
+            integration.get("head_sha")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "head_sha", None),
+            issue_exact_head(issue),
+        )
+        for value in values:
+            head = str(value or "").strip().lower()
+            if re.fullmatch(r"[0-9a-f]{40,64}", head):
+                return head
+        return None
+
+    @staticmethod
+    def _nested_dispatch_generation(
+        *,
+        task_authority: str,
+        nested_authority: str,
+        target_authority: str,
+        topology: NestedDispatchTopology | None,
+        required_heads: Sequence[tuple[str, str, str]],
+    ) -> tuple[str, str]:
+        topology_payload = {
+            "nested_authority": nested_authority,
+            "target_authority": target_authority,
+            "topology": (
+                {
+                    "target_branch": topology.target_branch,
+                    "target_head": topology.target_head,
+                    "nested_branch": topology.nested_branch,
+                    "nested_head": topology.nested_head,
+                    "private_branch": topology.private_branch,
+                    "private_remote_head": topology.private_remote_head,
+                    "private_local_head": topology.private_local_head,
+                }
+                if topology is not None
+                else None
+            ),
+            "required_heads": list(required_heads),
+        }
+        encoded = json.dumps(
+            topology_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        topology_generation = hashlib.sha256(encoded.encode()).hexdigest()
+        generation = hashlib.sha256(
+            f"{task_authority}:{topology_generation}".encode()
+        ).hexdigest()
+        return topology_generation, generation
+
+    def _unavailable_nested_dispatch_evidence(
+        self,
+        issue: Issue,
+        *,
+        reason_code: str,
+        detail: str,
+        nested_epic_id: str = "",
+        target_epic_id: str = "",
+        missing: Sequence[str] = (),
+    ) -> NestedDispatchEvidence:
+        task_authority = issue_authority_version(issue)
+        topology_generation, generation = self._nested_dispatch_generation(
+            task_authority=task_authority,
+            nested_authority="unavailable",
+            target_authority="unavailable",
+            topology=None,
+            required_heads=(),
+        )
+        return NestedDispatchEvidence(
+            project_id=str(issue.project_id or ""),
+            task_id=issue.identifier,
+            task_authority=task_authority,
+            nested_epic_id=nested_epic_id,
+            nested_authority="unavailable",
+            target_epic_id=target_epic_id,
+            target_authority="unavailable",
+            topology=None,
+            required_heads=(),
+            topology_generation=topology_generation,
+            generation=generation,
+            ready=False,
+            reason_code=reason_code,
+            missing=tuple(str(item) for item in missing if str(item)),
+            detail=detail,
+        )
+
+    def _collect_nested_dispatch_evidence(
+        self,
+        issue: Issue,
+    ) -> NestedDispatchEvidence | None:
+        """Collect fresh hierarchy, dependency, and Git ancestry authority.
+
+        ``None`` means the task is standalone or belongs to a top-level epic,
+        so the nested-only fence is not applicable.  Every declared nested
+        hierarchy error returns non-ready evidence and therefore fails closed.
+        """
+
+        project_id = str(issue.project_id or "").strip()
+        parent_id = str(issue.parent_id or "").strip()
+        if not project_id or not parent_id:
+            return None
+        tracker = self._tracker_for_issue(issue)
+        try:
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            # The caller owns the current task snapshot.  Hierarchy and
+            # dependency facts are refreshed here; the final status-write CAS
+            # re-reads the task itself under the project mutation fence.
+            current = issue
+            if not current.project_id:
+                current.project_id = project_id
+            nested = self._resolve_parent_epic(current, fail_closed=True)
+            if nested is None:
+                return self._unavailable_nested_dispatch_evidence(
+                    current,
+                    reason_code="nested_parent_unresolved",
+                    detail=f"declared parent {parent_id} is not an epic",
+                    nested_epic_id=parent_id,
+                    missing=(parent_id,),
+                )
+            if not nested.project_id:
+                nested.project_id = project_id
+            nested_parent_id = str(nested.parent_id or "").strip()
+            if not nested_parent_id:
+                return None
+            target_epic = self._resolve_parent_epic(nested, fail_closed=True)
+            if target_epic is None:
+                return self._unavailable_nested_dispatch_evidence(
+                    current,
+                    reason_code="nested_parent_target_unresolved",
+                    detail=(
+                        f"nested epic {nested.identifier} has unresolved parent "
+                        f"{nested_parent_id}"
+                    ),
+                    nested_epic_id=nested.identifier,
+                    target_epic_id=nested_parent_id,
+                    missing=(nested_parent_id,),
+                )
+            if not target_epic.project_id:
+                target_epic.project_id = project_id
+            project = self.project_store.get(project_id)
+            if project is None:
+                raise ProjectError(f"Unknown project: {project_id}")
+            target_branch = self._resolve_epic_target_branch(nested, project)
+            authoritative_target = self._epic_branch_for_issue(target_epic)
+            if target_branch != authoritative_target:
+                raise EpicTargetResolutionError(
+                    nested.identifier,
+                    target_epic.identifier,
+                    f"resolved {target_branch}, expected {authoritative_target}",
+                )
+            nested_branch = self._epic_branch_for_issue(nested)
+
+            lineage: list[Issue] = [current, nested, target_epic]
+            seen_lineage = {
+                str(item.identifier or item.id or "").strip() for item in lineage
+            }
+            ancestor = target_epic
+            while str(ancestor.parent_id or "").strip():
+                parent = self._resolve_parent_epic(ancestor, fail_closed=True)
+                if parent is None:
+                    raise EpicTargetResolutionError(
+                        ancestor.identifier,
+                        str(ancestor.parent_id or ""),
+                        "ancestor is not an epic",
+                    )
+                if not parent.project_id:
+                    parent.project_id = project_id
+                canonical = str(parent.identifier or parent.id or "").strip()
+                if not canonical or canonical in seen_lineage:
+                    raise ProjectError("nested dispatch hierarchy contains a cycle")
+                seen_lineage.add(canonical)
+                lineage.append(parent)
+                ancestor = parent
+
+            hard_start_ids: list[str] = []
+            for item in lineage:
+                for ref in item.start_blocked_by or ():
+                    blocker_id = str(ref.identifier or ref.id or "").strip()
+                    if blocker_id and blocker_id not in hard_start_ids:
+                        hard_start_ids.append(blocker_id)
+            required_heads: list[tuple[str, str, str]] = []
+            unavailable: list[str] = []
+            for blocker_id in hard_start_ids:
+                dependency = tracker.fetch_issue_detail(blocker_id)
+                if not isinstance(dependency, Issue):
+                    unavailable.append(blocker_id)
+                    continue
+                if not dependency.project_id:
+                    dependency.project_id = project_id
+                if dependency.project_id != project_id or not _is_terminal_state(
+                    dependency.state,
+                    self.config.tracker_terminal_states,
+                ):
+                    unavailable.append(blocker_id)
+                    continue
+                head = self._nested_dispatch_required_head(dependency)
+                if head is None:
+                    unavailable.append(blocker_id)
+                    continue
+                required_heads.append(
+                    (blocker_id, head, issue_authority_version(dependency))
+                )
+            if unavailable:
+                evidence = self._unavailable_nested_dispatch_evidence(
+                    current,
+                    reason_code="nested_hard_start_evidence_unavailable",
+                    detail=(
+                        "fresh terminal landing evidence is unavailable for: "
+                        + ", ".join(sorted(unavailable))
+                    ),
+                    nested_epic_id=nested.identifier,
+                    target_epic_id=target_epic.identifier,
+                    missing=unavailable,
+                )
+                nested_authority = issue_authority_version(nested)
+                target_authority = issue_authority_version(target_epic)
+                topology_generation, generation = self._nested_dispatch_generation(
+                    task_authority=evidence.task_authority,
+                    nested_authority=nested_authority,
+                    target_authority=target_authority,
+                    topology=None,
+                    required_heads=required_heads,
+                )
+                return replace(
+                    evidence,
+                    nested_authority=nested_authority,
+                    target_authority=target_authority,
+                    required_heads=tuple(required_heads),
+                    topology_generation=topology_generation,
+                    generation=generation,
+                )
+
+            private_branch = None
+            if self.config.parallel_epic_children_enabled:
+                private_branch = (
+                    assigned_work_branch(current)
+                    or self.project_store.epic_child_branch_name(
+                        nested.identifier,
+                        current.identifier,
+                    )
+                )
+            topology = self.project_store.observe_nested_dispatch_topology(
+                project_id,
+                target_branch=target_branch,
+                nested_branch=nested_branch,
+                private_branch=private_branch,
+            )
+            nested_authority = issue_authority_version(nested)
+            target_authority = issue_authority_version(target_epic)
+            task_authority = issue_authority_version(current)
+            topology_generation, generation = self._nested_dispatch_generation(
+                task_authority=task_authority,
+                nested_authority=nested_authority,
+                target_authority=target_authority,
+                topology=topology,
+                required_heads=required_heads,
+            )
+
+            missing: list[str] = []
+            reason_code = "nested_dispatch_reachable"
+            if not self.project_store.nested_dispatch_head_reachable(
+                project_id,
+                ancestor=topology.target_head,
+                descendant=topology.nested_head,
+            ):
+                missing.append(topology.target_branch)
+                reason_code = "nested_epic_base_stale"
+            for blocker_id, head, _authority in required_heads:
+                if not self.project_store.nested_dispatch_head_reachable(
+                    project_id,
+                    ancestor=head,
+                    descendant=topology.nested_head,
+                ):
+                    missing.append(blocker_id)
+                    if reason_code == "nested_dispatch_reachable":
+                        reason_code = "nested_hard_start_head_stale"
+            private_heads = tuple(
+                head
+                for head in (
+                    topology.private_remote_head,
+                    topology.private_local_head,
+                )
+                if head
+            )
+            if any(
+                not self.project_store.nested_dispatch_head_reachable(
+                    project_id,
+                    ancestor=topology.nested_head,
+                    descendant=head,
+                )
+                for head in private_heads
+            ):
+                missing.append(topology.private_branch or "private_task_branch")
+                if reason_code == "nested_dispatch_reachable":
+                    reason_code = "private_task_base_stale"
+            ready = not missing
+            return NestedDispatchEvidence(
+                project_id=project_id,
+                task_id=current.identifier,
+                task_authority=task_authority,
+                nested_epic_id=nested.identifier,
+                nested_authority=nested_authority,
+                target_epic_id=target_epic.identifier,
+                target_authority=target_authority,
+                topology=topology,
+                required_heads=tuple(required_heads),
+                topology_generation=topology_generation,
+                generation=generation,
+                ready=ready,
+                reason_code=reason_code,
+                missing=tuple(dict.fromkeys(missing)),
+            )
+        except Exception as exc:  # noqa: BLE001 - dispatch evidence fails closed
+            return self._unavailable_nested_dispatch_evidence(
+                issue,
+                reason_code="nested_lineage_unavailable",
+                detail=(
+                    "nested dispatch evidence is unavailable "
+                    f"({type(exc).__name__}: {exc})"
+                ),
+                nested_epic_id=parent_id,
+                missing=(parent_id,),
+            )
+
+    def _publish_nested_dispatch_wait(
+        self,
+        issue: Issue,
+        evidence: NestedDispatchEvidence,
+    ) -> None:
+        """Persist one restart-safe wait without replacing accepted evidence."""
+
+        tracker = self._tracker_for_issue(issue)
+        existing = getattr(issue, "integration", None)
+        if accepted_submission_branch(issue):
+            return
+        topology = evidence.topology
+        if isinstance(existing, IntegrationRecord):
+            record = replace(
+                existing,
+                wait_reason=evidence.reason_code,
+                wait_generation=evidence.generation,
+                required_base_missing=evidence.missing,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+        else:
+            record = IntegrationRecord(
+                state="working",
+                mode="queue",
+                task_branch=(
+                    topology.private_branch if topology is not None else None
+                ),
+                base_branch=(
+                    topology.nested_branch if topology is not None else None
+                ),
+                base_sha=topology.nested_head if topology is not None else None,
+                last_error=evidence.detail,
+                wait_reason=evidence.reason_code,
+                wait_generation=evidence.generation,
+                required_base_missing=evidence.missing,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.integration",
+            record.to_dict(),
+        )
+        issue.integration = record
+
+    def _clear_nested_dispatch_wait(
+        self,
+        issue: Issue,
+        evidence: NestedDispatchEvidence,
+    ) -> None:
+        existing = getattr(issue, "integration", None)
+        if not isinstance(existing, IntegrationRecord) or not existing.wait_reason:
+            return
+        record = replace(
+            existing,
+            wait_reason=None,
+            wait_generation=None,
+            required_base_missing=(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        self._tracker_for_issue(issue).set_metadata_field(
+            issue.identifier,
+            "oompah.integration",
+            record.to_dict(),
+        )
+        issue.integration = record
+
+    def _schedule_nested_dispatch_repair(
+        self,
+        evidence: NestedDispatchEvidence,
+    ) -> None:
+        if evidence.topology is None:
+            return
+        spec = WorkflowJobSpec(
+            project_id=evidence.project_id,
+            task_id=evidence.task_id,
+            generation=evidence.generation,
+            action=_NESTED_DISPATCH_REPAIR_ACTION,
+            idempotency_key=(
+                f"nested-dispatch:{evidence.project_id}:{evidence.task_id}:"
+                f"{evidence.generation}"
+            ),
+            reason_code=evidence.reason_code,
+            payload=evidence.payload(),
+            scheduling_lane=_NESTED_DISPATCH_REPAIR_LANE,
+            priority=5,
+            max_attempts=20,
+        )
+        with self.workflow_job_store.snapshot_authority_guard():
+            self.workflow_job_store.enqueue(spec)
+            stale_repairs = self.workflow_job_store.list_jobs(
+                project_id=evidence.project_id,
+                task_id=evidence.task_id,
+                states=tuple(ACTIVE_JOB_STATES),
+                actions=(_NESTED_DISPATCH_REPAIR_ACTION,),
+            )
+            for stale in stale_repairs:
+                if stale.generation == evidence.generation:
+                    continue
+                self.workflow_job_store.supersede(
+                    stale.job_id,
+                    generation=stale.generation,
+                    replacement_generation=evidence.generation,
+                    reason="nested dispatch topology generation advanced",
+                )
+
+    def _request_nested_epic_lineage_repair(
+        self,
+        evidence: NestedDispatchEvidence,
+    ) -> None:
+        topology = evidence.topology
+        if topology is None:
+            return
+        tracker = self._tracker_for_project(evidence.project_id)
+        nested = tracker.fetch_issue_detail(evidence.nested_epic_id)
+        if not isinstance(nested, Issue):
+            raise ProjectError("nested epic disappeared before repair scheduling")
+        if not nested.project_id:
+            nested.project_id = evidence.project_id
+        if self._request_durable_epic_rebase(
+            nested,
+            target_branch=topology.target_branch,
+            source="nested-dispatch-topology",
+        ):
+            return
+        labels = {str(label).strip().lower() for label in nested.labels or ()}
+        if "rebase-requested" not in labels:
+            tracker.update_issue(
+                nested.identifier,
+                **{"add-label": "rebase-requested"},
+            )
+            nested.labels = list(nested.labels or ()) + ["rebase-requested"]
+        allowed, reason = self._epic_synchronization_decision(
+            nested,
+            topology.target_branch,
+        )
+        if not allowed:
+            raise ProjectError(f"nested epic repair is not authorized: {reason}")
+        self._file_rebase_task(
+            tracker,
+            nested,
+            topology.nested_branch,
+            topology.target_branch,
+        )
+
+    def _drive_nested_dispatch_repair(
+        self,
+        evidence: NestedDispatchEvidence,
+    ) -> None:
+        """Claim/recover one exact repair job and run its generation CAS."""
+
+        job = self.workflow_job_store.claim_next(
+            lease_owner=f"nested-dispatch:{os.getpid()}",
+            lease_seconds=120,
+            project_id=evidence.project_id,
+            task_id=evidence.task_id,
+            generation=evidence.generation,
+            actions=(_NESTED_DISPATCH_REPAIR_ACTION,),
+        )
+        if job is None or not job.lease_token:
+            return
+        try:
+            with self.project_store.project_write_lock(evidence.project_id):
+                tracker = self._tracker_for_project(evidence.project_id)
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                current = tracker.fetch_issue_detail(evidence.task_id)
+                if not isinstance(current, Issue):
+                    raise ProjectError("nested dispatch task is unavailable")
+                if not current.project_id:
+                    current.project_id = evidence.project_id
+                fresh = self._collect_nested_dispatch_evidence(current)
+                if fresh is None or fresh.generation != job.generation:
+                    self.workflow_job_store.cancel_owned(
+                        job.job_id,
+                        job.lease_token,
+                        reason="nested dispatch generation changed before repair",
+                    )
+                    return
+                if fresh.ready:
+                    self.workflow_job_store.complete(
+                        job.job_id,
+                        job.lease_token,
+                        result_transition={"already_reachable": True},
+                    )
+                    return
+                if fresh.topology is None:
+                    raise ProjectError(fresh.detail or fresh.reason_code)
+                try:
+                    repaired = self.project_store.advance_nested_dispatch_topology(
+                        evidence.project_id,
+                        expected=fresh.topology,
+                    )
+                except ProjectError:
+                    if not self.project_store.nested_dispatch_head_reachable(
+                        evidence.project_id,
+                        ancestor=fresh.topology.target_head,
+                        descendant=fresh.topology.nested_head,
+                    ):
+                        self._request_nested_epic_lineage_repair(fresh)
+                    raise
+                self.workflow_job_store.complete(
+                    job.job_id,
+                    job.lease_token,
+                    result_transition={
+                        "nested_branch": repaired.nested_branch,
+                        "nested_head": repaired.nested_head,
+                        "private_branch": repaired.private_branch,
+                        "private_head": (
+                            repaired.private_remote_head
+                            or repaired.private_local_head
+                        ),
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001 - durable retry owns recovery
+            try:
+                self.workflow_job_store.fail(
+                    job.job_id,
+                    job.lease_token,
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    error=f"{type(exc).__name__}: {exc}",
+                    retryable=True,
+                    retry_delay_seconds=15,
+                )
+            except WorkflowJobLeaseLost:
+                pass
+
+    def _preflight_nested_epic_dispatch(
+        self,
+        issue: Issue,
+        *,
+        allow_repair: bool = True,
+        publish_wait: bool = True,
+    ) -> NestedDispatchEvidence | None:
+        evidence = self._collect_nested_dispatch_evidence(issue)
+        if evidence is None:
+            return None
+        if evidence.ready:
+            if publish_wait:
+                self._clear_nested_dispatch_wait(issue, evidence)
+            return evidence
+        if publish_wait:
+            self._publish_nested_dispatch_wait(issue, evidence)
+        if allow_repair and evidence.topology is not None:
+            self._schedule_nested_dispatch_repair(evidence)
+            self._drive_nested_dispatch_repair(evidence)
+        return evidence
+
     def _create_workspace_for_issue(
         self,
         issue: Issue,
         *,
         persist_dispatch_metadata: bool = True,
         authority_check: Any = None,
+        expected_nested_topology_generation: str | None = None,
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
@@ -33029,6 +33663,28 @@ class Orchestrator:
         read-only view of already-integrated evidence, not a new implementation
         attempt.
         """
+        if expected_nested_topology_generation is not None:
+            nested_dispatch = self._preflight_nested_epic_dispatch(
+                issue,
+                allow_repair=False,
+                publish_wait=False,
+            )
+            if (
+                nested_dispatch is None
+                or not nested_dispatch.ready
+                or nested_dispatch.topology_generation
+                != expected_nested_topology_generation
+            ):
+                reason = (
+                    nested_dispatch.reason_code
+                    if nested_dispatch is not None
+                    else "nested_dispatch_authority_disappeared"
+                )
+                raise ProjectError(
+                    "nested dispatch topology changed before workspace allocation: "
+                    f"{reason}"
+                )
+
         def _assert_authority() -> None:
             if authority_check is not None and not authority_check():
                 raise DispatchAuthorityRevoked(
@@ -37431,6 +38087,13 @@ class Orchestrator:
                     return _reject(
                         f"start_blocker={blocker.id} unmerged_review"
                     )
+        if not duplicate_preflight:
+            nested_dispatch = self._preflight_nested_epic_dispatch(issue)
+            if nested_dispatch is not None and not nested_dispatch.ready:
+                return _reject(
+                    f"nested_dispatch={nested_dispatch.reason_code} "
+                    f"generation={nested_dispatch.generation[:12]}"
+                )
         # An auditor and an implementation worker must never share a
         # worktree concurrently.  Check this independently of the P0 and
         # shared-epic gates below because both ordinary tasks and P0 children
@@ -49162,6 +49825,7 @@ class Orchestrator:
         self,
         tracker: Any,
         issue: Issue,
+        expected_nested_generation: str | None = None,
     ) -> tuple[bool, Issue | None]:
         """Atomically refuse a scheduler dispatch behind a takeover fence.
 
@@ -49183,6 +49847,16 @@ class Orchestrator:
             current = tracker.fetch_issue_detail(issue.identifier)
             if current is None:
                 return False, None
+            if expected_nested_generation:
+                if not current.project_id:
+                    current.project_id = issue.project_id
+                nested = self._collect_nested_dispatch_evidence(current)
+                if (
+                    nested is None
+                    or not nested.ready
+                    or nested.generation != expected_nested_generation
+                ):
+                    return False, current
             if self._has_live_owner_claim(issue.id, project_id):
                 return False, current
             labels = {
@@ -49224,6 +49898,7 @@ class Orchestrator:
         )
         ordinary_recovery_entry: RetryEntry | None = None
         failed_running_entry: RunningEntry | None = None
+        nested_dispatch_permit: NestedDispatchEvidence | None = None
 
         # A timer callback carries the exact retry entry it observed.  A
         # submission/status/head mutation may have withdrawn that entry while
@@ -49493,6 +50168,34 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
             return False
+        if implementation_dispatch:
+            nested_dispatch_permit = await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool,
+                self._preflight_nested_epic_dispatch,
+                issue,
+            )
+            if (
+                nested_dispatch_permit is not None
+                and not nested_dispatch_permit.ready
+            ):
+                logger.info(
+                    "Skipping implementation dispatch of %s before claim: %s "
+                    "generation=%s",
+                    issue.identifier,
+                    nested_dispatch_permit.reason_code,
+                    nested_dispatch_permit.generation[:12],
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                if retry_entry is not None:
+                    self._cancel_retry_for_issue(
+                        issue_id=issue.id,
+                        identifier=issue.identifier,
+                        project_id=issue.project_id,
+                        reason="nested dispatch topology is not reachable",
+                        notify=False,
+                    )
+                return False
         self.state.reject_streak.pop(issue.id, None)
 
         # Resolve profile and compute natural_profile_name for default_first_dispatch.
@@ -49860,6 +50563,11 @@ class Orchestrator:
                             lambda: self._write_in_progress_if_scheduler_authorized(
                                 tracker,
                                 issue,
+                                (
+                                    nested_dispatch_permit.generation
+                                    if nested_dispatch_permit is not None
+                                    else None
+                                ),
                             ),
                         )
                     )
@@ -50223,9 +50931,16 @@ class Orchestrator:
                     assignment_id=assignment_id,
                 )
             )
-            worker_kwargs = (
-                {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
-            )
+            if auditor_plan is not None:
+                worker_kwargs = {"auditor_plan": auditor_plan}
+            elif nested_dispatch_permit is not None:
+                worker_kwargs = {
+                    "expected_nested_topology_generation": (
+                        nested_dispatch_permit.topology_generation
+                    )
+                }
+            else:
+                worker_kwargs = {}
 
             if auditor_plan is not None:
                 budget_error = self._reserve_audit_budget_capacity(
@@ -51858,6 +52573,7 @@ class Orchestrator:
         *,
         run_id: str | None = None,
         auditor_plan: AuditDispatchPlan | None = None,
+        expected_nested_topology_generation: str | None = None,
     ) -> None:
         """Worker: create workspace, build prompt, run agent turns.
 
@@ -51886,6 +52602,33 @@ class Orchestrator:
         attempted.  Non-provider task failures propagate normally so the
         existing retry/escalation machinery handles them.
         """
+        # The dispatch admission proof is checked once more before focus
+        # selection or provider resolution can make external contact.  The
+        # task's own status legitimately changed to In Progress during
+        # admission, so this compares the parent/dependency/ref generation
+        # rather than the full pre-status task authority generation.
+        if expected_nested_topology_generation is not None:
+            nested_dispatch = self._preflight_nested_epic_dispatch(
+                issue,
+                allow_repair=False,
+                publish_wait=False,
+            )
+            if (
+                nested_dispatch is None
+                or not nested_dispatch.ready
+                or nested_dispatch.topology_generation
+                != expected_nested_topology_generation
+            ):
+                reason = (
+                    nested_dispatch.reason_code
+                    if nested_dispatch is not None
+                    else "nested_dispatch_authority_disappeared"
+                )
+                raise ProjectError(
+                    "nested dispatch topology changed before provider admission: "
+                    f"{reason}"
+                )
+
         worker_identity = {"run_id": run_id} if run_id else {}
         if issue.id in self.state.running and not self._worker_authority_current(
             issue, run_id
@@ -52547,6 +53290,9 @@ class Orchestrator:
                             )
                         ),
                         authority_check=self._workspace_authority_check(issue, run_id),
+                        expected_nested_topology_generation=(
+                            expected_nested_topology_generation
+                        ),
                     )
 
                 self._post_comment(

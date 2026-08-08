@@ -234,6 +234,11 @@ def _make_orch(tmp_path, projects=None):
     orch._run_workflow_shadow_sweep = MagicMock()
     orch._reconcile_standalone_ready_to_integrate_tasks = MagicMock()
     orch._process_integration_queues = AsyncMock()
+    # Nested-dispatch topology has its own production-shaped suite.  Keep it
+    # from turning every unrelated epic strategy unit fixture into a Git and
+    # tracker topology fixture merely because the synthetic child has a
+    # parent_id.
+    orch._preflight_nested_epic_dispatch = MagicMock(return_value=None)
     _TEST_ORCHESTRATORS.append(orch)
     return orch
 

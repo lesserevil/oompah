@@ -795,6 +795,7 @@ def test_ci_repair_retry_preserves_accepted_plain_branch_through_state_refresh(
 
     async def scenario():
         orch = _orchestrator(tmp_path)
+        orch._preflight_nested_epic_dispatch = MagicMock(return_value=None)
         accepted = IntegrationRecord(
             state="blocked",
             task_branch="OOMPAH-860",
