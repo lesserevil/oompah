@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-08T03:57:16.529019Z'
+updated_at: '2026-08-08T03:57:25.616911Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -82,7 +82,17 @@ oompah.terminal_audit:
       Independent composition review completed, affected tests passed 392/392, and
       the exact full make test passed 17,860 with zero failures.'
     created_at: '2026-08-08T03:57:10.535276+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-887
+    target_state: Done
+    evidence_fingerprint: bf48c50ab000d7751d4abc164c5b32aa3f52995e3e92cd638dc7b4624d31e2ae
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T03:57:23.541042+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -243,5 +253,12 @@ created: 2026-08-07 23:02
 Integration could not verify `OOMPAH-887`: could not recover integration worktrees: existing worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-887 is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head 5403e4b196cfae75cc7333d69b062d66c33fef8e; refusing to reset it
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-08 03:57
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation for OOMPAH-887: its accepted implementation is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268. Independent composition review completed, affected tests passed 392/392, and the exact full make test passed 17,860 with zero failures.
 ---
 <!-- COMMENTS:END -->
