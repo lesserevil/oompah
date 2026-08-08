@@ -224,6 +224,33 @@ class TestDurableTransitionErrorClassification:
             is None
         )
 
+    @pytest.mark.parametrize(
+        "reason_code",
+        ["transition.owner_active", "transition.recovery_required"],
+    )
+    def test_classifies_expected_transition_waiting(
+        self,
+        reason_code: str,
+    ) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.WAITING,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+        )
+
+        assert (
+            server_module._transition_waiting_reason(
+                TaskTransitionNotApplied(outcome)
+            )
+            == reason_code
+        )
+
 
 # ---------------------------------------------------------------------------
 # Server-side: api_update_issue must log WARNING not ERROR for fetch failures
@@ -232,6 +259,48 @@ class TestDurableTransitionErrorClassification:
 
 class TestUpdateIssueApiStateBranchFetchError:
     """PATCH /api/v1/issues/{identifier} must not trigger error_watcher on fetch failure."""
+
+    @pytest.mark.parametrize(
+        "reason_code",
+        ["transition.owner_active", "transition.recovery_required"],
+    )
+    def test_transition_waiting_returns_conflict_without_error_log(
+        self,
+        client,
+        caplog,
+        reason_code: str,
+    ) -> None:
+        orch, _tracker = _make_mock_orchestrator()
+        outcome = TransitionOutcome(
+            transition_id="transition-waiting",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.WAITING,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+        )
+        orch._transition_issue_status.side_effect = TaskTransitionNotApplied(outcome)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING, logger="oompah.server"),
+        ):
+            response = client.patch(
+                "/api/v1/issues/OOMPAH-1",
+                json={"status": "In Progress", "project_id": "proj-test"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["error"]["reason"] == reason_code
+        assert not [
+            record
+            for record in caplog.records
+            if record.name == "oompah.server" and record.levelno >= logging.ERROR
+        ]
 
     def test_state_branch_fetch_error_returns_503(self, client, caplog):
         """A StateBranchFetchError during update returns 503, not 500."""

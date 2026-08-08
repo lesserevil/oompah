@@ -280,6 +280,41 @@ def test_owner_claim_api_marks_direct_work_and_release_is_authorized(tmp_path):
         assert rejected.json()["error"]["code"] == "invalid_state"
 
 
+def test_owner_claim_releases_request_lock_for_status_writer(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    tracker.fetch_issue_detail.return_value = issue
+    project_lock = orch.project_store.project_write_lock(issue.project_id)
+    writer_acquired: list[bool] = []
+
+    def update_issue(_identifier, **fields):
+        acquired = project_lock.acquire(timeout=0.5)
+        writer_acquired.append(acquired)
+        if acquired:
+            try:
+                issue.state = fields["status"]
+            finally:
+                project_lock.release()
+
+    tracker.update_issue.side_effect = update_issue
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.post(
+            endpoint,
+            json={"actor_login": "alice", "ttl_hours": 24},
+        )
+
+    assert response.status_code == 200, response.text
+    assert writer_acquired == [True]
+    assert issue.state == "In Progress"
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
+
+
 def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_path):
     from oompah.implementation_workflow import ImplementationAction
 

@@ -338,7 +338,7 @@ class TestEpicStateVerification:
         # call it again for the Epic verification loop.
         assert mock_tracker.fetch_issue_detail.call_count == 2
 
-    def test_non_epic_state_write_holds_project_mutation_fence(self, client):
+    def test_non_epic_state_writer_owns_project_mutation_fence(self, client):
         mock_orch, mock_tracker = _make_mock_orchestrator()
         mock_tracker.fetch_issue_detail.return_value = _make_issue(
             identifier="task-1", issue_type="task", state="open"
@@ -350,6 +350,18 @@ class TestEpicStateVerification:
             assert lock._is_owned()  # type: ignore[attr-defined]
 
         mock_tracker.update_issue.side_effect = update_issue
+
+        async def transition(current, requested_status, **_fields):
+            def mutate() -> None:
+                with lock:
+                    mock_tracker.update_issue(
+                        current.identifier,
+                        status=requested_status,
+                    )
+
+            await asyncio.to_thread(mutate)
+
+        mock_orch._transition_issue_status_async = transition
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),

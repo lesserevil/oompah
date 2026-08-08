@@ -129,11 +129,12 @@ ALLOWLISTED_CALLS: dict[AllowlistKey, str] = {
     ),
     (
         "oompah/server.py",
-        "api_update_issue",
+        "api_update_issue._update_fields_under_project_lock",
         "update_issue",
     ): (
         "Status is popped and routed through TaskTransitionService before this "
-        "dynamic kwargs call applies status-free metadata."
+        "bounded writer-thread call revalidates the committed status and applies "
+        "status-free metadata."
     ),
 }
 

@@ -3470,6 +3470,59 @@ def _apply_task_status_transition(
     )
 
 
+async def _apply_task_status_transition_async(
+    orch,
+    tracker,
+    issue,
+    requested_status: str,
+    *,
+    project_id: str | None,
+    actor: str,
+    authority: TransitionAuthority,
+    reason_code: str,
+    evidence_generation: str | None = None,
+    exact_head: str | None = None,
+):
+    """Commit an API transition without blocking the ASGI event loop.
+
+    The durable transition service performs tracker I/O on worker threads.
+    Calling its synchronous bridge while the request thread owns a project
+    ``RLock`` deadlocks as soon as the tracker facade acquires that same lock
+    on the worker.  Async routes use the native async bridge when available;
+    lightweight embedders and test doubles retain the synchronous contract on
+    the shared API executor.
+    """
+
+    transition = getattr(orch, "_transition_issue_status_async", None)
+    if callable(transition) and asyncio.iscoroutinefunction(transition):
+        if not getattr(issue, "project_id", None):
+            issue.project_id = project_id
+        return await transition(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            actor=actor,
+            authority=authority,
+            reason_code=reason_code,
+            evidence_generation=evidence_generation,
+            exact_head=exact_head,
+        )
+    return await _run_api_io(
+        _apply_task_status_transition,
+        orch,
+        tracker,
+        issue,
+        requested_status,
+        project_id=project_id,
+        actor=actor,
+        authority=authority,
+        reason_code=reason_code,
+        evidence_generation=evidence_generation,
+        exact_head=exact_head,
+    )
+
+
 def _transition_tracker_error_type(exc: Exception) -> str | None:
     """Return a tracker error type retained by a failed durable transition.
 
@@ -3494,6 +3547,20 @@ def _transition_tracker_error_type(exc: Exception) -> str | None:
     return error_type if isinstance(error_type, str) and error_type else None
 
 
+def _transition_waiting_reason(exc: Exception) -> str | None:
+    """Classify expected durable-writer contention without logging an error."""
+
+    outcome = getattr(exc, "outcome", None)
+    disposition = getattr(getattr(outcome, "disposition", None), "value", None)
+    reason = getattr(outcome, "reason_code", None)
+    if disposition != "waiting" or reason not in {
+        "transition.owner_active",
+        "transition.recovery_required",
+    }:
+        return None
+    return reason
+
+
 def _mark_tracker_needs_human(
     orch,
     tracker,
@@ -3514,6 +3581,28 @@ def _mark_tracker_needs_human(
         reason_code="api.human_action_requested",
     )
     tracker.add_comment(issue.identifier, comment, author=author)
+
+
+async def _mark_tracker_needs_human_async(
+    orch,
+    tracker,
+    issue,
+    comment: str,
+    *,
+    project_id: str | None,
+    author: str = "oompah",
+) -> None:
+    await _apply_task_status_transition_async(
+        orch,
+        tracker,
+        issue,
+        NEEDS_HUMAN,
+        project_id=project_id,
+        actor=author,
+        authority=TransitionAuthority.API,
+        reason_code="api.human_action_requested",
+    )
+    await _run_api_io(tracker.add_comment, issue.identifier, comment, author=author)
 
 
 def _fetch_open_reviews_for_api(
@@ -5323,7 +5412,7 @@ async def _persist_worker_submission(
         # the durable record is unchanged is the fix for OOMPAH-669: the
         # previous ``record is existing`` short-circuit stranded the task in
         # the pre-submit status despite a success response.
-        _apply_task_status_transition(
+        await _apply_task_status_transition_async(
             orch,
             tracker,
             issue,
@@ -6796,7 +6885,7 @@ async def api_task_handoff(request: Request):
                             )
                         observed = True
                     if not durable_handoff:
-                        _apply_task_status_transition(
+                        await _apply_task_status_transition_async(
                             orch,
                             tracker,
                             issue,
@@ -13039,8 +13128,13 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             status_code=409,
         )
 
-    # The project lock is shared with orphan recovery. Grant the durable claim
-    # and move state while still locked, so no Open/dispatchable window exists.
+    # The project lock is shared with orphan recovery.  Persist the durable
+    # claim first so it fences dispatch before the status transition begins.
+    # The transition itself must run without this request thread owning the
+    # project RLock: its tracker write executes on a worker thread and acquires
+    # the same fence there.
+    claim = None
+    current = None
     try:
         with orch.project_store.project_write_lock(project_id):
             try:
@@ -13070,45 +13164,49 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 owner_login=owner_login,
                 ttl_hours=ttl_hours,
             )
-            if canonicalize_status(current.state) != IN_PROGRESS:
-                try:
-                    _apply_task_status_transition(
-                        orch,
-                        tracker,
-                        current,
-                        IN_PROGRESS,
-                        project_id=project_id,
-                        actor=owner_login,
-                        authority=TransitionAuthority.PROJECT_OWNER,
-                        reason_code="owner.claim_granted",
-                        evidence_generation=claim.claim_id,
-                    )
-                except Exception:
-                    orch.release_owner_claim(
-                        issue_id=issue.id,
-                        project_id=project_id,
-                    )
-                    raise
-            if added_dispatch_fence:
-                # The durable lease and In Progress state now fence both fresh
-                # and stale dispatches. Remove only the temporary label this
-                # request added; an operator's pre-existing human-only policy
-                # remains untouched.
-                try:
-                    tracker.remove_label(issue.identifier, "human-only")
-                    issue.labels = [
-                        label
-                        for label in issue.labels or []
-                        if str(label).strip().lower() != "human-only"
-                    ]
-                except Exception as exc:
-                    logger.warning(
-                        "Owner takeover retained temporary human-only fence for "
-                        "%s/%s: %s",
-                        project_id,
-                        identifier,
-                        exc,
-                    )
+        if canonicalize_status(current.state) != IN_PROGRESS:
+            try:
+                await _apply_task_status_transition_async(
+                    orch,
+                    tracker,
+                    current,
+                    IN_PROGRESS,
+                    project_id=project_id,
+                    actor=owner_login,
+                    authority=TransitionAuthority.PROJECT_OWNER,
+                    reason_code="owner.claim_granted",
+                    evidence_generation=claim.claim_id,
+                )
+            except Exception:
+                orch.release_owner_claim(
+                    issue_id=issue.id,
+                    project_id=project_id,
+                )
+                raise
+        if added_dispatch_fence:
+            def _remove_temporary_owner_fence() -> None:
+                with orch.project_store.project_write_lock(project_id):
+                    # The durable lease and In Progress state now fence both
+                    # fresh and stale dispatches. Remove only the temporary
+                    # label this request added; an operator's pre-existing
+                    # human-only policy remains untouched.
+                    try:
+                        tracker.remove_label(issue.identifier, "human-only")
+                        issue.labels = [
+                            label
+                            for label in issue.labels or []
+                            if str(label).strip().lower() != "human-only"
+                        ]
+                    except Exception as exc:
+                        logger.warning(
+                            "Owner takeover retained temporary human-only fence for "
+                            "%s/%s: %s",
+                            project_id,
+                            identifier,
+                            exc,
+                        )
+
+            await _run_api_io(_remove_temporary_owner_fence)
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "scheduler_owned", "message": str(exc)}},
@@ -13810,29 +13908,29 @@ async def api_update_issue(identifier: str, request: Request):
                     or body.get("actor")
                     or "project-owner"
                 )
-                with orch.project_store.project_write_lock(project_id):
-                    result = promote_proposed_issue_to_backlog(
-                        tracker,
-                        identifier,
-                        current_status=existing_status,
-                        owner_override_actor=owner_override_actor,
-                        status_transition=lambda current, status, **fields: (
-                            _apply_task_status_transition(
-                                orch,
-                                tracker,
-                                current,
-                                status,
-                                project_id=project_id,
-                                actor=str(fields["actor"]),
-                                authority=(
-                                    TransitionAuthority.PROJECT_OWNER
-                                    if fields.get("owner_override")
-                                    else TransitionAuthority.API
-                                ),
-                                reason_code=str(fields["reason_code"]),
-                            )
-                        ),
-                    )
+                result = await _run_api_io(
+                    promote_proposed_issue_to_backlog,
+                    tracker,
+                    identifier,
+                    current_status=existing_status,
+                    owner_override_actor=owner_override_actor,
+                    status_transition=lambda current, status, **fields: (
+                        _apply_task_status_transition(
+                            orch,
+                            tracker,
+                            current,
+                            status,
+                            project_id=project_id,
+                            actor=str(fields["actor"]),
+                            authority=(
+                                TransitionAuthority.PROJECT_OWNER
+                                if fields.get("owner_override")
+                                else TransitionAuthority.API
+                            ),
+                            reason_code=str(fields["reason_code"]),
+                        )
+                    ),
+                )
                 if not result.promoted:
                     return JSONResponse(
                         {
@@ -13940,47 +14038,63 @@ async def api_update_issue(identifier: str, request: Request):
                 update_fields["target_branch"] = new_target_branch
             if new_work_branch is not None:
                 update_fields["work_branch"] = new_work_branch
-            with orch.project_store.project_write_lock(project_id):
-                if terminal_transition_payload is None:
-                    _cancel_retry_for_authority_change(
-                        orch,
-                        existing_issue,
+            if terminal_transition_payload is None:
+                _cancel_retry_for_authority_change(
+                    orch,
+                    existing_issue,
+                    identifier,
+                    project_id,
+                    new_status,
+                    new_work_branch,
+                )
+            status_update = update_fields.pop("status", None)
+            if status_update is not None:
+                await _apply_task_status_transition_async(
+                    orch,
+                    tracker,
+                    existing_issue,
+                    str(status_update),
+                    project_id=project_id,
+                    actor=(
+                        transition_actor
+                        or _request_actor_login(body, request)
+                        or "api"
+                    ),
+                    authority=TransitionAuthority.API,
+                    reason_code="api.status_updated",
+                )
+            if update_fields:
+                def _update_fields_under_project_lock() -> None:
+                    with orch.project_store.project_write_lock(project_id):
+                        if status_update is not None:
+                            invalidate = getattr(tracker, "invalidate_read_cache", None)
+                            if callable(invalidate):
+                                invalidate()
+                            current = tracker.fetch_issue_detail(identifier)
+                            if (
+                                current is None
+                                or canonicalize_status(current.state)
+                                != canonicalize_status(status_update)
+                            ):
+                                raise RuntimeError(
+                                    "task status changed before metadata update"
+                                )
+                        tracker.update_issue(identifier, **update_fields)
+
+                await _run_api_io(_update_fields_under_project_lock)
+            if needs_human_status is not None:
+                await _mark_tracker_needs_human_async(
+                    orch,
+                    tracker,
+                    existing_issue,
+                    _manual_needs_human_comment(
                         identifier,
-                        project_id,
-                        new_status,
-                        new_work_branch,
-                    )
-                status_update = update_fields.pop("status", None)
-                if status_update is not None:
-                    _apply_task_status_transition(
-                        orch,
-                        tracker,
                         existing_issue,
-                        str(status_update),
-                        project_id=project_id,
-                        actor=(
-                            transition_actor
-                            or _request_actor_login(body, request)
-                            or "api"
-                        ),
-                        authority=TransitionAuthority.API,
-                        reason_code="api.status_updated",
-                    )
-                if update_fields:
-                    tracker.update_issue(identifier, **update_fields)
-                if needs_human_status is not None:
-                    _mark_tracker_needs_human(
-                        orch,
-                        tracker,
-                        existing_issue,
-                        _manual_needs_human_comment(
-                            identifier,
-                            existing_issue,
-                            needs_human_comment,
-                        ),
-                        project_id=project_id,
-                        author=transition_actor or "oompah",
-                    )
+                        needs_human_comment,
+                    ),
+                    project_id=project_id,
+                    author=transition_actor or "oompah",
+                )
 
         _record_owner_override_if_needed(
             tracker,
@@ -14242,6 +14356,26 @@ async def api_update_issue(identifier: str, request: Request):
     except Exception as exc:
         from oompah.tracker import StateBranchFetchError
 
+        waiting_reason = _transition_waiting_reason(exc)
+        if waiting_reason is not None:
+            # An active transition owner (or a bounded restart recovery on an
+            # older deployment) is normal contention, not a backend defect for
+            # error_watcher to auto-file.  The client can retry the same
+            # operation after the durable lease/recovery finishes.
+            logger.warning(
+                "Update issue waiting for durable transition: %s",
+                waiting_reason,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "transition_waiting",
+                        "message": str(exc),
+                        "reason": waiting_reason,
+                    }
+                },
+                status_code=409,
+            )
         if (
             isinstance(exc, StateBranchFetchError)
             or _transition_tracker_error_type(exc) == StateBranchFetchError.__name__
@@ -14400,7 +14534,7 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
 
         new_status = None
         if normalized_action == PROMOTE_TO_BACKLOG:
-            _apply_task_status_transition(
+            await _apply_task_status_transition_async(
                 orch,
                 tracker,
                 issue,
@@ -14571,7 +14705,7 @@ async def api_add_label(identifier: str, request: Request):
                         status_code=status_code,
                     )
             else:
-                _apply_task_status_transition(
+                await _apply_task_status_transition_async(
                     orch,
                     tracker,
                     existing_issue,
@@ -15156,7 +15290,7 @@ async def api_add_comment(identifier: str, request: Request):
                     canonicalize_status(issue.state) == NEEDS_ANSWER
                     or "asking_question" in issue.labels
                 ):
-                    _apply_task_status_transition(
+                    await _apply_task_status_transition_async(
                         orch,
                         tracker,
                         issue,
@@ -20135,7 +20269,7 @@ async def api_retry_review(project_id: str, review_id: str):
                 branch,
             )
         else:
-            _apply_task_status_transition(
+            await _apply_task_status_transition_async(
                 orch,
                 tracker,
                 matched,
