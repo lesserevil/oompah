@@ -1556,7 +1556,9 @@ def test_real_orchestrator_factory_exposes_only_installed_domain_adapters():
 @pytest.mark.asyncio
 async def test_orchestrator_store_shutdown_rejects_pending_workflow_mutation():
     orchestrator = SimpleNamespace(
-        workflow_runtime=SimpleNamespace(pending_operation_count=1)
+        workflow_runtime=SimpleNamespace(pending_operation_count=1),
+        _drain_scheduled_terminations=AsyncMock(),
+        _restart_recovery_task=None,
     )
 
     with pytest.raises(RuntimeError, match="refusing to close lifecycle stores"):
@@ -1564,29 +1566,30 @@ async def test_orchestrator_store_shutdown_rejects_pending_workflow_mutation():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_stop_finishes_workflow_drain_after_initial_budget():
+async def test_orchestrator_stop_retains_runtime_after_initial_drain_budget():
     runtime = SimpleNamespace(
-        drain=AsyncMock(side_effect=[False, True]),
+        drain=AsyncMock(return_value=False),
         close=MagicMock(),
     )
     orchestrator = SimpleNamespace(
         _stopping=False,
+        _quiesced=False,
+        _provider_admission_lock=threading.RLock(),
+        _provider_admission_generation=0,
+        _termination_scheduling_closed=False,
         workflow_runtime=runtime,
+        _drain_scheduled_terminations=AsyncMock(),
         _running_items_snapshot=lambda: (),
-        state=SimpleNamespace(retry_attempts={}),
-        _terminal_lifecycle_timer=None,
-        _terminal_lifecycle_rediscovery_pending=False,
-        _branch_quality_gate=SimpleNamespace(cleanup_active_processes=lambda: 0),
-        _post_event=MagicMock(),
+        _notify_observers=MagicMock(),
         _drain_background_work=AsyncMock(),
     )
 
-    await Orchestrator.stop(orchestrator)
+    stopped = await Orchestrator.stop(orchestrator)
 
-    assert runtime.drain.await_args_list[0].kwargs == {"timeout_seconds": 10.0}
-    assert runtime.drain.await_args_list[1].kwargs == {"timeout_seconds": None}
-    orchestrator._drain_background_work.assert_awaited_once()
-    runtime.close.assert_called_once()
+    assert stopped is False
+    runtime.drain.assert_awaited_once_with(timeout_seconds=10.0)
+    orchestrator._drain_background_work.assert_not_awaited()
+    runtime.close.assert_not_called()
 
 
 class Tracker:

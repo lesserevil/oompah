@@ -861,11 +861,14 @@ class TestSnapshot:
 class TestEpicStaleAlert:
     def test_equal_identifiers_are_deduplicated_per_project(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
-        orch._epic_rebase_states["TASK-465"] = EpicRebaseStateEntry(
-            state="failed",
-            updated_at=time.time(),
-            project_id="project-a",
-        )
+        for project_id in ("project-a", "project-b"):
+            orch._epic_rebase_states[f"{project_id}::TASK-465"] = (
+                EpicRebaseStateEntry(
+                    state="failed",
+                    updated_at=time.time(),
+                    project_id=project_id,
+                )
+            )
         result = StalenessResult(
             stale=True,
             commits_behind=6,

@@ -617,8 +617,7 @@ def test_reconciliation_failure_restores_partial_durable_authority(
         if job.job_id in before_jobs
     } == before_jobs
     added_jobs = controller.store.list_jobs(task_id=added.identifier)
-    assert added_jobs
-    assert all(job.state is WorkflowJobState.SUPERSEDED for job in added_jobs)
+    assert added_jobs == ()
 
     persisted: list[dict] = []
     failure = controller.record_liveness_scan_failure(
@@ -630,10 +629,7 @@ def test_reconciliation_failure_restores_partial_durable_authority(
     assert failure.snapshot_generation == generation
     assert failure.last_error == "OSError"
     assert persisted[0]["accepted_snapshot_generation"] == generation
-    assert all(
-        job.state is WorkflowJobState.SUPERSEDED
-        for job in controller.store.list_jobs(task_id=added.identifier)
-    )
+    assert controller.store.list_jobs(task_id=added.identifier) == ()
 
 
 @pytest.mark.parametrize("worker_mutation", ("complete", "checkpoint"))
@@ -1112,14 +1108,34 @@ def test_missing_owner_identity_is_recovery_not_false_durable_ownership(controll
 
 
 @pytest.mark.parametrize(
-    ("status", "domain", "value", "job"),
+    ("status", "domain", "value", "disposition", "job"),
     [
-        ("In Review", FactDomain.REVIEW_CI, {"ci": "passed"}, "review_monitor"),
-        ("In Validation", FactDomain.TERMINAL_AUDIT, {"phase": "queued"}, "terminal_audit"),
-        ("Ready to Integrate", FactDomain.INTEGRATION, {"state": "ready"}, "integration_attempt"),
+        (
+            "In Review",
+            FactDomain.REVIEW_CI,
+            {"ci": "passed"},
+            TaskDisposition.OWNED,
+            "review_merge",
+        ),
+        (
+            "In Validation",
+            FactDomain.TERMINAL_AUDIT,
+            {"phase": "queued"},
+            TaskDisposition.RETRY_SCHEDULED,
+            "terminal_audit",
+        ),
+        (
+            "Ready to Integrate",
+            FactDomain.INTEGRATION,
+            {"state": "ready"},
+            TaskDisposition.RETRY_SCHEDULED,
+            "integration_attempt",
+        ),
     ],
 )
-def test_missing_review_audit_or_queue_job_is_reconciled(controller, status, domain, value, job):
+def test_missing_review_audit_or_queue_job_is_reconciled(
+    controller, status, domain, value, disposition, job
+):
     task = issue(status)
     missing = dict(value)
     missing["job_present"] = False
@@ -1127,7 +1143,7 @@ def test_missing_review_audit_or_queue_job_is_reconciled(controller, status, dom
 
     result = controller.reconcile((task,), facts_by_task={task.identifier: facts})
 
-    assert result.decisions[0].disposition is TaskDisposition.RETRY_SCHEDULED
+    assert result.decisions[0].disposition is disposition
     assert job in result.decisions[0].durable_jobs
     rows = controller.store.list_jobs()
     assert len(rows) == 1
@@ -1376,6 +1392,7 @@ def test_generation_race_stale_queue_row_does_not_suppress_new_head(controller):
     tracker_issue = issue(
         "Ready to Integrate",
         identifier="TASK-STALE",
+        parent_id="EPIC-1",
         head_sha=new_head,
         integration=IntegrationRecord(
             state="ready", task_branch="t", head_sha=new_head

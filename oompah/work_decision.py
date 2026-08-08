@@ -1197,6 +1197,16 @@ def _integration_decision(
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
         )
+    if state == "blocked" and bool(value.get("retry_forced")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="integration.queued",
+            owner=WorkflowOwner.INTEGRATOR,
+            actions=(PermittedAction.CLAIM_INTEGRATION,),
+            durable_jobs=("integration_attempt",),
+        )
     if state in {"ready", "queued"} and (
         mode in {"", "queue"} or has_parent
     ):

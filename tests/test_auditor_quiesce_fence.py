@@ -182,6 +182,8 @@ def _issue() -> Issue:
 def _plan() -> AuditDispatchPlan:
     return AuditDispatchPlan(
         audit_id="audit-1",
+        project_id="project-1",
+        task_id="OOMPAH-854",
         attempt_id="attempt-1",
         target_state=TargetState.DONE,
         evidence_fingerprint=EvidenceFingerprint("a" * 64),
@@ -3123,6 +3125,7 @@ def test_two_audits_survive_canonical_restart_and_admit_once_on_new_orchestrator
         replace(
             _plan(),
             audit_id="audit-2",
+            task_id="OOMPAH-855",
             attempt_id="attempt-2",
             branch_key="epic-branch-2",
         ),

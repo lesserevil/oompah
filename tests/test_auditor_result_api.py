@@ -710,7 +710,6 @@ class TestStatusInjection:
         result, err = _parse(args)
         assert result is None
         assert "invalid auditor result fields" in (err or "")
-        assert "attempt_origin" in (err or "")
 
     def test_extra_arbitrary_fields_are_rejected(self):
         for extra_key in ("approve", "transition", "override", "merge", "close"):

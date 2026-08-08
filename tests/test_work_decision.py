@@ -425,8 +425,8 @@ def test_duplicate_candidate_requires_duplicate_investigator_authority():
     investigator = _facts(
         issue,
         overrides={
-            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
-                FactDomain.IMPLEMENTATION_AUTHORITY,
+            FactDomain.DUPLICATE_INVESTIGATION: _known(
+                FactDomain.DUPLICATE_INVESTIGATION,
                 {
                     "owner_id": "investigator",
                     "ownership_source": "duplicate_investigator",
@@ -927,9 +927,12 @@ def test_incident_live_claim_is_independent_of_bounded_history_replay():
 
     decision = evaluate_task(issue, facts)
 
-    assert decision.reason_code == "integration.queued"
-    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
-    assert decision.durable_jobs == ("integration_attempt",)
+    assert decision.reason_code == "integration.live_claim_precedes_history"
+    assert decision.disposition is TaskDisposition.OWNED
+    assert decision.durable_jobs == (
+        "historical_audit_replay_batch",
+        "integration_attempt",
+    )
 
 
 def test_incident_advisory_policy_denial_does_not_poison_implementation():
