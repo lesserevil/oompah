@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-08T04:08:04.338960Z'
+updated_at: '2026-08-08T04:08:14.538470Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -176,8 +176,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-0c6ee28b5616
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T04:07:56.767990+00:00'
+    applied_at: '2026-08-08T04:08:12.022373+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -544,5 +545,25 @@ author: oompah
 created: 2026-08-08 04:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 04:08
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: f64c1c9b3
+- merged_commit: b792568ef85d4b46a2e5607305a3dc3549a95860
+- pr_number: 636
+- recovery_tests: 7/7 pass
+- canonical_cli_sync_tests: 18/18 pass
+- lifecycle_integration_tests: 25/25 pass
+- files_verified: scripts/sync_canonical_cli.py, scripts/canonical_cli_cutover.py, docs/cli-install.md, tests/test_cli_mismatch_recovery.py
+- running_revision_param: present in synchronize() and _parser()
+- recovery_code: present in canonical_cli_cutover.py lines 545-572
+- docs_section: CLI/server mismatch recovery present in docs/cli-install.md
+- prior_full_gate: make test passed in 386.0s on b792568ef (prior auditor evidence, now stale fingerprint)
 ---
 <!-- COMMENTS:END -->
