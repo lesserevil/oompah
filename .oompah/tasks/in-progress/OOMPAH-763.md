@@ -77,7 +77,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-07T23:04:02.623428Z'
+updated_at: '2026-08-08T02:44:58.673590Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-07 23:04
 ---
 Direct composition checkpoint: independently accepted OOMPAH-887 exact stack through 5403e4b196cfae75cc7333d69b062d66c33fef8e is composed cleanly at systemic head a8b1d653ba8259dfc4e90603fdb075af85f9d77b. The landing path now freezes exact remote generations, fails closed for missing configured checkouts, fences both ref-movement mutation edges, and rechecks open-review publication after the final remote CAS. Brokered overlap suite tests/test_epic_strategy.py, tests/test_merged_labels_scope.py, and tests/test_standalone_ready_to_integrate.py: 355 passed. OOMPAH-906 remains isolated pending final hardening and independent exact-head review; no full gate or publication has started.
+---
+author: oompah
+created: 2026-08-08 02:44
+---
+Exact candidate 200547fb75ced44e2c2005980a86e33c19501bf2 is under final validation. Focused quality-gate/parallel suite: 226 passed; terminal mutation scan passed; exact-head security/lifecycle review accepted after fixing the post-exchange canonical rollback race. Full make test is running under the validation lease.
 ---
 <!-- COMMENTS:END -->
