@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-906
 type: task
-status: Ready to Integrate
+status: Done
 priority: null
 title: Keep isolated quality-gate HOME from invalidating the trusted native validation
   guard
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-07T23:37:05.999710Z'
+updated_at: '2026-08-08T03:56:27.144221Z'
 work_branch: OOMPAH-906
 target_branch: null
 review_url: null
@@ -28,6 +28,31 @@ oompah.integration:
   submitted_at: '2026-08-07T23:36:59.852789+00:00'
   updated_at: '2026-08-07T23:36:59.852789+00:00'
 oompah.work_branch: OOMPAH-906
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-00878f94b610
+    project_id: proj-14849f1b
+    task_id: OOMPAH-906
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4d0eeeabd35153e84764bde758a72a3f492073b92e955be574bba8df43b6cab1
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation: the task implementation and subsequent
+      cleanup hardening are published on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
+      Independent reviews accepted the exact composition after blockers were fixed;
+      affected tests passed 392/392 and the exact full make test passed 17,860 with
+      zero failures.'
+    created_at: '2026-08-08T03:56:21.782606+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
