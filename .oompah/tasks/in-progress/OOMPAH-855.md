@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-08T08:00:37.370125Z'
+updated_at: '2026-08-08T08:17:54.909932Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-08-08 08:00
 ---
 Direct implementation is underway on exact systemic base 6cbbd6ef7. The fix now fences pause/graceful retirement before cancellation, records a non-consuming scheduler-pause audit outcome, restores the durable workflow claim count, and rejects late callbacks by rotating the exact lease. Focused coverage includes mixed policy+pause candidate selection, repeated pause workflow ownership, restart recovery, actual pause/resume retirement, and post-verdict race behavior. Static compilation is green; focused tests are queued through the dedicated validation broker.
+---
+author: oompah
+created: 2026-08-08 08:17
+---
+Implementation complete on isolated branch direct/OOMPAH-855-on-systemic at 296a6c289f7a7a1a3d3e87996a79490bb3bad98e (base 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183). Scheduler pause/graceful retirement is now a durable non-consuming classification; candidate, transport, and workflow execution budgets are restored; exact workflow phase/lease fences reject late callbacks; finalizing verdicts win; restart recovery is idempotent; policy, transport, and owner-cancel semantics remain distinct; health no longer warns for routine pause recovery. Dedicated focused validation: 225 passed, 1 pre-existing AsyncMock RuntimeWarning, artifact /home/shedwards/.oompah/ci-artifacts.OOMPAH-855-green.fjr82i. Static compile, diff check, terminal mutation scan, and secret scan passed. Branch/worktree preserved for systemic composition; no task status or remote mutation performed.
 ---
 <!-- COMMENTS:END -->
