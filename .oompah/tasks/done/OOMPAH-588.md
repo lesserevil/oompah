@@ -17,7 +17,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-08T19:39:31.447855Z'
+updated_at: '2026-08-08T19:39:38.452431Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -60,7 +60,7 @@ oompah.terminal_audit:
       retires only after the committed terminal transition and cannot resurrect during
       reconciliation.
     created_at: '2026-08-08T19:39:27.238512+00:00'
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
@@ -86,6 +86,29 @@ oompah.terminal_audit:
     lifecycle_reconciled: true
     reconciled_to: Done
     retired_reason: shared_epic_parent_not_landed
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    target_state: Done
+    evidence_fingerprint: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    audit_ids:
+    - audit-324180823f32
+    - audit-2acc16bd16f2
+    - audit-7004db8abe11
+    - audit-07a917c35057
+    - audit-89e8d4be2e28
+    - audit-93942451e12d
+    - audit-562a4fd41918
+    - audit-a7e7191f988d
+    - audit-903923a4e0c3
+    - audit-0eff8a04ea82
+    - audit-e80087590083
+    - audit-9d80809425ed
+    - audit-49dd950c5599
+    - audit-e58553fbb0d7
+    - audit-f9e88a953bf2
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T19:39:36.402092+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
@@ -102,6 +125,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-07a917c35057
@@ -117,6 +141,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-89e8d4be2e28
@@ -132,6 +157,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-93942451e12d
@@ -147,6 +173,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-562a4fd41918
@@ -162,6 +189,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-a7e7191f988d
@@ -177,6 +205,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-903923a4e0c3
@@ -192,6 +221,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-0eff8a04ea82
@@ -207,6 +237,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-e80087590083
@@ -222,6 +253,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-9d80809425ed
@@ -237,6 +269,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-49dd950c5599
@@ -252,6 +285,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-e58553fbb0d7
@@ -267,6 +301,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
     audit_id: audit-f9e88a953bf2
@@ -282,6 +317,7 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-05T08:06:43.099368+00:00'
+    retired_by_override: true
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
@@ -2180,5 +2216,12 @@ author: oompah
 created: 2026-08-07 20:27
 ---
 Direct closure evidence is complete, but the live parent-rollup mutation races every owner override with task_changed (including while the project is paused), and shared-child Merged verification rejects already-proven parent ancestry. OOMPAH-889 is the existing systemic fix for this exact Done-only/parent-rollup race; dependency recorded. No implementation remains in OOMPAH-588 itself.
+---
+author: oompah
+created: 2026-08-08 19:39
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Operator closure after repeated independent Merged audit passes and verified ancestry in origin/main; OOMPAH-921 now guarantees the exact direct-owner claim retires only after the committed terminal transition and cannot resurrect during reconciliation.
 ---
 <!-- COMMENTS:END -->
