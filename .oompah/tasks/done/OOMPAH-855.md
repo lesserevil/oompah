@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-855
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Preserve auditor candidate eligibility across operator pause retirement
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-08T12:04:05.485638Z'
+updated_at: '2026-08-08T16:28:18.248741Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -106,6 +106,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-855
     source_sha: null
     completed_at: ''
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-57b921a6f91e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-855
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 616873075b4233ebaf6d9920e76b889d75cc7aaf43368a0dfa9e40aff72cd107
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:28:14.232403+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
