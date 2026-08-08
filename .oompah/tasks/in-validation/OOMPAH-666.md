@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T01:08:02.401042Z'
+updated_at: '2026-08-08T01:59:00.678959Z'
 work_branch: OOMPAH-666
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/632
@@ -249,6 +249,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T01:03:43.049834+00:00'
     updated_at: '2026-08-01T01:07:46.265924+00:00'
+  - version: 1
+    audit_id: audit-e1d1e3a9c1f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 254753c447340e8ad25731e5994fcaa90420e81eb432faee5f306374ef5dbda0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T01:58:56.567299+00:00'
+    selected_ref: 5741f6a05613dd038d49c25e03a01eb37b04e71f
+    selected_sha: 5741f6a05613dd038d49c25e03a01eb37b04e71f
   attempt_history:
   - version: 1
     attempt_id: attempt-e7d6c4359460
