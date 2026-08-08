@@ -743,6 +743,21 @@ def test_collector_preserves_source_errors_without_false_empty_values():
     assert "secret" not in fact.to_dict().values()
 
 
+def test_collector_turns_nonserializable_provider_value_into_error_fact():
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(_issue()),
+        sources={FactDomain.REVIEW_CI: lambda _issue: (lambda: None)},
+        clock=lambda: NOW,
+    )
+
+    fact = collector.collect("TASK-1").fact(FactDomain.REVIEW_CI)
+
+    assert fact.state is FactState.ERROR
+    assert fact.value is None
+    assert fact.error_code == "review_ci_value_typeerror"
+
+
 def test_collector_marks_expired_provider_values_stale():
     collector = WorkflowFactCollector(
         project_id="project-1",

@@ -563,25 +563,35 @@ class WorkflowFactCollector:
             return FactObservation.missing(
                 domain, observed_at=now_iso, source=f"{domain.value}:collector"
             )
-        if isinstance(raw, CollectedValue):
-            observed = _parse_time(raw.observed_at, "observed_at")
-            stale = (
-                raw.stale_after_seconds is not None
-                and (now - observed).total_seconds() > raw.stale_after_seconds
-            )
-            constructor = FactObservation.stale if stale else FactObservation.known
-            return constructor(
+        try:
+            if isinstance(raw, CollectedValue):
+                observed = _parse_time(raw.observed_at, "observed_at")
+                stale = (
+                    raw.stale_after_seconds is not None
+                    and (now - observed).total_seconds() > raw.stale_after_seconds
+                )
+                constructor = (
+                    FactObservation.stale if stale else FactObservation.known
+                )
+                return constructor(
+                    domain,
+                    raw.value,
+                    observed_at=raw.observed_at,
+                    source=raw.source,
+                )
+            return FactObservation.known(
                 domain,
-                raw.value,
-                observed_at=raw.observed_at,
-                source=raw.source,
+                raw,
+                observed_at=now_iso,
+                source=f"{domain.value}:collector",
             )
-        return FactObservation.known(
-            domain,
-            raw,
-            observed_at=now_iso,
-            source=f"{domain.value}:collector",
-        )
+        except Exception as exc:  # noqa: BLE001 - evidence normalization boundary
+            return FactObservation.error(
+                domain,
+                observed_at=now_iso,
+                source=f"{domain.value}:collector",
+                error_code=f"{domain.value}_value_{type(exc).__name__.lower()}",
+            )
 
     def _all_error(
         self,

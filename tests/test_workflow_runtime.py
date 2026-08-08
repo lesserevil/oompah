@@ -238,6 +238,142 @@ def test_runtime_authority_source_refreshes_live_durable_lease(tmp_path):
     store.close()
 
 
+def test_runtime_factory_invokes_legacy_fact_callbacks_before_hashing(tmp_path):
+    class ProjectStore:
+        def list_all(self):
+            return []
+
+    class Config:
+        workflow_engine_mode = "shadow"
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-FACT-SOURCES", project_id="legacy")
+    tracker = NativeTracker([task])
+    requested: list[tuple[str, str]] = []
+
+    def shadow_sources(_self, requested_issue):
+        return {
+            domain: (
+                lambda current, domain=domain: requested.append(
+                    (domain.value, current.identifier)
+                )
+                or {"domain": domain.value, "task_id": current.identifier}
+            )
+            for domain in (
+                FactDomain.TERMINAL_AUDIT,
+                FactDomain.REVIEW_CI,
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                FactDomain.DUPLICATE_INVESTIGATION,
+                FactDomain.RETRY_BUDGET,
+                FactDomain.CONFIG,
+            )
+        }
+
+    orchestrator = type(
+        "OrchestratorDouble",
+        (),
+        {
+            "project_store": ProjectStore(),
+            "tracker": tracker,
+            "config": Config(),
+            "workflow_job_store": store,
+            "_state_path": str(tmp_path / "service-state.json"),
+            "_workflow_shadow_sources": shadow_sources,
+        },
+    )()
+    runtime = WorkflowRuntime.from_orchestrator(orchestrator)
+
+    facts = runtime.project_bindings["legacy"].collector.collect(task.identifier)
+
+    for domain in (
+        FactDomain.TERMINAL_AUDIT,
+        FactDomain.REVIEW_CI,
+        FactDomain.DUPLICATE_INVESTIGATION,
+        FactDomain.RETRY_BUDGET,
+        FactDomain.CONFIG,
+    ):
+        assert facts.fact(domain).value == {
+            "domain": domain.value,
+            "task_id": task.identifier,
+        }
+        assert (domain.value, task.identifier) in requested
+    assert facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY).value == {
+        "lease_expires_at": None
+    }
+    assert (
+        FactDomain.IMPLEMENTATION_AUTHORITY.value,
+        task.identifier,
+    ) not in requested
+    runtime.close()
+    store.close()
+
+
+def test_runtime_factory_keeps_fact_sources_scoped_to_each_project(tmp_path):
+    projects = [
+        SimpleNamespace(
+            id=project_id,
+            repo_path=str(tmp_path),
+            default_branch="main",
+            branch="main",
+        )
+        for project_id in ("project-a", "project-b")
+    ]
+
+    class ProjectStore:
+        def list_all(self):
+            return projects
+
+    class Config:
+        workflow_engine_mode = "shadow"
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+
+    issues = {
+        project.id: make_issue(
+            f"TASK-{project.id[-1].upper()}",
+            state="In Progress",
+            project_id=project.id,
+        )
+        for project in projects
+    }
+    for issue in issues.values():
+        issue.integration = None
+        issue.work_branch = None
+    trackers = {
+        project_id: NativeTracker([issue])
+        for project_id, issue in issues.items()
+    }
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    orchestrator = SimpleNamespace(
+        project_store=ProjectStore(),
+        config=Config(),
+        workflow_job_store=store,
+        _state_path=str(tmp_path / "service-state.json"),
+        _tracker_for_project=lambda project_id: trackers[project_id],
+    )
+    runtime = WorkflowRuntime.from_orchestrator(orchestrator)
+    for project_id, binding in runtime.project_bindings.items():
+        binding.implementation_controller.implementation_authority = (
+            lambda _issue, project_id=project_id: {"project_id": project_id}
+        )
+
+    observed = {
+        project_id: binding.collector.collect(
+            issues[project_id].identifier
+        ).fact(FactDomain.IMPLEMENTATION_AUTHORITY).value["project_id"]
+        for project_id, binding in runtime.project_bindings.items()
+    }
+
+    assert observed == {
+        "project-a": "project-a",
+        "project-b": "project-b",
+    }
+    runtime.close()
+    store.close()
+
+
 def test_runtime_scopes_projectless_tracker_rows_before_controller_hashing(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     task = make_issue("TASK-UNSCOPED", project_id=None)

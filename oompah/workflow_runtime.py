@@ -566,15 +566,25 @@ class WorkflowRuntime:
                             raise
                 legacy_sources = getattr(orchestrator, "_workflow_shadow_sources", None)
                 if callable(legacy_sources):
-                    return legacy_sources(issue).get(domain)
+                    legacy_source = legacy_sources(issue).get(domain)
+                    return (
+                        legacy_source(issue)
+                        if callable(legacy_source)
+                        else legacy_source
+                    )
                 return None
 
             sources = {
-                domain: (lambda issue, domain=domain: source(issue, domain))
+                domain: (
+                    lambda issue, domain=domain, _source=source: _source(
+                        issue, domain
+                    )
+                )
                 for domain in (
                     FactDomain.TERMINAL_AUDIT,
                     FactDomain.REVIEW_CI,
                     FactDomain.IMPLEMENTATION_AUTHORITY,
+                    FactDomain.DUPLICATE_INVESTIGATION,
                     FactDomain.RETRY_BUDGET,
                     FactDomain.CONFIG,
                 )
