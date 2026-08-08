@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T23:09:00.912201Z'
-updated_at: '2026-08-08T23:10:28.484178Z'
+updated_at: '2026-08-08T23:35:19.730398Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ All-enforce restart on ce8b839811c2f0ff297179278aa3aa6171c5705b scanned 126 epic
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 23:35
+---
+Implementation complete in the shared candidate worktree: restart cleanup seeding now counts only newly created durable jobs, is stable across runtime owner/process restarts, avoids collector/Git work for terminal epics without tracker exact heads, classifies retained durable cleanup authority, and emits exactly one bounded aggregate summary per seed pass. Focused epic workflow and adapter suite: 81 passed. Awaiting integration with OOMPAH-927 and the exact full branch gate.
+---
+<!-- COMMENTS:END -->
