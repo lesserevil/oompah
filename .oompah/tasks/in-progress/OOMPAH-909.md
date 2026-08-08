@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-909
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Close owned Orchestrator resources between tests and on shutdown
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-08T12:20:40.667997Z'
-updated_at: '2026-08-08T12:21:00.236801Z'
+updated_at: '2026-08-08T12:21:11.550492Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +29,11 @@ Bug reproduced on composed systemic head b4c6827: the exact four-worker full gat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 12:21
+---
+Claimed directly for the systemic composition workaround. Exact reproduction: full b4c6827 gate timed out at 99% with 53 failures and no JUnit; verbose fail-fast reproduced three five-second timeouts in tests/test_standalone_ready_to_integrate.py at 81%, then xdist deadlocked. Workers held about 800 persistent SQLite/authority-lock descriptors each. Implementing the harness and production shutdown repair on the active OOMPAH-763 composition head.
+---
+<!-- COMMENTS:END -->
