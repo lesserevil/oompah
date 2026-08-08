@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-787
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Complete shadow/enforce rollout, upgrade compatibility, and operator documentation
 parent: OOMPAH-771
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:09.296051Z'
-updated_at: '2026-08-08T12:02:42.051793Z'
+updated_at: '2026-08-08T16:31:48.895514Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,31 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d472e4d1ac17
+    project_id: proj-14849f1b
+    task_id: OOMPAH-787
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0ff40928e793103d4bda7c4219046075ad1f771d4c30cd25c6574d8b7dbc84f1
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope and every prerequisite wave are contained in that validated
+      head; owner override closes the composed work without fabricating a separate
+      integration generation.
+    created_at: '2026-08-08T16:31:43.457413+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:30.266221Z'
-updated_at: '2026-08-08T16:31:35.072589Z'
+updated_at: '2026-08-08T16:31:41.934122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,17 @@ oompah.terminal_audit:
       head; owner override closes the composed work without fabricating a separate
       integration generation.
     created_at: '2026-08-08T16:31:30.961430+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-798
+    target_state: Done
+    evidence_fingerprint: 6573695d97c270f5f806613c34b7ac591ccaa8e42f3ecf6be941e9ed5b1d1fd6
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:31:40.502069+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -67,5 +77,12 @@ author: oompah
 created: 2026-08-08 09:45
 ---
 Correction: the exact committed head is f018dc1fd36e9801e3e004a37c9123e09a916a02 (the preceding handoff comment's abbreviated-prefix expansion was inaccurate). Branch/worktree and all validation results in that handoff are unchanged.
+---
+author: oompah
+created: 2026-08-08 16:31
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope and every prerequisite wave are contained in that validated head; owner override closes the composed work without fabricating a separate integration generation.
 ---
 <!-- COMMENTS:END -->
