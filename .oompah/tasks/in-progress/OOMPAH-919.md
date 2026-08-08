@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T15:44:04.212180Z'
-updated_at: '2026-08-08T15:44:32.421503Z'
+updated_at: '2026-08-08T15:47:00.249527Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ The live all-domain shadow rollout registers six managed projects but intentiona
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 15:47
+---
+Live shadow rollout reproduced the bug on build 958fb98: two sweeps failed because paused unrelated projects were treated as missing active coverage. The direct owner fix now qualifies only enabled bindings while retaining a no-active-project fail-closed check. Focused serial regressions pass (3 tests).
+---
+<!-- COMMENTS:END -->
