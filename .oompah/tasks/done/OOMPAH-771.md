@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:05.119669Z'
-updated_at: '2026-08-08T16:32:06.118769Z'
+updated_at: '2026-08-08T16:32:14.708821Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,7 +48,17 @@ oompah.terminal_audit:
       head; owner override closes the composed work without fabricating a separate
       integration generation.
     created_at: '2026-08-08T16:31:58.799764+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-771
+    target_state: Done
+    evidence_fingerprint: 373e7fb99b691009473fed06eeaca69e7d9b02697dfd9e61f630bfa6bd427b75
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:32:12.773549+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -63,3 +73,13 @@ Complete the migration by deleting superseded workflow code and documenting the 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 16:32
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope and every prerequisite wave are contained in that validated head; owner override closes the composed work without fabricating a separate integration generation.
+---
+<!-- COMMENTS:END -->
