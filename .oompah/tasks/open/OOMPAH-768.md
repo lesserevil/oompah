@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-768
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Migrate every workflow domain to shared decisions and durable jobs
 parent: OOMPAH-763
@@ -27,7 +27,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-08T04:00:19.443541Z'
+updated_at: '2026-08-08T07:22:47.220866Z'
 work_branch: null
 target_branch: null
 review_url: null

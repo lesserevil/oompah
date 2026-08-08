@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-08T07:22:29.304043Z'
+updated_at: '2026-08-08T07:22:40.246560Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -156,7 +156,17 @@ oompah.terminal_audit:
       is contained in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822;
       focused and full gates passed.'
     created_at: '2026-08-08T07:22:23.833845+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-876
+    target_state: Done
+    evidence_fingerprint: bc1fe0fb3108ced4e76c9bab1d8305ac566c2f12e2a0b45ccb0735fd7acd809f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T07:22:34.651223+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -415,5 +425,17 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 52s
 - Log: OOMPAH-876__20260807T120957Z.jsonl
+---
+author: oompah
+created: 2026-08-08 07:22
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: accepted OOMPAH-876 retry/health repair is contained in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822; focused and full gates passed.
+---
+author: oompah
+created: 2026-08-08 07:22
+---
+Integrated into published epic-OOMPAH-768 at 9a893835d7c4a522def2e39e929ac2be3f090822 (composed commits 3d358279c and 4b91ef262); exact full gate passed 18,464 tests.
 ---
 <!-- COMMENTS:END -->
