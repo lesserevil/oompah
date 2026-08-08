@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-08T03:09:03.797181Z'
+updated_at: '2026-08-08T03:09:10.198338Z'
 work_branch: OOMPAH-672
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/635
@@ -219,8 +219,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-108d6f97e95c
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T03:08:59.712213+00:00'
+    applied_at: '2026-08-08T03:09:08.883957+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -549,5 +550,26 @@ author: oompah
 created: 2026-08-08 03:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 03:09
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
+- main_merge_commit: aceb82319369f1082307d6fc0a2931da03fab608
+- merged_pr: 635
+- current_main_head: bb82f7f39
+- focused_tests_result: 116 passed in 1.50s
+- impl_file: oompah/secrets.py (+37/-1)
+- test_file: tests/test_secrets.py (+130)
+- key_new_symbols: _LOG_FORMAT_PLACEHOLDER_RE, _redact_log_message
+- new_regression_tests: 4 present: tuple template, mapping template, server htpasswd startup, exception logging
+- prior_full_gate: make test 388.4s green on head 32eb28d59 (recorded by orchestrator on 2026-08-01)
+- stale_gate_note: Scheduler evidence is stale; supplemental focused checks confirm correctness; prior full gate was green
+- commit_attribution: oompah trailer present, correct
 ---
 <!-- COMMENTS:END -->
