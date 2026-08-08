@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-07T18:21:32.345915Z'
+updated_at: '2026-08-08T12:02:25.058474Z'
 work_branch: epic-OOMPAH-769
 target_branch: epic-OOMPAH-763
 review_url: null
