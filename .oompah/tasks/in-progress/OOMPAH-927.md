@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T23:01:44.924274Z'
-updated_at: '2026-08-08T23:02:47.494263Z'
+updated_at: '2026-08-08T23:03:42.830888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ All-enforce production rollout on ce8b839811c2f0ff297179278aa3aa6171c5705b expos
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 23:03
+---
+Architecture refinement from live forensics: do not revive the retired process-local _run_workflow_controller_sweep below the durable-runtime early return. The retirement architecture intentionally bans that second lifecycle owner. The fix must make UniversalTotalityLivenessController observation/publication a WorkflowRuntime-owned step at the accepted durable snapshot generation, then expose that runtime-owned controller/liveness projection through Orchestrator state. Preserve one WorkflowJobStore authority, stale-generation fencing, and idempotent job materialization. Live proof: durable gen18 completed at 22:57:33 and gen19 after restart, while controller passes/wakeups stayed zero and liveness snapshot_generation stayed null across both instances.
+---
+<!-- COMMENTS:END -->
