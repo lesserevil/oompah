@@ -1865,6 +1865,9 @@ class Orchestrator:
             save_state=self._save_state_for_terminal_audit,
             validate_terminal_transition=self._validate_terminal_transition,
             lifecycle_landing_evidence=self._terminal_lifecycle_landing_evidence,
+            lifecycle_issue_lock=lambda task_id: self.issue_transition_lock(
+                task_id
+            ).sync(),
         )
         self._terminal_audit_started = False
         self._terminal_audit_last_scan: float = 0.0
@@ -34495,6 +34498,21 @@ class Orchestrator:
             project_id = issue.project_id
             if not project_id:
                 continue
+            try:
+                suppression_tracker = self._tracker_for_project(project_id)
+            except (ProjectError, TrackerError):
+                continue
+            if self._honor_provenance_suppression(
+                issue,
+                project_id,
+                action="epic-review-rollup",
+                tracker=suppression_tracker,
+            ):
+                # A retained terminal-provenance epic has no live review
+                # generation.  Historical branch/PR observations must not
+                # reserve capacity or publish In Review again, even if the
+                # issue snapshot already contains that stale regression.
+                continue
             children = self._fetch_epic_children(issue)
             if not children:
                 continue  # not a rollup parent / nothing to roll up yet
@@ -35072,19 +35090,41 @@ class Orchestrator:
         """Keep an epic task aligned when the review already exists."""
         try:
             tracker = self._tracker_for_project(project_id)
-            if canonicalize_status(issue.state) != IN_REVIEW:
-                tracker.update_issue(issue.identifier, status=IN_REVIEW)
-            self._write_review_metadata(
-                tracker,
-                issue.identifier,
-                review_id=getattr(review, "id", None),
-                review_url=getattr(review, "url", None),
-                source_branch=getattr(review, "source_branch", None) or epic_branch,
-                target_branch=getattr(review, "target_branch", None),
-            )
+            issue_id = str(issue.id or issue.identifier)
+            with self.issue_transition_lock(issue_id).sync(), (
+                self.project_store.project_write_lock(project_id)
+            ):
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                refreshed = tracker.fetch_issue_detail(issue.identifier)
+                current = refreshed if isinstance(refreshed, Issue) else issue
+                current.project_id = project_id
+                current_status = canonicalize_status(current.state)
+                if current_status in {MERGED, ARCHIVED}:
+                    return
+                if self._honor_provenance_suppression(
+                    current,
+                    project_id,
+                    action="epic-review-metadata-reconciliation",
+                    tracker=tracker,
+                ):
+                    return
+                if current_status != IN_REVIEW:
+                    tracker.update_issue(current.identifier, status=IN_REVIEW)
+                self._write_review_metadata(
+                    tracker,
+                    current.identifier,
+                    review_id=getattr(review, "id", None),
+                    review_url=getattr(review, "url", None),
+                    source_branch=(
+                        getattr(review, "source_branch", None) or epic_branch
+                    ),
+                    target_branch=getattr(review, "target_branch", None),
+                )
             self._sync_epic_review_child_states(
                 project_id,
-                issue,
+                current,
                 epic_branch,
             )
         except Exception as exc:  # noqa: BLE001 - metadata alignment is best-effort
@@ -43073,12 +43113,70 @@ class Orchestrator:
                     epic.identifier,
                 )
                 continue
-            result = self._request_merged_via_coordinator(
-                child,
-                child_project_id,
-                trigger_identity="epic-rollup-reconciliation",
-                trigger_source="oompah",
-            )
+            # The remote evidence probes above can overlap lifecycle repair.
+            # Re-enter the task ownership boundary, refresh the native row,
+            # and compare its complete authority generation before staging
+            # Merged.  This composes with the lifecycle enforcer's identical
+            # task->project lock order, so an OOMPAH-660 Done repair either
+            # wins first and is observed here, or this exact old generation
+            # finishes before the repair is allowed to commit.
+            result = None
+            child_issue_id = str(child.id or child.identifier)
+            with self.issue_transition_lock(child_issue_id).sync():
+                current_child = child
+                try:
+                    invalidate = getattr(child_tracker, "invalidate_read_cache", None)
+                    if callable(invalidate):
+                        invalidate()
+                    refreshed_child = child_tracker.fetch_issue_detail(
+                        child.identifier
+                    )
+                except Exception as exc:  # noqa: BLE001 - authority fails closed
+                    logger.warning(
+                        "Deferred landed-child promotion for %s: current task "
+                        "authority is unavailable (%s)",
+                        child.identifier,
+                        type(exc).__name__,
+                    )
+                    continue
+                if isinstance(refreshed_child, Issue):
+                    current_child = refreshed_child
+                    current_child.project_id = child_project_id
+                    if issue_authority_version(current_child) != issue_authority_version(
+                        child
+                    ):
+                        logger.info(
+                            "Deferred stale landed-child promotion for %s: task "
+                            "authority generation changed",
+                            child.identifier,
+                        )
+                        continue
+                current_status = canonicalize_status(current_child.state)
+                if current_status in {MERGED, ARCHIVED}:
+                    continue
+                if current_status != DONE:
+                    logger.info(
+                        "Deferred landed-child promotion for %s: current status is %s",
+                        child.identifier,
+                        current_status or "unknown",
+                    )
+                    continue
+                if self._is_epic_rebase_task(
+                    current_child, epic.identifier
+                ) or self._done_review_child_is_completed_maintenance(current_child):
+                    logger.info(
+                        "Leaving completed maintenance child %s under landed "
+                        "epic %s in Done after authoritative refresh",
+                        current_child.identifier,
+                        epic.identifier,
+                    )
+                    continue
+                result = self._request_merged_via_coordinator(
+                    current_child,
+                    child_project_id,
+                    trigger_identity="epic-rollup-reconciliation",
+                    trigger_source="oompah",
+                )
             if result is None or not result.success:
                 logger.debug(
                     "Failed to stage Merged transition for child %s: %s",

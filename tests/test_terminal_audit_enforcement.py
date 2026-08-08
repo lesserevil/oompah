@@ -39,6 +39,7 @@ from oompah.terminal_audit_enforcement import (
     LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY,
     LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION,
     LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+    LIFECYCLE_RECONCILIATION_REPAIR_VERSION,
     LIFECYCLE_RECONCILIATION_VERSION,
     PendingAudit,
     SERVICE_STATE_KEY,
@@ -1223,6 +1224,226 @@ def test_lifecycle_legacy_equivalence_repairs_exact_production_oompah_660_once(
     assert repeated == result
     assert tracker.set_calls == writes_before
     assert tracker.status_updates == [(issue.identifier, "Done")]
+
+
+def test_deployed_repair_rearms_exhausted_oompah_660_under_issue_lock(tmp_path):
+    project_id = "proj-14849f1b"
+    issue = _oompah_660_lifecycle_issue(project_id)
+    state_path = tmp_path / "service_state.json"
+
+    class IssueLock:
+        held = False
+        enters = 0
+
+        def __enter__(self):
+            assert self.held is False
+            self.held = True
+            self.enters += 1
+            return self
+
+        def __exit__(self, *_args):
+            self.held = False
+
+    issue_lock = IssueLock()
+
+    class LockAssertingTracker(_Tracker):
+        def update_issue(self, identifier: str, **kwargs):
+            assert issue_lock.held is True
+            return super().update_issue(identifier, **kwargs)
+
+        def set_metadata_field(self, identifier: str, key: str, value: object):
+            assert issue_lock.held is True
+            return super().set_metadata_field(identifier, key, value)
+
+    tracker = LockAssertingTracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _legacy_done_override(issue, project_id)
+                ]
+            }
+        ).to_dict()
+    }
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+        lifecycle_issue_lock=lambda task_id: (
+            issue_lock if task_id == issue.identifier else None
+        ),
+    )
+    failure_fingerprint = enforcer._lifecycle_source_fingerprint(
+        tracker,
+        issue,
+        project_id=project_id,
+        snapshot={issue.identifier: issue},
+    )
+    assert failure_fingerprint is not None
+    started = datetime(2026, 8, 7, tzinfo=timezone.utc)
+    state_path.write_text(
+        json.dumps(
+            {
+                SERVICE_STATE_KEY: TerminalAuditEnforcementState(
+                    lifecycle_reconciliation={
+                        "version": LIFECYCLE_RECONCILIATION_VERSION,
+                        "status": "degraded",
+                        "records": [
+                            {
+                                "project_id": project_id,
+                                "task_id": issue.identifier,
+                                "repair_version": 0,
+                                "classifier_version": (
+                                    LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION
+                                ),
+                                "status": "exhausted",
+                                "attempts": 5,
+                                "last_error": "lifecycle_repair_not_applied",
+                                "conflict": "shared epic parent has not landed",
+                                "failure_fingerprint": failure_fingerprint,
+                                "exhausted_at": started.isoformat(),
+                                "updated_at": started.isoformat(),
+                            }
+                        ],
+                        "cursor": 0,
+                        "updated_at": started.isoformat(),
+                        "errors": [],
+                    }
+                ).to_dict()
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=started + timedelta(days=1),
+    )
+
+    assert result["status"] == "complete"
+    assert result["reconciled"] == 1
+    assert result["exhausted"] == 0
+    assert result["action_required"] is False
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+    assert issue_lock.enters == 1
+    assert issue_lock.held is False
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row["repair_version"] == LIFECYCLE_RECONCILIATION_REPAIR_VERSION
+    assert row["retry_epochs"] == 1
+    assert row["status"] == "completed"
+    assert row["outcome"] == "reconciled"
+
+
+def test_native_oompah_660_repair_survives_refresh_and_restart(
+    tmp_path, monkeypatch
+):
+    project_id = "proj-14849f1b"
+    repo = tmp_path / "oompah"
+    tracker = _native_tracker(repo)
+    allocated_ids = iter(("OOMPAH-619", "OOMPAH-660"))
+    monkeypatch.setattr(tracker, "_next_identifier", lambda: next(allocated_ids))
+    parent = tracker.create_issue(
+        "Systemic workflow parent",
+        issue_type="epic",
+        description="Parent terminal authority.",
+        initial_status="Done",
+    )
+    assert parent.identifier == "OOMPAH-619"
+    child = tracker.create_issue(
+        "Rebase epic-OOMPAH-619 onto main",
+        description=(
+            "The epic branch `epic-OOMPAH-619` is stale: it has fallen behind "
+            "`main`. Rebase the branch onto `origin/main`, resolve any conflicts, "
+            "and force-push with `git push --force-with-lease`.\n\n"
+            "This task was auto-filed because epic OOMPAH-619 was detected as "
+            "stale. Do NOT create a new branch or PR — work directly on "
+            "`epic-OOMPAH-619`."
+        ),
+        parent=parent.identifier,
+        initial_status="Merged",
+    )
+    assert child.identifier == "OOMPAH-660"
+    tracker.set_metadata_field(
+        child.identifier,
+        "oompah.work_branch",
+        "epic-OOMPAH-619--task-OOMPAH-660",
+    )
+    tracker.set_metadata_field(
+        child.identifier,
+        "oompah.integration",
+        IntegrationRecord(
+            state="integrated",
+            attempts=2,
+            task_branch="epic-OOMPAH-619--task-OOMPAH-660",
+            base_branch="epic-OOMPAH-619",
+            base_sha="17658b95e32641e8cf2dbfff06f780c0f6b57916",
+            head_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+            integrated_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+        ).to_dict(),
+    )
+    current = tracker.fetch_issue_detail(child.identifier)
+    assert current is not None
+    variants = compute_integrated_evidence_fingerprint_variants(
+        current, project_id
+    )
+    assert variants is not None
+    assert variants.integrated.digest.startswith("ab40139d2035")
+    assert variants.legacy_work_branch.digest.startswith("62954f9b5fdc")
+    TerminalAuditMetadataStore(tracker, _LockStore(), project_id).write(
+        child.identifier,
+        TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _legacy_done_override(current, project_id)
+                ]
+            }
+        ),
+    )
+    state_path = tmp_path / "service_state.json"
+    first = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch([(project_id, tracker)], max_attempts=1)
+
+    assert first["status"] == "complete"
+    assert first["reconciled"] == 1
+    for _ in range(3):
+        tracker.invalidate_read_cache()
+        refreshed = tracker.fetch_issue_detail(child.identifier)
+        assert refreshed is not None
+        assert refreshed.state == "Done"
+
+    restarted_tracker = _native_tracker(repo)
+    restarted_issue = restarted_tracker.fetch_issue_detail(child.identifier)
+    assert restarted_issue is not None
+    assert restarted_issue.state == "Done"
+    repeated = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [(project_id, restarted_tracker)], max_attempts=1
+    )
+    assert repeated == first
+    final = restarted_tracker.fetch_issue_detail(child.identifier)
+    assert final is not None
+    assert final.state == "Done"
+    stored = TerminalAuditMetadata.from_dict(
+        restarted_tracker.get_metadata(child.identifier)[METADATA_KEY]
+    )
+    reconciliation = stored.unknown_fields["oompah.lifecycle_reconciliations"][0]
+    assert reconciliation["from"] == "Merged"
+    assert reconciliation["to"] == "Done"
+    assert reconciliation[LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY][
+        "current_evidence_fingerprint"
+    ] == variants.integrated.digest
 
 
 def test_lifecycle_current_match_oompah_662_control_needs_no_equivalence(tmp_path):

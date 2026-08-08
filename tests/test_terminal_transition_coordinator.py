@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oompah.auditor_dispatch import AuditorDispatchLane
+from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -30,6 +31,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    compute_integrated_evidence_fingerprint_variants,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
@@ -265,6 +267,32 @@ def _trigger() -> ContributorIdentity:
 
 def _issue(state: str = "In Progress") -> Issue:
     return Issue(id=TASK_ID, identifier=TASK_ID, title="Test task", state=state)
+
+
+def _oompah_660_override_issue() -> Issue:
+    issue = Issue(
+        id="OOMPAH-660",
+        identifier="OOMPAH-660",
+        title="Rebase epic-OOMPAH-619 onto main",
+        description=(
+            "The epic branch `epic-OOMPAH-619` is stale. Rebase it onto "
+            "`origin/main` and work directly on the existing epic branch."
+        ),
+        state=MERGED,
+        parent_id="OOMPAH-619",
+        project_id=PROJECT_ID,
+        work_branch="epic-OOMPAH-619--task-OOMPAH-660",
+    )
+    issue.integration = IntegrationRecord(
+        state="integrated",
+        attempts=2,
+        task_branch="epic-OOMPAH-619--task-OOMPAH-660",
+        base_branch="epic-OOMPAH-619",
+        base_sha="17658b95e32641e8cf2dbfff06f780c0f6b57916",
+        head_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+        integrated_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+    )
+    return issue
 
 
 def _coordinator(
@@ -1914,6 +1942,143 @@ class TestSuperseding:
 
 
 class TestOwnerOverrides:
+    @staticmethod
+    def _owner_project():
+        return SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+    def test_legacy_done_override_accepts_exact_integrated_oompah_660_generation(
+        self,
+    ) -> None:
+        issue = _oompah_660_override_issue()
+        variants = compute_integrated_evidence_fingerprint_variants(
+            issue, PROJECT_ID
+        )
+        assert variants is not None
+        active = TerminalAuditRecord(
+            audit_id="audit-legacy-done-oompah-660",
+            project_id=PROJECT_ID,
+            task_id=issue.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=variants.legacy_work_branch,
+            request_state=RequestState.COMPLETED,
+        )
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [active], task_id=issue.identifier)
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).override_transition(
+                issue,
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                variants.integrated,
+                "Repair the exact accepted Done-only integration generation.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        assert tracker.current_status(issue.identifier) == DONE
+        metadata = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(issue.identifier)
+        override = metadata.unknown_fields["oompah.terminal_override_records"][0]
+        assert override["evidence_fingerprint"] == variants.integrated.to_dict()
+        assert override["applied"] is True
+
+    def test_current_match_done_override_control_remains_accepted(self) -> None:
+        issue = _oompah_660_override_issue()
+        variants = compute_integrated_evidence_fingerprint_variants(
+            issue, PROJECT_ID
+        )
+        assert variants is not None
+        active = TerminalAuditRecord(
+            audit_id="audit-current-done-control",
+            project_id=PROJECT_ID,
+            task_id=issue.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=variants.integrated,
+            request_state=RequestState.COMPLETED,
+        )
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [active], task_id=issue.identifier)
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).override_transition(
+                issue,
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                variants.integrated,
+                "Apply the current exact Done generation.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        assert tracker.current_status(issue.identifier) == DONE
+
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "integrated_sha",
+            "ordinary_task",
+            "ci_fix",
+            "merge_conflict",
+            "arbitrary_fingerprint",
+        ],
+    )
+    def test_legacy_done_override_generation_drift_fails_closed(
+        self, mutation
+    ) -> None:
+        issue = _oompah_660_override_issue()
+        variants = compute_integrated_evidence_fingerprint_variants(
+            issue, PROJECT_ID
+        )
+        assert variants is not None
+        historical = variants.legacy_work_branch
+        if mutation == "integrated_sha":
+            issue.integration = replace(issue.integration, integrated_sha="f" * 40)
+        elif mutation == "ordinary_task":
+            issue.title = "Implement an ordinary feature"
+        elif mutation == "ci_fix":
+            issue.labels = ["ci-fix"]
+        elif mutation == "merge_conflict":
+            issue.labels = ["merge-conflict"]
+        elif mutation == "arbitrary_fingerprint":
+            historical = EvidenceFingerprint("0" * 64)
+        current = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+        active = TerminalAuditRecord(
+            audit_id=f"audit-stale-{mutation}",
+            project_id=PROJECT_ID,
+            task_id=issue.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=historical,
+            request_state=RequestState.COMPLETED,
+        )
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [active], task_id=issue.identifier)
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).override_transition(
+                issue,
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                current,
+                "This stale generation must remain rejected.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is False
+        assert result.error_code == OverrideRejection.FINGERPRINT_MISMATCH
+        assert tracker.current_status(issue.identifier) is None
+
     def test_owner_override_cancels_live_audit_and_finishes_its_gauge(self) -> None:
         tracker = _MemoryTracker()
         metrics = _MetricsRecorder()

@@ -15,8 +15,9 @@ creates a new attempt.
 
 from __future__ import annotations
 
-import copy
+import contextlib
 import contextvars
+import copy
 import hashlib
 import json
 import logging
@@ -72,6 +73,7 @@ LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
 LIFECYCLE_RECONCILIATION_VERSION = 2
 LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION = 2
+LIFECYCLE_RECONCILIATION_REPAIR_VERSION = 1
 LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION = 1
 LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY = "done_override_equivalence"
 DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE = 4
@@ -515,6 +517,7 @@ class TerminalAuditEnforcement:
             [Issue, str, Mapping[str, Issue]], Mapping[str, Any]
         ]
         | None = None,
+        lifecycle_issue_lock: Callable[[str], Any] | None = None,
     ) -> None:
         self.state_path = state_path or service_state_path
         if self.state_path is None and load_state is None:
@@ -525,6 +528,9 @@ class TerminalAuditEnforcement:
         self._save_state_callback = save_state
         self._validate_terminal_transition = validate_terminal_transition
         self._lifecycle_landing_evidence = lifecycle_landing_evidence
+        self._lifecycle_issue_lock = lifecycle_issue_lock or (
+            lambda _task_id: contextlib.nullcontext()
+        )
         self.state = TerminalAuditEnforcementState()
         self._state_loaded = False
         self.pending_audits: list[PendingAudit] = []
@@ -1182,6 +1188,7 @@ class TerminalAuditEnforcement:
         return {
             "project_id": str(project_id),
             "task_id": str(task_id),
+            "repair_version": LIFECYCLE_RECONCILIATION_REPAIR_VERSION,
             "status": "pending",
             "attempts": 0,
             "last_error": None,
@@ -1364,6 +1371,7 @@ class TerminalAuditEnforcement:
                 return None
         payload = {
             "classifier_version": LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+            "repair_version": LIFECYCLE_RECONCILIATION_REPAIR_VERSION,
             "project_id": str(project_id),
             "task_id": str(issue.identifier),
             "state": canonicalize_status(getattr(issue, "state", "")),
@@ -1559,6 +1567,13 @@ class TerminalAuditEnforcement:
             )
             project_id = str(row.get("project_id", ""))
             snapshot = snapshots.get(project_id, {})
+            try:
+                previous_repair_version = max(
+                    int(row.get("repair_version", 0) or 0), 0
+                )
+            except (TypeError, ValueError):
+                previous_repair_version = 0
+            row["repair_version"] = LIFECYCLE_RECONCILIATION_REPAIR_VERSION
             if migrate_v1 and status == "exhausted":
                 # The v1 ledger did not persist enough target-relative input
                 # to compare retries safely.  Mark its single migration epoch
@@ -1618,7 +1633,12 @@ class TerminalAuditEnforcement:
                 migration_rearm = (
                     migration_pending and fingerprint is not None
                 )
-                if task_reappeared or migration_rearm or (
+                repair_rearm = bool(
+                    fingerprint is not None
+                    and previous_repair_version
+                    < LIFECYCLE_RECONCILIATION_REPAIR_VERSION
+                )
+                if task_reappeared or migration_rearm or repair_rearm or (
                     fingerprint is not None
                     and isinstance(previous, str)
                     and previous
@@ -1797,7 +1817,9 @@ class TerminalAuditEnforcement:
                                 tracker, self.project_store, project_id
                             )
                             try:
-                                with self.project_store.project_write_lock(project_id):
+                                with self._lifecycle_issue_lock(task_id), (
+                                    self.project_store.project_write_lock(project_id)
+                                ):
                                     document = store.read(task_id)
                                     try:
                                         current_target = TargetState.from_raw(
@@ -1888,7 +1910,9 @@ class TerminalAuditEnforcement:
                                     tracker, self.project_store, project_id
                                 )
                                 try:
-                                    with self.project_store.project_write_lock(project_id):
+                                    with self._lifecycle_issue_lock(task_id), (
+                                        self.project_store.project_write_lock(project_id)
+                                    ):
                                         # The discovery snapshot can go stale
                                         # before this serialized mutation
                                         # boundary. Re-read the complete scoped

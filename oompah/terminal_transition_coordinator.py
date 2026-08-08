@@ -69,6 +69,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
+from oompah.integration import is_direct_epic_maintenance_issue
 from oompah.models import (
     Issue,
     EPIC_AUDIT_REPAIR_LABEL,
@@ -103,6 +104,7 @@ from oompah.terminal_audit import (
     Verdict,
     archive_default_branch_fallback_authorized,
     build_revision_candidate_list,
+    compute_integrated_evidence_fingerprint_variants,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
@@ -2642,6 +2644,43 @@ class TerminalTransitionCoordinator:
             return current_issue, evidence_fingerprint
         return refreshed, compute_issue_evidence_fingerprint(refreshed, project_id)
 
+    @staticmethod
+    def _legacy_done_override_fingerprint_equivalent(
+        issue: Issue,
+        requested_target: TargetState,
+        project_id: str,
+        historical_fingerprint: EvidenceFingerprint,
+        current_fingerprint: EvidenceFingerprint,
+    ) -> bool:
+        """Recognize only the bounded pre/post-integration Done projection.
+
+        OOMPAH-729 changed an integrated task's canonical fingerprint from its
+        accepted work-branch projection to its landed base-branch projection.
+        A project owner repairing a structurally Done-only epic maintenance
+        helper must not be rejected solely because the active historical Done
+        row uses that one legacy shape.  Every other target, task shape, label,
+        or evidence drift remains an ordinary stale override.
+        """
+
+        if requested_target != TargetState.DONE:
+            return False
+        labels = {str(label).strip().lower() for label in issue.labels or []}
+        if (
+            not is_direct_epic_maintenance_issue(issue)
+            or "ci-fix" in labels
+            or "merge-conflict" in labels
+        ):
+            return False
+        variants = compute_integrated_evidence_fingerprint_variants(
+            issue, project_id
+        )
+        return bool(
+            variants is not None
+            and variants.integrated != variants.legacy_work_branch
+            and current_fingerprint == variants.integrated
+            and historical_fingerprint == variants.legacy_work_branch
+        )
+
     async def override_transition(
         self,
         current_issue: Issue,
@@ -4207,7 +4246,13 @@ class TerminalTransitionCoordinator:
             if current_record_for_target.evidence_fingerprint != evidence_fingerprint:
                 fingerprint_mismatch = True
 
-        if fingerprint_mismatch:
+        if fingerprint_mismatch and not self._legacy_done_override_fingerprint_equivalent(
+            current_issue,
+            requested_target,
+            project_id,
+            current_record_for_target.evidence_fingerprint,
+            evidence_fingerprint,
+        ):
             return OverrideResult(
                 success=False,
                 reason="evidence fingerprint mismatch (stale override)",

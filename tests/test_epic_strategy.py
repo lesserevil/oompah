@@ -24,6 +24,10 @@ from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError, ProjectStore
+from oompah.provenance_suppression import (
+    PROVENANCE_SUPPRESSION_KEY,
+    ProvenanceSuppression,
+)
 from oompah.scm import ReviewRequest
 from oompah.statuses import (
     ARCHIVED,
@@ -2828,6 +2832,96 @@ class TestOpenEpicMainPrs:
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {}
         return orch, proj
+
+    @staticmethod
+    def _oompah_764_suppression_metadata() -> dict[str, object]:
+        marker = ProvenanceSuppression(
+            suppressed=True,
+            authority_generation=1,
+            actor=ContributorIdentity("project-owner", "api"),
+            reason="Retain audited nested epic only as terminal provenance.",
+            marked_at="2026-08-07T14:00:00+00:00",
+            updated_at="2026-08-07T14:00:00+00:00",
+        )
+        return {
+            METADATA_KEY: TerminalAuditMetadata(
+                unknown_fields={PROVENANCE_SUPPRESSION_KEY: marker.to_dict()}
+            ).to_dict()
+        }
+
+    @pytest.mark.parametrize("stale_state", [DONE, IN_REVIEW])
+    def test_oompah_764_suppression_blocks_stale_epic_review_rollup(
+        self, tmp_path, stale_state
+    ):
+        orch, project = self._setup(tmp_path, strategy="shared")
+        epic = _make_issue(
+            identifier="OOMPAH-764",
+            issue_type="epic",
+            state=stale_state,
+            parent_id="OOMPAH-763",
+            project_id=project.id,
+            work_branch="epic-OOMPAH-764",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = (
+            self._oompah_764_suppression_metadata()
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children") as fetch_children,
+        ):
+            opened = orch._open_one_epic_main_pr(epic)
+
+        assert opened == 0
+        fetch_children.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+
+    def test_oompah_764_suppression_blocks_existing_review_republication(
+        self, tmp_path
+    ):
+        orch, project = self._setup(tmp_path, strategy="shared")
+        epic = _make_issue(
+            identifier="OOMPAH-764",
+            issue_type="epic",
+            state=DONE,
+            parent_id="OOMPAH-763",
+            project_id=project.id,
+            work_branch="epic-OOMPAH-764",
+        )
+        review = ReviewRequest(
+            id="748",
+            title="Historical nested epic review",
+            url="https://github.com/lesserevil/oompah/pull/748",
+            author="oompah",
+            state="open",
+            source_branch="epic-OOMPAH-764",
+            target_branch="epic-OOMPAH-763",
+            created_at="2026-08-07T13:00:00+00:00",
+            updated_at="2026-08-07T13:00:00+00:00",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = replace(epic)
+        tracker.get_metadata.return_value = (
+            self._oompah_764_suppression_metadata()
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_sync_epic_review_child_states") as sync_children,
+        ):
+            orch._ensure_epic_in_review_metadata(
+                project.id,
+                epic,
+                review,
+                "epic-OOMPAH-764",
+            )
+
+        tracker.invalidate_read_cache.assert_called_once_with()
+        tracker.update_issue.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        sync_children.assert_not_called()
 
     def test_has_epic_landing_ref_uses_shared_worktree(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
@@ -5846,6 +5940,94 @@ class TestLabelMergedEpics:
 
         tracker.mark_needs_human.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_exact_oompah_660_maintenance_child_stays_done_after_parent_rollup(
+        self, tmp_path
+    ):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="exact"
+        )
+        child.id = child.identifier = "OOMPAH-660"
+        child.title = "Rebase epic-OOMPAH-765 onto main"
+        child.parent_id = epic.identifier
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert child.state == DONE
+        # The parent itself requests Merged; the Done-only helper does not.
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_concurrent_rollup_refresh_observes_repaired_maintenance_authority(
+        self, tmp_path
+    ):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="exact"
+        )
+        child.id = child.identifier = "OOMPAH-660"
+        child.title = "Ordinary stale rollup snapshot"
+        child.parent_id = epic.identifier
+        repaired = replace(
+            child,
+            title="Rebase epic-OOMPAH-765 onto main",
+            state=DONE,
+        )
+        tracker.fetch_issue_detail.return_value = child
+        real_current = orch._landing_evidence_generation_is_current
+        at_mutation_edge = threading.Event()
+        errors: list[BaseException] = []
+        current_checks = 0
+
+        def signal_mutation_edge(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                at_mutation_edge.set()
+            return real_current(*args, **kwargs)
+
+        def run_rollup() -> None:
+            try:
+                orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        lock = orch.issue_transition_lock(child.identifier)
+        worker = threading.Thread(target=run_rollup)
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=signal_mutation_edge,
+            ),
+        ):
+            with lock.sync():
+                worker.start()
+                assert at_mutation_edge.wait(timeout=2)
+                tracker.fetch_issue_detail.return_value = repaired
+            worker.join(timeout=2)
+        assert not worker.is_alive()
+        assert errors == []
+        tracker.mark_needs_human.assert_not_called()
+        assert repaired.state == DONE
+        # The stale generic child decision cannot publish after the lifecycle
+        # repair changes its task authority under the shared task lock.
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
 
     def test_oompah_779_restart_discards_stale_local_target_snapshot(self, tmp_path):
         scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
