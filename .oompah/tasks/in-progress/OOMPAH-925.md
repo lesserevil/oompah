@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T20:59:18.475816Z'
-updated_at: '2026-08-08T21:28:01.362444Z'
+updated_at: '2026-08-08T21:54:11.080009Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,14 @@ author: oompah
 created: 2026-08-08 21:28
 ---
 Directly claimed for closure with the systemic rollout. This alert was emitted by the graceful shutdown race fixed at bdabac3ff: an admitted workflow reconciliation held the lifecycle fence past the original drain path and produced the non-durable workflow runtime drain warning. The candidate adds drain/reconcile/store fencing and has already survived two live graceful restarts plus an exact full gate; OOMPAH-926 adds the remaining mixed-mode qualification-neutrality fix. I will terminalize this task only after the new exact head passes the full gate and repeated live staged restarts.
+---
+author: oompah
+created: 2026-08-08 21:54
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: Orchestrator shutdown remains fenced; runtime recovery is not durable for issue_ids=[] journals=['workflow runtime drain']
 ---
 <!-- COMMENTS:END -->
