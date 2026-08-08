@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T13:34:11.755473Z'
-updated_at: '2026-08-08T13:34:53.907182Z'
+updated_at: '2026-08-08T13:35:24.876526Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Fix the terminal-provenance new-revision endpoint deadlock where ProvenanceGuard
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 13:35
+---
+Directly claimed. Root cause reproduced as a deterministic cross-thread RLock deadlock in the exact API test. Implemented a fail-closed two-phase project-lock protocol: suppression/status validation under lock, journaled Open transition without the outer RLock, then locked Open+generation revalidation before suppression clearance. Focused provenance suites pass 36/36; exact full gate remains pending after unrelated fixture failures are repaired.
+---
+<!-- COMMENTS:END -->

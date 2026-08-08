@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T12:20:40.667997Z'
-updated_at: '2026-08-08T12:56:13.137953Z'
+updated_at: '2026-08-08T13:35:27.540030Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-08 12:56
 ---
 Implemented resource ownership repair at composed head b80e632fcb55658d37aa267bc7fa71ef0f044991: centralized exact-object/idempotent shutdown covers pools, runtime journals, receipt ledger, coordination/integration/review/workflow/transition stores; shielded implementation mutations now drain; pytest constructor/cleanup boundary is race-safe; WorkflowJobStore failed-init FD ownership is idempotent. Focused validation is green and the exact full branch gate is running under the dedicated validation lease.
+---
+author: oompah
+created: 2026-08-08 13:35
+---
+The b80e632 resource-lifecycle repair kept the interrupted full gate's worker FDs flat through 99%, resolving the prior accumulation. That run exposed a separate deterministic terminal-provenance RLock deadlock, now filed and directly claimed as OOMPAH-910; its focused fix passes 36/36. Ten additional fixture-contract failures have been reproduced exactly and are being repaired in parallel before the next exact full gate.
 ---
 <!-- COMMENTS:END -->
