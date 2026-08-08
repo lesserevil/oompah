@@ -59,6 +59,7 @@ from oompah.agent_profile_store import (
     AgentProfileStore,
     DEFAULT_AGENT_PROFILES_PATH,
 )
+from oompah.alert_safety import DIAGNOSTIC_AVAILABLE_TEXT
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
 from oompah.dashboard_alerts import normalize_alerts
@@ -1302,7 +1303,12 @@ def _set_management_tracker_resolution_alert(
                     "the service checkout. Backend/frontend error tasks will "
                     "not be filed until the repository registration is fixed."
                 ),
-                "detail": diagnostic,
+                # Keep local checkout identities and filesystem paths behind
+                # the explicit diagnostic disclosure boundary.  Relying on
+                # the generic length threshold made compact presentation vary
+                # with the configured temporary-root length.
+                "detail": DIAGNOSTIC_AVAILABLE_TEXT,
+                "diagnostic": diagnostic,
                 "action": (
                     "Ensure exactly one registered project has the service "
                     "checkout's canonical repository identity, then restart "

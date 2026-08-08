@@ -5166,7 +5166,7 @@ def test_native_post_attach_cancellation_exits_without_self_stopping(
     with pytest.raises(RuntimeError, match="authority was withdrawn"):
         main()
 
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_native_stdin_shell_waits_for_validation_capacity(tmp_path: Path) -> None:

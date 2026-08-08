@@ -336,7 +336,8 @@ def test_ambiguous_repository_matches_fail_closed_with_actionable_alert(
         ]
         assert len(alerts) == 1
         assert alerts[0]["action_required"] is True
-        assert "proj-one, proj-two" in alerts[0]["detail"]
+        assert alerts[0]["detail"] == "Additional diagnostic output is available."
+        assert "proj-one, proj-two" in alerts[0]["diagnostic"]
         snapshot_alerts = [
             alert
             for alert in orch.get_snapshot()["alerts"]
