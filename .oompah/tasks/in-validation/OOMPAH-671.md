@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-671
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Recover terminal audits when historical work branches were deleted
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-08-01T01:51:21.680517Z'
+updated_at: '2026-08-08T01:59:21.714866Z'
 work_branch: OOMPAH-671
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/634
@@ -148,6 +148,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T01:36:24.558751+00:00'
     updated_at: '2026-08-01T01:50:56.767439+00:00'
+  - version: 1
+    audit_id: audit-855b52b3974f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-671
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a432d5fc26f27a027cfc764208411878fbd9cbb106addeac61b545359b551900
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T01:59:17.900742+00:00'
+    selected_ref: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
+    selected_sha: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
   attempt_history:
   - version: 1
     attempt_id: attempt-31bcf8c69258
