@@ -916,6 +916,186 @@ def test_epics_have_one_domain_owner_and_new_facts_supersede_old_job(tmp_path):
     store.close()
 
 
+def test_shared_snapshot_keeps_review_integration_and_epic_jobs_claimable(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    review = make_issue("TASK-REVIEW", state="In Review")
+    integration = make_issue("TASK-INTEGRATE", state="Ready to Integrate")
+    epic = make_issue("EPIC-SHARED", state="Open", issue_type="epic")
+    tracker = NativeTracker([review, integration, epic])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    project = report["projects"]["project-1"]
+    generation = project["snapshot"]["generation"]
+    assert project["snapshot"]["published"] is True
+    assert {
+        project[domain]["snapshot_generation"]
+        for domain in ("review", "integration", "epic")
+    } == {generation}
+    assert all(
+        project[domain]["snapshot_accepted"] is True
+        for domain in ("review", "integration", "epic")
+    )
+    assert store.snapshot_membership() == (
+        ("project-1", "EPIC-SHARED", generation),
+        ("project-1", "TASK-INTEGRATE", generation),
+        ("project-1", "TASK-REVIEW", generation),
+    )
+
+    claimed = []
+    for index in range(3):
+        job = store.claim_next(
+            lease_owner=f"shared-worker-{index}",
+            lease_seconds=30,
+        )
+        assert job is not None
+        claimed.append(job)
+    assert {job.task_id for job in claimed} == {
+        "EPIC-SHARED",
+        "TASK-INTEGRATE",
+        "TASK-REVIEW",
+    }
+
+    runtime.close()
+    store.close()
+
+
+def test_shared_snapshot_generation_keeps_multiple_projects_claimable(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker_a = NativeTracker(
+        [make_issue("A-REVIEW", state="In Review", project_id="project-a")]
+    )
+    tracker_b = NativeTracker(
+        [
+            make_issue(
+                "B-INTEGRATE",
+                state="Ready to Integrate",
+                project_id="project-b",
+            ),
+            make_issue(
+                "B-EPIC",
+                state="Open",
+                project_id="project-b",
+                issue_type="epic",
+            ),
+        ]
+    )
+    binding_a, journal_a = make_binding(
+        tmp_path, tracker_a, store, project_id="project-a"
+    )
+    binding_b, journal_b = make_binding(
+        tmp_path, tracker_b, store, project_id="project-b"
+    )
+    handlers = complete_handlers()
+    runtime = WorkflowRuntime(
+        project_bindings={"project-a": binding_a, "project-b": binding_b},
+        store=store,
+        journals={"project-a": journal_a, "project-b": journal_b},
+        mode="enforce",
+        handlers=handlers,
+        handler_coverage={
+            action: ("project-a", "project-b") for action in handlers
+        },
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    project_a = report["projects"]["project-a"]
+    project_b = report["projects"]["project-b"]
+    generation = project_a["snapshot"]["generation"]
+    assert project_b["snapshot"]["generation"] == generation
+    assert store.snapshot_membership() == (
+        ("project-a", "A-REVIEW", generation),
+        ("project-b", "B-EPIC", generation),
+        ("project-b", "B-INTEGRATE", generation),
+    )
+
+    claimed = []
+    for index in range(3):
+        job = store.claim_next(
+            lease_owner=f"multi-project-worker-{index}",
+            lease_seconds=30,
+        )
+        assert job is not None
+        claimed.append(job)
+    assert {(job.project_id, job.task_id) for job in claimed} == {
+        ("project-a", "A-REVIEW"),
+        ("project-b", "B-EPIC"),
+        ("project-b", "B-INTEGRATE"),
+    }
+
+    runtime.close()
+    store.close()
+
+
+def test_post_publish_implementation_failure_recovers_on_next_snapshot(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-RECOVER", state="In Review")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    implementation = binding.implementation_controller
+    original_reconcile = implementation.reconcile
+    calls = 0
+
+    def fail_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("implementation event lane unavailable")
+        return original_reconcile(*args, **kwargs)
+
+    implementation.reconcile = fail_once
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    first = asyncio.run(runtime.reconcile_async())
+
+    assert first["projects"]["project-1"]["error"] == "RuntimeError"
+    assert first["projects"]["project-1"]["snapshot"]["published"] is True
+    assert first["worker"]["skipped"] is True
+    queued = store.list_jobs(
+        project_id="project-1",
+        task_id="TASK-RECOVER",
+        states=("queued",),
+    )
+    assert len(queued) == 1
+
+    second = asyncio.run(runtime.reconcile_async())
+
+    assert "error" not in second["projects"]["project-1"]
+    assert second["worker"]["processed"] == 1
+    recovered = store.list_jobs(
+        project_id="project-1",
+        task_id="TASK-RECOVER",
+        states=("completed",),
+    )
+    assert len(recovered) == 1
+    assert store.get(queued[0].job_id).state in {
+        WorkflowJobState.COMPLETED,
+        WorkflowJobState.SUPERSEDED,
+    }
+
+    runtime.close()
+    store.close()
+
+
 def test_epic_terminal_audit_job_is_not_reconciled_by_epic_domain(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     epic = make_issue("EPIC-AUDIT", state="In Validation", issue_type="epic")

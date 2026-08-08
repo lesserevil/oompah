@@ -45,7 +45,14 @@ from oompah.integration_workflow import (
 )
 from oompah.review_workflow import ReviewWorkflowController
 from oompah.review_workflow_adapter import FreshReviewFactSource
-from oompah.statuses import IN_VALIDATION, canonicalize_status
+from oompah.statuses import (
+    ARCHIVED,
+    IN_REVIEW,
+    IN_VALIDATION,
+    MERGED,
+    READY_TO_INTEGRATE,
+    canonicalize_status,
+)
 from oompah.task_transition_service import (
     CoordinatorTerminalAdapter,
     TaskTransitionService,
@@ -56,6 +63,7 @@ from oompah.workflow_facts import FactDomain, GitLandingCollector, WorkflowFactC
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJobStore,
+    WorkflowSnapshotPublication,
 )
 from oompah.workflow_worker import (
     EffectObservation,
@@ -1051,6 +1059,60 @@ class WorkflowRuntime:
                     (decision.project_id, decision.task_id)
                 ] = decision
 
+    def _replace_project_decisions(
+        self,
+        project_id: str,
+        batches: Sequence[Any],
+    ) -> dict[tuple[str, str], Any]:
+        """Atomically publish one project's complete in-memory decision cut."""
+
+        with self._lock:
+            previous = {
+                key: decision
+                for key, decision in self._latest_decisions.items()
+                if key[0] == project_id
+            }
+            retained = {
+                key: decision
+                for key, decision in self._latest_decisions.items()
+                if key[0] != project_id
+            }
+            for batch in batches:
+                for item in getattr(batch, "tasks", ()):
+                    decision = item.decision
+                    retained[(decision.project_id, decision.task_id)] = decision
+            self._latest_decisions = retained
+            return previous
+
+    def _restore_project_decisions(
+        self,
+        project_id: str,
+        previous: Mapping[tuple[str, str], Any],
+    ) -> None:
+        with self._lock:
+            retained = {
+                key: decision
+                for key, decision in self._latest_decisions.items()
+                if key[0] != project_id
+            }
+            retained.update(previous)
+            self._latest_decisions = retained
+
+    @staticmethod
+    def _validate_domain_decisions(
+        domain: str,
+        batch: Any,
+        allowed_actions: Sequence[str],
+    ) -> None:
+        allowed = frozenset(allowed_actions)
+        for decision in batch.decisions:
+            unknown = set(decision.durable_jobs) - allowed
+            if unknown:
+                raise WorkflowRuntimeError(
+                    f"{domain} decision produced non-{domain} durable jobs: "
+                    + ", ".join(sorted(unknown))
+                )
+
     def reconcile(self) -> dict[str, Any]:
         """Collect facts and materialize durable jobs for every project."""
 
@@ -1063,107 +1125,399 @@ class WorkflowRuntime:
         if self._draining or self.mode == "off":
             return {"mode": self.mode, "skipped": True}
         report: dict[str, Any] = {"mode": self.mode, "projects": {}}
-        for project_id, binding in sorted(self.project_bindings.items()):
-            try:
-                if not binding.enabled:
-                    with self._lock:
-                        self._latest_decisions = {
-                            key: decision
-                            for key, decision in self._latest_decisions.items()
-                            if key[0] != project_id
+        if not self.enforce:
+            for project_id, binding in sorted(self.project_bindings.items()):
+                try:
+                    if not binding.enabled:
+                        report["projects"][project_id] = {
+                            "skipped": True,
+                            "reason": "project paused or orchestrator quiesced",
                         }
+                        continue
+                    issues = self._issues(binding)
+                    task_issues = [
+                        issue
+                        for issue in issues
+                        if str(getattr(issue, "issue_type", "") or "")
+                        .strip()
+                        .lower()
+                        != "epic"
+                    ]
+                    epic_issues = [
+                        issue
+                        for issue in issues
+                        if str(getattr(issue, "issue_type", "") or "")
+                        .strip()
+                        .lower()
+                        == "epic"
+                        and canonicalize_status(issue.state) != IN_VALIDATION
+                    ]
+                    batches = [
+                        binding.implementation_controller.evaluate(task_issues),
+                        binding.review_controller.evaluate(task_issues),
+                        binding.integration_controller.evaluate(task_issues),
+                        binding.epic_controller.evaluate(
+                            epic_issues, persist_evidence=False
+                        ),
+                    ]
+                    self._replace_project_decisions(project_id, batches)
                     report["projects"][project_id] = {
-                        "skipped": True,
-                        "reason": "project paused or orchestrator quiesced",
+                        "issues": len(issues),
+                        **{
+                            name: {"decisions_seen": len(batch.tasks)}
+                            for name, batch in zip(
+                                ("implementation", "review", "integration", "epic"),
+                                batches,
+                                strict=True,
+                            )
+                        },
                     }
-                    continue
+                except Exception as exc:
+                    logger.exception(
+                        "Durable workflow reconcile failed for %s", project_id
+                    )
+                    report["projects"][project_id] = {
+                        "error": type(exc).__name__,
+                    }
+            with self._lock:
+                self._last_reconcile = report
+            return report
+
+        # The job-store generation is global. Capture one generation before
+        # source I/O, then accept, materialize, and publish one union cut for
+        # every project whose source scan succeeded.
+        generation = self.store.allocate_snapshot_generation()
+        prepared: list[dict[str, Any]] = []
+        for project_id, binding in sorted(self.project_bindings.items()):
+            if not binding.enabled:
+                report["projects"][project_id] = {
+                    "skipped": True,
+                    "reason": "project paused or orchestrator quiesced",
+                }
+                continue
+            try:
                 issues = self._issues(binding)
-                project_report: dict[str, Any] = {"issues": len(issues)}
-                with self._lock:
-                    self._latest_decisions = {
-                        key: decision
-                        for key, decision in self._latest_decisions.items()
-                        if key[0] != project_id
-                    }
-                generation = (
-                    self.store.allocate_snapshot_generation() if self.enforce else None
-                )
-                epic_issues = [
-                    issue
-                    for issue in issues
-                    if str(getattr(issue, "issue_type", "") or "").strip().lower()
-                    == "epic"
-                    and canonicalize_status(getattr(issue, "state", None))
-                    != IN_VALIDATION
-                ]
                 task_issues = [
                     issue
                     for issue in issues
                     if str(getattr(issue, "issue_type", "") or "").strip().lower()
                     != "epic"
                 ]
-                if binding.implementation_controller is not None:
-                    if self.enforce:
-                        batch, result = binding.implementation_controller.reconcile(
-                            task_issues, snapshot_generation=generation
-                        )
-                        result_value = asdict(result)
-                    else:
-                        batch = binding.implementation_controller.evaluate(task_issues)
-                        result_value = {"decisions_seen": len(batch.tasks)}
-                    self._remember(batch)
-                    project_report["implementation"] = result_value
-                if binding.review_controller is not None:
-                    if self.enforce:
-                        batch, result = binding.review_controller.reconcile(
-                            task_issues, snapshot_generation=generation
-                        )
-                        result_value = asdict(result)
-                    else:
-                        batch = binding.review_controller.evaluate(task_issues)
-                        result_value = {"decisions_seen": len(batch.tasks)}
-                    self._remember(batch)
-                    project_report["review"] = result_value
-                if binding.integration_controller is not None:
-                    if self.enforce:
-                        batch, result = binding.integration_controller.reconcile(
-                            task_issues, snapshot_generation=generation
-                        )
-                        result_value = asdict(result)
-                    else:
-                        batch = binding.integration_controller.evaluate(task_issues)
-                        result_value = {"decisions_seen": len(batch.tasks)}
-                    self._remember(batch)
-                    project_report["integration"] = result_value
-                    if self.enforce:
-                        maintenance = getattr(
-                            self,
-                            "_integration_maintenance_scheduler",
-                            None,
-                        )
-                        if callable(maintenance):
-                            history_job = maintenance(binding)
-                            project_report["integration_history_job"] = (
-                                history_job.job_id if history_job is not None else None
-                            )
-                if binding.epic_controller is not None:
-                    if self.enforce:
-                        batch, result = binding.epic_controller.reconcile(
-                            epic_issues, snapshot_generation=generation
-                        )
-                        result_value = asdict(result)
-                    else:
-                        batch = binding.epic_controller.evaluate(
-                            epic_issues, persist_evidence=False
-                        )
-                        result_value = {"decisions_seen": len(batch.tasks)}
-                    self._remember(batch)
-                    project_report["epic"] = result_value
-                report["projects"][project_id] = project_report
-            except Exception as exc:  # one project must not hide its peers
-                logger.exception("Durable workflow reconcile failed for %s", project_id)
+                epic_issues = [
+                    issue
+                    for issue in issues
+                    if str(getattr(issue, "issue_type", "") or "").strip().lower()
+                    == "epic"
+                    and canonicalize_status(issue.state) != IN_VALIDATION
+                ]
+                review_checkpoint = (
+                    binding.review_controller.projection_checkpoint()
+                )
+                review_batch = binding.review_controller.evaluate(task_issues)
+                self._validate_domain_decisions(
+                    "review", review_batch, REVIEW_ACTION_JOBS
+                )
+
+                integration_checkpoint = dict(
+                    binding.integration_controller._latest
+                )
+                try:
+                    integration_batch = binding.integration_controller.evaluate(
+                        task_issues
+                    )
+                finally:
+                    binding.integration_controller._latest = (
+                        integration_checkpoint
+                    )
+                self._validate_domain_decisions(
+                    "integration", integration_batch, INTEGRATION_ACTIONS
+                )
+
+                epic_latest_checkpoint = dict(binding.epic_controller._latest)
+                epic_landings_checkpoint = dict(binding.epic_controller._landings)
+                try:
+                    epic_batch = binding.epic_controller.evaluate(
+                        epic_issues, persist_evidence=False
+                    )
+                    evaluated_epic_landings = dict(
+                        binding.epic_controller._landings
+                    )
+                finally:
+                    binding.epic_controller._latest = epic_latest_checkpoint
+                    binding.epic_controller._landings = (
+                        epic_landings_checkpoint
+                    )
+                self._validate_domain_decisions("epic", epic_batch, EPIC_ACTIONS)
+
+                domains = (
+                    ("review", binding.review_controller, review_batch),
+                    ("integration", binding.integration_controller, integration_batch),
+                    ("epic", binding.epic_controller, epic_batch),
+                )
+                expected = {
+                    (project_id, issue.identifier)
+                    for issue in task_issues
+                    if issue.state in {IN_REVIEW, READY_TO_INTEGRATE}
+                } | {
+                    (project_id, issue.identifier)
+                    for issue in epic_issues
+                    if canonicalize_status(issue.state) not in {MERGED, ARCHIVED}
+                }
+                evaluated = {
+                    (decision.project_id, decision.task_id)
+                    for _name, _controller, batch in domains
+                    for decision in batch.decisions
+                }
+                prepared.append(
+                    {
+                        "project_id": project_id,
+                        "binding": binding,
+                        "issues": issues,
+                        "task_issues": task_issues,
+                        "review_batch": review_batch,
+                        "review_checkpoint": review_checkpoint,
+                        "integration_batch": integration_batch,
+                        "integration_checkpoint": integration_checkpoint,
+                        "epic_batch": epic_batch,
+                        "epic_latest_checkpoint": epic_latest_checkpoint,
+                        "epic_landings_checkpoint": epic_landings_checkpoint,
+                        "evaluated_epic_landings": evaluated_epic_landings,
+                        "domains": domains,
+                        "expected": expected,
+                        "evaluated": evaluated,
+                    }
+                )
+                report["projects"][project_id] = {"issues": len(issues)}
+            except Exception as exc:
+                logger.exception(
+                    "Durable workflow source evaluation failed for %s", project_id
+                )
                 report["projects"][project_id] = {
                     "error": type(exc).__name__,
+                }
+
+        authoritative_projects = tuple(
+            item["project_id"] for item in prepared
+        )
+        expected_identities = tuple(
+            sorted(identity for item in prepared for identity in item["expected"])
+        )
+        evaluated_identities = tuple(
+            sorted(identity for item in prepared for identity in item["evaluated"])
+        )
+        authority = self.store.capture_snapshot_authority(
+            authoritative_project_ids=authoritative_projects,
+            evaluated_identities=evaluated_identities,
+            full_project_scope=True,
+        )
+        all_domains = [
+            (item, name, controller, batch)
+            for item in prepared
+            for name, controller, batch in item["domains"]
+        ]
+
+        def reject_domains() -> None:
+            for item, name, controller, batch in all_domains:
+                report["projects"][item["project_id"]][name] = asdict(
+                    controller.scheduler.rejected_snapshot(
+                        generation, batch.decisions
+                    )
+                )
+
+        if not self.store.accept_snapshot_generation(generation):
+            reject_domains()
+            with self._lock:
+                self._last_reconcile = report
+            return report
+
+        try:
+            membership = self.store.reconcile_snapshot_membership(
+                snapshot_generation=generation,
+                authoritative_project_ids=authoritative_projects,
+                expected_identities=expected_identities,
+                evaluated_identities=evaluated_identities,
+            )
+            if not membership.accepted:
+                reject_domains()
+                with self._lock:
+                    self._last_reconcile = report
+                return report
+
+            reconciled: list[tuple[dict[str, Any], str, Any, Any, Any]] = []
+            for item, name, controller, batch in all_domains:
+                result = controller.scheduler.reconcile_accepted(
+                    batch.decisions,
+                    snapshot_generation=generation,
+                    record_metrics=False,
+                )
+                if not result.snapshot_accepted:
+                    break
+                reconciled.append((item, name, controller, batch, result))
+            if len(reconciled) != len(all_domains):
+                reject_domains()
+                if self.store.snapshot_generation_is_current(generation):
+                    self.store.restore_snapshot_authority(
+                        authority, snapshot_generation=generation
+                    )
+                with self._lock:
+                    self._last_reconcile = report
+                return report
+
+            with self._lock:
+                runtime_checkpoint = dict(self._latest_decisions)
+
+            def restore_caches() -> None:
+                with self._lock:
+                    self._latest_decisions = dict(runtime_checkpoint)
+                for item in prepared:
+                    binding = item["binding"]
+                    binding.review_controller.restore_projection_checkpoint(
+                        item["review_checkpoint"]
+                    )
+                    binding.integration_controller._latest = dict(
+                        item["integration_checkpoint"]
+                    )
+                    binding.epic_controller._latest = dict(
+                        item["epic_latest_checkpoint"]
+                    )
+                    binding.epic_controller._landings = dict(
+                        item["epic_landings_checkpoint"]
+                    )
+
+            def rollback_authority() -> None:
+                self.store.restore_snapshot_authority(
+                    authority, snapshot_generation=generation
+                )
+
+            def publish() -> WorkflowSnapshotPublication:
+                try:
+                    for item in prepared:
+                        binding = item["binding"]
+                        binding.review_controller.commit_snapshot_projection(
+                            item["task_issues"], item["review_batch"], generation
+                        )
+                        binding.integration_controller._latest = {
+                            task.task.identifier: task
+                            for task in item["integration_batch"].tasks
+                        }
+                        binding.epic_controller._latest = {
+                            task.task.identifier: task
+                            for task in item["epic_batch"].tasks
+                        }
+                        binding.epic_controller._landings = dict(
+                            item["evaluated_epic_landings"]
+                        )
+                        self._replace_project_decisions(
+                            item["project_id"],
+                            (
+                                item["review_batch"],
+                                item["integration_batch"],
+                                item["epic_batch"],
+                            ),
+                        )
+                except Exception:
+                    restore_caches()
+                    raise
+                return WorkflowSnapshotPublication(
+                    rollback=restore_caches,
+                    rollback_authority=rollback_authority,
+                )
+
+            published, _ = self.store.publish_snapshot_generation(
+                generation,
+                publish,
+                rollback_authority=rollback_authority,
+            )
+            if not published:
+                reject_domains()
+                if self.store.snapshot_generation_is_current(generation):
+                    self.store.restore_snapshot_authority(
+                        authority, snapshot_generation=generation
+                    )
+                with self._lock:
+                    self._last_reconcile = report
+                return report
+        except Exception as exc:
+            if self.store.snapshot_generation_is_current(generation):
+                restored = self.store.restore_snapshot_authority(
+                    authority, snapshot_generation=generation
+                )
+                if authoritative_projects and not restored:
+                    raise WorkflowRuntimeError(
+                        "failed shared workflow snapshot could not restore its "
+                        "durable authority checkpoint"
+                    ) from exc
+            restore = locals().get("restore_caches")
+            if callable(restore):
+                restore()
+            for item in prepared:
+                logger.exception(
+                    "Durable workflow publication failed for %s",
+                    item["project_id"],
+                )
+                report["projects"][item["project_id"]] = {
+                    "error": type(exc).__name__,
+                }
+            with self._lock:
+                self._last_reconcile = report
+            return report
+
+        for item, name, controller, _batch, result in reconciled:
+            controller.scheduler.record_reconcile_metrics(result)
+            report["projects"][item["project_id"]][name] = asdict(result)
+        for item in prepared:
+            project_id = item["project_id"]
+            binding = item["binding"]
+            project_report = report["projects"][project_id]
+            project_report["snapshot"] = {
+                "generation": generation,
+                "members": sum(
+                    member_project == project_id
+                    for member_project, _task_id in expected_identities
+                ),
+                "jobs_superseded": membership.jobs_superseded,
+                "published": True,
+            }
+            try:
+                # Implementation is an imperative event lane. It is deliberately
+                # outside managed membership, but cannot be exposed until the
+                # shared managed cut has published. Its source-generation CAS
+                # makes the next pass deterministic after a partial failure.
+                implementation_batch, implementation_result = (
+                    binding.implementation_controller.reconcile(
+                        item["task_issues"], snapshot_generation=generation
+                    )
+                )
+                self._remember(implementation_batch)
+                project_report["implementation"] = asdict(implementation_result)
+                for task in item["epic_batch"].tasks:
+                    durable = tuple(
+                        landing.to_dict()
+                        for landing in task.facts.landings
+                        if landing.durable
+                    )
+                    if durable:
+                        self.store.record_landing_facts(
+                            project_id=project_id,
+                            task_id=task.task.identifier,
+                            facts=durable,
+                        )
+                maintenance = getattr(
+                    self, "_integration_maintenance_scheduler", None
+                )
+                if callable(maintenance):
+                    history_job = maintenance(binding)
+                    project_report["integration_history_job"] = (
+                        history_job.job_id if history_job is not None else None
+                    )
+            except Exception as exc:
+                logger.exception(
+                    "Post-publication implementation reconcile failed for %s",
+                    project_id,
+                )
+                report["projects"][project_id] = {
+                    "error": type(exc).__name__,
+                    "snapshot": dict(project_report["snapshot"]),
                 }
         with self._lock:
             self._last_reconcile = report

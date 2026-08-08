@@ -616,6 +616,7 @@ def terminal_audit_health_alerts(
                 "Restore the auditor transport; the scheduler will resume "
                 "automatically without a substantive verdict penalty."
             ),
+            action_required=False,
         )
 
     age = health.oldest_pending_age_seconds

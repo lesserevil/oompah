@@ -555,6 +555,23 @@ class ReviewWorkflowController:
             batch.decisions,
             snapshot_generation=generation,
         )
+        self.commit_snapshot_projection(tasks, batch, generation)
+        return batch, scheduled
+
+    def commit_snapshot_projection(
+        self,
+        tasks: Sequence[Issue],
+        batch: ReviewDecisionBatch,
+        snapshot_generation: int,
+    ) -> None:
+        """Publish one already-materialized review snapshot to memory."""
+
+        if (
+            isinstance(snapshot_generation, bool)
+            or int(snapshot_generation) < 1
+        ):
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(snapshot_generation)
         evaluated = {item.task.identifier: item for item in batch.tasks}
         with self._latest_lock:
             for task in tasks:
@@ -576,7 +593,25 @@ class ReviewWorkflowController:
                 ):
                     self._latest[task_id] = item
                     self._latest_generations[task_id] = generation
-        return batch, scheduled
+
+    def projection_checkpoint(
+        self,
+    ) -> tuple[dict[str, ReviewTaskDecision], dict[str, int]]:
+        """Capture the in-memory projection for publication compensation."""
+
+        with self._latest_lock:
+            return dict(self._latest), dict(self._latest_generations)
+
+    def restore_projection_checkpoint(
+        self,
+        checkpoint: tuple[dict[str, ReviewTaskDecision], dict[str, int]],
+    ) -> None:
+        """Restore a projection whose durable publication did not commit."""
+
+        latest, generations = checkpoint
+        with self._latest_lock:
+            self._latest = dict(latest)
+            self._latest_generations = dict(generations)
 
     def projections(self) -> tuple[ReviewProjection, ...]:
         jobs = self.store.list_jobs(limit=self.decision_limit)

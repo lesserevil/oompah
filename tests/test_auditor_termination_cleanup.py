@@ -1527,9 +1527,15 @@ def test_tool_delivery_timeout_uses_audit_retry_not_ordinary_retry(tmp_path) -> 
             return_value=(False, "run_command result delivery timed out after 30s")
         )
 
-        async def terminate(issue_id: str, cleanup_workspace: bool) -> bool:
+        async def terminate(
+            issue_id: str,
+            cleanup_workspace: bool,
+            *,
+            post_retirement_retry: bool = False,
+        ) -> bool:
             assert issue_id == entry.issue.id
             assert cleanup_workspace is False
+            assert post_retirement_retry is True
             orch.state.running.pop(issue_id, None)
             return True
 
@@ -1541,7 +1547,9 @@ def test_tool_delivery_timeout_uses_audit_retry_not_ordinary_retry(tmp_path) -> 
         assert entry.forced_exit_reason == "auditor_tool_result_delivery_timeout"
         assert entry.forced_exit_error == "run_command result delivery timed out after 30s"
         orch._terminate_running.assert_awaited_once_with(
-            entry.issue.id, cleanup_workspace=False
+            entry.issue.id,
+            cleanup_workspace=False,
+            post_retirement_retry=True,
         )
         orch._schedule_retry.assert_not_called()
 

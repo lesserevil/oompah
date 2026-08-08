@@ -601,7 +601,7 @@ class EpicWorkflowController:
         project_id = _required_text(self.collector.project_id, "project_id")
         identifier = _required_text(task_id, "task_id")
         job_generation = generation or (
-            f"epic-maintenance:{self.store.allocate_snapshot_generation()}"
+            f"epic-maintenance:{self.store.allocate_event_generation()}"
         )
         write = self.store.materialize_event(
             project_id=project_id,

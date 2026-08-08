@@ -549,7 +549,7 @@ class ImplementationWorkflowController:
         snapshot_generation: int | None = None,
     ) -> tuple[ImplementationDecisionBatch, WorkflowReconcileResult]:
         generation = (
-            self.store.allocate_snapshot_generation()
+            self.store.allocate_event_generation()
             if snapshot_generation is None
             else int(snapshot_generation)
         )
@@ -557,6 +557,7 @@ class ImplementationWorkflowController:
             raise ValueError("snapshot_generation must be a positive integer")
         batch = self.evaluate(tasks)
         applied = stale = created = replayed = superseded = 0
+        jobs_required = 0
         for item in batch.tasks:
             config = item.facts.fact(FactDomain.CONFIG)
             config_value = (
@@ -585,6 +586,7 @@ class ImplementationWorkflowController:
                 raise RuntimeError(
                     "an implementation decision produced multiple dispositions"
                 )
+            jobs_required += len(actions)
             if not actions:
                 write = self.store.retire_event_lane(
                     project_id=item.decision.project_id,
@@ -648,12 +650,17 @@ class ImplementationWorkflowController:
             superseded += write.superseded
         scheduled = WorkflowReconcileResult(
             snapshot_generation=generation,
+            snapshot_accepted=stale == 0,
             decisions_seen=len(batch.tasks),
             decisions_applied=applied,
             stale_rejected=stale,
             jobs_created=created,
             jobs_replayed=replayed,
             jobs_superseded=superseded,
+            jobs_required=jobs_required,
+            jobs_materialized=created + replayed,
+            schedules_required=len(batch.tasks),
+            schedules_materialized=applied,
             truncated=False,
         )
         return batch, scheduled
@@ -721,7 +728,7 @@ class ImplementationWorkflowController:
             expected_evidence_revision=expected_evidence_revision,
             expected_head_sha=head,
         )
-        source_generation = self.store.allocate_snapshot_generation()
+        source_generation = self.store.allocate_event_generation()
         write = self.store.materialize_event(
             project_id=project,
             task_id=task,

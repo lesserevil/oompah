@@ -387,29 +387,33 @@ def test_scheduling_batch_rolls_back_interrupt_and_allows_next_batch(store):
     class BatchInterrupted(BaseException):
         pass
 
+    first_generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first_generation)
     with pytest.raises(BatchInterrupted):
         with store.scheduling_batch():
             store.activate_schedule(
                 project_id="project-a",
                 task_id="OOMPAH-1",
                 decision_revision=decision().decision_revision,
-                snapshot_generation=1,
+                snapshot_generation=first_generation,
             )
             raise BatchInterrupted
 
     assert store.schedule_cursor(
         project_id="project-a", task_id="OOMPAH-1"
     ) is None
+    second_generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second_generation)
     with store.scheduling_batch():
         store.activate_schedule(
             project_id="project-a",
             task_id="OOMPAH-1",
             decision_revision=decision().decision_revision,
-            snapshot_generation=2,
+            snapshot_generation=second_generation,
         )
     assert store.schedule_cursor(
         project_id="project-a", task_id="OOMPAH-1"
-    ).snapshot_generation == 2
+    ).snapshot_generation == second_generation
 
 
 def test_recurring_semantic_decision_gets_new_activation_after_supersession(store):

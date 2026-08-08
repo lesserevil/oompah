@@ -990,13 +990,59 @@ class WorkflowJobStore:
         )
         return value
 
+    def _next_ordering_generation_locked(self, key: str) -> int:
+        """Advance one counter beyond every persisted event-ordering fence."""
+
+        counter = self._conn.execute(
+            """
+            SELECT COALESCE(MAX(CAST(value AS INTEGER)), 0) AS generation
+              FROM schema_meta
+             WHERE key IN (
+                'workflow_snapshot_generation',
+                'workflow_event_generation'
+             )
+            """
+        ).fetchone()
+        ordering = self._conn.execute(
+            """
+            SELECT COALESCE(MAX(source_generation), 0) AS generation
+              FROM workflow_event_ordering
+            """
+        ).fetchone()
+        value = max(
+            int(counter["generation"] or 0) if counter is not None else 0,
+            int(ordering["generation"] or 0) if ordering is not None else 0,
+        ) + 1
+        self._conn.execute(
+            "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
+            (key, str(value)),
+        )
+        return value
+
     def allocate_snapshot_generation(self) -> int:
         """Return a process-independent, monotonically increasing scan fence."""
 
         with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                value = self._next_counter_locked("workflow_snapshot_generation")
+                value = self._next_ordering_generation_locked(
+                    "workflow_snapshot_generation"
+                )
+                self._conn.commit()
+                return value
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def allocate_event_generation(self) -> int:
+        """Return a durable event identity without advancing the scan fence."""
+
+        with self._authority_mutation_guard():
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                value = self._next_ordering_generation_locked(
+                    "workflow_event_generation"
+                )
                 self._conn.commit()
                 return value
             except Exception:
