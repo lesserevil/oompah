@@ -2808,6 +2808,38 @@ def test_gate_reaper_probes_overflow_when_resident_queue_is_saturated(
     assert reaper is None
 
 
+def test_gate_overflow_probe_classifies_transient_stat_failure_for_retry(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    gate = _quarantine_gate_for_reaper(BranchQualityGate._gate_run_root(), 366)
+    original_stat = Path.stat
+    failed = False
+
+    def fail_first_probe_stat(path, *args, **kwargs):
+        nonlocal failed
+        if path == gate[1] and not failed:
+            failed = True
+            raise OSError(errno.EMFILE, "injected transient descriptor exhaustion")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", fail_first_probe_stat)
+
+    assert (
+        BranchQualityGate._probe_discovered_gate_cleanup(*gate[:3])
+        == quality_gate._GATE_REMOVAL_INCOMPLETE
+    )
+    assert gate[1].exists()
+    assert gate[3].exists()
+    assert (
+        BranchQualityGate._probe_discovered_gate_cleanup(*gate[:3])
+        == quality_gate._GATE_REMOVAL_REMOVED
+    )
+    assert not gate[1].exists()
+    assert not gate[3].exists()
+
+
 def test_gate_overflow_probe_advances_past_permanent_durable_failure(
     tmp_path,
     monkeypatch,
@@ -2881,6 +2913,20 @@ def test_gate_overflow_probe_advances_past_permanent_durable_failure(
     assert durable_stuck[1].exists()
     assert not durable_removable[1].exists()
     assert not durable_removable[3].exists()
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            discovery_attempts = (
+                BranchQualityGate._deferred_gate_discovery_attempts
+            )
+            discovery_retry_at = (
+                BranchQualityGate._deferred_gate_discovery_retry_at
+            )
+        if discovery_attempts > 0 and discovery_retry_at > time.monotonic():
+            break
+        time.sleep(0.01)
+    assert discovery_attempts > 0
+    assert discovery_retry_at > time.monotonic()
 
     allow_failures.set()
     deadline = time.monotonic() + 5
@@ -3398,42 +3444,82 @@ def test_gate_orphan_sidecar_claim_restores_source_replaced_before_rename(
     assert not list(tmp_path.glob(f".{root_name}.sidecar-reap-*"))
 
 
-def test_gate_sidecar_claim_crash_is_restored_then_reaped(tmp_path, monkeypatch):
+def test_gate_sidecar_claim_crash_is_verified_then_reaped(tmp_path, monkeypatch):
     monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
     root_name = "oompah-quality-gate-eeeeeeee"
     sidecar = tmp_path / f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
     sidecar.write_text("crash evidence", encoding="utf-8")
-    old = time.time() - 10
-    os.utime(sidecar, (old, old))
     metadata = sidecar.stat()
     claim = tmp_path / (
         f".{root_name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino}"
         f"-{os.getpid()}-{time.time_ns()}"
     )
     sidecar.rename(claim)
-    claim_match = quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(claim.name)
-    assert claim_match is not None
-    with BranchQualityGate._processes_lock:
-        generation = BranchQualityGate._gate_namespace_generation
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not claim.exists() and reaper is None:
+            break
+        time.sleep(0.01)
 
-    assert BranchQualityGate._recover_gate_sidecar_claim(
-        claim,
-        claim_match,
-        expected_namespace_generation=generation,
-    )
-    assert sidecar.read_text(encoding="utf-8") == "crash evidence"
     assert not claim.exists()
-
-    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
-    with BranchQualityGate._processes_lock:
-        generation = BranchQualityGate._gate_namespace_generation
-    assert BranchQualityGate._remove_orphan_gate_sidecar(
-        sidecar,
-        root_name,
-        now=time.time(),
-        expected_namespace_generation=generation,
-    )
     assert not sidecar.exists()
+    assert reaper is None
+
+
+def test_gate_sidecar_claim_transient_recheck_failure_is_retried(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-oooooooo"
+    evidence = tmp_path / "transient-claim-source"
+    evidence.write_text("retry evidence", encoding="utf-8")
+    metadata = evidence.stat()
+    claim = tmp_path / (
+        f".{root_name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    evidence.rename(claim)
+    original_claim = quality_gate._rename_noreplace_at
+    failed = False
+
+    def fail_first_recheck(
+        source_dir_fd,
+        source,
+        destination_dir_fd,
+        destination,
+    ):
+        nonlocal failed
+        if source == claim.name and not failed:
+            failed = True
+            raise OSError(errno.EMFILE, "injected transient descriptor exhaustion")
+        return original_claim(
+            source_dir_fd,
+            source,
+            destination_dir_fd,
+            destination,
+        )
+
+    monkeypatch.setattr(
+        quality_gate,
+        "_rename_noreplace_at",
+        fail_first_recheck,
+    )
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not claim.exists() and reaper is None:
+            break
+        time.sleep(0.01)
+
+    assert failed
+    assert not claim.exists()
+    assert reaper is None
 
 
 def test_gate_sidecar_claim_recovery_preserves_newer_canonical(
@@ -3464,6 +3550,136 @@ def test_gate_sidecar_claim_recovery_preserves_newer_canonical(
     )
     assert canonical.read_text(encoding="utf-8") == "newer canonical evidence"
     assert claim.read_text(encoding="utf-8") == "older claimed evidence"
+
+
+def test_gate_sidecar_claim_recovery_rejects_forged_embedded_identity(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-mmmmmmmm"
+    evidence = tmp_path / "forged-claim-source"
+    evidence.write_text("forged evidence", encoding="utf-8")
+    metadata = evidence.stat()
+    claim = tmp_path / (
+        f".{root_name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino + 1}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    evidence.rename(claim)
+
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if reaper is None:
+            break
+        time.sleep(0.01)
+
+    canonical = tmp_path / f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
+    assert claim.read_text(encoding="utf-8") == "forged evidence"
+    assert not canonical.exists()
+    assert reaper is None
+
+
+def test_gate_sidecar_claim_recovery_never_promotes_path_swap(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-nnnnnnnn"
+    evidence = tmp_path / "valid-claim-source"
+    evidence.write_text("expected evidence", encoding="utf-8")
+    metadata = evidence.stat()
+    claim = tmp_path / (
+        f".{root_name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    evidence.rename(claim)
+    displaced = tmp_path / "displaced-valid-claim"
+    original_claim = quality_gate._rename_noreplace_at
+    swapped = False
+
+    def swap_claim_before_recheck(
+        source_dir_fd,
+        source,
+        destination_dir_fd,
+        destination,
+    ):
+        nonlocal swapped
+        if source == claim.name and not swapped:
+            swapped = True
+            claim.rename(displaced)
+            claim.write_text("replacement evidence", encoding="utf-8")
+        return original_claim(
+            source_dir_fd,
+            source,
+            destination_dir_fd,
+            destination,
+        )
+
+    monkeypatch.setattr(
+        quality_gate,
+        "_rename_noreplace_at",
+        swap_claim_before_recheck,
+    )
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if reaper is None:
+            break
+        time.sleep(0.01)
+
+    canonical = tmp_path / f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
+    replacement_claims = list(tmp_path.glob(f".{root_name}.sidecar-reap-*"))
+    assert displaced.read_text(encoding="utf-8") == "expected evidence"
+    assert any(
+        path.read_text(encoding="utf-8") == "replacement evidence"
+        for path in replacement_claims
+    )
+    assert not canonical.exists()
+    assert reaper is None
+
+
+def test_gate_terminal_sidecar_unlink_retries_fresh_owner_without_restart(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    assert BranchQualityGate._prepare_gate_container_removal(container)
+    shutil.rmtree(container)
+    original_unlink = Path.unlink
+    failed = False
+
+    def fail_first_owner_unlink(path, *args, **kwargs):
+        nonlocal failed
+        if path == owner_path and not failed:
+            failed = True
+            raise OSError(errno.EIO, "injected transient owner unlink failure")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_first_owner_unlink)
+
+    assert not BranchQualityGate._unlink_gate_root_owner(container)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        claims = list(tmp_path.glob(f".{container.name}.sidecar-reap-*"))
+        if not owner_path.exists() and not claims and reaper is None:
+            break
+        time.sleep(0.01)
+
+    assert failed
+    assert not owner_path.exists()
+    assert not claims
+    assert reaper is None
 
 
 def test_gate_orphan_sidecar_claim_does_not_replace_existing_claim_target(
@@ -3570,6 +3786,58 @@ def test_gate_sidecar_batches_converge_during_unrelated_namespace_churn(
     assert all(not sidecar.exists() for sidecar in sidecars)
     assert churn_events == len(sidecars)
     assert max_batch == 2
+
+
+def test_gate_sidecar_verify_barrier_protects_matching_late_publication(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    sidecar = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    assert BranchQualityGate._prepare_gate_container_removal(container)
+    shutil.rmtree(container)
+    old = time.time() - 10
+    os.utime(sidecar, (old, old))
+    try:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._deferred_gate_sidecar_phase = "verify"
+            BranchQualityGate._deferred_gate_sidecar_candidates = {
+                sidecar.name: sidecar
+            }
+            BranchQualityGate._deferred_gate_sidecar_protected.clear()
+
+        # Publish the exact matching root after verification has begun.  The
+        # same process lock + notification used by lifecycle renames must make
+        # the live batch fail closed even though its prior scan saw no root.
+        container.mkdir(mode=0o700)
+        metadata = container.stat()
+        identity = (int(metadata.st_dev), int(metadata.st_ino))
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._active_gate_root_identities[str(container)] = identity
+            BranchQualityGate._note_gate_namespace_change(container.name)
+
+        assert not BranchQualityGate._remove_orphan_gate_sidecar(
+            sidecar,
+            container.name,
+            now=time.time(),
+            expected_namespace_generation=None,
+            require_sidecar_batch=True,
+        )
+        assert sidecar.exists()
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._active_gate_root_identities.pop(
+                str(container), None
+            )
+            BranchQualityGate._deferred_gate_sidecar_candidates.clear()
+            BranchQualityGate._deferred_gate_sidecar_protected.clear()
+            BranchQualityGate._deferred_gate_sidecar_phase = "collect"
+        shutil.rmtree(container, ignore_errors=True)
+        sidecar.unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("artifact", ["root", "quarantine", "sidecar"])

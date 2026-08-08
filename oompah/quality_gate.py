@@ -80,6 +80,18 @@ _GATE_SIDECAR_CLAIM_PATTERN = re.compile(
 _RENAME_NOREPLACE = 1
 
 
+def _gate_sidecar_candidate_root_name(name: str) -> str | None:
+    suffix_length = len(_GATE_ROOT_OWNER_FILE)
+    if (
+        name.startswith(".")
+        and name.endswith(_GATE_ROOT_OWNER_FILE)
+        and _GATE_ROOT_NAME_RE.fullmatch(name[1:-suffix_length]) is not None
+    ):
+        return name[1:-suffix_length]
+    claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(name)
+    return claim_match.group("root") if claim_match is not None else None
+
+
 def _rename_noreplace_at(
     source_dir_fd: int,
     source_name: str,
@@ -901,6 +913,87 @@ class BranchQualityGate:
         return root.parent / f".{root.name}{_GATE_ROOT_OWNER_FILE}"
 
     @classmethod
+    def _claim_gate_root_owner_retry(cls, root: Path) -> bool:
+        """Persist immediate terminal-unlink authority in an inode claim."""
+        sidecar = cls._gate_root_owner_path(root)
+        parent_descriptor: int | None = None
+        sidecar_descriptor: int | None = None
+        claimed_name: str | None = None
+        claimed = False
+        try:
+            parent_descriptor = os.open(
+                sidecar.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            sidecar_descriptor = os.open(
+                sidecar.name,
+                getattr(os, "O_PATH", os.O_RDONLY)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
+                dir_fd=parent_descriptor,
+            )
+            metadata = os.fstat(sidecar_descriptor)
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+                return False
+            identity = (int(metadata.st_dev), int(metadata.st_ino))
+            claimed_name = (
+                f".{root.name}.sidecar-reap-{identity[0]}-{identity[1]}"
+                f"-{os.getpid()}-{time.time_ns()}"
+            )
+            with cls._processes_lock:
+                _rename_noreplace_at(
+                    parent_descriptor,
+                    sidecar.name,
+                    parent_descriptor,
+                    claimed_name,
+                )
+                claimed = True
+                cls._gate_namespace_generation += 1
+                final_metadata = os.stat(
+                    claimed_name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    int(final_metadata.st_dev),
+                    int(final_metadata.st_ino),
+                ) != identity:
+                    return False
+                # The recognizable name is the durable retry authorization.
+                claimed = False
+                return True
+        except OSError:
+            return False
+        finally:
+            if claimed and parent_descriptor is not None and claimed_name is not None:
+                with cls._processes_lock:
+                    try:
+                        os.stat(
+                            sidecar.name,
+                            dir_fd=parent_descriptor,
+                            follow_symlinks=False,
+                        )
+                    except FileNotFoundError:
+                        try:
+                            _rename_noreplace_at(
+                                parent_descriptor,
+                                claimed_name,
+                                parent_descriptor,
+                                sidecar.name,
+                            )
+                            cls._gate_namespace_generation += 1
+                        except OSError:
+                            pass
+                    except OSError:
+                        pass
+            if sidecar_descriptor is not None:
+                os.close(sidecar_descriptor)
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+
+    @classmethod
     def _unlink_gate_root_owner(cls, root: Path) -> bool:
         try:
             cls._gate_root_owner_path(root).unlink(missing_ok=True)
@@ -909,6 +1002,7 @@ class BranchQualityGate:
             # separately age-bounded by the startup scavenger and must not
             # turn successful root cleanup into a false failure.
             logger.warning("Failed to remove gate-root owner sidecar %s: %s", root, exc)
+            cls._claim_gate_root_owner_retry(root)
             cls._request_deferred_gate_discovery()
             return False
         return True
@@ -1278,10 +1372,12 @@ class BranchQualityGate:
     def _note_gate_namespace_change(cls, root_name: str) -> None:
         """Record one root publication while ``_processes_lock`` is held."""
         cls._gate_namespace_generation += 1
-        sidecar_name = f".{root_name}{_GATE_ROOT_OWNER_FILE}"
         if (
             cls._deferred_gate_sidecar_phase == "verify"
-            and sidecar_name in cls._deferred_gate_sidecar_candidates
+            and any(
+                _gate_sidecar_candidate_root_name(candidate_name) == root_name
+                for candidate_name in cls._deferred_gate_sidecar_candidates
+            )
         ):
             # A matching root changed after verification began.  Protect only
             # that bounded-batch candidate; unrelated gate churn must not
@@ -1356,8 +1452,14 @@ class BranchQualityGate:
         with cls._processes_lock:
             try:
                 metadata = quarantine.stat(follow_symlinks=False)
-            except OSError:
+            except FileNotFoundError:
                 return _GATE_REMOVAL_UNSAFE
+            except OSError as exc:
+                return (
+                    _GATE_REMOVAL_UNSAFE
+                    if exc.errno in {errno.ELOOP, errno.ENOTDIR}
+                    else _GATE_REMOVAL_INCOMPLETE
+                )
             if (int(metadata.st_dev), int(metadata.st_ino)) != expected_identity:
                 return _GATE_REMOVAL_UNSAFE
             if str(quarantine) in cls._active_gate_root_identities:
@@ -1369,15 +1471,12 @@ class BranchQualityGate:
                 quarantine,
                 expected_identity,
             )
-            if result == _GATE_REMOVAL_REMOVED:
-                cls._unlink_gate_root_owner(root)
-            return result
         except Exception:  # noqa: BLE001 - preserve durable evidence on failure
             logger.exception(
                 "Deferred quality-gate discovery probe crashed for %s",
                 quarantine,
             )
-            return _GATE_REMOVAL_UNSAFE
+            result = _GATE_REMOVAL_UNSAFE
         finally:
             with cls._processes_lock:
                 if (
@@ -1386,6 +1485,9 @@ class BranchQualityGate:
                 ):
                     cls._active_gate_root_identities.pop(str(quarantine), None)
                     cls._note_gate_namespace_change(root.name)
+        if result == _GATE_REMOVAL_REMOVED:
+            cls._unlink_gate_root_owner(root)
+        return result
 
     @classmethod
     def _discover_deferred_gate_cleanups(cls) -> bool:
@@ -1501,18 +1603,36 @@ class BranchQualityGate:
                             cls._deferred_gate_sidecar_protected
                         )
                     for sidecar_name, sidecar in sidecars:
-                        root_name = sidecar_name[
-                            1 : -len(_GATE_ROOT_OWNER_FILE)
-                        ]
+                        root_name = _gate_sidecar_candidate_root_name(sidecar_name)
+                        if root_name is None:
+                            continue
                         if root_name in protected:
                             continue
-                        cls._remove_orphan_gate_sidecar(
-                            sidecar,
-                            root_name,
-                            now=time.time(),
-                            expected_namespace_generation=None,
-                            require_sidecar_batch=True,
+                        claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(
+                            sidecar_name
                         )
+                        if claim_match is not None:
+                            sidecar_result = cls._recover_gate_sidecar_claim(
+                                sidecar,
+                                claim_match,
+                                expected_namespace_generation=None,
+                                require_sidecar_batch=True,
+                                report_status=True,
+                            )
+                        else:
+                            sidecar_result = cls._remove_orphan_gate_sidecar(
+                                sidecar,
+                                root_name,
+                                now=time.time(),
+                                expected_namespace_generation=None,
+                                require_sidecar_batch=True,
+                                report_status=True,
+                            )
+                        with cls._processes_lock:
+                            if sidecar_result == _GATE_REMOVAL_REMOVED:
+                                cls._deferred_gate_discovery_made_progress = True
+                            elif sidecar_result == _GATE_REMOVAL_INCOMPLETE:
+                                cls._deferred_gate_discovery_unresolved = True
                     with cls._processes_lock:
                         cls._deferred_gate_sidecar_cursor = max(
                             (name for name, _path in sidecars),
@@ -1525,20 +1645,6 @@ class BranchQualityGate:
 
                 inspected += 1
                 candidate = Path(entry.path)
-                claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(
-                    candidate.name
-                )
-                if claim_match is not None:
-                    with cls._processes_lock:
-                        namespace_generation = cls._gate_namespace_generation
-                    if cls._recover_gate_sidecar_claim(
-                        candidate,
-                        claim_match,
-                        expected_namespace_generation=namespace_generation,
-                    ):
-                        reset_scan(discard_batch=True)
-                        return False
-                    continue
                 if _GATE_ROOT_NAME_RE.fullmatch(candidate.name) is not None:
                     stale_identity = cls._stale_gate_root(
                         candidate,
@@ -1556,8 +1662,8 @@ class BranchQualityGate:
                         root_name = quarantine_match.group("root")
                         with cls._processes_lock:
                             if any(
-                                name
-                                == f".{root_name}{_GATE_ROOT_OWNER_FILE}"
+                                _gate_sidecar_candidate_root_name(name)
+                                == root_name
                                 for name in cls._deferred_gate_sidecar_candidates
                             ):
                                 cls._deferred_gate_sidecar_protected.add(root_name)
@@ -1597,14 +1703,8 @@ class BranchQualityGate:
 
                 if sidecar_phase != "collect":
                     continue
-                suffix_length = len(_GATE_ROOT_OWNER_FILE)
                 if (
-                    not candidate.name.startswith(".")
-                    or not candidate.name.endswith(_GATE_ROOT_OWNER_FILE)
-                    or _GATE_ROOT_NAME_RE.fullmatch(
-                        candidate.name[1:-suffix_length]
-                    )
-                    is None
+                    _gate_sidecar_candidate_root_name(candidate.name) is None
                     or (
                         sidecar_cursor is not None
                         and candidate.name <= sidecar_cursor
@@ -1636,10 +1736,14 @@ class BranchQualityGate:
         now: float,
         expected_namespace_generation: int | None,
         require_sidecar_batch: bool = False,
-    ) -> bool:
+        report_status: bool = False,
+    ) -> bool | str:
         """Atomically claim one old owner record before inode-fenced removal."""
+        def outcome(status: str) -> bool | str:
+            return status if report_status else status == _GATE_REMOVAL_REMOVED
+
         if _GATE_ROOT_NAME_RE.fullmatch(root_name) is None:
-            return False
+            return outcome(_GATE_REMOVAL_UNSAFE)
         root = sidecar.parent / root_name
         parent_descriptor: int | None = None
         sidecar_descriptor: int | None = None
@@ -1659,22 +1763,22 @@ class BranchQualityGate:
                     and cls._gate_namespace_generation
                     != expected_namespace_generation
                 ):
-                    return False
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 if require_sidecar_batch and (
                     cls._deferred_gate_sidecar_phase != "verify"
                     or sidecar.name
                     not in cls._deferred_gate_sidecar_candidates
                     or root_name in cls._deferred_gate_sidecar_protected
                 ):
-                    return False
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 if str(root) in cls._active_gate_root_identities:
-                    return False
+                    return outcome(_GATE_REMOVAL_UNSAFE)
                 for active_path in cls._active_gate_root_identities:
                     match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(
                         Path(active_path).name
                     )
                     if match is not None and match.group("root") == root_name:
-                        return False
+                        return outcome(_GATE_REMOVAL_UNSAFE)
                 try:
                     os.stat(
                         root.name,
@@ -1684,7 +1788,7 @@ class BranchQualityGate:
                 except FileNotFoundError:
                     pass
                 else:
-                    return False
+                    return outcome(_GATE_REMOVAL_UNSAFE)
                 sidecar_descriptor = os.open(
                     sidecar.name,
                     getattr(os, "O_PATH", os.O_RDONLY)
@@ -1698,7 +1802,7 @@ class BranchQualityGate:
                     or metadata.st_uid != os.getuid()
                     or now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS
                 ):
-                    return False
+                    return outcome(_GATE_REMOVAL_UNSAFE)
                 identity = (int(metadata.st_dev), int(metadata.st_ino))
                 claimed_name = (
                     f".{root_name}.sidecar-reap-{identity[0]}-{identity[1]}"
@@ -1721,13 +1825,19 @@ class BranchQualityGate:
                     int(final_metadata.st_dev),
                     int(final_metadata.st_ino),
                 ) != identity:
-                    return False
+                    return outcome(_GATE_REMOVAL_UNSAFE)
                 os.unlink(claimed_name, dir_fd=parent_descriptor)
                 claimed = False
                 cls._gate_namespace_generation += 1
-                return True
-        except OSError:
-            return False
+                return outcome(_GATE_REMOVAL_REMOVED)
+        except FileNotFoundError:
+            return outcome(_GATE_REMOVAL_UNSAFE)
+        except OSError as exc:
+            return outcome(
+                _GATE_REMOVAL_UNSAFE
+                if exc.errno in {errno.ELOOP, errno.ENOTDIR}
+                else _GATE_REMOVAL_INCOMPLETE
+            )
         finally:
             if claimed and parent_descriptor is not None and claimed_name is not None:
                 with cls._processes_lock:
@@ -1761,9 +1871,14 @@ class BranchQualityGate:
         claim: Path,
         claim_match: re.Match[str],
         *,
-        expected_namespace_generation: int,
-    ) -> bool:
-        """Restore one interrupted no-clobber sidecar claim for normal reaping."""
+        expected_namespace_generation: int | None,
+        require_sidecar_batch: bool = False,
+        report_status: bool = False,
+    ) -> bool | str:
+        """Inode-fence one verified interrupted claim before terminal removal."""
+        def outcome(status: str) -> bool | str:
+            return status if report_status else status == _GATE_REMOVAL_REMOVED
+
         root_name = claim_match.group("root")
         canonical_name = f".{root_name}{_GATE_ROOT_OWNER_FILE}"
         parent_descriptor: int | None = None
@@ -1784,28 +1899,95 @@ class BranchQualityGate:
             )
             metadata = os.fstat(claim_descriptor)
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
-                return False
+                return outcome(_GATE_REMOVAL_UNSAFE)
+            expected_identity = (
+                int(claim_match.group("device")),
+                int(claim_match.group("inode")),
+            )
+            if (int(metadata.st_dev), int(metadata.st_ino)) != expected_identity:
+                # A forged name or source substitution is evidence, not
+                # lifecycle authority. Never promote it to the canonical
+                # sidecar path or unlink it automatically.
+                return outcome(_GATE_REMOVAL_UNSAFE)
             with cls._processes_lock:
-                if cls._gate_namespace_generation != expected_namespace_generation:
-                    return False
+                if (
+                    expected_namespace_generation is not None
+                    and cls._gate_namespace_generation
+                    != expected_namespace_generation
+                ):
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
+                if not require_sidecar_batch or (
+                    cls._deferred_gate_sidecar_phase != "verify"
+                    or claim.name not in cls._deferred_gate_sidecar_candidates
+                    or root_name in cls._deferred_gate_sidecar_protected
+                ):
+                    return outcome(_GATE_REMOVAL_UNSAFE)
+                root = claim.parent / root_name
+                if str(root) in cls._active_gate_root_identities:
+                    return outcome(_GATE_REMOVAL_UNSAFE)
+                for active_path in cls._active_gate_root_identities:
+                    match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(
+                        Path(active_path).name
+                    )
+                    if match is not None and match.group("root") == root_name:
+                        return outcome(_GATE_REMOVAL_UNSAFE)
                 try:
                     os.stat(
+                        root_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                except FileNotFoundError:
+                    pass
+                else:
+                    return outcome(_GATE_REMOVAL_UNSAFE)
+                try:
+                    canonical_metadata = os.stat(
                         canonical_name,
                         dir_fd=parent_descriptor,
                         follow_symlinks=False,
                     )
                 except FileNotFoundError:
-                    _rename_noreplace_at(
-                        parent_descriptor,
-                        claim.name,
-                        parent_descriptor,
-                        canonical_name,
-                    )
-                    cls._gate_namespace_generation += 1
-                    return True
-                return False
-        except OSError:
-            return False
+                    pass
+                else:
+                    if (
+                        int(canonical_metadata.st_dev),
+                        int(canonical_metadata.st_ino),
+                    ) != expected_identity:
+                        return outcome(_GATE_REMOVAL_UNSAFE)
+
+                recheck_name = (
+                    f".{root_name}.sidecar-reap-{expected_identity[0]}"
+                    f"-{expected_identity[1]}-{os.getpid()}-{time.time_ns()}"
+                )
+                _rename_noreplace_at(
+                    parent_descriptor,
+                    claim.name,
+                    parent_descriptor,
+                    recheck_name,
+                )
+                cls._gate_namespace_generation += 1
+                final_metadata = os.stat(
+                    recheck_name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    int(final_metadata.st_dev),
+                    int(final_metadata.st_ino),
+                ) != expected_identity:
+                    return outcome(_GATE_REMOVAL_UNSAFE)
+                os.unlink(recheck_name, dir_fd=parent_descriptor)
+                cls._gate_namespace_generation += 1
+                return outcome(_GATE_REMOVAL_REMOVED)
+        except FileNotFoundError:
+            return outcome(_GATE_REMOVAL_UNSAFE)
+        except OSError as exc:
+            return outcome(
+                _GATE_REMOVAL_UNSAFE
+                if exc.errno in {errno.ELOOP, errno.ENOTDIR}
+                else _GATE_REMOVAL_INCOMPLETE
+            )
         finally:
             if claim_descriptor is not None:
                 os.close(claim_descriptor)
@@ -1914,8 +2096,7 @@ class BranchQualityGate:
                     quarantine,
                 )
                 result = _GATE_REMOVAL_UNSAFE
-            if result == _GATE_REMOVAL_REMOVED:
-                cls._unlink_gate_root_owner(root)
+            unlink_owner = False
             with cls._processes_lock:
                 current = cls._deferred_gate_cleanups.get(key)
                 if current != cleanup:
@@ -1951,6 +2132,9 @@ class BranchQualityGate:
                         is not None
                     ):
                         cls._note_gate_namespace_change(root.name)
+                    unlink_owner = result == _GATE_REMOVAL_REMOVED
+            if unlink_owner:
+                cls._unlink_gate_root_owner(root)
             if result == _GATE_REMOVAL_INCOMPLETE:
                 if attempts == _GATE_CLEANUP_RETRY_WARNING_ATTEMPT:
                     logger.warning(
@@ -2664,18 +2848,10 @@ class BranchQualityGate:
                 return 0, False
         except OSError:
             return 0, False
-        for claim in entries:
-            claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(claim.name)
-            if claim_match is None:
-                continue
-            if cls._recover_gate_sidecar_claim(
-                claim,
-                claim_match,
-                expected_namespace_generation=namespace_generation,
-            ):
-                # The canonical sidecar was restored after this bounded
-                # snapshot.  A fresh persistent pass must classify it.
-                return 0, False
+        claims_present = any(
+            _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(path.name) is not None
+            for path in entries
+        )
         candidates = [
             path
             for path in entries
@@ -2713,7 +2889,10 @@ class BranchQualityGate:
             ):
                 removed += 1
         with cls._processes_lock:
-            complete = cls._gate_namespace_generation == namespace_generation
+            complete = (
+                cls._gate_namespace_generation == namespace_generation
+                and not claims_present
+            )
         return removed, complete
 
     @classmethod
