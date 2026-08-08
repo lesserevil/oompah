@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-910
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Prevent owner-revision cross-thread project-lock deadlock
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T13:34:11.755473Z'
-updated_at: '2026-08-08T13:35:24.876526Z'
+updated_at: '2026-08-08T16:28:07.748440Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ef16e170ed76
+    project_id: proj-14849f1b
+    task_id: OOMPAH-910
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a74d276a32b8e492fc90002cc8cf393422aef29a1f577d1159d83f708c80d657
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:28:03.727574+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
