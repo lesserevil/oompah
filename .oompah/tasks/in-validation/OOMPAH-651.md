@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Merged
+status: In Validation
 priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-01T00:25:19.450518Z'
+updated_at: '2026-08-08T00:56:11.536278Z'
 work_branch: OOMPAH-651
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/630
@@ -387,6 +387,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T00:15:11.881745+00:00'
     updated_at: '2026-08-01T00:24:43.156171+00:00'
+  - version: 1
+    audit_id: audit-c366e48aa565
+    project_id: proj-14849f1b
+    task_id: OOMPAH-651
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bf6d418ac6e10c52af1366e30ffd6c1dd9390671bf73b6101fc25245d73c411d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T00:56:07.457139+00:00'
+    selected_ref: 62328ae2881b05346ed02c0bef2a25cd57380567
+    selected_sha: 62328ae2881b05346ed02c0bef2a25cd57380567
   attempt_history:
   - version: 1
     attempt_id: attempt-cf516fe05da3
