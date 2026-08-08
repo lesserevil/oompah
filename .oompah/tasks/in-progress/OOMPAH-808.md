@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-07T20:15:31.973436Z'
+updated_at: '2026-08-08T08:14:00.818118Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-08-07 20:15
 ---
 Direct owner claim taken per operator instruction. The hard-start dependency on OOMPAH-768 remains authoritative: implementation will begin only after the OOMPAH-768 lineage is assembled and reachable, while this lease prevents autonomous dispatch on the stale base.
+---
+author: oompah
+created: 2026-08-08 08:14
+---
+Direct implementation resumed on an isolated worktree at exact systemic head 6cbbd6ef7. I am replacing the rejected checkpoint with a narrow fail-closed nested-dispatch topology fence: fresh parent plus inherited hard-start evidence, durable exact-generation repair jobs, CAS-only parent-to-child/private-branch advances, and a second no-workspace/no-provider proof at worker setup. Tests will model the OOMPAH-770/OOMPAH-796 stale-main incident, missing/error evidence, concurrency, restart recovery, and local/remote private-tip divergence.
 ---
 <!-- COMMENTS:END -->
