@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T21:47:20.306703Z'
-updated_at: '2026-08-08T03:56:27.144221Z'
+updated_at: '2026-08-08T03:56:38.192524Z'
 work_branch: OOMPAH-906
 target_branch: null
 review_url: null
@@ -49,7 +49,17 @@ oompah.terminal_audit:
       affected tests passed 392/392 and the exact full make test passed 17,860 with
       zero failures.'
     created_at: '2026-08-08T03:56:21.782606+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-906
+    target_state: Done
+    evidence_fingerprint: 4d0eeeabd35153e84764bde758a72a3f492073b92e955be574bba8df43b6cab1
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T03:56:32.641230+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -100,5 +110,17 @@ author: oompah
 created: 2026-08-07 23:37
 ---
 Isolated validation guards in a server-owned HOME, hardened allocation and xdist cleanup, and added restart-safe stale-root/quarantine recovery; exact head aca098a94f75330939e7fe392bca31b33cc87ced passed 134 affected tests, 3 real-bwrap regressions, static/security gates, and two independent reviews.
+---
+author: oompah
+created: 2026-08-08 03:56
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: the task implementation and subsequent cleanup hardening are published on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268. Independent reviews accepted the exact composition after blockers were fixed; affected tests passed 392/392 and the exact full make test passed 17,860 with zero failures.
+---
+author: oompah
+created: 2026-08-08 03:56
+---
+Integrated and validated on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
 ---
 <!-- COMMENTS:END -->
