@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-08T07:20:44.351182Z'
+updated_at: '2026-08-08T07:21:00.532944Z'
 work_branch: OOMPAH-675
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/639
@@ -38,8 +38,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c80b7804-0b05-44f0-93e2-2099fcd339c5
 oompah.task_costs:
-  total_input_tokens: 349502
-  total_output_tokens: 49017
+  total_input_tokens: 349798
+  total_output_tokens: 49111
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,8 +51,8 @@ oompah.task_costs:
       output_tokens: 42687
       cost_usd: 0.0
     unknown:
-      input_tokens: 45
-      output_tokens: 4111
+      input_tokens: 341
+      output_tokens: 4205
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 572
     cost_usd: 0.0
     recorded_at: '2026-08-01T06:25:30.877276+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 296
+    output_tokens: 94
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T07:20:57.130648+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-675__20260801T051057Z
@@ -644,5 +650,15 @@ Safe evidence:
 - acceptance_criteria[1]: Intentional timeouts report the responsible test ✓
 - acceptance_criteria[2]: Isolation guarantees remain intact ✓
 - acceptance_criteria[3]: Regression coverage exercises worker failure/replacement behavior ✓
+---
+author: oompah
+created: 2026-08-08 07:21
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 20
+- Tokens: 296 in / 94 out [390 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 22s
+- Log: OOMPAH-675__20260808T070443Z.jsonl
 ---
 <!-- COMMENTS:END -->
