@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T04:10:01.768880Z'
+updated_at: '2026-08-08T04:10:22.163560Z'
 work_branch: OOMPAH-843
 target_branch: null
 review_url: null
@@ -48,13 +48,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: cda8a7d3-e257-4ba6-93ba-58ca49928415
 oompah.task_costs:
-  total_input_tokens: 48109
-  total_output_tokens: 553
+  total_input_tokens: 48145
+  total_output_tokens: 908
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 48109
       output_tokens: 553
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 36
+      output_tokens: 355
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +73,12 @@ oompah.task_costs:
     output_tokens: 294
     cost_usd: 0.0
     recorded_at: '2026-08-06T03:39:53.706196+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 36
+    output_tokens: 355
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T04:10:16.836523+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-843__20260806T024029Z
@@ -490,5 +500,15 @@ created: 2026-08-08 04:09
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Project-owner reconciliation: composed OOMPAH-843 repair a1917e770 is an ancestor of published e74449e4. Its exact review was accepted, 1,659 broad focused tests plus 42 deadline regressions passed, and the exact parent full gate passed 17,860 tests with zero failures; the later reopen was stale recovery churn for the same accepted head.
+---
+author: oompah
+created: 2026-08-08 04:10
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 17
+- Tokens: 36 in / 355 out [391 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 16s
+- Log: OOMPAH-843__20260808T040709Z.jsonl
 ---
 <!-- COMMENTS:END -->
