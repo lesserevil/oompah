@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-909
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Close owned Orchestrator resources between tests and on shutdown
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-08T12:20:40.667997Z'
-updated_at: '2026-08-08T12:20:40.667997Z'
+updated_at: '2026-08-08T12:21:00.236801Z'
 work_branch: null
 target_branch: null
 review_url: null
