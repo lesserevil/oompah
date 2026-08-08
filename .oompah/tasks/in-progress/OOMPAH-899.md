@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-07T20:55:12.419410Z'
+updated_at: '2026-08-08T07:39:39.365933Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
@@ -372,5 +372,10 @@ author: oompah
 created: 2026-08-07 20:55
 ---
 Final direct verification found and fixed two real gaps in the prepared lifecycle patch: the documented 5-120 second bound was not enforced, and a verified process still had PID/meta deleted after the extra grace period. The final branch validates configuration before spawn, retains exact lifecycle evidence at timeout, refuses unverified signaling, and includes a real Make integration covering timeout -> late bind -> rediscovery -> exact stop. Restacked onto current main 89de98783 and pushed exact head 4c76d9dc330ce77763f495930e37d3bbe8072be4. Evidence: 105/105 listener, Make lifecycle, setup, CLI sync, and process-identity tests passed through the canonical capacity-1 broker; scoped Ruff, diff, and secret checks passed; remote parity verified. Not submitted per direct-owner handoff.
+---
+author: oompah
+created: 2026-08-08 07:39
+---
+Direct composition checkpoint: the identity-safe configurable listener-startup timeout repair is integrated in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Combined affected validation passed 1076 tests, terminal-mutation and secret scans passed, and the exact full make test gate is currently running clean. The task will be terminalized only after that exact head publishes.
 ---
 <!-- COMMENTS:END -->

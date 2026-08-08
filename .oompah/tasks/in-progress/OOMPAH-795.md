@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-08T07:29:25.530147Z'
+updated_at: '2026-08-08T07:39:45.022574Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ author: oompah
 created: 2026-08-07 19:03
 ---
 Direct implementation checkpoint: independent review ACCEPTED the final generation-fencing and aggregate invalidation repair. The complete affected surface passes under the canonical validation lease (700 passed), including controller/cache/snapshot/API/dashboard parity, reload/config races, redaction, alerts, and WebSocket lifecycle. Committed locally as 0939ca85d5fd9c67376f1b6f7d9dde6bf1cef02b; branch remains isolated and will be restacked onto the repaired shared baseline before exact-gate submission.
+---
+author: oompah
+created: 2026-08-08 07:39
+---
+Direct composition checkpoint: the accepted canonical WorkDecision projection program and subsequent publication/race repairs are present in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183, together with child OOMPAH-859. Combined affected validation passed 1076 tests and the exact full make test gate is running clean. Parent/child terminalization will occur only after exact publication evidence exists.
 ---
 <!-- COMMENTS:END -->

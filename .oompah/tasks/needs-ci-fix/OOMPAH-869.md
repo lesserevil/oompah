@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-07T21:43:41.773090Z'
+updated_at: '2026-08-08T07:39:35.795929Z'
 work_branch: OOMPAH-869
 target_branch: null
 review_url: null
@@ -387,5 +387,10 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
   warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-08 07:39
+---
+Direct composition checkpoint: the deterministic validation-fence test repair is integrated in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Its previous Needs CI Fix state came from operator preemption, not a product failure. Combined affected validation passed 1076 tests; the exact full make test gate is currently running clean and will provide the replacement terminal evidence.
 ---
 <!-- COMMENTS:END -->
