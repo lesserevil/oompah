@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-908
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Give the whole-corpus dispatch contract scan a load-safe deadline
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T07:51:47.950793Z'
-updated_at: '2026-08-08T07:51:47.950793Z'
+updated_at: '2026-08-08T07:52:08.682042Z'
 work_branch: null
 target_branch: null
 review_url: null
