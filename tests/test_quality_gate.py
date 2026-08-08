@@ -2197,6 +2197,21 @@ def _create_deep_gate_tree(root: Path, depth: int) -> None:
         os.close(descriptor)
 
 
+def _quarantine_gate_for_reaper(
+    run_root: Path,
+    nonce: int,
+) -> tuple[Path, Path, tuple[int, int], Path]:
+    container = run_root.parent
+    identity = (container.stat().st_dev, container.stat().st_ino)
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    BranchQualityGate._forget_gate_root(container)
+    quarantine = container.with_name(
+        f".{container.name}.scavenge-2000000000-{nonce}"
+    )
+    container.rename(quarantine)
+    return container, quarantine, identity, owner_path
+
+
 def test_gate_normal_cleanup_handles_candidate_depth_beyond_recursion_limit(
     tmp_path,
     monkeypatch,
@@ -2331,6 +2346,162 @@ def test_gate_cleanup_defers_bounded_work_to_one_convergent_reaper(
     assert not container.exists()
     assert not owner_path.exists()
     assert not pending
+    assert reaper is None or not reaper.is_alive()
+
+
+def test_gate_reaper_start_failure_cannot_strand_concurrent_enqueue(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    first = _quarantine_gate_for_reaper(BranchQualityGate._gate_run_root(), 101)
+    second = _quarantine_gate_for_reaper(BranchQualityGate._gate_run_root(), 102)
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    begin_first = threading.Event()
+    begin_second = threading.Event()
+    original_start = threading.Thread.start
+    failed_once = False
+    results: dict[str, bool] = {}
+
+    def controlled_start(thread):
+        nonlocal failed_once
+        if thread.name == "quality-gate-cleanup-reaper" and not failed_once:
+            failed_once = True
+            first_entered.set()
+            assert release_first.wait(2)
+            raise RuntimeError("injected first reaper start failure")
+        return original_start(thread)
+
+    def schedule(label, gate, begin):
+        begin.wait()
+        container, quarantine, identity, _owner_path = gate
+        results[label] = BranchQualityGate._schedule_deferred_gate_cleanup(
+            container,
+            quarantine,
+            identity,
+        )
+
+    first_scheduler = threading.Thread(
+        target=schedule,
+        args=("first", first, begin_first),
+    )
+    second_scheduler = threading.Thread(
+        target=schedule,
+        args=("second", second, begin_second),
+    )
+    first_scheduler.start()
+    second_scheduler.start()
+    with monkeypatch.context() as start_failure:
+        start_failure.setattr(threading.Thread, "start", controlled_start)
+        begin_first.set()
+        assert first_entered.wait(2)
+        begin_second.set()
+        time.sleep(0.05)
+        release_first.set()
+        first_scheduler.join(2)
+        second_scheduler.join(2)
+
+    assert results == {"first": False, "second": True}
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            pending = bool(BranchQualityGate._deferred_gate_cleanups)
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not second[1].exists() and not pending and reaper is None:
+            break
+        time.sleep(0.01)
+    assert not second[1].exists()
+    assert not second[3].exists()
+    with BranchQualityGate._processes_lock:
+        assert not BranchQualityGate._deferred_gate_cleanups
+        assert BranchQualityGate._deferred_gate_cleanup_thread is None
+
+    assert BranchQualityGate._remove_abandoned_gate_quarantine(
+        first[1],
+        first[0].name,
+        first[2],
+    )
+    BranchQualityGate._unlink_gate_root_owner(first[0])
+
+
+def test_gate_reaper_discovers_queue_overflow_without_restart(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(quality_gate, "_GATE_DEFERRED_CLEANUP_LIMIT", 1)
+    monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_MAX_DEPTH", 2)
+    monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_MAX_OPERATIONS", 4)
+    first = _quarantine_gate_for_reaper(BranchQualityGate._gate_run_root(), 201)
+    second_run_root = BranchQualityGate._gate_run_root()
+    second_container = second_run_root.parent
+    second_owner = BranchQualityGate._gate_root_owner_path(second_container)
+    first_slice_entered = threading.Event()
+    release_first_slice = threading.Event()
+    original_slice = BranchQualityGate._deferred_gate_cleanup_slice
+    blocked_once = False
+
+    def block_first_slice(_cls, quarantine, expected_identity):
+        nonlocal blocked_once
+        if not blocked_once:
+            blocked_once = True
+            first_slice_entered.set()
+            assert release_first_slice.wait(2)
+        return original_slice(quarantine, expected_identity)
+
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_deferred_gate_cleanup_slice",
+        classmethod(block_first_slice),
+    )
+    assert BranchQualityGate._schedule_deferred_gate_cleanup(
+        first[0],
+        first[1],
+        first[2],
+    )
+    assert first_slice_entered.wait(2)
+    BranchQualityGate._cleanup_gate_run_root(second_run_root)
+    second_quarantines = [
+        path
+        for path in tmp_path.iterdir()
+        if path != first[1]
+        and quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path.name)
+    ]
+    assert not second_container.exists()
+    assert len(second_quarantines) == 1
+    with BranchQualityGate._processes_lock:
+        assert BranchQualityGate._deferred_gate_cleanup_overflow
+        assert len(BranchQualityGate._deferred_gate_cleanups) == 1
+        assert (
+            str(second_container)
+            not in BranchQualityGate._active_gate_root_identities
+        )
+    release_first_slice.set()
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            pending = bool(BranchQualityGate._deferred_gate_cleanups)
+            overflow = BranchQualityGate._deferred_gate_cleanup_overflow
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if (
+            not first[1].exists()
+            and not second_quarantines[0].exists()
+            and not first[3].exists()
+            and not second_owner.exists()
+            and not pending
+            and not overflow
+        ):
+            break
+        time.sleep(0.01)
+
+    assert not first[1].exists()
+    assert not second_quarantines[0].exists()
+    assert not first[3].exists()
+    assert not second_owner.exists()
+    assert not pending
+    assert not overflow
     assert reaper is None or not reaper.is_alive()
 
 
@@ -2495,12 +2666,9 @@ def test_gate_restart_scavenges_abandoned_quarantine_and_sidecar(
         f".{container.name}.scavenge-2000000000-123456789"
     )
     container.rename(quarantine)
-    old = time.time() - 10
-    os.utime(quarantine, (old, old))
-    os.utime(owner_path, (old, old))
-    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
     try:
-        # Same-generation memory authority wins even over backdated files.
+        # Same-generation memory authority wins while the exact registration
+        # is live, even though the owner record now names a dead process.
         assert BranchQualityGate._scavenge_stale_gate_roots() == 0
         assert quarantine.exists()
         assert owner_path.exists()
@@ -2858,7 +3026,7 @@ def test_gate_normal_cleanup_restores_identity_mode_for_retry(
     assert not container.exists()
 
 
-def test_gate_partial_active_deletion_converges_via_restart_scavenging(
+def test_gate_partial_active_deletion_retries_in_same_service_generation(
     tmp_path,
     monkeypatch,
 ):
@@ -2879,32 +3047,29 @@ def test_gate_partial_active_deletion_converges_via_restart_scavenging(
     with monkeypatch.context() as cleanup_failure:
         cleanup_failure.setattr(os, "rmdir", fail_final_container_rmdir)
         BranchQualityGate._cleanup_gate_run_root(run_root)
+        quarantines = [
+            path
+            for path in tmp_path.iterdir()
+            if quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path.name)
+        ]
+        assert not container.exists()
+        assert len(quarantines) == 1
+        assert not (quarantines[0] / "identity").exists()
+        assert owner_path.exists()
+        with BranchQualityGate._processes_lock:
+            assert str(container) not in BranchQualityGate._active_gate_root_identities
 
-    quarantines = [
-        path
-        for path in tmp_path.iterdir()
-        if quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path.name)
-    ]
-    assert not container.exists()
-    assert len(quarantines) == 1
-    assert not (quarantines[0] / "identity").exists()
-    assert owner_path.exists()
-    with BranchQualityGate._processes_lock:
-        assert str(container) not in BranchQualityGate._active_gate_root_identities
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            pending = bool(BranchQualityGate._deferred_gate_cleanups)
+        if not quarantines[0].exists() and not owner_path.exists() and not pending:
+            break
+        time.sleep(0.01)
 
-    owner = json.loads(owner_path.read_text(encoding="utf-8"))
-    owner.update({"pid": 2_000_000_000, "process_start_ticks": 1})
-    owner_path.chmod(0o600)
-    owner_path.write_text(json.dumps(owner), encoding="utf-8")
-    owner_path.chmod(0o400)
-    old = time.time() - 10
-    os.utime(quarantines[0], (old, old))
-    os.utime(owner_path, (old, old))
-    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
-
-    assert BranchQualityGate._scavenge_stale_gate_roots() == 1
     assert not quarantines[0].exists()
     assert not owner_path.exists()
+    assert not pending
 
 
 def test_gate_normal_cleanup_removes_container_and_owner_sidecar(tmp_path, monkeypatch):
