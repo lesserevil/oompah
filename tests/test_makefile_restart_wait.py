@@ -307,6 +307,22 @@ class TestMakefileStructure:
             # The child gate is deliberately given the sentinel URL/port as
             # inherited operator state.  run-tests.sh must remove/replace it.
             gate_env = os.environ.copy()
+            inherited_worker_home_root = gate_env.pop(
+                "OOMPAH_PYTEST_WORKER_HOME_ROOT",
+                None,
+            )
+            trusted_home = gate_env.get("OOMPAH_PYTEST_TRUSTED_HOME_ROOT")
+            if trusted_home:
+                # A nested gate must allocate its own worker-HOME session;
+                # inheriting the outer xdist worker's capability would make
+                # nested cleanup capable of removing the outer worker HOME.
+                gate_env["HOME"] = trusted_home
+            for key in (
+                "PYTEST_XDIST_WORKER",
+                "PYTEST_XDIST_WORKER_COUNT",
+                "PYTEST_XDIST_TESTRUNUID",
+            ):
+                gate_env.pop(key, None)
             gate_env["OOMPAH_SERVER_URL"] = f"http://127.0.0.1:{sentinel_port}"
             gate_env["OOMPAH_SERVER_PORT"] = str(sentinel_port)
             targets = [
@@ -330,6 +346,8 @@ class TestMakefileStructure:
             )
             assert sentinel.process.poll() is None
             assert port_listening(sentinel_port)
+            if inherited_worker_home_root is not None:
+                assert Path(inherited_worker_home_root).is_dir()
         finally:
             survivors = stop_owned_process(sentinel, timeout_s=2)
             assert survivors == set()
