@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-07T18:23:16.269133Z'
+updated_at: '2026-08-08T08:29:02.476306Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-809
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-08-06 03:54
 ---
 New fe6257b live evidence after OOMPAH-826 exact-gate completion: /healthz accepted a connection but returned no body within a 2-second probe while the server main thread was CPU-bound. The subsequent state snapshot reported total_ms=364394 and dispatch_ms=354332, including audit_scan/audit_dispatch=2909ms, candidate_selection=3227ms, normal_dispatch=11535ms, and duplicate_preflight_dispatch=10944ms, yet health.status still reported healthy. The endpoint recovered about five seconds later. This is another concrete multi-minute scheduler service-interval violation for OOMPAH-809; bound all unaccounted dispatch work and ensure health/liveness projection cannot call a 364-second tick healthy.
+---
+author: oompah
+created: 2026-08-08 08:29
+---
+Direct implementation complete at c91f12888 on the systemic base. The scheduler now selects authoritative runnable non-audit work before audit launch, reserves configurable implementation/control-plane capacity, and durably alternates audit/implementation turns at total concurrency one. Audit scanning rotates through a persisted cursor, launch attempts have a separate per-tick cap, and state exposes reservation, lane occupancy, deferred count/cursor, and oldest runnable implementation age. Configured partial scans are informational; actual tracker scan failures remain actionable. Focused config/audit-health/audit-observability/tick/lane matrix: 293 passed in 64.35s. Diff/compile and full secret scan are clean. Awaiting composition and exact-head full gate before terminalization.
 ---
 <!-- COMMENTS:END -->
