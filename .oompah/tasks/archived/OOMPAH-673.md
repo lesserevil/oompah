@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: In Validation
+status: Archived
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-08T04:03:19.706117Z'
+updated_at: '2026-08-08T04:08:04.338960Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -112,6 +112,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-33ffa8237c83: '2026-08-01T03:02:36.247447+00:00'
     attempt-4ae928769713: '2026-08-01T03:05:54.172826+00:00'
+    attempt-6de4fa5f8587: '2026-08-08T04:07:56.767948+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-673
@@ -131,6 +132,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T03:05:54.172838+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    target_state: Archived
+    evidence_fingerprint: ecade12e37bf4133c83b95a68ac58577dbb8c6a0497a156ba1fe10c91b75f8a4
+    audit_ids:
+    - audit-0c6ee28b5616
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T04:07:56.767968+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-673
@@ -156,6 +166,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T03:05:54.172853+00:00'
     applied_at: '2026-08-01T03:05:58.702132+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    audit_id: audit-0c6ee28b5616
+    attempt_id: attempt-6de4fa5f8587
+    target_state: Archived
+    evidence_fingerprint: ecade12e37bf4133c83b95a68ac58577dbb8c6a0497a156ba1fe10c91b75f8a4
+    status: Archived
+    audit_ids:
+    - audit-0c6ee28b5616
+    kind: result
+    applied: false
+    created_at: '2026-08-08T04:07:56.767990+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -231,7 +253,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-673
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -240,7 +262,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6de4fa5f8587
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -252,6 +274,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-673
       selected_ref: b792568ef85d4b46a2e5607305a3dc3549a95860
       selected_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
+      verdict: pass
+      completed_at: '2026-08-08T04:07:56.767728+00:00'
+      ended_at: '2026-08-08T04:07:56.767728+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -260,7 +285,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T04:02:36.666764+00:00'
     selected_ref: b792568ef85d4b46a2e5607305a3dc3549a95860
     selected_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
-    updated_at: '2026-08-08T04:03:09.414707+00:00'
+    updated_at: '2026-08-08T04:07:56.767728+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-33ffa8237c83
