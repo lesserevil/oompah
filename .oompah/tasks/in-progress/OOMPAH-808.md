@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-08T08:14:00.818118Z'
+updated_at: '2026-08-08T08:51:40.694960Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-08-08 08:14
 ---
 Direct implementation resumed on an isolated worktree at exact systemic head 6cbbd6ef7. I am replacing the rejected checkpoint with a narrow fail-closed nested-dispatch topology fence: fresh parent plus inherited hard-start evidence, durable exact-generation repair jobs, CAS-only parent-to-child/private-branch advances, and a second no-workspace/no-provider proof at worker setup. Tests will model the OOMPAH-770/OOMPAH-796 stale-main incident, missing/error evidence, concurrency, restart recovery, and local/remote private-tip divergence.
+---
+author: oompah
+created: 2026-08-08 08:51
+---
+Direct implementation completed on systemic base 6cbbd6ef7bb7 in preserved worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-808-direct.ndqjLZ. Commit 80628efa93416f9cc452b1d90373704c500d0c18 implements the fail-closed nested-dispatch topology fence, exact parent/dependency/ref generations, durable action-scoped repair leasing/CAS, safe nested-then-private ref advancement, restart-safe wait projection, and pre-provider/status/workspace race checks. Verification: broad dedicated-broker r7 green across 8 affected suites; final r9 green for nested topology + workflow jobs; py_compile/diff-check, terminal-audit scan, and secret scan green. Worktree is clean. Composition/submission intentionally left to the parent.
 ---
 <!-- COMMENTS:END -->
