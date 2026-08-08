@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T15:12:47.858971Z'
-updated_at: '2026-08-08T15:12:47.858971Z'
+updated_at: '2026-08-08T15:14:42.228005Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ The management_tracker_resolution alert currently stores a raw repository/path e
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 15:14
+---
+Direct owner implementation is complete on the systemic composition head: management-tracker failures now emit a fixed compact detail and explicit raw diagnostic, making dashboard path disclosure independent of temp-root length. Focused serial reproduction passes. This task remains Backlog/unclaimed only because the currently deployed expired-transition recovery bug blocks promotion; it will be promoted and direct-claimed immediately after the repaired head is deployed.
+---
+<!-- COMMENTS:END -->

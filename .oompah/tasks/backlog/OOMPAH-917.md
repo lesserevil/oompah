@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T15:12:45.375040Z'
-updated_at: '2026-08-08T15:12:45.375040Z'
+updated_at: '2026-08-08T15:14:38.441670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ The exact systemic full gate intermittently fails tests/test_native_validation_g
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 15:14
+---
+Direct owner implementation is complete on the systemic composition head: the regression now uses the existing bounded wait helper for asynchronous lease release. Focused serial reproduction passes. This task remains Backlog/unclaimed only because the currently deployed expired-transition recovery bug blocks promotion; it will be promoted and direct-claimed immediately after the repaired head is deployed.
+---
+<!-- COMMENTS:END -->
