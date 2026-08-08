@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T05:14:49.236170Z'
+updated_at: '2026-08-08T06:03:56.012286Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -224,6 +224,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T05:07:51.113032+00:00'
     updated_at: '2026-08-01T05:14:29.909730+00:00'
+  - version: 1
+    audit_id: audit-19d1d5d121ef
+    project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3c776126423075d0892fd4326cfe444e471f24909e23e9996e76534b1ad644bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T06:03:52.087250+00:00'
+    selected_ref: 939abfda0d393cd98d95b61a71fb92df7ea740d0
+    selected_sha: 939abfda0d393cd98d95b61a71fb92df7ea740d0
   attempt_history:
   - version: 1
     attempt_id: attempt-a14907dc5a93
