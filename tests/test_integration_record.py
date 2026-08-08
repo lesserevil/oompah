@@ -61,6 +61,34 @@ def test_parse_integration_record_rejects_malformed_or_unsupported_data(raw):
     assert parse_integration_record(raw) is None
 
 
+def test_direct_maintenance_publication_proof_round_trips_only_when_true():
+    proven = IntegrationRecord(
+        state="integrated",
+        task_branch="epic-parent",
+        base_branch="epic-parent",
+        head_sha="a" * 40,
+        integrated_sha="a" * 40,
+        maintenance_publication_proven=True,
+    )
+
+    assert IntegrationRecord.from_dict(proven.to_dict()) == proven
+    assert proven.to_dict()["maintenance_publication_proven"] is True
+    assert "maintenance_publication_proven" not in IntegrationRecord(
+        state="ready"
+    ).to_dict()
+
+
+def test_direct_maintenance_publication_proof_rejects_truthy_non_boolean():
+    record = IntegrationRecord.from_dict(
+        {
+            "state": "ready",
+            "maintenance_publication_proven": "false",
+        }
+    )
+
+    assert record.maintenance_publication_proven is False
+
+
 def test_integration_record_ignores_unknown_future_keys():
     record = parse_integration_record(
         {

@@ -144,6 +144,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
         workflow_runtime_batch_size = 9
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    integration_queue = object()
     tracker = NativeTracker([make_issue("TASK-BOOT")])
     orchestrator = type(
         "OrchestratorDouble",
@@ -153,6 +154,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
             "tracker": tracker,
             "config": Config(),
             "workflow_job_store": store,
+            "integration_queue": integration_queue,
             "_state_path": str(tmp_path / "service-state.json"),
         },
     )()
@@ -168,6 +170,8 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert binding.implementation_controller is not None
     assert binding.review_controller is not None
     assert binding.integration_controller is not None
+    assert binding.collector.integration_queue is integration_queue
+    assert binding.review_controller.collector.integration_queue is integration_queue
     assert binding.epic_controller is not None
     assert binding.terminal_audit_workflow is orchestrator.terminal_audit_workflow
     assert binding.transition_journal is not None
@@ -728,7 +732,27 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
         project_id="project-1",
         parent_id="TOP",
     )
-    tracker = NativeTracker([issue, child])
+    landed_task = Issue(
+        id="LANDED-TASK",
+        identifier="LANDED-TASK",
+        title="LANDED-TASK",
+        description="ordinary landed task guard fixture",
+        state="Done",
+        project_id="project-1",
+        issue_type="task",
+        work_branch="epic-TOP",
+        target_branch="main",
+        head_sha=epic_head,
+        integration=IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch="epic-TOP",
+            base_branch="main",
+            head_sha=epic_head,
+            integrated_sha=epic_head,
+        ),
+    )
+    tracker = NativeTracker([issue, child, landed_task])
     store = WorkflowJobStore(str(tmp_path / "remote-jobs.sqlite3"))
 
     def network_git(_project, args, *, cwd, timeout):
@@ -799,6 +823,26 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
 
     assert guard(intent) is None
     assert binding.epic_controller._latest == {"UNRELATED": sentinel}
+
+    task_decision = binding.integration_controller.evaluate(
+        (landed_task,)
+    ).tasks[0].decision
+    task_intent = TransitionIntent(
+        project_id="project-1",
+        task_id=landed_task.identifier,
+        expected_status="Done",
+        expected_version=issue_authority_version(landed_task),
+        requested_status="Merged",
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        idempotency_key="ordinary-landed-task-guard",
+        originating_job="ordinary-landed-task-job",
+        precondition_revision=task_decision.evidence_revision,
+    )
+
+    assert task_decision.durable_jobs == ("parent_rollup_review",)
+    assert guard(task_intent) is None
 
     ordinary_intent = TransitionIntent(
         project_id="project-1",
@@ -968,6 +1012,51 @@ def test_epics_have_one_domain_owner_and_new_facts_supersede_old_job(tmp_path):
     assert second["projects"]["project-1"]["epic"]["jobs_superseded"] == 1
     assert sum(job.state is WorkflowJobState.QUEUED for job in jobs) == 1
     assert sum(job.state is WorkflowJobState.SUPERSEDED for job in jobs) == 1
+    runtime.close()
+    store.close()
+
+
+def test_runtime_routes_direct_maintenance_audit_through_integration_domain(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    parent = make_issue("EPIC-1", state="In Progress", issue_type="epic")
+    maintenance = make_issue(
+        "MAINT-1",
+        state="Open",
+        parent_id=parent.identifier,
+    )
+    maintenance.title = "Rebase epic-EPIC-1 onto main"
+    maintenance.work_branch = "epic-EPIC-1"
+    maintenance.target_branch = "epic-EPIC-1"
+    maintenance.head_sha = "b" * 40
+    maintenance.integration = IntegrationRecord(
+        state="integrated",
+        mode="queue",
+        task_branch="epic-EPIC-1",
+        base_branch="epic-EPIC-1",
+        head_sha="b" * 40,
+        integrated_sha="b" * 40,
+        maintenance_publication_proven=True,
+    )
+    tracker = NativeTracker([parent, maintenance])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert "error" not in report["projects"]["project-1"]
+    assert report["projects"]["project-1"]["integration"]["decisions_seen"] == 1
+    jobs = store.list_jobs(task_id=maintenance.identifier)
+    assert len(jobs) == 1
+    assert jobs[0].action == "terminal_audit_done"
     runtime.close()
     store.close()
 
@@ -1258,7 +1347,11 @@ def test_domain_limits_are_applied_after_semantic_eligibility(tmp_path):
 
     integration_tracker = NativeTracker(
         [
-            make_issue("A-DONE", state="Done", project_id="project-integration"),
+            make_issue(
+                "A-MERGED",
+                state="Merged",
+                project_id="project-integration",
+            ),
             make_issue(
                 "Z-READY",
                 state="Ready to Integrate",
@@ -1315,7 +1408,7 @@ def test_failed_project_does_not_stall_healthy_project_worker(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     bad_tracker = FailingTracker([])
     good_tracker = NativeTracker(
-        [make_issue("GOOD-DONE", state="Done", project_id="project-good")]
+        [make_issue("GOOD-DONE", state="Merged", project_id="project-good")]
     )
     bad_binding, bad_journal = make_binding(
         tmp_path, bad_tracker, store, project_id="project-bad"
@@ -1362,7 +1455,7 @@ def test_failed_project_does_not_stall_healthy_project_worker(tmp_path):
 def test_paused_project_keeps_due_job_unclaimed_until_resumed(tmp_path):
     enabled = False
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
-    tracker = NativeTracker([make_issue("TASK-PAUSED", state="Done")])
+    tracker = NativeTracker([make_issue("TASK-PAUSED", state="Merged")])
     binding, journal = make_binding(tmp_path, tracker, store)
     binding.dispatch_enabled = lambda: enabled
     runtime = WorkflowRuntime(

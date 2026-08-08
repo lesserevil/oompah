@@ -22,7 +22,11 @@ from typing import Any, Protocol
 from oompah.integration_executor import (
     IntegrationExecutionResult,
 )
-from oompah.integration import IntegrationRecord, is_direct_epic_maintenance_issue
+from oompah.integration import (
+    IntegrationRecord,
+    direct_epic_maintenance_handoff_ready,
+    is_direct_epic_maintenance_issue,
+)
 from oompah.integration_queue import STANDALONE_RECLASSIFICATION_REASON
 from oompah.models import Issue
 from oompah.statuses import (
@@ -79,7 +83,9 @@ INTEGRATION_ACTIONS = frozenset(
         "integration_landing_refresh",
         "integration_recovery",
         "integration_terminal_stage",
+        "parent_rollup_review",
         "standalone_delivery",
+        "terminal_audit_done",
     }
 )
 
@@ -311,7 +317,18 @@ class IntegrationWorkflowController:
         ).strip()
         if not source or not target:
             return ()
-        return (LandingRequest(source, target, revision or None),)
+        # Done-state terminalization is a mutation boundary.  Enforce-mode
+        # runtime collectors must refresh the remote target instead of
+        # trusting a potentially stale local branch; collectors without a
+        # target refresher retain their local/offline behavior.
+        return (
+            LandingRequest(
+                source,
+                target,
+                revision or None,
+                authoritative_target=True,
+            ),
+        )
 
     @staticmethod
     def _topological_batches(
@@ -350,14 +367,23 @@ class IntegrationWorkflowController:
         *,
         landing_requests: Mapping[str, Sequence[LandingRequest]] | None = None,
     ) -> IntegrationDecisionBatch:
-        # The window belongs to the Ready lane.  Limiting the complete task
-        # corpus first lets stable terminal rows ahead of a Ready identifier
-        # hide it from every pass.
+        # The window belongs to integration-owned work.  In addition to live
+        # Ready submissions, the durable lane owns exact Done landing
+        # terminalization and the narrowly classified direct-maintenance audit
+        # handoff.  Selecting the complete task corpus first would let stable
+        # unrelated rows hide these recovery obligations forever.
+        normalized_tasks = (
+            task
+            if task.project_id
+            else replace(task, project_id=self.collector.project_id)
+            for task in tasks
+        )
         selected = sorted(
             {
                 task.identifier: task
-                for task in tasks
-                if task.state == READY_TO_INTEGRATE
+                for task in normalized_tasks
+                if canonicalize_status(task.state) in {READY_TO_INTEGRATE, DONE}
+                or direct_epic_maintenance_handoff_ready(task)
             }.items()
         )
         if len(selected) > self.decision_limit:
@@ -374,10 +400,15 @@ class IntegrationWorkflowController:
         requests = landing_requests or {}
         evaluated: list[IntegrationTaskDecision] = []
         for task in ready:
+            default_requests = (
+                ()
+                if direct_epic_maintenance_handoff_ready(task)
+                else self._default_landing_request(task)
+            )
             task_requests = tuple(
                 requests.get(
                     task.identifier,
-                    self._default_landing_request(task),
+                    default_requests,
                 )
             )
             facts = self.collector.collect(
@@ -697,7 +728,9 @@ _INTEGRATION_ACTION_DOMAINS = {
     "integration_landing_refresh": WorkflowActionDomain.GIT,
     "integration_recovery": WorkflowActionDomain.TRACKER,
     "integration_terminal_stage": WorkflowActionDomain.AUDIT,
+    "parent_rollup_review": WorkflowActionDomain.TRACKER,
     "standalone_delivery": WorkflowActionDomain.FORGE,
+    "terminal_audit_done": WorkflowActionDomain.TRACKER,
 }
 _POST_INTEGRATION_STATES = frozenset(
     {IN_REVIEW, IN_VALIDATION, DONE, MERGED, ARCHIVED}
@@ -727,7 +760,14 @@ class OrchestratorIntegrationActionBackend:
     def _issue(self, context: WorkflowJobContext) -> Issue | None:
         if context.job.project_id != self.project_id:
             return None
-        return self.tracker.fetch_issue_detail(context.job.task_id)
+        issue = self.tracker.fetch_issue_detail(context.job.task_id)
+        # Native Markdown tasks omit their project id because the tracker is
+        # already project-scoped.  Normalize that representation before
+        # computing the transition CAS token so it agrees with
+        # TaskTransitionService._fetch().
+        if issue is not None and not issue.project_id:
+            issue.project_id = self.project_id
+        return issue
 
     def _fresh_issue(self, context: WorkflowJobContext) -> Issue | None:
         invalidate = getattr(self.tracker, "invalidate_read_cache", None)
@@ -1795,7 +1835,11 @@ class OrchestratorIntegrationActionBackend:
             return RevalidationResult(
                 f"missing:{context.job.task_id}", current=False
             )
-        requests = self._landing_request(issue)
+        requests = (
+            ()
+            if action == "terminal_audit_done"
+            else self._landing_request(issue)
+        )
         facts = self.binding.collector.collect(
             issue.identifier, landing_requests=requests
         )
@@ -2329,6 +2373,12 @@ class OrchestratorIntegrationActionBackend:
             )
         if action == "integration_terminal_stage":
             return self._terminal_observation(action, context)
+        if action in {"parent_rollup_review", "terminal_audit_done"}:
+            # These actions intentionally perform their lifecycle mutation via
+            # TaskTransitionService after verification.  Revalidation fences
+            # the no-op preparation receipt; no tracker mutation is hidden in
+            # inspect/apply.
+            return EffectObservation(False, self._base_receipt(action, context))
         if action == "historical_audit_replay_batch":
             # A live Ready task merely carries this project-maintenance job; it
             # is deliberately not the historical row being replayed.
@@ -3415,6 +3465,47 @@ class OrchestratorIntegrationActionBackend:
             )
         if action == "integration_terminal_stage":
             return await self._apply_terminal(action, context)
+        if action in {"parent_rollup_review", "terminal_audit_done"}:
+            issue = await asyncio.to_thread(self._fresh_issue, context)
+            if issue is None:
+                raise WorkflowActionError(
+                    "transition preparation lost task authority",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+            requests = (
+                ()
+                if action == "terminal_audit_done"
+                else self._landing_request(issue, include_ready=True)
+            )
+            facts = await asyncio.to_thread(
+                self.binding.collector.collect,
+                issue.identifier,
+                landing_requests=requests,
+            )
+            decision = evaluate_task(issue, facts)
+            expected_evidence = self._revalidated_evidence_revision(context)
+            if (
+                action not in decision.durable_jobs
+                or decision.evidence_revision != expected_evidence
+            ):
+                raise WorkflowActionError(
+                    f"{action} evidence changed after revalidation",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+            return EffectResult(
+                {
+                    **self._base_receipt(action, context),
+                    "decision_reason": decision.reason_code,
+                    "evidence_revision": decision.evidence_revision,
+                    "requested_status": (
+                        MERGED
+                        if action == "parent_rollup_review"
+                        else DONE
+                    ),
+                }
+            )
         if action == "historical_audit_replay_batch":
             replay = getattr(
                 self.orchestrator,
@@ -3617,6 +3708,37 @@ class OrchestratorIntegrationActionBackend:
                     else "exact terminal audit receipt is not durable"
                 ),
             )
+        if action in {"parent_rollup_review", "terminal_audit_done"}:
+            issue = self._fresh_issue(context)
+            if issue is None:
+                return VerificationResult(
+                    False,
+                    dict(effect.receipt),
+                    "transition preparation lost task authority",
+                )
+            facts = self.binding.collector.collect(
+                issue.identifier,
+                landing_requests=(
+                    ()
+                    if action == "terminal_audit_done"
+                    else self._landing_request(issue, include_ready=True)
+                ),
+            )
+            decision = evaluate_task(issue, facts)
+            expected_evidence = str(
+                effect.receipt.get("evidence_revision") or ""
+            ).strip()
+            verified = bool(
+                action in decision.durable_jobs
+                and decision.evidence_revision == expected_evidence
+                and decision.reason_code
+                == str(effect.receipt.get("decision_reason") or "")
+            )
+            return VerificationResult(
+                verified,
+                dict(effect.receipt),
+                None if verified else f"{action} exact evidence is no longer current",
+            )
         if action == "integration_recovery":
             row = self._queue_row(context)
             issue = self._issue(context)
@@ -3747,6 +3869,76 @@ class OrchestratorIntegrationActionBackend:
         context: WorkflowJobContext,
         verification: VerificationResult,
     ) -> TransitionIntent | None:
+        if action in {"parent_rollup_review", "terminal_audit_done"}:
+            requested = (
+                MERGED if action == "parent_rollup_review" else DONE
+            )
+            with self._issue_authority_lock(context):
+                issue = self._fresh_issue(context)
+                if issue is None:
+                    decision = None
+                else:
+                    facts = self.binding.collector.collect(
+                        issue.identifier,
+                        landing_requests=(
+                            ()
+                            if action == "terminal_audit_done"
+                            else self._landing_request(issue, include_ready=True)
+                        ),
+                    )
+                    decision = evaluate_task(issue, facts)
+                receipt_evidence = str(
+                    verification.receipt.get("evidence_revision") or ""
+                ).strip()
+                receipt_reason = str(
+                    verification.receipt.get("decision_reason") or ""
+                ).strip()
+                if (
+                    issue is None
+                    or decision is None
+                    or action not in decision.durable_jobs
+                    or decision.evidence_revision != receipt_evidence
+                    or decision.reason_code != receipt_reason
+                    or str(verification.receipt.get("requested_status") or "")
+                    != requested
+                ):
+                    raise WorkflowActionError(
+                        f"{action} transition evidence changed before commit",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=True,
+                    )
+                expected_status = issue.state
+                expected_version = issue_authority_version(issue)
+                exact_head = issue_exact_head(issue)
+            return TransitionIntent(
+                project_id=self.project_id,
+                task_id=issue.identifier,
+                expected_status=expected_status,
+                expected_version=expected_version,
+                requested_status=requested,
+                actor=(
+                    "oompah-workflow-rollup"
+                    if action == "parent_rollup_review"
+                    else "oompah-workflow-auditor"
+                ),
+                authority=(
+                    TransitionAuthority.INTEGRATOR
+                    if action == "parent_rollup_review"
+                    else TransitionAuthority.AUDITOR
+                ),
+                reason_code=str(
+                    verification.receipt.get("decision_reason") or action
+                ),
+                idempotency_key=f"{context.job.idempotency_key}:transition",
+                originating_job=context.job.job_id,
+                evidence_generation=context.job.generation,
+                exact_head=exact_head,
+                precondition_revision=(
+                    str(verification.receipt.get("evidence_revision") or "")
+                    if action == "parent_rollup_review"
+                    else None
+                ),
+            )
         if action != "integration_attempt":
             return None
         route = str(verification.receipt.get("route") or "")

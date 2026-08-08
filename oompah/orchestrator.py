@@ -102,6 +102,7 @@ from oompah.integration import (
     accepted_submission_branch,
     assigned_work_branch,
     classify_conflict_repair_failure,
+    direct_epic_maintenance_handoff_ready,
     is_direct_epic_maintenance_issue,
     parse_integration_record,
     parse_canonical_child_landing_evidence,
@@ -56707,11 +56708,11 @@ class Orchestrator:
         existing = getattr(current, "integration", None)
         already_recorded = (
             existing is not None
-            and existing.state == "integrated"
+            and direct_epic_maintenance_handoff_ready(current, existing)
             and str(existing.integrated_sha or existing.head_sha or "").lower()
             == published_sha
         )
-        integrated = record
+        integrated = existing if already_recorded else record
         landing_evidence_dict = None
         if not already_recorded:
             # Create canonical landing evidence for conflict-resolved epic rebase.
@@ -56763,6 +56764,7 @@ class Orchestrator:
             
             integrated = IntegrationRecord(
                 state="integrated",
+                mode="queue",
                 task_branch=epic_branch,
                 base_branch=epic_branch,
                 base_sha=(
@@ -56771,20 +56773,15 @@ class Orchestrator:
                 ),
                 head_sha=published_sha,
                 integrated_sha=published_sha,
+                # The dispatchable proof is written only after child mapping
+                # and stale ordinary-queue cancellation both succeed below.
+                maintenance_publication_proven=False,
                 attempts=getattr(record, "attempts", 0),
                 submitted_at=getattr(record, "submitted_at", None),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 dependency_heads=dict(getattr(record, "dependency_heads", {}) or {}),
                 canonical_landing_evidence=landing_evidence_dict,
             )
-            tracker.set_metadata_field(
-                current.identifier,
-                "oompah.integration",
-                integrated.to_dict(),
-            )
-            if summary:
-                tracker.add_comment(current.identifier, summary, author="oompah")
-
         self._clear_integration_delivery_alert(project_id, current.identifier)
         current.project_id = project_id
         current.work_branch = epic_branch
@@ -56815,13 +56812,45 @@ class Orchestrator:
         # background sync before this direct path acquired authority.  Direct
         # epic maintenance tasks must never enter the ordinary child queue.
         # This atomically ensures the task has exactly one Done-only lifecycle.
-        await asyncio.to_thread(
+        cancelled_row = await asyncio.to_thread(
             self.integration_queue.cancel,
             project_id,
             current.identifier,
             reason="Cancelled stale ordinary row before direct epic completion",
             expected_head_sha=published_sha,
         )
+        if cancelled_row is None:
+            surviving_row = await asyncio.to_thread(
+                self.integration_queue.get,
+                project_id,
+                current.identifier,
+            )
+            if surviving_row is not None:
+                message = (
+                    "published epic head reconciled but a conflicting ordinary "
+                    "integration row could not be cancelled"
+                )
+                logger.error("%s for %s", message, current.identifier)
+                return False, message, integrated
+
+        if not already_recorded:
+            # This is the restart handoff boundary.  Before this durable write,
+            # completion reruns the exact child mapping and queue cancellation;
+            # after it, the workflow runtime may safely schedule the audit
+            # request without replaying ordinary child integration.
+            integrated = replace(
+                integrated,
+                maintenance_publication_proven=True,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+            tracker.set_metadata_field(
+                current.identifier,
+                "oompah.integration",
+                integrated.to_dict(),
+            )
+            if summary:
+                tracker.add_comment(current.identifier, summary, author="oompah")
+        current.integration = integrated
         
         try:
             transition = await self.request_terminal_transition(

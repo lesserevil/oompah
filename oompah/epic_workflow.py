@@ -780,6 +780,8 @@ class ProductionEpicWorkflowBackend:
                 category=WorkflowFailureCategory.POLICY,
                 retryable=False,
             )
+        if not epic.project_id:
+            epic.project_id = self.collector.project_id
         if str(epic.issue_type or "").strip().lower() != "epic":
             raise WorkflowActionError(
                 f"{epic.identifier} is not an epic",

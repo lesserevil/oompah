@@ -1214,6 +1214,61 @@ class WorkflowFactCollector:
                 base["retry_forced"] = True
         if retry_forced and "retry_forced" not in base:
             base["retry_forced"] = True
+        # A ready child can be unclaimable when a dependency commit is absent
+        # from its immediate epic target.  The old sweep detected that graph
+        # condition and repaired it, but the durable evaluator previously had
+        # no production fact capable of selecting its reconciliation action.
+        # Derive the bounded exact-revision fact from accepted dependency
+        # heads and the same Git landing collector used by integration.
+        dependency_heads = base.get("dependency_heads")
+        target = str(
+            getattr(queue_row, "base_branch", None)
+            or base.get("base_branch")
+            or getattr(issue, "target_branch", None)
+            or ""
+        ).strip()
+        if (
+            queue_state == "ready"
+            and isinstance(dependency_heads, Mapping)
+            and dependency_heads
+            and target
+            and self.landing_collector is not None
+        ):
+            requests: list[LandingRequest] = []
+            dependency_ids: list[str] = []
+            for dependency_id, revision in sorted(dependency_heads.items()):
+                identifier = str(dependency_id or "").strip()
+                head = str(revision or "").strip().lower()
+                if not identifier or not _GIT_REVISION_RE.fullmatch(head):
+                    continue
+                try:
+                    requests.append(LandingRequest(identifier, target, head))
+                except ValueError:
+                    continue
+                dependency_ids.append(identifier)
+            if requests:
+                landings = self.landing_collector.collect_many(requests)
+                missing = [
+                    dependency_id
+                    for dependency_id, landing in zip(
+                        dependency_ids, landings, strict=True
+                    )
+                    # Dependency readiness is an ancestry requirement: patch
+                    # equivalence can prove that a change landed, but it does
+                    # not make the accepted dependency commit reachable from
+                    # the child's target branch.  UNKNOWN observations do not
+                    # prove that the commit is absent and must not authorize a
+                    # target repair; a later evidence refresh can classify
+                    # them without mutating Git from a transport/object error.
+                    if landing.state is LandingState.NOT_LANDED
+                    or (
+                        landing.state is LandingState.LANDED
+                        and str(landing.proof.get("kind") or "")
+                        != LandingProofKind.GIT_ANCESTRY.value
+                    )
+                ]
+                if missing:
+                    base["required_base_missing"] = missing
         return base
 
     def collect(
@@ -1246,6 +1301,12 @@ class WorkflowFactCollector:
                 now_iso=now_iso,
                 error_code="project_scope_mismatch",
             )
+        if not issue.project_id:
+            # Native Markdown trackers are already project-bound and omit this
+            # redundant field.  Normalize before hashing facts so controller,
+            # handler revalidation, and transition CAS all observe one exact
+            # authority generation.
+            issue.project_id = self.project_id
 
         observations: dict[FactDomain, FactObservation] = {
             FactDomain.TASK: FactObservation.known(

@@ -716,7 +716,7 @@ INCIDENTS: tuple[IncidentScenario, ...] = (
             TaskDisposition.TERMINAL,
             WorkflowOwner.ROLLUP,
             {"child": MERGED},
-            durable_jobs=("parent_rollup_review",),
+            durable_jobs=("epic_auto_close",),
             invariants=(
                 "containment_before_rollup",
                 "terminal_evidence_required",

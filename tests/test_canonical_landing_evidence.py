@@ -754,7 +754,9 @@ def test_direct_rebase_completion_stops_before_audit_on_mapping_save_failure():
     )
     record = IntegrationRecord(
         state="integrated",
+        mode="queue",
         task_branch="epic-OOMPAH-740",
+        base_branch="epic-OOMPAH-740",
         base_sha="a" * 40,
         head_sha="b" * 40,
         integrated_sha="b" * 40,
@@ -780,7 +782,13 @@ def test_direct_rebase_completion_stops_before_audit_on_mapping_save_failure():
             reason=None,
         ),
     )
-    harness._tracker_for_project = lambda _project_id: SimpleNamespace()
+    metadata_writes: list[dict] = []
+    harness._tracker_for_project = lambda _project_id: SimpleNamespace(
+        set_metadata_field=lambda _task_id, _field, value: metadata_writes.append(
+            value
+        ),
+        add_comment=lambda *_args, **_kwargs: None,
+    )
     harness._clear_integration_delivery_alert = lambda *_args: None
     harness._persist_direct_epic_child_landing_evidence = (
         lambda **_kwargs: False
@@ -804,8 +812,85 @@ def test_direct_rebase_completion_stops_before_audit_on_mapping_save_failure():
 
     assert completed is False
     assert "could not be durably persisted" in message
-    assert returned_record == record
+    assert returned_record is not None
+    assert returned_record.maintenance_publication_proven is False
+    assert metadata_writes == []
     assert cancelled == []
+    assert staged == []
+
+
+def test_direct_rebase_proof_is_not_published_when_queue_cancel_cas_fails():
+    project = Project(
+        id="project-1",
+        name="test",
+        repo_url="https://example.invalid/test",
+        repo_path="/unused",
+        default_branch="main",
+    )
+    record = IntegrationRecord(
+        state="ready",
+        mode="queue",
+        task_branch="epic-OOMPAH-740",
+        base_branch="epic-OOMPAH-740",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    current = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-OOMPAH-740 onto main",
+        parent_id="OOMPAH-740",
+        project_id=project.id,
+        integration=record,
+    )
+    metadata_writes: list[dict] = []
+    staged: list[str] = []
+    harness = Orchestrator.__new__(Orchestrator)
+    harness.project_store = SimpleNamespace(
+        get=lambda _project_id: project,
+        epic_branch_name=lambda _epic_id: "epic-OOMPAH-740",
+        reconcile_published_epic_worktree=lambda *_args, **_kwargs: SimpleNamespace(
+            completed=True,
+            old_sha="a" * 40,
+            status="completed",
+            reason=None,
+        ),
+    )
+    harness._tracker_for_project = lambda _project_id: SimpleNamespace(
+        set_metadata_field=lambda _task_id, _field, value: metadata_writes.append(
+            value
+        ),
+        add_comment=lambda *_args, **_kwargs: None,
+    )
+    harness._clear_integration_delivery_alert = lambda *_args: None
+    harness._persist_direct_epic_child_landing_evidence = lambda **_kwargs: True
+
+    harness.integration_queue = SimpleNamespace(
+        cancel=lambda *_args, **_kwargs: None,
+        get=lambda *_args, **_kwargs: SimpleNamespace(
+            state="integrating",
+            head_sha="c" * 40,
+        ),
+    )
+
+    async def stage_terminal(**_kwargs):
+        staged.append("staged")
+
+    harness.request_terminal_transition = stage_terminal
+
+    completed, message, returned = asyncio.run(
+        harness.complete_direct_epic_maintenance_submission(
+            current,
+            record,
+            project.id,
+        )
+    )
+
+    assert completed is False
+    assert "conflicting ordinary integration row" in message
+    assert returned is not None
+    assert returned.maintenance_publication_proven is False
+    assert metadata_writes == []
     assert staged == []
 
 

@@ -142,6 +142,10 @@ def test_key_safety_edges_require_domain_evidence():
         TransitionRequirement.AUDIT_PASS
         in TRANSITION_RULES[(IN_VALIDATION, DONE)].requirements
     )
+    assert (
+        TransitionRequirement.AUDIT_PASS
+        in TRANSITION_RULES[(OPEN, DONE)].requirements
+    )
     merged = TRANSITION_RULES[(IN_VALIDATION, MERGED)].requirements
     assert TransitionRequirement.LANDING_EVIDENCE in merged
     assert TransitionRequirement.CONTAINMENT_EVIDENCE in merged

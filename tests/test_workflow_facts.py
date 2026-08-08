@@ -5,9 +5,11 @@ from __future__ import annotations
 import subprocess
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
+from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue
 from oompah.workflow_facts import (
     CollectedValue,
@@ -156,6 +158,134 @@ def test_missing_stale_and_error_are_distinct_semantic_facts():
         FactState.ERROR,
     }
     assert len({missing.revision, stale.revision, error.revision}) == 3
+
+
+def test_ready_queue_derives_required_base_from_exact_dependency_head(tmp_path):
+    scenario = INCIDENTS_BY_ID["OOMPAH-562"]
+    replay = materialize_git(tmp_path, scenario)
+    issue = _issue(
+        integration=IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-E--task-C",
+            base_branch="epic-E",
+            head_sha=replay.commits["task"],
+            dependency_heads={"dependency": replay.commits["dependency"]},
+        )
+    )
+    row = SimpleNamespace(
+        state="ready",
+        head_sha=replay.commits["task"],
+        base_branch="epic-E",
+        retry_forced=False,
+        lease_expires_at=None,
+        lease_owner=None,
+    )
+    queue = SimpleNamespace(get=lambda project_id, task_id: row)
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(issue),
+        integration_queue=queue,
+        landing_collector=GitLandingCollector(
+            replay.path,
+            project_id="project-1",
+            clock=lambda: NOW,
+        ),
+    )
+
+    value = collector.collect(issue.identifier).fact(FactDomain.INTEGRATION).value
+
+    assert value["required_base_missing"] == ("dependency",)
+
+
+class _FixedDependencyLandingCollector:
+    project_id = "project-1"
+
+    def __init__(self, landing: LandingFact):
+        self.landing = landing
+
+    def collect_many(self, requests):
+        assert len(requests) == 1
+        request = requests[0]
+        assert request.source == self.landing.source
+        assert request.target == self.landing.target
+        assert request.revision == self.landing.revision
+        return (self.landing,)
+
+
+def _ready_dependency_integration_value(landing: LandingFact):
+    issue = _issue(
+        integration=IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="task-1",
+            base_branch="epic-1",
+            head_sha="a" * 40,
+            dependency_heads={"dependency": "b" * 40},
+        )
+    )
+    row = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        base_branch="epic-1",
+        retry_forced=False,
+        lease_expires_at=None,
+        lease_owner=None,
+    )
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(issue),
+        integration_queue=SimpleNamespace(get=lambda _project_id, _task_id: row),
+        landing_collector=_FixedDependencyLandingCollector(landing),
+        clock=lambda: NOW,
+    )
+    return collector.collect(issue.identifier).fact(FactDomain.INTEGRATION).value
+
+
+@pytest.mark.parametrize(
+    ("proof_kind", "error_code"),
+    [
+        (LandingProofKind.TARGET_UNAVAILABLE, "target_refresh_timeouterror"),
+        (LandingProofKind.SOURCE_UNAVAILABLE, "git_object_unavailable"),
+        (LandingProofKind.OBSERVATION_ERROR, "git_observation_failed"),
+    ],
+    ids=("target-refresh", "object-unavailable", "git-observation"),
+)
+def test_ready_dependency_unknown_evidence_does_not_authorize_target_repair(
+    proof_kind,
+    error_code,
+):
+    landing = LandingFact(
+        "dependency",
+        "epic-1",
+        "b" * 40,
+        {"kind": proof_kind.value},
+        NOW_ISO,
+        "project-1",
+        state=LandingState.UNKNOWN,
+        error_code=error_code,
+    )
+
+    value = _ready_dependency_integration_value(landing)
+
+    assert "required_base_missing" not in value
+
+
+def test_ready_dependency_patch_equivalence_still_requires_target_repair():
+    landing = LandingFact(
+        "dependency",
+        "epic-1",
+        "b" * 40,
+        {"kind": LandingProofKind.PATCH_ID.value, "patches": 1},
+        NOW_ISO,
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+    value = _ready_dependency_integration_value(landing)
+
+    assert value["required_base_missing"] == ("dependency",)
 
 
 @pytest.mark.parametrize(
@@ -655,6 +785,19 @@ def test_collector_fails_closed_for_missing_or_cross_project_task(
         assert all(
             fact.error_code == error_code for fact in facts.observations.values()
         )
+
+
+def test_project_scoped_collector_normalizes_native_projectless_task():
+    issue = _issue(project_id=None)
+    facts = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(issue),
+        clock=lambda: NOW,
+    ).collect(issue.identifier)
+
+    task = facts.fact(FactDomain.TASK)
+    assert task.state is FactState.KNOWN
+    assert task.value["project_id"] == "project-1"
 
 
 def test_tracker_failure_is_explicit_in_every_domain():

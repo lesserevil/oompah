@@ -137,12 +137,72 @@ def is_direct_epic_maintenance_issue(issue: object) -> bool:
     normal integration queue.
     """
 
-    parent = str(getattr(issue, "parent_id", None) or "").strip()
-    title = str(getattr(issue, "title", None) or "").strip().lower()
+    def field(name: str) -> object:
+        if isinstance(issue, Mapping):
+            return issue.get(name)
+        return getattr(issue, name, None)
+
+    parent = str(field("parent_id") or "").strip()
+    title = str(field("title") or "").strip().lower()
     if not parent or not title.startswith("rebase "):
         return False
     epic_branch = "epic-" + re.sub(r"[^A-Za-z0-9._-]+", "_", parent).strip("._-")
     return bool(epic_branch) and epic_branch.lower() in title
+
+
+def direct_epic_maintenance_handoff_ready(
+    issue: object,
+    integration: object | None = None,
+) -> bool:
+    """Return whether exact direct-maintenance evidence may request audit.
+
+    The boolean proof is necessary but deliberately insufficient on its own.
+    Bind it to the service-classified helper, its canonical parent branch, and
+    one exact integrated revision so corrupt or ordinary task metadata cannot
+    enter the privileged Open-to-audit recovery path.
+    """
+
+    if not is_direct_epic_maintenance_issue(issue):
+        return False
+
+    def field(subject: object, name: str) -> object:
+        if isinstance(subject, Mapping):
+            return subject.get(name)
+        return getattr(subject, name, None)
+
+    parent = str(field(issue, "parent_id") or "").strip()
+    epic_branch = "epic-" + re.sub(r"[^A-Za-z0-9._-]+", "_", parent).strip(
+        "._-"
+    )
+    record = integration if integration is not None else field(issue, "integration")
+    if record is None:
+        return False
+    state = str(field(record, "state") or "").strip().lower()
+    mode = str(field(record, "mode") or "").strip().lower()
+    task_branch = str(field(record, "task_branch") or "").strip()
+    base_branch = str(field(record, "base_branch") or "").strip()
+    head = str(field(record, "head_sha") or "").strip().lower()
+    integrated = str(field(record, "integrated_sha") or "").strip().lower()
+    proof = field(record, "maintenance_publication_proven") is True
+    if not (
+        state == "integrated"
+        and mode == "queue"
+        and proof
+        and task_branch == epic_branch
+        and base_branch == epic_branch
+        and head == integrated
+        and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head)
+    ):
+        return False
+    for issue_field, expected in (
+        ("work_branch", task_branch),
+        ("target_branch", base_branch),
+        ("head_sha", head),
+    ):
+        observed = str(field(issue, issue_field) or "").strip()
+        if observed and observed.lower() != expected.lower():
+            return False
+    return True
 
 
 def _compute_evidence_fingerprint(
@@ -605,6 +665,11 @@ class IntegrationRecord:
     base_sha: str | None = None
     head_sha: str | None = None
     integrated_sha: str | None = None
+    # Direct epic-maintenance publication crossed its special integration
+    # boundary and is ready for the terminal-audit handoff.  This must be
+    # durable service-authored evidence: deriving it from an Open status or a
+    # surviving checkout would recreate the OOMPAH-731 restart deadlock.
+    maintenance_publication_proven: bool = False
     attempts: int = 0
     submitted_at: str | None = None
     updated_at: str | None = None
@@ -720,6 +785,11 @@ class IntegrationRecord:
             base_sha=_optional_text(value.get("base_sha")),
             head_sha=_optional_text(value.get("head_sha")),
             integrated_sha=_optional_text(value.get("integrated_sha")),
+            # This field gates a lifecycle transition, so persisted strings
+            # such as ``"false"`` must not become truthy evidence.
+            maintenance_publication_proven=(
+                value.get("maintenance_publication_proven") is True
+            ),
             attempts=attempts,
             submitted_at=_optional_text(value.get("submitted_at")),
             updated_at=_optional_text(value.get("updated_at")),
@@ -762,6 +832,8 @@ class IntegrationRecord:
             value = getattr(self, key)
             if value is not None:
                 result[key] = value
+        if self.maintenance_publication_proven:
+            result["maintenance_publication_proven"] = True
         if self.dependency_heads:
             result["dependency_heads"] = dict(self.dependency_heads)
         if self.canonical_landing_evidence is not None:

@@ -187,6 +187,72 @@ def test_authority_version_ignores_benign_tracker_timestamp_churn():
     ) != issue_authority_version(issue)
 
 
+def test_authority_version_fences_direct_maintenance_handoff_proof():
+    proven = _issue(
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        integration=IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="epic-EPIC-1",
+            head_sha="a" * 40,
+            integrated_sha="a" * 40,
+            maintenance_publication_proven=True,
+        ),
+    )
+    revoked = replace(
+        proven,
+        integration=replace(
+            proven.integration,
+            maintenance_publication_proven=False,
+        ),
+    )
+
+    assert issue_authority_version(revoked) != issue_authority_version(proven)
+
+
+@pytest.mark.asyncio
+async def test_post_build_maintenance_proof_revocation_fails_transition_cas(
+    tmp_path,
+):
+    proven = _issue(
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        integration=IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="epic-EPIC-1",
+            head_sha="a" * 40,
+            integrated_sha="a" * 40,
+            maintenance_publication_proven=True,
+        ),
+    )
+    tracker = FakeTracker(proven)
+    terminal = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=terminal)
+    intent = _intent(
+        proven,
+        requested_status="Done",
+        authority=TransitionAuthority.AUDITOR,
+        reason_code="maintenance.publication_proven",
+    )
+    tracker.issue = replace(
+        proven,
+        integration=replace(
+            proven.integration,
+            maintenance_publication_proven=False,
+        ),
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_version"
+    assert terminal.calls == 0
+
+
 def test_authority_version_fences_the_exact_integrated_audit_revision():
     issue = _issue(
         state="In Review",
@@ -364,6 +430,60 @@ async def test_illegal_lifecycle_edge_is_rejected(tmp_path):
     outcome = await service.execute(intent)
 
     assert outcome.reason_code == "transition.illegal_edge"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_direct_maintenance_can_request_terminal_audit_from_open(tmp_path):
+    maintenance = _issue(
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        work_branch="epic-EPIC-1",
+        target_branch="epic-EPIC-1",
+        integration=IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="epic-EPIC-1",
+            head_sha="a" * 40,
+            integrated_sha="a" * 40,
+            maintenance_publication_proven=True,
+        ),
+    )
+    tracker = FakeTracker(maintenance)
+    terminal = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=terminal)
+    intent = _intent(
+        tracker.issue,
+        requested_status="Done",
+        authority=TransitionAuthority.AUDITOR,
+        reason_code="maintenance.publication_proven",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.STAGED
+    assert terminal.calls == 1
+    assert tracker.issue.state == "In Validation"
+
+
+@pytest.mark.asyncio
+async def test_open_audit_request_rejects_non_maintenance_authority(tmp_path):
+    tracker = FakeTracker(_issue())
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        tracker.issue,
+        requested_status="Done",
+        authority=TransitionAuthority.WORKER,
+        reason_code="dispatch.eligible",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == (
+        "transition.maintenance_audit_authority_required"
+    )
     assert tracker.updates == []
 
 

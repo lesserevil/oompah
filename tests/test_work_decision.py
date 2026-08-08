@@ -742,6 +742,29 @@ def test_done_uses_immediate_target_landing_without_parent_status_cycle():
     assert unknown.alert_level is AlertSeverity.INFO
 
 
+def test_done_nested_epic_uses_its_own_immediate_target_landing():
+    issue = _issue(
+        DONE,
+        issue_type="epic",
+        parent_id="EPIC-1",
+        work_branch="task-branch",
+        target_branch="epic-parent",
+        head_sha="a" * 40,
+    )
+
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            landings=(_landing(LandingState.LANDED, target="epic-parent"),),
+        ),
+    )
+
+    assert decision.reason_code == "terminal.immediate_target_landing_proven"
+    assert decision.recommended_status == MERGED
+    assert decision.durable_jobs == ("epic_auto_close",)
+
+
 def test_done_ignores_landing_proof_for_a_different_target():
     issue = _issue(DONE, parent_id="EPIC-1", target_branch="epic-parent")
     immediate_negative = _landing(LandingState.NOT_LANDED, target="epic-parent")
@@ -782,6 +805,70 @@ def test_merged_remains_final_even_when_landing_fact_is_unknown():
     assert decision.disposition is TaskDisposition.TERMINAL
     assert decision.reason_code == "terminal.final"
     assert decision.permitted_actions == ()
+
+
+def test_merged_preserves_verified_reason_only_for_exact_durable_landing():
+    issue = _issue(
+        MERGED,
+        work_branch="task-branch",
+        target_branch="epic-parent",
+        head_sha="a" * 40,
+    )
+    exact = _landing(LandingState.LANDED, target="epic-parent")
+
+    decision = evaluate_task(issue, _facts(issue, landings=(exact,)))
+
+    assert decision.reason_code == "terminal.preserve_verified_merged"
+    assert decision.disposition is TaskDisposition.TERMINAL
+
+
+@pytest.mark.parametrize(
+    "landing",
+    [
+        LandingFact(
+            "other-branch",
+            "epic-parent",
+            "a" * 40,
+            {"kind": "git_ancestry"},
+            NOW_ISO,
+            "project-1",
+            state=LandingState.LANDED,
+            durable=True,
+        ),
+        LandingFact(
+            "task-branch",
+            "other-target",
+            "a" * 40,
+            {"kind": "git_ancestry"},
+            NOW_ISO,
+            "project-1",
+            state=LandingState.LANDED,
+            durable=True,
+        ),
+        LandingFact(
+            "task-branch",
+            "epic-parent",
+            "b" * 40,
+            {"kind": "git_ancestry"},
+            NOW_ISO,
+            "project-1",
+            state=LandingState.LANDED,
+            durable=True,
+        ),
+    ],
+    ids=("source", "target", "revision"),
+)
+def test_merged_rejects_unrelated_durable_landing_evidence(landing):
+    issue = _issue(
+        MERGED,
+        work_branch="task-branch",
+        target_branch="epic-parent",
+        head_sha="a" * 40,
+    )
+
+    assert evaluate_task(issue, _facts(issue, landings=(landing,))).reason_code == (
+        "terminal.final"
+    )
 
 
 def test_lifecycle_final_status_ignores_missing_or_stale_supporting_facts():
@@ -877,12 +964,28 @@ def test_incident_required_base_deadlock_schedules_one_reconciliation_owner():
 
 
 def test_incident_direct_maintenance_bypasses_ordinary_child_integration():
-    issue = _issue(OPEN)
+    issue = _issue(
+        OPEN,
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        work_branch="epic-EPIC-1",
+        target_branch="epic-EPIC-1",
+        head_sha="a" * 40,
+    )
     facts = _facts(
         issue,
         overrides={
             FactDomain.INTEGRATION: _known(
-                FactDomain.INTEGRATION, {"maintenance_publication_proven": True}
+                FactDomain.INTEGRATION,
+                {
+                    "state": "integrated",
+                    "mode": "queue",
+                    "task_branch": "epic-EPIC-1",
+                    "base_branch": "epic-EPIC-1",
+                    "head_sha": "a" * 40,
+                    "integrated_sha": "a" * 40,
+                    "maintenance_publication_proven": True,
+                },
             )
         },
     )
@@ -893,6 +996,53 @@ def test_incident_direct_maintenance_bypasses_ordinary_child_integration():
     assert decision.responsible_owner is WorkflowOwner.AUDITOR
     assert decision.recommended_status == IN_VALIDATION
     assert decision.durable_jobs == ("terminal_audit_done",)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"state": "ready"},
+        {"mode": "standalone"},
+        {"task_branch": "ordinary-child"},
+        {"base_branch": "main"},
+        {"integrated_sha": "b" * 40},
+        {"maintenance_publication_proven": False},
+    ],
+)
+def test_direct_maintenance_audit_requires_complete_exact_handoff(override):
+    issue = _issue(
+        OPEN,
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        work_branch="epic-EPIC-1",
+        target_branch="epic-EPIC-1",
+        head_sha="a" * 40,
+    )
+    integration = {
+        "state": "integrated",
+        "mode": "queue",
+        "task_branch": "epic-EPIC-1",
+        "base_branch": "epic-EPIC-1",
+        "head_sha": "a" * 40,
+        "integrated_sha": "a" * 40,
+        "maintenance_publication_proven": True,
+        **override,
+    }
+
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.INTEGRATION: _known(
+                    FactDomain.INTEGRATION, integration
+                )
+            },
+        ),
+    )
+
+    assert decision.reason_code == "dispatch.eligible"
+    assert "terminal_audit_done" not in decision.durable_jobs
 
 
 def test_incident_standalone_delivery_ignores_benign_metadata_churn():
@@ -929,10 +1079,7 @@ def test_incident_live_claim_is_independent_of_bounded_history_replay():
 
     assert decision.reason_code == "integration.live_claim_precedes_history"
     assert decision.disposition is TaskDisposition.OWNED
-    assert decision.durable_jobs == (
-        "historical_audit_replay_batch",
-        "integration_attempt",
-    )
+    assert decision.durable_jobs == ("integration_attempt",)
 
 
 def test_incident_advisory_policy_denial_does_not_poison_implementation():

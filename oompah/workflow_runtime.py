@@ -80,7 +80,7 @@ from oompah.workflow_worker import (
     WorkflowJobContext,
     DurableWorkflowWorker,
 )
-from oompah.work_decision import REVIEW_ACTION_JOBS
+from oompah.work_decision import REVIEW_ACTION_JOBS, evaluate_task
 
 logger = logging.getLogger(__name__)
 
@@ -640,6 +640,7 @@ class WorkflowRuntime:
                 tracker=tracker,
                 sources=sources,
                 landing_collector=landing,
+                integration_queue=getattr(orchestrator, "integration_queue", None),
             )
             # Review decisions must never consume the legacy project sweep's
             # `_reviews_cache`: runtime reconciliation happens before that
@@ -656,6 +657,7 @@ class WorkflowRuntime:
                 tracker=tracker,
                 sources=review_sources,
                 landing_collector=landing,
+                integration_queue=getattr(orchestrator, "integration_queue", None),
             )
             epic_collector = EpicFactCollector(
                 project_id=project_id,
@@ -673,11 +675,17 @@ class WorkflowRuntime:
                 store=store,
                 decision_limit=configured_limit,
             )
+            integration_controller = IntegrationWorkflowController(
+                collector=collector,
+                store=store,
+                decision_limit=configured_limit,
+            )
 
             def workflow_transition_guard(
                 intent: Any,
                 *,
                 _controller=epic_controller,
+                _integration_controller=integration_controller,
                 _tracker=tracker,
             ) -> str | None:
                 guarded_reason = str(intent.reason_code or "").strip()
@@ -693,6 +701,26 @@ class WorkflowRuntime:
                     "terminal.immediate_target_landing_proven",
                     "epic.rebase_target_superseded",
                 }:
+                    return None
+                if (
+                    guarded_reason == "terminal.immediate_target_landing_proven"
+                    and str(getattr(guarded_issue, "issue_type", "") or "")
+                    .strip()
+                    .lower()
+                    != "epic"
+                ):
+                    requests = IntegrationWorkflowController._default_landing_request(
+                        guarded_issue
+                    )
+                    facts = _integration_controller.collector.collect(
+                        guarded_issue.identifier,
+                        landing_requests=requests,
+                    )
+                    decision = evaluate_task(guarded_issue, facts)
+                    if decision.evidence_revision != intent.precondition_revision:
+                        return "task landing evidence changed"
+                    if "parent_rollup_review" not in decision.durable_jobs:
+                        return "task landing no longer authorizes terminalization"
                     return None
                 if guarded_reason == "epic.rebase_target_superseded":
                     epic_id = str(
@@ -761,11 +789,7 @@ class WorkflowRuntime:
                     store=store,
                     decision_limit=configured_limit,
                 ),
-                integration_controller=IntegrationWorkflowController(
-                    collector=collector,
-                    store=store,
-                    decision_limit=configured_limit,
-                ),
+                integration_controller=integration_controller,
                 epic_collector=epic_collector,
                 epic_controller=epic_controller,
                 terminal_audit_workflow=terminal_workflow,
@@ -1381,7 +1405,10 @@ class WorkflowRuntime:
                 expected = {
                     (project_id, issue.identifier)
                     for issue in task_issues
-                    if issue.state in {IN_REVIEW, READY_TO_INTEGRATE}
+                    if issue.state == IN_REVIEW
+                } | {
+                    (decision.project_id, decision.task_id)
+                    for decision in integration_batch.decisions
                 } | {
                     (project_id, issue.identifier)
                     for issue in epic_issues

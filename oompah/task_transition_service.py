@@ -32,12 +32,14 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
 
+from oompah.integration import direct_epic_maintenance_handoff_ready
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
     DONE,
     IN_VALIDATION,
     MERGED,
+    OPEN,
     canonicalize_status,
 )
 from oompah.terminal_audit import (
@@ -98,10 +100,13 @@ def _integration_projection(issue: Issue) -> dict[str, Any] | None:
             for name in (
                 "version",
                 "state",
+                "mode",
                 "task_branch",
                 "base_branch",
                 "head_sha",
                 "base_sha",
+                "integrated_sha",
+                "maintenance_publication_proven",
             )
         }
     return {
@@ -109,10 +114,13 @@ def _integration_projection(issue: Issue) -> dict[str, Any] | None:
         for key in (
             "version",
             "state",
+            "mode",
             "task_branch",
             "base_branch",
             "head_sha",
             "base_sha",
+            "integrated_sha",
+            "maintenance_publication_proven",
         )
         if raw.get(key) is not None
     }
@@ -1169,6 +1177,31 @@ class TaskTransitionService:
                     intent,
                     TransitionDisposition.REJECTED,
                     "transition.illegal_edge",
+                    issue,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+
+            if (
+                observed_status == OPEN
+                and intent.requested_status == DONE
+                and (
+                    intent.authority is not TransitionAuthority.AUDITOR
+                    or intent.reason_code != "maintenance.publication_proven"
+                    or not direct_epic_maintenance_handoff_ready(issue)
+                )
+            ):
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    "transition.maintenance_audit_authority_required",
                     issue,
                 )
                 await asyncio.to_thread(

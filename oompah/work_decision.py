@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
+from oompah.integration import direct_epic_maintenance_handoff_ready
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -148,6 +149,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "standalone.delivery_eligible",
         "terminal.final",
         "terminal.immediate_target_landing_proven",
+        "terminal.preserve_verified_merged",
         "ownership.conflict",
         "ownership.impossible",
         "validation.active",
@@ -430,6 +432,52 @@ def _task_view(task: Issue | Mapping[str, Any]) -> _TaskView:
         str(task.get("issue_type") or "task"),
         _optional_text(task.get("target_branch")),
     )
+
+
+def _terminal_landing_identity(
+    task: Issue | Mapping[str, Any],
+) -> tuple[str, str, str] | None:
+    """Return the exact accepted source/target/revision for terminal proof.
+
+    A positive landing fact is project-scoped, but that alone is not enough
+    to explain why *this* task is safely Merged.  Require all three immutable
+    integration coordinates so an unrelated durable LANDED observation can
+    never upgrade the terminal reason or mask corrupt task evidence.
+    """
+
+    if isinstance(task, Issue):
+        integration = getattr(task, "integration", None)
+        source = str(
+            getattr(integration, "task_branch", "")
+            or getattr(task, "work_branch", "")
+            or ""
+        ).strip()
+        target = str(
+            getattr(integration, "base_branch", "")
+            or getattr(task, "target_branch", "")
+            or ""
+        ).strip()
+        revision = str(
+            getattr(integration, "integrated_sha", "")
+            or getattr(integration, "head_sha", "")
+            or getattr(task, "head_sha", "")
+            or ""
+        ).strip().lower()
+    else:
+        integration = _mapping(task.get("integration")) or {}
+        source = str(
+            integration.get("task_branch") or task.get("work_branch") or ""
+        ).strip()
+        target = str(
+            integration.get("base_branch") or task.get("target_branch") or ""
+        ).strip()
+        revision = str(
+            integration.get("integrated_sha")
+            or integration.get("head_sha")
+            or task.get("head_sha")
+            or ""
+        ).strip().lower()
+    return (source, target, revision) if source and target and revision else None
 
 
 def _reassessment(status: str, collected_at: str) -> str | None:
@@ -1085,7 +1133,11 @@ def _integration_decision(
             reason_code="integration.live_claim_precedes_history",
             owner=WorkflowOwner.INTEGRATOR,
             actions=(PermittedAction.CLAIM_INTEGRATION,),
-            durable_jobs=("historical_audit_replay_batch", "integration_attempt"),
+            # Historical rows are scheduled independently in the bounded,
+            # low-priority project-maintenance lane.  Coupling that job to the
+            # live task would enqueue it first alphabetically at the same
+            # priority and recreate OOMPAH-749 starvation.
+            durable_jobs=("integration_attempt",),
         )
     if bool(value.get("action_required")):
         return _decision(
@@ -1487,6 +1539,11 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
 
 
 def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
+    refresh_job = (
+        "epic_terminal_validation"
+        if task.issue_type.strip().lower() == "epic"
+        else "integration_landing_refresh"
+    )
     candidates = tuple(
         item
         for item in facts.landings
@@ -1507,7 +1564,7 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             ),
             actions=(PermittedAction.REFRESH_LANDING,),
             alert=AlertSeverity.INFO,
-            durable_jobs=("landing_reconciliation",),
+            durable_jobs=(refresh_job,),
         )
     if not candidates:
         return _fact_wait(
@@ -1516,11 +1573,16 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             FactDomain.LANDING,
             owner=WorkflowOwner.ROLLUP,
             action=PermittedAction.REFRESH_LANDING,
-            job="landing_reconciliation",
+            job=refresh_job,
         )
     landed = tuple(item for item in candidates if item.state is LandingState.LANDED)
     unknown = tuple(item for item in candidates if item.state is LandingState.UNKNOWN)
     if landed:
+        action = (
+            "epic_auto_close"
+            if task.issue_type.strip().lower() == "epic"
+            else "parent_rollup_review"
+        )
         return _decision(
             task,
             facts,
@@ -1528,7 +1590,7 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             reason_code="terminal.immediate_target_landing_proven",
             owner=WorkflowOwner.ROLLUP,
             actions=(PermittedAction.REQUEST_MERGED,),
-            durable_jobs=("parent_rollup_review",),
+            durable_jobs=(action,),
             recommended_status=MERGED,
         )
     if unknown:
@@ -1546,7 +1608,7 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             ),
             actions=(PermittedAction.REFRESH_LANDING,),
             alert=AlertSeverity.INFO,
-            durable_jobs=("landing_reconciliation",),
+            durable_jobs=(refresh_job,),
         )
     return _decision(
         task,
@@ -1594,11 +1656,26 @@ def _evaluate_task_default_policy(
     # A lifecycle-final tracker status is authoritative and must not regress
     # merely because a supporting snapshot is missing, stale, or unavailable.
     if view.status in LIFECYCLE_FINAL_STATUSES:
+        identity = _terminal_landing_identity(task)
+        exact_landing = bool(
+            view.status == MERGED
+            and identity is not None
+            and any(
+                item.state is LandingState.LANDED
+                and item.durable
+                and (item.source, item.target, item.revision) == identity
+                for item in facts.landings
+            )
+        )
         return _decision(
             view,
             facts,
             disposition=TaskDisposition.TERMINAL,
-            reason_code="terminal.final",
+            reason_code=(
+                "terminal.preserve_verified_merged"
+                if exact_landing
+                else "terminal.final"
+            ),
             owner=WorkflowOwner.NONE,
             reassess=False,
         )
@@ -1662,7 +1739,12 @@ def _evaluate_task_default_policy(
             alert=AlertSeverity.WARNING,
         )
 
-    if view.issue_type.lower() == "epic":
+    # A Done nested epic has already completed its own containment rollup.  Its
+    # remaining obligation is the exact landing on its immediate target, just
+    # like any other Done task.  Sending it back through child rollup can
+    # manufacture ``children_missing`` and recreate the OOMPAH-748
+    # parent/child terminalization cycle.
+    if view.issue_type.lower() == "epic" and view.status != DONE:
         return _rollup_decision(view, facts)
 
     dependency_sensitive = {
@@ -1735,8 +1817,8 @@ def _evaluate_task_default_policy(
             if integration.state is FactState.KNOWN
             else None
         )
-        if integration_value and bool(
-            integration_value.get("maintenance_publication_proven")
+        if integration_value and direct_epic_maintenance_handoff_ready(
+            task, integration_value
         ):
             return _decision(
                 view,
