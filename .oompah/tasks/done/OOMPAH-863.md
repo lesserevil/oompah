@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-07T18:12:03.541982Z'
+updated_at: '2026-08-08T03:56:53.683913Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -152,6 +152,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-863
     source_sha: 0e0056375918977c9b0b2d59524ce8ae68ceee40
     completed_at: '2026-08-06T18:01:08.552372+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1d20c0c2423c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-863
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0667e13ff7f6562430116a447ff61c114a06e62ab0d5ac097004ca0c3e11ba7d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation for OOMPAH-863: its accepted implementation
+      is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
+      Independent composition review completed, affected tests passed 392/392, and
+      the exact full make test passed 17,860 with zero failures.'
+    created_at: '2026-08-08T03:56:48.693388+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
