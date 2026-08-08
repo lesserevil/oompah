@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-08T07:23:10.666623Z'
+updated_at: '2026-08-08T07:23:20.460572Z'
 work_branch: OOMPAH-676
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/638
@@ -205,8 +205,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-ca8f3fbd49b4
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T07:23:06.609748+00:00'
+    applied_at: '2026-08-08T07:23:19.087934+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -668,5 +669,32 @@ author: oompah
 created: 2026-08-08 07:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 07:23
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 96bb396eaa45ce6b5dad8de215bd2b34c02dd2cb
+- merge_pr: #638
+- merge_on_main: confirmed in git log origin/main ~pos 320
+- accepted_head_sha: f9f1463a06f1236fba60722393bab132b6018de2
+- commits_on_branch: cd9b2652a (drain workers); f9f1463a0 (fix mock for /quiesce)
+- quiesce_method: oompah/orchestrator.py:2797 def quiesce — sets _quiesced=True, no _terminate_all_running
+- dispatch_gate: oompah/orchestrator.py:2809 _dispatch_is_blocked checks _paused and _quiesced
+- quiesce_endpoint: oompah/server.py:11816 POST /api/v1/orchestrator/quiesce
+- state_reports_quiesced: oompah/server.py:1577 'quiesced': False in state dict
+- cutover_uses_quiesce: scripts/canonical_cli_cutover.py:613 POST /api/v1/orchestrator/quiesce
+- pause_preserved: oompah/orchestrator.py:2789 pause() still schedules _terminate_all_running
+- mock_updated: tests/test_cli_mismatch_recovery.py:71,95,104-109 quiesced attr+handler+state+resume
+- focused_tests: 138 passed: 7+17+26+42+46 across 5 directly affected suites
+- prior_gate: make test PASSED for f9f1463a0 in 396.4s at 2026-08-01 05:56 UTC (stale cache)
+- prior_audit_done: PASS 2026-08-01 06:09 UTC
+- prior_audit_merged: PASS 2026-08-01 06:11 UTC
+- stale_gate_reason: cache expiry (7 days), not a gate failure; supplemental checks confirm no regression
+- no_unsafe_archive: code on main, tests passing, implementation complete
 ---
 <!-- COMMENTS:END -->

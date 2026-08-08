@@ -27,7 +27,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-08T07:23:05.213839Z'
+updated_at: '2026-08-08T07:23:17.481015Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -230,5 +230,10 @@ created: 2026-08-08 07:23
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Project-owner completion after direct integration: exact published epic head 9a893835d7c4a522def2e39e929ac2be3f090822 passed the complete make test and required scans; all accepted OOMPAH-768 child implementations are patch-contained.
+---
+author: oompah
+created: 2026-08-08 07:23
+---
+Published systemic workflow-domain composition on epic-OOMPAH-768 at exact head 9a893835d7c4a522def2e39e929ac2be3f090822. Global snapshot publication, event-generation ordering, runtime recovery, and composed contract regressions are fixed. Exact make test: 18,464 passed, 7 skipped, 1 expected failure; terminal mutation and secret scans passed.
 ---
 <!-- COMMENTS:END -->
