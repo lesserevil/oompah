@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-911
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Repair durable-transition regressions exposed by exact full gate
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T13:38:22.228736Z'
-updated_at: '2026-08-08T13:38:26.386855Z'
+updated_at: '2026-08-08T13:38:45.179045Z'
 work_branch: null
 target_branch: null
 review_url: null
