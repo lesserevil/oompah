@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-07T18:19:04.530815Z'
+updated_at: '2026-08-08T04:00:16.213825Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -328,5 +328,10 @@ author: oompah
 created: 2026-08-07 17:44
 ---
 Rebased the canonical child-mapping and generation-fencing repair onto exact shared epic a85a36baf, preserving the O879 rebase-authority semantics and restoring target-owned workspace helper imports. Focused validation: 200/200 across canonical landing, parallel epic children, terminal audit, and worker submission; secret scan and diff check passed. Published exact head f359964dc029d92666b2c23f4fe3f7fa6c9bdd7f.
+---
+author: oompah
+created: 2026-08-08 04:00
+---
+Direct-owner integration is active against exact published parent e74449e4f9303f35c2cc2c1c5fc78ee979f4d268. The accepted OOMPAH-866 three-commit delta is being replayed in an isolated worktree with newer parent authority/review/quality-gate hardening preserved; focused canonical landing and shared-child tests will gate composition.
 ---
 <!-- COMMENTS:END -->

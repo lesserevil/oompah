@@ -27,7 +27,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-07T08:51:11.127401Z'
+updated_at: '2026-08-08T04:00:19.443541Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-08-07 04:20
 ---
 Composition validation checkpoint at uncommitted repair diff SHA256 2a51a3f406fcb7ae21413c5780c990a8d27b3f997268b3a19cb66f0d35fd3ca3: exact 19 regression cases pass serial and parallel; all 60 changed test modules pass 3,279 plus 1 expected failure serial (72.20s) and parallel (20.42s). Final independent static review is active. Canonical refs remain untouched.
+---
+author: oompah
+created: 2026-08-08 04:00
+---
+Direct-owner continuation resumed after publishing and fully gating OOMPAH-763 at e74449e4f. OOMPAH-866 is the active prerequisite integration; in parallel the preserved OOMPAH-768 composition and accepted OOMPAH-874/875/876 heads are being audited for an exact ordered replay. The preserved dirty oracle remains read-only.
 ---
 <!-- COMMENTS:END -->
