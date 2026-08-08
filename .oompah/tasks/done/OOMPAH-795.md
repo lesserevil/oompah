@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-795
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Expose one why-not-progressing projection and make alerts truthful
 parent: OOMPAH-770
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-08T12:03:09.299102Z'
+updated_at: '2026-08-08T16:29:31.135457Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -82,6 +82,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-770--task-OOMPAH-795
     source_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
     completed_at: '2026-08-06T03:52:34.531472+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9479d14b6421
+    project_id: proj-14849f1b
+    task_id: OOMPAH-795
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 82363442b97ad5fcf567be8c5e61c3ae8f54c2353c8277f414add7b778a94502
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:29:26.989692+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
