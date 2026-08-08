@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T19:33:35.949962Z'
-updated_at: '2026-08-08T19:47:10.932854Z'
+updated_at: '2026-08-08T20:23:34.504336Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-08 19:47
 ---
 Claimed directly. Root cause confirmed: graceful shutdown drains durable worker/handler operations but does not wait for an in-flight event-loop tick whose reconcile thread still owns WorkflowJobStore mutation authority. The shutdown path can therefore close the store authority fd before record_rollout_sweep completes. Implementing an explicit active-tick drain before persistent-store closure, with deterministic race regression coverage.
+---
+author: oompah
+created: 2026-08-08 20:23
+---
+Implemented the shutdown-race fix in the systemic composition worktree. WorkflowRuntime now treats the complete reconcile (including its bare executor Future under cancellation) as explicit mutation authority; graceful shutdown fences scheduler startup/tick admission and uses a loop-independent safe-stop acknowledgement so asyncio.run cannot cancel the stop owner or deadlock a single-worker default executor. Added deterministic regressions for active tick, pre-tick startup, stop-before-run, threaded stop acknowledgement, caller cancellation, loop teardown, queued executor handoff, and pre-first-turn cancellation. Focused compatibility gate: 424 passed.
 ---
 <!-- COMMENTS:END -->
