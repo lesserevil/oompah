@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-08T07:31:07.465883Z'
+updated_at: '2026-08-08T07:43:26.478536Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-08 07:31
 ---
 Implementation started in isolated worktree at systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Reproducing repeated owner-rearm provenance/idempotency conflict and adding focused concurrency/restart coverage.
+---
+author: oompah
+created: 2026-08-08 07:43
+---
+Implementation checkpoint: separated retained terminal requested_by provenance from durable owner-rearm identity in coordinator coalescing and restart intent validation. Added restart/late origin-main binding, bound provenance, changed actor/reason/fingerprint/generation rejection, concurrent single-history-entry, and auto-archive crash-recovery regressions. Static compile/diff/terminal-mutation checks pass; focused broker suite is waiting behind the active full gate.
 ---
 <!-- COMMENTS:END -->
