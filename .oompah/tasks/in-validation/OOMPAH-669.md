@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-669
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Same-head task resubmission must restore Ready to Integrate lifecycle
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-08-01T00:54:34.398208Z'
+updated_at: '2026-08-08T00:56:33.848593Z'
 work_branch: OOMPAH-669
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/631
@@ -227,6 +227,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T00:45:33.065339+00:00'
     updated_at: '2026-08-01T00:54:18.488644+00:00'
+  - version: 1
+    audit_id: audit-8e01e2b46bcc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-669
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8d192542db44e643737857aac741bb60df1135d8e7db34ada8c2b1793d418b47
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T00:56:29.871429+00:00'
+    selected_ref: e8761afb6029bad39bf28e82b45a6cce92ad0768
+    selected_sha: e8761afb6029bad39bf28e82b45a6cce92ad0768
   attempt_history:
   - version: 1
     attempt_id: attempt-070d5f1365d9
