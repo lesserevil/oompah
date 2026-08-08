@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-08T07:43:26.478536Z'
+updated_at: '2026-08-08T07:50:37.841581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-08 07:43
 ---
 Implementation checkpoint: separated retained terminal requested_by provenance from durable owner-rearm identity in coordinator coalescing and restart intent validation. Added restart/late origin-main binding, bound provenance, changed actor/reason/fingerprint/generation rejection, concurrent single-history-entry, and auto-archive crash-recovery regressions. Static compile/diff/terminal-mutation checks pass; focused broker suite is waiting behind the active full gate.
+---
+author: oompah
+created: 2026-08-08 07:50
+---
+Implementation complete for integration at commit fccb3b746faec2ace2f9f241ced3fa7d0fe4509d on implementation/OOMPAH-894-direct (exact parent 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183). Focused dedicated broker: 12 passed in 2.40s; artifact /home/shedwards/.oompah/tmp/OOMPAH-894-focused.g4wmmY. Final py_compile, git diff --check, and make terminal-audit-scan passed. Worktree is clean; awaiting systemic-head integration and the configured full gate.
 ---
 <!-- COMMENTS:END -->
