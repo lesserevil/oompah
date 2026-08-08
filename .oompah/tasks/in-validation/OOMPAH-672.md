@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T02:06:22.131658Z'
+updated_at: '2026-08-08T03:01:55.390200Z'
 work_branch: OOMPAH-672
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/635
@@ -269,6 +269,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T01:58:59.389796+00:00'
     updated_at: '2026-08-01T02:06:01.954906+00:00'
+  - version: 1
+    audit_id: audit-108d6f97e95c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0383a510042ddff43740c6b198517b30e7cce638ca43fd12f6a8e0d73a4da0b0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T03:01:51.256719+00:00'
+    selected_ref: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
+    selected_sha: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
   attempt_history:
   - version: 1
     attempt_id: attempt-bde7208b5a06
