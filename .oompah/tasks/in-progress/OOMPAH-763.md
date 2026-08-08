@@ -73,6 +73,8 @@ children:
 - OOMPAH-914
 - OOMPAH-915
 - OOMPAH-916
+- OOMPAH-917
+- OOMPAH-918
 blocked_by: []
 start_blocked_by: []
 labels:
@@ -82,7 +84,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-08T14:27:26.124553Z'
+updated_at: '2026-08-08T15:12:48.809547Z'
 work_branch: null
 target_branch: null
 review_url: null
