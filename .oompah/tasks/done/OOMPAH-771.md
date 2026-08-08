@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-771
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Retire legacy reconcilers and modularize the orchestrator
 parent: OOMPAH-763
@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:05.119669Z'
-updated_at: '2026-08-08T16:32:01.061606Z'
+updated_at: '2026-08-08T16:32:06.118769Z'
 work_branch: null
 target_branch: null
 review_url: null
