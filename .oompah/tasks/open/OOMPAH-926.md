@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-926
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Do not invalidate shadow qualification during a mixed-mode graceful restart
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T21:02:52.502402Z'
-updated_at: '2026-08-08T21:03:10.527178Z'
+updated_at: '2026-08-08T21:04:07.201012Z'
 work_branch: null
 target_branch: null
 review_url: null
