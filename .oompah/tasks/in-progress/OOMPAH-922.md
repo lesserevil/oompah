@@ -1,18 +1,18 @@
 ---
-id: OOMPAH-923
+id: OOMPAH-922
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''TRICKLE-126:
-  In Progress was not applied (rejected: transition.generation_required)'')'
+  In Progress was not applied (rejected: transition.illegal_edge)'')'
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-08T16:51:21.989830Z'
-updated_at: '2026-08-08T17:05:12.024078Z'
+created_at: '2026-08-08T16:46:56.941856Z'
+updated_at: '2026-08-08T17:05:37.523300Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,7 +25,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:server`:
 
-> Update issue API error: TaskTransitionNotApplied('TRICKLE-126: In Progress was not applied (rejected: transition.generation_required)')
+> Update issue API error: TaskTransitionNotApplied('TRICKLE-126: In Progress was not applied (rejected: transition.illegal_edge)')
 
 ### Steps to Reproduce
 1. Run oompah with `backend:server` active.
@@ -35,7 +35,7 @@ Oompah detected a backend error from `backend:server`:
 ### Actual Behavior
 An error occurs in `backend:server` and is recorded by oompah's `error_watcher`:
 
-> Update issue API error: TaskTransitionNotApplied('TRICKLE-126: In Progress was not applied (rejected: transition.generation_required)')
+> Update issue API error: TaskTransitionNotApplied('TRICKLE-126: In Progress was not applied (rejected: transition.illegal_edge)')
 
 ### Expected Behavior
 The operation in `backend:server` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -50,8 +50,8 @@ The operation in `backend:server` should complete successfully, or degrade grace
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 47e4066f393770b2
-- dedup_fingerprint: 47e4066f393770b2
+- fingerprint: dab88f7d8e6b9ab3
+- dedup_fingerprint: dab88f7d8e6b9ab3
 
 ## Acceptance Criteria
 
