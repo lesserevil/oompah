@@ -130,6 +130,7 @@ class WorkflowProjectBinding:
     terminal_audit_workflow: Any | None = None
     transition_journal: TransitionJournal | None = None
     dispatch_enabled: Callable[[], bool] | None = None
+    lifecycle_interrupted: Callable[[], bool] | None = None
 
     @property
     def enabled(self) -> bool:
@@ -143,6 +144,20 @@ class WorkflowProjectBinding:
             # Pause/configuration authority is a correctness boundary.  A
             # failed read must never be interpreted as permission to mutate.
             return False
+
+    @property
+    def interrupted(self) -> bool:
+        """Whether a process-wide lifecycle fence interrupted evaluation."""
+
+        if self.lifecycle_interrupted is None:
+            return False
+        try:
+            return bool(self.lifecycle_interrupted())
+        except Exception:
+            # Unknown lifecycle authority cannot safely become rollout
+            # qualification evidence.  Treat it as an interruption, which is
+            # neutral and requires a later complete sweep.
+            return True
 
     @property
     def controllers(self) -> tuple[Any, ...]:
@@ -545,6 +560,14 @@ class WorkflowRuntime:
                     return False
                 return True
 
+            def lifecycle_interrupted() -> bool:
+                globally_blocked = getattr(
+                    orchestrator, "_dispatch_is_blocked", None
+                )
+                return (
+                    bool(globally_blocked()) if callable(globally_blocked) else False
+                )
+
             def source(issue: Any, domain: FactDomain, *, _holder=holder) -> Any:
                 binding = _holder.get("binding")
                 if (
@@ -809,6 +832,7 @@ class WorkflowRuntime:
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
                 dispatch_enabled=dispatch_enabled,
+                lifecycle_interrupted=lifecycle_interrupted,
             )
             holder["binding"] = binding
             bindings[project_id] = binding
@@ -1360,16 +1384,31 @@ class WorkflowRuntime:
             # they are not missing coverage for the enabled projects that the
             # rollout is qualifying.  An entirely paused topology still fails
             # closed because it provides no active-project evidence.
+            all_project_results = tuple(report["projects"].values())
+            errors = [
+                str(value.get("error"))
+                for value in all_project_results
+                if isinstance(value, Mapping) and value.get("error")
+            ]
+            with self._lock:
+                draining = self._draining
+            # A graceful stop fences new work before waiting for this admitted
+            # reconcile.  That also disables project bindings, so a sweep
+            # already in source I/O can finish with an intentionally partial
+            # cut.  The operator-requested interruption is not evidence that
+            # a domain is unhealthy and must not poison its last successful
+            # shadow qualification.  Genuine source/evaluation errors remain
+            # failures even if shutdown begins later in the same pass.
+            lifecycle_interrupted = draining or any(
+                binding.interrupted for binding in self.project_bindings.values()
+            )
+            if lifecycle_interrupted and not errors:
+                return report
             project_results = tuple(
                 report["projects"].get(project_id)
                 for project_id, binding in sorted(self.project_bindings.items())
                 if binding.enabled
             )
-            errors = [
-                str(value.get("error"))
-                for value in project_results
-                if isinstance(value, Mapping) and value.get("error")
-            ]
             if not project_results or any(
                 not isinstance(value, Mapping)
                 or value.get("skipped")

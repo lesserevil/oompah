@@ -30,7 +30,12 @@ from oompah.task_transition_service import (
 )
 from oompah.terminal_audit_workflow import TerminalAuditWorkflow
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
-from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowJobSpec,
+    WorkflowJobState,
+    WorkflowJobStore,
+    WorkflowRolloutGateError,
+)
 from oompah.workflow_runtime import (
     RUNTIME_ACTIONS,
     WorkflowProjectBinding,
@@ -631,6 +636,240 @@ def test_shadow_rollout_does_not_qualify_without_active_projects(tmp_path):
         rollout["implementation"]["last_error"]
         == "shadow sweep did not cover every active project"
     )
+    runtime.close()
+    store.close()
+
+
+def test_graceful_drain_does_not_poison_active_shadow_qualification(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-DRAIN-SHADOW")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        rollout_min_shadow_sweeps=1,
+        rollout_min_shadow_seconds=0,
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    before = {
+        row["domain"]: dict(row) for row in store.rollout_snapshot()
+    }["review"]
+    fetch_entered = threading.Event()
+    release_fetch = threading.Event()
+    original_fetch = tracker.fetch_all_issues_enriched
+
+    def blocked_fetch():
+        fetch_entered.set()
+        assert release_fetch.wait(5), "tracker barrier timed out"
+        return original_fetch()
+
+    tracker.fetch_all_issues_enriched = blocked_fetch
+    binding.dispatch_enabled = lambda: not runtime._draining
+
+    async def exercise():
+        reconcile_task = asyncio.create_task(runtime.reconcile_async())
+        drain_task = None
+        try:
+            assert await asyncio.to_thread(fetch_entered.wait, 2)
+            drain_task = asyncio.create_task(runtime.drain(timeout_seconds=2))
+            await asyncio.sleep(0)
+            assert runtime.health_snapshot()["draining"] is True
+            assert drain_task.done() is False
+            release_fetch.set()
+            report = await asyncio.wait_for(reconcile_task, timeout=2)
+            assert await asyncio.wait_for(drain_task, timeout=2) is True
+            return report
+        finally:
+            release_fetch.set()
+            await asyncio.gather(reconcile_task, return_exceptions=True)
+            if drain_task is not None:
+                await asyncio.gather(drain_task, return_exceptions=True)
+
+    report = asyncio.run(exercise())
+
+    assert report["projects"]["project-1"]["issues"] == 1
+    after = {
+        row["domain"]: dict(row) for row in store.rollout_snapshot()
+    }["review"]
+    assert after == before
+    promoted = store.prepare_rollout(
+        {
+            "implementation": "shadow",
+            "review": "enforce",
+            "integration": "shadow",
+            "epic": "shadow",
+        },
+        require_qualification=True,
+        min_shadow_sweeps=1,
+        min_shadow_seconds=0,
+    )
+    assert {row["domain"]: row["mode"] for row in promoted}["review"] == "enforce"
+    runtime.close()
+    store.close()
+
+
+def test_quiesce_gap_preserves_mixed_mode_shadow_qualification(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-QUIESCE-SHADOW")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    qualifying_runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        rollout_min_shadow_sweeps=1,
+        rollout_min_shadow_seconds=0,
+    )
+    asyncio.run(qualifying_runtime.start())
+    qualifying_runtime.reconcile()
+    qualifying_runtime.close()
+
+    mixed_modes = {
+        "implementation": "enforce",
+        "review": "shadow",
+        "integration": "shadow",
+        "epic": "shadow",
+    }
+    mixed_binding, mixed_journal = make_binding(tmp_path, tracker, store)
+    mixed_runtime = WorkflowRuntime(
+        project_bindings={"project-1": mixed_binding},
+        store=store,
+        journals={"project-1": mixed_journal},
+        mode="shadow",
+        domain_modes=mixed_modes,
+        rollout_require_qualification=True,
+        rollout_min_shadow_sweeps=1,
+        rollout_min_shadow_seconds=0,
+    )
+    asyncio.run(mixed_runtime.start())
+    before = {
+        row["domain"]: dict(row) for row in store.rollout_snapshot()
+    }["review"]
+    source_entered = threading.Event()
+    release_source = threading.Event()
+    lifecycle_blocked = threading.Event()
+    original_fetch = tracker.fetch_all_issues_enriched
+
+    def blocked_fetch():
+        source_entered.set()
+        assert release_source.wait(5), "tracker barrier timed out"
+        return original_fetch()
+
+    tracker.fetch_all_issues_enriched = blocked_fetch
+    mixed_binding.dispatch_enabled = lambda: not lifecycle_blocked.is_set()
+    mixed_binding.lifecycle_interrupted = lifecycle_blocked.is_set
+
+    async def exercise():
+        reconcile_task = asyncio.create_task(mixed_runtime.reconcile_async())
+        try:
+            assert await asyncio.to_thread(source_entered.wait, 2)
+            lifecycle_blocked.set()
+            release_source.set()
+            return await asyncio.wait_for(reconcile_task, timeout=2)
+        finally:
+            release_source.set()
+            await asyncio.gather(reconcile_task, return_exceptions=True)
+
+    report = asyncio.run(exercise())
+
+    assert report["projects"]["project-1"]["issues"] == 1
+    after = {
+        row["domain"]: dict(row) for row in store.rollout_snapshot()
+    }["review"]
+    assert after == before
+    mixed_runtime.close()
+
+    promoted_modes = dict(mixed_modes, review="enforce")
+    promoted_binding, promoted_journal = make_binding(tmp_path, tracker, store)
+    promoted_runtime = WorkflowRuntime(
+        project_bindings={"project-1": promoted_binding},
+        store=store,
+        journals={"project-1": promoted_journal},
+        mode="shadow",
+        domain_modes=promoted_modes,
+        rollout_require_qualification=True,
+        rollout_min_shadow_sweeps=1,
+        rollout_min_shadow_seconds=0,
+    )
+    asyncio.run(promoted_runtime.start())
+    assert promoted_runtime.health_snapshot()["domain_modes"] == promoted_modes
+    promoted_runtime.close()
+    store.close()
+
+
+def test_graceful_drain_still_records_genuine_shadow_failure(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-DRAIN-SHADOW-ERROR")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        rollout_min_shadow_sweeps=1,
+        rollout_min_shadow_seconds=0,
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    before = {
+        row["domain"]: dict(row) for row in store.rollout_snapshot()
+    }["review"]
+    fetch_entered = threading.Event()
+    release_fetch = threading.Event()
+
+    def failing_fetch():
+        fetch_entered.set()
+        assert release_fetch.wait(5), "tracker barrier timed out"
+        raise RuntimeError("genuine source failure")
+
+    tracker.fetch_all_issues_enriched = failing_fetch
+    binding.dispatch_enabled = lambda: not runtime._draining
+
+    async def exercise():
+        reconcile_task = asyncio.create_task(runtime.reconcile_async())
+        drain_task = None
+        try:
+            assert await asyncio.to_thread(fetch_entered.wait, 2)
+            drain_task = asyncio.create_task(runtime.drain(timeout_seconds=2))
+            await asyncio.sleep(0)
+            assert runtime.health_snapshot()["draining"] is True
+            release_fetch.set()
+            await asyncio.wait_for(reconcile_task, timeout=2)
+            assert await asyncio.wait_for(drain_task, timeout=2) is True
+        finally:
+            release_fetch.set()
+            await asyncio.gather(reconcile_task, return_exceptions=True)
+            if drain_task is not None:
+                await asyncio.gather(drain_task, return_exceptions=True)
+
+    asyncio.run(exercise())
+
+    after = {
+        row["domain"]: dict(row) for row in store.rollout_snapshot()
+    }["review"]
+    assert after["successful_shadow_sweeps"] == before["successful_shadow_sweeps"]
+    assert after["failed_shadow_sweeps"] == before["failed_shadow_sweeps"] + 1
+    assert after["last_failure_at"] >= after["last_success_at"]
+    assert "RuntimeError" in after["last_error"]
+    with pytest.raises(
+        WorkflowRolloutGateError, match="review: latest shadow sweep did not succeed"
+    ):
+        store.prepare_rollout(
+            {
+                "implementation": "shadow",
+                "review": "enforce",
+                "integration": "shadow",
+                "epic": "shadow",
+            },
+            require_qualification=True,
+            min_shadow_sweeps=1,
+            min_shadow_seconds=0,
+        )
     runtime.close()
     store.close()
 

@@ -63,6 +63,7 @@ from oompah.agent_profile_store import (
 from oompah.alert_safety import DIAGNOSTIC_AVAILABLE_TEXT
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.orchestrator_thread import orchestrator_thread_error_fields
 from oompah.dashboard_alerts import normalize_alerts
 from oompah.ipc import OrchestratorIPC, get_ipc
 from oompah.issue_enhancer import (
@@ -518,8 +519,9 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
     def _run_orchestrator_thread() -> None:
         try:
             _asyncio.run(services.orchestrator.run())
-        except Exception:
-            logger.exception("Orchestrator thread crashed")
+        except Exception as exc:  # noqa: BLE001 -- thread boundary must be logged
+            message, extra = orchestrator_thread_error_fields(exc)
+            logger.exception(message, extra=extra)
 
     watch_task = _asyncio.create_task(_watch_workflow())
     orch_thread = threading.Thread(

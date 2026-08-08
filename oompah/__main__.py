@@ -9,6 +9,8 @@ import os
 import sys
 import threading
 
+from oompah.orchestrator_thread import orchestrator_thread_error_fields
+
 logger = logging.getLogger("oompah")
 
 # Sentinel file written by the Granian lifespan _supervise() task to signal
@@ -520,8 +522,9 @@ async def _run(
     def _run_orchestrator_thread() -> None:
         try:
             asyncio.run(orchestrator.run())
-        except Exception:  # noqa: BLE001 -- thread boundary must be logged
-            logger.exception("Orchestrator thread crashed")
+        except Exception as exc:  # noqa: BLE001 -- thread boundary must be logged
+            message, extra = orchestrator_thread_error_fields(exc)
+            logger.exception(message, extra=extra)
 
     orch_thread = threading.Thread(
         target=_run_orchestrator_thread,
