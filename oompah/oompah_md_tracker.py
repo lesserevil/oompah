@@ -7,6 +7,8 @@ directly on the project's default branch.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import re
@@ -296,6 +298,7 @@ class OompahMarkdownTracker:
     # treating permissive proxy objects (notably mocks) as implementations of
     # the extension interface.
     supports_generation_bound_reads = True
+    supports_atomic_create_once = True
 
     def __init__(
         self,
@@ -763,6 +766,164 @@ class OompahMarkdownTracker:
         if not created:
             raise TrackerError(f"Created native oompah task disappeared: {identifier}")
         return created
+
+    def create_issue_once(
+        self,
+        title: str,
+        issue_type: str = "task",
+        description: str | None = None,
+        priority: int | None = None,
+        initial_status: str | None = None,
+        labels: list[str] | None = None,
+        parent: str | None = None,
+        *,
+        project_id: str,
+        operation_kind: str,
+        creation_marker: str,
+    ) -> Issue:
+        """Atomically create or recover the issue for one durable marker.
+
+        The marker and a fingerprint of the normalized request live in the
+        task front matter.  Lookup, identifier allocation, task creation, and
+        parent linkage all run under the repository-wide mutation lock.  A
+        retry after an ambiguous response therefore returns the original task
+        and a mismatched reuse of the same key fails closed.
+        """
+        clean_project_id = str(project_id or "").strip()
+        clean_operation_kind = str(operation_kind or "").strip()
+        clean_marker = str(creation_marker or "").strip()
+        if not clean_project_id:
+            raise TrackerError("Atomic create-once requires a project id")
+        if not clean_operation_kind:
+            raise TrackerError("Atomic create-once requires an operation kind")
+        if not clean_marker:
+            raise TrackerError("Atomic create-once requires a creation marker")
+        if max(
+            len(clean_project_id),
+            len(clean_operation_kind),
+            len(clean_marker),
+        ) > 512:
+            raise TrackerError("Atomic create-once key fields must not exceed 512 bytes")
+
+        clean_title = str(title or "").strip()
+        if not clean_title:
+            raise TrackerError("Native oompah task title is required")
+        status = canonicalize_status(initial_status or BACKLOG)
+        clean_issue_type = (issue_type or "task").strip().lower()
+        if clean_issue_type not in _ISSUE_TYPES:
+            clean_issue_type = "task"
+        effective_labels = _dedupe_strings(labels or [])
+        normalized_description = _summary_safe_description(description)
+        normalized_parent = str(parent or "").strip() or None
+        request_payload = {
+            "title": clean_title,
+            "issue_type": clean_issue_type,
+            "description": normalized_description,
+            "priority": priority,
+            "initial_status": status,
+            "labels": effective_labels,
+            "parent": normalized_parent,
+        }
+        request_fingerprint = hashlib.sha256(
+            json.dumps(
+                request_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        creation_key = {
+            "version": 1,
+            "project_id": clean_project_id,
+            "operation_kind": clean_operation_kind,
+            "creation_marker": clean_marker,
+            "request_fingerprint": request_fingerprint,
+        }
+
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            matches: list[dict[str, Any]] = []
+            for record in self._read_records():
+                recorded = record["meta"].get("oompah.create_once")
+                if not isinstance(recorded, dict):
+                    continue
+                if (
+                    str(recorded.get("project_id") or "").strip()
+                    == clean_project_id
+                    and str(recorded.get("operation_kind") or "").strip()
+                    == clean_operation_kind
+                    and str(recorded.get("creation_marker") or "").strip()
+                    == clean_marker
+                ):
+                    matches.append(record)
+            if len(matches) > 1:
+                identifiers = sorted(
+                    str(record["meta"].get("id") or Path(record["path"]).stem)
+                    for record in matches
+                )
+                raise TrackerError(
+                    "Atomic create-once key resolves to multiple native tasks: "
+                    + ", ".join(identifiers)
+                )
+            if matches:
+                recorded_fingerprint = str(
+                    matches[0]["meta"].get("oompah.create_once", {}).get(
+                        "request_fingerprint"
+                    )
+                    or ""
+                )
+                if recorded_fingerprint != request_fingerprint:
+                    raise TrackerError(
+                        "Atomic create-once key was already used with a different payload"
+                    )
+                # The first request may have written the task and then lost
+                # the commit/push response before publication was confirmed.
+                # Re-drive the same durable boundary; this is a no-op when the
+                # original commit already landed and schedules the pending
+                # state-branch mutation when it did not.
+                identifier = str(
+                    matches[0]["meta"].get("id") or Path(matches[0]["path"]).stem
+                )
+                self._commit_and_push(f"Recover create-once task {identifier}")
+                return self._normalize_record(matches[0])
+
+            identifier = self._next_identifier()
+            now = _now_iso()
+            meta: dict[str, Any] = {
+                "id": identifier,
+                "type": clean_issue_type,
+                "status": status,
+                "priority": priority,
+                "title": clean_title,
+                "parent": normalized_parent,
+                "children": [],
+                "blocked_by": [],
+                "start_blocked_by": [],
+                "labels": effective_labels,
+                "assignee": None,
+                "created_at": now,
+                "updated_at": now,
+                "work_branch": None,
+                "target_branch": None,
+                "review_url": None,
+                "review_number": None,
+                "review_head": None,
+                "merged_at": None,
+                "oompah.create_once": creation_key,
+            }
+            body = self._initial_body(normalized_description)
+            path = self._path_for(identifier, status)
+            _write_markdown(path, meta, body)
+            if normalized_parent:
+                self._add_child_to_parent(normalized_parent, identifier)
+            self.invalidate_read_cache()
+            self._commit_and_push(f"Create oompah task {identifier}")
+            record = self._read_record_uncached(identifier)
+            if record is None:
+                raise TrackerError(
+                    f"Created native oompah task disappeared: {identifier}"
+                )
+            return self._normalize_record(record)
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         with self._write_lock:

@@ -36816,26 +36816,42 @@ class Orchestrator:
                 and old_entry.authority_task_id
             ):
                 return None
-            if (
+            retrying_reserved_create = bool(
                 old_entry is not None
                 and old_entry.authority_generation == generation
                 and not old_entry.authority_task_id
+                and old_entry.authority_creation_reserved
+                and old_entry.authority_creation_marker
+            )
+            supports_atomic_create_once = bool(
+                getattr(tracker, "supports_atomic_create_once", False) is True
+                and callable(getattr(tracker, "create_issue_once", None))
+            )
+            if (
+                old_entry is not None
+                and old_entry.authority_generation == generation
+                and not retrying_reserved_create
             ):
-                # The tracker create may have committed even if its response
-                # was lost.  The durable reservation consumes this exact
-                # generation until reconciliation finds the helper; do not
-                # turn delayed visibility into a duplicate external create.
+                return None
+            if not supports_atomic_create_once:
+                logger.warning(
+                    "Tracker for %s cannot atomically create the rebase helper; "
+                    "leaving the exact generation fenced",
+                    epic.identifier,
+                )
                 return None
 
-            reservation = self._persist_epic_rebase_authority(
-                epic=epic,
-                task=None,
-                epic_branch=epic_branch,
-                target_branch=target_branch,
-                generation=generation,
-                epic_head=epic_head,
-                target_head=target_head,
-            )
+            reservation = old_entry if retrying_reserved_create else None
+            if reservation is None:
+                reservation = self._persist_epic_rebase_authority(
+                    epic=epic,
+                    task=None,
+                    epic_branch=epic_branch,
+                    target_branch=target_branch,
+                    generation=generation,
+                    epic_head=epic_head,
+                    target_head=target_head,
+                )
             if reservation is None:
                 return None
             title = f"Rebase {epic_branch} onto {target_branch}"
@@ -36859,14 +36875,26 @@ class Orchestrator:
                 "OOMPAH-EPIC-REBASE-RESERVATION: "
                 f"{reservation.authority_creation_marker}\n"
             )
-            created = tracker.create_issue(
-                title=title,
-                issue_type="task",
-                description=description,
-                priority=0,
-                parent=epic.identifier,
-                initial_status=NEEDS_REBASE,
-            )
+            try:
+                created = tracker.create_issue_once(
+                    title=title,
+                    issue_type="task",
+                    description=description,
+                    priority=0,
+                    parent=epic.identifier,
+                    initial_status=NEEDS_REBASE,
+                    project_id=str(epic.project_id or ""),
+                    operation_kind="epic_rebase_helper",
+                    creation_marker=reservation.authority_creation_marker,
+                )
+            except Exception as exc:  # noqa: BLE001 - marker makes retry safe
+                logger.warning(
+                    "Atomic rebase-helper creation for %s did not return a "
+                    "definitive result; the durable marker will be reconciled: %s",
+                    epic.identifier,
+                    exc,
+                )
+                return None
             created_identifier = self._epic_rebase_authority_task_id(created)
             target_evidence = {
                 "version": 1,

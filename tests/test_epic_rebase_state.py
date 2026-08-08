@@ -312,8 +312,8 @@ class TestEpicTargetResolution:
 
     def test_filed_helper_persists_target_evidence(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
-        tracker = MagicMock()
-        tracker.create_issue.return_value = _make_issue(
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.return_value = _make_issue(
             "REBASE-1",
             state=NEEDS_REBASE,
             parent_id="EPIC-CHILD",
@@ -427,7 +427,7 @@ class TestEpicTargetResolution:
         orch = _make_orchestrator(tmp_path)
         helper = _make_rebase_helper("REBASE-WRONG", "EPIC-CHILD")
         helper.target_branch = "main"
-        tracker = MagicMock()
+        tracker = _atomic_create_tracker()
         tracker.fetch_issue_detail.return_value = helper
         orch.state.owner_claims[
             orch._owner_claim_key(helper.project_id, helper.id)
@@ -1135,6 +1135,12 @@ def _make_rebase_helper(identifier: str, epic_identifier: str) -> Issue:
     return helper
 
 
+def _atomic_create_tracker() -> MagicMock:
+    tracker = MagicMock()
+    tracker.supports_atomic_create_once = True
+    return tracker
+
+
 def _configure_publish_fixture(
     orch: Orchestrator,
     tmp_path,
@@ -1223,7 +1229,7 @@ class TestEpicRebaseGenerationAuthority:
     def test_concurrent_filers_create_only_one_helper(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
-        tracker = MagicMock()
+        tracker = _atomic_create_tracker()
         created: list[Issue] = []
 
         def _create(**_kwargs):
@@ -1231,7 +1237,7 @@ class TestEpicRebaseGenerationAuthority:
             created.append(helper)
             return helper
 
-        tracker.create_issue.side_effect = _create
+        tracker.create_issue_once.side_effect = _create
         orch._active_epic_rebase_siblings = MagicMock(
             side_effect=lambda *_args, **_kwargs: list(created)
         )
@@ -1249,12 +1255,12 @@ class TestEpicRebaseGenerationAuthority:
                 )
             )
 
-        assert tracker.create_issue.call_count == 1
+        assert tracker.create_issue_once.call_count == 1
         assert all(result is created[0] for result in results)
         assert "publish_epic_rebase(candidate=<full-lowercase-sha>)" in (
-            tracker.create_issue.call_args.kwargs["description"]
+            tracker.create_issue_once.call_args.kwargs["description"]
         )
-        assert "Do not run `git push`" in tracker.create_issue.call_args.kwargs[
+        assert "Do not run `git push`" in tracker.create_issue_once.call_args.kwargs[
             "description"
         ]
         assert (
@@ -1262,7 +1268,7 @@ class TestEpicRebaseGenerationAuthority:
             + orch._epic_rebase_creation_marker(
                 epic.project_id, epic.identifier, "generation-1"
             )
-        ) in tracker.create_issue.call_args.kwargs["description"]
+        ) in tracker.create_issue_once.call_args.kwargs["description"]
         entry = orch._epic_rebase_authority_entry(
             epic.project_id,
             epic.identifier,
@@ -1275,8 +1281,8 @@ class TestEpicRebaseGenerationAuthority:
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
         helper = _make_rebase_helper("REBASE-1", epic.identifier)
-        tracker = MagicMock()
-        tracker.create_issue.return_value = helper
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.return_value = helper
         orch._active_epic_rebase_siblings = MagicMock(return_value=[])
         orch._observe_epic_rebase_generation = MagicMock(
             return_value=("generation-1", "epic-head-1", "main-before-loss")
@@ -1295,7 +1301,7 @@ class TestEpicRebaseGenerationAuthority:
         assert restarted._file_rebase_task(
             restarted_tracker, epic, "epic-EPIC-1", "main"
         ) is None
-        restarted_tracker.create_issue.assert_not_called()
+        restarted_tracker.create_issue_once.assert_not_called()
         restarted_entry = restarted._epic_rebase_authority_entry(
             epic.project_id,
             epic.identifier,
@@ -1307,8 +1313,8 @@ class TestEpicRebaseGenerationAuthority:
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
         helper = _make_rebase_helper("REBASE-1", epic.identifier)
-        tracker = MagicMock()
-        tracker.create_issue.return_value = helper
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.return_value = helper
         orch._active_epic_rebase_siblings = MagicMock(return_value=[])
         orch._observe_epic_rebase_generation = MagicMock(
             side_effect=[None, ("generation-1", "epic-head-1", "main-head-1")]
@@ -1317,13 +1323,13 @@ class TestEpicRebaseGenerationAuthority:
         assert orch._file_rebase_task(
             tracker, epic, "epic-EPIC-1", "main"
         ) is None
-        tracker.create_issue.assert_not_called()
+        tracker.create_issue_once.assert_not_called()
         assert orch._epic_rebase_authority_entry(epic.project_id, epic.identifier) is None
 
         assert orch._file_rebase_task(
             tracker, epic, "epic-EPIC-1", "main"
         ) is helper
-        tracker.create_issue.assert_called_once()
+        tracker.create_issue_once.assert_called_once()
 
     def test_o877_owner_wins_and_o878_o880_o881_are_superseded(self, tmp_path):
         """Deterministic recurrence for all four 2026-08-07 duplicate helpers."""
@@ -1365,7 +1371,7 @@ class TestEpicRebaseGenerationAuthority:
         )
         assert authority is not None
         assert authority.authority_task_id == "OOMPAH-877"
-        tracker.create_issue.assert_not_called()
+        tracker.create_issue_once.assert_not_called()
         assert request.call_count == 3
         assert {
             call.args[0].identifier for call in request.call_args_list
@@ -1544,7 +1550,7 @@ class TestEpicRebaseGenerationAuthority:
         assert orch._file_rebase_task(
             tracker, epic, "epic-OOMPAH-763", "main"
         ) is None
-        tracker.create_issue.assert_not_called()
+        tracker.create_issue_once.assert_not_called()
         admitted, reason = orch._admit_epic_rebase_helper(
             tracker,
             duplicate,
@@ -1562,8 +1568,8 @@ class TestEpicRebaseGenerationAuthority:
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
         first = _make_rebase_helper("REBASE-1", epic.identifier)
         second = _make_rebase_helper("REBASE-2", epic.identifier)
-        tracker = MagicMock()
-        tracker.create_issue.side_effect = [first, second]
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.side_effect = [first, second]
         orch._active_epic_rebase_siblings = MagicMock(return_value=[])
         orch._observe_epic_rebase_generation = MagicMock(
             side_effect=[
@@ -1582,7 +1588,7 @@ class TestEpicRebaseGenerationAuthority:
         assert orch._file_rebase_task(
             tracker, epic, "epic-EPIC-1", "main"
         ) is second
-        assert tracker.create_issue.call_count == 2
+        assert tracker.create_issue_once.call_count == 2
         authority = orch._epic_rebase_authority_entry(
             epic.project_id,
             epic.identifier,
@@ -1603,7 +1609,7 @@ class TestEpicRebaseGenerationAuthority:
         ]
         for index, duplicate in enumerate(duplicates, start=1):
             duplicate.created_at = f"2026-08-07T00:00:0{index}Z"
-        tracker = MagicMock()
+        tracker = _atomic_create_tracker()
         visible = [o877]
         tracker.fetch_children.side_effect = lambda _epic_id: list(visible)
         tracker.fetch_issues_by_states.side_effect = (
@@ -1711,9 +1717,9 @@ class TestEpicRebaseGenerationAuthority:
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
         helper = _make_rebase_helper("REBASE-1", epic.identifier)
-        tracker = MagicMock()
+        tracker = _atomic_create_tracker()
         visible: list[Issue] = []
-        tracker.create_issue.side_effect = lambda **_kwargs: (
+        tracker.create_issue_once.side_effect = lambda **_kwargs: (
             visible.append(helper) or helper
         )
         orch._active_epic_rebase_siblings = MagicMock(
@@ -1902,20 +1908,19 @@ class TestEpicRebaseGenerationAuthority:
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
         committed = _make_rebase_helper("REBASE-1", epic.identifier)
-        tracker = MagicMock()
-        visible: list[Issue] = []
+        tracker = _atomic_create_tracker()
         orch._active_epic_rebase_siblings = MagicMock(return_value=[])
         orch._observe_epic_rebase_generation = MagicMock(
             return_value=("generation-1", "epic-head-1", "main-head-1")
         )
 
         def _commit_then_lose_response(**_kwargs):
-            visible.append(committed)
             raise TimeoutError("tracker response lost after commit")
 
-        tracker.create_issue.side_effect = _commit_then_lose_response
-        with pytest.raises(TimeoutError, match="response lost"):
-            orch._file_rebase_task(tracker, epic, "epic-EPIC-1", "main")
+        tracker.create_issue_once.side_effect = _commit_then_lose_response
+        assert orch._file_rebase_task(
+            tracker, epic, "epic-EPIC-1", "main"
+        ) is None
         reserved = orch._epic_rebase_authority_entry(epic.project_id, epic.identifier)
         assert reserved is not None
         assert reserved.authority_creation_reserved is True
@@ -1923,30 +1928,24 @@ class TestEpicRebaseGenerationAuthority:
         committed.description += (
             "\nOOMPAH-EPIC-REBASE-RESERVATION: " + marker + "\n"
         )
-        # A delayed tracker response does not become retry permission merely
-        # because the reservation is old.
-        reserved.updated_at = time.time() - 86400
-
         restarted = _make_orchestrator(tmp_path)
-        restarted_tracker = MagicMock()
+        restarted_tracker = _atomic_create_tracker()
+        restarted_tracker.create_issue_once.return_value = committed
         restarted._observe_epic_rebase_generation = MagicMock(
             return_value=("generation-1", "epic-head-1", "main-after-loss")
         )
-        restarted._active_epic_rebase_siblings = MagicMock(
-            side_effect=[[], list(visible)]
-        )
+        restarted._active_epic_rebase_siblings = MagicMock(return_value=[])
 
-        # Delayed tracker visibility is not interpreted as permission to
-        # repeat the external create effect.
-        assert restarted._file_rebase_task(
-            restarted_tracker, epic, "epic-EPIC-1", "main"
-        ) is None
-        restarted_tracker.create_issue.assert_not_called()
-        # Once visible, the committed helper is attached to the reservation.
+        # The durable primitive retries the same marker and returns the task
+        # created by the ambiguous first request; no second allocation occurs.
         assert restarted._file_rebase_task(
             restarted_tracker, epic, "epic-EPIC-1", "main"
         ) is committed
-        restarted_tracker.create_issue.assert_not_called()
+        restarted_tracker.create_issue_once.assert_called_once()
+        assert restarted._file_rebase_task(
+            restarted_tracker, epic, "epic-EPIC-1", "main"
+        ) is None
+        restarted_tracker.create_issue_once.assert_called_once()
         authority = restarted._epic_rebase_authority_entry(
             epic.project_id,
             epic.identifier,
@@ -1974,30 +1973,52 @@ class TestEpicRebaseGenerationAuthority:
             authority_creation_reserved=True,
             authority_creation_marker=marker,
         )
-        visible = [unrelated]
-        tracker = MagicMock()
-        tracker.create_issue.return_value = _make_rebase_helper("MUST-NOT-CREATE", epic.identifier)
+        matching.description += "\nOOMPAH-EPIC-REBASE-RESERVATION: " + marker
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.return_value = matching
         orch._active_epic_rebase_siblings = MagicMock(
-            side_effect=lambda *_args, **_kwargs: list(visible)
+            return_value=[unrelated]
         )
         orch._observe_epic_rebase_generation = MagicMock(
             return_value=("generation-1", "epic-head-1", "main-head-1")
         )
 
-        assert orch._file_rebase_task(tracker, epic, "epic-EPIC-1", "main") is None
-        tracker.create_issue.assert_not_called()
-        assert orch._epic_rebase_authority_entry(
-            epic.project_id, epic.identifier
-        ).authority_task_id is None
-
-        matching.description += "\nOOMPAH-EPIC-REBASE-RESERVATION: " + marker
-        visible.append(matching)
         assert orch._file_rebase_task(
             tracker, epic, "epic-EPIC-1", "main"
         ) is matching
+        tracker.create_issue_once.assert_called_once_with(
+            title="Rebase epic-EPIC-1 onto main",
+            issue_type="task",
+            description=tracker.create_issue_once.call_args.kwargs["description"],
+            priority=0,
+            parent=epic.identifier,
+            initial_status=NEEDS_REBASE,
+            project_id=str(epic.project_id or ""),
+            operation_kind="epic_rebase_helper",
+            creation_marker=marker,
+        )
         assert orch._epic_rebase_authority_entry(
             epic.project_id, epic.identifier
         ).authority_task_id == matching.identifier
+
+    def test_unsupported_tracker_fails_closed_without_external_create(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        epic = _make_issue("EPIC-1", labels=["rebase-requested"])
+        tracker = MagicMock()
+        tracker.supports_atomic_create_once = False
+        orch._active_epic_rebase_siblings = MagicMock(return_value=[])
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-1", "epic-head-1", "main-head-1")
+        )
+
+        assert orch._file_rebase_task(
+            tracker, epic, "epic-EPIC-1", "main"
+        ) is None
+        tracker.create_issue_once.assert_not_called()
+        tracker.create_issue.assert_not_called()
+        assert orch._epic_rebase_authority_entry(
+            epic.project_id, epic.identifier
+        ) is None
 
     def test_authority_persistence_failure_blocks_admission_and_rolls_back(
         self, tmp_path
@@ -2025,8 +2046,8 @@ class TestEpicRebaseGenerationAuthority:
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])
         helper = _make_rebase_helper("REBASE-1", epic.identifier)
-        tracker = MagicMock()
-        tracker.create_issue.return_value = helper
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.return_value = helper
         active: list[Issue] = []
         orch._active_epic_rebase_siblings = MagicMock(
             side_effect=lambda *_args, **_kwargs: list(active)
@@ -2046,7 +2067,7 @@ class TestEpicRebaseGenerationAuthority:
         assert orch._file_rebase_task(
             tracker, epic, "epic-EPIC-1", "main"
         ) is helper
-        assert tracker.create_issue.call_count == 1
+        assert tracker.create_issue_once.call_count == 1
 
     def test_server_publish_uses_exact_locked_cas_argv(self, tmp_path):
         orch = _make_orchestrator(tmp_path)

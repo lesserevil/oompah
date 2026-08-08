@@ -213,6 +213,8 @@ class GitLabClient:
 class GitLabIssueTracker:
     """GitLab-backed implementation of :class:`TrackerProtocol`."""
 
+    supports_atomic_create_once = False
+
     def __init__(
         self,
         *,
@@ -621,6 +623,36 @@ class GitLabIssueTracker:
             },
         )
         return self._issue(data)
+
+    def create_issue_once(
+        self,
+        title: str,
+        issue_type: str = "task",
+        description: str | None = None,
+        priority: int | None = None,
+        initial_status: str | None = None,
+        labels: list[str] | None = None,
+        parent: str | None = None,
+        *,
+        project_id: str,
+        operation_kind: str,
+        creation_marker: str,
+    ) -> Issue:
+        del (
+            title,
+            issue_type,
+            description,
+            priority,
+            initial_status,
+            labels,
+            parent,
+            project_id,
+            operation_kind,
+            creation_marker,
+        )
+        raise TrackerError(
+            "GitLab Issues does not provide atomic create-once task creation"
+        )
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         iid = self.parse_identifier(identifier).iid
