@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-08T01:11:20.043713Z'
+updated_at: '2026-08-08T01:11:48.593974Z'
 work_branch: OOMPAH-651
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/630
@@ -54,8 +54,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 4aa3adc7-cf83-4002-af79-6b3175f24ccf
 oompah.task_costs:
-  total_input_tokens: 24517803
-  total_output_tokens: 152910
+  total_input_tokens: 24517824
+  total_output_tokens: 163154
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -67,8 +67,8 @@ oompah.task_costs:
       output_tokens: 90859
       cost_usd: 0.0
     unknown:
-      input_tokens: 50
-      output_tokens: 7601
+      input_tokens: 71
+      output_tokens: 17845
       cost_usd: 0.0
   runs:
   - profile: default
@@ -173,6 +173,12 @@ oompah.task_costs:
     output_tokens: 564
     cost_usd: 0.0
     recorded_at: '2026-08-01T00:25:17.297640+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 21
+    output_tokens: 10244
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T01:11:43.594699+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -1811,5 +1817,15 @@ Safe evidence:
 - prior_done_audit: PASS by auditor 2026-08-01 00:20
 - prior_merged_audit: PASS by auditor 2026-08-01 00:24
 - stale_reason: week-long inter-audit gap since merge, not a quality regression
+---
+author: oompah
+created: 2026-08-08 01:11
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 40, Tool calls: 26
+- Tokens: 21 in / 10.2K out [10.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 29s
+- Log: OOMPAH-651__20260808T005728Z.jsonl
 ---
 <!-- COMMENTS:END -->
