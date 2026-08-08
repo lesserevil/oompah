@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T14:11:47.740099Z'
-updated_at: '2026-08-08T14:14:23.454092Z'
+updated_at: '2026-08-08T14:25:12.336955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:workflow_runtime`
 
 Message: Durable workflow reconcile failed for proj-14849f1b
+---
+author: oompah
+created: 2026-08-08 14:25
+---
+Direct owner work began on published systemic composition branch after live shadow reproduction. Root cause: WorkflowRuntime.from_orchestrator returned legacy fact provider callbacks instead of invoking them, so fact revision hashing received a Python function and raised TypeError. The same adapter also late-binds project source closures and omits duplicate-investigation facts; regression-tested fixes are in progress. OOMPAH-912 remains Backlog only because an expired status-transition claim from the prior hung request now returns transition.recovery_required; this is an erroneous transition recovery deadlock, not a lack of ownership.
 ---
 <!-- COMMENTS:END -->
