@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-916
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Unset removed .env configuration across graceful exec restarts
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:25.215337Z'
-updated_at: '2026-08-08T15:37:54.452866Z'
+updated_at: '2026-08-08T15:39:08.395407Z'
 work_branch: null
 target_branch: null
 review_url: null
