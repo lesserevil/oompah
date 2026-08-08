@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-795
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Expose one why-not-progressing projection and make alerts truthful
 parent: OOMPAH-770
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-08T05:05:54.944329Z'
+updated_at: '2026-08-08T05:07:47.347737Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
