@@ -77,7 +77,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-08T02:44:58.673590Z'
+updated_at: '2026-08-08T03:54:25.501423Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-08-08 02:44
 ---
 Exact candidate 200547fb75ced44e2c2005980a86e33c19501bf2 is under final validation. Focused quality-gate/parallel suite: 226 passed; terminal mutation scan passed; exact-head security/lifecycle review accepted after fixing the post-exchange canonical rollback race. Full make test is running under the validation lease.
+---
+author: oompah
+created: 2026-08-08 03:54
+---
+Published exact systemic-workflow candidate e74449e4f9303f35c2cc2c1c5fc78ee979f4d268 to epic-OOMPAH-763 with a fresh force-with-lease. Exact validation: terminal mutation scan passed; secret scan passed; affected composition surface 392 passed; independent race/lifecycle/dashboard reviews accepted after two review-found consistency fixes; full make test passed 17,860 tests with 7 skipped and 1 expected failure in 22m06s. Remote main bb82f7f39510f0e02886307291812f2f8b3e6901 is an ancestor of the published head.
 ---
 <!-- COMMENTS:END -->
