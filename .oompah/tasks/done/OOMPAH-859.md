@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-859
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Suppress impossible terminal-audit backlog alerts with zero pending work
 parent: OOMPAH-795
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-08T12:04:11.629547Z'
+updated_at: '2026-08-08T16:25:32.647363Z'
 work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
@@ -45,6 +45,30 @@ oompah.integration:
   base_branch: epic-OOMPAH-770--task-OOMPAH-795
   base_sha: f2b319c1182cd654112db622a0498171e508dead
   updated_at: '2026-08-06T11:48:50.515026+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-78c1107fbc25
+    project_id: proj-14849f1b
+    task_id: OOMPAH-859
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 36e2c9fab332f60ac67f940350ea0dfd4fe96cc78c18dc154e8e433f74812bfe
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:25:26.636749+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
