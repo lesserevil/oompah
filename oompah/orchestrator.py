@@ -12901,14 +12901,28 @@ class Orchestrator:
             )
             if failed
         ]
-        if not workflow_runtime_drained:
-            persistence_failures.append("workflow runtime drain")
         if failed_issue_ids or persistence_failures:
             logger.critical(
                 "Orchestrator shutdown remains fenced; runtime recovery is "
                 "not durable for issue_ids=%s journals=%s",
                 sorted(failed_issue_ids),
                 persistence_failures,
+            )
+            self._notify_observers()
+            return False
+        if not workflow_runtime_drained:
+            # A bounded runtime drain that still owns an admitted reconcile,
+            # worker, or handler mutation is not a persistence failure.  The
+            # runtime keeps its stores and exact authority open, and
+            # stop_until_safe() retries this boundary until the operation
+            # finishes.  Treating that normal retained-owner state as a
+            # critical error causes long, healthy corpus reconciles to file
+            # operator-actionable error tasks during every graceful restart.
+            # Exceptions still escape to stop_until_safe(), and genuine
+            # journal/worker retirement failures remain critical above.
+            logger.info(
+                "Orchestrator shutdown is safely waiting for workflow runtime "
+                "operations to drain; retained authority will be retried"
             )
             self._notify_observers()
             return False

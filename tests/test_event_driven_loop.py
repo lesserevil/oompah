@@ -16,6 +16,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -1035,6 +1036,79 @@ class TestRunEventDrivenLoop:
             await asyncio.wait_for(run_task, timeout=5.0)
 
         event_loop.run_until_complete(_run_and_stop())
+        assert orch.workflow_job_store._authority_lock_fd == -1
+
+    def test_graceful_stop_retries_slow_workflow_drain_without_critical_alert(
+        self,
+        tmp_path,
+        event_loop,
+        caplog,
+    ):
+        """A retained runtime owner is normal graceful-drain progress."""
+
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        runtime = SimpleNamespace(
+            drain=AsyncMock(side_effect=[False, True]),
+            pending_operation_count=1,
+        )
+        orch.workflow_runtime = runtime
+        orch._notify_observers = MagicMock()
+
+        async def _exercise():
+            with caplog.at_level(logging.INFO, logger="oompah.orchestrator"):
+                assert await orch.stop() is False
+                assert orch.workflow_job_store._authority_lock_fd >= 0
+                runtime.pending_operation_count = 0
+                assert await orch.stop() is True
+
+        event_loop.run_until_complete(_exercise())
+
+        assert runtime.drain.await_args_list == [
+            call(timeout_seconds=10.0),
+            call(timeout_seconds=10.0),
+        ]
+        assert any(
+            "safely waiting for workflow runtime operations to drain"
+            in record.getMessage()
+            for record in caplog.records
+        )
+        assert not any(record.levelno >= logging.ERROR for record in caplog.records)
+        assert orch.workflow_job_store._authority_lock_fd == -1
+
+    def test_graceful_stop_keeps_real_persistence_failure_critical(
+        self,
+        tmp_path,
+        event_loop,
+        caplog,
+    ):
+        """A failed durable journal remains operator-actionable."""
+
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        runtime = SimpleNamespace(
+            drain=AsyncMock(side_effect=[False, True]),
+            pending_operation_count=1,
+        )
+        orch.workflow_runtime = runtime
+        orch._notify_observers = MagicMock()
+        orch._retry_persistence_failed = True
+        orch._persist_retry_entries = MagicMock()
+
+        async def _exercise():
+            with caplog.at_level(logging.INFO, logger="oompah.orchestrator"):
+                assert await orch.stop() is False
+                assert orch.workflow_job_store._authority_lock_fd >= 0
+                orch._retry_persistence_failed = False
+                runtime.pending_operation_count = 0
+                assert await orch.stop() is True
+
+        event_loop.run_until_complete(_exercise())
+
+        critical = [
+            record.getMessage()
+            for record in caplog.records
+            if record.levelno >= logging.CRITICAL
+        ]
+        assert any("implementation retry" in message for message in critical)
         assert orch.workflow_job_store._authority_lock_fd == -1
 
     def test_graceful_stop_keeps_store_open_during_scheduler_startup(
