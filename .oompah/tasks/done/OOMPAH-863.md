@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-08T03:56:53.683913Z'
+updated_at: '2026-08-08T03:57:06.587700Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -172,7 +172,17 @@ oompah.terminal_audit:
       Independent composition review completed, affected tests passed 392/392, and
       the exact full make test passed 17,860 with zero failures.'
     created_at: '2026-08-08T03:56:48.693388+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-863
+    target_state: Done
+    evidence_fingerprint: 0667e13ff7f6562430116a447ff61c114a06e62ab0d5ac097004ca0c3e11ba7d
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T03:56:58.326153+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -449,5 +459,17 @@ author: oompah
 created: 2026-08-07 18:11
 ---
 Operator triage: accepted task delta remains clean/pushed at dab5702e5 and its focused suites were already green. The new combined-tree gate reached 17,257 passes, then reported 120 native-validation/credential-isolation failures plus 5 teardown errors in exactly 1200.17s; the same a85 composition passed the local brokered full gate with 17,381 passes. This is being investigated as a systemic BranchQualityGate/sandbox execution failure rather than a reservation-race regression. Preserve this exact head; do not make speculative OOMPAH-863 code changes until the gate-runtime reproduction is isolated.
+---
+author: oompah
+created: 2026-08-08 03:56
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation for OOMPAH-863: its accepted implementation is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268. Independent composition review completed, affected tests passed 392/392, and the exact full make test passed 17,860 with zero failures.
+---
+author: oompah
+created: 2026-08-08 03:57
+---
+Integrated and validated on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
 ---
 <!-- COMMENTS:END -->
