@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-08T01:11:13.392658Z'
+updated_at: '2026-08-08T01:11:20.043713Z'
 work_branch: OOMPAH-651
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/630
@@ -337,8 +337,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-c366e48aa565
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T01:11:09.306110+00:00'
+    applied_at: '2026-08-08T01:11:17.693227+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1782,5 +1783,33 @@ author: oompah
 created: 2026-08-08 00:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 01:11
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- submitted_head: 62328ae2881b05346ed02c0bef2a25cd57380567
+- merge_commit: 72f8e7061ab5a6ae37b08b23c9e75190cf746a87
+- pr_number: 630
+- head_on_main: confirmed via git branch -r --contains
+- module_present: oompah/secrets.py present
+- operator_guide_present: docs/rotation-guide present
+- test_module_present: tests/test_secrets.py present
+- focused_suite_redaction: 112 passed
+- focused_suite_handoff: 58 passed
+- focused_suite_auth: 79 passed
+- focused_suite_console: 93 passed
+- focused_suite_acp: 193 passed
+- focused_suite_agent: 111 passed
+- focused_total: 646 passed
+- static_scan: clean exit 0
+- prior_gate_run: make test 14660 passed in 400.4s (2026-08-01)
+- prior_done_audit: PASS by auditor 2026-08-01 00:20
+- prior_merged_audit: PASS by auditor 2026-08-01 00:24
+- stale_reason: week-long inter-audit gap since merge, not a quality regression
 ---
 <!-- COMMENTS:END -->
