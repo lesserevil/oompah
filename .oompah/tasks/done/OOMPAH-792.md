@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-08T16:25:48.738318Z'
+updated_at: '2026-08-08T16:25:57.804061Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -137,7 +137,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:25:42.646742+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-792
+    target_state: Done
+    evidence_fingerprint: 8b9ca47b0fe8fabad0cd82852713c0ab4076e0a699f887b65f9bcee0db34a1c2
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:25:55.479584+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -233,5 +243,12 @@ author: oompah
 created: 2026-08-06 18:54
 ---
 Read-only resume audit confirms OOMPAH-768 is the sole hard-start blocker and the current synthetic full-stack patch is not acceptance-ready. Preserved the exact dirty patch (SHA-256 5189957b1e6171eb2d5fd0452ec85f6929a42ca8fe0c29744e612c29a3d267e4) at backup ref refs/backup/OOMPAH-792-pre-resume-20260806 (b2b68db62da6362f21ba12ee52c02ba79d380252). After OOMPAH-768 lands, selectively reuse the fixtures/fact assertions and rebuild full-stack coverage on the production IntegrationActionHandler backend.
+---
+author: oompah
+created: 2026-08-08 16:25
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

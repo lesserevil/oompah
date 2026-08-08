@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-915
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Eliminate cross-thread project-lock deadlock in API status transitions
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:22.190077Z'
-updated_at: '2026-08-08T15:38:58.757597Z'
+updated_at: '2026-08-08T16:26:05.235057Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-728273cf0f78
+    project_id: proj-14849f1b
+    task_id: OOMPAH-915
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 50390231d65df26641185d46b1e92eb71d6c9d1744cecd0ed52db95990fd4350
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:25:59.422878+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
