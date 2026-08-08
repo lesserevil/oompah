@@ -2175,6 +2175,69 @@ def test_gate_startup_scavenges_roots_from_dead_service_generation(
         owner_path.unlink(missing_ok=True)
 
 
+def _create_deep_gate_tree(root: Path, depth: int) -> None:
+    """Create a path deeper than PATH_MAX without constructing a long path."""
+    descriptor = os.open(
+        root,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        for _index in range(depth):
+            os.mkdir("d", mode=0o700, dir_fd=descriptor)
+            child_descriptor = os.open(
+                "d",
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = child_descriptor
+    finally:
+        os.close(descriptor)
+
+
+def test_gate_normal_cleanup_handles_candidate_depth_beyond_recursion_limit(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    _create_deep_gate_tree(run_root, sys.getrecursionlimit() + 100)
+
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    assert not container.exists()
+    assert not owner_path.exists()
+
+
+def test_gate_stale_cleanup_handles_candidate_depth_beyond_recursion_limit(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    _create_deep_gate_tree(run_root, sys.getrecursionlimit() + 100)
+    BranchQualityGate._forget_gate_root(container)
+    owner = json.loads(owner_path.read_text(encoding="utf-8"))
+    owner.update({"pid": 2_000_000_000, "process_start_ticks": 1})
+    owner_path.chmod(0o600)
+    owner_path.write_text(json.dumps(owner), encoding="utf-8")
+    owner_path.chmod(0o400)
+    old = time.time() - 10
+    os.utime(container, (old, old))
+    os.utime(owner_path, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+
+    assert BranchQualityGate._scavenge_stale_gate_roots() == 1
+    assert not container.exists()
+    assert not owner_path.exists()
+
+
 def test_gate_scavenger_bounds_corrupt_or_legacy_root_lifetime(
     tmp_path,
     monkeypatch,
@@ -2565,6 +2628,55 @@ def test_gate_normal_cleanup_restores_identity_mode_for_retry(
     )
     BranchQualityGate._cleanup_gate_run_root(run_root)
     assert not container.exists()
+
+
+def test_gate_partial_active_deletion_converges_via_restart_scavenging(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    original_rmdir = os.rmdir
+
+    def fail_final_container_rmdir(path, *, dir_fd=None):
+        if (
+            isinstance(path, str)
+            and quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path)
+        ):
+            raise OSError("injected final container rmdir failure")
+        return original_rmdir(path, dir_fd=dir_fd)
+
+    with monkeypatch.context() as cleanup_failure:
+        cleanup_failure.setattr(os, "rmdir", fail_final_container_rmdir)
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    quarantines = [
+        path
+        for path in tmp_path.iterdir()
+        if quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path.name)
+    ]
+    assert not container.exists()
+    assert len(quarantines) == 1
+    assert not (quarantines[0] / "identity").exists()
+    assert owner_path.exists()
+    with BranchQualityGate._processes_lock:
+        assert str(container) not in BranchQualityGate._active_gate_root_identities
+
+    owner = json.loads(owner_path.read_text(encoding="utf-8"))
+    owner.update({"pid": 2_000_000_000, "process_start_ticks": 1})
+    owner_path.chmod(0o600)
+    owner_path.write_text(json.dumps(owner), encoding="utf-8")
+    owner_path.chmod(0o400)
+    old = time.time() - 10
+    os.utime(quarantines[0], (old, old))
+    os.utime(owner_path, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+
+    assert BranchQualityGate._scavenge_stale_gate_roots() == 1
+    assert not quarantines[0].exists()
+    assert not owner_path.exists()
 
 
 def test_gate_normal_cleanup_removes_container_and_owner_sidecar(tmp_path, monkeypatch):

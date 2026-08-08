@@ -937,81 +937,146 @@ class BranchQualityGate:
         the final ``rmdir``.
         """
 
-        def remove_children(directory_descriptor: int) -> bool:
-            try:
-                metadata = os.fstat(directory_descriptor)
-                if (
-                    not stat.S_ISDIR(metadata.st_mode)
-                    or metadata.st_uid != os.geteuid()
-                ):
-                    return False
-                os.fchmod(directory_descriptor, 0o700)
-                entries = sorted(
-                    os.listdir(directory_descriptor),
-                    key=lambda entry: entry == _GATE_IDENTITY_ROOT_NAME,
-                )
-                for entry in entries:
-                    entry_metadata = os.stat(
-                        entry,
-                        dir_fd=directory_descriptor,
-                        follow_symlinks=False,
-                    )
-                    if entry_metadata.st_uid != os.geteuid():
-                        return False
-                    if stat.S_ISDIR(entry_metadata.st_mode):
-                        os.chmod(
-                            entry,
-                            0o700,
-                            dir_fd=directory_descriptor,
-                            follow_symlinks=False,
-                        )
-                        child_descriptor = os.open(
-                            entry,
-                            os.O_RDONLY
-                            | getattr(os, "O_DIRECTORY", 0)
-                            | getattr(os, "O_NOFOLLOW", 0),
-                            dir_fd=directory_descriptor,
-                        )
-                        try:
-                            child_metadata = os.fstat(child_descriptor)
-                            child_identity = (
-                                int(child_metadata.st_dev),
-                                int(child_metadata.st_ino),
-                            )
-                            if child_identity != (
-                                int(entry_metadata.st_dev),
-                                int(entry_metadata.st_ino),
-                            ) or not remove_children(child_descriptor):
-                                return False
-                            final_child = os.stat(
-                                entry,
-                                dir_fd=directory_descriptor,
-                                follow_symlinks=False,
-                            )
-                            if (
-                                int(final_child.st_dev),
-                                int(final_child.st_ino),
-                            ) != child_identity:
-                                return False
-                            os.rmdir(entry, dir_fd=directory_descriptor)
-                        finally:
-                            os.close(child_descriptor)
-                    else:
-                        os.unlink(entry, dir_fd=directory_descriptor)
-                return True
-            except OSError:
-                return False
-
         root_metadata = os.fstat(root_descriptor)
         if (
             not stat.S_ISDIR(root_metadata.st_mode)
             or root_metadata.st_uid != os.geteuid()
             or (int(root_metadata.st_dev), int(root_metadata.st_ino))
             != expected_identity
-            or not remove_children(root_descriptor)
         ):
             return False
+        # Each frame records the opened child's name and inode plus its exact
+        # parent inode.  We retain only the current directory FD, then ascend
+        # through ``..`` and verify the parent identity before removing the
+        # child name.  Candidate-controlled depth therefore consumes Python
+        # tuple memory, not recursion depth or one descriptor per level.
+        frames: list[tuple[str, tuple[int, int], tuple[int, int]]] = []
+        directory_descriptor: int | None = os.dup(root_descriptor)
         try:
+            while True:
+                directory_metadata = os.fstat(directory_descriptor)
+                if (
+                    not stat.S_ISDIR(directory_metadata.st_mode)
+                    or directory_metadata.st_uid != os.geteuid()
+                ):
+                    return False
+                directory_identity = (
+                    int(directory_metadata.st_dev),
+                    int(directory_metadata.st_ino),
+                )
+                os.fchmod(directory_descriptor, 0o700)
+
+                selected: str | None = None
+                identity_present = False
+                with os.scandir(directory_descriptor) as entries:
+                    for entry in entries:
+                        if entry.name == _GATE_IDENTITY_ROOT_NAME:
+                            identity_present = True
+                            continue
+                        selected = entry.name
+                        break
+                if selected is None and identity_present:
+                    selected = _GATE_IDENTITY_ROOT_NAME
+
+                if selected is not None:
+                    selected_metadata = os.stat(
+                        selected,
+                        dir_fd=directory_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if selected_metadata.st_uid != os.geteuid():
+                        return False
+                    if stat.S_ISDIR(selected_metadata.st_mode):
+                        path_descriptor: int | None = None
+                        child_descriptor: int | None = None
+                        try:
+                            path_descriptor = os.open(
+                                selected,
+                                getattr(os, "O_PATH", os.O_RDONLY)
+                                | getattr(os, "O_DIRECTORY", 0)
+                                | getattr(os, "O_NOFOLLOW", 0),
+                                dir_fd=directory_descriptor,
+                            )
+                            path_metadata = os.fstat(path_descriptor)
+                            child_identity = (
+                                int(path_metadata.st_dev),
+                                int(path_metadata.st_ino),
+                            )
+                            if child_identity != (
+                                int(selected_metadata.st_dev),
+                                int(selected_metadata.st_ino),
+                            ):
+                                return False
+                            # O_PATH bypasses candidate-controlled 000 modes.
+                            # Chmod through the retained descriptor, then open
+                            # ``.`` relative to that same inode for traversal.
+                            os.chmod(f"/proc/self/fd/{path_descriptor}", 0o700)
+                            child_descriptor = os.open(
+                                ".",
+                                os.O_RDONLY
+                                | getattr(os, "O_DIRECTORY", 0)
+                                | getattr(os, "O_NOFOLLOW", 0),
+                                dir_fd=path_descriptor,
+                            )
+                            child_metadata = os.fstat(child_descriptor)
+                            if (
+                                int(child_metadata.st_dev),
+                                int(child_metadata.st_ino),
+                            ) != child_identity:
+                                return False
+                            os.fchmod(child_descriptor, 0o700)
+                            frames.append(
+                                (selected, child_identity, directory_identity)
+                            )
+                            os.close(directory_descriptor)
+                            directory_descriptor = child_descriptor
+                            child_descriptor = None
+                        finally:
+                            if child_descriptor is not None:
+                                os.close(child_descriptor)
+                            if path_descriptor is not None:
+                                os.close(path_descriptor)
+                    else:
+                        os.unlink(selected, dir_fd=directory_descriptor)
+                    continue
+
+                if not frames:
+                    break
+                leaf_name, leaf_identity, parent_identity = frames.pop()
+                if directory_identity != leaf_identity:
+                    return False
+                parent_of_leaf = os.open(
+                    "..",
+                    os.O_RDONLY
+                    | getattr(os, "O_DIRECTORY", 0)
+                    | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory_descriptor,
+                )
+                try:
+                    parent_metadata = os.fstat(parent_of_leaf)
+                    if (
+                        int(parent_metadata.st_dev),
+                        int(parent_metadata.st_ino),
+                    ) != parent_identity:
+                        return False
+                    final_leaf = os.stat(
+                        leaf_name,
+                        dir_fd=parent_of_leaf,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        int(final_leaf.st_dev),
+                        int(final_leaf.st_ino),
+                    ) != leaf_identity:
+                        return False
+                    os.rmdir(leaf_name, dir_fd=parent_of_leaf)
+                    os.close(directory_descriptor)
+                    directory_descriptor = parent_of_leaf
+                    parent_of_leaf = -1
+                finally:
+                    if parent_of_leaf >= 0:
+                        os.close(parent_of_leaf)
+
             final_root = os.stat(
                 name,
                 dir_fd=parent_descriptor,
@@ -1022,6 +1087,9 @@ class BranchQualityGate:
             os.rmdir(name, dir_fd=parent_descriptor)
         except OSError:
             return False
+        finally:
+            if directory_descriptor is not None:
+                os.close(directory_descriptor)
         return True
 
     @classmethod
@@ -1235,21 +1303,32 @@ class BranchQualityGate:
                         int(current_quarantine.st_dev),
                         int(current_quarantine.st_ino),
                     ) == expected_identity:
-                        if allow_active_owner:
+                        restored = (
                             cls._restore_gate_identity_mode_at(root_descriptor)
-                        try:
-                            os.stat(
-                                root.name,
-                                dir_fd=parent_descriptor,
-                                follow_symlinks=False,
-                            )
-                        except FileNotFoundError:
-                            os.rename(
-                                quarantine_name,
-                                root.name,
-                                src_dir_fd=parent_descriptor,
-                                dst_dir_fd=parent_descriptor,
-                            )
+                            if allow_active_owner
+                            else True
+                        )
+                        if restored:
+                            try:
+                                os.stat(
+                                    root.name,
+                                    dir_fd=parent_descriptor,
+                                    follow_symlinks=False,
+                                )
+                            except FileNotFoundError:
+                                os.rename(
+                                    quarantine_name,
+                                    root.name,
+                                    src_dir_fd=parent_descriptor,
+                                    dst_dir_fd=parent_descriptor,
+                                )
+                        elif allow_active_owner:
+                            # Partial fd-relative deletion can remove the
+                            # identity capability before the final root rmdir
+                            # fails.  Keep that inode under its recognizable
+                            # quarantine name for restart scavenging instead of
+                            # restoring an invalid active container.
+                            cls._forget_gate_root(root)
                 except OSError:
                     pass
                 logger.warning("Failed to remove quarantined gate root %s", root)
