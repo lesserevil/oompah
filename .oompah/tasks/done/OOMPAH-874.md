@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-874
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Classify cancelled exact gates as retryable scheduling, not CI failure
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-07T18:24:19.185065Z'
+updated_at: '2026-08-08T07:17:49.624721Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -134,6 +134,29 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-768--task-OOMPAH-874
     source_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
     completed_at: '2026-08-07T08:40:53.918763+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-91c8072e0d33
+    project_id: proj-14849f1b
+    task_id: OOMPAH-874
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c89ba3c50c0500fbf79a2ff75f8d6b885bf6cd7e959540d29a8821c59e5f3d75
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation: accepted OOMPAH-874 patch is contained
+      in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822;
+      focused composition tests and exact full make test passed.'
+    created_at: '2026-08-08T07:17:45.595866+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
