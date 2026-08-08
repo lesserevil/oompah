@@ -218,8 +218,10 @@ class TestUpdateIssueNeedsHumanComment:
 
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
-        mock_tracker.update_issue.assert_not_called()
-        mock_tracker.mark_needs_human.assert_called_once_with(
+        mock_orch._transition_issue_status.assert_called_once()
+        assert mock_orch._transition_issue_status.call_args.args[1] == "Needs Human"
+        mock_tracker.mark_needs_human.assert_not_called()
+        mock_tracker.add_comment.assert_called_once_with(
             "task-1",
             "Human action required: choose the deployment path.",
             author="oompah",
@@ -241,7 +243,7 @@ class TestUpdateIssueNeedsHumanComment:
             )
 
         assert resp.status_code == 200
-        comment = mock_tracker.mark_needs_human.call_args.args[1]
+        comment = mock_tracker.add_comment.call_args.args[1]
         assert "Human action required" in comment
         assert "move the task back to Open" in comment
 

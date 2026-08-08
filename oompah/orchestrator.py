@@ -204,6 +204,7 @@ from oompah.task_transition_service import (
     TransitionOutcome,
     issue_authority_version,
     issue_exact_head,
+    rollup_authority_generation,
 )
 from oompah.repo_hygiene import (
     HealthThresholds,
@@ -988,6 +989,14 @@ _CREDENTIAL_ERROR_PHRASES: tuple[str, ...] = (
     "invalid_api_key",
     "no api key",
     "api key not found",
+)
+
+# Durable, service-authored marker for the narrow Done -> Needs Human landing
+# compensation.  The merged-parent sweep revisits marker-bearing children so
+# a target ref that moves in the unavoidable cross-system gap between the last
+# Git probe and the tracker CAS converges on the next maintenance tick.
+_UNLANDED_DONE_RECOVERY_MARKER = (
+    "<!-- oompah:unlanded-done-child-recovery:v1 -->"
 )
 
 
@@ -11178,6 +11187,8 @@ class Orchestrator:
                                 detailed_status,
                             )
                             processed = True
+                            if not self._ack_restart_issue(entry):
+                                return False
                             continue
                         current = detailed
                         event_project_id = str(
@@ -18179,6 +18190,15 @@ class Orchestrator:
                     )
                 return False
 
+            if canonicalize_status(issue.state) != NEEDS_HUMAN:
+                logger.info(
+                    "Leaving container-cycle row %s cancelled because tracker "
+                    "state %s supersedes the cycle fence",
+                    row.task_id,
+                    canonicalize_status(issue.state),
+                )
+                return False
+
             submission_head = row.submission_head_sha or row.head_sha
             self.integration_queue.restore_cancelled(
                 project_id,
@@ -18206,28 +18226,36 @@ class Orchestrator:
                     f"queue restore did not persist for {row.task_id}"
                 )
             try:
+                restored_record = IntegrationRecord(
+                    state="ready",
+                    task_branch=row.task_branch,
+                    base_branch=target_base_branch,
+                    base_sha=target_base_sha,
+                    head_sha=row.head_sha,
+                    attempts=getattr(record, "attempts", 0),
+                    submitted_at=getattr(record, "submitted_at", None),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
                 tracker.set_metadata_field(
                     row.task_id,
                     "oompah.integration",
-                    IntegrationRecord(
-                        state="ready",
-                        task_branch=row.task_branch,
-                        base_branch=target_base_branch,
-                        base_sha=target_base_sha,
-                        head_sha=row.head_sha,
-                        attempts=getattr(record, "attempts", 0),
-                        submitted_at=getattr(record, "submitted_at", None),
-                        updated_at=datetime.now(timezone.utc).isoformat(),
-                    ).to_dict(),
+                    restored_record.to_dict(),
                 )
-                self._transition_identifier_status(
-                    row.task_id,
+                # Bind recovery to the exact Needs Human snapshot observed
+                # under the task fence.  The projected integration record
+                # matches the metadata write above, so the service's fresh
+                # version/status CAS rejects any superseding owner or auditor
+                # transition rather than adopting it as a new expectation.
+                recovery_issue = replace(issue, integration=restored_record)
+                self._transition_issue_status(
+                    recovery_issue,
                     READY_TO_INTEGRATE,
                     project_id=project_id,
                     tracker=tracker,
                     authority=TransitionAuthority.SYSTEM,
                     reason_code="maintenance.container_cycle_restored",
                     exact_head=row.head_sha,
+                    authorized_recovery=True,
                 )
             except Exception:
                 self.integration_queue.cancel(
@@ -27766,22 +27794,7 @@ class Orchestrator:
         lifecycle-bearing parent and child field used by the workflow CAS.
         """
 
-        child_versions = sorted(
-            (
-                str(child.id or child.identifier),
-                issue_authority_version(child),
-            )
-            for child in children
-        )
-        payload = json.dumps(
-            {
-                "parent": issue_authority_version(epic),
-                "children": child_versions,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        return rollup_authority_generation(epic, children)
 
     def _reconciliation_children(
         self,
@@ -27900,6 +27913,33 @@ class Orchestrator:
                     claim.owner_login,
                 )
                 return False
+            transition_generation = expected_generation
+            if (
+                canonicalize_status(current.state) == BACKLOG
+                and canonicalize_status(rolled_status) == IN_PROGRESS
+            ):
+                self._transition_issue_status(
+                    current,
+                    OPEN,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.SYSTEM,
+                    reason_code="rollup.epic_children_reconciled",
+                    evidence_generation=expected_generation,
+                    idempotency_key=(
+                        f"epic-rollup:{epic.identifier}:{expected_generation}:"
+                        "open-prerequisite"
+                    ),
+                )
+                # The verified first transition changed only tracker status.
+                # Reflect it in the fenced local snapshot so the second
+                # TaskTransitionService request carries the correct authority
+                # version; its own fresh read still rejects any outside race.
+                current.state = OPEN
+                transition_generation = self._epic_rollup_authority_generation(
+                    current,
+                    current_children,
+                )
             self._transition_issue_status(
                 current,
                 rolled_status,
@@ -27907,8 +27947,9 @@ class Orchestrator:
                 tracker=tracker,
                 authority=TransitionAuthority.SYSTEM,
                 reason_code="rollup.epic_children_reconciled",
+                evidence_generation=transition_generation,
                 idempotency_key=(
-                    f"epic-rollup:{epic.identifier}:{expected_generation}:"
+                    f"epic-rollup:{epic.identifier}:{transition_generation}:"
                     f"{canonicalize_status(rolled_status)}"
                 ),
             )
@@ -43870,7 +43911,7 @@ class Orchestrator:
         # resolving mutable branch names independently.
         candidate_branches_set: set[str] = set()
         for child in children:
-            if canonicalize_status(child.state) != DONE:
+            if canonicalize_status(child.state) not in {DONE, NEEDS_HUMAN}:
                 continue
             recorded_branch = str(
                 assigned_work_branch(child) or child.work_branch or ""
@@ -44060,6 +44101,21 @@ class Orchestrator:
                 self._cleanup_landed_private_child_branch(epic, child)
                 continue
             child_status = canonicalize_status(child.state)
+            child_comments = None
+            if child_status == NEEDS_HUMAN:
+                fetch_comments = getattr(child_tracker, "fetch_comments", None)
+                if callable(fetch_comments):
+                    try:
+                        child_comments = fetch_comments(child.identifier)
+                    except Exception:  # noqa: BLE001 - recovery evidence fails closed
+                        child_comments = None
+            has_unlanded_done_recovery_marker = (
+                child_status == NEEDS_HUMAN
+                and self._comments_have_trusted_marker(
+                    child_comments,
+                    _UNLANDED_DONE_RECOVERY_MARKER,
+                )
+            )
             if child_status == DONE and (
                 self._is_epic_rebase_task(child, epic.identifier)
                 or self._done_review_child_is_completed_maintenance(child)
@@ -44075,12 +44131,13 @@ class Orchestrator:
                 continue
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
-            if child_status == DONE:
+            if child_status == DONE or has_unlanded_done_recovery_marker:
                 if landing_refresh_error:
                     logger.info(
-                        "Leaving epic child %s Done until authoritative refs for "
+                        "Leaving epic child %s %s until authoritative refs for "
                         "epic %s can be refreshed",
                         child.identifier,
+                        child_status,
                         epic.identifier,
                     )
                     continue
@@ -44092,7 +44149,7 @@ class Orchestrator:
                     child.identifier,
                 )
                 continue
-            if child_status == DONE:
+            if child_status == DONE or has_unlanded_done_recovery_marker:
                 disposition_current, landing_reason = (
                     revalidate_done_child_disposition(
                         child, child_project_id, landing_reason
@@ -44100,6 +44157,80 @@ class Orchestrator:
                 )
                 if not disposition_current:
                     continue
+            if has_unlanded_done_recovery_marker and not landing_reason:
+                if not terminal_disposition_generation_still_current(child):
+                    continue
+                child_issue_id = str(child.id or child.identifier)
+                child_project_lock = (
+                    self.project_store.project_write_lock(child_project_id)
+                    if child_project_id
+                    else contextlib.nullcontext()
+                )
+                restored_version = issue_authority_version(child)
+                correction = (
+                    f"Authoritative landing evidence now proves {child.identifier} "
+                    f"is contained in the merged parent {epic.identifier}. The "
+                    "earlier unlanded-work instruction is superseded; Oompah "
+                    "restored the task to Done and resumed terminal landing "
+                    "reconciliation."
+                )
+                try:
+                    with (
+                        self.issue_transition_lock(child_issue_id).sync(),
+                        child_project_lock,
+                    ):
+                        current_child = child_tracker.fetch_issue_detail(
+                            child.identifier
+                        )
+                        if not isinstance(current_child, Issue):
+                            raise TrackerError(
+                                f"Task {child.identifier!r} has no readable "
+                                "detail snapshot"
+                            )
+                        if (
+                            canonicalize_status(current_child.state) != NEEDS_HUMAN
+                            or issue_authority_version(current_child)
+                            != restored_version
+                        ):
+                            raise TrackerError(
+                                f"Task {child.identifier!r} authority changed "
+                                "before landing recovery"
+                            )
+                        self._transition_issue_status(
+                            current_child,
+                            DONE,
+                            project_id=child_project_id,
+                            tracker=child_tracker,
+                            authority=TransitionAuthority.SYSTEM,
+                            reason_code=(
+                                "maintenance.landed_done_child_restored"
+                            ),
+                            authorized_recovery=True,
+                            evidence_generation=(
+                                landing_generation.fingerprint
+                                if landing_generation is not None
+                                else None
+                            ),
+                            idempotency_key=(
+                                "landed-done-child-restored:"
+                                f"{child.identifier}:{restored_version}:"
+                                f"{landing_generation.fingerprint if landing_generation else 'legacy'}"
+                            ),
+                        )
+                        child_tracker.add_comment(
+                            child.identifier,
+                            correction,
+                            author="oompah",
+                        )
+                except Exception as exc:  # noqa: BLE001 - retry on next sweep
+                    logger.debug(
+                        "Deferred landed Done-child recovery for %s: %s",
+                        child.identifier,
+                        exc,
+                    )
+                    continue
+                child.state = DONE
+                child_status = DONE
                 if not landing_reason:
                     # Check after the potentially slow evidence-generation
                     # revalidation.  Webhooks can publish a separate open
@@ -44145,15 +44276,18 @@ class Orchestrator:
                     "move this task to Done only after the recovered work is "
                     "verified on the target branch."
                 )
+                if child_status == DONE or has_unlanded_done_recovery_marker:
+                    instruction = (
+                        f"{instruction}\n\n{_UNLANDED_DONE_RECOVERY_MARKER}"
+                    )
                 logger.warning(
                     "Epic child %s lacks landing evidence after epic %s merged; "
                     "moving it to Needs Human",
                     child.identifier,
                     epic.identifier,
                 )
-                if child_status == NEEDS_HUMAN and self._tracker_comment_matches(
-                    child_tracker,
-                    child.identifier,
+                if child_status == NEEDS_HUMAN and self._comments_match(
+                    child_comments,
                     instruction,
                 ):
                     logger.debug(
@@ -44167,11 +44301,40 @@ class Orchestrator:
                         terminal_disposition_generation_still_current(child)
                     ):
                         continue
-                    self._mark_needs_human(
-                        child_tracker,
-                        child.identifier,
-                        instruction,
+                    child_issue_id = str(child.id or child.identifier)
+                    child_project_lock = (
+                        self.project_store.project_write_lock(child_project_id)
+                        if child_project_id
+                        else contextlib.nullcontext()
                     )
+                    with (
+                        self.issue_transition_lock(child_issue_id).sync(),
+                        child_project_lock,
+                    ):
+                        self._mark_needs_human(
+                            child_tracker,
+                            child.identifier,
+                            instruction,
+                            authority=(
+                                TransitionAuthority.SYSTEM
+                                if child_status == DONE
+                                else TransitionAuthority.WATCHDOG
+                            ),
+                            reason_code=(
+                                "maintenance.unlanded_done_child_recovered"
+                                if child_status == DONE
+                                else "watchdog.operator_action_required"
+                            ),
+                            authorized_recovery=child_status == DONE,
+                            expected_source_status=(
+                                DONE if child_status == DONE else None
+                            ),
+                            expected_source_version=(
+                                issue_authority_version(child)
+                                if child_status == DONE
+                                else None
+                            ),
+                        )
                     child.state = NEEDS_HUMAN
                 except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
                     logger.debug(
@@ -48561,20 +48724,46 @@ class Orchestrator:
         comment: str,
         *,
         author: str = "oompah",
+        authority: TransitionAuthority = TransitionAuthority.WATCHDOG,
+        reason_code: str = "watchdog.operator_action_required",
+        authorized_recovery: bool = False,
+        expected_source_status: str | None = None,
+        expected_source_version: str | None = None,
     ) -> None:
         """Move a task to Needs Human with a final actionable comment."""
-        tracker.add_comment(identifier, comment, author=author)
         issue = tracker.fetch_issue_detail(identifier)
         if not isinstance(issue, Issue):
             raise TrackerError(f"Task {identifier!r} has no readable detail snapshot")
+        if (
+            expected_source_status is not None
+            and canonicalize_status(issue.state)
+            != canonicalize_status(expected_source_status)
+        ):
+            raise TrackerError(
+                f"Task {identifier!r} state {canonicalize_status(issue.state)!r} "
+                "supersedes the expected operator-recovery source "
+                f"{canonicalize_status(expected_source_status)!r}"
+            )
+        observed_version = issue_authority_version(issue)
+        if (
+            expected_source_version is not None
+            and observed_version != expected_source_version
+        ):
+            raise TrackerError(
+                f"Task {identifier!r} authority version {observed_version!r} "
+                "supersedes the expected operator-recovery version "
+                f"{expected_source_version!r}"
+            )
+        tracker.add_comment(identifier, comment, author=author)
         project_id = issue.project_id or self._project_id_for_tracker(tracker)
         self._transition_issue_status(
             issue,
             NEEDS_HUMAN,
             project_id=project_id,
             tracker=tracker,
-            authority=TransitionAuthority.WATCHDOG,
-            reason_code="watchdog.operator_action_required",
+            authority=authority,
+            reason_code=reason_code,
+            authorized_recovery=authorized_recovery,
         )
 
     @staticmethod
@@ -48595,6 +48784,12 @@ class Orchestrator:
         except Exception:  # noqa: BLE001 - comment de-dup is best effort
             return False
 
+        return Orchestrator._comments_match(comments, expected)
+
+    @staticmethod
+    def _comments_match(comments, expected: str) -> bool:
+        """Return whether ``comments`` contains ``expected`` after wrapping."""
+
         normalized_expected = " ".join(str(expected or "").split())
         if not normalized_expected:
             return False
@@ -48604,6 +48799,63 @@ class Orchestrator:
             else:
                 text = getattr(comment, "text", "") or getattr(comment, "body", "")
             if " ".join(str(text or "").split()) == normalized_expected:
+                return True
+        return False
+
+    @staticmethod
+    def _tracker_has_trusted_comment_marker(
+        tracker,
+        identifier: str,
+        marker: str,
+    ) -> bool:
+        """Return whether a current Oompah-authored comment contains ``marker``.
+
+        Tracker comments are otherwise untrusted input.  Require an explicit
+        author/user field matching either the canonical service author or the
+        configured bot login before a marker can authorize lifecycle recovery.
+        """
+
+        fetch_comments = getattr(tracker, "fetch_comments", None)
+        if not callable(fetch_comments) or not str(marker or "").strip():
+            return False
+        try:
+            comments = fetch_comments(identifier)
+        except Exception:  # noqa: BLE001 - recovery evidence fails closed
+            return False
+
+        return Orchestrator._comments_have_trusted_marker(comments, marker)
+
+    @staticmethod
+    def _comments_have_trusted_marker(comments, marker: str) -> bool:
+        """Return whether trusted ``comments`` contain one service marker."""
+
+        if not str(marker or "").strip():
+            return False
+
+        from oompah.label_auth import get_bot_login
+
+        trusted_logins = {
+            "oompah",
+            get_bot_login().strip().casefold() or "oompah",
+        }
+        for comment in comments or []:
+            if not isinstance(comment, dict):
+                continue
+            identities: list[str] = []
+            if "author" in comment:
+                identities.append(str(comment.get("author") or ""))
+            if "user" in comment:
+                raw_user = comment.get("user")
+                if isinstance(raw_user, dict):
+                    raw_user = raw_user.get("login") or raw_user.get("username")
+                identities.append(str(raw_user or ""))
+            if not identities or any(
+                identity.strip().casefold() not in trusted_logins
+                for identity in identities
+            ):
+                continue
+            text = str(comment.get("text") or comment.get("body") or "")
+            if marker in text:
                 return True
         return False
 
@@ -52966,6 +53218,15 @@ class Orchestrator:
                 )
 
         worker_identity = {"run_id": run_id} if run_id else {}
+        nested_workspace_authority = (
+            {
+                "expected_nested_topology_generation": (
+                    expected_nested_topology_generation
+                )
+            }
+            if expected_nested_topology_generation is not None
+            else {}
+        )
         if issue.id in self.state.running and not self._worker_authority_current(
             issue, run_id
         ):
@@ -53016,7 +53277,13 @@ class Orchestrator:
                         issue.id, "abnormal", evidence_error, **worker_identity
                     )
                     return
-            await self._run_cli_worker(issue, attempt, profile, **worker_identity)
+            await self._run_cli_worker(
+                issue,
+                attempt,
+                profile,
+                **nested_workspace_authority,
+                **worker_identity,
+            )
             return
 
         # Resolve the contributor's complete candidate list before selecting a
@@ -53111,6 +53378,7 @@ class Orchestrator:
                     attempt,
                     profile,
                     target=None,
+                    **nested_workspace_authority,
                     **worker_identity,
                     **auditor_kwargs,
                 )
@@ -53135,7 +53403,13 @@ class Orchestrator:
                         issue.id, "abnormal", evidence_error, **worker_identity
                     )
                     return
-            await self._run_cli_worker(issue, attempt, profile, **worker_identity)
+            await self._run_cli_worker(
+                issue,
+                attempt,
+                profile,
+                **nested_workspace_authority,
+                **worker_identity,
+            )
             return
 
         # Try each target in dispatch order; fall back on preflight skip or
@@ -53200,6 +53474,7 @@ class Orchestrator:
                         attempt,
                         profile,
                         target=target,
+                        **nested_workspace_authority,
                         **worker_identity,
                         **auditor_kwargs,
                     )
@@ -53210,6 +53485,7 @@ class Orchestrator:
                         profile,
                         target.provider,
                         target=target,
+                        **nested_workspace_authority,
                         **worker_identity,
                         **auditor_kwargs,
                     )
@@ -53273,6 +53549,7 @@ class Orchestrator:
         forced_auditor: bool = False,
         auditor_plan: AuditDispatchPlan | None = None,
         run_id: str | None = None,
+        expected_nested_topology_generation: str | None = None,
     ) -> None:
         """Worker using the OpenAI-compatible API agent.
 
@@ -54381,6 +54658,7 @@ class Orchestrator:
         forced_auditor: bool = False,
         auditor_plan: AuditDispatchPlan | None = None,
         run_id: str | None = None,
+        expected_nested_topology_generation: str | None = None,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -54574,6 +54852,9 @@ class Orchestrator:
                             )
                         ),
                         authority_check=self._workspace_authority_check(issue, run_id),
+                        expected_nested_topology_generation=(
+                            expected_nested_topology_generation
+                        ),
                     )
 
                 self._post_comment(
@@ -55542,6 +55823,7 @@ class Orchestrator:
         profile: AgentProfile | None = None,
         *,
         run_id: str | None = None,
+        expected_nested_topology_generation: str | None = None,
     ) -> None:
         """Worker using CLI subprocess (original behavior)."""
         worker_identity = {"run_id": run_id} if run_id else {}
@@ -55578,6 +55860,9 @@ class Orchestrator:
                     issue, run_id
                 ),
                 authority_check=self._workspace_authority_check(issue, run_id),
+                expected_nested_topology_generation=(
+                    expected_nested_topology_generation
+                ),
             )
             if issue.id in self.state.running:
                 self.state.running[issue.id].workspace_path = workspace_path

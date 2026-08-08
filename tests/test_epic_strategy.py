@@ -52,6 +52,7 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
+from oompah.task_transition_service import TerminalStageResult
 
 
 # --------------------------------------------------------------------- helpers
@@ -138,6 +139,81 @@ def _cleanup_test_orchestrators():
             pytest.fail(
                 "helper-owned resource leakage: " + "; ".join(cleanup_errors)
             )
+
+
+@pytest.fixture(autouse=True)
+def _stateful_transition_tracker_harness(monkeypatch):
+    """Back legacy tracker mocks with fresh snapshots for transition CAS."""
+
+    original_sync = Orchestrator._transition_issue_status
+    original_async = Orchestrator._transition_issue_status_async
+    issues_by_tracker: dict[int, dict[str, Issue]] = {}
+
+    def prepare(
+        orch: Orchestrator,
+        issue: Issue,
+        tracker: MagicMock,
+        requested_status: str,
+    ) -> None:
+        snapshots = issues_by_tracker.setdefault(id(tracker), {})
+
+        def register(snapshot: Issue) -> None:
+            snapshots[str(snapshot.id)] = snapshot
+            snapshots[str(snapshot.identifier)] = snapshot
+
+        register(issue)
+        detail = tracker.fetch_issue_detail
+        if detail.side_effect is None:
+            configured = detail.return_value
+            if isinstance(configured, Issue):
+                register(configured)
+            detail.side_effect = lambda identifier: snapshots.get(str(identifier))
+        batch = tracker.fetch_issue_states_by_ids
+        if batch.side_effect is None:
+            configured_batch = batch.return_value
+            if isinstance(configured_batch, list):
+                for snapshot in configured_batch:
+                    if isinstance(snapshot, Issue):
+                        register(snapshot)
+            batch.side_effect = lambda identifiers: [
+                snapshots[str(identifier)]
+                for identifier in identifiers
+                if str(identifier) in snapshots
+            ]
+        if tracker.update_issue.side_effect is None:
+            def update(identifier, **fields):
+                snapshot = snapshots.get(str(identifier))
+                if snapshot is not None and fields.get("status") is not None:
+                    snapshot.state = str(fields["status"])
+
+            tracker.update_issue.side_effect = update
+        if requested_status in {DONE, MERGED, "Archived"}:
+            class _StagingAdapter:
+                async def stage(self, _intent, current):
+                    tracker.update_issue(current.identifier, status="In Validation")
+                    return TerminalStageResult(
+                        success=True,
+                        audit_id="audit-epic-strategy-harness",
+                    )
+
+            orch._task_transition_terminal_adapter = _StagingAdapter()
+
+    def sync(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(orch, issue, tracker, requested_status)
+        return original_sync(orch, issue, requested_status, **kwargs)
+
+    async def async_transition(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(orch, issue, tracker, requested_status)
+        return await original_async(orch, issue, requested_status, **kwargs)
+
+    monkeypatch.setattr(Orchestrator, "_transition_issue_status", sync)
+    monkeypatch.setattr(
+        Orchestrator,
+        "_transition_issue_status_async",
+        async_transition,
+    )
 
 
 def _make_issue(
@@ -1956,6 +2032,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         issue = _make_issue(identifier="task-1", parent_id=None, project_id="proj-1")
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -1969,8 +2046,8 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.mark_needs_human.assert_called_once()
-        args, kwargs = tracker.mark_needs_human.call_args
+        tracker.add_comment.assert_called_once()
+        args, kwargs = tracker.add_comment.call_args
         assert args[0] == "task-1"
         assert "requires implementation tasks" in args[1]
         assert kwargs == {"author": "oompah"}
@@ -1988,6 +2065,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             parent_id="task-parent",
             project_id="proj-1",
         )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -2002,8 +2080,8 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.mark_needs_human.assert_called_once()
-        args, kwargs = tracker.mark_needs_human.call_args
+        tracker.add_comment.assert_called_once()
+        args, kwargs = tracker.add_comment.call_args
         assert args[0] == "task-1"
         assert "requires implementation tasks" in args[1]
         assert kwargs == {"author": "oompah"}
@@ -2019,8 +2097,12 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         issue = _make_issue(
-            identifier="task-1", parent_id=None, project_id="proj-1"
+            identifier="task-1",
+            parent_id=None,
+            project_id="proj-1",
+            state=IN_PROGRESS,
         )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -2053,7 +2135,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 
-        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", project_id="proj-1", state=IN_PROGRESS
+        )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -2100,7 +2185,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 
-        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", project_id="proj-1", state=IN_PROGRESS
+        )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -2123,7 +2211,9 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
 
         assert result is True
         provider.create_review.assert_not_called()
-        tracker.update_issue.assert_called_once_with("task-1", status=DONE)
+        tracker.update_issue.assert_called_once_with(
+            "task-1", status="In Validation"
+        )
         orch._post_comment.assert_called_once()
         comment = orch._post_comment.call_args.args[1]
         assert "Review handoff deferred" in comment
@@ -2146,7 +2236,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
-        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", project_id="proj-1", state=IN_PROGRESS
+        )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -3895,6 +3988,7 @@ class TestOpenEpicMainPrs:
         )
         provider.create_review.return_value = created_review
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
         close_started = threading.Event()
         close_finished = threading.Event()
         close_threads: list[threading.Thread] = []
@@ -3908,7 +4002,9 @@ class TestOpenEpicMainPrs:
             )
             close_finished.set()
 
-        def parent_published(*_args, **_kwargs) -> None:
+        def parent_published(_identifier, **fields) -> None:
+            if fields.get("status") is not None:
+                epic.state = str(fields["status"])
             worker = threading.Thread(target=close_review)
             close_threads.append(worker)
             worker.start()
@@ -4501,6 +4597,7 @@ class TestOpenEpicMainPrs:
         provider.find_pr_for_branch.return_value = merged_to_parent
         provider.create_review.return_value = MagicMock(id="201")
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
@@ -4600,6 +4697,7 @@ class TestOpenEpicMainPrs:
         provider.list_merged_branches.return_value = set()
         provider.create_review.return_value = MagicMock(id="301")
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
 
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
@@ -4995,7 +5093,7 @@ class TestEpicRollupStatusReconciliation:
             issue_type="epic",
             state="Backlog",
         )
-        tracker.fetch_children.return_value = [
+        children = [
             _make_issue(identifier="child-1", state=OPEN, parent_id=epic.identifier),
             _make_issue(
                 identifier="child-2",
@@ -5003,16 +5101,66 @@ class TestEpicRollupStatusReconciliation:
                 parent_id=epic.identifier,
             ),
         ]
+        tracker.fetch_children.return_value = children
+        backlog_generation = orch._epic_rollup_authority_generation(epic, children)
+        open_generation = orch._epic_rollup_authority_generation(
+            replace(epic, state=OPEN),
+            children,
+        )
+        transition = orch._transition_issue_status
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_transition_issue_status",
+                wraps=transition,
+            ) as transition_spy,
+        ):
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 1
-        tracker.update_issue.assert_called_once_with(
-            epic.identifier,
-            status=IN_PROGRESS,
+        assert tracker.update_issue.call_args_list == [
+            call(epic.identifier, status=OPEN),
+            call(epic.identifier, status=IN_PROGRESS),
+        ]
+        assert backlog_generation != open_generation
+        assert [
+            transition_call.kwargs["evidence_generation"]
+            for transition_call in transition_spy.call_args_list
+        ] == [backlog_generation, open_generation]
+        assert transition_spy.call_args_list[1].kwargs["idempotency_key"] == (
+            f"epic-rollup:{epic.identifier}:{open_generation}:{IN_PROGRESS}"
         )
         assert epic.state == IN_PROGRESS
+
+    def test_inferred_feature_parent_with_children_uses_system_rollup_authority(
+        self,
+        tmp_path,
+    ):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        parent = _make_issue(
+            identifier="feature-parent",
+            issue_type="feature",
+            state="Backlog",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(
+                identifier="child-1",
+                state=IN_PROGRESS,
+                parent_id=parent.identifier,
+            )
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([parent])
+
+        assert updated == 1
+        assert tracker.update_issue.call_args_list == [
+            call(parent.identifier, status=OPEN),
+            call(parent.identifier, status=IN_PROGRESS),
+        ]
+        assert parent.state == IN_PROGRESS
 
     def test_backlog_epic_with_all_done_children_is_persisted_done(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
@@ -5481,6 +5629,7 @@ class TestEpicReviewRepairCompletion:
         provider.last_open_reviews_fetch_ok = True
         provider.list_open_reviews.return_value = [review]
         orch._reviews_cache = {"proj-1": [review]}
+        tracker.fetch_issue_detail.return_value = epic
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._review_quality_gate_passes = MagicMock(return_value=True)
 
@@ -5704,12 +5853,14 @@ class TestEpicReviewRepairCompletion:
 
         assert result is False
         orch._ensure_review_exists.assert_not_called()
-        assert tracker.update_issue.call_args == call(
-            "TASK-739",
-            status=NEEDS_REBASE,
-            priority="0",
-            **{"add-label": "merge-conflict"},
-        )
+        assert tracker.update_issue.call_args_list == [
+            call("TASK-739", status=NEEDS_REBASE),
+            call(
+                "TASK-739",
+                priority="0",
+                **{"add-label": "merge-conflict"},
+            ),
+        ]
         tracker.add_comment.assert_called_once()
 
 
@@ -5915,6 +6066,7 @@ class TestLabelMergedEpics:
             work_branch="epic-OOMPAH-765",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         tracker.fetch_comments.return_value = [
             {
                 "author": "oompah",
@@ -5943,7 +6095,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 2
 
     def test_exact_oompah_660_maintenance_child_stays_done_after_parent_rollup(
@@ -5967,7 +6119,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert child.state == DONE
         # The parent itself requests Merged; the Done-only helper does not.
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
@@ -6028,7 +6180,7 @@ class TestLabelMergedEpics:
             worker.join(timeout=2)
         assert not worker.is_alive()
         assert errors == []
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert repaired.state == DONE
         # The stale generic child decision cannot publish after the lifecycle
         # repair changes its task authority under the shared task lock.
@@ -6068,7 +6220,7 @@ class TestLabelMergedEpics:
         ):
             restarted._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert restarted.terminal_transition_coordinator.request_transition.call_count == 2
 
     def test_target_movement_recomputes_stale_unlanded_escalation(self, tmp_path):
@@ -6112,7 +6264,7 @@ class TestLabelMergedEpics:
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
         assert moved is True
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 2
 
     def test_target_movement_recomputes_stale_contained_promotion(self, tmp_path):
@@ -6156,8 +6308,13 @@ class TestLabelMergedEpics:
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
         assert moved is True
-        tracker.mark_needs_human.assert_called_once()
-        instruction = tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        instruction = tracker.add_comment.call_args.args[1]
         assert "Evidence generation:" in instruction
         assert "target epic-OOMPAH-763@" in instruction
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
@@ -6205,7 +6362,7 @@ class TestLabelMergedEpics:
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
         assert current_checks == 2
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
@@ -6252,7 +6409,7 @@ class TestLabelMergedEpics:
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
         assert current_checks == 2
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
@@ -6303,8 +6460,8 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        assert current_checks == 1
-        tracker.mark_needs_human.assert_not_called()
+        assert current_checks == 2
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
@@ -6356,7 +6513,7 @@ class TestLabelMergedEpics:
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
         assert current_checks == 2
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
@@ -6403,7 +6560,7 @@ class TestLabelMergedEpics:
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
         assert current_checks == 2
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
@@ -6422,8 +6579,13 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        tracker.mark_needs_human.assert_called_once()
-        instruction = tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        instruction = tracker.add_comment.call_args.args[1]
         assert "unlanded commit" in instruction
         assert "Evidence generation:" in instruction
         assert "target epic-OOMPAH-763@" in instruction
@@ -6452,7 +6614,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
 
     def test_missing_configured_checkout_defers_terminal_action(self, tmp_path):
@@ -6472,7 +6634,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert orch.terminal_transition_coordinator.request_transition.call_count == 1
         assert child.state == DONE
 
@@ -6855,10 +7017,128 @@ class TestLabelMergedEpics:
             check=False,
         )
         assert landed.returncode == 0
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 2
+        )
+
+    def test_ref_move_after_final_unlanded_probe_self_heals_next_sweep(
+        self,
+        tmp_path,
+    ):
+        """The Git/tracker commit gap must converge without operator action."""
+
+        managed = _make_landing_evidence_repo(tmp_path, land_child=False)
+        source = tmp_path / "source"
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path / "orch", projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
+        real_mark_needs_human = orch._mark_needs_human
+
+        def land_after_final_probe(*args, **kwargs):
+            subprocess.run(
+                ["git", "checkout", "-q", "epic-parent"],
+                cwd=source,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "merge", "-q", "--ff-only", "child-work"],
+                cwd=source,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "push", "-q", "origin", "epic-parent"],
+                cwd=source,
+                check=True,
+            )
+            return real_mark_needs_human(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+            patch.object(
+                orch,
+                "_mark_needs_human",
+                side_effect=land_after_final_probe,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert child.state == NEEDS_HUMAN
+        first_instruction = tracker.add_comment.call_args.args[1]
+        assert "oompah:unlanded-done-child-recovery:v1" in first_instruction
+
+        tracker.fetch_comments.return_value = [
+            {"author": "oompah", "text": first_instruction}
+        ]
+        tracker.add_comment.reset_mock()
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert tracker.update_issue.call_args_list == [
+            call(child.identifier, status=NEEDS_HUMAN),
+            call(child.identifier, status=DONE),
+        ]
+        tracker.add_comment.assert_called_once()
+        assert "earlier unlanded-work instruction is superseded" in (
+            tracker.add_comment.call_args.args[1]
+        )
+        assert child.state == "In Validation"
+
+    def test_untrusted_unlanded_recovery_marker_cannot_authorize_restore(
+        self,
+        tmp_path,
+    ):
+        orch = _make_orch(tmp_path)
+        tracker = MagicMock()
+        marker = "<!-- oompah:unlanded-done-child-recovery:v1 -->"
+        tracker.fetch_comments.return_value = [
+            {"author": "mallory", "text": marker},
+            {"text": marker},
+        ]
+
+        assert not orch._tracker_has_trusted_comment_marker(
+            tracker,
+            "OOMPAH-590",
+            marker,
+        )
+
+        tracker.fetch_comments.return_value.append(
+            {"author": "oompah", "text": f"recovery\n{marker}"}
+        )
+        assert orch._tracker_has_trusted_comment_marker(
+            tracker,
+            "OOMPAH-590",
+            marker,
         )
 
     def test_refresh_failure_leaves_done_child_unchanged(self, tmp_path):
@@ -6898,7 +7178,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 1
@@ -6929,7 +7209,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 1
@@ -6954,6 +7234,7 @@ class TestLabelMergedEpics:
             work_branch="child-work",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -6966,8 +7247,13 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_called_once()
-        assert "unlanded commit" in tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        assert "unlanded commit" in tracker.add_comment.call_args.args[1]
 
     def test_marks_epic_and_children_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -7051,6 +7337,7 @@ class TestLabelMergedEpics:
             )
         ]
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         with (
             patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
@@ -7062,11 +7349,11 @@ class TestLabelMergedEpics:
 
         # Verify that the coordinator was called for the epic
         assert orch.terminal_transition_coordinator.request_transition.call_count >= 1
-        tracker.mark_needs_human.assert_called_once()
-        identifier, instruction = tracker.mark_needs_human.call_args.args
+        tracker.add_comment.assert_called_once()
+        identifier, instruction = tracker.add_comment.call_args.args
         assert identifier == "c1"
         assert "Inspect the task's agent history and remote branches" in instruction
-        assert tracker.mark_needs_human.call_args.kwargs["author"] == "oompah"
+        assert tracker.add_comment.call_args.kwargs["author"] == "oompah"
 
     def test_landed_epic_does_not_promote_open_child(self, tmp_path):
         """Late/incomplete work must remain visible after a parent lands."""
@@ -7086,6 +7373,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -7097,10 +7385,10 @@ class TestLabelMergedEpics:
         orch.terminal_transition_coordinator.request_transition.assert_called_once()
         call_args = orch.terminal_transition_coordinator.request_transition.call_args
         assert call_args[1]['requested_target'] == TargetState.MERGED
-        tracker.mark_needs_human.assert_called_once()
-        assert tracker.mark_needs_human.call_args.args[0] == "EXOCOMP-31"
+        tracker.add_comment.assert_called_once()
+        assert tracker.add_comment.call_args.args[0] == "EXOCOMP-31"
         assert "not proven to be in the merged epic" in (
-            tracker.mark_needs_human.call_args.args[1]
+            tracker.add_comment.call_args.args[1]
         )
 
     def test_landed_epic_deduplicates_unchanged_recovery_instruction(self, tmp_path):
@@ -7121,6 +7409,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         tracker.fetch_comments.return_value = []
 
         with (
@@ -7128,7 +7417,7 @@ class TestLabelMergedEpics:
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
-            instruction = tracker.mark_needs_human.call_args.args[1]
+            instruction = tracker.add_comment.call_args.args[1]
             tracker.fetch_comments.return_value = [
                 {
                     "text": instruction.replace(
@@ -7139,7 +7428,7 @@ class TestLabelMergedEpics:
             ]
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
 
-        tracker.mark_needs_human.assert_called_once()
+        tracker.add_comment.assert_called_once()
         assert tracker.fetch_comments.call_count == 2
 
     def test_landed_epic_posts_changed_recovery_instruction_once(self, tmp_path):
@@ -7160,6 +7449,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         tracker.fetch_comments.return_value = []
 
         with (
@@ -7167,14 +7457,14 @@ class TestLabelMergedEpics:
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
-            previous_instruction = tracker.mark_needs_human.call_args.args[1]
-            tracker.mark_needs_human.reset_mock()
+            previous_instruction = tracker.add_comment.call_args.args[1]
+            tracker.add_comment.reset_mock()
             tracker.fetch_comments.return_value = [{"text": previous_instruction}]
             child.work_branch = "EXOCOMP-31-recovery"
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
 
-        tracker.mark_needs_human.assert_called_once()
-        changed_instruction = tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        changed_instruction = tracker.add_comment.call_args.args[1]
         assert "EXOCOMP-31-recovery" in changed_instruction
         assert changed_instruction != previous_instruction
 
@@ -7197,6 +7487,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         evidence = (
             "EXOCOMP-33 branch EXOCOMP-33 has 1 unlanded commit, "
             "including abc123"
@@ -7217,10 +7508,108 @@ class TestLabelMergedEpics:
         orch.terminal_transition_coordinator.request_transition.assert_called_once()
         call_args = orch.terminal_transition_coordinator.request_transition.call_args
         assert call_args[1]['requested_target'] == TargetState.MERGED
-        tracker.mark_needs_human.assert_called_once()
-        instruction = tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        instruction = tracker.add_comment.call_args.args[1]
         assert evidence in instruction
         assert "recover any missing commits" in instruction
+
+    @pytest.mark.parametrize("fresh_state", [MERGED, ARCHIVED])
+    def test_stale_done_child_does_not_override_fresh_terminal_state(
+        self,
+        tmp_path,
+        fresh_state,
+    ):
+        """A stale landing scan cannot recover a newly terminal child."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        stale_child = _make_issue(
+            identifier="EXOCOMP-33",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        fresh_child = replace(stale_child, state=fresh_state)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = fresh_child
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[stale_child]),
+            patch.object(
+                orch,
+                "_child_landing_evidence_block_reason",
+                return_value="private child head is not contained",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        assert fresh_child.state == fresh_state
+        assert stale_child.state == DONE
+
+    def test_stale_done_child_does_not_override_fresh_done_generation(
+        self,
+        tmp_path,
+    ):
+        """Same-status lifecycle drift also supersedes a stale landing scan."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        stale_child = _make_issue(
+            identifier="EXOCOMP-33",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        stale_child.head_sha = "a" * 40
+        fresh_child = replace(
+            stale_child,
+            work_branch="EXOCOMP-33-recovery",
+            head_sha="b" * 40,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = fresh_child
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[stale_child]),
+            patch.object(
+                orch,
+                "_child_landing_evidence_block_reason",
+                return_value="private child head is not contained",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        assert fresh_child.state == DONE
+        assert fresh_child.work_branch == "EXOCOMP-33-recovery"
+        assert fresh_child.head_sha == "b" * 40
+        assert stale_child.state == DONE
 
     def test_noop_when_epic_branch_not_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -7724,7 +8113,7 @@ class TestLabelMergedEpics:
         assert calls[0].kwargs["current_issue"].identifier == child.identifier
         assert calls[0].kwargs["requested_target"] == TargetState.MERGED
         assert child.state == "In Validation"
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
 
     def test_historical_archived_parent_retires_superseded_helper(self, tmp_path):
         project = _make_project_record(epic_strategy="shared")
@@ -8090,7 +8479,7 @@ class TestLabelMergedEpics:
             text=True,
         ).stdout.strip()
         assert refreshed_remote_sha == rewritten_sha
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 2
@@ -8135,7 +8524,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 1
@@ -8179,6 +8568,7 @@ class TestLabelMergedEpics:
             work_branch="child-work",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -8191,8 +8581,13 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_called_once()
-        assert "unlanded commit" in tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        assert "unlanded commit" in tracker.add_comment.call_args.args[1]
 
 
 class TestNestedEpicMergeChain:
@@ -8577,7 +8972,10 @@ def _make_shared_epic_scenario(tmp_path):
         project_id="proj-1",
     )
     tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = epic
+    tracker.fetch_issue_detail.side_effect = lambda identifier: {
+        epic.identifier: epic,
+        child.identifier: child,
+    }.get(str(identifier))
     return orch, proj, epic, child, tracker
 
 
@@ -9143,7 +9541,11 @@ class TestCloseInvalidEpicPolicyReview:
                 tick=1,
             )
         assert result is True
-        tracker.mark_needs_human.assert_called_once()
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
 
     def test_records_failure_when_provider_close_fails(self, tmp_path):
         """When ``provider.close_review`` fails, returns True and records the failure.

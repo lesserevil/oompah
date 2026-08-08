@@ -2811,6 +2811,37 @@ def test_cycle_restore_tracker_failure_rolls_queue_back_to_cancelled(tmp_path):
         _close(orchestrator)
 
 
+def test_cycle_restore_does_not_override_superseding_archived_state(tmp_path):
+    values = _cycle_restore_case(tmp_path)
+    orchestrator, project, tracker, issue, plan, result, executor = values
+    try:
+        needs_human_snapshot = replace(issue, state="Needs Human")
+        issue.state = ARCHIVED
+        tracker.fetch_issue_detail.side_effect = [needs_human_snapshot, issue]
+
+        restored, changed = orchestrator._restore_container_cycle_rows(
+            project.id,
+            tracker,
+            project,
+            plan,
+            result,
+            executor,
+        )
+
+        assert restored == ()
+        assert changed == (issue.identifier,)
+        assert issue.state == ARCHIVED
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.state == "cancelled"
+        assert current.head_sha == "a" * 40
+        assert current.candidate_head_sha == "b" * 40
+    finally:
+        _close(orchestrator)
+
+
 def test_gate_authority_revokes_when_normalized_dependency_evidence_changes(
     tmp_path,
 ):

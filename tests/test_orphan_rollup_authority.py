@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
-import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -12,10 +12,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.epic_workflow import (
+    EpicAction,
+    EpicFactCollector,
+    EpicWorkflowController,
+    EpicWorkflowHandler,
+    ProductionEpicWorkflowBackend,
+)
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
-from oompah.statuses import DONE, IN_PROGRESS, OPEN, READY_TO_INTEGRATE
+from oompah.statuses import IN_PROGRESS, OPEN, READY_TO_INTEGRATE
+from oompah.workflow_worker import DurableWorkflowWorker, WorkflowRunDisposition
 
 
 @dataclass
@@ -101,6 +109,7 @@ def _issue(
     identifier: str,
     *,
     state: str,
+    issue_type: str = "task",
     parent_id: str | None = None,
     integration: IntegrationRecord | None = None,
 ) -> Issue:
@@ -110,7 +119,7 @@ def _issue(
         title=identifier,
         description=f"Production-shaped {identifier} fixture",
         state=state,
-        issue_type="task",
+        issue_type=issue_type,
         parent_id=parent_id,
         project_id="proj-oompah",
         priority=1,
@@ -123,6 +132,7 @@ def _accepted_parent(*, state: str = OPEN, head: str = "a" * 40) -> Issue:
     return _issue(
         "OOMPAH-795",
         state=state,
+        issue_type="epic",
         integration=IntegrationRecord(
             state="ready",
             mode="queue",
@@ -147,7 +157,6 @@ def _install_tracker(orchestrator: Orchestrator, tracker: _AtomicTracker) -> Non
 
 def test_o795_rollup_and_orphan_ticks_converge_without_false_activity(
     harness: Orchestrator,
-    caplog,
 ) -> None:
     parent = _accepted_parent()
     child = _issue(
@@ -159,55 +168,50 @@ def test_o795_rollup_and_orphan_ticks_converge_without_false_activity(
     tracker = _AtomicTracker([parent, child, leaf])
     _install_tracker(harness, tracker)
 
-    assert harness._reconcile_epic_rollup_statuses([parent]) == 1
-    assert tracker.fetch_issue_detail(parent.identifier).state == IN_PROGRESS
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="proj-oompah",
+            tracker=tracker,
+        ),
+        store=harness.workflow_job_store,
+    )
+    _batch, scheduled = controller.reconcile([parent])
+    assert scheduled.jobs_created == 1
+    job = harness.workflow_job_store.list_jobs(limit=1)[0]
+    assert job.action == EpicAction.CHILD_LANDING_VERIFICATION.value
 
-    def reconcile_repeatedly() -> None:
-        for _ in range(20):
-            current = tracker.fetch_issue_detail(parent.identifier)
-            assert current is not None
-            harness._reconcile_epic_rollup_statuses([current])
+    transition_service = MagicMock()
+    transition_service.execute = MagicMock()
+    worker = DurableWorkflowWorker(
+        store=harness.workflow_job_store,
+        handlers={
+            job.action: EpicWorkflowHandler(
+                ProductionEpicWorkflowBackend(
+                    controller=controller,
+                    tracker=tracker,
+                    effects=MagicMock(),
+                )
+            )
+        },
+        transition_services={"proj-oompah": transition_service},
+        worker_id="epic-rollup-owner",
+    )
 
-    def recover_orphans_repeatedly() -> None:
-        for _ in range(20):
-            current = tracker.fetch_issue_detail(parent.identifier)
-            assert current is not None
-            harness._reset_orphaned_in_progress([current])
+    result = asyncio.run(worker.run_once())
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        rollup = pool.submit(reconcile_repeatedly)
-        recovery = pool.submit(recover_orphans_repeatedly)
-        rollup.result(timeout=10)
-        recovery.result(timeout=10)
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    transition_service.execute.assert_not_called()
 
     current_parent = tracker.fetch_issue_detail(parent.identifier)
     assert current_parent is not None
-    assert current_parent.state == IN_PROGRESS
+    assert current_parent.state == OPEN
     parent_writes = [
         write.after for write in tracker.writes if write.identifier == parent.id
     ]
-    assert parent_writes == [IN_PROGRESS]
+    assert parent_writes == []
     assert parent.id not in harness._orphan_reset_counts
     assert harness.state.running == {}
-
-    with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
-        harness._watchdog_orphan_loops()
-    assert "possible state loop" not in caplog.text
-
-    current_leaf = tracker.fetch_issue_detail(leaf.identifier)
-    assert current_leaf is not None
-    harness._reset_orphaned_in_progress([current_leaf])
-    assert tracker.fetch_issue_detail(leaf.identifier).state == OPEN
-
-    finished_child = tracker.fetch_issue_detail(child.identifier)
-    assert finished_child is not None
-    tracker.replace(replace(finished_child, state=DONE))
-    request_terminal = MagicMock()
-    harness._request_epic_terminal_rollup = request_terminal
-    current_parent = tracker.fetch_issue_detail(parent.identifier)
-    assert current_parent is not None
-    assert harness._reconcile_epic_rollup_statuses([current_parent]) == 1
-    request_terminal.assert_called_once_with(current_parent, DONE)
+    assert tracker.fetch_issue_detail(leaf.identifier).state == IN_PROGRESS
 
 
 def test_rollup_rejects_newer_parent_child_generation_and_direct_owner(

@@ -50,7 +50,7 @@ def test_runner_keeps_pytest_and_bytecode_caches_in_disposable_tree():
     assert 'export PYTHONPYCACHEPREFIX="${test_run_root}/pycache"' in text
     assert '"cache_dir=${test_run_root}/pytest-cache"' in text
     assert '--basetemp "${test_run_root}/basetemp"' in text
-    assert 'python -m pytest "${pytest_args[@]}"' in text
+    assert '"${test_python}" -m pytest "${pytest_args[@]}"' in text
     assert "uv run pytest" not in text
 
 
@@ -92,7 +92,7 @@ def test_runner_expands_tilde_temp_root_under_home(tmp_path: Path):
     env.pop(_WORKER_HOME_ROOT_ENV, None)
     env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
     env["HOME"] = str(fake_home)
-    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["OOMPAH_TEST_PYTHON"] = str(fake_python)
     env["OOMPAH_PYTEST_TEMP_ROOT"] = "~/.oompah/tmp"
 
     result = subprocess.run(
@@ -383,7 +383,7 @@ def _run_runner_with_fake_pytest(
     env.update(
         {
             "HOME": str(fake_home),
-            "PATH": f"{fake_bin}:{env['PATH']}",
+            "OOMPAH_TEST_PYTHON": str(fake_python),
             "OOMPAH_PYTEST_TEMP_ROOT": str(tmp_path / "gate-temp"),
         }
     )

@@ -393,6 +393,68 @@ def test_worker_rechecks_topology_before_focus_or_provider_contact(tmp_path):
     focus_selector.assert_not_awaited()
 
 
+@pytest.mark.parametrize("transport", ["api", "acp", "cli"])
+def test_worker_forwards_nested_topology_generation_to_transport(
+    tmp_path,
+    transport,
+):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    admitted = orchestrator._collect_nested_dispatch_evidence(child)
+    assert admitted is not None
+    admitted = replace(
+        admitted,
+        ready=True,
+        topology_generation="admitted-topology",
+        reason_code="nested_dispatch_reachable",
+    )
+    orchestrator._preflight_nested_epic_dispatch = MagicMock(
+        return_value=admitted
+    )
+    profile = MagicMock(mode=transport, model=None)
+    orchestrator._reserve_auditor_for_contributor = AsyncMock(
+        return_value=([], None)
+    )
+    orchestrator._stage_work_contributor_launch = AsyncMock(return_value=None)
+
+    if transport == "cli":
+        worker = orchestrator._run_cli_worker = AsyncMock()
+    else:
+        target = MagicMock()
+        target.provider.mode = transport
+        target.candidate_key = f"{transport}/model"
+        target.role_name = None
+        target.candidate = None
+        orchestrator._resolve_dispatch_targets = MagicMock(return_value=[target])
+        orchestrator._apply_project_provider_whitelist = MagicMock(
+            return_value=([target], False)
+        )
+        orchestrator._reserve_auditor_for_contributor = AsyncMock(
+            return_value=([target], None)
+        )
+        orchestrator._candidate_preflight = MagicMock(return_value=None)
+        if transport == "api":
+            worker = orchestrator._run_api_worker = AsyncMock()
+        else:
+            worker = orchestrator._run_acp_worker = AsyncMock()
+
+    asyncio.run(
+        orchestrator._run_worker(
+            child,
+            attempt=None,
+            profile=profile,
+            expected_nested_topology_generation="admitted-topology",
+        )
+    )
+
+    assert worker.await_count == 1
+    assert (
+        worker.await_args.kwargs["expected_nested_topology_generation"]
+        == "admitted-topology"
+    )
+
+
 def test_durable_repair_is_idempotent_and_recoverable_after_expired_lease(tmp_path):
     orchestrator, _tracker, child, _nested, topology = (
         _oompah_770_796_fixture(tmp_path)

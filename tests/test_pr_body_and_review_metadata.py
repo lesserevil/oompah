@@ -19,7 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import QualityGateResult
-from oompah.statuses import IN_REVIEW, NEEDS_CI_FIX, OPEN
+from oompah.statuses import IN_PROGRESS, IN_REVIEW, NEEDS_CI_FIX, OPEN
 
 
 # ------------------------------------------------------------------ helpers
@@ -105,6 +105,19 @@ def _make_entry(issue: Issue) -> RunningEntry:
         started_at=MagicMock(),
         agent_profile_name="default",
     )
+
+
+def _back_transition_tracker(tracker: MagicMock, issue: Issue) -> None:
+    """Give a tracker mock production-shaped fresh reads and writes."""
+
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.return_value = [issue]
+
+    def update(_identifier, **fields):
+        if fields.get("status") is not None:
+            issue.state = fields["status"]
+
+    tracker.update_issue.side_effect = update
 
 
 # ------------------------------------------------------------------ _build_pr_body
@@ -280,6 +293,8 @@ class TestMarkTaskInReview:
         review.target_branch = "main"
 
         issue = _make_github_issue()
+        issue.state = IN_PROGRESS
+        _back_transition_tracker(tracker, issue)
         entry = _make_entry(issue)
 
         orch._mark_task_in_review(entry, "proj-1", review)
@@ -385,6 +400,7 @@ class TestEnsureReviewExistsPassesDescription:
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         issue = _make_github_issue(work_branch="work")
+        _back_transition_tracker(tracker, issue)
         result = QualityGateResult(
             status="failed",
             head_sha="abc123",
@@ -400,11 +416,8 @@ class TestEnsureReviewExistsPassesDescription:
             result,
         )
 
-        tracker.update_issue.assert_called_once_with(
-            issue.identifier,
-            status=NEEDS_CI_FIX,
-            **{"add-label": "ci-fix"},
-        )
+        assert call(issue.identifier, status=NEEDS_CI_FIX) in tracker.update_issue.call_args_list
+        assert call(issue.identifier, **{"add-label": "ci-fix"}) in tracker.update_issue.call_args_list
         comment = tracker.add_comment.call_args.args[1]
         assert "Required: run the command" in comment
         assert "1 failed" in comment
@@ -454,6 +467,8 @@ class TestEnsureReviewExistsPassesDescription:
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         issue = _make_github_issue(work_branch="oompah/repo/gh-42")
+        issue.state = IN_PROGRESS
+        _back_transition_tracker(tracker, issue)
         entry = _make_entry(issue)
 
         with (
@@ -515,6 +530,7 @@ class TestEnsureReviewExistsPassesDescription:
         orch._post_comment = MagicMock()
 
         issue = _make_github_issue(work_branch="oompah/repo/gh-42")
+        _back_transition_tracker(tracker, issue)
         entry = _make_entry(issue)
 
         with (
@@ -528,7 +544,7 @@ class TestEnsureReviewExistsPassesDescription:
             result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.update_issue.assert_called_with(issue.identifier, status=OPEN)
+        tracker.update_issue.assert_not_called()
         comment = orch._post_comment.call_args.args[1]
         assert "Branch: `oompah/repo/gh-42`" in comment
         assert "Branch: `org/repo#42`" not in comment

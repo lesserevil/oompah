@@ -546,7 +546,9 @@ def more_advanced_status(a: str | None, b: str | None) -> str:
 # ``TRANSITION_RULES`` but must never invent an edge outside this graph.
 VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
     {
-        PROPOSED: frozenset({BACKLOG, DUPLICATE_CANDIDATE, ARCHIVED}),
+        PROPOSED: frozenset(
+            {BACKLOG, OPEN, DECOMPOSED, DUPLICATE_CANDIDATE, ARCHIVED}
+        ),
         BACKLOG: frozenset({OPEN, DUPLICATE_CANDIDATE, ARCHIVED}),
         OPEN: frozenset(
             {
@@ -574,7 +576,9 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
             }
         ),
         NEEDS_ANSWER: frozenset({OPEN, IN_PROGRESS, NEEDS_HUMAN, ARCHIVED}),
-        NEEDS_HUMAN: frozenset({OPEN, IN_PROGRESS, NEEDS_ANSWER, ARCHIVED}),
+        NEEDS_HUMAN: frozenset(
+            {OPEN, IN_PROGRESS, NEEDS_ANSWER, DUPLICATE_CANDIDATE, ARCHIVED}
+        ),
         NEEDS_CI_FIX: frozenset(
             {
                 OPEN,

@@ -102,13 +102,14 @@ def _stateful_transition_tracker_harness(monkeypatch):
     """Back legacy recovery mocks with the fresh snapshot used by CAS."""
 
     original = Orchestrator._transition_issue_status
+    original_reset = Orchestrator._reset_orphaned_in_progress
     bound: dict[int, dict[str, Issue]] = {}
 
-    def transition(orch, issue, requested_status, **kwargs):
-        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+    def prepare(tracker: MagicMock, issues_to_bind: list[Issue]) -> None:
         issues = bound.setdefault(id(tracker), {})
-        issues[str(issue.id)] = issue
-        issues[str(issue.identifier)] = issue
+        for current in issues_to_bind:
+            issues[str(current.id)] = current
+            issues[str(current.identifier)] = current
         tracker.fetch_issue_detail.side_effect = lambda identifier: issues.get(
             str(identifier)
         )
@@ -121,9 +122,28 @@ def _stateful_transition_tracker_harness(monkeypatch):
             tracker.update_issue.side_effect = lambda identifier, **fields: setattr(
                 issues[str(identifier)], "state", fields["status"]
             ) if fields.get("status") is not None else None
+
+    def transition(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(tracker, [issue])
         return original(orch, issue, requested_status, **kwargs)
 
+    def reset(orch, candidates):
+        by_tracker: dict[int, tuple[MagicMock, list[Issue]]] = {}
+        for issue in candidates:
+            tracker = (
+                orch._tracker_for_project(issue.project_id)
+                if issue.project_id
+                else orch.tracker
+            )
+            grouped = by_tracker.setdefault(id(tracker), (tracker, []))[1]
+            grouped.append(issue)
+        for tracker, grouped in by_tracker.values():
+            prepare(tracker, grouped)
+        return original_reset(orch, candidates)
+
     monkeypatch.setattr(Orchestrator, "_transition_issue_status", transition)
+    monkeypatch.setattr(Orchestrator, "_reset_orphaned_in_progress", reset)
 
 
 # ---------------------------------------------------------------------------

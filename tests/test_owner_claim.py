@@ -71,9 +71,15 @@ def _orchestrator(tmp_path) -> tuple[Orchestrator, MagicMock, Issue]:
         state_path=str(tmp_path / "service_state.json"),
     )
     tracker = MagicMock()
+    issue = _issue()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.return_value = [issue]
+    tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+        issue, "state", fields["status"]
+    )
     orch._project_trackers[project.id] = tracker
     orch._fetch_all_in_progress_issues = MagicMock(return_value=[])
-    return orch, tracker, _issue()
+    return orch, tracker, issue
 
 
 def test_live_direct_owner_claim_survives_repeated_orphan_scans(tmp_path):
@@ -177,6 +183,7 @@ def test_expired_or_released_claim_returns_task_to_existing_recovery(tmp_path):
     assert expired.expires_at < time.time()
 
     tracker.reset_mock()
+    issue.state = "In Progress"
     orch.grant_owner_claim(
         issue_id=issue.id,
         project_id=issue.project_id,
@@ -377,6 +384,7 @@ def test_owner_claim_completes_after_retryable_recovery_publication(tmp_path):
 
     orch, tracker, issue = _orchestrator(tmp_path)
     issue.labels = []
+    issue.head_sha = "a" * 40
     tracker.fetch_issue_detail.return_value = issue
 
     def update_state(_identifier, *, status, **_kwargs):

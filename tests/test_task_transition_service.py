@@ -24,12 +24,14 @@ from oompah.task_transition_service import (
     TransitionPhase,
     issue_authority_version,
     issue_exact_head,
+    rollup_authority_generation,
 )
 
 
 class FakeTracker:
     def __init__(self, issue: Issue):
         self.issue = issue
+        self.children: list[Issue] = []
         self.updates: list[tuple[str, str]] = []
         self.fail_before = False
         self.fail_after = False
@@ -44,6 +46,9 @@ class FakeTracker:
         if identifier != self.issue.identifier:
             return None
         return replace(self.issue)
+
+    def fetch_children(self, _parent_id: str):
+        return [replace(child) for child in self.children]
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         assert identifier == self.issue.identifier
@@ -441,6 +446,123 @@ async def test_authorized_recovery_accepts_exact_authority_reason_pairs(
 
 
 @pytest.mark.asyncio
+async def test_container_cycle_recovery_accepts_only_exact_system_reason(tmp_path):
+    issue = _issue(state="Needs Human")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    accepted = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Ready to Integrate",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.container_cycle_restored",
+            idempotency_key="container-cycle:accepted",
+            evidence_generation=None,
+            exact_head="a" * 40,
+        )
+    )
+
+    assert accepted.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "Ready to Integrate")]
+
+    tracker.issue = replace(issue)
+    rejected = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Ready to Integrate",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.container_cycle_restored_unscoped",
+            idempotency_key="container-cycle:rejected",
+            evidence_generation=None,
+            exact_head="a" * 40,
+        )
+    )
+
+    assert rejected.reason_code == "transition.recovery_authority_rejected"
+    assert tracker.updates == [("TASK-1", "Ready to Integrate")]
+
+
+@pytest.mark.asyncio
+async def test_unlanded_done_child_recovery_is_exact_system_compensation(tmp_path):
+    issue = _issue(state="Done")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Needs Human",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.unlanded_done_child_recovered",
+            idempotency_key="unlanded-done-child:accepted",
+            evidence_generation=None,
+        )
+    )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "Needs Human")]
+
+
+@pytest.mark.asyncio
+async def test_landed_done_child_restore_is_exact_system_compensation(tmp_path):
+    issue = _issue(state="Needs Human")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Done",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.landed_done_child_restored",
+            idempotency_key="landed-done-child:accepted",
+            evidence_generation="landing-generation",
+        )
+    )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "Done")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source", "target", "reason_code"),
+    [
+        ("Archived", "Ready to Integrate", "maintenance.container_cycle_restored"),
+        ("Needs Human", "Open", "maintenance.container_cycle_restored"),
+        ("Merged", "Needs Human", "maintenance.unlanded_done_child_recovered"),
+        ("Done", "Open", "maintenance.unlanded_done_child_recovered"),
+        ("Archived", "Done", "maintenance.landed_done_child_restored"),
+        ("Needs Human", "Open", "maintenance.landed_done_child_restored"),
+    ],
+)
+async def test_system_compensations_reject_wrong_source_or_target(
+    tmp_path,
+    source,
+    target,
+    reason_code,
+):
+    issue = _issue(state=source)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status=target,
+            authority=TransitionAuthority.SYSTEM,
+            reason_code=reason_code,
+            idempotency_key=f"wrong-recovery-edge:{source}:{target}",
+            evidence_generation=None,
+        )
+    )
+
+    assert outcome.reason_code == "transition.recovery_authority_rejected"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
 async def test_nonterminal_write_holds_shared_project_lock(tmp_path):
     lock = threading.RLock()
 
@@ -633,6 +755,138 @@ async def test_in_progress_requires_an_implementation_generation(tmp_path):
     outcome = await service.execute(intent)
 
     assert outcome.reason_code == "transition.generation_required"
+
+
+@pytest.mark.asyncio
+async def test_system_epic_rollup_does_not_fabricate_worker_generation(tmp_path):
+    issue = _issue(state="In Review", assignment_id=None, issue_type="epic")
+    tracker = FakeTracker(issue)
+    tracker.children = [
+        _issue(
+            id="TASK-2",
+            identifier="TASK-2",
+            parent_id=issue.id,
+            state="In Progress",
+        )
+    ]
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.execute(
+        _intent(
+            issue,
+            requested_status="In Progress",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="rollup.epic_children_reconciled",
+            evidence_generation=rollup_authority_generation(
+                issue,
+                tracker.children,
+            ),
+        )
+    )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
+async def test_system_rollup_accepts_inferred_parent_with_current_children(tmp_path):
+    issue = _issue(state="In Review", assignment_id=None, issue_type="feature")
+    tracker = FakeTracker(issue)
+    tracker.children = [
+        _issue(
+            id="TASK-2",
+            identifier="TASK-2",
+            parent_id=issue.id,
+            state="In Progress",
+        )
+    ]
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.execute(
+        _intent(
+            issue,
+            requested_status="In Progress",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="rollup.epic_children_reconciled",
+            evidence_generation=rollup_authority_generation(
+                issue,
+                tracker.children,
+            ),
+        )
+    )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
+async def test_system_rollup_rejects_stale_child_lineage_generation(tmp_path):
+    issue = _issue(state="In Review", assignment_id=None, issue_type="epic")
+    original_child = _issue(
+        id="TASK-2",
+        identifier="TASK-2",
+        parent_id=issue.id,
+        state="Open",
+    )
+    tracker = FakeTracker(issue)
+    tracker.children = [replace(original_child, state="In Progress")]
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.execute(
+        _intent(
+            issue,
+            requested_status="In Progress",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="rollup.epic_children_reconciled",
+            evidence_generation=rollup_authority_generation(
+                issue,
+                [original_child],
+            ),
+        )
+    )
+
+    assert outcome.reason_code == "transition.rollup_generation_mismatch"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_system_rollup_reason_rejects_ordinary_task_context(tmp_path):
+    issue = _issue(state="In Review", assignment_id=None, issue_type="task")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.execute(
+        _intent(
+            issue,
+            requested_status="In Progress",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="rollup.epic_children_reconciled",
+            evidence_generation="fabricated-rollup-generation",
+        )
+    )
+
+    assert outcome.reason_code == "transition.rollup_authority_required"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_other_system_in_progress_transition_still_requires_generation(tmp_path):
+    issue = _issue(state="In Review", assignment_id=None)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.execute(
+        _intent(
+            issue,
+            requested_status="In Progress",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.unscoped_recovery",
+            evidence_generation=None,
+        )
+    )
+
+    assert outcome.reason_code == "transition.generation_required"
+    assert tracker.updates == []
 
 
 @pytest.mark.asyncio

@@ -80,6 +80,30 @@ def _make_running_entry(issue: Issue) -> RunningEntry:
     )
 
 
+def _back_transition_tracker(tracker: MagicMock, *issues: Issue) -> None:
+    """Give a tracker mock the fresh reads required by transition CAS."""
+
+    by_identifier = {
+        key: issue
+        for issue in issues
+        for key in (str(issue.id), str(issue.identifier))
+    }
+    tracker.fetch_issue_detail.side_effect = lambda identifier: by_identifier.get(
+        str(identifier)
+    )
+    tracker.fetch_issue_states_by_ids.side_effect = lambda identifiers: [
+        by_identifier[str(identifier)]
+        for identifier in identifiers
+        if str(identifier) in by_identifier
+    ]
+
+    def update(identifier: str, **fields: str) -> None:
+        if fields.get("status") is not None:
+            by_identifier[str(identifier)].state = str(fields["status"])
+
+    tracker.update_issue.side_effect = update
+
+
 def _make_mock_orch_for_server() -> tuple[MagicMock, MagicMock]:
     """Return (mock_orch, mock_tracker) wired for server tests."""
     mock_tracker = MagicMock()
@@ -401,8 +425,9 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         )
 
         project_id = "proj-42"
-        issue = _make_issue(project_id=project_id)
+        issue = _make_issue(project_id=project_id, state="In Progress")
         mock_tracker = MagicMock()
+        _back_transition_tracker(mock_tracker, issue)
         orch._project_trackers[project_id] = mock_tracker
 
         orch.state.running[issue.id] = _make_running_entry(issue)
@@ -429,9 +454,9 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         )
 
         mock_tracker = MagicMock()
+        issue = _make_issue(project_id=None, state="In Progress")
+        _back_transition_tracker(mock_tracker, issue)
         orch.tracker = mock_tracker
-
-        issue = _make_issue(project_id=None)
         orch.state.running[issue.id] = _make_running_entry(issue)
 
         loop = asyncio.new_event_loop()
@@ -925,8 +950,13 @@ class TestAskQuestionLifecycleIntegration:
         mock_tracker = MagicMock()
         orch.tracker = mock_tracker
 
-        issue_a = _make_issue(issue_id="issue-a", identifier="issue-a")
-        issue_b = _make_issue(issue_id="issue-b", identifier="issue-b")
+        issue_a = _make_issue(
+            issue_id="issue-a", identifier="issue-a", state="In Progress"
+        )
+        issue_b = _make_issue(
+            issue_id="issue-b", identifier="issue-b", state="In Progress"
+        )
+        _back_transition_tracker(mock_tracker, issue_a, issue_b)
 
         orch.state.running[issue_a.id] = _make_running_entry(issue_a)
         orch.state.running[issue_b.id] = _make_running_entry(issue_b)

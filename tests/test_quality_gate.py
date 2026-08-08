@@ -1843,7 +1843,8 @@ def test_legacy_custom_launcher_materializes_home_for_real_test_runner(tmp_path)
     result = _run(
         _gate(tmp_path / "quality.json", repo),
         repo,
-        'PATH="$PWD/fake-bin:$PATH" ./run-tests.sh serial tests/probe.py',
+        'OOMPAH_TEST_PYTHON="$PWD/fake-bin/python" '
+        "./run-tests.sh serial tests/probe.py",
     )
 
     assert result.passed

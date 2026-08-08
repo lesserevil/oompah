@@ -116,6 +116,26 @@ def _make_orchestrator(
     )
 
 
+def _run_durable_dispatch(
+    orch: Orchestrator,
+    issue: Issue,
+    *,
+    attempt: int | None,
+    override_profile: str | None = None,
+) -> bool:
+    """Enter dispatch through the durable implementation-owner boundary."""
+
+    return asyncio.run(
+        orch._dispatch(
+            issue,
+            attempt=attempt,
+            override_profile=override_profile,
+            workflow_generation=f"test-implementation:{issue.identifier}",
+            status_managed_by_workflow=True,
+        )
+    )
+
+
 # ---------------------------------------------------------------------------
 # ServiceConfig.from_workflow — flag parsing
 # ---------------------------------------------------------------------------
@@ -426,7 +446,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Worker should have been called with the "deep" profile
         assert "deep" in dispatched_profile
@@ -442,7 +462,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # First dispatch should use the default (catch-all) profile
         assert "default" in dispatched_profile
@@ -453,7 +473,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug")
 
         # Run dispatch and let the worker complete immediately
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # natural_profile_name should be "deep" (what _match_agent_profile returns for bug)
         entry = orch.state.running.get(issue.id)
@@ -466,7 +486,7 @@ class TestDispatchWithDefaultFirstDispatch:
         orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
         issue = _make_issue(issue_type="task")
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         entry = orch.state.running.get(issue.id)
         assert entry is not None
@@ -484,7 +504,9 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=1, override_profile="standard"))
+        _run_durable_dispatch(
+            orch, issue, attempt=1, override_profile="standard"
+        )
 
         # Should use the override, not default
         assert "standard" in dispatched_profile
@@ -502,7 +524,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Should NOT use default profile when needs:* label is present
         assert "default" not in dispatched_profile
@@ -521,7 +543,7 @@ class TestDispatchWithDefaultFirstDispatch:
         orch._run_worker = capture
 
         # Retry with explicit override
-        asyncio.run(orch._dispatch(issue, attempt=1, override_profile="deep"))
+        _run_durable_dispatch(orch, issue, attempt=1, override_profile="deep")
 
         assert "deep" in dispatched_profile
         assert "default" not in dispatched_profile
@@ -532,7 +554,7 @@ class TestDispatchWithDefaultFirstDispatch:
         # Issue type that matches the default (catch-all) profile
         issue = _make_issue(issue_type="unknown_type_xyz")
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         entry = orch.state.running.get(issue.id)
         assert entry is not None
@@ -546,7 +568,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug")
 
         # Should not raise
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
     def test_flag_on_paused_skips_dispatch(self, tmp_path):
         """Paused state still prevents dispatch even with the flag on."""
@@ -556,7 +578,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue_id = issue.id
         orch.state.claimed.add(issue_id)
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Claim should be released, worker not started
         assert issue_id not in orch.state.claimed
@@ -573,7 +595,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Epic should NOT use default profile — epics keep existing routing
         assert "default" not in dispatched_profile
@@ -602,7 +624,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Carve-out: merge-conflict tasks must NOT be routed to default first.
         assert "default" not in dispatched_profile, (
@@ -620,7 +642,7 @@ class TestDispatchWithDefaultFirstDispatch:
         orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
         issue = _make_issue(issue_type="bug", labels=["merge-conflict"])
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         entry = orch.state.running.get(issue.id)
         assert entry is not None
@@ -647,7 +669,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         assert "default" not in dispatched_profile
         assert "deep" in dispatched_profile
@@ -674,7 +696,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         assert "default" not in dispatched_profile, (
             "ci-fix task was dispatched on default profile — "
@@ -691,7 +713,7 @@ class TestDispatchWithDefaultFirstDispatch:
         orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
         issue = _make_issue(issue_type="bug", labels=["ci-fix"])
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         entry = orch.state.running.get(issue.id)
         assert entry is not None
@@ -715,7 +737,7 @@ class TestDispatchWithDefaultFirstDispatch:
 
         orch._run_worker = capture
 
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Normal bug still uses default first
         assert "default" in dispatched_profile
@@ -943,7 +965,7 @@ class TestNeedsLabelDoesNotAffectProfile:
 
         # Issue with needs:test label
         issue = _make_issue(issue_type="bug", labels=["needs:test"])
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         entry = orch.state.running.get(issue.id)
         assert entry is not None
@@ -1160,7 +1182,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         assert "default" in dispatched, (
             "safety-critical task with non-ACP natural profile was NOT "
@@ -1190,7 +1212,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         assert "default" in dispatched
         entry = orch.state.running.get(issue.id)
@@ -1218,7 +1240,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Should dispatch on the natural ACP profile, NOT swap to 'default'
         assert "deep" in dispatched
@@ -1250,7 +1272,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Dispatches on the natural match for type=bug → 'deep'
         assert "deep" in dispatched
@@ -1277,7 +1299,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # default_first_dispatch picks 'default' (the catch-all) and
         # records 'deep' as the natural — same as before lfy.
@@ -1302,7 +1324,7 @@ class TestSafetyCriticalAcpRouting:
         )
 
         with caplog.at_level(logging.INFO, logger="oompah.orchestrator"):
-            asyncio.run(orch._dispatch(issue, attempt=None))
+            _run_durable_dispatch(orch, issue, attempt=None)
 
         msgs = [r.getMessage() for r in caplog.records]
         swap_lines = [m for m in msgs if "safety_critical_acp_routing" in m]
@@ -1338,7 +1360,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # Even with flag=False, safety-critical tasks route to ACP
         assert "default" in dispatched
@@ -1367,7 +1389,7 @@ class TestSafetyCriticalAcpRouting:
 
         orch._run_worker = capture
         # Simulate a retry: override_profile=deep, attempt=1
-        asyncio.run(orch._dispatch(issue, attempt=1, override_profile="deep"))
+        _run_durable_dispatch(orch, issue, attempt=1, override_profile="deep")
 
         # Should use the explicit override, not swap to 'default'
         assert "deep" in dispatched
@@ -1393,7 +1415,7 @@ class TestSafetyCriticalAcpRouting:
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
-        asyncio.run(orch._dispatch(issue, attempt=None))
+        _run_durable_dispatch(orch, issue, attempt=None)
 
         # needs:* wins → the natural deep profile, NOT the default ACP swap
         assert "deep" in dispatched

@@ -305,7 +305,9 @@ def test_approval_comment_auto_promotes_when_project_allows_it():
         "intake approval worker did not finish promotion"
     )
 
-    tracker.update_issue.assert_called_once_with("org/repo#11", status=BACKLOG)
+    orch._transition_issue_status.assert_called_once()
+    assert orch._transition_issue_status.call_args.args[:2] == (issue, BACKLOG)
+    tracker.update_issue.assert_not_called()
     tracker.add_comment.assert_called_once()
     assert tracker.readiness.requestor_approved is True
 
@@ -357,7 +359,9 @@ def test_plain_requestor_approval_comment_auto_promotes_ready_issue():
         "intake approval worker did not finish promotion"
     )
 
-    tracker.update_issue.assert_called_once_with("org/repo#11", status=BACKLOG)
+    orch._transition_issue_status.assert_called_once()
+    assert orch._transition_issue_status.call_args.args[:2] == (issue, BACKLOG)
+    tracker.update_issue.assert_not_called()
     tracker.add_comment.assert_called_once()
     assert tracker.readiness.requestor_approved is True
     assert tracker.readiness.requestor_actor == "alice"
@@ -614,7 +618,9 @@ def test_api_owner_override_promotes_proposed_to_backlog():
         )
 
     assert response.status_code == 200
-    tracker.update_issue.assert_called_once_with("org/repo#13", status=BACKLOG)
+    orch._transition_issue_status.assert_called_once()
+    assert orch._transition_issue_status.call_args.args[:2] == (issue, BACKLOG)
+    tracker.update_issue.assert_not_called()
     tracker.add_comment.assert_called_once()
 
 

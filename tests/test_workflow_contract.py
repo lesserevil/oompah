@@ -9,8 +9,10 @@ from oompah.workflow_contract import (
     ARCHIVED,
     BACKLOG,
     CANONICAL_STATUSES,
+    DECOMPOSED,
     DISPATCHABLE_STATUSES,
     DONE,
+    DUPLICATE_CANDIDATE,
     IDEMPOTENT_TRANSITIONS,
     IN_PROGRESS,
     IN_REVIEW,
@@ -149,6 +151,15 @@ def test_key_safety_edges_require_domain_evidence():
     merged = TRANSITION_RULES[(IN_VALIDATION, MERGED)].requirements
     assert TransitionRequirement.LANDING_EVIDENCE in merged
     assert TransitionRequirement.CONTAINMENT_EVIDENCE in merged
+
+
+def test_decomposition_and_owner_duplicate_resolution_are_legal_edges():
+    decomposition = TRANSITION_RULES[(PROPOSED, DECOMPOSED)].requirements
+    assert TransitionRequirement.CHILDREN_CREATED in decomposition
+    direct_promotion = TRANSITION_RULES[(PROPOSED, OPEN)].requirements
+    assert TransitionRequirement.PROJECT_OWNER_AUTHORITY in direct_promotion
+    assert TransitionRequirement.ACTIONABLE_DESCRIPTION in direct_promotion
+    assert is_valid_transition(NEEDS_HUMAN, DUPLICATE_CANDIDATE)
 
 
 def test_gate_routing_and_watchdog_recovery_are_version_fenced_edges():

@@ -26,7 +26,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -39,7 +39,9 @@ from oompah.statuses import (
     DONE,
     IN_VALIDATION,
     MERGED,
+    NEEDS_HUMAN,
     OPEN,
+    READY_TO_INTEGRATE,
     canonicalize_status,
 )
 from oompah.terminal_audit import (
@@ -165,6 +167,23 @@ def issue_authority_version(issue: Issue) -> str:
         ).digest,
     }
     return hashlib.sha256(_canonical_json(projection).encode("utf-8")).hexdigest()
+
+
+def rollup_authority_generation(parent: Issue, children: Iterable[Issue]) -> str:
+    """Bind one rollup decision to the current parent and child lineage."""
+
+    child_versions = sorted(
+        (
+            str(child.id or child.identifier),
+            issue_authority_version(child),
+        )
+        for child in children
+    )
+    payload = {
+        "parent": issue_authority_version(parent),
+        "children": child_versions,
+    }
+    return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
 
 
 def issue_exact_head(issue: Issue) -> str | None:
@@ -989,6 +1008,28 @@ class TaskTransitionService:
         except Exception as exc:  # noqa: BLE001 - tracker transport boundary
             return None, exc
 
+    async def _try_fetch_children(
+        self,
+        parent: Issue,
+    ) -> tuple[list[Issue] | None, Exception | None]:
+        """Read current rollup lineage without trusting a caller projection."""
+
+        operation = getattr(self.tracker, "fetch_children", None)
+        if not callable(operation):
+            return None, RuntimeError("tracker does not expose child lineage")
+        try:
+            parent_id = str(parent.id or parent.identifier)
+            if inspect.iscoroutinefunction(operation):
+                observed = await operation(parent_id)
+            else:
+                observed = await asyncio.to_thread(operation, parent_id)
+            children = list(observed or ())
+            if not all(isinstance(child, Issue) for child in children):
+                raise TypeError("tracker returned invalid child lineage")
+            return children, None
+        except Exception as exc:  # noqa: BLE001 - tracker transport boundary
+            return None, exc
+
     async def _update(self, task_id: str, status: str) -> None:
         operation = self.tracker.update_issue
         if inspect.iscoroutinefunction(operation):
@@ -1216,6 +1257,91 @@ class TaskTransitionService:
                 )
                 return outcome
 
+            epic_rollup_reason = (
+                intent.reason_code == "rollup.epic_children_reconciled"
+            )
+            system_epic_rollup = (
+                epic_rollup_reason
+                and intent.authority is TransitionAuthority.SYSTEM
+            )
+            if epic_rollup_reason and not system_epic_rollup:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    "transition.rollup_authority_required",
+                    issue,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            if system_epic_rollup:
+                children, lineage_error = await self._try_fetch_children(issue)
+                if lineage_error is not None:
+                    outcome = self._outcome(
+                        transition_id,
+                        intent,
+                        TransitionDisposition.RETRYABLE,
+                        "transition.rollup_lineage_unavailable",
+                        issue,
+                        retryable=True,
+                        details={"error_type": type(lineage_error).__name__},
+                    )
+                    await asyncio.to_thread(
+                        self.journal.append,
+                        transition_id,
+                        TransitionPhase.RETRY_SCHEDULED,
+                        outcome.reason_code,
+                        outcome,
+                    )
+                    return outcome
+                if not children:
+                    outcome = self._outcome(
+                        transition_id,
+                        intent,
+                        TransitionDisposition.REJECTED,
+                        "transition.rollup_authority_required",
+                        issue,
+                    )
+                    await asyncio.to_thread(
+                        self.journal.append,
+                        transition_id,
+                        TransitionPhase.REJECTED,
+                        outcome.reason_code,
+                        outcome,
+                    )
+                    return outcome
+                observed_rollup_generation = rollup_authority_generation(
+                    issue,
+                    children,
+                )
+                if intent.evidence_generation != observed_rollup_generation:
+                    outcome = self._outcome(
+                        transition_id,
+                        intent,
+                        TransitionDisposition.REJECTED,
+                        "transition.rollup_generation_mismatch",
+                        issue,
+                        details={
+                            "observed_rollup_generation": (
+                                observed_rollup_generation
+                            )
+                        },
+                    )
+                    await asyncio.to_thread(
+                        self.journal.append,
+                        transition_id,
+                        TransitionPhase.REJECTED,
+                        outcome.reason_code,
+                        outcome,
+                    )
+                    return outcome
+
             if (
                 observed_status == OPEN
                 and intent.requested_status == DONE
@@ -1279,6 +1405,7 @@ class TaskTransitionService:
                 intent.evidence_generation
                 and observed_generation
                 and intent.evidence_generation != observed_generation
+                and not system_epic_rollup
             ):
                 outcome = self._outcome(
                     transition_id,
@@ -1571,7 +1698,27 @@ class TaskTransitionService:
             }
         ) or (
             intent.authority is TransitionAuthority.SYSTEM
-            and intent.reason_code.startswith("intake.")
+            and (
+                intent.reason_code.startswith("intake.")
+                or (
+                    intent.reason_code == "maintenance.container_cycle_restored"
+                    and canonicalize_status(intent.expected_status) == NEEDS_HUMAN
+                    and canonicalize_status(intent.requested_status)
+                    == READY_TO_INTEGRATE
+                )
+                or (
+                    intent.reason_code
+                    == "maintenance.unlanded_done_child_recovered"
+                    and canonicalize_status(intent.expected_status) == DONE
+                    and canonicalize_status(intent.requested_status) == NEEDS_HUMAN
+                )
+                or (
+                    intent.reason_code
+                    == "maintenance.landed_done_child_restored"
+                    and canonicalize_status(intent.expected_status) == NEEDS_HUMAN
+                    and canonicalize_status(intent.requested_status) == DONE
+                )
+            )
         )
         if not authority_matches_reason:
             return TransitionOutcome(

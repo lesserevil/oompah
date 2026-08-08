@@ -763,6 +763,7 @@ class TestOompahTaskCommandOperatorTask:
         command: str,
         tracker: MagicMock | None = None,
         policy: AgentActionPolicy | None = None,
+        coordination_service: MagicMock | None = None,
     ) -> str | None:
         from oompah.acp_tools import _exec_oompah_task_command
 
@@ -771,14 +772,22 @@ class TestOompahTaskCommandOperatorTask:
             tracker or _make_tracker(),
             "proj-test",
             policy,
+            coordination_service=coordination_service,
         )
 
     def test_set_status_allowed_for_operator_task(self):
         policy = _operator_policy()
         tracker = _make_tracker()
-        result = self._exec("oompah task set-status OOMPAH-290 Done", tracker=tracker, policy=policy)
+        coordination_service = MagicMock()
+        result = self._exec(
+            "oompah task set-status OOMPAH-290 Done",
+            tracker=tracker,
+            policy=policy,
+            coordination_service=coordination_service,
+        )
         assert "Error: action denied" not in (result or "")
-        tracker.update_issue.assert_called_once()
+        coordination_service._transition_identifier_status.assert_called_once()
+        tracker.update_issue.assert_not_called()
 
     def test_add_label_allowed_for_operator_task(self):
         policy = _operator_policy()
@@ -818,9 +827,16 @@ class TestOompahTaskCommandOperatorTask:
     def test_no_policy_allows_all(self):
         """None policy is backward-compatible — all commands pass."""
         tracker = _make_tracker()
-        result = self._exec("oompah task set-status OOMPAH-290 Done", tracker=tracker, policy=None)
+        coordination_service = MagicMock()
+        result = self._exec(
+            "oompah task set-status OOMPAH-290 Done",
+            tracker=tracker,
+            policy=None,
+            coordination_service=coordination_service,
+        )
         assert "Error: action denied" not in (result or "")
-        tracker.update_issue.assert_called_once()
+        coordination_service._transition_identifier_status.assert_called_once()
+        tracker.update_issue.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -913,14 +929,17 @@ class TestExplicitGrantAllowsAction:
             task_identifier="EXT-1",
         )
         tracker = _make_tracker()
+        coordination_service = MagicMock()
         result = _exec_oompah_task_command(
             "oompah task set-status EXT-1 Done",
             tracker,
             "proj-test",
             policy,
+            coordination_service=coordination_service,
         )
         assert "Error: action denied" not in (result or "")
-        tracker.update_issue.assert_called_once()
+        coordination_service._transition_identifier_status.assert_called_once()
+        tracker.update_issue.assert_not_called()
 
     def test_create_allowed_when_granted(self):
         from oompah.acp_tools import _exec_oompah_task_command
@@ -986,14 +1005,17 @@ class TestNoPolicyBackwardCompat:
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = _make_tracker()
+        coordination_service = MagicMock()
         result = _exec_oompah_task_command(
             "oompah task set-status OOMPAH-1 Done",
             tracker,
             "proj-test",
             None,
+            coordination_service=coordination_service,
         )
         assert "Error: action denied" not in (result or "")
-        tracker.update_issue.assert_called_once()
+        coordination_service._transition_identifier_status.assert_called_once()
+        tracker.update_issue.assert_not_called()
 
     def test_update_project_no_policy_passes(self):
         from oompah.acp_tools import _exec_update_project

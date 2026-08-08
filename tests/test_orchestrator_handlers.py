@@ -5310,7 +5310,6 @@ class TestNeedsHumanTransitions:
 
         tracker.update_issue.assert_called_once_with(
             issue.identifier,
-            status="Needs Rebase",
             priority="0",
             **{"add-label": "merge-conflict"},
         )

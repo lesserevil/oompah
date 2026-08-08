@@ -1559,15 +1559,18 @@ class TestGracefulRestartShutdownEvent:
 
         orch = _make_orchestrator(tmp_path)
         issue_id = "TASK-restart"
+        interrupted = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Interrupted implementation",
+            state="In Progress",
+        )
         tracker = MagicMock()
-        tracker.fetch_issue_states_by_ids.return_value = [
-            Issue(
-                id=issue_id,
-                identifier=issue_id,
-                title="Interrupted implementation",
-                state="In Progress",
-            )
-        ]
+        tracker.fetch_issue_states_by_ids.return_value = [interrupted]
+        tracker.fetch_issue_detail.return_value = interrupted
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            interrupted, "state", fields["status"]
+        )
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._save_state(
             restart_issues=[
@@ -1930,6 +1933,7 @@ class TestGracefulRestartShutdownEvent:
         second_refresh_started = threading.Event()
         release_second_refresh = threading.Event()
         tracker = MagicMock()
+        current: dict[str, Issue] = {}
 
         def fetch(issue_ids):
             issue_id = issue_ids[0]
@@ -1937,16 +1941,25 @@ class TestGracefulRestartShutdownEvent:
                 second_refresh_started.set()
                 assert release_second_refresh.wait(timeout=3)
             return [
-                Issue(
+                current.setdefault(
+                    issue_id,
+                    Issue(
                     id=issue_id,
                     identifier=issue_id,
                     title="Interrupted implementation",
                     state="In Progress",
                     project_id="proj-test",
+                    ),
                 )
             ]
 
         tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.fetch_issue_detail.side_effect = lambda identifier: current.get(
+            str(identifier)
+        )
+        tracker.update_issue.side_effect = lambda identifier, **fields: setattr(
+            current[str(identifier)], "state", fields["status"]
+        )
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         async def cancel_during_second_row():
@@ -2097,6 +2110,11 @@ class TestRetryTimerResetsInProgressOnRelease:
         )
         orch._fetch_issue_across_trackers = MagicMock(return_value=in_progress_issue)
         mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = in_progress_issue
+        mock_tracker.fetch_issue_states_by_ids.return_value = [in_progress_issue]
+        mock_tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            in_progress_issue, "state", fields["status"]
+        )
         orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
 
         orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)

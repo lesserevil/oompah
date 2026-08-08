@@ -1298,6 +1298,11 @@ class TestGateFailureFencesWatchdogReopen:
             evidence="legacy comment fallback without queue authority",
         )
 
+        def update_issue(_identifier, *, status, **_kwargs):
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
+
         executed = orch._execute_stalled_watchdog_reopen(
             "project-1",
             issue,
@@ -1509,6 +1514,11 @@ class TestGateFailureFencesWatchdogReopen:
         )
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+
+        def update_issue(_identifier, *, status, **_kwargs):
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
         decision = StalledTaskDecision(
             task_id=issue.identifier,
             project_id="project-1",
@@ -1808,9 +1818,11 @@ class TestGateFailureFencesWatchdogReopen:
             return issue
 
         tracker.fetch_issue_detail.side_effect = fetch_current
-        tracker.update_issue.side_effect = lambda *_a, **_k: order.append(
-            "watchdog-open"
-        )
+        def update_issue(_identifier, *, status, **_kwargs):
+            issue.state = status
+            order.append("watchdog-open")
+
+        tracker.update_issue.side_effect = update_issue
         decision = StalledTaskDecision(
             task_id=issue.identifier,
             project_id="project-1",

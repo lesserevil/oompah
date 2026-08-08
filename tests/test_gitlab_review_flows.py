@@ -29,6 +29,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oompah.models import Issue
+
 try:
     from oompah.scm import (
         CIStatus,
@@ -625,16 +627,25 @@ class TestGitLabRebaseConflictFlow:
         # an epic and wander into unrelated production helpers.
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = []
-        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+        issue = Issue(
             id="oompah/FEAT-1",
             identifier="oompah/FEAT-1",
             title="Feature task",
-            state="Done",
+            description="Resolve the GitLab merge conflict.",
+            state="Open",
             labels=[],
             issue_type="task",
             parent_id=None,
             project_id=project.id,
         )
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+
+        def update(_identifier, **fields):
+            if fields.get("status") is not None:
+                issue.state = fields["status"]
+
+        tracker.update_issue.side_effect = update
         orch._project_trackers[project.id] = tracker
 
         try:
@@ -645,9 +656,16 @@ class TestGitLabRebaseConflictFlow:
                 orch._yolo_notify_conflict(project, provider, _GITLAB_SLUG, "7")
 
             provider.rebase_review.assert_called_once_with(_GITLAB_SLUG, "7")
-            tracker.fetch_issue_detail.assert_called_once_with("oompah/FEAT-1")
+            assert tracker.fetch_issue_detail.call_count >= 2
+            assert all(
+                args.args == ("oompah/FEAT-1",)
+                for args in tracker.fetch_issue_detail.call_args_list
+            )
             tracker.add_comment.assert_called_once()
-            tracker.update_issue.assert_called_once()
+            assert any(
+                args.kwargs.get("status") == "Needs Rebase"
+                for args in tracker.update_issue.call_args_list
+            )
         finally:
             _close_orchestrator(orch)
 

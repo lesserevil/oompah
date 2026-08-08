@@ -1352,10 +1352,16 @@ class TestAutoCloseUsesTaskTracker:
         task_issue = MagicMock()
         task_issue.identifier = "task-auto-001"
         task_tracker.create_issue.return_value = task_issue
+        task_tracker.fetch_issue_detail.return_value = task_issue
+        status_transition = MagicMock()
 
         source_tracker = MagicMock()  # a *different* tracker for the source task
 
-        watcher = ErrorWatcher(task_tracker, project_id="proj-x")
+        watcher = ErrorWatcher(
+            task_tracker,
+            project_id="proj-x",
+            status_transition=status_transition,
+        )
         with patch("oompah.error_watcher.time.monotonic") as mock_time:
             mock_time.return_value = 0.0
             watcher.report_error("test", "auto-close test", issue_id="src-issue-1")
@@ -1370,7 +1376,9 @@ class TestAutoCloseUsesTaskTracker:
         # Comments must go to the task tracker, NOT to source_tracker.
         task_tracker.add_comment.assert_called_once()
         source_tracker.add_comment.assert_not_called()
-        task_tracker.close_issue.assert_called_once()
+        status_transition.assert_called_once()
+        assert status_transition.call_args.args[:2] == (task_issue, "Done")
+        task_tracker.close_issue.assert_not_called()
         source_tracker.close_issue.assert_not_called()
 
 

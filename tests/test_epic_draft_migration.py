@@ -14,7 +14,7 @@ remove_draft_labels_from_epics(tracker) must:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 import pytest
 
@@ -338,6 +338,7 @@ def test_managed_startup_migration_uses_each_project_tracker_not_global():
         error_watcher_cls.assert_called_once_with(
             tracker_a,
             project_id="proj-a",
+            status_transition=ANY,
         )
         assert error_watcher_cls.call_args.args[0] is not global_tracker
     finally:

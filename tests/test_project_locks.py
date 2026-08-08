@@ -593,6 +593,7 @@ class TestResetOrphanedInProgressUsesProjectLock:
         issue = _make_issue("ISSUE-1")
         tracker_mock = MagicMock()
         tracker_mock.update_issue = tracking_update
+        tracker_mock.fetch_issue_detail.return_value = issue
 
         with (
             patch.object(orchestrator, "_tracker_for_project", return_value=tracker_mock),
@@ -635,6 +636,8 @@ class TestResetOrphanedInProgressUsesProjectLock:
 
         issue_a = _make_issue("ISSUE-A")
         issue_b = _make_issue("ISSUE-B")
+        issues = {issue.identifier: issue for issue in (issue_a, issue_b)}
+        tracker_mock.fetch_issue_detail.side_effect = issues.get
 
         with patch.object(orch, "_tracker_for_project", return_value=tracker_mock):
             t1 = threading.Thread(
@@ -699,6 +702,8 @@ class TestResetOrphanedInProgressUsesProjectLock:
 
         issue_a = _make_issue("ISSUE-A", project_id="proj-a")
         issue_b = _make_issue("ISSUE-B", project_id="proj-b")
+        tracker_a.fetch_issue_detail.return_value = issue_a
+        tracker_b.fetch_issue_detail.return_value = issue_b
 
         def tracker_for(project_id):
             return tracker_a if project_id == "proj-a" else tracker_b
