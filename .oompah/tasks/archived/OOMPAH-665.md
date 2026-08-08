@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-08T00:57:31.844761Z'
+updated_at: '2026-08-08T01:02:05.001317Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,6 +172,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-a46d5580cb51: '2026-08-01T00:33:08.035993+00:00'
     attempt-7dd0979b7f9e: '2026-08-01T00:35:27.331561+00:00'
+    attempt-c69f1a827470: '2026-08-08T01:01:59.838043+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-665
@@ -191,6 +192,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T00:35:27.331582+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    target_state: Archived
+    evidence_fingerprint: a88bf536658c9b79ff454d633fb9c73c2b64f5c57ff44b4b6ff0ecb89b84612f
+    audit_ids:
+    - audit-ed7a00bcc7de
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T01:01:59.838063+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-665
@@ -216,6 +226,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T00:35:27.331604+00:00'
     applied_at: '2026-08-01T00:35:32.644382+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    audit_id: audit-ed7a00bcc7de
+    attempt_id: attempt-c69f1a827470
+    target_state: Archived
+    evidence_fingerprint: a88bf536658c9b79ff454d633fb9c73c2b64f5c57ff44b4b6ff0ecb89b84612f
+    status: Archived
+    audit_ids:
+    - audit-ed7a00bcc7de
+    kind: result
+    applied: false
+    created_at: '2026-08-08T01:01:59.838085+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -291,7 +313,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-665
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -300,7 +322,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c69f1a827470
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -312,6 +334,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-665
       selected_ref: 04d681f1033fb34e61cb9a00647d87ef879b90da
       selected_sha: 04d681f1033fb34e61cb9a00647d87ef879b90da
+      verdict: pass
+      completed_at: '2026-08-08T01:01:59.837812+00:00'
+      ended_at: '2026-08-08T01:01:59.837812+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -320,7 +345,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T00:56:14.755030+00:00'
     selected_ref: 04d681f1033fb34e61cb9a00647d87ef879b90da
     selected_sha: 04d681f1033fb34e61cb9a00647d87ef879b90da
-    updated_at: '2026-08-08T00:57:21.602151+00:00'
+    updated_at: '2026-08-08T01:01:59.837812+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a46d5580cb51
