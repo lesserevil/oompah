@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-775
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService and enforce
   the boundary
@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-07T18:21:59.810892Z'
+updated_at: '2026-08-08T16:24:57.339415Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -152,6 +152,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-769--task-OOMPAH-775
     source_sha: 6561d52e5a879375ea3587582f335419ed49310e
     completed_at: '2026-08-04T21:26:46.948603+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-505aeac561db
+    project_id: proj-14849f1b
+    task_id: OOMPAH-775
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: baa39e59d273adc116746e67650bef7f8d1e3eaf7ca8e9cdf3e548332fdddc1c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:24:51.964442+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
