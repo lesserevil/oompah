@@ -41,11 +41,6 @@ def healthy_snapshot() -> dict:
             "leases": {"running": 1, "expired": 0},
             "states": {"running": 1, "queued": 2},
         },
-        "workflow_shadow": {
-            "mode": "shadow",
-            "last_evaluated_at": "2026-08-08T00:00:00+00:00",
-            "divergence_count": 0,
-        },
     }
 
 
@@ -56,20 +51,18 @@ def test_production_like_soak_sample_passes_with_normal_active_work():
     assert result.failures == ()
 
 
-def test_canary_rejects_actionable_alert_expired_lease_and_divergence():
+def test_canary_rejects_actionable_alert_and_expired_lease():
     snapshot = healthy_snapshot()
     snapshot["global_alerts"] = [
         {"source": "operator:action_required:OOMPAH-1"}
     ]
     snapshot["workflow_jobs"]["leases"]["expired"] = 1
-    snapshot["workflow_shadow"]["divergence_count"] = 2
 
     result = evaluate_snapshot(snapshot)
 
     assert not result.healthy
     assert "1 operator-actionable alert(s) remain" in result.failures
     assert "expired durable workflow leases remain" in result.failures
-    assert "workflow shadow has unresolved divergences" in result.failures
 
 
 def test_canary_rejects_restart_staleness_and_latest_failed_shadow_sample():
@@ -104,6 +97,27 @@ def test_canary_rejects_incomplete_persisted_soak_gate():
     assert "persisted workflow rollout gate is not qualified" in result.failures
 
 
+def test_shadow_canary_does_not_require_legacy_shadow_diagnostics():
+    snapshot = healthy_snapshot()
+
+    result = evaluate_snapshot(snapshot)
+
+    assert result.healthy
+
+
+def test_shadow_canary_ignores_stale_retired_legacy_shadow_diagnostics():
+    snapshot = healthy_snapshot()
+    snapshot["workflow_shadow"] = {
+        "mode": "shadow",
+        "last_evaluated_at": None,
+        "divergence_count": 2,
+    }
+
+    result = evaluate_snapshot(snapshot)
+
+    assert result.healthy
+
+
 def test_enforce_canary_uses_persisted_gate_without_requiring_new_shadow_sample():
     snapshot = healthy_snapshot()
     snapshot["workflow_runtime"]["mode"] = "enforce"
@@ -111,9 +125,6 @@ def test_enforce_canary_uses_persisted_gate_without_requiring_new_shadow_sample(
         domain: "enforce"
         for domain in snapshot["workflow_runtime"]["domain_modes"]
     }
-    snapshot["workflow_shadow"]["mode"] = "enforce"
-    snapshot["workflow_shadow"]["last_evaluated_at"] = None
-
     result = evaluate_snapshot(snapshot)
 
     assert result.healthy

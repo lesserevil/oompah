@@ -61,8 +61,8 @@ absent from `.env.example`; remove it after writing the domain settings.
    `OOMPAH_WORKFLOW_CANARY_DURATION_SECONDS` (default 300 seconds) at
    `OOMPAH_WORKFLOW_CANARY_SAMPLE_INTERVAL_SECONDS` (default 10 seconds). It
    fails on an unhealthy service, actionable alert, stale binding topology,
-   unresolved divergence, expired lease, exhausted durable job, or incomplete
-   persisted rollout evidence.
+   expired lease, exhausted durable job, or incomplete persisted rollout
+   evidence.
 5. Promote one domain setting to `enforce`, run `make graceful`, and repeat for
    each domain. Until the last promotion the aggregate runtime remains
    read-only. Startup rejects a promotion that lacks its persisted shadow

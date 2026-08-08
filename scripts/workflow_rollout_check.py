@@ -89,19 +89,6 @@ def evaluate_snapshot(snapshot: Mapping[str, Any]) -> CanaryResult:
         if isinstance(states, Mapping) and int(states.get("exhausted", 0)):
             failures.append("exhausted durable workflow jobs remain")
 
-    shadow = snapshot.get("workflow_shadow")
-    if not isinstance(shadow, Mapping):
-        failures.append("workflow shadow diagnostics are unavailable")
-    elif shadow.get("mode") != "off":
-        if (
-            isinstance(runtime, Mapping)
-            and runtime.get("mode") == "shadow"
-            and shadow.get("last_evaluated_at") is None
-        ):
-            failures.append("workflow shadow has not completed a sample")
-        if int(shadow.get("divergence_count", 0)):
-            failures.append("workflow shadow has unresolved divergences")
-
     return CanaryResult(not failures, tuple(failures))
 
 
