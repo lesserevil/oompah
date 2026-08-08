@@ -25,10 +25,17 @@ from oompah.models import Issue, Project, RunningEntry, WorkflowDefinition
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore, RecoveryPublicationError
 from oompah.server import app
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionOutcome,
+    TransitionPhase,
+)
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
 )
+from oompah.workflow_jobs import WorkflowJobSpec
 
 
 def _project_store(tmp_path) -> tuple[ProjectStore, Project]:
@@ -80,6 +87,20 @@ def _orchestrator(tmp_path) -> tuple[Orchestrator, MagicMock, Issue]:
     orch._project_trackers[project.id] = tracker
     orch._fetch_all_in_progress_issues = MagicMock(return_value=[])
     return orch, tracker, issue
+
+
+def _committed_outcome(issue: Issue, status: str) -> TransitionOutcome:
+    return TransitionOutcome(
+        transition_id=f"transition-{status.lower().replace(' ', '-')}",
+        project_id=str(issue.project_id),
+        task_id=issue.identifier,
+        disposition=TransitionDisposition.APPLIED,
+        reason_code="test.committed",
+        observed_status=status,
+        observed_version=f"version-{status.lower().replace(' ', '-')}",
+        requested_status=status,
+        applied_status=status,
+    )
 
 
 def test_live_direct_owner_claim_survives_repeated_orphan_scans(tmp_path):
@@ -163,6 +184,567 @@ def test_owner_claim_is_restored_from_durable_service_state(tmp_path):
     assert restored is not None
     assert restored.claim_id == claim.claim_id
     assert restored.owner_login == "alice"
+
+
+def test_owner_claim_retirement_marker_survives_restart(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-pending-across-restart",
+    )
+    assert orch.mark_owner_claim_retirement_pending(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        expected_claim_id=claim.claim_id,
+    )
+
+    restarted_store, _project = _project_store(tmp_path)
+    restarted = Orchestrator(
+        config=ServiceConfig(
+            owner_claim_ttl_hours=48,
+            duplicate_preflight_max_agents=0,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=restarted_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+
+    restored = restarted._owner_claim_for_issue(issue.id, issue.project_id)
+    assert restored is not None
+    assert restored.claim_id == claim.claim_id
+    assert restored.retirement_pending is True
+
+
+def test_committed_status_transition_retires_exact_claim_durably(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-before-terminal-commit",
+    )
+    outcome = _committed_outcome(issue, "Done")
+    transition_service = SimpleNamespace(
+        execute=AsyncMock(return_value=outcome),
+    )
+
+    with (
+        patch.object(
+            orch,
+            "_task_transition_service",
+            return_value=transition_service,
+        ),
+        patch.object(orch, "_notify_state_only") as notify,
+    ):
+        committed = asyncio.run(
+            orch._transition_issue_status_async(
+                issue,
+                "Done",
+                project_id=issue.project_id,
+                tracker=tracker,
+                reason_code="test.owner_claim_terminal_commit",
+            )
+        )
+
+    assert committed is outcome
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
+    state = json.loads((tmp_path / "service_state.json").read_text())
+    assert state["owner_claims"] == {}
+    notify.assert_called_once_with()
+    transition_service.execute.assert_awaited_once()
+    assert claim.claim_id == "claim-before-terminal-commit"
+
+
+def test_committed_status_transition_preserves_aba_replacement_claim(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    original = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-captured-before-commit",
+    )
+    outcome = _committed_outcome(issue, "Done")
+    replacement: dict[str, object] = {}
+
+    async def commit_after_replacement(_intent):
+        replacement["claim"] = orch.grant_owner_claim(
+            issue_id=issue.id,
+            project_id=issue.project_id,
+            owner_login="alice",
+            claim_id="claim-installed-during-commit",
+        )
+        return outcome
+
+    transition_service = SimpleNamespace(
+        execute=AsyncMock(side_effect=commit_after_replacement),
+    )
+    with (
+        patch.object(
+            orch,
+            "_task_transition_service",
+            return_value=transition_service,
+        ),
+        patch.object(orch, "_notify_state_only") as notify,
+    ):
+        committed = asyncio.run(
+            orch._transition_issue_status_async(
+                issue,
+                "Done",
+                project_id=issue.project_id,
+                tracker=tracker,
+                reason_code="test.owner_claim_aba_commit",
+            )
+        )
+
+    assert committed is outcome
+    current = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert current is replacement["claim"]
+    assert current.claim_id != original.claim_id
+    state = json.loads((tmp_path / "service_state.json").read_text())
+    persisted = next(iter(state["owner_claims"].values()))
+    assert persisted["claim_id"] == "claim-installed-during-commit"
+    notify.assert_not_called()
+
+
+def test_enforce_status_commit_schedules_exact_direct_owner_revocation(tmp_path):
+    from oompah.implementation_workflow import ImplementationAction
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-revoked-after-commit",
+    )
+    outcome = _committed_outcome(issue, "Done")
+    transition_service = SimpleNamespace(
+        execute=AsyncMock(return_value=outcome),
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="revocation-job")
+    )
+
+    with (
+        patch.object(
+            orch,
+            "_task_transition_service",
+            return_value=transition_service,
+        ),
+        patch.object(orch, "_notify_state_only"),
+    ):
+        asyncio.run(
+            orch._transition_issue_status_async(
+                issue,
+                "Done",
+                project_id=issue.project_id,
+                tracker=tracker,
+                reason_code="test.owner_claim_enforce_commit",
+            )
+        )
+
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["project_id"] == issue.project_id
+    assert scheduled["identifier"] == issue.identifier
+    assert scheduled["action"] is ImplementationAction.AUTHORITY_REVOCATION
+    assert scheduled["payload"]["authority_kind"] == "direct_owner"
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+    assert scheduled["payload"]["owner_id"] == claim.owner_login
+    assert scheduled["payload"]["expected_status"] == "Done"
+    assert scheduled["expected_evidence_revision"] == outcome.observed_version
+    pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert pending is not None
+    assert pending.claim_id == claim.claim_id
+    assert pending.retirement_pending is True
+
+
+@pytest.mark.parametrize("committed_status", ["Done", "Open", "Needs Human"])
+def test_failed_revocation_enqueue_is_repaired_by_live_reconciliation(
+    tmp_path, committed_status
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = committed_status
+    tracker.fetch_all_issues.return_value = [issue]
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-retried-after-enqueue-failure",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        side_effect=(
+            RuntimeError("workflow store unavailable"),
+            SimpleNamespace(job_id="reconciled-revocation"),
+        )
+    )
+
+    with patch.object(orch, "_notify_state_only") as notify:
+        initially_scheduled = asyncio.run(
+            orch._retire_owner_claim_after_status_commit(
+                issue=issue,
+                project_id=issue.project_id,
+                claim=claim,
+                observed_status=issue.state,
+                observed_version="postcommit-version",
+            )
+        )
+        with patch.object(
+            orch,
+            "_has_active_owner_claim_revocation",
+            return_value=False,
+        ):
+            reconciled = orch._reconcile_inactive_owner_claims()
+
+    assert initially_scheduled is False
+    assert reconciled == 1
+    assert orch._schedule_implementation_workflow_event.call_count == 2
+    repair = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert repair["payload"]["authority_kind"] == "direct_owner"
+    assert repair["payload"]["claim_id"] == claim.claim_id
+    assert repair["payload"]["reconciliation_nonce"]
+    assert repair["expected_evidence_revision"]
+    pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert pending is not None
+    assert pending.claim_id == claim.claim_id
+    assert pending.retirement_pending is True
+    notify.assert_called_once_with()
+
+
+def test_live_reconciliation_waits_for_active_exact_revocation(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "In Validation"
+    tracker.fetch_all_issues.return_value = [issue]
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-with-active-revocation",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+
+    with (
+        patch.object(
+            orch,
+            "_has_active_owner_claim_revocation",
+            return_value=True,
+        ),
+        patch.object(orch, "_notify_state_only") as notify,
+    ):
+        reconciled = orch._reconcile_inactive_owner_claims()
+
+    assert reconciled == 0
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is claim
+    orch._schedule_implementation_workflow_event.assert_not_called()
+    notify.assert_not_called()
+
+
+def test_live_reconciliation_preserves_unmarked_open_preclaim(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    tracker.fetch_all_issues.return_value = [issue]
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="valid-open-preclaim",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+
+    assert orch._reconcile_inactive_owner_claims() == 0
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is claim
+    orch._schedule_implementation_workflow_event.assert_not_called()
+
+
+def test_live_reconciliation_retires_marked_claim_after_return_to_in_progress(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    tracker.fetch_all_issues.return_value = [issue]
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="pending-claim-after-reopen",
+    )
+    assert orch.mark_owner_claim_retirement_pending(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        expected_claim_id=claim.claim_id,
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="pending-in-progress-revocation")
+    )
+
+    with (
+        patch.object(
+            orch,
+            "_has_active_owner_claim_revocation",
+            return_value=False,
+        ),
+        patch.object(orch, "_notify_state_only"),
+    ):
+        reconciled = orch._reconcile_inactive_owner_claims()
+
+    assert reconciled == 1
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+    assert scheduled["payload"]["expected_status"] == "In Progress"
+
+
+def test_restart_recovers_claim_retirement_from_committed_transition_journal(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-at-postcommit-crash-boundary",
+    )
+
+    with patch.object(
+        orch,
+        "_retire_owner_claim_after_status_commit",
+        new=AsyncMock(side_effect=SystemExit("simulated process death")),
+    ):
+        with pytest.raises(SystemExit, match="simulated process death"):
+            asyncio.run(
+                orch._transition_issue_status_async(
+                    issue,
+                    "Open",
+                    project_id=issue.project_id,
+                    tracker=tracker,
+                    reason_code="test.owner_claim_postcommit_crash",
+                )
+            )
+
+    assert issue.state == "Open"
+    stranded = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert stranded is not None
+    assert stranded.claim_id == claim.claim_id
+    assert stranded.retirement_pending is False
+
+    restarted_store, project = _project_store(tmp_path)
+    restarted = Orchestrator(
+        config=ServiceConfig(
+            owner_claim_ttl_hours=48,
+            duplicate_preflight_max_agents=0,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=restarted_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    tracker.fetch_all_issues.return_value = [issue]
+    restarted._project_trackers[project.id] = tracker
+
+    assert restarted._reconcile_inactive_owner_claims() == 1
+    assert restarted._owner_claim_for_issue(issue.id, issue.project_id) is None
+    persisted = json.loads((tmp_path / "service_state.json").read_text())
+    assert persisted["owner_claims"] == {}
+
+
+def test_transition_requested_before_new_claim_cannot_retire_that_claim(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    intent = orch._build_transition_intent(
+        issue,
+        "Open",
+        project_id=issue.project_id,
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="test.owner_claim_request_order",
+        originating_job="test-owner-claim-request-order",
+        evidence_generation=None,
+        exact_head=None,
+        idempotency_key="test-owner-claim-request-order",
+    )
+    started = orch.task_transition_journal.begin(intent)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-created-after-transition-request",
+    )
+    outcome = TransitionOutcome(
+        transition_id=started.transition_id,
+        project_id=str(issue.project_id),
+        task_id=issue.identifier,
+        disposition=TransitionDisposition.APPLIED,
+        reason_code="test.owner_claim_request_order",
+        observed_status="Open",
+        observed_version="postcommit-version",
+        requested_status="Open",
+        applied_status="Open",
+    )
+    orch.task_transition_journal.append(
+        started.transition_id,
+        TransitionPhase.APPLIED,
+        outcome.reason_code,
+        outcome,
+    )
+
+    assert not orch._claim_has_committed_retirement_transition(
+        issue=issue,
+        project_id=issue.project_id,
+        claim=claim,
+    )
+
+
+def test_active_owner_claim_revocation_lookup_is_exact(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            generation="revocation-generation",
+            action="authority_revocation",
+            idempotency_key="owner-claim-revocation",
+            payload={
+                "authority_kind": "direct_owner",
+                "claim_id": "claim-active-revocation",
+            },
+        )
+    )
+
+    assert orch._has_active_owner_claim_revocation(
+        issue=issue,
+        project_id=str(issue.project_id),
+        claim_id="claim-active-revocation",
+    )
+    assert not orch._has_active_owner_claim_revocation(
+        issue=issue,
+        project_id=str(issue.project_id),
+        claim_id="replacement-claim",
+    )
+
+
+def test_live_reconciliation_retries_after_tracker_refresh_recovers(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Done"
+    tracker.fetch_all_issues.side_effect = (
+        RuntimeError("terminal refresh unavailable"),
+        [issue],
+    )
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-after-refresh-recovery",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="refresh-recovery-revocation")
+    )
+
+    with (
+        patch.object(
+            orch,
+            "_has_active_owner_claim_revocation",
+            return_value=False,
+        ),
+        patch.object(orch, "_notify_state_only"),
+    ):
+        assert orch._reconcile_inactive_owner_claims() == 0
+        assert orch._reconcile_inactive_owner_claims() == 1
+
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+
+
+def test_expired_owner_claim_is_pruned_during_restore(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    expired = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        ttl_hours=-1,
+        claim_id="expired-before-restart",
+    )
+    assert expired.expires_at < time.time()
+
+    restarted_store, _project = _project_store(tmp_path)
+    restarted = Orchestrator(
+        config=ServiceConfig(
+            owner_claim_ttl_hours=48,
+            duplicate_preflight_max_agents=0,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=restarted_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+
+    assert restarted.state.owner_claims == {}
+    state = json.loads((tmp_path / "service_state.json").read_text())
+    assert state["owner_claims"] == {}
+
+
+def test_snapshot_prunes_expired_owner_claim_from_memory_and_disk(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        ttl_hours=-1,
+        claim_id="expired-before-snapshot",
+    )
+
+    snapshot = orch.get_snapshot()
+
+    assert snapshot["owner_claims"] == []
+    assert orch.state.owner_claims == {}
+    state = json.loads((tmp_path / "service_state.json").read_text())
+    assert state["owner_claims"] == {}
+
+
+def test_owner_claim_persistence_failures_roll_back_grant_and_release(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+
+    with patch.object(orch, "_save_state", return_value=False):
+        with pytest.raises(OSError, match="not durably persisted"):
+            orch.grant_owner_claim(
+                issue_id=issue.id,
+                project_id=issue.project_id,
+                owner_login="alice",
+                claim_id="claim-that-never-commits",
+            )
+    assert orch.state.owner_claims == {}
+
+    committed = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-before-release-failure",
+    )
+    state_before_release = json.loads(
+        (tmp_path / "service_state.json").read_text()
+    )
+    with patch.object(orch, "_save_state", return_value=False):
+        with pytest.raises(OSError, match="retirement marker"):
+            orch.mark_owner_claim_retirement_pending(
+                issue_id=issue.id,
+                project_id=issue.project_id,
+                expected_claim_id=committed.claim_id,
+            )
+    assert committed.retirement_pending is False
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is committed
+
+    with patch.object(orch, "_save_state", return_value=False):
+        with pytest.raises(OSError, match="release was not persisted"):
+            orch.release_owner_claim(
+                issue_id=issue.id,
+                project_id=issue.project_id,
+                expected_claim_id=committed.claim_id,
+            )
+
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is committed
+    assert json.loads((tmp_path / "service_state.json").read_text()) == (
+        state_before_release
+    )
 
 
 def test_expired_or_released_claim_returns_task_to_existing_recovery(tmp_path):
@@ -364,7 +946,104 @@ def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_p
     ].kwargs
     assert release_call["action"] is ImplementationAction.AUTHORITY_REVOCATION
     assert release_call["payload"]["claim_id"] == external_claim.claim_id
-    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is external_claim
+    pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert pending is not None
+    assert pending.claim_id == external_claim.claim_id
+    assert pending.retirement_pending is True
+
+
+def test_enforce_retry_cleanup_does_not_supersede_direct_owner_revocation(tmp_path):
+    from oompah.implementation_workflow import ImplementationAction
+
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-with-exact-revocation",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="direct-owner-revocation")
+    )
+    with patch.object(orch, "_notify_state_only"):
+        scheduled = asyncio.run(
+            orch._retire_owner_claim_after_status_commit(
+                issue=issue,
+                project_id=issue.project_id,
+                claim=claim,
+                observed_status="Done",
+                observed_version="postcommit-version",
+            )
+        )
+    assert scheduled is True
+
+    withdrawn = server_module._cancel_retry_for_authority_change(
+        orch,
+        issue,
+        issue.identifier,
+        issue.project_id,
+        "Done",
+        None,
+    )
+
+    assert withdrawn == set()
+    assert orch._schedule_implementation_workflow_event.call_count == 2
+    direct_revocation = orch._schedule_implementation_workflow_event.call_args_list[
+        0
+    ].kwargs
+    assert direct_revocation["action"] is ImplementationAction.AUTHORITY_REVOCATION
+    assert direct_revocation["payload"]["authority_kind"] == "direct_owner"
+    assert direct_revocation["payload"]["claim_id"] == claim.claim_id
+    scheduler_revocation = orch._schedule_implementation_workflow_event.call_args_list[
+        1
+    ].kwargs
+    assert scheduler_revocation["action"] == "authority_revocation"
+    assert scheduler_revocation["payload"]["authority_kind"] == "scheduler"
+
+
+def test_absent_owner_claim_delete_cas_preserves_concurrent_replacement(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    lookup = orch._owner_claim_for_issue
+    replacement: dict[str, object] = {}
+
+    def absent_then_install_replacement(issue_id, project_id):
+        replacement["claim"] = orch.grant_owner_claim(
+            issue_id=issue_id,
+            project_id=project_id,
+            owner_login="alice",
+            claim_id="replacement-after-absent-read",
+        )
+        return None
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(
+            orch,
+            "_owner_claim_for_issue",
+            side_effect=absent_then_install_replacement,
+        ),
+        patch.object(
+            server_module,
+            "_publish_owner_claim_state",
+            new=AsyncMock(),
+        ),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.request(
+            "DELETE",
+            endpoint,
+            json={"actor_login": "alice"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"released": False}
+    assert lookup(issue.id, issue.project_id) is replacement["claim"]
+    state = json.loads((tmp_path / "service_state.json").read_text())
+    persisted = next(iter(state["owner_claims"].values()))
+    assert persisted["claim_id"] == "replacement-after-absent-read"
 
 
 def test_owner_claim_api_retires_scheduler_before_granting_direct_work(tmp_path):

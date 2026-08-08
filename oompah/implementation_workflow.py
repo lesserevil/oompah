@@ -62,7 +62,9 @@ IMPLEMENTATION_DISPOSITION_SCHEMA_VERSION = 1
 DEFAULT_IMPLEMENTATION_DECISION_LIMIT = 1000
 FACT_IMPLEMENTATION_LANE = "event:implementation:fact"
 IMPERATIVE_IMPLEMENTATION_LANE = "event:implementation:imperative"
+DIRECT_OWNER_REVOCATION_LANE_PREFIX = "event:implementation:direct-owner-revocation"
 IMPLEMENTATION_ORDERING_NAMESPACE = "implementation-decision"
+DIRECT_OWNER_REVOCATION_ORDERING_PREFIX = "implementation-direct-owner-revocation"
 
 
 class ImplementationAction(str, Enum):
@@ -719,6 +721,23 @@ class ImplementationWorkflowController:
         normalized_payload = _canonical_payload(payload)
         project = _required_text(project_id, "project_id")
         task = _required_text(task_id, "task_id")
+        direct_owner_revocation = bool(
+            normalized_action is ImplementationAction.AUTHORITY_REVOCATION
+            and normalized_payload.get("authority_kind") == "direct_owner"
+        )
+        direct_owner_claim_id = (
+            _optional_text(normalized_payload.get("claim_id")) or "absent"
+        )
+        scheduling_lane = (
+            f"{DIRECT_OWNER_REVOCATION_LANE_PREFIX}:{direct_owner_claim_id}"
+            if direct_owner_revocation
+            else IMPERATIVE_IMPLEMENTATION_LANE
+        )
+        ordering_namespace = (
+            f"{DIRECT_OWNER_REVOCATION_ORDERING_PREFIX}:{direct_owner_claim_id}"
+            if direct_owner_revocation
+            else IMPLEMENTATION_ORDERING_NAMESPACE
+        )
         head = _optional_text(expected_head_sha or normalized_payload.get("head_sha"))
         revision = _event_revision(
             project_id=project,
@@ -735,11 +754,13 @@ class ImplementationWorkflowController:
             decision_revision=revision,
             action=normalized_action.value,
             idempotency_namespace="implementation",
-            scheduling_lane=IMPERATIVE_IMPLEMENTATION_LANE,
-            ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+            scheduling_lane=scheduling_lane,
+            ordering_namespace=ordering_namespace,
             source_generation=source_generation,
             source_revision=revision,
-            supersede_scheduling_lanes=(FACT_IMPLEMENTATION_LANE,),
+            supersede_scheduling_lanes=(
+                () if direct_owner_revocation else (FACT_IMPLEMENTATION_LANE,)
+            ),
             payload=normalized_payload,
             expected_evidence_revision=_optional_text(expected_evidence_revision),
             expected_head_sha=head,

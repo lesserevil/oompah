@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import functools
+import inspect
 import json
 import logging
 import os
@@ -7677,6 +7678,7 @@ async def _stage_terminal_transition(
         completed.add(issue_id)
 
     locked_issue = issue
+    locked_owner_claim = None
 
     async def _with_issue_ownership_lock(operation):
         """Run a terminal operation with a fresh issue snapshot under ownership.
@@ -7688,10 +7690,10 @@ async def _stage_terminal_transition(
         canonical evidence refresh under its project lock as the final CAS
         boundary.
         """
-        nonlocal locked_issue
+        nonlocal locked_issue, locked_owner_claim
 
         async def invoke() -> Any:
-            nonlocal locked_issue
+            nonlocal locked_issue, locked_owner_claim
             fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
             if callable(fetch_issue_detail):
                 try:
@@ -7709,6 +7711,10 @@ async def _stage_terminal_transition(
                 else:
                     if refreshed is not None:
                         locked_issue = refreshed
+            locked_owner_claim = orch._owner_claim_for_issue(
+                locked_issue.id,
+                project_id,
+            )
             return await operation(locked_issue)
 
         lock_factory = getattr(orch, "issue_transition_lock", None)
@@ -7716,6 +7722,37 @@ async def _stage_terminal_transition(
             return await invoke()
         async with lock_factory(issue_id):
             return await invoke()
+
+    async def _retire_committed_owner_claim() -> None:
+        retire = getattr(orch, "_retire_owner_claim_after_status_commit", None)
+        if not callable(retire):
+            return
+        current_issue = locked_issue
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if callable(fetch_issue_detail):
+            try:
+                refreshed = await _run_api_io(
+                    fetch_issue_detail,
+                    locked_issue.identifier,
+                )
+            except Exception:  # noqa: BLE001 - terminal commit already succeeded
+                logger.exception(
+                    "Post-commit owner-claim refresh failed for %s/%s",
+                    project_id,
+                    locked_issue.identifier,
+                )
+                return
+            if refreshed is not None:
+                current_issue = refreshed
+        result = retire(
+            issue=current_issue,
+            project_id=project_id,
+            claim=locked_owner_claim,
+            observed_status=getattr(current_issue, "state", None),
+            observed_version=issue_authority_version(current_issue),
+        )
+        if inspect.isawaitable(result):
+            await result
 
     def _rollback_dispatch_fence() -> None:
         if issue_id and completed is not None and not was_completed:
@@ -7805,6 +7842,7 @@ async def _stage_terminal_transition(
             if "shared-epic" in str(result.reason or "").lower() or "auto-filed epic" in str(result.reason or "").lower():
                 return None, (str(result.reason), 409)
             return None, ("The terminal audit retry could not be staged.", 503)
+        await _retire_committed_owner_claim()
         payload = _terminal_transition_payload(
             target,
             result,
@@ -7855,6 +7893,7 @@ async def _stage_terminal_transition(
         if not result.success:
             _rollback_dispatch_fence()
             return None, _safe_terminal_transition_error(result, override=True)
+        await _retire_committed_owner_claim()
         return _terminal_transition_payload(
             target,
             result,
@@ -7888,6 +7927,7 @@ async def _stage_terminal_transition(
     if not result.success:
         _rollback_dispatch_fence()
         return None, _safe_terminal_transition_error(result)
+    await _retire_committed_owner_claim()
     return _terminal_transition_payload(
         target,
         result,
@@ -13216,6 +13256,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 orch.release_owner_claim(
                     issue_id=issue.id,
                     project_id=project_id,
+                    expected_claim_id=claim.claim_id,
                 )
                 raise
         if added_dispatch_fence:
@@ -13307,6 +13348,28 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
         from oompah.implementation_workflow import ImplementationAction
 
         claim = orch._owner_claim_for_issue(issue.id, project_id)
+        if claim is not None:
+            try:
+                orch.mark_owner_claim_retirement_pending(
+                    issue_id=issue.id,
+                    project_id=project_id,
+                    expected_claim_id=claim.claim_id,
+                )
+            except OSError as exc:
+                logger.exception(
+                    "Direct-owner release marker could not be persisted for %s/%s",
+                    project_id,
+                    issue.identifier,
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "owner_claim_release_unavailable",
+                            "message": str(exc),
+                        }
+                    },
+                    status_code=503,
+                )
         job = orch._schedule_implementation_workflow_event(
             project_id=project_id,
             identifier=issue.identifier,
@@ -13336,7 +13399,14 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
             status_code=202,
         )
 
-    removed = orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
+    claim = orch._owner_claim_for_issue(issue.id, project_id)
+    removed = orch.release_owner_claim(
+        issue_id=issue.id,
+        project_id=project_id,
+        expected_claim_id=(
+            str(getattr(claim, "claim_id", None) or "")
+        ),
+    )
     _api_cache.invalidate("issues:all")
     _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
     await _publish_owner_claim_state(orch)

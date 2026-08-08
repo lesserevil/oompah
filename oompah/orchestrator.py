@@ -5156,10 +5156,10 @@ class Orchestrator:
 
         return f"{project_id or ''}\0{issue_id}"
 
-    def _persist_owner_claims_locked(self) -> None:
+    def _persist_owner_claims_locked(self) -> bool:
         """Persist owner claims while ``_owner_claims_lock`` is held."""
 
-        self._save_state(
+        return self._save_state(
             owner_claims={
                 key: claim.to_dict() for key, claim in self.state.owner_claims.items()
             }
@@ -5171,7 +5171,10 @@ class Orchestrator:
         raw_claims = self._load_state().get("owner_claims")
         if not isinstance(raw_claims, dict):
             return
+        restored_at = time.time()
         restored: dict[str, OwnerClaim] = {}
+        expired: dict[str, OwnerClaim] = {}
+        expired_pruned = True
         for key, raw in raw_claims.items():
             if not isinstance(raw, dict):
                 continue
@@ -5182,21 +5185,89 @@ class Orchestrator:
                     "Ignoring malformed persisted owner claim %r: %s", key, exc
                 )
                 continue
+            if claim.expires_at <= restored_at:
+                expired[self._owner_claim_key(claim.project_id, claim.issue_id)] = (
+                    claim
+                )
+                continue
             restored[self._owner_claim_key(claim.project_id, claim.issue_id)] = claim
         with self._owner_claims_lock:
             self.state.owner_claims = restored
+            if expired:
+                if not self._persist_owner_claims_locked():
+                    # Retain the stale rows in memory so later maintenance can
+                    # retry the durable prune. Live-claim readers still treat
+                    # them as expired and never grant them authority.
+                    self.state.owner_claims.update(expired)
+                    expired_pruned = False
+                    logger.error(
+                        "Expired direct-owner claims could not be pruned from "
+                        "durable service state during restart"
+                    )
         if restored:
             logger.info("Restored %d direct-owner claim(s) from disk", len(restored))
+        if expired and expired_pruned:
+            logger.info(
+                "Pruned %d expired direct-owner claim(s) during restart",
+                len(expired),
+            )
 
     def _owner_claim_for_issue(
         self, issue_id: str, project_id: str | None
     ) -> OwnerClaim | None:
-        """Return a direct-owner claim for one project-scoped issue."""
+        """Return a live direct-owner claim for one project-scoped issue."""
 
+        pruned = True
         with self._owner_claims_lock:
-            return self.state.owner_claims.get(
-                self._owner_claim_key(project_id, issue_id)
+            key = self._owner_claim_key(project_id, issue_id)
+            claim = self.state.owner_claims.get(key)
+            if claim is None or claim.expires_at > time.time():
+                return claim
+            del self.state.owner_claims[key]
+            if not self._persist_owner_claims_locked():
+                self.state.owner_claims[key] = claim
+                pruned = False
+                logger.error(
+                    "Expired direct-owner claim could not be pruned from "
+                    "durable service state for issue_id=%s project_id=%s",
+                    issue_id,
+                    project_id or "legacy",
+                )
+        if pruned:
+            logger.info(
+                "Pruned expired direct-owner claim for issue_id=%s project_id=%s",
+                issue_id,
+                project_id or "legacy",
             )
+        return None
+
+    def _prune_expired_owner_claims(self, *, now: float | None = None) -> int:
+        """Persistently remove expired leases before publishing their projection."""
+
+        checked_at = time.time() if now is None else now
+        persistence_failed = False
+        with self._owner_claims_lock:
+            expired = {
+                key: claim
+                for key, claim in self.state.owner_claims.items()
+                if claim.expires_at <= checked_at
+            }
+            for key in expired:
+                del self.state.owner_claims[key]
+            if expired:
+                if not self._persist_owner_claims_locked():
+                    self.state.owner_claims.update(expired)
+                    persistence_failed = True
+                    logger.error(
+                        "Expired direct-owner claims could not be pruned from "
+                        "durable service state before publication"
+                    )
+        if expired and not persistence_failed:
+            logger.info(
+                "Pruned %d expired direct-owner claim(s) before state publication",
+                len(expired),
+            )
+        return 0 if persistence_failed else len(expired)
 
     def _has_live_owner_claim(
         self,
@@ -5266,6 +5337,7 @@ class Orchestrator:
 
         checked_at = time.time() if now is None else now
         key = self._owner_claim_key(project_id, issue_id)
+        pruned = True
         with self._owner_claims_lock:
             claim = self.state.owner_claims.get(key)
             if claim is None:
@@ -5273,13 +5345,22 @@ class Orchestrator:
             if claim.expires_at > checked_at:
                 return claim
             del self.state.owner_claims[key]
-            self._persist_owner_claims_locked()
-        logger.info(
-            "Expired direct-owner claim for issue_id=%s project_id=%s owner=%s",
-            issue_id,
-            project_id or "legacy",
-            claim.owner_login,
-        )
+            if not self._persist_owner_claims_locked():
+                self.state.owner_claims[key] = claim
+                pruned = False
+                logger.error(
+                    "Expired direct-owner claim could not be pruned from "
+                    "durable service state for issue_id=%s project_id=%s",
+                    issue_id,
+                    project_id or "legacy",
+                )
+        if pruned:
+            logger.info(
+                "Expired direct-owner claim for issue_id=%s project_id=%s owner=%s",
+                issue_id,
+                project_id or "legacy",
+                claim.owner_login,
+            )
         return None
 
     def grant_owner_claim(
@@ -5312,10 +5393,15 @@ class Orchestrator:
                 expires_at=(claimed_at + duration_hours * 60 * 60),
             )
             with self._owner_claims_lock:
-                self.state.owner_claims[self._owner_claim_key(project_id, issue_id)] = (
-                    claim
-                )
-                self._persist_owner_claims_locked()
+                key = self._owner_claim_key(project_id, issue_id)
+                previous = self.state.owner_claims.get(key)
+                self.state.owner_claims[key] = claim
+                if not self._persist_owner_claims_locked():
+                    if previous is None:
+                        del self.state.owner_claims[key]
+                    else:
+                        self.state.owner_claims[key] = previous
+                    raise OSError("direct-owner claim was not durably persisted")
             return claim
 
     def release_owner_claim(
@@ -5341,8 +5427,345 @@ class Orchestrator:
                 return False
             removed = self.state.owner_claims.pop(key, None)
             if removed is not None:
-                self._persist_owner_claims_locked()
+                if not self._persist_owner_claims_locked():
+                    self.state.owner_claims[key] = removed
+                    raise OSError("direct-owner claim release was not persisted")
             return removed is not None
+
+    def mark_owner_claim_retirement_pending(
+        self,
+        *,
+        issue_id: str,
+        project_id: str | None,
+        expected_claim_id: str,
+    ) -> bool:
+        """Durably mark one exact owner generation for eventual retirement."""
+
+        project_lock = (
+            self.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
+        )
+        with project_lock, self._owner_claims_lock:
+            key = self._owner_claim_key(project_id, issue_id)
+            current = self.state.owner_claims.get(key)
+            if current is None or current.claim_id != expected_claim_id:
+                return False
+            if current.retirement_pending:
+                return True
+            marked = replace(current, retirement_pending=True)
+            self.state.owner_claims[key] = marked
+            if not self._persist_owner_claims_locked():
+                self.state.owner_claims[key] = current
+                raise OSError("direct-owner retirement marker was not persisted")
+            return True
+
+    def _retire_owner_claim_after_status_commit_now(
+        self,
+        *,
+        issue: Issue,
+        project_id: str | None,
+        claim: OwnerClaim | None,
+        observed_status: str | None,
+        observed_version: str | None = None,
+        reconciliation_nonce: str | None = None,
+    ) -> bool:
+        """Retire one captured owner lease without publishing a state snapshot."""
+
+        if claim is None:
+            return False
+        if not canonicalize_status(observed_status):
+            return False
+        current = self._owner_claim_for_issue(issue.id, project_id)
+        if current is None or current.claim_id != claim.claim_id:
+            return False
+        if (
+            canonicalize_status(observed_status) == IN_PROGRESS
+            and not current.retirement_pending
+        ):
+            return False
+        marker_persisted = bool(current.retirement_pending)
+        enforce = (
+            getattr(getattr(self, "workflow_runtime", None), "enforce", False)
+            is True
+        )
+        try:
+            if enforce:
+                from oompah.implementation_workflow import ImplementationAction
+
+                if not observed_version:
+                    raise RuntimeError(
+                        "direct-owner revocation has no post-commit evidence revision"
+                    )
+                try:
+                    marker_persisted = self.mark_owner_claim_retirement_pending(
+                        issue_id=issue.id,
+                        project_id=project_id,
+                        expected_claim_id=claim.claim_id,
+                    )
+                    if not marker_persisted:
+                        return False
+                except OSError:
+                    logger.exception(
+                        "Direct-owner retirement marker could not be persisted "
+                        "for %s/%s; durable revocation enqueue will still be "
+                        "attempted",
+                        project_id or "legacy",
+                        issue.identifier,
+                    )
+                head = issue_exact_head(issue)
+                payload = {
+                    "owner_id": claim.owner_login,
+                    "requested_by": "status transition",
+                    "claim_id": claim.claim_id,
+                    "authority_kind": "direct_owner",
+                    "expected_status": str(observed_status or ""),
+                    "reason": "task status changed",
+                    "work_branch": str(issue.work_branch or issue.branch_name or ""),
+                    "head_sha": str(head or ""),
+                }
+                if reconciliation_nonce:
+                    payload["reconciliation_nonce"] = reconciliation_nonce
+                job = self._schedule_implementation_workflow_event(
+                    project_id=project_id,
+                    identifier=issue.identifier,
+                    action=ImplementationAction.AUTHORITY_REVOCATION,
+                    payload=payload,
+                    expected_evidence_revision=observed_version,
+                    expected_head_sha=head,
+                    priority=0,
+                )
+                if job is None:
+                    raise RuntimeError(
+                        "durable direct-owner revocation was not scheduled"
+                    )
+            else:
+                if not self.release_owner_claim(
+                    issue_id=issue.id,
+                    project_id=project_id,
+                    expected_claim_id=claim.claim_id,
+                ):
+                    return False
+            return True
+        except Exception:  # noqa: BLE001 - status commit already succeeded
+            if enforce and not marker_persisted:
+                try:
+                    if self.release_owner_claim(
+                        issue_id=issue.id,
+                        project_id=project_id,
+                        expected_claim_id=claim.claim_id,
+                    ):
+                        logger.warning(
+                            "Direct-owner claim %s was released through the "
+                            "post-commit fallback after durable scheduling and "
+                            "retirement-marker persistence both failed",
+                            claim.claim_id,
+                        )
+                        return True
+                except Exception:  # noqa: BLE001 - preserve original diagnostics
+                    logger.exception(
+                        "Post-commit direct-owner fallback release also failed "
+                        "for %s/%s",
+                        project_id or "legacy",
+                        issue.identifier,
+                    )
+            logger.exception(
+                "Post-commit direct-owner revocation failed for %s/%s; "
+                "the committed task status is retained",
+                project_id or "legacy",
+                issue.identifier,
+            )
+            return False
+
+    async def _retire_owner_claim_after_status_commit(
+        self,
+        *,
+        issue: Issue,
+        project_id: str | None,
+        claim: OwnerClaim | None,
+        observed_status: str | None,
+        observed_version: str | None = None,
+    ) -> bool:
+        """Retire only the pre-transition owner lease after a committed move."""
+
+        retired = self._retire_owner_claim_after_status_commit_now(
+            issue=issue,
+            project_id=project_id,
+            claim=claim,
+            observed_status=observed_status,
+            observed_version=observed_version,
+        )
+        if retired:
+            await asyncio.to_thread(self._notify_state_only)
+        return retired
+
+    def _has_active_owner_claim_revocation(
+        self,
+        *,
+        issue: Issue,
+        project_id: str,
+        claim_id: str,
+    ) -> bool:
+        """Return whether one runnable exact-claim revocation already exists."""
+
+        states = tuple(state.value for state in ACTIVE_JOB_STATES)
+        for job in self.workflow_job_store.list_jobs(
+            project_id=project_id,
+            task_id=issue.identifier,
+            states=states,
+            limit=100,
+            newest_first=True,
+        ):
+            payload = job.payload or {}
+            if (
+                job.action == "authority_revocation"
+                and str(payload.get("authority_kind") or "") == "direct_owner"
+                and str(payload.get("claim_id") or "") == claim_id
+            ):
+                return True
+        return False
+
+    def _claim_has_committed_retirement_transition(
+        self,
+        *,
+        issue: Issue,
+        project_id: str | None,
+        claim: OwnerClaim,
+    ) -> bool:
+        """Recover a post-commit marker lost to a process-death boundary."""
+
+        journal_project = str(project_id or issue.project_id or "__legacy__")
+        for (
+            intent,
+            event,
+            requested_at,
+        ) in self.task_transition_journal.committed_task_transitions(
+            journal_project, issue.identifier
+        ):
+            try:
+                requested_at_epoch = datetime.fromisoformat(
+                    requested_at.replace("Z", "+00:00")
+                ).timestamp()
+            except (TypeError, ValueError):
+                continue
+            if requested_at_epoch < claim.claimed_at:
+                break
+            if (
+                canonicalize_status(intent.expected_status) == IN_PROGRESS
+                and event.outcome is not None
+                and canonicalize_status(event.outcome.observed_status) != IN_PROGRESS
+            ):
+                return True
+        return False
+
+    def _reconcile_inactive_owner_claims(self) -> int:
+        """Retry stale exact-claim retirement without superseding active work."""
+
+        with self._owner_claims_lock:
+            claims = tuple(self.state.owner_claims.values())
+        if not claims:
+            return 0
+
+        by_project: dict[str | None, list[OwnerClaim]] = {}
+        for claim in claims:
+            if claim.expires_at > time.time():
+                by_project.setdefault(claim.project_id, []).append(claim)
+
+        reconciled = 0
+        for project_id, project_claims in by_project.items():
+            try:
+                tracker = (
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
+                )
+                issues = tuple(tracker.fetch_all_issues() or ())
+            except Exception as exc:  # noqa: BLE001 - retry on the next sweep
+                logger.warning(
+                    "Owner-claim retirement reconciliation deferred for %s: %s",
+                    project_id or "legacy",
+                    type(exc).__name__,
+                )
+                continue
+            by_id = {str(issue.id or ""): issue for issue in issues}
+            for claim in project_claims:
+                issue = by_id.get(str(claim.issue_id or ""))
+                if issue is None:
+                    continue
+                if project_id and issue.project_id not in {None, "", project_id}:
+                    continue
+                issue.project_id = project_id
+                status = canonicalize_status(issue.state)
+                journal_requires_retirement = False
+                if not claim.retirement_pending:
+                    try:
+                        journal_requires_retirement = (
+                            self._claim_has_committed_retirement_transition(
+                                issue=issue,
+                                project_id=project_id,
+                                claim=claim,
+                            )
+                        )
+                    except Exception as exc:  # noqa: BLE001 - retry next sweep
+                        logger.warning(
+                            "Owner-claim transition recovery deferred for %s/%s: %s",
+                            project_id or "legacy",
+                            issue.identifier,
+                            type(exc).__name__,
+                        )
+                        continue
+                if (
+                    not claim.retirement_pending
+                    and not journal_requires_retirement
+                    and status != IN_VALIDATION
+                    and not is_terminal_status(status)
+                ):
+                    continue
+                if journal_requires_retirement:
+                    try:
+                        if not self.mark_owner_claim_retirement_pending(
+                            issue_id=issue.id,
+                            project_id=project_id,
+                            expected_claim_id=claim.claim_id,
+                        ):
+                            continue
+                    except OSError:
+                        logger.exception(
+                            "Recovered owner-claim retirement marker could not "
+                            "be persisted for %s/%s",
+                            project_id or "legacy",
+                            issue.identifier,
+                        )
+                if project_id and getattr(
+                    getattr(self, "workflow_runtime", None), "enforce", False
+                ) is True:
+                    try:
+                        if self._has_active_owner_claim_revocation(
+                            issue=issue,
+                            project_id=project_id,
+                            claim_id=claim.claim_id,
+                        ):
+                            continue
+                    except Exception as exc:  # noqa: BLE001 - retry next sweep
+                        logger.warning(
+                            "Owner-claim revocation lookup deferred for %s/%s: %s",
+                            project_id,
+                            issue.identifier,
+                            type(exc).__name__,
+                        )
+                        continue
+                retired = self._retire_owner_claim_after_status_commit_now(
+                    issue=issue,
+                    project_id=project_id,
+                    claim=claim,
+                    observed_status=issue.state,
+                    observed_version=issue_authority_version(issue),
+                    reconciliation_nonce=uuid.uuid4().hex,
+                )
+                reconciled += int(retired)
+        if reconciled:
+            self._notify_state_only()
+        return reconciled
 
     @staticmethod
     def _owner_claim_snapshot(claim: OwnerClaim, *, now: float) -> dict[str, Any]:
@@ -10057,6 +10480,7 @@ class Orchestrator:
 
         effective_project_id = project_id or issue.project_id
         effective_tracker = tracker or self._tracker_for_issue(issue)
+        owner_claim = self._owner_claim_for_issue(issue.id, effective_project_id)
         intent = self._build_transition_intent(
             issue,
             requested_status,
@@ -10088,7 +10512,15 @@ class Orchestrator:
             outcome.reason_code,
             outcome.transition_id,
         )
-        return self._require_committed_transition(outcome)
+        committed = self._require_committed_transition(outcome)
+        await self._retire_owner_claim_after_status_commit(
+            issue=issue,
+            project_id=effective_project_id,
+            claim=owner_claim,
+            observed_status=committed.observed_status,
+            observed_version=committed.observed_version,
+        )
+        return committed
 
     def _transition_issue_status(
         self,
@@ -25086,6 +25518,7 @@ class Orchestrator:
                                   schedules synchronization by itself.
           ``epic_prune_rebase`` — drop ghost rebase-state entries for closed
                                   epics.
+          ``owner_claim_retirements`` — retry post-commit exact-claim cleanup.
           ``epic_orphan_reset`` — reset in_progress issues with no agent.
 
         Per-project maintenance locks (TASK-466.3 AC#3) are acquired inside
@@ -25141,7 +25574,15 @@ class Orchestrator:
             min_interval_s=300.0,
         )
 
-        # 7. Orphan reset — _fetch_in_progress_issues() reads tracker state
+        # 7. Retry direct-owner cleanup that could not be durably scheduled by
+        # the request which committed a terminal/In Validation status.
+        self._run_maintenance_job(
+            "owner_claim_retirements",
+            self._reconcile_inactive_owner_claims,
+            min_interval_s=60.0,
+        )
+
+        # 8. Orphan reset — _fetch_in_progress_issues() reads tracker state
         # fresh at call time so issues that just closed during this tick are
         # not wrongly reset.
         self._run_maintenance_job(
@@ -25150,7 +25591,7 @@ class Orchestrator:
             min_interval_s=60.0,
         )
 
-        # 8. Shared-worktree absorption reconciliation (OOMPAH-219).
+        # 9. Shared-worktree absorption reconciliation (OOMPAH-219).
         # Only runs when there is evidence to check — fast-path skip otherwise.
         if self._shared_absorption_evidence:
             self._run_maintenance_job(
@@ -64446,10 +64887,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # Direct-owner claims are kept distinct from scheduler ``running``
         # rows so operators can see why an In Progress task has no agent and
         # how long that protection remains valid.
+        self._prune_expired_owner_claims(now=now.timestamp())
         with self._owner_claims_lock:
             owner_claim_rows = [
                 self._owner_claim_snapshot(claim, now=now.timestamp())
                 for claim in self.state.owner_claims.values()
+                if claim.expires_at > now.timestamp()
             ]
         owner_claim_rows.sort(
             key=lambda row: (str(row["project_id"] or ""), str(row["issue_id"]))

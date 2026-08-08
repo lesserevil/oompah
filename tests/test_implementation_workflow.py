@@ -625,6 +625,62 @@ def test_owner_takeover_supersedes_and_fences_the_old_lease(tmp_path):
     store.close()
 
 
+def test_direct_owner_revocation_cannot_supersede_valid_reopen_event(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector([issue()]), store=store
+    )
+    reopen = event(
+        controller,
+        ImplementationAction.START,
+        payload={"owner_id": "agent-after-reopen"},
+    )
+
+    revocation = event(
+        controller,
+        ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "direct_owner",
+            "claim_id": "claim-before-reopen",
+            "owner_id": "human-before-reopen",
+        },
+    )
+
+    assert store.get(reopen.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(revocation.job_id).state is WorkflowJobState.QUEUED
+    assert reopen.scheduling_lane == "event:implementation:imperative"
+    assert (
+        revocation.scheduling_lane
+        == "event:implementation:direct-owner-revocation:claim-before-reopen"
+    )
+    store.close()
+
+
+def test_exact_claim_revocations_use_independent_lanes(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector([issue()]), store=store
+    )
+    old = event(
+        controller,
+        ImplementationAction.AUTHORITY_REVOCATION,
+        payload={"authority_kind": "direct_owner", "claim_id": "old-claim"},
+    )
+    replacement = event(
+        controller,
+        ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "direct_owner",
+            "claim_id": "replacement-claim",
+        },
+    )
+
+    assert store.get(old.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(replacement.job_id).state is WorkflowJobState.QUEUED
+    assert old.scheduling_lane != replacement.scheduling_lane
+    store.close()
+
+
 def test_handoff_payload_is_durable_idempotent_and_branch_reuse_rotates(tmp_path):
     path = tmp_path / "jobs.sqlite3"
     store = WorkflowJobStore(str(path))

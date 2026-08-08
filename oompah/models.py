@@ -1781,6 +1781,7 @@ class OwnerClaim:
     claimed_at: float
     expires_at: float
     renewable: bool = True
+    retirement_pending: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1791,6 +1792,7 @@ class OwnerClaim:
             "claimed_at": self.claimed_at,
             "expires_at": self.expires_at,
             "renewable": self.renewable,
+            "retirement_pending": self.retirement_pending,
         }
 
     @classmethod
@@ -1808,6 +1810,7 @@ class OwnerClaim:
             claimed_at=float(raw.get("claimed_at", 0) or 0),
             expires_at=float(raw.get("expires_at", 0) or 0),
             renewable=bool(raw.get("renewable", True)),
+            retirement_pending=bool(raw.get("retirement_pending", False)),
         )
 
 

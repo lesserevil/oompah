@@ -737,6 +737,51 @@ class TransitionJournal:
                 return intent, event
             return None
 
+    def committed_task_transitions(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> tuple[tuple[TransitionIntent, TransitionJournalEvent, str], ...]:
+        """Return committed task transitions from newest to oldest."""
+
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT event.*, request.intent_json,
+                       request.created_at AS request_created_at
+                  FROM task_transition_events AS event
+                  JOIN task_transition_requests AS request
+                    ON request.transition_id = event.transition_id
+                 WHERE request.project_id = ? AND request.task_id = ?
+                   AND event.outcome_json IS NOT NULL
+                 ORDER BY event.sequence DESC
+                """,
+                (
+                    _required_text(project_id, "project_id"),
+                    _required_text(task_id, "task_id"),
+                ),
+            ).fetchall()
+            committed: list[
+                tuple[TransitionIntent, TransitionJournalEvent, str]
+            ] = []
+            for row in rows:
+                event = self._event_from_row(row)
+                if event.outcome is None or event.outcome.disposition not in {
+                    TransitionDisposition.APPLIED,
+                    TransitionDisposition.RECOVERED,
+                    TransitionDisposition.STAGED,
+                }:
+                    continue
+                try:
+                    raw = json.loads(str(row["intent_json"]))
+                    intent = TransitionIntent.from_dict(raw)
+                except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                    raise TransitionJournalCorruptionError(
+                        "invalid transition intent JSON"
+                    ) from exc
+                committed.append((intent, event, str(row["request_created_at"])))
+            return tuple(committed)
+
     def events(self, transition_id: str) -> tuple[TransitionJournalEvent, ...]:
         with self._lock:
             rows = self._conn.execute(

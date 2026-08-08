@@ -39,9 +39,11 @@ from oompah.implementation_workflow import (
 from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
+    IN_VALIDATION,
     OPEN,
     READY_TO_INTEGRATE,
     canonicalize_status,
+    is_terminal_status,
 )
 from oompah.task_transition_service import (
     TransitionAuthority,
@@ -554,11 +556,16 @@ class OrchestratorImplementationEffects:
             claim = self.orchestrator._owner_claim_for_issue(
                 issue.id, self.project_id
             )
-            direct_owner_only = _text(payload.get("authority_kind")) == "direct_owner"
-            if (
-                not direct_owner_only
-                and self._project_running(issue) is not None
-            ):
+            direct_owner_only = (
+                _text(payload.get("authority_kind")) == "direct_owner"
+                or "claim_id" in payload
+            )
+            if direct_owner_only:
+                expected_claim_id = _text(payload.get("claim_id"))
+                if claim is None or _text(claim.claim_id) != expected_claim_id:
+                    return self._disposition(context, issue=issue)
+                return None
+            if self._project_running(issue) is not None:
                 return None
             if claim is not None:
                 return None
@@ -969,13 +976,16 @@ class OrchestratorImplementationEffects:
                 or "claim_id" in payload
             )
             if direct_owner_only:
-                if "claim_id" not in payload or _text(
+                expected_claim_id = _text(payload.get("claim_id"))
+                # A missing old claim or an ABA replacement already satisfies
+                # revocation of this exact authority generation. Never remove
+                # the replacement on behalf of the superseded event.
+                if not expected_claim_id or _text(
                     getattr(claim, "claim_id", None)
-                ) != _text(payload.get("claim_id")):
-                    raise WorkflowActionError(
-                        "direct-owner claim changed before revocation",
-                        category=WorkflowFailureCategory.STALE_EVIDENCE,
-                        retryable=False,
+                ) != expected_claim_id:
+                    disposition = self._disposition(context, issue=issue)
+                    return await asyncio.to_thread(
+                        self.receipts.record, context, disposition
                     )
                 if claim is not None and _text(payload.get("owner_id")) and _text(
                     getattr(claim, "owner_login", None)
@@ -1035,20 +1045,28 @@ class OrchestratorImplementationEffects:
                         )
                     self._assert_job_current(context)
             if direct_owner_only:
-                self.orchestrator.release_owner_claim(
-                    issue_id=issue.id,
-                    project_id=self.project_id,
-                    expected_claim_id=_text(payload.get("claim_id")),
-                )
-                remaining_claim = self.orchestrator._owner_claim_for_issue(
-                    issue.id, self.project_id
-                )
-                if remaining_claim is not None:
-                    raise WorkflowActionError(
-                        "direct-owner claim changed while revocation was applied",
-                        category=WorkflowFailureCategory.STALE_EVIDENCE,
-                        retryable=False,
+                try:
+                    removed = self.orchestrator.release_owner_claim(
+                        issue_id=issue.id,
+                        project_id=self.project_id,
+                        expected_claim_id=expected_claim_id,
                     )
+                except OSError as exc:
+                    raise WorkflowActionError(
+                        "direct-owner claim release was not durably persisted",
+                        category=WorkflowFailureCategory.TRANSIENT,
+                        retryable=True,
+                    ) from exc
+                if not removed:
+                    remaining = self.orchestrator._owner_claim_for_issue(
+                        issue.id, self.project_id
+                    )
+                    if _text(getattr(remaining, "claim_id", None)) == expected_claim_id:
+                        raise WorkflowActionError(
+                            "direct-owner claim release did not commit",
+                            category=WorkflowFailureCategory.TRANSIENT,
+                            retryable=True,
+                        )
             disposition = self._disposition(context, issue=issue)
         elif action is ImplementationAction.RETRY:
             disposition = self._disposition(context, issue=issue)
@@ -1281,18 +1299,38 @@ def build_implementation_workflow_handlers(
             if issue_project and issue_project != binding.project_id:
                 continue
             issue.project_id = binding.project_id
+            status = canonicalize_status(issue.state)
+            direct_owner_active = (
+                not claim.retirement_pending
+                and status != IN_VALIDATION
+                and not is_terminal_status(status)
+            )
+            action = (
+                ImplementationAction.DIRECT_OWNER_CLAIM
+                if direct_owner_active
+                else ImplementationAction.AUTHORITY_REVOCATION
+            )
+            payload = {
+                "owner_id": claim.owner_login,
+                "claim_id": claim.claim_id,
+                "expected_status": issue.state,
+                "work_branch": _text(issue.work_branch or issue.branch_name),
+                "head_sha": _text(issue_exact_head(issue)),
+            }
+            if direct_owner_active:
+                payload["lease_expires_at"] = _iso_from_epoch(claim.expires_at)
+            else:
+                payload.update(
+                    {
+                        "authority_kind": "direct_owner",
+                        "reason": "task no longer has active owner work",
+                    }
+                )
             binding.implementation_controller.schedule_event(
                 project_id=binding.project_id,
                 task_id=issue.identifier,
-                action=ImplementationAction.DIRECT_OWNER_CLAIM,
-                payload={
-                    "owner_id": claim.owner_login,
-                    "claim_id": claim.claim_id,
-                    "lease_expires_at": _iso_from_epoch(claim.expires_at),
-                    "expected_status": issue.state,
-                    "work_branch": _text(issue.work_branch or issue.branch_name),
-                    "head_sha": _text(issue_exact_head(issue)),
-                },
+                action=action,
+                payload=payload,
                 expected_head_sha=issue_exact_head(issue),
                 expected_evidence_revision=issue_authority_version(issue),
                 priority=0,

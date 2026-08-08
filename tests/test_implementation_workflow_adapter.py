@@ -9,6 +9,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -564,11 +565,50 @@ async def test_revocation_cannot_release_a_replacement_owner_claim(tmp_path):
     )
     effects = OrchestratorImplementationEffects(orch, project_id="project-a")
 
-    with pytest.raises(WorkflowActionError, match="claim changed"):
-        await effects.apply(context)
+    result = await ProductionImplementationWorkflowBackend(effects).execute(context)
 
+    assert result.status == "revoked"
     assert orch.claims[("project-a", issue.id)].claim_id == "replacement-claim"
     assert orch.released == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_owner_revocation_retries_durable_release_failure(tmp_path):
+    issue = make_issue()
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    now = datetime.now(timezone.utc).timestamp()
+    claim = OwnerClaim(
+        "claim-1",
+        issue.id,
+        "project-a",
+        "project-owner",
+        now,
+        now + 3600,
+    )
+    orch.claims[("project-a", issue.id)] = claim
+
+    def fail_release(**_kwargs):
+        raise OSError("disk full")
+
+    orch.release_owner_claim = fail_release
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "direct_owner",
+            "claim_id": claim.claim_id,
+            "owner_id": claim.owner_login,
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as exc_info:
+        await effects.apply(context)
+
+    assert exc_info.value.retryable is True
+    assert orch.claims[("project-a", issue.id)] is claim
+    effects.receipts.close()
 
 
 @pytest.mark.asyncio
@@ -773,6 +813,68 @@ def test_shadow_handler_construction_is_zero_write_and_total(tmp_path):
 
     assert set(handlers) == IMPLEMENTATION_ACTIONS
     assert not (tmp_path / "implementation_receipts.sqlite3").exists()
+
+
+def test_enforce_bootstrap_preserves_preclaims_and_revokes_inactive_claims(tmp_path):
+    issues = [
+        make_issue(identifier="OPEN-1", status="Open"),
+        make_issue(identifier="PENDING-OPEN-1", status="Open"),
+        make_issue(identifier="ACTIVE-1", status="In Progress"),
+        make_issue(identifier="VALIDATE-1", status="In Validation"),
+        make_issue(identifier="DONE-1", status="Done"),
+        make_issue(identifier="MERGED-1", status="Merged"),
+        make_issue(identifier="ARCHIVED-1", status="Archived"),
+    ]
+    tracker = Tracker(*issues)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch.config.workflow_engine_mode = "enforce"
+    now = datetime.now(timezone.utc).timestamp()
+    claims = {}
+    for issue in issues:
+        claim = OwnerClaim(
+            f"claim-{issue.identifier}",
+            issue.id,
+            "project-a",
+            "project-owner",
+            now,
+            now + 3600,
+            retirement_pending=(issue.identifier == "PENDING-OPEN-1"),
+        )
+        claims[("project-a", issue.id)] = claim
+        orch.state.owner_claims[f"project-a\0{issue.id}"] = claim
+    schedule_event = MagicMock()
+    binding = SimpleNamespace(
+        project_id="project-a",
+        tracker=tracker,
+        implementation_controller=SimpleNamespace(schedule_event=schedule_event),
+    )
+
+    handlers = build_implementation_workflow_handlers(orch, binding)
+
+    assert set(handlers) == IMPLEMENTATION_ACTIONS
+    scheduled = {
+        call.kwargs["task_id"]: call.kwargs for call in schedule_event.call_args_list
+    }
+    assert scheduled["OPEN-1"]["action"] is ImplementationAction.DIRECT_OWNER_CLAIM
+    assert (
+        scheduled["ACTIVE-1"]["action"]
+        is ImplementationAction.DIRECT_OWNER_CLAIM
+    )
+    for identifier in (
+        "PENDING-OPEN-1",
+        "VALIDATE-1",
+        "DONE-1",
+        "MERGED-1",
+        "ARCHIVED-1",
+    ):
+        event = scheduled[identifier]
+        assert event["action"] is ImplementationAction.AUTHORITY_REVOCATION
+        assert event["payload"]["authority_kind"] == "direct_owner"
+        assert event["payload"]["claim_id"] == f"claim-{identifier}"
+        assert event["expected_evidence_revision"]
+    assert orch.state.owner_claims == {
+        f"project-a\0{issue.id}": claims[("project-a", issue.id)] for issue in issues
+    }
 
 
 def test_orchestrator_public_factory_exposes_implementation_handlers(tmp_path):

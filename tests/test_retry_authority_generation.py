@@ -3349,6 +3349,28 @@ def test_enforce_status_change_publishes_exact_durable_revocation():
     assert scheduled["expected_head_sha"] == "a" * 40
 
 
+def test_enforce_status_change_also_publishes_scheduler_revocation():
+    orch = MagicMock()
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    issue = _issue()
+    orch._owner_claim_for_issue.return_value = SimpleNamespace(claim_id="claim-1")
+
+    withdrawn = _cancel_retry_for_authority_change(
+        orch,
+        issue,
+        issue.identifier,
+        issue.project_id,
+        "Done",
+        None,
+    )
+
+    assert withdrawn == set()
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"] == "authority_revocation"
+    assert scheduled["payload"]["authority_kind"] == "scheduler"
+    orch._cancel_retry_for_issue.assert_not_called()
+
+
 def test_legacy_retry_entries_remain_dispatchable(tmp_path):
     orch = _orchestrator(tmp_path)
     issue = _issue(state="Open", updated_at=None, head_sha=None)

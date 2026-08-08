@@ -897,6 +897,106 @@ async def test_terminal_stage_refreshes_issue_inside_task_ownership_lock():
     assert coordinator.overrides[0]["evidence_fingerprint"] == expected_fingerprint
 
 
+@pytest.mark.asyncio
+async def test_terminal_stage_retires_only_captured_claim_after_commit():
+    issue = Issue(
+        "task-owner-claim",
+        "task-owner-claim",
+        "Task",
+        description="work",
+        state="In Progress",
+        project_id="proj-1",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    claim = SimpleNamespace(claim_id="claim-before-commit", owner_login="owner")
+    orch._owner_claim_for_issue.return_value = claim
+    orch._retire_owner_claim_after_status_commit = AsyncMock(return_value=True)
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+
+    async def commit_override(**kwargs):
+        coordinator.overrides.append(kwargs)
+        issue.state = "Done"
+        return OverrideResult(
+            success=True,
+            override_id="audit-override-owner-claim",
+            applied_status="Done",
+        )
+
+    coordinator.override_transition = commit_override
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=issue,
+        target=TargetState.DONE,
+        body={
+            "audit_override": True,
+            "override_reason": "Complete directly owned work",
+            "actor_login": "owner",
+        },
+    )
+
+    assert error is None
+    assert payload is not None
+    orch._retire_owner_claim_after_status_commit.assert_awaited_once()
+    retirement = orch._retire_owner_claim_after_status_commit.call_args.kwargs
+    assert retirement["issue"] is issue
+    assert retirement["project_id"] == "proj-1"
+    assert retirement["claim"] is claim
+    assert retirement["observed_status"] == "Done"
+    assert retirement["observed_version"]
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_keeps_committed_result_when_claim_refresh_fails():
+    issue = Issue(
+        "task-owner-refresh",
+        "task-owner-refresh",
+        "Task",
+        description="work",
+        state="In Progress",
+        project_id="proj-1",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    claim = SimpleNamespace(claim_id="claim-before-refresh", owner_login="owner")
+    orch._owner_claim_for_issue.return_value = claim
+    orch._retire_owner_claim_after_status_commit = AsyncMock(return_value=True)
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+    tracker.fetch_issue_detail = MagicMock(
+        side_effect=(issue, RuntimeError("postcommit refresh unavailable"))
+    )
+
+    async def commit_override(**kwargs):
+        coordinator.overrides.append(kwargs)
+        issue.state = "Done"
+        return OverrideResult(
+            success=True,
+            override_id="audit-override-refresh-failure",
+            applied_status="Done",
+        )
+
+    coordinator.override_transition = commit_override
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=issue,
+        target=TargetState.DONE,
+        body={
+            "audit_override": True,
+            "override_reason": "Commit despite refresh outage",
+            "actor_login": "owner",
+        },
+    )
+
+    assert error is None
+    assert payload is not None
+    assert payload["status"] == "Done"
+    orch._retire_owner_claim_after_status_commit.assert_not_awaited()
+
+
 @pytest.fixture
 def client():
     return TestClient(app, raise_server_exceptions=False)
