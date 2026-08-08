@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-914
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Recover expired task-transition claims without operator deadlock
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:25:47.766180Z'
-updated_at: '2026-08-08T15:38:48.487657Z'
+updated_at: '2026-08-08T16:25:15.296177Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f4ad63fbd302
+    project_id: proj-14849f1b
+    task_id: OOMPAH-914
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 642ab4831eb57aa71929e77de2d87f1f2e96cdae6ec70a5289d6aaadb418ccc6
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:25:07.289741+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

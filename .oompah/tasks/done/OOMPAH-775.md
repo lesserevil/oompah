@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-08T16:24:57.339415Z'
+updated_at: '2026-08-08T16:25:06.115651Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -172,7 +172,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:24:51.964442+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-775
+    target_state: Done
+    evidence_fingerprint: baa39e59d273adc116746e67650bef7f8d1e3eaf7ca8e9cdf3e548332fdddc1c
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:25:04.061163+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -253,5 +263,12 @@ author: oompah
 created: 2026-08-06 16:09
 ---
 Current fence re-evaluation: OOMPAH-796 is terminal, but its accepted head is not yet reachable from epic-OOMPAH-769; it remains isolated under the incomplete OOMPAH-770 rollup. Keep human-only until OOMPAH-770 lands into the shared parent and epic-OOMPAH-769/task OOMPAH-775 can be refreshed onto that canonical predecessor lineage. Removing the fence now would dispatch from the obsolete 6561d52e5 base and recreate the documented collision.
+---
+author: oompah
+created: 2026-08-08 16:25
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->
