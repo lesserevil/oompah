@@ -257,6 +257,34 @@ def test_committed_status_transition_retires_exact_claim_durably(tmp_path):
     assert claim.claim_id == "claim-before-terminal-commit"
 
 
+def test_status_transition_without_owner_claim_runtime_still_commits():
+    orch = Orchestrator.__new__(Orchestrator)
+    issue = _issue()
+    tracker = MagicMock()
+    outcome = _committed_outcome(issue, "Done")
+    transition_service = SimpleNamespace(
+        execute=AsyncMock(return_value=outcome),
+    )
+
+    with patch.object(
+        orch,
+        "_task_transition_service",
+        return_value=transition_service,
+    ):
+        committed = asyncio.run(
+            orch._transition_issue_status_async(
+                issue,
+                "Done",
+                project_id=issue.project_id,
+                tracker=tracker,
+                reason_code="test.no_owner_claim_runtime",
+            )
+        )
+
+    assert committed is outcome
+    transition_service.execute.assert_awaited_once()
+
+
 def test_committed_status_transition_preserves_aba_replacement_claim(tmp_path):
     orch, tracker, issue = _orchestrator(tmp_path)
     original = orch.grant_owner_claim(

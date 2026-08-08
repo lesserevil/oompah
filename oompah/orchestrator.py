@@ -10480,7 +10480,17 @@ class Orchestrator:
 
         effective_project_id = project_id or issue.project_id
         effective_tracker = tracker or self._tracker_for_issue(issue)
-        owner_claim = self._owner_claim_for_issue(issue.id, effective_project_id)
+        # Status-transition helpers are also used by deliberately minimal
+        # ``Orchestrator.__new__`` integrations that predate the direct-owner
+        # subsystem.  Such instances cannot own a direct-owner claim, so keep
+        # the post-commit retirement hook optional instead of making every
+        # otherwise independent lifecycle mutation depend on owner-claim
+        # runtime initialization.
+        owner_claim = (
+            self._owner_claim_for_issue(issue.id, effective_project_id)
+            if hasattr(self, "_owner_claims_lock")
+            else None
+        )
         intent = self._build_transition_intent(
             issue,
             requested_status,
