@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-769
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Make one transition service the only task-status writer
 parent: OOMPAH-763
@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-08T12:02:25.058474Z'
+updated_at: '2026-08-08T16:30:17.201426Z'
 work_branch: epic-OOMPAH-769
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -28,6 +28,31 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.target_branch: epic-OOMPAH-763
 oompah.work_branch: epic-OOMPAH-769
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-eb82ffaac667
+    project_id: proj-14849f1b
+    task_id: OOMPAH-769
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3999310191440c7f9b410904382dce4702afc8c2b0ee62bbc0909a9f77978698
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This nested epic scope is contained in the validated parent composition. It
+      is closed as Done until the parent review lands, after which Merged provenance
+      can be recorded without violating shared-epic landing constraints.
+    created_at: '2026-08-08T16:30:12.998770+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
