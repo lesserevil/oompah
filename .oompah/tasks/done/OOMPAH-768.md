@@ -27,7 +27,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-08T07:22:58.054663Z'
+updated_at: '2026-08-08T07:23:05.213839Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.terminal_audit:
     evidence_fingerprint: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
     audit_ids:
     - audit-d5cd537191ed
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-08-06T22:16:10.385502+00:00'
   oompah.terminal_audit_result_intents:
@@ -62,6 +62,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T22:16:10.385519+00:00'
     applied_at: '2026-08-06T22:16:22.576275+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-0b3a5234226d
@@ -80,7 +81,7 @@ oompah.terminal_audit:
       head 9a893835d7c4a522def2e39e929ac2be3f090822 passed the complete make test
       and required scans; all accepted OOMPAH-768 child implementations are patch-contained.'
     created_at: '2026-08-08T07:22:53.856595+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -222,5 +223,12 @@ author: oompah
 created: 2026-08-08 04:00
 ---
 Direct-owner continuation resumed after publishing and fully gating OOMPAH-763 at e74449e4f. OOMPAH-866 is the active prerequisite integration; in parallel the preserved OOMPAH-768 composition and accepted OOMPAH-874/875/876 heads are being audited for an exact ordered replay. The preserved dirty oracle remains read-only.
+---
+author: oompah
+created: 2026-08-08 07:23
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner completion after direct integration: exact published epic head 9a893835d7c4a522def2e39e929ac2be3f090822 passed the complete make test and required scans; all accepted OOMPAH-768 child implementations are patch-contained.
 ---
 <!-- COMMENTS:END -->

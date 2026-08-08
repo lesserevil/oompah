@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-08T07:04:32.895743Z'
+updated_at: '2026-08-08T07:23:10.666623Z'
 work_branch: OOMPAH-676
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/638
@@ -141,6 +141,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-e30fe34ea93a: '2026-08-01T06:09:09.326992+00:00'
     attempt-20888666cb7d: '2026-08-01T06:11:20.547814+00:00'
+    attempt-384b4f1dc20c: '2026-08-08T07:23:06.609706+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-676
@@ -160,6 +161,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T06:11:20.547835+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    target_state: Archived
+    evidence_fingerprint: cf3096119b1c0017e6ce9838ad6a0fb9eef4c4cb7ce43c6c2686d806bac5142f
+    audit_ids:
+    - audit-ca8f3fbd49b4
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T07:23:06.609725+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-676
@@ -185,6 +195,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T06:11:20.547858+00:00'
     applied_at: '2026-08-01T06:11:29.101312+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    audit_id: audit-ca8f3fbd49b4
+    attempt_id: attempt-384b4f1dc20c
+    target_state: Archived
+    evidence_fingerprint: cf3096119b1c0017e6ce9838ad6a0fb9eef4c4cb7ce43c6c2686d806bac5142f
+    status: Archived
+    audit_ids:
+    - audit-ca8f3fbd49b4
+    kind: result
+    applied: false
+    created_at: '2026-08-08T07:23:06.609748+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -260,7 +282,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-676
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -269,7 +291,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-384b4f1dc20c
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -281,6 +303,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-676
       selected_ref: f9f1463a06f1236fba60722393bab132b6018de2
       selected_sha: f9f1463a06f1236fba60722393bab132b6018de2
+      verdict: pass
+      completed_at: '2026-08-08T07:23:06.609391+00:00'
+      ended_at: '2026-08-08T07:23:06.609391+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -289,7 +314,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T07:04:09.571496+00:00'
     selected_ref: f9f1463a06f1236fba60722393bab132b6018de2
     selected_sha: f9f1463a06f1236fba60722393bab132b6018de2
-    updated_at: '2026-08-08T07:04:24.121426+00:00'
+    updated_at: '2026-08-08T07:23:06.609391+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e30fe34ea93a
