@@ -27,6 +27,13 @@ process-wide read-only; durable mutations begin only when all four domains are
 `enforce`. This coordinated final boundary prevents a durable writer from
 racing the legacy writer of another domain.
 
+After the durable runtime is installed, rollout modes never transfer ownership
+back to the legacy scheduler. `off` and `shadow` therefore pause lifecycle
+mutation while retaining read-only evaluation; they do not run watchdog,
+review, integration, or epic repair sweeps. This makes rollback to `shadow` a
+safe pause. Restoring the old scheduler requires rolling back the binary and
+its matched persisted-state backup.
+
 Terminal audit is not a fifth toggle. Its durable ledger and independent
 auditor gate are mandatory in every mode, so permitting an operator to turn it
 off during this rollout would weaken terminal-state safety.
@@ -114,7 +121,7 @@ Rollback boundaries:
 |---|---|---|
 | Any domain in `off`/`shadow` | Restore prior modes; `make graceful` | Jobs, transitions, and shadow samples |
 | Mixed map including `enforce` | Return affected domains to `shadow`; `make graceful` | No durable effects were enabled |
-| All domains `enforce` | Return all four to `shadow`; `make graceful` | Durable jobs remain fenced and restart-recoverable |
+| All domains `enforce` | Return all four to `shadow`; `make graceful` | Lifecycle effects pause; durable jobs remain fenced and restart-recoverable |
 | Newer workflow-job schema than the old binary supports | Restore the pre-upgrade SQLite backup with the old binary | Backup snapshot only |
 
 If startup rejects a future schema, do not delete or edit `schema_meta`. Use a

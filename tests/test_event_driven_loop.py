@@ -1820,6 +1820,49 @@ class TestGracefulRestartShutdownEvent:
         tracker.update_issue.assert_not_called()
         assert orch._load_state().get("restart_issues") == []
 
+    def test_durable_restart_migration_acks_detailed_superseding_state(
+        self, tmp_path, event_loop
+    ):
+        """A sparse stale row cannot preserve a superseded restart marker."""
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-detailed-superseded"
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [
+            Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Sparse interrupted implementation",
+                state="In Progress",
+            )
+        ]
+        tracker.fetch_issue_detail.return_value = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Superseded detailed implementation",
+            state="In Validation",
+            project_id="proj-test",
+        )
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(mode="shadow")
+        orch._schedule_implementation_workflow_event = MagicMock()
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": "proj-test",
+                }
+            ]
+        )
+
+        assert event_loop.run_until_complete(orch._recover_restart_issues()) is True
+
+        tracker.update_issue.assert_not_called()
+        orch._schedule_implementation_workflow_event.assert_not_called()
+        assert orch._load_state().get("restart_issues") == []
+
     def test_terminal_transition_wins_restart_recovery_lock_race(
         self, tmp_path, event_loop
     ):

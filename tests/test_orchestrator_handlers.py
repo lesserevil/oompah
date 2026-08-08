@@ -3576,14 +3576,11 @@ class TestRepoHealErrorReporting:
 class TestTickDelegation:
     """_tick() must call the five handlers in the correct order."""
 
-    def test_enforce_tick_refreshes_review_facts_before_durable_decisions(
+    def test_runtime_tick_uses_task_scoped_facts_before_durable_decisions(
         self, tmp_path
     ):
         orch = _make_orchestrator(tmp_path)
         call_order: list[str] = []
-
-        async def fake_review_check():
-            call_order.append("review_check")
 
         async def fake_audit_lane():
             call_order.append("terminal_audit")
@@ -3598,17 +3595,48 @@ class TestTickDelegation:
                 return {}
 
         orch.workflow_runtime = Runtime()
-        orch._handle_review_check = fake_review_check
         orch._dispatch_audit_lane = fake_audit_lane
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
         asyncio.run(orch._tick())
 
         assert call_order == [
-            "review_check",
             "terminal_audit",
             "durable_runtime",
         ]
+
+    def test_runtime_bound_startup_migrates_without_legacy_owners(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        runtime = SimpleNamespace(
+            start=AsyncMock(),
+            pending_operation_count=0,
+        )
+        orch.workflow_runtime = runtime
+        orch._run_terminal_audit_enforcement = MagicMock()
+        orch.startup_cleanup = AsyncMock()
+        orch._recover_restart_issues = AsyncMock(return_value=True)
+        orch._restore_persisted_retries = AsyncMock()
+        orch._reconcile_owner_duplicate_resolution_boundaries = MagicMock()
+        orch._ensure_integration_audit_lane = MagicMock()
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch._reconcile_pending_recovery_publications = MagicMock()
+
+        async def stop_after_initial_tick():
+            orch._stopping = True
+
+        orch._tick = stop_after_initial_tick
+
+        asyncio.run(orch.run())
+
+        runtime.start.assert_awaited_once_with()
+        orch._recover_restart_issues.assert_awaited_once_with()
+        orch._restore_persisted_retries.assert_awaited_once_with()
+        orch._reconcile_owner_duplicate_resolution_boundaries.assert_not_called()
+        orch._ensure_integration_audit_lane.assert_not_called()
+        orch._schedule_terminal_lifecycle_reconciliation.assert_not_called()
+        orch._reconcile_pending_recovery_publications.assert_not_called()
 
     def test_tick_calls_all_handlers(self, tmp_path):
         """_tick() calls all five targeted handlers."""

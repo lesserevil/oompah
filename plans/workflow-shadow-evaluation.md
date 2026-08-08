@@ -20,11 +20,12 @@ flowchart LR
     S --> A[Authenticated task diagnostic API]
 ```
 
-The sweep runs after legacy reconciliation and watchdog work, coalesces while a
-previous sweep is active, sorts project/task identities deterministically, and
-evaluates at most `OOMPAH_WORKFLOW_SHADOW_SCAN_LIMIT` non-terminal tasks per
-pass. It never calls tracker mutation methods. A sweep failure is isolated to
-the affected task and logged at debug level; it does not stop dispatch.
+The durable runtime owns the sweep after installation, coalesces wakeups, sorts
+project/task identities deterministically, and evaluates at most
+`OOMPAH_WORKFLOW_SHADOW_SCAN_LIMIT` non-terminal tasks per pass. It never calls
+tracker mutation methods in `off` or `shadow`, and those modes do not fall back
+to legacy reconciliation or watchdog work. A sweep failure is isolated to the
+affected task and logged at debug level.
 
 Every task diagnostic records the exact facts and decision revisions, snapshot
 generation, legacy projections, and field-level mismatches. Repeated instances

@@ -1007,9 +1007,14 @@ class WorkflowRuntime:
 
     @property
     def legacy_lifecycle_writers_enabled(self) -> bool:
-        """Whether legacy lifecycle writers may run in this process."""
+        """Deprecated compatibility projection; legacy writers stay retired.
 
-        return not self.enforce
+        Rollout modes control durable evaluation and effects.  They no longer
+        transfer authority back to process-local reconcilers, so this value is
+        false in ``off`` and ``shadow`` as well as ``enforce``.
+        """
+
+        return False
 
     @property
     def started(self) -> bool:

@@ -25,8 +25,9 @@ stateDiagram-v2
 `ServiceConfig.workflow_domain_modes` is a total map over implementation,
 review, integration, and epic. `workflow_engine_mode` is now an aggregate
 compatibility projection: all off becomes `off`, all enforce becomes
-`enforce`, and every mixed map becomes `shadow`. Production code continues to
-use the aggregate only at the single legacy/durable ownership boundary.
+`enforce`, and every mixed map becomes `shadow`. Runtime installation is the
+one-way production ownership boundary. The aggregate controls durable
+evaluation/effects but cannot reactivate a legacy writer.
 
 The old `OOMPAH_WORKFLOW_ENGINE_MODE` input fills all four entries only when no
 domain-specific input is present. It is not part of the supported final
@@ -52,6 +53,10 @@ Legacy job-spec migrations use the recorded schema version as well as column
 presence. SQLite may persist an `ALTER TABLE` before a process dies. On the
 next start the old version marker forces the idempotent payload and scheduling
 lane rewrites even though those columns now exist.
+
+These are persisted-data migrations, not legacy execution paths. They may
+translate or release prior authority but cannot make a fresh lifecycle
+decision.
 
 ## Runtime publication
 

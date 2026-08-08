@@ -10085,10 +10085,11 @@ class Orchestrator:
         # wake.  Consumers can therefore continue to treat the first callback
         # as the authoritative refresh edge.
         self._post_dispatch_refresh()
-        # Shared-epic submissions are durable, but their delivery claim cannot
-        # be held behind a currently slow dispatch/audit tick.  The dedicated
-        # lane coalesces this with an active pass rather than double-claiming.
-        self._wake_integration_lane(recheck_active=True)
+        # Runtime-bound delivery is woken by the durable scheduler event above.
+        # The old dedicated integration future exists only for directly
+        # constructed, runtime-unbound compatibility fixtures.
+        if self.workflow_runtime is None:
+            self._wake_integration_lane(recheck_active=True)
 
     def _post_dispatch_refresh(self) -> None:
         """Wake the ordinary dispatch loop without rearming integration."""
@@ -10741,10 +10742,7 @@ class Orchestrator:
                             current_status,
                         )
                         processed = True
-                    elif (
-                        self.workflow_runtime is not None
-                        and self.workflow_runtime.enforce is True
-                    ):
+                    elif self.workflow_runtime is not None:
                         detailed = await asyncio.to_thread(
                             tracker.fetch_issue_detail,
                             str(getattr(current, "identifier", None) or identifier),
@@ -10778,7 +10776,8 @@ class Orchestrator:
                                 identifier,
                                 detailed_status,
                             )
-                            resolved_restart_keys.add((str(issue_id), project_id))
+                            if not self._ack_restart_issue(entry):
+                                return False
                             continue
                         current = detailed
                         event_project_id = str(
@@ -11687,6 +11686,22 @@ class Orchestrator:
         self._maybe_sync_github_issue_intake()
         self._maybe_run_stalled_task_watchdog()
 
+    def _run_non_lifecycle_housekeeping(self) -> None:
+        """Run maintenance that cannot decide or mutate task lifecycle.
+
+        This is the only background maintenance bundle scheduled by a
+        runtime-bound production tick.  Lifecycle repair, review delivery,
+        integration, epic rollup, auto-archive, and watchdog remediation are
+        intentionally absent: their durable domain controllers own those
+        decisions.  External issue intake remains event-driven elsewhere and
+        is not coupled to scheduler progress.
+        """
+
+        self._maybe_heal_repos()
+        self._maybe_cleanup_worktrees()
+        self._maybe_cleanup_storage()
+        self._update_repo_hygiene_health()
+
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
 
@@ -11790,9 +11805,10 @@ class Orchestrator:
         the loop contract).
         """
         self._dispatch_loop = asyncio.get_running_loop()
-        if self.workflow_runtime is not None:
+        runtime_bound = self.workflow_runtime is not None
+        if runtime_bound:
             await self.workflow_runtime.start()
-        if self.config.parallel_epic_children_enabled:
+        if not runtime_bound and self.config.parallel_epic_children_enabled:
             # Queue reconciliation makes tracker and git calls which can take
             # minutes.  Give it an executor distinct from tick dispatch and
             # terminal-audit work; quality-gate capacity remains governed by
@@ -11809,48 +11825,53 @@ class Orchestrator:
         await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._run_terminal_audit_enforcement
         )
-        # Complete an owner duplicate-screening decision if the previous
-        # process stopped after persisting the verdict but before its matching
-        # Open/Duplicate Candidate status write.
-        await asyncio.get_running_loop().run_in_executor(
-            self._tick_pool,
-            self._reconcile_owner_duplicate_resolution_boundaries,
-        )
-        self._ensure_integration_audit_lane()
-        # Legacy shared-epic lifecycle repairs are deliberately fire-and-forget
-        # from startup.  The service can accept health/state/resume traffic
-        # while the durable worker drains its bounded queue.
-        self._schedule_terminal_lifecycle_reconciliation(discover_new=True)
-        await self.startup_cleanup()
-        # Rebuild retry authority from source-local Git refs before generic
-        # restart recovery can classify an ownerless In Progress task as
-        # stalled.  Publication/tracker failures remain indexed for later
-        # scheduler ticks.
-        await asyncio.get_running_loop().run_in_executor(
-            self._tick_pool,
-            lambda: self._reconcile_pending_recovery_publications(discover=True),
-        )
-        restart_recovered = await self._recover_restart_issues()
-        restart_recovery_pending = restart_recovered is False
-        if restart_recovery_pending:
-            # A tracker outage leaves its exact restart rows durable. Keep the
-            # initial scheduler tick behind a lifecycle fence and publish a
-            # long-lived retry owner before normal dispatch can begin.
-            with self._provider_admission_lock:
-                self._quiesced = True
-                self._provider_admission_generation += 1
-        await self._restore_persisted_retries()
-        if self.config.workflow_engine_mode == "enforce":
-            recovered = await asyncio.get_running_loop().run_in_executor(
+        # A directly constructed, runtime-unbound fixture retains the former
+        # startup harness for granular adapter compatibility.  Production
+        # runtime startup recovers durable leases and migrations itself and
+        # must never arm these process-local lifecycle owners.
+        if not runtime_bound:
+            await asyncio.get_running_loop().run_in_executor(
                 self._tick_pool,
-                self.workflow_controller.recover_startup,
+                self._reconcile_owner_duplicate_resolution_boundaries,
             )
-            logger.info(
-                "Universal workflow controller startup recovery: %s",
-                recovered,
+            self._ensure_integration_audit_lane()
+            self._schedule_terminal_lifecycle_reconciliation(discover_new=True)
+        await self.startup_cleanup()
+        if not runtime_bound:
+            # Legacy recovery remains reachable only for unbound fixtures.
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                lambda: self._reconcile_pending_recovery_publications(discover=True),
             )
-        if restart_recovery_pending:
-            self._schedule_restart_issue_recovery_for_resume()
+            restart_recovered = await self._recover_restart_issues()
+            restart_recovery_pending = restart_recovered is False
+            if restart_recovery_pending:
+                with self._provider_admission_lock:
+                    self._quiesced = True
+                    self._provider_admission_generation += 1
+            await self._restore_persisted_retries()
+            if self.config.workflow_engine_mode == "enforce":
+                recovered = await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    self.workflow_controller.recover_startup,
+                )
+                logger.info(
+                    "Universal workflow controller startup recovery: %s",
+                    recovered,
+                )
+            if restart_recovery_pending:
+                self._schedule_restart_issue_recovery_for_resume()
+        else:
+            # Convert persisted process-local authority into durable jobs
+            # before the first runtime reconciliation.  Conversion is valid
+            # in off/shadow (the jobs remain unexecuted) and failure aborts
+            # startup with the original rows still durable; no timer or direct
+            # status repair is armed as a fallback.
+            if not await self._recover_restart_issues():
+                raise RuntimeError(
+                    "durable restart-issue conversion is incomplete"
+                )
+            await self._restore_persisted_retries()
         logger.info(
             "Orchestrator starting event-driven loop "
             "full_sync_interval_ms=%d (safety-net poll_interval_ms=%d kept for compat)",
@@ -13840,8 +13861,74 @@ class Orchestrator:
             "publication_rejection": publication.rejection,
         }
 
+    async def _run_durable_workflow_tick(self, *, started_at: float) -> None:
+        """Run the sole production lifecycle path.
+
+        Durable domain controllers own every lifecycle decision whenever the
+        runtime is installed.  ``off`` and ``shadow`` are read-only pause and
+        qualification modes; neither may fall through to the retired legacy
+        reconcilers.  Terminal audit retains its separately leased authority,
+        and the only background future armed here is non-lifecycle
+        housekeeping.
+        """
+
+        runtime = self.workflow_runtime
+        if runtime is None:  # pragma: no cover - guarded by the caller
+            raise RuntimeError("durable workflow runtime is not installed")
+
+        errors = validate_dispatch_config(self.config)
+        if errors:
+            logger.error("Dispatch validation failed: %s", "; ".join(errors))
+            self._notify_observers()
+            return
+
+        terminal_audit_interval = max(
+            1.0, self.config.full_sync_interval_ms / 1000.0
+        )
+        if (
+            self._terminal_audit_started
+            and self._monotonic_clock() - self._terminal_audit_last_scan
+            >= terminal_audit_interval
+        ):
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self._run_terminal_audit_enforcement
+            )
+
+        if not runtime.started:
+            await runtime.start()
+        audit_metrics = await self._dispatch_audit_lane()
+        report = await runtime.reconcile_async()
+
+        if self._maintenance_future is None or self._maintenance_future.done():
+            self._maintenance_future = asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self._run_non_lifecycle_housekeeping
+            )
+
+        total_ms = (self._monotonic_clock() - started_at) * 1000
+        self._last_tick_metrics = {
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "durable_runtime": True,
+            "workflow_runtime": report,
+            "terminal_audit": audit_metrics,
+            "housekeeping_pending": bool(
+                self._maintenance_future is not None
+                and not self._maintenance_future.done()
+            ),
+            "total_ms": round(total_ms, 3),
+        }
+        self._last_tick_timings = dict(self._last_tick_metrics)
+        self._notify_observers()
+        await self._handle_auto_update()
+
     async def _tick(self) -> None:
-        """One poll-and-dispatch cycle.
+        """Run one durable production tick or an unbound fixture tick.
+
+        Service bootstrap always installs :attr:`workflow_runtime`.  Direct
+        unit fixtures constructed without bootstrap retain the old handler
+        harness below so granular effect-adapter tests do not need to build a
+        complete production runtime.  Installing a runtime is a one-way
+        ownership boundary: every mode returns through
+        :meth:`_run_durable_workflow_tick` before any legacy writer is reached.
 
         Delegates to targeted handlers in lane order:
 
@@ -13890,9 +13977,15 @@ class Orchestrator:
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
 
+        # Runtime installation is the production ownership boundary, not the
+        # current rollout mode.  In particular, shadow/off must never revive
+        # direct status writers or process-local watchdog remediation.
+        if self.workflow_runtime is not None:
+            await self._run_durable_workflow_tick(started_at=t0)
+            return
+
         # Shared-epic claims and historical integrated-row audit replay have
-        # independent, coalescing owners. Start them before an enforce-mode
-        # tick can return through the durable workflow runtime.
+        # independent, coalescing owners in unbound compatibility fixtures.
         self._ensure_integration_lane()
         self._ensure_integration_audit_lane()
 
@@ -13904,43 +13997,6 @@ class Orchestrator:
                 self._tick_pool,
                 self._reconcile_pending_recovery_publications,
             )
-
-        # Enforce mode has one owner per durable domain. TerminalAuditWorkflow
-        # retains audit launch/finalization ownership; the generic worker must
-        # never claim those rows. All other domains run through the shared
-        # runtime before we return ahead of legacy lifecycle writers.
-        if (
-            self.workflow_runtime is not None
-            and self.workflow_runtime.enforce is True
-        ):
-            if not self.workflow_runtime.started:
-                await self.workflow_runtime.start()
-            # Review decisions must be based on a fresh provider snapshot.
-            # This is a read-only fact refresh; effect ownership remains with
-            # the durable review handlers below.
-            await self._handle_review_check()
-            audit_metrics = await self._dispatch_audit_lane()
-            report = await self.workflow_runtime.reconcile_async()
-            self._last_tick_metrics = {
-                "finished_at": datetime.now(timezone.utc).isoformat(),
-                "durable_runtime": True,
-                "workflow_runtime": report,
-                "terminal_audit": audit_metrics,
-                "total_ms": (self._monotonic_clock() - t0) * 1000,
-            }
-            self._last_tick_timings = dict(self._last_tick_metrics)
-            self._notify_observers()
-            return
-
-        # Shadow mode materializes the same durable decisions and projections
-        # while leaving every legacy writer active.  The existing shadow
-        # evaluator below compares those facts with legacy UI/dispatcher
-        # projections; this branch makes the durable side visible before
-        # enforce cutover without allowing the worker to perform effects.
-        if self.workflow_runtime is not None and self.workflow_runtime.mode == "shadow":
-            if not self.workflow_runtime.started:
-                await self.workflow_runtime.start()
-            await self.workflow_runtime.reconcile_async()
 
         # Arm standalone delivery before the dispatch and maintenance lanes.
         # A full task scan or a long maintenance operation must not defer the
@@ -28672,16 +28728,16 @@ class Orchestrator:
         expected_head_sha: str | None = None,
         priority: int = 100,
     ) -> Any | None:
-        """Publish one exact implementation event when enforce owns writes.
+        """Publish one exact implementation event to the installed runtime.
 
-        Returning ``None`` is the compatibility signal for off/shadow mode;
-        those modes retain the legacy lifecycle paths until cutover.
+        Off/shadow runtimes persist the job without executing its effect. They
+        never transfer the event to a legacy timer or direct status writer.
         """
 
         runtime = self.workflow_runtime
         project = str(project_id or "").strip()
         task = str(identifier or "").strip()
-        if runtime is None or runtime.enforce is not True or not project or not task:
+        if runtime is None or not project or not task:
             return None
         binding = runtime.project_bindings.get(project)
         controller = (
@@ -28777,7 +28833,6 @@ class Orchestrator:
 
         if (
             self.workflow_runtime is None
-            or self.workflow_runtime.enforce is not True
             or entry.is_auditor
         ):
             return False
@@ -28826,7 +28881,7 @@ class Orchestrator:
         """Publish one exact rebase request when the durable runtime owns epics."""
 
         runtime = self.workflow_runtime
-        if runtime is None or not runtime.enforce:
+        if runtime is None:
             return False
         self.event_bus.emit(
             "epic_rebase_requested",
@@ -56415,10 +56470,7 @@ class Orchestrator:
         # the already-fenced dispatch scope after rejecting any explicit
         # conflicting identity.
         current_issue.project_id = project_id
-        durable_implementation = bool(
-            self.workflow_runtime is not None
-            and self.workflow_runtime.enforce is True
-        )
+        durable_implementation = self.workflow_runtime is not None
 
         def schedule_durable_status(status: str, reason: str) -> None:
             head = issue_exact_head(current_issue) or record.head_sha
@@ -57280,10 +57332,7 @@ class Orchestrator:
     ) -> None:
         issue_id = entry.issue.id
         try:
-            durable = bool(
-                self.workflow_runtime is not None
-                and self.workflow_runtime.enforce is True
-            )
+            durable = self.workflow_runtime is not None
             result = await asyncio.get_event_loop().run_in_executor(
                 self._tick_pool,
                 lambda: self._finish_duplicate_preflight_sync(
@@ -58020,10 +58069,7 @@ class Orchestrator:
                 raise asyncio.CancelledError
             return
 
-        if (
-            self.workflow_runtime is not None
-            and self.workflow_runtime.enforce is True
-        ):
+        if self.workflow_runtime is not None:
             # The provider/process cleanup above has retired the exact run.
             # Publish its one successor disposition instead of entering the
             # legacy status/retry/timer state machine.  Submission and focus
@@ -60315,10 +60361,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self._persisted_retry_entries = []
         if not entries:
             return
-        if (
-            self.workflow_runtime is not None
-            and self.workflow_runtime.enforce is True
-        ):
+        if self.workflow_runtime is not None:
             # Convert every still-current legacy row into the durable ledger
             # before clearing it.  A transient tracker/ledger failure is not
             # evidence that the retry is obsolete: retain the exact row and
@@ -61158,7 +61201,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             or getattr(context_retry, "project_id", None)
             or ""
         ).strip()
-        if runtime is not None and runtime.enforce is True and retry_project:
+        if runtime is not None and retry_project:
             source_issue = authority_issue or getattr(context_entry, "issue", None)
             head = (
                 issue_exact_head(source_issue) if source_issue is not None else None
@@ -61688,14 +61731,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         )
                 return
 
-            if (
-                self.workflow_runtime is not None
-                and self.workflow_runtime.enforce is True
-            ):
-                # A mode cutover can race a legacy timer that was armed while
-                # legacy ownership was still active. Convert that exact
-                # generation into the durable retry lane; never let the stale
-                # callback launch a second implementation worker directly.
+            if self.workflow_runtime is not None:
+                # Runtime installation can race a timer armed by the previous
+                # binary. Convert that exact generation into the durable retry
+                # lane; never let the stale callback launch a second worker.
                 with self._retry_authority_lock:
                     if self.state.retry_attempts.get(issue_id) is retry:
                         self.state.retry_attempts.pop(issue_id, None)
@@ -61705,7 +61744,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     retry.attempt,
                     retry.identifier,
                     0,
-                    retry.error or "legacy retry timer crossed enforce cutover",
+                    retry.error or "legacy retry timer crossed runtime retirement",
                     escalated_profile=retry.escalated_profile,
                     project_id=issue.project_id or retry.project_id,
                     context_retry=retry,
@@ -62817,10 +62856,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if (
                 getattr(entry, "handoff_pending", False)
                 and not getattr(entry, "handoff_finalized", False)
-                and not (
-                    self.workflow_runtime is not None
-                    and self.workflow_runtime.enforce is True
-                )
+                and self.workflow_runtime is None
             ):
                 try:
                     project_id = entry.issue.project_id if entry.issue else None

@@ -369,7 +369,8 @@ def test_shadow_runtime_compares_decisions_without_durable_mutation(tmp_path):
 
     assert report["mode"] == "shadow"
     assert report["projects"]["project-1"]["issues"] == 1
-    assert runtime.legacy_lifecycle_writers_enabled is True
+    assert runtime.legacy_lifecycle_writers_enabled is False
+    assert runtime.health_snapshot()["legacy_lifecycle_writers_enabled"] is False
     assert runtime.health_snapshot()["worker"]["handlers_configured"] is False
     assert store.list_jobs() == ()
     assert runtime.projections()[0]["task_id"] == "TASK-3"
