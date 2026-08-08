@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T14:11:47.740099Z'
-updated_at: '2026-08-08T14:14:01.652920Z'
+updated_at: '2026-08-08T14:14:23.454092Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,15 @@ The operation in `backend:workflow_runtime` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 14:14
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:workflow_runtime`
+
+Message: Durable workflow reconcile failed for proj-14849f1b
+---
+<!-- COMMENTS:END -->
