@@ -127,16 +127,16 @@ class _MemoryTracker:
         if key == "oompah.integration" and isinstance(value, dict):
             self.issue.integration = IntegrationRecord.from_dict(value)
             return
-        projected_fields = {
-            "oompah.review_url": "review_url",
-            "oompah.review_number": "review_number",
-            "oompah.work_branch": "work_branch",
-            "oompah.target_branch": "target_branch",
-            "oompah.review_head": "review_head",
-        }
-        attribute = projected_fields.get(key)
-        if attribute is not None:
-            setattr(self.issue, attribute, copy.deepcopy(value))
+        if key == "oompah.review_url":
+            self.issue.review_url = copy.deepcopy(value)
+        elif key == "oompah.review_number":
+            self.issue.review_number = copy.deepcopy(value)
+        elif key == "oompah.work_branch":
+            self.issue.work_branch = copy.deepcopy(value)
+        elif key == "oompah.target_branch":
+            self.issue.target_branch = copy.deepcopy(value)
+        elif key == "oompah.review_head":
+            self.issue.review_head = copy.deepcopy(value)
 
     def update_issue(self, identifier: str, **kwargs: Any) -> None:
         assert identifier == self.issue.identifier
@@ -1297,6 +1297,14 @@ def test_exact_durable_review_slot_is_not_reported_as_capacity_wait(harness):
     tracker.fetch_issues_by_states.return_value = [task]
     provider.find_pr_for_branch.return_value = None
     provider.list_open_reviews.return_value = []
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or task.identifier,
+        "abc123",
+        lambda: "abc123",
+    )
     orch.review_capacity_store.adopt(
         project_id=project.id,
         task_id=task.identifier,
@@ -1304,6 +1312,8 @@ def test_exact_durable_review_slot_is_not_reported_as_capacity_wait(harness):
         target_branch=project.default_branch,
         review_id="exact-601",
         reservation_id="reservation-exact-601",
+        authority_generation=authority.generation,
+        head_sha=authority.head_sha,
     )
 
     orch._reconcile_standalone_ready_to_integrate_tasks()

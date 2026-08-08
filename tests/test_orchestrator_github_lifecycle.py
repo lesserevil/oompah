@@ -158,8 +158,23 @@ def _make_tracker(issues: list[Issue] | None = None) -> MagicMock:
     t.fetch_issues_by_states.return_value = [
         i for i in _issues if "progress" in i.state.lower()
     ]
-    t.fetch_issue_detail.return_value = None
     t.fetch_issue_states_by_ids.return_value = []
+
+    def _fetch_issue_detail(identifier: str) -> Issue | None:
+        refreshed = t.fetch_issue_states_by_ids.return_value
+        candidates = [*_issues]
+        if isinstance(refreshed, list):
+            candidates.extend(refreshed)
+        return next(
+            (
+                issue
+                for issue in candidates
+                if issue.identifier == identifier or issue.id == identifier
+            ),
+            None,
+        )
+
+    t.fetch_issue_detail.side_effect = _fetch_issue_detail
     t.update_issue = MagicMock()
     t.close_issue = MagicMock()
     t.reopen_issue = MagicMock()
@@ -789,6 +804,7 @@ class TestCloseReopenGitHub:
         issue = _github_issue("GH_30", "acme/tasks#30", "30")
         # fetch_issue_detail returns None → the agent closed the issue
         tracker = _make_tracker([issue])
+        tracker.fetch_issue_detail.side_effect = None
         tracker.fetch_issue_detail.return_value = None
 
         proj = _make_project("proj-gh")
@@ -886,6 +902,7 @@ class TestWorkerExitRetryGitHub:
         issue = _github_issue("GH_41", "acme/tasks#41", "41")
         tracker = _make_tracker()
         open_issue = _github_issue("GH_41", "acme/tasks#41", "41", state="open")
+        tracker.fetch_issue_detail.side_effect = None
         tracker.fetch_issue_detail.return_value = open_issue
         tracker.mark_needs_human = MagicMock()
 

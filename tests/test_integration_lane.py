@@ -7,6 +7,7 @@ from unittest import mock
 
 from oompah.config import ServiceConfig
 from oompah.orchestrator import DispatchEvent, DispatchEventType, Orchestrator
+from tests.tick_test_support import tick_dispatch_mock
 
 
 def _make_orchestrator(tmp_path) -> Orchestrator:
@@ -58,7 +59,7 @@ def test_refresh_claim_runs_before_slow_dispatch_lane_finishes(tmp_path) -> None
     orchestrator._process_integration_queues = process_integration
     orchestrator._handle_reconcile = mock.AsyncMock()
     orchestrator._handle_review_check = mock.AsyncMock()
-    orchestrator._handle_dispatch_needed = slow_dispatch
+    orchestrator._handle_dispatch_needed = tick_dispatch_mock(on_call=slow_dispatch)
     orchestrator._handle_yolo_review = mock.AsyncMock(return_value=0.0)
     orchestrator._handle_auto_update = mock.AsyncMock()
     orchestrator._notify_observers = mock.MagicMock()

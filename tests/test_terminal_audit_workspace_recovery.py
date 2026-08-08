@@ -76,6 +76,8 @@ def _orchestrator() -> Orchestrator:
     orchestrator._audit_rollback_persistence_failed = False
     orchestrator._audit_rollback_lock = threading.RLock()
     orchestrator._pending_audit_rollbacks = {}
+    orchestrator.terminal_audit_workflow = MagicMock()
+    orchestrator.terminal_audit_workflow.finalizing_jobs.return_value = []
     orchestrator.terminal_transition_coordinator = SimpleNamespace(
         apply_audit_result=AsyncMock(
             return_value=SimpleNamespace(success=True, applied_status="Needs Human")
@@ -365,6 +367,10 @@ def _metadata_archive_orchestrator(*, comments: list[dict], active_claim: bool =
     orchestrator._has_live_owner_claim = MagicMock(return_value=active_claim)
     orchestrator.state = SimpleNamespace(claimed=set(), retry_attempts={})
     orchestrator._retry_dispatching = {}
+    orchestrator._audit_reservation_key_for_issue = MagicMock(
+        return_value="metadata-audit-reservation-key"
+    )
+    orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
     orchestrator.config = SimpleNamespace(
         tracker_terminal_states=["Done", "Merged", "Archived"]
     )

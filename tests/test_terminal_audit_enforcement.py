@@ -1895,6 +1895,7 @@ def test_lifecycle_actual_orchestrator_propagates_scm_outage_without_status_writ
 
     project_store = ProjectStore()
     orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.config = ServiceConfig()
     orchestrator.project_store = project_store
     orchestrator.workflow_job_store = SimpleNamespace()
     orchestrator._alerts = []
@@ -2061,6 +2062,7 @@ def test_lifecycle_v1_live_shaped_46_row_migration_converges_44_plus_2(
     )
     project_store = ProjectStore()
     orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.config = ServiceConfig()
     orchestrator.project_store = project_store
     orchestrator.workflow_job_store = SimpleNamespace()
     orchestrator._alerts = []

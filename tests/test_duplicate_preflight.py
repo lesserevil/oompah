@@ -607,7 +607,6 @@ async def test_project_pause_wins_at_final_dispatch_boundary():
     issue = _issue()
     tracker = _Tracker([issue])
     orch = _orch(tracker)
-    orch._dispatch_is_blocked = lambda: False
     orch._is_project_paused = lambda project_id: project_id == "project-1"
 
     await orch._dispatch(
@@ -628,7 +627,6 @@ async def test_project_pause_race_wins_after_dispatch_state_refresh():
     orch = _orch(tracker, slots=2, preflight_limit=1)
     orch._paused = False
     orch._tick_pool = ThreadPoolExecutor(max_workers=2)
-    orch._dispatch_is_blocked = lambda: False
     paused = False
     orch._is_project_paused = lambda _project_id: paused
     real_fetch = tracker.fetch_issue_states_by_ids

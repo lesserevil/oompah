@@ -1204,6 +1204,10 @@ def test_regular_worker_task_creation_failure_restores_tracker_state(tmp_path):
         tracker_state = {"state": "Open"}
         metadata = {"oompah.agent_run_id": "prior-run"}
         tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue,
+            state=tracker_state["state"],
+        )
         tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
             replace(issue, state=tracker_state["state"])
         ]
@@ -1247,6 +1251,10 @@ def test_regular_status_commit_with_lost_response_gets_free_recovery_owner(tmp_p
         )
         tracker_state = {"state": "Open"}
         tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue,
+            state=tracker_state["state"],
+        )
         tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
             replace(issue, state=tracker_state["state"])
         ]
@@ -1291,6 +1299,10 @@ def test_regular_rollback_failure_persists_restart_recovery_owner(tmp_path):
         )
         tracker_state = {"state": "Open"}
         tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue,
+            state=tracker_state["state"],
+        )
         tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
             replace(issue, state=tracker_state["state"])
         ]
@@ -1377,6 +1389,10 @@ def test_regular_recovery_survives_primary_journal_failure_and_restart(tmp_path)
         )
         tracker_state = {"state": "Open"}
         tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue,
+            state=tracker_state["state"],
+        )
         tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
             replace(issue, state=tracker_state["state"])
         ]
@@ -1905,6 +1921,10 @@ def test_nested_dispatch_cancellation_waits_for_admission_compensation(tmp_path)
         )
         tracker_state = {"state": "Open"}
         tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue,
+            state=tracker_state["state"],
+        )
         tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
             replace(issue, state=tracker_state["state"])
         ]
@@ -1965,6 +1985,11 @@ def test_retry_worker_task_creation_failure_restores_exact_retry_owner(tmp_path)
         tracker_state = {"state": "Open"}
         metadata = {"oompah.agent_run_id": issue.assignment_id}
         tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue,
+            state=tracker_state["state"],
+            assignment_id=metadata["oompah.agent_run_id"],
+        )
         tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
             replace(
                 issue,
@@ -2235,8 +2260,12 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
             nonlocal detail_fetch_count
             detail_fetch_count += 1
             if detail_fetch_count == 1:
+                # Ordinary dispatch now proves scheduler authority from a
+                # fresh detail record before writing In Progress.
+                return replace(issue, state=tracker_state["state"])
+            if detail_fetch_count == 2:
                 preliminary_detail_fetch.set()
-            elif detail_fetch_count == 2:
+            elif detail_fetch_count == 3:
                 # This read is inside _submission_authority_lock(). Dispatch
                 # can release that lock only after publishing its worker.
                 assert issue.id in orch.state.running
@@ -2288,8 +2317,8 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
             assert await asyncio.wait_for(
                 asyncio.to_thread(preliminary_detail_fetch.wait), timeout=3
             )
-            assert detail_fetch_count == 1
-            tracker.fetch_issue_detail.assert_called_once_with(issue.identifier)
+            assert detail_fetch_count == 2
+            assert tracker.fetch_issue_detail.call_count == 2
             assert not submission.done()
 
             release_final_fetch.set()
@@ -2302,8 +2331,8 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
                 asyncio.to_thread(fresh_detail_fetch.wait), timeout=3
             )
             entry = orch.state.running[issue.id]
-            assert detail_fetch_count == 2
-            assert tracker.fetch_issue_detail.call_count == 2
+            assert detail_fetch_count == 3
+            assert tracker.fetch_issue_detail.call_count == 3
             orch.bind_accepted_submission_record.assert_not_called()
 
             release_fresh_detail_fetch.set()
