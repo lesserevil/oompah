@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-886
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Add atomic idempotent create-once tracker operations
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-08T12:04:18.662683Z'
+updated_at: '2026-08-08T16:26:20.450358Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
@@ -95,6 +95,30 @@ oompah.task_costs:
     output_tokens: 1670
     cost_usd: 0.0
     recorded_at: '2026-08-07T18:19:28.754291+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-89f2e51c20b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-886
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f72314b3af80d7c3e0719c18c66bffa8cb7e03e17505234139a8cb4bbd569f09
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:26:16.566126+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:22.190077Z'
-updated_at: '2026-08-08T16:26:05.235057Z'
+updated_at: '2026-08-08T16:26:14.497371Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:25:59.422878+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-915
+    target_state: Done
+    evidence_fingerprint: 50390231d65df26641185d46b1e92eb71d6c9d1744cecd0ed52db95990fd4350
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:26:12.294769+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -59,5 +69,12 @@ author: oompah
 created: 2026-08-08 14:37
 ---
 Direct owner implementation completed locally on the systemic composition branch. Async API status transitions no longer hold a request-thread project RLock across worker-thread tracker I/O; mixed metadata writes use a bounded writer-thread lock and revalidation. Focused runtime/status/server suites pass. Status remains Backlog until the expired-transition recovery fix is deployed.
+---
+author: oompah
+created: 2026-08-08 16:26
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->
