@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: Merged
+status: In Validation
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T03:06:13.190675Z'
+updated_at: '2026-08-08T04:02:41.170986Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -226,6 +226,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T02:57:36.451604+00:00'
     updated_at: '2026-08-01T03:05:54.172703+00:00'
+  - version: 1
+    audit_id: audit-0c6ee28b5616
+    project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ecade12e37bf4133c83b95a68ac58577dbb8c6a0497a156ba1fe10c91b75f8a4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T04:02:36.666764+00:00'
+    selected_ref: b792568ef85d4b46a2e5607305a3dc3549a95860
+    selected_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
   attempt_history:
   - version: 1
     attempt_id: attempt-33ffa8237c83

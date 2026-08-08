@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T03:55:37.805079Z'
+updated_at: '2026-08-08T04:02:43.722499Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -284,5 +284,60 @@ Beginning security audit of OOMPAH-843 implementation for per-target deadlines a
 5. Validation-resource lease interaction - does deadline validation respect queuing delays?
 
 **Next Steps**: Review auditor.py, api_agent.py, and acp_backends for runtime enforcement and attack surface.
+---
+author: oompah
+created: 2026-08-08 04:02
+---
+**Security Audit Complete - PASS**
+
+Reviewed implementation of per-target auditor validation deadlines with focus on security implications.
+
+**ATTACK SURFACE ANALYSIS:**
+1. Shell Injection Prevention ✅
+   - Make targets properly escaped via re.escape() before regex use
+   - Token validation enforces exact 'make' command + 1 target (case-sensitive)
+   - No argument injection possible after target name
+   - Tests: test_focused_make_target_must_be_explicit_and_exact (4 variants pass)
+
+2. Path Escape Protection ✅
+   - _AUDITOR_PATH_ESCAPE_RE catches absolute paths, parent traversal (..), home dirs
+   - Newline filtering prevents command separators
+   - shlex tokenization properly handles punctuation characters
+   - Tests: test_read_only_fallback_validation_fails_closed_and_consumes_fatal_budget (8 path variants)
+
+3. Credential File Access ✅  
+   - _AUDITOR_SECRET_PATH_RE explicitly blocks .env, .git/config, SSH keys, certificates
+   - All path checks run BEFORE contract matching (defense-in-depth)
+   - Tests: test_read_only_fallback_validation_fails_closed_and_consumes_fatal_budget confirms .env blocking
+
+4. Configuration Validation ✅
+   - Project.from_dict() validates auditor_validation_targets: ASCII alphanumeric + '_.-', no duplicates
+   - auditor_validation_target_deadlines must be positive integers only
+   - Deadlines can only be configured for approved targets (not arbitrary values)
+   - Tests: test_project_load_rejects_malformed_validation_configuration (4 scenarios pass)
+
+5. Fail-Closed Behavior ✅
+   - Configuration errors prevent command execution (not silent fallback)
+   - Per-target deadline resolution returns errors on any incompatibility
+   - Tests: test_configuration_error_prevents_api_command_execution, test_oompah_796_is_rejected_before_launch_when_gate_cannot_finish
+
+6. Multi-Project Isolation ✅
+   - Deadlines strictly scoped per project
+   - No cross-project bleed in deadline resolution
+   - Tests: test_contract_isolated_by_project, test_all_acp_catalogs_apply_the_same_project_target_deadline
+
+7. Timeout Enforcement Chain ✅
+   - API agent: _resolve_run_command_timeout_with_target() → resolve_auditor_validation_budget()
+   - ACP agent: build_tool_catalog → _auditor_run_command_options() → resolve_auditor_validation_budget()
+   - Timeout passed to _exec_run_command with subprocess.Popen(timeout=...)
+   - Tests: test_api_agent_uses_target_deadline_even_with_eager_global_timeout, test_true_validation_overrun_is_terminated_at_target_deadline
+
+**OWASP Coverage:**
+- Injection (A03): Blocked via regex escaping, token validation, shlex safety checks
+- Broken Access Control (A01): Project isolation, target allowlist enforcement
+- Sensitive Data Exposure (A02): Credential file regex, path traversal prevention
+- Configuration Issues (A05): Validation at Project.from_dict(), startup checks
+
+**VERDICT:**  42 deadline tests PASS, 56 auditor contract tests PASS. Security posture is solid. Per-target deadlines properly integrated across API and ACP backends without introducing new vulnerabilities.
 ---
 <!-- COMMENTS:END -->
