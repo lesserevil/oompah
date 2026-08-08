@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:09.296051Z'
-updated_at: '2026-08-08T16:31:48.895514Z'
+updated_at: '2026-08-08T16:31:55.233721Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,17 @@ oompah.terminal_audit:
       head; owner override closes the composed work without fabricating a separate
       integration generation.
     created_at: '2026-08-08T16:31:43.457413+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-787
+    target_state: Done
+    evidence_fingerprint: 0ff40928e793103d4bda7c4219046075ad1f771d4c30cd25c6574d8b7dbc84f1
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:31:53.858051+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -67,5 +77,12 @@ author: oompah
 created: 2026-08-08 08:30
 ---
 Direct implementation complete on isolated branch direct/OOMPAH-787-on-systemic at 106df6c547e5cc30be989ffef36978ebd279c29b (base 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183). Added four per-domain .env rollout modes with safe aggregate ownership, restart-persistent qualification/soak gates and state projection, interrupted schema-migration recovery, a bounded make workflow-rollout-check canary, final flag compatibility/retirement rules, and operator/internal rollout, recovery, why-not-progressing, alert, SLO, upgrade/rollback, and architecture docs. Exact final focused broker run: 85 passed; prior expanded run: 174 passed. Pycompile, focused Ruff, git diff check, terminal mutation scan, and secret scan passed. Worktree is clean and preserved for composition; no task status or remote was changed.
+---
+author: oompah
+created: 2026-08-08 16:31
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope and every prerequisite wave are contained in that validated head; owner override closes the composed work without fabricating a separate integration generation.
 ---
 <!-- COMMENTS:END -->
