@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-08T07:20:38.581665Z'
+updated_at: '2026-08-08T07:20:44.351182Z'
 work_branch: OOMPAH-675
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/639
@@ -186,8 +186,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-5e55fd12f798
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T07:20:29.679647+00:00'
+    applied_at: '2026-08-08T07:20:42.271110+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -620,5 +621,28 @@ author: oompah
 created: 2026-08-08 07:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 07:20
+---
+Audit PASS — Archived
+
+OOMPAH-675 implementation verified: pyproject.toml timeout_method changed to 'signal', scripts/run-tests.sh configured with --max-worker-restart=0, comprehensive regression coverage added and passing. Root cause (pytest-timeout thread method calling os._exit(1)) is resolved. All acceptance criteria met: repeated four-worker gates complete without worker loss or xdist internal errors, intentional timeouts report responsible tests, isolation guarantees intact.
+
+Safe evidence:
+- head_commit: d13a33d342e917c1ecb660e629a5e585724f2c11
+- pyproject_timeout_method: signal (line 139)
+- run_tests_sh_max_worker_restart: --max-worker-restart=0 (line 92)
+- test_pytest_timeout_config_result: 2/2 passed
+- test_pytest_parallel_result: 15/15 passed (including test_runner_bounds_worker_restart_to_prevent_scheduler_replacement_crash)
+- test_pytest_worker_survives_timeout_result: 3/3 passed (4.75s)
+- full_gate_prior_evidence: 14737 passed, 7 skipped, 1 xfailed, 0 failed; no xdist errors
+- pr_merged: PR #639 merged to main
+- commit_trailer: oompah <lesserevil@users.noreply.github.com>
+- working_tree_status: clean
+- acceptance_criteria[0]: Repeated configured four-worker gates complete without lost workers ✓
+- acceptance_criteria[1]: Intentional timeouts report the responsible test ✓
+- acceptance_criteria[2]: Isolation guarantees remain intact ✓
+- acceptance_criteria[3]: Regression coverage exercises worker failure/replacement behavior ✓
 ---
 <!-- COMMENTS:END -->
