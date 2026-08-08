@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-08-08T01:09:33.903563Z'
+updated_at: '2026-08-08T01:09:41.077891Z'
 work_branch: OOMPAH-667
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/629
@@ -216,8 +216,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-ffbbdb2bad83
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T01:09:29.447940+00:00'
+    applied_at: '2026-08-08T01:09:39.483622+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -667,5 +668,26 @@ author: oompah
 created: 2026-08-08 00:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 01:09
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 8fe9439ff6589d076e210a3c7bf0292f54661d8a
+- branch_head: 669094c81f4b2d52431134b99f084878223785dc
+- ancestor_check: git merge-base --is-ancestor exit_code=0 (confirmed in origin/main)
+- pr: #629
+- prior_gate_result: passed 398s: 14542 passed 8 skipped 1 xfailed (2026-07-31)
+- prior_audits: 2x PASS for Merged at same head (2026-08-01T00:02 and 00:04)
+- supplemental_cli_sync: 43 passed in 3.13s (test_canonical_cli_sync + test_lifecycle_cli_sync_integration)
+- supplemental_makefile: 54 passed in 13.47s (test_makefile_setup + test_makefile_restart_wait)
+- supplemental_tick_delegation: 7 passed in 3.68s (TestTickDelegation)
+- key_regression_tests: 5 passed in 0.73s (test_operator_path_ignores_internal_virtualenv_launcher, test_wrong_operator_path_still_refuses_shadowing_launcher, test_already_current_is_a_noop, test_failed_install_or_mismatch_preserves_known_good_cli[install+mismatch])
+- makefile_fix: Lines 3-9: OPERATOR_PATH captured before venv prepend, exported as OOMPAH_OPERATOR_PATH, passed --operator-path to sync-cli/start/restart/force-restart
+- commits: 6ee3e0213 (Makefile+scripts+tests), 669094c81 (tick test flake fix)
 ---
 <!-- COMMENTS:END -->
