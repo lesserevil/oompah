@@ -3567,6 +3567,35 @@ def _transition_waiting_reason(exc: Exception) -> str | None:
     return reason
 
 
+def _transition_rejected_reason(exc: Exception) -> str | None:
+    """Return the safe reason for an expected durable-policy rejection."""
+
+    outcome = getattr(exc, "outcome", None)
+    disposition = getattr(getattr(outcome, "disposition", None), "value", None)
+    reason = getattr(outcome, "reason_code", None)
+    expected_policy_rejections = {
+        "transition.generation_mismatch",
+        "transition.generation_required",
+        "transition.head_mismatch",
+        "transition.head_missing",
+        "transition.head_required",
+        "transition.idempotency_conflict",
+        "transition.illegal_edge",
+        "transition.maintenance_audit_authority_required",
+        "transition.project_mismatch",
+        "transition.recovery_authority_rejected",
+        "transition.rollup_authority_required",
+        "transition.rollup_generation_mismatch",
+        "transition.stale_precondition",
+        "transition.stale_status",
+        "transition.stale_version",
+        "transition.task_missing",
+    }
+    if disposition != "rejected" or reason not in expected_policy_rejections:
+        return None
+    return reason
+
+
 def _mark_tracker_needs_human(
     orch,
     tracker,
@@ -14378,6 +14407,26 @@ async def api_update_issue(identifier: str, request: Request):
                         "code": "transition_waiting",
                         "message": str(exc),
                         "reason": waiting_reason,
+                    }
+                },
+                status_code=409,
+            )
+        rejected_reason = _transition_rejected_reason(exc)
+        if rejected_reason is not None:
+            # A durable-policy rejection is a successful fail-closed outcome,
+            # not a service-health warning or an unhandled backend defect.
+            # Return the structured conflict so the client can correct the
+            # request without causing error_watcher to file a recurrence.
+            logger.info(
+                "Update issue rejected by durable transition: %s",
+                rejected_reason,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "transition_rejected",
+                        "message": str(exc),
+                        "reason": rejected_reason,
                     }
                 },
                 status_code=409,
