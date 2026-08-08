@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-08T16:27:35.029464Z'
+updated_at: '2026-08-08T16:27:40.528628Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:27:30.975178+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-894
+    target_state: Done
+    evidence_fingerprint: 642890b8c42ebed8bcf5cb299f9121437c1cfa8a369c4dd71f25b4880b31ac36
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:27:38.936574+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -69,5 +79,12 @@ author: oompah
 created: 2026-08-08 07:50
 ---
 Implementation complete for integration at commit fccb3b746faec2ace2f9f241ced3fa7d0fe4509d on implementation/OOMPAH-894-direct (exact parent 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183). Focused dedicated broker: 12 passed in 2.40s; artifact /home/shedwards/.oompah/tmp/OOMPAH-894-focused.g4wmmY. Final py_compile, git diff --check, and make terminal-audit-scan passed. Worktree is clean; awaiting systemic-head integration and the configured full gate.
+---
+author: oompah
+created: 2026-08-08 16:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

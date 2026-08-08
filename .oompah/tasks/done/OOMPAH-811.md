@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-811
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Atomically rearm integration ownership when rebase advances the task head
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-08T12:04:00.424013Z'
+updated_at: '2026-08-08T16:27:45.690331Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-811
 target_branch: null
 review_url: null
@@ -107,6 +107,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-811
     source_sha: 5cd24351e3b3f643bf4d43af84e81af0928b5f44
     completed_at: '2026-08-04T23:04:15.216058+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-44df8852ad00
+    project_id: proj-14849f1b
+    task_id: OOMPAH-811
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 32ef7df64b958ae9dc80b8b32fd249442a2582053250cfd7b4ca6669090499a6
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:27:41.544293+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
