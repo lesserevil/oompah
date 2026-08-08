@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-07T18:20:00.908123Z'
+updated_at: '2026-08-08T08:05:42.048737Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
@@ -216,5 +216,10 @@ Run #3 [attempt=3, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 24m 54s
 - Log: OOMPAH-886__20260807T175502Z.jsonl
+---
+author: oompah
+created: 2026-08-08 08:05
+---
+Direct implementation complete on isolated exact-base branch at 03b93535839026ed530063006af4ff3a11706068. Native Markdown tracker now provides project+operation+marker keyed atomic create-once with payload mismatch fencing, concurrent/restart/ambiguous commit recovery, and state-branch checkpoint recovery; GitHub/GitLab fail closed. Epic rebase helper reservations now retry only through that primitive and reconcile the original task rather than deadlocking or duplicating. Brokered tracker/adapter/epic/state-branch matrix: 774 passed; terminal mutation scan, secret scan, py_compile, and diff check passed. Awaiting systemic composition/exact gate.
 ---
 <!-- COMMENTS:END -->
