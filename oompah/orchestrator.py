@@ -273,16 +273,19 @@ from oompah.workflow_contract import (
 from oompah.work_decision import PermittedAction, WorkDecision
 from oompah.work_decision_projection import (
     operator_actionable_alerts,
-    project_work_decision,
-    work_decision_alert,
 )
-from oompah.workflow_facts import (
+from oompah.workflow_decision_projection import (
+    WORK_DECISION_PROJECTIONS,
+    WorkDecisionPublication as _WorkDecisionPublication,
+)
+from oompah.workflow_fact_model import (
     FactDomain,
     FactObservation,
     LandingState,
-    WorkflowFactCollector,
     WorkflowFacts,
 )
+from oompah.workflow_facts import WorkflowFactCollector
+from oompah.workflow_event_intake import WORKFLOW_EVENT_INTAKE
 from oompah.workflow_controller import (
     UniversalTotalityLivenessController,
     WorkflowProjectionPublicationRejected,
@@ -291,7 +294,6 @@ from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
     WorkflowJobSpec,
-    WorkflowJobPublicationError,
     WorkflowJobLeaseLost,
     WorkflowJobState,
     WorkflowJobStore,
@@ -1574,27 +1576,6 @@ def _yolo_error_fingerprint(project_id: str, msg: str) -> str:
 
     normalized = " ".join((msg or "").lower().split())
     return hashlib.sha1(f"{project_id}|{normalized}".encode("utf-8")).hexdigest()[:12]
-
-
-@dataclass(frozen=True, slots=True)
-class _WorkDecisionPublication:
-    accepted: bool
-    changed: bool
-    rejection: str | None = None
-    _commit_memory: Callable[[], None] | None = field(
-        default=None, repr=False, compare=False
-    )
-    _rollback: Callable[[], None] | None = field(
-        default=None, repr=False, compare=False
-    )
-
-    def commit_memory(self) -> None:
-        if self._commit_memory is not None:
-            self._commit_memory()
-
-    def rollback(self) -> None:
-        if self._rollback is not None:
-            self._rollback()
 
 
 @dataclass(frozen=True, slots=True)
@@ -11704,67 +11685,24 @@ class Orchestrator:
         self._update_repo_hygiene_health()
 
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
-        return str(event.event_type)
+        return WORKFLOW_EVENT_INTAKE.event_key(event)
 
     def _running_loop(self) -> asyncio.AbstractEventLoop | None:
-        try:
-            return asyncio.get_running_loop()
-        except RuntimeError:
-            return None
+        return WORKFLOW_EVENT_INTAKE.running_loop()
 
     def _set_refresh_requested(self) -> None:
-        loop = self._dispatch_loop
-        if loop is not None and loop.is_running() and self._running_loop() is not loop:
-            loop.call_soon_threadsafe(self._refresh_requested.set)
-            return
-        self._refresh_requested.set()
+        WORKFLOW_EVENT_INTAKE.set_refresh_requested(self)
 
     def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> int:
-        key = self._dispatch_event_key(event)
-        lock = getattr(self, "_dispatch_event_lock", None)
-        pending = getattr(self, "_dispatch_pending_event_keys", None)
-        counts = getattr(self, "_dispatch_pending_coalesced_counts", None)
-        if lock is None or pending is None or counts is None:
-            return 0
-        with lock:
-            pending.discard(key)
-            return counts.pop(key, 0)
+        return WORKFLOW_EVENT_INTAKE.mark_dequeued(self, event)
 
     def _post_event_on_loop(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue from its owning event loop."""
-        key = self._dispatch_event_key(event)
-        lock = getattr(self, "_dispatch_event_lock", None)
-        pending = getattr(self, "_dispatch_pending_event_keys", None)
-        if lock is not None and pending is not None:
-            with lock:
-                if key in pending:
-                    self._dispatch_events_coalesced = (
-                        getattr(self, "_dispatch_events_coalesced", 0) + 1
-                    )
-                    counts = getattr(self, "_dispatch_pending_coalesced_counts", None)
-                    if counts is not None:
-                        counts[key] = counts.get(key, 0) + 1
-                    logger.debug("Coalesced pending dispatch event %s", key)
-                    return
-                pending.add(key)
-        try:
-            self._dispatch_queue.put_nowait(event)
-        except asyncio.QueueFull:
-            if lock is not None and pending is not None:
-                with lock:
-                    pending.discard(key)
-            # The queue is unbounded, so this should never happen in practice.
-            logger.warning(
-                "Dispatch queue unexpectedly full; dropping event %s", event.event_type
-            )
+        WORKFLOW_EVENT_INTAKE.post_on_loop(self, event)
 
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking)."""
-        loop = self._dispatch_loop
-        if loop is not None and loop.is_running() and self._running_loop() is not loop:
-            loop.call_soon_threadsafe(self._post_event_on_loop, event)
-            return
-        self._post_event_on_loop(event)
+        WORKFLOW_EVENT_INTAKE.post(self, event)
 
     def stop_threadsafe(self):
         """Schedule fail-closed shutdown on the orchestrator loop."""
@@ -11774,18 +11712,12 @@ class Orchestrator:
         return asyncio.run_coroutine_threadsafe(self.stop_until_safe(), loop)
 
     async def _full_sync_loop(self) -> None:
-        """Background task: post FULL_SYNC events at the configured safety-net interval.
+        """Post periodic full-sync events through the event-intake owner."""
 
-        This replaces the old poll_interval_ms sleep — a full _tick() is still
-        run periodically, but at a much longer cadence (full_sync_interval_ms,
-        default 5 min) as a consistency safety net rather than the primary
-        dispatch mechanism.
-        """
-        while not self._stopping:
-            interval_s = self.config.full_sync_interval_ms / 1000.0
-            await asyncio.sleep(interval_s)
-            if not self._stopping:
-                self._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
+        await WORKFLOW_EVENT_INTAKE.full_sync_loop(
+            self,
+            lambda: DispatchEvent(event_type=DispatchEventType.FULL_SYNC),
+        )
 
     async def run(self) -> None:
         """Main event loop: event-driven dispatch with a periodic full-sync safety net.
@@ -12890,327 +12822,23 @@ class Orchestrator:
         producer_transaction: Any | None = None,
         defer_memory: bool = False,
     ) -> _WorkDecisionPublication:
-        """Publish one generation-fenced decision snapshot.
+        """Publish through the single generation-fenced projection owner."""
 
-        Enforce mode accepts only the liveness controller's decisions. Shadow
-        mode may expose the pure evaluator's diagnostics, but those values can
-        never race an enforce-mode result into the same public cache.  The
-        complete set of nonterminal identities is supplied independently of
-        the bounded evaluation window, so terminal/deleted tasks are pruned
-        even while a scan is truncated. A project whose tracker read failed
-        keeps its previous rows because that sweep has no authoritative live
-        set for the project. The publication epoch rejects work captured before
-        any intervening configuration reload, including source-mode ABA.
-
-        Returns an accepted/changed result. ``defer_memory`` stages only the
-        durable availability cut and returns non-failing commit plus
-        compensating rollback callbacks for the controller's snapshot
-        publication protocol. When a producer transaction is
-        supplied, this method commits it after availability persistence and
-        before exposing the matching in-memory projection; every rejection
-        leaves the caller's context to roll it back. Generation bookkeeping
-        alone does not force an issues refresh.
-        """
-
-        normalized_source = str(source or "").strip().lower()
-        snapshot_generation = int(generation)
-        if snapshot_generation < 1:
-            raise ValueError("work-decision generation must be positive")
-        captured_epoch = int(publication_epoch)
-        if captured_epoch < 1:
-            raise ValueError("work-decision publication epoch must be positive")
-        normalized_shadow_cursor = (
-            int(shadow_scan_cursor) if shadow_scan_cursor is not None else None
+        return WORK_DECISION_PROJECTIONS.publish(
+            self,
+            decisions,
+            generation,
+            source=source,
+            live_keys=live_keys,
+            publication_epoch=publication_epoch,
+            failed_projects=failed_projects,
+            scan_complete=scan_complete,
+            incomplete_keys=incomplete_keys,
+            incomplete_reason=incomplete_reason,
+            shadow_scan_cursor=shadow_scan_cursor,
+            producer_transaction=producer_transaction,
+            defer_memory=defer_memory,
         )
-        if normalized_shadow_cursor is not None and normalized_shadow_cursor < 0:
-            raise ValueError("shadow scan cursor must be nonnegative")
-
-        normalized_live_keys = {
-            (str(project_id or "legacy"), str(task_id).strip())
-            for project_id, task_id in live_keys
-            if str(task_id or "").strip()
-        }
-        incoming = {
-            (str(decision.project_id or "legacy"), decision.task_id): decision
-            for decision in decisions
-        }
-        if any(key not in normalized_live_keys for key in incoming):
-            raise ValueError("work decisions must belong to the live snapshot")
-        preserved_projects = {
-            str(project_id or "legacy") for project_id in (failed_projects or set())
-        }
-        omitted_keys = normalized_live_keys - set(incoming)
-        explicit_incomplete_keys = {
-            (str(project_id or "legacy"), str(task_id).strip())
-            for project_id, task_id in (incomplete_keys or set())
-            if str(task_id or "").strip()
-        }
-        if any(key not in normalized_live_keys for key in explicit_incomplete_keys):
-            raise ValueError("incomplete work decisions must belong to the live snapshot")
-        next_incomplete_keys = omitted_keys | explicit_incomplete_keys
-        if not scan_complete and not next_incomplete_keys:
-            # A producer that declares its pass incomplete cannot make an
-            # otherwise total-looking set actionable. This also covers
-            # reconciliation truncation reported without omitted decisions.
-            next_incomplete_keys = set(normalized_live_keys)
-        next_incomplete_projects = {key[0] for key in next_incomplete_keys}
-        effective_complete = (
-            bool(scan_complete)
-            and not omitted_keys
-            and not explicit_incomplete_keys
-        )
-        if not effective_complete and not incomplete_reason:
-            incomplete_reason = (
-                f"bounded {normalized_source} scan evaluated {len(incoming)} of "
-                f"{len(normalized_live_keys)} live tasks; omitted tasks will be "
-                "evaluated by rotating future sweeps"
-            )
-        normalized_incomplete_reason = (
-            str(incomplete_reason).strip()
-            if not effective_complete and str(incomplete_reason or "").strip()
-            else None
-        )
-
-        with self._work_decisions_lock:
-            if captured_epoch != self._work_decision_publication_epoch:
-                return _WorkDecisionPublication(False, False, "stale_epoch")
-            configured_mode = str(self.config.workflow_engine_mode or "off").lower()
-            expected_source = (
-                "controller"
-                if configured_mode == "enforce"
-                else "shadow"
-                if configured_mode == "shadow"
-                else None
-            )
-            if normalized_source != expected_source:
-                return _WorkDecisionPublication(False, False, "wrong_source")
-            if (
-                self._work_decision_source == normalized_source
-                and snapshot_generation <= self._work_decision_generation
-            ):
-                return _WorkDecisionPublication(False, False, "stale_generation")
-            previous = dict(self._work_decisions)
-            previous_unavailable = set(
-                getattr(self, "_work_decision_unavailable_projects", set())
-            )
-            previous_complete = bool(
-                getattr(self, "_work_decision_snapshot_complete", False)
-            )
-            previous_incomplete_keys = set(
-                getattr(self, "_work_decision_incomplete_keys", set())
-            )
-            previous_incomplete_projects = set(
-                getattr(self, "_work_decision_incomplete_projects", set())
-            )
-            previous_incomplete_reason = getattr(
-                self, "_work_decision_incomplete_reason", None
-            )
-            previous_source = self._work_decision_source
-            previous_generation = self._work_decision_generation
-            previous_updated_at = self._work_decision_updated_at
-            previous_shadow_cursor = int(
-                getattr(self, "_workflow_shadow_scan_cursor", 0)
-            )
-            previous_availability_payload = {
-                "source": previous_source,
-                "complete": previous_complete,
-                "unavailable_projects": sorted(previous_unavailable),
-                "incomplete_projects": sorted(previous_incomplete_projects),
-                "incomplete_tasks": [
-                    {"project_id": project_id, "task_id": task_id}
-                    for project_id, task_id in sorted(previous_incomplete_keys)
-                ],
-                "incomplete_reason": previous_incomplete_reason,
-                "publication_epoch": self._work_decision_publication_epoch,
-                "updated_at": self._work_decision_updated_at,
-                "shadow_scan_cursor_version": 1,
-                "shadow_scan_cursor": int(
-                    getattr(self, "_workflow_shadow_scan_cursor", 0)
-                ),
-            }
-            if self._work_decision_source != normalized_source:
-                updated: dict[tuple[str, str], WorkDecision] = {}
-            else:
-                updated = {
-                    key: decision
-                    for key, decision in self._work_decisions.items()
-                    if key in normalized_live_keys or key[0] in preserved_projects
-                }
-            updated.update(incoming)
-            snapshot_complete = effective_complete and not preserved_projects
-            changed = (
-                updated != previous
-                or preserved_projects != previous_unavailable
-                or next_incomplete_keys != previous_incomplete_keys
-                or next_incomplete_projects != previous_incomplete_projects
-                or normalized_incomplete_reason != previous_incomplete_reason
-                or snapshot_complete != previous_complete
-                or normalized_source != previous_source
-            )
-            next_updated_at = self._work_decision_updated_at
-            if changed:
-                next_updated_at = datetime.now(timezone.utc).isoformat()
-            availability_payload = {
-                "source": normalized_source,
-                "complete": snapshot_complete,
-                "unavailable_projects": sorted(preserved_projects),
-                "incomplete_projects": sorted(next_incomplete_projects),
-                "incomplete_tasks": [
-                    {"project_id": project_id, "task_id": task_id}
-                    for project_id, task_id in sorted(next_incomplete_keys)
-                ],
-                "incomplete_reason": normalized_incomplete_reason,
-                "publication_epoch": captured_epoch,
-                "updated_at": next_updated_at,
-                "shadow_scan_cursor_version": 1,
-                "shadow_scan_cursor": (
-                    normalized_shadow_cursor
-                    if normalized_shadow_cursor is not None
-                    else int(getattr(self, "_workflow_shadow_scan_cursor", 0))
-                ),
-            }
-            # Persist only availability, not policy/evidence payloads. Keep the
-            # authority lock through the state-file replace so a reload cannot
-            # make an older producer durable after its epoch cut, and a reload's
-            # pending state cannot overwrite a newer accepted publication.
-            if hasattr(self, "_state_io_lock"):
-                saved = self._save_state(
-                    work_decision_availability=availability_payload
-                )
-                if saved is False:
-                    logger.error(
-                        "Rejected workflow decision publication because its "
-                        "availability cut could not be persisted"
-                    )
-                    return _WorkDecisionPublication(
-                        False, False, "persistence_failed"
-                    )
-            if producer_transaction is not None:
-                try:
-                    # This is the durable commit point. It occurs after the
-                    # recoverable availability write but before any in-memory
-                    # public projection becomes visible. The job store keeps
-                    # its SQLite transaction open until this call.
-                    producer_transaction.commit()
-                except Exception as exc:
-                    logger.exception(
-                        "Rejected workflow decision publication because its "
-                        "durable producer cut could not commit"
-                    )
-                    try:
-                        restored = self._save_state(
-                            work_decision_availability=previous_availability_payload
-                        )
-                    except Exception:  # noqa: BLE001 - preserve explicit failure state
-                        logger.exception(
-                            "Prior workflow decision availability restoration raised"
-                        )
-                        restored = False
-                    rollback_failed = (
-                        isinstance(exc, WorkflowJobPublicationError)
-                        and exc.rollback_failed
-                    )
-                    if restored is False:
-                        logger.critical(
-                            "Workflow decision durable commit failed and the "
-                            "prior availability cut could not be restored"
-                        )
-                        return _WorkDecisionPublication(
-                            False,
-                            False,
-                            (
-                                "durable_commit_and_store_rollback_failed"
-                                if rollback_failed
-                                else "durable_commit_state_rollback_failed"
-                            ),
-                        )
-                    return _WorkDecisionPublication(
-                        False,
-                        False,
-                        (
-                            "durable_commit_rollback_failed"
-                            if rollback_failed
-                            else "durable_commit_failed"
-                        ),
-                    )
-            memory_committed = False
-
-            def commit_memory() -> None:
-                nonlocal memory_committed
-                with self._work_decisions_lock:
-                    if memory_committed:
-                        return
-                    self._work_decisions = dict(updated)
-                    self._work_decision_source = normalized_source
-                    self._work_decision_generation = snapshot_generation
-                    self._work_decision_unavailable_projects = set(
-                        preserved_projects
-                    )
-                    self._work_decision_incomplete_projects = set(
-                        next_incomplete_projects
-                    )
-                    self._work_decision_incomplete_keys = set(next_incomplete_keys)
-                    self._work_decision_incomplete_reason = (
-                        normalized_incomplete_reason
-                    )
-                    self._work_decision_snapshot_complete = snapshot_complete
-                    self._work_decision_updated_at = next_updated_at
-                    if normalized_shadow_cursor is not None:
-                        self._workflow_shadow_scan_cursor = normalized_shadow_cursor
-                    memory_committed = True
-
-            def rollback() -> None:
-                nonlocal memory_committed
-                with self._work_decisions_lock:
-                    restoration_error: Exception | None = None
-                    try:
-                        if hasattr(self, "_state_io_lock"):
-                            restored = self._save_state(
-                                work_decision_availability=(
-                                    previous_availability_payload
-                                )
-                            )
-                            if restored is False:
-                                raise OSError(
-                                    "prior workflow decision availability was "
-                                    "not restored"
-                                )
-                    except Exception as exc:
-                        restoration_error = exc
-                    # Memory is a separate compensator. Restore it even when
-                    # the state-file compensator fails, then surface that
-                    # durable failure so the job store fences the generation.
-                    self._work_decisions = dict(previous)
-                    self._work_decision_source = previous_source
-                    self._work_decision_generation = previous_generation
-                    self._work_decision_unavailable_projects = set(
-                        previous_unavailable
-                    )
-                    self._work_decision_incomplete_projects = set(
-                        previous_incomplete_projects
-                    )
-                    self._work_decision_incomplete_keys = set(
-                        previous_incomplete_keys
-                    )
-                    self._work_decision_incomplete_reason = (
-                        previous_incomplete_reason
-                    )
-                    self._work_decision_snapshot_complete = previous_complete
-                    self._work_decision_updated_at = previous_updated_at
-                    self._workflow_shadow_scan_cursor = previous_shadow_cursor
-                    memory_committed = False
-                    if restoration_error is not None:
-                        raise restoration_error
-
-            publication = _WorkDecisionPublication(
-                True,
-                changed,
-                _commit_memory=commit_memory,
-                _rollback=rollback,
-            )
-            if not defer_memory:
-                publication.commit_memory()
-        return publication
 
     def _cache_work_decisions(
         self,
@@ -13246,141 +12874,26 @@ class Orchestrator:
     ) -> dict[str, Any] | None:
         """Return one immutable why-not-progressing projection.
 
-        ``task`` remains in the signature for API compatibility, but reads
-        never evaluate policy, mutate controller metrics, or manufacture a
-        fresh evidence revision. A cache miss is explicitly unavailable until
-        the configured bounded decision producer publishes it.
+        ``task`` remains in the signature for API compatibility. Reads never
+        evaluate policy or manufacture fresh evidence.
         """
 
-        project = str(project_id or "legacy")
-        identifier = str(task_id or "").strip()
-        if not identifier:
-            return None
-        with self._work_decisions_lock:
-            if project in getattr(
-                self, "_work_decision_unavailable_projects", set()
-            ):
-                return None
-            if (project, identifier) in getattr(
-                self, "_work_decision_incomplete_keys", set()
-            ):
-                return None
-            decision = self._work_decisions.get((project, identifier))
-        return project_work_decision(decision) if decision is not None else None
+        del task
+        return WORK_DECISION_PROJECTIONS.projection(self, project_id, task_id)
 
     def work_decision_availability(
         self, project_id: str | None, task_id: str | None = None
     ) -> str:
-        """Return the explicit cache-read state for one project or live task."""
+        """Return the explicit cache-read state for a project or live task."""
 
-        project = str(project_id or "legacy")
-        identifier = str(task_id or "").strip()
-        with self._work_decisions_lock:
-            mode = str(self.config.workflow_engine_mode or "off").lower()
-            source = self._work_decision_source
-            unavailable = project in getattr(
-                self, "_work_decision_unavailable_projects", set()
-            )
-            incomplete_projects = getattr(
-                self, "_work_decision_incomplete_projects", set()
-            )
-            incomplete_keys = getattr(self, "_work_decision_incomplete_keys", set())
-            has_decision = (project, identifier) in self._work_decisions
-        if mode == "off":
-            return "disabled"
-        if unavailable:
-            return "unavailable"
-        if identifier and (project, identifier) in incomplete_keys:
-            return "incomplete"
-        if identifier and has_decision:
-            return "available"
-        if project in incomplete_projects:
-            return "incomplete"
-        if source is None:
-            return "pending"
-        if identifier:
-            return "unavailable"
-        return "available"
+        return WORK_DECISION_PROJECTIONS.availability(self, project_id, task_id)
 
     def work_decision_snapshot(
         self,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        """Return projection metadata/items and matching alerts atomically."""
+        """Return projection metadata, items, and matching alerts atomically."""
 
-        with self._work_decisions_lock:
-            incomplete_keys = set(
-                getattr(self, "_work_decision_incomplete_keys", set())
-            )
-            values = tuple(
-                decision
-                for key, decision in self._work_decisions.items()
-                if key not in incomplete_keys
-                and key[0]
-                not in getattr(self, "_work_decision_unavailable_projects", set())
-            )
-            source = self._work_decision_source
-            generation = self._work_decision_generation
-            publication_epoch = self._work_decision_publication_epoch
-            updated_at = self._work_decision_updated_at
-            unavailable_projects = tuple(
-                sorted(getattr(self, "_work_decision_unavailable_projects", set()))
-            )
-            complete = bool(
-                getattr(self, "_work_decision_snapshot_complete", False)
-            )
-            incomplete_projects = tuple(
-                sorted(getattr(self, "_work_decision_incomplete_projects", set()))
-            )
-            incomplete_reason = getattr(
-                self, "_work_decision_incomplete_reason", None
-            )
-            configured_mode = str(self.config.workflow_engine_mode or "off").lower()
-        if configured_mode == "off":
-            availability = "disabled"
-        elif source is None and unavailable_projects:
-            availability = "unavailable"
-        elif source is None and (incomplete_projects or incomplete_reason):
-            availability = "incomplete"
-        elif source is None:
-            availability = "pending"
-        elif unavailable_projects:
-            availability = "partial"
-        elif incomplete_projects or incomplete_reason:
-            availability = "incomplete"
-        else:
-            availability = "ready"
-        ordered = tuple(
-            sorted(values, key=lambda item: (item.project_id, item.task_id))
-        )
-        items = [
-            project_work_decision(decision)
-            for decision in ordered
-        ]
-        alerts = [
-            alert
-            for decision in ordered
-            if (alert := work_decision_alert(decision)) is not None
-        ]
-        return (
-            {
-                "schema_version": 1,
-                "source": source,
-                "snapshot_generation": generation,
-                "publication_epoch": publication_epoch,
-                "updated_at": updated_at,
-                "complete": complete and availability == "ready",
-                "availability": availability,
-                "unavailable_projects": list(unavailable_projects),
-                "incomplete_projects": list(incomplete_projects),
-                "incomplete_tasks": [
-                    {"project_id": project_id, "task_id": task_id}
-                    for project_id, task_id in sorted(incomplete_keys)
-                ],
-                "incomplete_reason": incomplete_reason,
-                "items": items,
-            },
-            alerts,
-        )
+        return WORK_DECISION_PROJECTIONS.snapshot(self)
 
     def work_decision_projections(self) -> list[dict[str, Any]]:
         """Return a stable, redacted copy of all cached task decisions."""
@@ -13393,7 +12906,6 @@ class Orchestrator:
 
         _snapshot, alerts = self.work_decision_snapshot()
         return alerts
-
     def _run_workflow_shadow_sweep(self) -> dict[str, Any]:
         """Boundedly compare fresh facts with every legacy consumer projection."""
 

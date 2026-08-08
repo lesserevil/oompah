@@ -59,7 +59,8 @@ from oompah.task_transition_service import (
     TransitionJournal,
     issue_authority_version,
 )
-from oompah.workflow_facts import FactDomain, GitLandingCollector, WorkflowFactCollector
+from oompah.workflow_fact_model import FactDomain
+from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJobStore,

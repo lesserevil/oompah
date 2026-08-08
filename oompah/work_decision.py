@@ -43,7 +43,7 @@ from oompah.workflow_contract import (
     TaskDisposition,
     WorkflowOwner,
 )
-from oompah.workflow_facts import (
+from oompah.workflow_fact_model import (
     FactDomain,
     FactState,
     LandingState,

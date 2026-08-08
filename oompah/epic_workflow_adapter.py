@@ -45,7 +45,7 @@ from oompah.task_transition_service import (
     issue_authority_version,
     issue_exact_head,
 )
-from oompah.workflow_facts import (
+from oompah.workflow_fact_model import (
     FactDomain,
     FactState,
     LandingState,

@@ -18,7 +18,7 @@ from oompah.secrets import redact_sensitive_data
 from oompah.statuses import canonicalize_status
 from oompah.work_decision import PermittedAction, WorkDecision, evaluate_task
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
-from oompah.workflow_facts import WorkflowFacts
+from oompah.workflow_fact_model import WorkflowFacts
 
 
 WORKFLOW_ENGINE_MODES = frozenset({"off", "shadow", "enforce"})

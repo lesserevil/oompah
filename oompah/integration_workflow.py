@@ -47,13 +47,13 @@ from oompah.task_transition_service import (
 )
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_contract import READY_TO_INTEGRATE
-from oompah.workflow_facts import (
+from oompah.workflow_fact_model import (
     LandingFact,
     LandingRequest,
     LandingState,
-    WorkflowFactCollector,
     WorkflowFacts,
 )
+from oompah.workflow_facts import WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJob,

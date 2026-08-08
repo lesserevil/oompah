@@ -33,12 +33,12 @@ from oompah.work_decision import (
     WorkDecision,
     evaluate_task,
 )
-from oompah.workflow_facts import (
+from oompah.workflow_fact_model import (
     FactDomain,
     FactState,
-    WorkflowFactCollector,
     WorkflowFacts,
 )
+from oompah.workflow_facts import WorkflowFactCollector
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     WorkflowFailureCategory,

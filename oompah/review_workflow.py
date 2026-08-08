@@ -26,13 +26,13 @@ from oompah.review_capacity import ReviewCapacityStore
 from oompah.statuses import IN_REVIEW
 from oompah.task_transition_service import TransitionIntent
 from oompah.work_decision import REVIEW_ACTION_JOBS, WorkDecision, evaluate_task
-from oompah.workflow_facts import (
+from oompah.workflow_fact_model import (
     LandingFact,
     LandingRequest,
     LandingState,
-    WorkflowFactCollector,
     WorkflowFacts,
 )
+from oompah.workflow_facts import WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJob,

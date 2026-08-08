@@ -44,7 +44,12 @@ from oompah.task_transition_service import (
     issue_authority_version,
     issue_exact_head,
 )
-from oompah.workflow_facts import FactDomain, FactState, LandingFact, LandingState
+from oompah.workflow_fact_model import (
+    FactDomain,
+    FactState,
+    LandingFact,
+    LandingState,
+)
 from oompah.workflow_jobs import WorkflowFailureCategory
 from oompah.workflow_worker import (
     EffectResult,

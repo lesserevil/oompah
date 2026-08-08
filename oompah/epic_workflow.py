@@ -38,16 +38,15 @@ from oompah.task_transition_service import (
     issue_exact_head,
 )
 from oompah.work_decision import WorkDecision, evaluate_task
-from oompah.workflow_facts import (
+from oompah.workflow_fact_model import (
     FactDomain,
     FactState,
-    GitLandingCollector,
     LandingFact,
     LandingRequest,
     LandingState,
-    WorkflowFactCollector,
     WorkflowFacts,
 )
+from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJob,

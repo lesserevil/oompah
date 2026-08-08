@@ -24,7 +24,7 @@ from oompah.workflow_contract import (
     TaskDisposition,
     WorkflowOwner,
 )
-from oompah.workflow_facts import FactDomain, FactState, WorkflowFacts
+from oompah.workflow_fact_model import FactDomain, FactState, WorkflowFacts
 from oompah.workflow_reasons import (
     AlertSeverity,
     LivenessPolicy,
