@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T19:33:35.949962Z'
-updated_at: '2026-08-08T20:52:14.968728Z'
+updated_at: '2026-08-08T21:00:15.808040Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,5 +74,14 @@ author: oompah
 created: 2026-08-08 20:52
 ---
 Exact review-ready commit bdabac3ff0619b85e1b61f7efb3f9a322b8efb51 passed the complete branch gate: 18,797 passed, 7 skipped, 2 xfailed, 43 warnings in 20m05s. The commit was atomically published to all 40 systemic-workflow refs and the new OOMPAH-924 ref. Two live make graceful cutovers completed on the exact commit; the second exercised the fixed code on shutdown and produced no Orchestrator crash, WorkflowJobStore closed-fd access, bad-file-descriptor error, or safe-stop fallback. /healthz reports healthy with the exact revision. Final rollout soak is now running.
+---
+author: oompah
+created: 2026-08-08 21:00
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:__main__`
+
+Message: Orchestrator thread crashed
 ---
 <!-- COMMENTS:END -->
