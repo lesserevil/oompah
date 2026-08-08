@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-921
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Stop direct-owner terminal overrides from self-invalidating evidence
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-08T16:33:49.292212Z'
-updated_at: '2026-08-08T16:33:49.292212Z'
+updated_at: '2026-08-08T16:34:07.588364Z'
 work_branch: null
 target_branch: null
 review_url: null
