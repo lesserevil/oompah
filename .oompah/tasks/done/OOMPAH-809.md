@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-08T16:27:09.899264Z'
+updated_at: '2026-08-08T16:27:16.303665Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-809
 target_branch: null
 review_url: null
@@ -103,7 +103,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:27:05.693552+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-809
+    target_state: Done
+    evidence_fingerprint: cb54242eb68658cc9724f994f62682ca52a07854e13e8b5ec8a3c7a2c1cefc3a
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:27:14.809002+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -159,5 +169,12 @@ author: oompah
 created: 2026-08-08 08:29
 ---
 Direct implementation complete at c91f12888 on the systemic base. The scheduler now selects authoritative runnable non-audit work before audit launch, reserves configurable implementation/control-plane capacity, and durably alternates audit/implementation turns at total concurrency one. Audit scanning rotates through a persisted cursor, launch attempts have a separate per-tick cap, and state exposes reservation, lane occupancy, deferred count/cursor, and oldest runnable implementation age. Configured partial scans are informational; actual tracker scan failures remain actionable. Focused config/audit-health/audit-observability/tick/lane matrix: 293 passed in 64.35s. Diff/compile and full secret scan are clean. Awaiting composition and exact-head full gate before terminalization.
+---
+author: oompah
+created: 2026-08-08 16:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-917
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make native validation lease teardown assertion race-free
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T15:12:45.375040Z'
-updated_at: '2026-08-08T15:39:19.718285Z'
+updated_at: '2026-08-08T16:27:21.444254Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d2d4f0e2d610
+    project_id: proj-14849f1b
+    task_id: OOMPAH-917
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9538697418e8e379ad0686b0af6dc291f24d0cc878ee8beca11b9821a06aed13
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:27:17.505579+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
