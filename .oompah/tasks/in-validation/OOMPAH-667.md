@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-08-01T00:04:54.360523Z'
+updated_at: '2026-08-08T00:56:26.158197Z'
 work_branch: OOMPAH-667
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/629
@@ -266,6 +266,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T23:58:43.595561+00:00'
     updated_at: '2026-08-01T00:04:37.186100+00:00'
+  - version: 1
+    audit_id: audit-ffbbdb2bad83
+    project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b01be5925cc0d71474ef0b4bc8c1151587ad483ef1972d387a756cabdb6be6a3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T00:56:22.200745+00:00'
+    selected_ref: 669094c81f4b2d52431134b99f084878223785dc
+    selected_sha: 669094c81f4b2d52431134b99f084878223785dc
   attempt_history:
   - version: 1
     attempt_id: attempt-e0d3e435db98
