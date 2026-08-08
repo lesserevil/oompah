@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-08T16:28:18.248741Z'
+updated_at: '2026-08-08T16:28:24.504459Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -126,7 +126,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:28:14.232403+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-855
+    target_state: Done
+    evidence_fingerprint: 616873075b4233ebaf6d9920e76b889d75cc7aaf43368a0dfa9e40aff72cd107
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:28:23.161581+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -251,5 +261,12 @@ author: oompah
 created: 2026-08-08 08:17
 ---
 Implementation complete on isolated branch direct/OOMPAH-855-on-systemic at 296a6c289f7a7a1a3d3e87996a79490bb3bad98e (base 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183). Scheduler pause/graceful retirement is now a durable non-consuming classification; candidate, transport, and workflow execution budgets are restored; exact workflow phase/lease fences reject late callbacks; finalizing verdicts win; restart recovery is idempotent; policy, transport, and owner-cancel semantics remain distinct; health no longer warns for routine pause recovery. Dedicated focused validation: 225 passed, 1 pre-existing AsyncMock RuntimeWarning, artifact /home/shedwards/.oompah/ci-artifacts.OOMPAH-855-green.fjr82i. Static compile, diff check, terminal mutation scan, and secret scan passed. Branch/worktree preserved for systemic composition; no task status or remote mutation performed.
+---
+author: oompah
+created: 2026-08-08 16:28
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->
