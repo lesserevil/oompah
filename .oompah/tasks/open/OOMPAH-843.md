@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-843
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-07T20:52:29.429838Z'
+updated_at: '2026-08-08T03:44:05.889496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-08-07 20:52
 ---
 Exact composition candidate ae92d0ee89a163b70a15d39003617529f66b455b is pushed on origin/OOMPAH-843 atop required OOMPAH-831 lineage base 0e0056375918977c9b0b2d59524ce8ae68ceee40. Validation: 42 deadline regressions and 1,659 broad focused tests passed; compile/static/diff checks green; independent exact-head review ACCEPT; remote parity 0/0 and clean. Holding for composition through epic OOMPAH-763, not a standalone main PR.
+---
+author: oompah
+created: 2026-08-08 03:44
+---
+Recovered an unpublished worktree checkpoint after worker/service interruption. Exact recovery evidence is durable at refs/oompah/recovery/OOMPAH-843-75b61d327052be8a (98517d4c018bb511beaf5bdd1360f887f3c79386); the ownerless task was returned to Open.
 ---
 <!-- COMMENTS:END -->
