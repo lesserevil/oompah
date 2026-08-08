@@ -686,6 +686,21 @@ class TestRedaction:
                     f"Exception class in alert.{field}: {text!r}"
                 )
 
+    def test_budgeted_partial_scan_is_informational(self):
+        """A cursor continuation is normal capacity flow, not operator work."""
+
+        health = build_terminal_audit_health(
+            [], now=NOW, scan_complete=False, scan_error_count=0
+        )
+        alert = next(
+            item
+            for item in terminal_audit_health_alerts(health)
+            if item["source"] == HEALTH_ALERT_PREFIX + "scan"
+        )
+        assert alert["level"] == "info"
+        assert alert["action_required"] is False
+        assert "durable cursor" in alert["action"]
+
 
 # ---------------------------------------------------------------------------
 # Quarantine

@@ -16126,8 +16126,78 @@ class Orchestrator:
                 outcome.reason,
             )
 
-    async def _dispatch_audit_lane(self) -> dict[str, float]:
-        """Dispatch persisted terminal audits before ordinary Open work."""
+    @staticmethod
+    def _audit_candidate_cursor_key(issue: Issue) -> str:
+        return f"{str(issue.project_id or 'legacy')}\x1f{issue.identifier}"
+
+    def _audit_candidate_window(
+        self,
+        candidates: Sequence[Issue],
+    ) -> tuple[list[Issue], bool]:
+        """Return one fair, restart-safe window of audit candidates."""
+
+        ordered = sorted(
+            candidates,
+            key=lambda issue: (
+                -(
+                    self.config.audit_priority
+                    if issue.priority is None
+                    else int(issue.priority)
+                ),
+                issue.created_at or datetime.max.replace(tzinfo=timezone.utc),
+                issue.identifier,
+            ),
+        )
+        limit = self.config.audit_lane_scan_limit
+        truncated = limit > 0 and len(ordered) > limit
+        if not truncated:
+            return ordered, False
+
+        cursor = str(
+            getattr(self, "_maintenance_cursors", {}).get("audit_lane") or ""
+        )
+        if cursor:
+            cursor_index = next(
+                (
+                    index
+                    for index, issue in enumerate(ordered)
+                    if self._audit_candidate_cursor_key(issue) == cursor
+                ),
+                None,
+            )
+            if cursor_index is not None:
+                ordered = ordered[cursor_index + 1 :] + ordered[: cursor_index + 1]
+        return ordered[:limit], True
+
+    def _audit_lane_reserved_slots(self, *, non_audit_ready: bool) -> int:
+        """Return capacity unavailable to new auditors for this tick."""
+
+        if not non_audit_ready:
+            return 0
+        available = self._available_slots()
+        total = max(int(self.state.max_concurrent_agents), 0)
+        if available <= 0 or total <= 0:
+            return 0
+        if total == 1:
+            turn = str(
+                getattr(self, "_maintenance_cursors", {}).get(
+                    "single_slot_dispatch_lane"
+                )
+                or "implementation"
+            )
+            return 1 if turn != "audit" else 0
+        configured = max(
+            int(getattr(self.config, "audit_non_audit_reserved_slots", 1)),
+            0,
+        )
+        return min(configured, available, total - 1)
+
+    async def _dispatch_audit_lane(
+        self,
+        *,
+        reserved_non_audit_slots: int = 0,
+    ) -> dict[str, float]:
+        """Dispatch one bounded, capacity-fenced terminal-audit window."""
 
         started = time.monotonic()
         metrics = self._audit_metrics
@@ -16149,45 +16219,64 @@ class Orchestrator:
         metrics["finalizations_replayed"] = replayed
         if self._dispatch_is_blocked() or self._is_rate_limited():
             return {"audit_dispatch": 0.0, "audit_scan": 0.0}
-        if self._available_slots() <= 0:
+        reserved_non_audit_slots = max(int(reserved_non_audit_slots), 0)
+        metrics["reserved_non_audit_slots"] = reserved_non_audit_slots
+        metrics["lane_occupancy_start"] = {
+            "audit": sum(
+                1
+                for entry in self._running_values_snapshot()
+                if entry.is_auditor
+            ),
+            "non_audit": sum(
+                1
+                for entry in self._running_values_snapshot()
+                if not entry.is_auditor
+            ),
+        }
+
+        def _audit_slots_available() -> int:
+            return max(
+                self._available_slots() - reserved_non_audit_slots,
+                0,
+            )
+
+        if _audit_slots_available() <= 0:
+            metrics["last_dispatched_count"] = 0
+            metrics["capacity_deferred"] = True
             return {"audit_dispatch": 0.0, "audit_scan": 0.0}
 
         candidate_scan = await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._fetch_audit_candidates
         )
-        candidates = sorted(
-            candidate_scan.candidates,
-            key=lambda issue: (
-                -(
-                    self.config.audit_priority
-                    if issue.priority is None
-                    else int(issue.priority)
-                ),
-                issue.created_at or datetime.max.replace(tzinfo=timezone.utc),
-                issue.identifier,
-            ),
+        discovered_candidate_count = len(candidate_scan.candidates)
+        candidates, truncated = self._audit_candidate_window(
+            candidate_scan.candidates
         )
-        discovered_candidate_count = len(candidates)
-        limit = self.config.audit_lane_scan_limit
-        truncated = limit > 0 and discovered_candidate_count > limit
-        if truncated:
-            candidates = candidates[:limit]
         # Candidate discovery is current lane telemetry.  ``pending_count`` is
         # reserved for the authoritative TerminalAuditHealth generation and
         # can intentionally retain last-complete facts during a partial scan.
         metrics["discovered_candidate_count"] = discovered_candidate_count
+        metrics["capacity_deferred"] = False
         dispatched = 0
+        dispatch_limit = max(
+            int(getattr(self.config, "audit_lane_dispatch_limit", 2)),
+            1,
+        )
         # Health-scan state: one observation per In Validation issue.
         observations: list[AuditHealthObservation] = []
         _audit_scan_error_count: int = 0
         processed_candidate_count = 0
+        last_processed_cursor: str | None = None
 
         for issue in candidates:
-            if self._dispatch_is_blocked(issue):
-                continue
-            if self._available_slots() <= 0:
+            if _audit_slots_available() <= 0 or dispatched >= dispatch_limit:
                 break
             processed_candidate_count += 1
+            cursor = self._audit_candidate_cursor_key(issue)
+            last_processed_cursor = cursor
+            metrics["cursor"] = cursor
+            if self._dispatch_is_blocked(issue):
+                continue
             try:
                 store = self._audit_store(issue)
                 document = await asyncio.get_running_loop().run_in_executor(
@@ -16700,10 +16789,26 @@ class Orchestrator:
                 metrics["last_error"] = f"{type(exc).__name__}: {exc}"
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
+        if last_processed_cursor is not None:
+            self._set_maintenance_cursor("audit_lane", last_processed_cursor)
+
         metrics["in_progress_count"] = sum(
             1 for entry in self._running_values_snapshot() if entry.is_auditor
         )
+        running_snapshot = self._running_values_snapshot()
+        metrics["lane_occupancy"] = {
+            "audit": sum(1 for entry in running_snapshot if entry.is_auditor),
+            "non_audit": sum(
+                1 for entry in running_snapshot if not entry.is_auditor
+            ),
+            "available": self._available_slots(),
+        }
         metrics["last_dispatched_count"] = dispatched
+        metrics["dispatch_limit"] = dispatch_limit
+        metrics["deferred_candidate_count"] = max(
+            discovered_candidate_count - processed_candidate_count,
+            0,
+        )
         # Rebuild health metrics and alerts from the durable audit observations.
         # Filling the final slot while processing the final candidate is still
         # a complete scan.  Only an early break leaves unobserved candidates.
@@ -16756,15 +16861,6 @@ class Orchestrator:
             result = await coro_factory(*args)
             metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
             return result
-
-        # Audits are a priority lane. They run first and consume the same
-        # ``state.running`` slots as ordinary workers, so a full worker pool
-        # naturally prevents an audit from exceeding global concurrency.
-        audit_timings = await _timed_async(
-            "audit_lane", self._dispatch_audit_lane
-        )
-        timings.update(audit_timings)
-        metrics["audits"] = dict(self._audit_metrics)
 
         # 1. Candidate fetch — dominant I/O cost (one tracker query per project)
         candidates = await _timed_async(
@@ -16820,7 +16916,43 @@ class Orchestrator:
         ready = await _timed("select_dispatchable", self._select_dispatchable, candidates)
         metrics["selection"] = getattr(self, "_last_selection_metrics", {})
         metrics["ready_count"] = len(ready)
+        now = datetime.now(timezone.utc)
+        ready_created = [
+            (
+                issue.created_at
+                if issue.created_at.tzinfo is not None
+                else issue.created_at.replace(tzinfo=timezone.utc)
+            )
+            for issue in ready
+            if issue.created_at is not None
+        ]
+        metrics["oldest_runnable_implementation_age_seconds"] = (
+            max(
+                0.0,
+                max((now - created).total_seconds() for created in ready_created),
+            )
+            if ready_created
+            else None
+        )
         timings["candidate_selection"] = metrics["select_dispatchable_ms"]
+
+        # Audits retain priority for unreserved capacity, but may not consume
+        # the final slots required by already-proven runnable implementation or
+        # workflow-repair work.  Selection runs first so the reservation is
+        # based on the same dispatch authority used below, not on a stale or
+        # merely Open tracker row.
+        reserved_non_audit_slots = self._audit_lane_reserved_slots(
+            non_audit_ready=bool(ready)
+        )
+        audit_timings = await _timed_async(
+            "audit_lane",
+            lambda: self._dispatch_audit_lane(
+                reserved_non_audit_slots=reserved_non_audit_slots
+            ),
+        )
+        timings.update(audit_timings)
+        metrics["audits"] = dict(self._audit_metrics)
+        metrics["reserved_non_audit_slots"] = reserved_non_audit_slots
 
         # 6. Normal dispatch — one await per dispatched agent
         _t_dispatch = time.monotonic()
@@ -16832,6 +16964,16 @@ class Orchestrator:
             dispatched += 1
         timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
+        if self.state.max_concurrent_agents == 1 and ready:
+            audit_dispatched = int(
+                self._audit_metrics.get("last_dispatched_count", 0) or 0
+            )
+            if audit_dispatched:
+                self._set_maintenance_cursor(
+                    "single_slot_dispatch_lane", "implementation"
+                )
+            elif dispatched:
+                self._set_maintenance_cursor("single_slot_dispatch_lane", "audit")
 
         # 7. Epic planning — plan open epics without children (or repair epics)
         _t_epic = time.monotonic()

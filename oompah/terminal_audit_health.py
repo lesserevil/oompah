@@ -663,14 +663,25 @@ def terminal_audit_health_alerts(
         )
 
     if not health.scan_complete:
-        add(
-            "scan",
-            "warning",
-            "Terminal-audit health scan is incomplete",
-            "Current audit health could not be fully confirmed.",
-            "Restore tracker access before treating the queue as healthy.",
-            action_required=True,
-        )
+        if health.scan_error_count:
+            add(
+                "scan",
+                "warning",
+                "Terminal-audit health scan is incomplete",
+                "Current audit health could not be fully confirmed.",
+                "Restore tracker access before treating the queue as healthy.",
+                action_required=True,
+            )
+        else:
+            add(
+                "scan",
+                "info",
+                "Terminal-audit health scan is continuing",
+                "The configured bounded scan deferred part of the audit queue.",
+                "No operator action is required; the durable cursor will "
+                "continue next tick.",
+                action_required=False,
+            )
 
     if health.quarantined_count:
         add(

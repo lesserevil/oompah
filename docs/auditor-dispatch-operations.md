@@ -151,9 +151,19 @@ OOMPAH_AUDIT_ATTEMPT_TTL=3600
 OOMPAH_AUDIT_PRIORITY=100
 
 # Maximum number of In Validation tasks scanned per scheduler tick.
-# Limits the audit lane's CPU time per tick. Set to 0 for no cap.
+# Limits the audit lane's CPU time per tick. A durable cursor rotates through
+# later candidates across ticks and restart. Set to 0 for no cap.
 # Recommended: 32–64.
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
+
+# Maximum auditor launches attempted in one scheduler tick. This separately
+# bounds provider-probe and dispatch work even when the scan window is larger.
+# Recommended: 1–4.
+OOMPAH_AUDIT_LANE_DISPATCH_LIMIT=2
+
+# Slots retained for runnable implementation/control-plane work while audits
+# drain. At total concurrency 1, Oompah alternates the two lanes durably.
+OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS=1
 
 # Maximum age (seconds) of a durable, exact provider/model health
 # observation. Missing or older observations are probed before reservation;
@@ -210,6 +220,11 @@ OOMPAH_BUDGET_LIMIT=50.00
 # Maximum retry backoff in milliseconds.
 OOMPAH_MAX_RETRY_BACKOFF_MS=300000
 ```
+
+The state snapshot exposes the audit/non-audit lane occupancy, reserved slot
+count, deferred audit count and cursor, and oldest runnable implementation age.
+A scan deferred only by these configured budgets is informational and advances
+automatically; tracker read failures remain actionable warnings.
 
 ### Auditor Role Configuration
 

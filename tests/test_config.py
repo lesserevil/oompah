@@ -778,6 +778,22 @@ class TestAuditDispatchConfiguration:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.audit_lane_scan_limit == 0
 
+    def test_audit_lane_capacity_defaults(self):
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+        assert cfg.audit_lane_dispatch_limit == 2
+        assert cfg.audit_non_audit_reserved_slots == 1
+
+    def test_audit_lane_capacity_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_LANE_DISPATCH_LIMIT", "7")
+        monkeypatch.setenv("OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS", "3")
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+        assert cfg.audit_lane_dispatch_limit == 7
+        assert cfg.audit_non_audit_reserved_slots == 3
+
     def test_audit_settings_documented_in_env_example(self):
         env_example = Path(__file__).parents[1] / ".env.example"
         content = env_example.read_text(encoding="utf-8")
@@ -789,6 +805,8 @@ class TestAuditDispatchConfiguration:
         assert "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS" in content
         assert "OOMPAH_AUDIT_PRIORITY" in content
         assert "OOMPAH_AUDIT_LANE_SCAN_LIMIT" in content
+        assert "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT" in content
+        assert "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS" in content
 
     def test_auditor_dispatch_doc_exists(self):
         doc_path = Path(__file__).parents[1] / "docs" / "auditor-dispatch-operations.md"
@@ -797,6 +815,8 @@ class TestAuditDispatchConfiguration:
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
         assert "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS" in content
         assert "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS" in content
+        assert "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT" in content
+        assert "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS" in content
         assert "Needs Human" in content
         assert "override" in content.lower()
 

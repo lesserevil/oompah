@@ -528,6 +528,16 @@ class ServiceConfig:
     # dispatch lane.  Set to 0 for no per-tick cap (scan all pending audits).
     # Configurable via OOMPAH_AUDIT_LANE_SCAN_LIMIT. Default: 32.
     audit_lane_scan_limit: int = 32
+    # Maximum auditor launches attempted per scheduler tick.  Candidate
+    # inspection can include bounded provider probes, so keep this separate
+    # from the larger health-scan window.
+    # Configurable via OOMPAH_AUDIT_LANE_DISPATCH_LIMIT. Default: 2.
+    audit_lane_dispatch_limit: int = 2
+    # Capacity kept available for runnable implementation/control-plane work
+    # while the audit lane drains.  The scheduler alternates lanes when total
+    # concurrency is one, because a literal reservation is impossible there.
+    # Configurable via OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS. Default: 1.
+    audit_non_audit_reserved_slots: int = 1
 
     # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
     # exits with reason="normal" AND has moved the issue to a terminal
@@ -957,6 +967,12 @@ class ServiceConfig:
         self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
         self.audit_priority = max(int(self.audit_priority), 1)
         self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
+        self.audit_lane_dispatch_limit = max(
+            int(self.audit_lane_dispatch_limit), 1
+        )
+        self.audit_non_audit_reserved_slots = max(
+            int(self.audit_non_audit_reserved_slots), 0
+        )
         self.workflow_runtime_decision_limit = min(
             max(int(self.workflow_runtime_decision_limit), 1), 1000
         )
@@ -1209,6 +1225,12 @@ class ServiceConfig:
             audit_priority=_env_int("OOMPAH_AUDIT_PRIORITY", None, 100),
             audit_lane_scan_limit=_env_int(
                 "OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32
+            ),
+            audit_lane_dispatch_limit=_env_int(
+                "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT", None, 2
+            ),
+            audit_non_audit_reserved_slots=_env_int(
+                "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS", None, 1
             ),
             audit_stale_pending_seconds=_parse_positive_env_int(
                 "OOMPAH_AUDIT_STALE_PENDING_SECONDS", 3600
@@ -1530,6 +1552,10 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
         errors.append("audit_attempt_ttl must be positive")
     if config.audit_lane_scan_limit < 0:
         errors.append("audit_lane_scan_limit must be non-negative")
+    if config.audit_lane_dispatch_limit <= 0:
+        errors.append("audit_lane_dispatch_limit must be positive")
+    if config.audit_non_audit_reserved_slots < 0:
+        errors.append("audit_non_audit_reserved_slots must be non-negative")
     if config.audit_stale_pending_seconds <= 0:
         errors.append("audit_stale_pending_seconds must be positive")
 

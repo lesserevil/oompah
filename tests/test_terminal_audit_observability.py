@@ -1024,6 +1024,96 @@ async def test_audit_scan_limit_cannot_publish_complete_partial_facts(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_audit_scan_cursor_rotates_durably_across_restart(tmp_path: Path) -> None:
+    """A bounded audit window cannot pin candidates behind its first page."""
+
+    state_path = tmp_path / "service_state.json"
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    config = ServiceConfig(
+        workspace_root=str(tmp_path / "workspace"),
+        audit_lane_scan_limit=2,
+        duplicate_preflight_max_agents=0,
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index}",
+            title=f"Audit candidate {index}",
+            state="In Validation",
+            project_id="project-a",
+            created_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
+        )
+        for index in range(5)
+    )
+    first = Orchestrator(
+        config,
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(state_path),
+    )
+    try:
+        first_window, truncated = first._audit_candidate_window(candidates)
+        assert truncated
+        assert [issue.identifier for issue in first_window] == ["TASK-0", "TASK-1"]
+        first._set_maintenance_cursor(
+            "audit_lane",
+            first._audit_candidate_cursor_key(first_window[-1]),
+        )
+    finally:
+        first._tick_pool.shutdown(wait=True, cancel_futures=True)
+        first._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    restarted = Orchestrator(
+        config,
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(state_path),
+    )
+    try:
+        second_window, truncated = restarted._audit_candidate_window(candidates)
+        assert truncated
+        assert [issue.identifier for issue in second_window] == [
+            "TASK-2",
+            "TASK-3",
+        ]
+    finally:
+        restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
+        restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_audit_capacity_reserves_repair_slot_and_alternates_at_one(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            max_concurrent_agents=4,
+            audit_non_audit_reserved_slots=1,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._available_slots = MagicMock(return_value=4)
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=True) == 1
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=False) == 0
+
+        orchestrator.state.max_concurrent_agents = 1
+        orchestrator._available_slots.return_value = 1
+        orchestrator._maintenance_cursors.pop("single_slot_dispatch_lane", None)
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=True) == 1
+        orchestrator._maintenance_cursors["single_slot_dispatch_lane"] = "audit"
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=True) == 0
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 @pytest.mark.asyncio
 async def test_project_fetch_failure_cannot_clear_last_complete_audit_health(
     tmp_path: Path,
