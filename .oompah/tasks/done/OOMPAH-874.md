@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T07:23:57.611687Z'
-updated_at: '2026-08-08T07:17:49.624721Z'
+updated_at: '2026-08-08T07:18:03.027854Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-874
 target_branch: null
 review_url: null
@@ -153,7 +153,17 @@ oompah.terminal_audit:
       in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822;
       focused composition tests and exact full make test passed.'
     created_at: '2026-08-08T07:17:45.595866+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-874
+    target_state: Done
+    evidence_fingerprint: c89ba3c50c0500fbf79a2ff75f8d6b885bf6cd7e959540d29a8821c59e5f3d75
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T07:17:56.581580+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -309,5 +319,17 @@ Run #4 [attempt=4, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 29m 22s
 - Log: OOMPAH-874__20260807T090854Z.jsonl
+---
+author: oompah
+created: 2026-08-08 07:17
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: accepted OOMPAH-874 patch is contained in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822; focused composition tests and exact full make test passed.
+---
+author: oompah
+created: 2026-08-08 07:18
+---
+Integrated into published epic-OOMPAH-768 at 9a893835d7c4a522def2e39e929ac2be3f090822 (composed commit c716f7453); exact full gate passed 18,464 tests.
 ---
 <!-- COMMENTS:END -->
