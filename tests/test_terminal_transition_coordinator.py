@@ -1950,6 +1950,79 @@ class TestOwnerOverrides:
             status_label_authorized_logins=["project-owner"],
         )
 
+    def test_reopened_epic_ignores_historical_completed_done_evidence(self) -> None:
+        historical = Issue(
+            id="OOMPAH-588",
+            identifier="OOMPAH-588",
+            title="Finish safe repository hygiene and maintenance correctness",
+            description="Complete repository hygiene maintenance.",
+            state=DONE,
+            issue_type="epic",
+            parent_id="OOMPAH-584",
+            project_id=PROJECT_ID,
+            work_branch="OOMPAH-588",
+        )
+        current = replace(
+            historical,
+            state="In Progress",
+            work_branch="epic-OOMPAH-588",
+            target_branch="epic-OOMPAH-584",
+            review_url="https://github.com/lesserevil/oompah/pull/602",
+            review_number="602",
+        )
+        historical_fingerprint = compute_issue_evidence_fingerprint(
+            historical, PROJECT_ID
+        )
+        current_fingerprint = compute_issue_evidence_fingerprint(
+            current, PROJECT_ID
+        )
+        assert historical_fingerprint != current_fingerprint
+        completed = TerminalAuditRecord(
+            audit_id="audit-historical-done-oompah-588",
+            project_id=PROJECT_ID,
+            task_id=current.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=historical_fingerprint,
+            request_state=RequestState.COMPLETED,
+        )
+        tracker = _RefreshingTracker(current)
+        _seed_metadata(tracker, [completed], task_id=current.identifier)
+        coordinator = _coordinator(tracker, post_comments=False)
+
+        first = _run(
+            coordinator.override_transition(
+                current,
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                current_fingerprint,
+                "Restore the landed historical epic to terminal Done.",
+                self._owner_project(),
+            )
+        )
+        replay = _run(
+            coordinator.override_transition(
+                tracker.fetch_issue_detail(current.identifier),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                current_fingerprint,
+                "Restore the landed historical epic to terminal Done.",
+                self._owner_project(),
+            )
+        )
+
+        assert first.success is True
+        assert replay.success is True
+        assert replay.idempotent is True
+        assert replay.override_id == first.override_id
+        assert tracker.current_status(current.identifier) == DONE
+        metadata = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(current.identifier)
+        override = metadata.unknown_fields["oompah.terminal_override_records"][0]
+        assert override["evidence_fingerprint"] == current_fingerprint.to_dict()
+
     def test_legacy_done_override_accepts_exact_integrated_oompah_660_generation(
         self,
     ) -> None:
@@ -1964,7 +2037,7 @@ class TestOwnerOverrides:
             task_id=issue.identifier,
             target_state=TargetState.DONE,
             evidence_fingerprint=variants.legacy_work_branch,
-            request_state=RequestState.COMPLETED,
+            request_state=RequestState.PENDING,
         )
         tracker = _RefreshingTracker(issue)
         _seed_metadata(tracker, [active], task_id=issue.identifier)
@@ -2002,7 +2075,7 @@ class TestOwnerOverrides:
             task_id=issue.identifier,
             target_state=TargetState.DONE,
             evidence_fingerprint=variants.integrated,
-            request_state=RequestState.COMPLETED,
+            request_state=RequestState.PENDING,
         )
         tracker = _RefreshingTracker(issue)
         _seed_metadata(tracker, [active], task_id=issue.identifier)
@@ -2058,7 +2131,7 @@ class TestOwnerOverrides:
             task_id=issue.identifier,
             target_state=TargetState.DONE,
             evidence_fingerprint=historical,
-            request_state=RequestState.COMPLETED,
+            request_state=RequestState.PENDING,
         )
         tracker = _RefreshingTracker(issue)
         _seed_metadata(tracker, [active], task_id=issue.identifier)

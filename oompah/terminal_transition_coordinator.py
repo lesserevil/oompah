@@ -4239,9 +4239,15 @@ class TerminalTransitionCoordinator:
                 and record.task_id == identifier
                 and record.target_state == requested_target
             ):
-                # Collect the current (non-superseded) record for this target
-                # The chain is ordered, so a non-superseded record is the active one.
-                if record.request_state != RequestState.SUPERSEDED:
+                # Only an audit that can still produce a result owns current
+                # evidence. Completed, cancelled, and superseded rows are
+                # immutable history; letting one veto a fresh owner decision
+                # strands a task that was legitimately reopened or whose
+                # branch/review projection evolved after the old audit.
+                if record.request_state in (
+                    RequestState.PENDING,
+                    RequestState.IN_PROGRESS,
+                ):
                     current_record_for_target = record
 
         if current_record_for_target is not None:
