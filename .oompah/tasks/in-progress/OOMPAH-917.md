@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-917
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make native validation lease teardown assertion race-free
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-08T15:12:45.375040Z'
-updated_at: '2026-08-08T15:39:12.985541Z'
+updated_at: '2026-08-08T15:39:19.718285Z'
 work_branch: null
 target_branch: null
 review_url: null
