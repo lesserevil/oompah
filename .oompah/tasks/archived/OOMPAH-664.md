@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-08-08T00:01:24.764646Z'
+updated_at: '2026-08-08T00:01:37.920117Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: fdbef3c7-98d6-4f77-8802-14613381f4ab
 oompah.task_costs:
-  total_input_tokens: 8185523
-  total_output_tokens: 89548
+  total_input_tokens: 8185548
+  total_output_tokens: 96646
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -60,8 +60,8 @@ oompah.task_costs:
       output_tokens: 50673
       cost_usd: 0.0
     unknown:
-      input_tokens: 125
-      output_tokens: 28250
+      input_tokens: 150
+      output_tokens: 35348
       cost_usd: 0.0
   runs:
   - profile: default
@@ -136,6 +136,12 @@ oompah.task_costs:
     output_tokens: 5676
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:46:14.022573+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 25
+    output_tokens: 7098
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T00:01:33.433789+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-664__20260731T181337Z
@@ -1318,5 +1324,15 @@ Safe evidence:
 - server_source_generations_refs: 31 occurrences confirmed in oompah/server.py
 - prior_auditors: Two opus auditors submitted PASS for Done and Merged targets
 - gate_evidence_note: Scheduler marks stale because fingerprint references pre-rebase SHA; merged head a79a28d01 confirmed as ancestor of merge commit
+---
+author: oompah
+created: 2026-08-08 00:01
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 41, Tool calls: 31
+- Tokens: 25 in / 7.1K out [7.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 22s
+- Log: OOMPAH-664__20260807T235620Z.jsonl
 ---
 <!-- COMMENTS:END -->
