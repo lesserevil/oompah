@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-08T04:03:53.572538Z'
+updated_at: '2026-08-08T04:04:00.022590Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -114,7 +114,17 @@ oompah.terminal_audit:
       landing, parallel child, terminal audit, and submission tests passed, and the
       exact parent full gate passed 17,860 tests with zero failures.'
     created_at: '2026-08-08T04:03:49.632735+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-866
+    target_state: Done
+    evidence_fingerprint: c50f22980cdb64eb62948c23890ce4c9c6ef37f67397056ab427dd12bd9b13de
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T04:03:58.543228+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -358,5 +368,12 @@ author: oompah
 created: 2026-08-08 04:00
 ---
 Direct-owner integration is active against exact published parent e74449e4f9303f35c2cc2c1c5fc78ee979f4d268. The accepted OOMPAH-866 three-commit delta is being replayed in an isolated worktree with newer parent authority/review/quality-gate hardening preserved; focused canonical landing and shared-child tests will gate composition.
+---
+author: oompah
+created: 2026-08-08 04:03
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: the evolved OOMPAH-866 sequence 49ecd3324/8c1316e57/60e6623d6 is present in published epic-OOMPAH-763. Range-diff and a trial replay proved accepted-task semantic and byte-for-byte supersession; 201 focused canonical landing, parallel child, terminal audit, and submission tests passed, and the exact parent full gate passed 17,860 tests with zero failures.
 ---
 <!-- COMMENTS:END -->
