@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:33:51.824852Z'
-updated_at: '2026-08-08T03:57:43.824880Z'
+updated_at: '2026-08-08T03:57:57.188125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       Independent composition review completed, affected tests passed 392/392, and
       the exact full make test passed 17,860 with zero failures.'
     created_at: '2026-08-08T03:57:39.820467+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-904
+    target_state: Done
+    evidence_fingerprint: 6426a4776f9a7d7ea5e22f758094c6a0305b8c234d3adadb93f93b247217cf06
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T03:57:49.499801+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -93,5 +103,17 @@ author: oompah
 created: 2026-08-07 21:12
 ---
 Repair complete and pushed on origin/compose-OOMPAH-763--O904 at exact head 7574bd004d8fba1ce43122d036f68d2ec3fe4d6d, based on epic OOMPAH-763 lineage. The distinct owner-loop publication timeout now requests an exact-generation retirement retry; admitted retries are warning-only, while no-admission/scheduling failures and generic cleanup exceptions remain error-visible with truthful API diagnostics. Validation: 8 focused API/coordinator regressions passed, py_compile/diff check green, make check-secrets passed, independent revised-head review ACCEPT. Holding for cherry-pick into final OOMPAH-763 composition.
+---
+author: oompah
+created: 2026-08-08 03:57
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation for OOMPAH-904: its accepted implementation is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268. Independent composition review completed, affected tests passed 392/392, and the exact full make test passed 17,860 with zero failures.
+---
+author: oompah
+created: 2026-08-08 03:57
+---
+Integrated and validated on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
 ---
 <!-- COMMENTS:END -->
