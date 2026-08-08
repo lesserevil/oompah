@@ -17,7 +17,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-08T19:39:38.452431Z'
+updated_at: '2026-08-08T19:39:49.990185Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -2223,5 +2223,10 @@ created: 2026-08-08 19:39
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Operator closure after repeated independent Merged audit passes and verified ancestry in origin/main; OOMPAH-921 now guarantees the exact direct-owner claim retires only after the committed terminal transition and cannot resurrect during reconciliation.
+---
+author: oompah
+created: 2026-08-08 19:39
+---
+Closed through the authenticated owner override after live OOMPAH-921 validation. Historical implementation and all children are already landed; the exact owner claim is expected to retire durably after this commit.
 ---
 <!-- COMMENTS:END -->
