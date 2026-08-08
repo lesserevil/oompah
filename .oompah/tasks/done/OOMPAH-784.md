@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-08T04:09:33.194266Z'
+updated_at: '2026-08-08T04:09:45.388224Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -190,7 +190,17 @@ oompah.terminal_audit:
       in published e74449e4; it has no children, and the exact parent full gate passed
       17,860 tests with zero failures.'
     created_at: '2026-08-08T04:09:29.043569+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-784
+    target_state: Done
+    evidence_fingerprint: 288f953affea87b3b5e6dbc99911f36ca7b760429f1ee4c713ab999d15f2d558
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T04:09:38.362711+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -344,5 +354,17 @@ author: oompah
 created: 2026-08-06 18:57
 ---
 Preserved the exact live dirty repair before upcoming epic reflows: diff SHA-256 e5d0871f4c02ce51007214b3e819da0b789a94a38f619d077622853b75a8d810 at backup ref refs/backup/OOMPAH-784-pre-resume-20260806 (e6996863d353f4360b887891d238e329be11622b). The working tree is unchanged.
+---
+author: oompah
+created: 2026-08-08 04:09
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: accepted OOMPAH-784 stack is fully ancestor/patch-contained in published e74449e4; it has no children, and the exact parent full gate passed 17,860 tests with zero failures.
+---
+author: oompah
+created: 2026-08-08 04:09
+---
+Published and validated in epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
 ---
 <!-- COMMENTS:END -->
