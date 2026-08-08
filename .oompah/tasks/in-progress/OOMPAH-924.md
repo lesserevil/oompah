@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T19:33:35.949962Z'
-updated_at: '2026-08-08T20:23:34.504336Z'
+updated_at: '2026-08-08T20:52:14.968728Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ author: oompah
 created: 2026-08-08 20:23
 ---
 Implemented the shutdown-race fix in the systemic composition worktree. WorkflowRuntime now treats the complete reconcile (including its bare executor Future under cancellation) as explicit mutation authority; graceful shutdown fences scheduler startup/tick admission and uses a loop-independent safe-stop acknowledgement so asyncio.run cannot cancel the stop owner or deadlock a single-worker default executor. Added deterministic regressions for active tick, pre-tick startup, stop-before-run, threaded stop acknowledgement, caller cancellation, loop teardown, queued executor handoff, and pre-first-turn cancellation. Focused compatibility gate: 424 passed.
+---
+author: oompah
+created: 2026-08-08 20:52
+---
+Exact review-ready commit bdabac3ff0619b85e1b61f7efb3f9a322b8efb51 passed the complete branch gate: 18,797 passed, 7 skipped, 2 xfailed, 43 warnings in 20m05s. The commit was atomically published to all 40 systemic-workflow refs and the new OOMPAH-924 ref. Two live make graceful cutovers completed on the exact commit; the second exercised the fixed code on shutdown and produced no Orchestrator crash, WorkflowJobStore closed-fd access, bad-file-descriptor error, or safe-stop fallback. /healthz reports healthy with the exact revision. Final rollout soak is now running.
 ---
 <!-- COMMENTS:END -->
