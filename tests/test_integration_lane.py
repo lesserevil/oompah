@@ -128,7 +128,7 @@ def test_startup_preexisting_ready_work_starts_one_integration_pass(tmp_path) ->
 
 
 def test_idle_integration_pass_does_not_self_rearm_dispatch_loop(tmp_path) -> None:
-    """An empty startup scan becomes idle without manufacturing refreshes."""
+    """Startup and tick scans settle without manufacturing refreshes."""
 
     orchestrator = _make_orchestrator(tmp_path)
     orchestrator.project_store.list_all.return_value = []
@@ -137,6 +137,8 @@ def test_idle_integration_pass_does_not_self_rearm_dispatch_loop(tmp_path) -> No
     pass_count = 0
     tick_count = 0
     first_pass_complete = asyncio.Event()
+    second_pass_complete = asyncio.Event()
+    first_tick_complete = asyncio.Event()
     original_process = orchestrator._process_integration_queues
 
     async def record_process() -> None:
@@ -144,11 +146,14 @@ def test_idle_integration_pass_does_not_self_rearm_dispatch_loop(tmp_path) -> No
         pass_count += 1
         await original_process()
         first_pass_complete.set()
+        if pass_count >= 2:
+            second_pass_complete.set()
 
     async def integration_probe_tick() -> None:
         nonlocal tick_count
         tick_count += 1
         orchestrator._ensure_integration_lane()
+        first_tick_complete.set()
 
     orchestrator._process_integration_queues = record_process
     orchestrator._tick = integration_probe_tick
@@ -160,6 +165,14 @@ def test_idle_integration_pass_does_not_self_rearm_dispatch_loop(tmp_path) -> No
     async def scenario() -> tuple[int, int]:
         run = asyncio.create_task(orchestrator.run())
         await asyncio.wait_for(first_pass_complete.wait(), timeout=1)
+        # OOMPAH-768 performs its duplicate-resolution startup fence before
+        # the ordinary tick.  Observe that required tick explicitly rather
+        # than assuming it always wins the race with the isolated lane.
+        await asyncio.wait_for(first_tick_complete.wait(), timeout=1)
+        # The tick intentionally schedules one scan in addition to the
+        # independently started integration lane.  Once both authorized
+        # passes settle, an idle lane must not create a third pass.
+        await asyncio.wait_for(second_pass_complete.wait(), timeout=1)
         # Give a mistakenly self-posted REFRESH_REQUESTED event enough loop
         # turns to be dequeued and start another integration pass.
         for _ in range(10):
@@ -174,7 +187,7 @@ def test_idle_integration_pass_does_not_self_rearm_dispatch_loop(tmp_path) -> No
         return observed
 
     observed_passes, observed_ticks = asyncio.run(scenario())
-    assert observed_passes == 1
+    assert observed_passes == 2
     assert observed_ticks == 1
     post_refresh.assert_not_called()
 

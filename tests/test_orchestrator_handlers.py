@@ -7849,6 +7849,8 @@ class TestContributorAuditorReservationOrchestration:
         created_at = datetime.now(timezone.utc).isoformat()
         plan = AuditDispatchPlan(
             audit_id="precontact-audit",
+            project_id="legacy",
+            task_id=issue.identifier,
             attempt_id="precontact-attempt",
             target_state=TargetState.DONE,
             evidence_fingerprint=EvidenceFingerprint("a" * 64),

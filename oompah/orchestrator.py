@@ -14412,7 +14412,11 @@ class Orchestrator:
             # dependent target, not a replacement for an in-flight Done
             # audit, so reverse-selecting the last unresolved row loses the
             # exact attempt and permanently consumes its retry budget.
-            target = AuditorDispatchLane.pending_record(document.pending_chain)
+            target = AuditorDispatchLane.pending_record(
+                document.pending_chain,
+                project_id=str(issue.project_id or "legacy"),
+                task_id=issue.identifier,
+            )
             exact_record = next(
                 (
                     record
