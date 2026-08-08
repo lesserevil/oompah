@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:25.215337Z'
-updated_at: '2026-08-08T16:26:45.057217Z'
+updated_at: '2026-08-08T16:26:51.275577Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:26:40.953319+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-916
+    target_state: Done
+    evidence_fingerprint: 61240cf79492af987768c7d31b30b42f10748f29e87fc75c2a908fb9d4762590
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:26:49.769363+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -59,5 +69,12 @@ author: oompah
 created: 2026-08-08 14:37
 ---
 Direct owner implementation completed locally on the systemic composition branch. Graceful Uvicorn and Granian exec restarts now reconcile the authoritative dotenv before exec, remove only formerly file-managed keys that disappeared, preserve unrelated variables, and keep last-known-good values for missing/unreadable files. 153 focused tests pass. Status remains Backlog until transition recovery is deployed.
+---
+author: oompah
+created: 2026-08-08 16:26
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->
