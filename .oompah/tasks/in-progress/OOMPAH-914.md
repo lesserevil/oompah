@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-914
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Recover expired task-transition claims without operator deadlock
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T14:25:47.766180Z'
-updated_at: '2026-08-08T15:38:38.574177Z'
+updated_at: '2026-08-08T15:38:43.664845Z'
 work_branch: null
 target_branch: null
 review_url: null
