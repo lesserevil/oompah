@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-927
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Schedule universal workflow controller under durable runtime
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T23:01:44.924274Z'
-updated_at: '2026-08-08T23:02:28.715916Z'
+updated_at: '2026-08-08T23:02:47.494263Z'
 work_branch: null
 target_branch: null
 review_url: null
