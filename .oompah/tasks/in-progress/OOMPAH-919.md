@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-919
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Exclude paused projects from shadow rollout coverage failures
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T15:44:04.212180Z'
-updated_at: '2026-08-08T15:44:20.953303Z'
+updated_at: '2026-08-08T15:44:27.260225Z'
 work_branch: null
 target_branch: null
 review_url: null
