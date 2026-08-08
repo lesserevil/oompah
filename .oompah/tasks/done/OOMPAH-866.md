@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-08T04:00:16.213825Z'
+updated_at: '2026-08-08T04:03:53.572538Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -93,6 +93,31 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-866
     source_sha: 72cc4481c3eee5605345a4a36c3fe688149572b8
     completed_at: '2026-08-06T20:41:56.240837+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-5d2193712179
+    project_id: proj-14849f1b
+    task_id: OOMPAH-866
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c50f22980cdb64eb62948c23890ce4c9c6ef37f67397056ab427dd12bd9b13de
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation: the evolved OOMPAH-866 sequence 49ecd3324/8c1316e57/60e6623d6
+      is present in published epic-OOMPAH-763. Range-diff and a trial replay proved
+      accepted-task semantic and byte-for-byte supersession; 201 focused canonical
+      landing, parallel child, terminal audit, and submission tests passed, and the
+      exact parent full gate passed 17,860 tests with zero failures.'
+    created_at: '2026-08-08T04:03:49.632735+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

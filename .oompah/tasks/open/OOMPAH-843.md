@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-843
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T04:03:29.475440Z'
+updated_at: '2026-08-08T04:03:46.596950Z'
 work_branch: OOMPAH-843
 target_branch: null
 review_url: null
@@ -353,5 +353,16 @@ author: oompah
 created: 2026-08-08 04:03
 ---
 Security audit complete: Per-target auditor validation deadlines properly implemented with strong security controls. Shell injection prevention via regex escaping, path escape detection, credential file blocking, fail-closed configuration validation, and proper timeout enforcement across API and ACP backends. 42 deadline tests + 56 auditor contract tests pass. Ready for integration.
+---
+author: oompah
+created: 2026-08-08 04:03
+---
+⚠️ **Late mutations after submission acceptance** (ae92d0ee vs ae92d0ee)
+
+Changes appeared in the worktree after the submission was accepted but before cleanup completed. These late changes have been durably preserved and are available for the next retry.
+
+**Recovery checkpoint:** `refs/oompah/recovery/OOMPAH-843-75b61d327052be8a` (snapshot: `98517d4c`)
+
+The task has been reopened with the recovery context preserved. A new agent can review the changes and explicitly resubmit if needed.
 ---
 <!-- COMMENTS:END -->
