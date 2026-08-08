@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-01T00:35:39.943636Z'
+updated_at: '2026-08-08T00:56:18.390362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -286,6 +286,25 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-01T00:24:07.729145+00:00'
     updated_at: '2026-08-01T00:35:27.331390+00:00'
+  - version: 1
+    audit_id: audit-ed7a00bcc7de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a88bf536658c9b79ff454d633fb9c73c2b64f5c57ff44b4b6ff0ecb89b84612f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T00:56:14.755030+00:00'
+    selected_ref: 04d681f1033fb34e61cb9a00647d87ef879b90da
+    selected_sha: 04d681f1033fb34e61cb9a00647d87ef879b90da
   attempt_history:
   - version: 1
     attempt_id: attempt-a46d5580cb51
