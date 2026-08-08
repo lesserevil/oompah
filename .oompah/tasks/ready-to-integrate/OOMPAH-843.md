@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-843
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T04:02:43.722499Z'
-work_branch: null
+updated_at: '2026-08-08T04:03:29.475440Z'
+work_branch: OOMPAH-843
 target_branch: null
 review_url: null
 review_number: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 627cb628-e781-4339-addc-13602b3facfe
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48109
   total_output_tokens: 553
@@ -87,6 +87,15 @@ oompah.work_contributors:
     source_branch: OOMPAH-843
     source_sha: null
     completed_at: ''
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-843
+  head_sha: ae92d0ee89a163b70a15d39003617529f66b455b
+  submitted_at: '2026-08-08T04:03:09.417557+00:00'
+  updated_at: '2026-08-08T04:03:09.417557+00:00'
+oompah.work_branch: OOMPAH-843
 ---
 ## Summary
 
@@ -339,5 +348,10 @@ Reviewed implementation of per-target auditor validation deadlines with focus on
 - Configuration Issues (A05): Validation at Project.from_dict(), startup checks
 
 **VERDICT:**  42 deadline tests PASS, 56 auditor contract tests PASS. Security posture is solid. Per-target deadlines properly integrated across API and ACP backends without introducing new vulnerabilities.
+---
+author: oompah
+created: 2026-08-08 04:03
+---
+Security audit complete: Per-target auditor validation deadlines properly implemented with strong security controls. Shell injection prevention via regex escaping, path escape detection, credential file blocking, fail-closed configuration validation, and proper timeout enforcement across API and ACP backends. 42 deadline tests + 56 auditor contract tests pass. Ready for integration.
 ---
 <!-- COMMENTS:END -->
