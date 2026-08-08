@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-07T18:19:47.129223Z'
+updated_at: '2026-08-08T08:00:37.370125Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -217,5 +217,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 32m 26s
 - Log: OOMPAH-855__20260807T174739Z.jsonl
+---
+author: oompah
+created: 2026-08-08 08:00
+---
+Direct implementation is underway on exact systemic base 6cbbd6ef7. The fix now fences pause/graceful retirement before cancellation, records a non-consuming scheduler-pause audit outcome, restores the durable workflow claim count, and rejects late callbacks by rotating the exact lease. Focused coverage includes mixed policy+pause candidate selection, repeated pause workflow ownership, restart recovery, actual pause/resume retirement, and post-verdict race behavior. Static compilation is green; focused tests are queued through the dedicated validation broker.
 ---
 <!-- COMMENTS:END -->
