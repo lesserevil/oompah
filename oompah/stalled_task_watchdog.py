@@ -59,7 +59,6 @@ from oompah.statuses import (
     NEEDS_CI_FIX,
     NEEDS_HUMAN,
     NEEDS_REBASE,
-    OPEN,
     canonicalize_status,
 )
 from oompah.archived_audit_requests import request_archived_audit
@@ -1698,7 +1697,17 @@ def run_watchdog_audit(
 
             comment_body = build_watchdog_comment(decision)
 
-            if decision.action == "reopen" and reopen_executor is not None:
+            if decision.action == "reopen" and reopen_executor is None:
+                msg = (
+                    f"Failed authoritative watchdog reopen for {identifier}: "
+                    "task transition service is unavailable"
+                )
+                logger.warning(msg)
+                result.errors.append(msg)
+                continue
+
+            if decision.action == "reopen":
+                assert reopen_executor is not None
                 try:
                     executed = bool(
                         reopen_executor(
@@ -1749,20 +1758,7 @@ def run_watchdog_audit(
                 result.errors.append(msg)
                 # Don't abort the state change — comment failure is non-fatal.
 
-            if decision.action == "reopen":
-                try:
-                    tracker.update_issue(identifier, status=OPEN)
-                    logger.info(
-                        "Watchdog reopened %s (project=%s) — %s",
-                        identifier, project_id, decision.evidence,
-                    )
-                    result.actions_taken += 1
-                except Exception as exc:
-                    msg = f"Failed to reopen {identifier}: {exc}"
-                    logger.warning(msg)
-                    result.errors.append(msg)
-
-            elif decision.action == "archive":
+            if decision.action == "archive":
                 disposition_reason = f"Watchdog stalled-task archive: {decision.evidence}"
                 if request_archived_audit(
                     issue,

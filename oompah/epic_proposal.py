@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
@@ -874,6 +875,9 @@ def _all_applied_issue_ids_exist(tracker: Any, proposal: EpicProposal) -> bool:
 def _promote_decomposition_children_to_open(
     tracker: Any,
     proposal: EpicProposal,
+    *,
+    status_transition: Callable[..., object] | None,
+    actor: str,
 ) -> bool:
     """Promote fully-applied decomposition children from Proposed to Open.
 
@@ -897,7 +901,17 @@ def _promote_decomposition_children_to_open(
 
     for child in children:
         if canonicalize_status(child.state) == PROPOSED:
-            tracker.update_issue(child.identifier, status=OPEN)
+            transition = status_transition or getattr(
+                tracker, "transition_issue_status", None
+            )
+            if not callable(transition):
+                return False
+            transition(
+                child,
+                OPEN,
+                actor=actor,
+                reason_code="intake.decomposition_child_promoted",
+            )
     return True
 
 
@@ -918,6 +932,7 @@ def apply_epic_proposal(
     require_accepted: bool = True,
     author: str = "oompah",
     promote_children_to_open: bool = False,
+    status_transition: Callable[..., object] | None = None,
 ) -> EpicProposalApplyResult:
     """Apply an accepted proposal by creating/updating the epic and children."""
     proposal = load_epic_proposal(tracker, source.identifier)
@@ -933,7 +948,12 @@ def apply_epic_proposal(
 
     if _all_applied_issue_ids_exist(tracker, proposal):
         if promote_children_to_open:
-            _promote_decomposition_children_to_open(tracker, proposal)
+            _promote_decomposition_children_to_open(
+                tracker,
+                proposal,
+                status_transition=status_transition,
+                actor=author,
+            )
         return EpicProposalApplyResult(
             proposal=proposal,
             epic_identifier=proposal.epic_identifier,
@@ -949,7 +969,7 @@ def apply_epic_proposal(
             source.identifier,
             title=proposal.epic_title,
             description=epic_description,
-            **{"issue-type": "epic", "status": PROPOSED},
+            **{"issue-type": "epic"},
         )
         epic_identifier = source.identifier
         proposal.epic_identifier = epic_identifier
@@ -1031,7 +1051,17 @@ def apply_epic_proposal(
 
     if not reuse_source_as_epic:
         try:
-            tracker.update_issue(source.identifier, status=DECOMPOSED)
+            transition = status_transition or getattr(
+                tracker, "transition_issue_status", None
+            )
+            if not callable(transition):
+                raise RuntimeError("Task transition service is unavailable")
+            transition(
+                source,
+                DECOMPOSED,
+                actor=author,
+                reason_code="intake.decomposition_applied",
+            )
         except Exception as exc:  # noqa: BLE001
             logger.debug(
                 "epic_proposal: failed to mark source %s decomposed: %s",
@@ -1056,7 +1086,12 @@ def apply_epic_proposal(
         )
 
     if promote_children_to_open:
-        _promote_decomposition_children_to_open(tracker, proposal)
+        _promote_decomposition_children_to_open(
+            tracker,
+            proposal,
+            status_transition=status_transition,
+            actor=author,
+        )
 
     return EpicProposalApplyResult(
         proposal=proposal,
@@ -1166,6 +1201,7 @@ def process_epic_proposal_issue(
     auto_decompose: bool = False,
     allow_decomposition: bool = True,
     project: Any = None,
+    status_transition: Callable[..., object] | None = None,
 ) -> EpicProposalEnsureResult | EpicProposalApplyResult | IntakeValidationProcessResult | None:
     """Run intake validation and decomposition handling for one Proposed issue."""
     if project is not None and bool(getattr(project, "yolo", False)):
@@ -1235,6 +1271,7 @@ def process_epic_proposal_issue(
                 current_status=issue.state,
                 author=author,
                 post_audit_comment=False,
+                status_transition=status_transition,
             )
             promoted = promotion.promoted
         return IntakeValidationProcessResult(
@@ -1250,6 +1287,7 @@ def process_epic_proposal_issue(
             require_accepted=False,
             author=author,
             promote_children_to_open=True,
+            status_transition=status_transition,
         )
 
     record_approval_from_existing_comments(
@@ -1264,5 +1302,11 @@ def process_epic_proposal_issue(
     )
     readiness = _load_readiness(tracker, issue.identifier)
     if readiness.decomposition_status == DecompositionStatus.ACCEPTED:
-        return apply_epic_proposal(tracker, issue, require_accepted=True, author=author)
+        return apply_epic_proposal(
+            tracker,
+            issue,
+            require_accepted=True,
+            author=author,
+            status_transition=status_transition,
+        )
     return ensured

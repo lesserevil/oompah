@@ -167,6 +167,14 @@ class FakeTracker:
         if "type" in fields:
             issue.issue_type = str(fields["type"])
 
+    def transition_issue_status(
+        self,
+        issue: Issue,
+        status: str,
+        **_fields: object,
+    ) -> None:
+        self.update_issue(issue.identifier, status=status)
+
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
         self.parent_links.append((child_id, parent_id))
         self.issues[child_id].parent_id = parent_id

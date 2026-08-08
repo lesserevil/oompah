@@ -220,7 +220,13 @@ class TestErrorWatcherAutoClose:
         issue = MagicMock()
         issue.identifier = task_id
         tracker.create_issue.return_value = issue
-        watcher = ErrorWatcher(tracker)
+        tracker.fetch_issue_detail.side_effect = lambda identifier: Issue(
+            id=identifier,
+            identifier=identifier,
+            title="Transient diagnostic",
+            state="Proposed",
+        )
+        watcher = ErrorWatcher(tracker, status_transition=MagicMock())
         return watcher, tracker
 
     def test_report_error_with_issue_id_records_link(self):
@@ -265,11 +271,12 @@ class TestErrorWatcherAutoClose:
             issue_identifier="oompah-zlz_2-orig",
         )
         assert closed == ["oompah-test-001"]
-        # close_issue called with reason
-        tracker.close_issue.assert_called_once()
-        args, kwargs = tracker.close_issue.call_args
-        assert args[0] == "oompah-test-001"
-        assert "retry succeeded" in kwargs.get("reason", "")
+        transition = watcher._status_transition
+        transition.assert_called_once()
+        args, kwargs = transition.call_args
+        assert args[0].identifier == "oompah-test-001"
+        assert args[1] == "Done"
+        assert kwargs["reason_code"] == "watchdog.transient_error_recovered"
         # Record popped so a future error will create a fresh task.
         assert not watcher._seen
 
@@ -352,7 +359,7 @@ class TestErrorWatcherAutoClose:
             rec.last_created -= 120
         closed = watcher.auto_close_for_issue("issue-X")
         assert sorted(closed) == ["oompah-task-A", "oompah-task-B", "oompah-task-C"]
-        assert tracker.close_issue.call_count == 3
+        assert watcher._status_transition.call_count == 3
         assert not watcher._seen
 
     def test_auto_close_swallows_close_failures(self):
@@ -361,7 +368,7 @@ class TestErrorWatcherAutoClose:
         watcher.report_error("backend:x", "boom", issue_id="orig-y")
         for rec in watcher._seen.values():
             rec.last_created -= 120
-        tracker.close_issue.side_effect = Exception("tracker unreachable")
+        watcher._status_transition.side_effect = Exception("tracker unreachable")
         # Should not raise; should return empty list.
         closed = watcher.auto_close_for_issue("orig-y")
         assert closed == []

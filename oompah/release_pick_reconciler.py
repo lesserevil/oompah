@@ -120,6 +120,7 @@ def reconcile_release_picks(
     repo: "str | None" = None,
     should_stop: Callable[[], bool] | None = None,
     terminal_transition_requester: TerminalTransitionRequester | None = None,
+    status_transition: Callable[..., object] | None = None,
 ) -> ReconcileResult:
     """Run one idempotent release-pick reconciliation pass.
 
@@ -244,6 +245,7 @@ def reconcile_release_picks(
             scm=scm,
             repo=repo,
             terminal_transition_requester=terminal_transition_requester,
+            status_transition=status_transition,
         )
         result.advanced += n_advanced
         result.created += n_created
@@ -338,6 +340,7 @@ def _reconcile_entries(
     scm: "SCMProvider | None" = None,
     repo: "str | None" = None,
     terminal_transition_requester: TerminalTransitionRequester | None = None,
+    status_transition: Callable[..., object] | None = None,
 ) -> "tuple[list[BackportEntry], int, int, int]":
     """Reconcile the backport entries for one source task.
 
@@ -441,6 +444,7 @@ def _reconcile_entries(
                         project_id=project_id,
                         scm=scm,
                         repo=repo,
+                        status_transition=status_transition,
                     )
                     entries[i] = updated
                     n_advanced += 1
@@ -1007,6 +1011,7 @@ def _cherry_pick_and_open_pr(
     project_id: str,
     scm: "SCMProvider",
     repo: str,
+    status_transition: Callable[..., object] | None = None,
 ) -> "BackportEntry":
     """Delegate to :func:`~oompah.cherry_pick_pr_creator.cherry_pick_push_and_open_pr`.
 
@@ -1027,6 +1032,7 @@ def _cherry_pick_and_open_pr(
         project_id=project_id,
         scm=scm,
         repo=repo,
+        status_transition=status_transition,
     )
 
 

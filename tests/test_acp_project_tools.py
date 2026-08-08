@@ -496,15 +496,22 @@ class TestExecOompahTaskCommand:
             author="oompah",
         )
 
-    def test_set_status_with_summary_routes_directly_to_tracker(self):
+    def test_set_status_with_summary_routes_through_transition_service(self):
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = MagicMock()
+        coordination = MagicMock()
+        coordination._transition_identifier_status.side_effect = (
+            lambda identifier, status, **_fields: tracker.update_issue(
+                identifier, status=status
+            )
+        )
 
         result = _exec_oompah_task_command(
             "oompah task set-status owner/repo#240 Done --summary 'Finished'",
             tracker,
             "proj",
+            coordination_service=coordination,
         )
 
         assert result == "Status set to: Done"
@@ -514,6 +521,20 @@ class TestExecOompahTaskCommand:
             "Finished",
             author="oompah",
         )
+
+    def test_set_status_fails_closed_without_transition_service(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            "oompah task set-status owner/repo#240 Open",
+            tracker,
+            "proj",
+        )
+
+        assert result == "Error: task transition service is unavailable"
+        tracker.update_issue.assert_not_called()
 
     @pytest.mark.parametrize(
         ("command", "requested_status"),
@@ -720,6 +741,7 @@ class TestExecOompahTaskCommand:
         project_store = MagicMock()
         project_lock = threading.RLock()
         project_store.project_write_lock.return_value = project_lock
+        coordination = MagicMock()
 
         def update_issue(identifier, **fields):
             assert project_lock._is_owned()  # type: ignore[attr-defined]
@@ -727,11 +749,17 @@ class TestExecOompahTaskCommand:
             assert fields == {"status": "Open"}
 
         tracker.update_issue.side_effect = update_issue
+        coordination._transition_identifier_status.side_effect = (
+            lambda identifier, status, **_fields: tracker.update_issue(
+                identifier, status=status
+            )
+        )
         result = _exec_oompah_task_command(
             "oompah task set-status CHILD-1 Open",
             tracker,
             "proj",
             project_store=project_store,
+            coordination_service=coordination,
         )
 
         assert result == "Status set to: Open"

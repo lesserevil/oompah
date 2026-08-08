@@ -1171,8 +1171,25 @@ def _exec_oompah_task_command(
                 )
             )
             if not durable:
+                transition = getattr(
+                    coordination_service,
+                    "_transition_identifier_status",
+                    None,
+                )
+                if not callable(transition):
+                    return "Error: task transition service is unavailable"
+                from oompah.task_transition_service import TransitionAuthority
+
                 with _project_mutation_lock(project_store, project_id):
-                    task_tracker.update_issue(args.identifier, status=args.status)
+                    transition(
+                        args.identifier,
+                        args.status,
+                        project_id=project_id,
+                        tracker=task_tracker,
+                        actor=str(getattr(args, "actor", None) or "oompah-worker"),
+                        authority=TransitionAuthority.WORKER,
+                        reason_code="handoff.acp_status_requested",
+                    )
                 observer = getattr(
                     coordination_service, "_observe_task_handoff_mutation", None
                 )

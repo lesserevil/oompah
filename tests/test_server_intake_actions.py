@@ -45,6 +45,11 @@ def _make_orchestrator(issue: Issue | None = None):
     orch._tracker_for_project.return_value = tracker
     orch.project_store.list_all.return_value = [project]
     orch.tracker = tracker
+    orch._transition_issue_status.side_effect = (
+        lambda current, status, **_fields: tracker.update_issue(
+            current.identifier, status=status
+        )
+    )
 
     return orch, tracker
 

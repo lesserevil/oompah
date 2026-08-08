@@ -40,6 +40,22 @@ class FakeTracker:
     def update_issue(self, identifier: str, **fields: str) -> None:
         self.update_calls.append((identifier, fields))
 
+    def fetch_issue_detail(self, identifier: str) -> Issue:
+        return Issue(
+            id=identifier,
+            identifier=identifier,
+            title="Intake",
+            state=PROPOSED,
+        )
+
+    def transition_issue_status(
+        self,
+        issue: Issue,
+        status: str,
+        **_fields: object,
+    ) -> None:
+        self.update_issue(issue.identifier, status=status)
+
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> None:
         self.comments.append((identifier, text, author))
 

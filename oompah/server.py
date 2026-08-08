@@ -147,7 +147,11 @@ from oompah.task_handoff import (
     record_task_handoff_failure,
     validate_task_handoff_token_classified,
 )
-from oompah.task_transition_service import issue_authority_version, issue_exact_head
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    issue_authority_version,
+    issue_exact_head,
+)
 from oompah.auth_health import (
     record_operator_401,
     record_operator_success,
@@ -1403,6 +1407,18 @@ def set_orchestrator(orch: Orchestrator) -> None:
         _error_watcher = ErrorWatcher(
             management_tracker,
             project_id=management_project_id,
+            status_transition=lambda current, status, **fields: (
+                _apply_task_status_transition(
+                    orch,
+                    management_tracker,
+                    current,
+                    status,
+                    project_id=management_project_id,
+                    actor=str(fields["actor"]),
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code=str(fields["reason_code"]),
+                )
+            ),
         )
         _error_watcher.install_log_handler("oompah")
         # Register globally so retry recovery for any source project can close
@@ -1425,7 +1441,22 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # error tasks are created in the correct project.
     def _make_error_watcher(project_id: str) -> ErrorWatcher:
         tracker = orch._tracker_for_project(project_id)
-        watcher = ErrorWatcher(tracker, project_id=project_id)
+        watcher = ErrorWatcher(
+            tracker,
+            project_id=project_id,
+            status_transition=lambda current, status, **fields: (
+                _apply_task_status_transition(
+                    orch,
+                    tracker,
+                    current,
+                    status,
+                    project_id=project_id,
+                    actor=str(fields["actor"]),
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code=str(fields["reason_code"]),
+                )
+            ),
+        )
         # Same auto-close hook as the global watcher above, scoped per project.
         orch.register_error_watcher(watcher, project_id=project_id)
         return watcher
@@ -3406,18 +3437,59 @@ def _manual_needs_human_comment(
     )
 
 
-def _mark_tracker_needs_human(
+def _apply_task_status_transition(
+    orch,
     tracker,
-    identifier: str,
+    issue,
+    requested_status: str,
+    *,
+    project_id: str | None,
+    actor: str,
+    authority: TransitionAuthority,
+    reason_code: str,
+    evidence_generation: str | None = None,
+    exact_head: str | None = None,
+):
+    """Commit one API lifecycle decision through the durable status writer."""
+
+    transition = getattr(orch, "_transition_issue_status", None)
+    if not callable(transition):
+        raise RuntimeError("Task transition service is unavailable")
+    if not getattr(issue, "project_id", None):
+        issue.project_id = project_id
+    return transition(
+        issue,
+        requested_status,
+        project_id=project_id,
+        tracker=tracker,
+        actor=actor,
+        authority=authority,
+        reason_code=reason_code,
+        evidence_generation=evidence_generation,
+        exact_head=exact_head,
+    )
+
+
+def _mark_tracker_needs_human(
+    orch,
+    tracker,
+    issue,
     comment: str,
     *,
+    project_id: str | None,
     author: str = "oompah",
 ) -> None:
-    if hasattr(tracker, "mark_needs_human"):
-        tracker.mark_needs_human(identifier, comment, author=author)
-        return
-    tracker.update_issue(identifier, status=NEEDS_HUMAN)
-    tracker.add_comment(identifier, comment, author=author)
+    _apply_task_status_transition(
+        orch,
+        tracker,
+        issue,
+        NEEDS_HUMAN,
+        project_id=project_id,
+        actor=author,
+        authority=TransitionAuthority.API,
+        reason_code="api.human_action_requested",
+    )
+    tracker.add_comment(issue.identifier, comment, author=author)
 
 
 def _fetch_open_reviews_for_api(
@@ -5144,10 +5216,12 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
 
 
 async def _persist_worker_submission(
+    orch,
     tracker,
     issue,
     body: dict[str, Any],
     *,
+    project_id: str,
     record: IntegrationRecord | None = None,
     persist_status: bool = True,
 ) -> IntegrationRecord:
@@ -5192,6 +5266,11 @@ async def _persist_worker_submission(
             "oompah.integration",
             record.to_dict(),
         )
+        # The transition service compares the supplied authority snapshot to
+        # a fresh tracker read.  Keep the in-memory snapshot aligned with the
+        # integration evidence just persisted so this transaction cannot
+        # reject its own accepted generation as stale.
+        issue.integration = record
     projected_branch = str(getattr(issue, "work_branch", "") or "").strip()
     branch_projection_matches = projected_branch == record.task_branch
     if not branch_projection_matches:
@@ -5220,10 +5299,17 @@ async def _persist_worker_submission(
         # the durable record is unchanged is the fix for OOMPAH-669: the
         # previous ``record is existing`` short-circuit stranded the task in
         # the pre-submit status despite a success response.
-        await _run_api_io(
-            tracker.update_issue,
-            issue.identifier,
-            status=READY_TO_INTEGRATE,
+        _apply_task_status_transition(
+            orch,
+            tracker,
+            issue,
+            READY_TO_INTEGRATE,
+            project_id=project_id,
+            actor="oompah-worker",
+            authority=TransitionAuthority.WORKER,
+            reason_code="handoff.submission_accepted",
+            evidence_generation=getattr(issue, "assignment_id", None),
+            exact_head=record.head_sha,
         )
     summary = str(body.get("summary") or "").strip()
     await _run_api_io(
@@ -5570,9 +5656,11 @@ async def _accept_worker_submission(
                 is True
             )
             record = await _persist_worker_submission(
+                orch,
                 tracker,
                 issue,
                 body,
+                project_id=project_id,
                 record=record,
                 persist_status=not durable_implementation,
             )
@@ -6684,8 +6772,18 @@ async def api_task_handoff(request: Request):
                             )
                         observed = True
                     if not durable_handoff:
-                        await _run_api_io(
-                            tracker.update_issue, identifier, status=status
+                        _apply_task_status_transition(
+                            orch,
+                            tracker,
+                            issue,
+                            status,
+                            project_id=project_id,
+                            actor=transition_actor or "oompah-worker",
+                            authority=TransitionAuthority.WORKER,
+                            reason_code="handoff.worker_status_requested",
+                            evidence_generation=getattr(
+                                issue, "assignment_id", None
+                            ),
                         )
                         _observe_task_handoff_mutation(
                             orch,
@@ -12950,7 +13048,17 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             )
             if canonicalize_status(current.state) != IN_PROGRESS:
                 try:
-                    tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+                    _apply_task_status_transition(
+                        orch,
+                        tracker,
+                        current,
+                        IN_PROGRESS,
+                        project_id=project_id,
+                        actor=owner_login,
+                        authority=TransitionAuthority.PROJECT_OWNER,
+                        reason_code="owner.claim_granted",
+                        evidence_generation=claim.claim_id,
+                    )
                 except Exception:
                     orch.release_owner_claim(
                         issue_id=issue.id,
@@ -13336,6 +13444,7 @@ async def api_terminal_provenance_action(
                     resolved_identifier,
                     ContributorIdentity(actor_login, "api"),
                     reason,
+                    status_transition=orch._recover_terminal_audit_status,
                 )
                 status = OPEN
     except ProvenanceOwnerRevisionNotFoundError:
@@ -13683,6 +13792,22 @@ async def api_update_issue(identifier: str, request: Request):
                         identifier,
                         current_status=existing_status,
                         owner_override_actor=owner_override_actor,
+                        status_transition=lambda current, status, **fields: (
+                            _apply_task_status_transition(
+                                orch,
+                                tracker,
+                                current,
+                                status,
+                                project_id=project_id,
+                                actor=str(fields["actor"]),
+                                authority=(
+                                    TransitionAuthority.PROJECT_OWNER
+                                    if fields.get("owner_override")
+                                    else TransitionAuthority.API
+                                ),
+                                reason_code=str(fields["reason_code"]),
+                            )
+                        ),
                     )
                 if not result.promoted:
                     return JSONResponse(
@@ -13801,17 +13926,36 @@ async def api_update_issue(identifier: str, request: Request):
                         new_status,
                         new_work_branch,
                     )
+                status_update = update_fields.pop("status", None)
+                if status_update is not None:
+                    _apply_task_status_transition(
+                        orch,
+                        tracker,
+                        existing_issue,
+                        str(status_update),
+                        project_id=project_id,
+                        actor=(
+                            transition_actor
+                            or _request_actor_login(body, request)
+                            or "api"
+                        ),
+                        authority=TransitionAuthority.API,
+                        reason_code="api.status_updated",
+                    )
                 if update_fields:
                     tracker.update_issue(identifier, **update_fields)
                 if needs_human_status is not None:
                     _mark_tracker_needs_human(
+                        orch,
                         tracker,
-                        identifier,
+                        existing_issue,
                         _manual_needs_human_comment(
                             identifier,
                             existing_issue,
                             needs_human_comment,
                         ),
+                        project_id=project_id,
+                        author=transition_actor or "oompah",
                     )
 
         _record_owner_override_if_needed(
@@ -14229,7 +14373,16 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
 
         new_status = None
         if normalized_action == PROMOTE_TO_BACKLOG:
-            tracker.update_issue(resolved_identifier, status=BACKLOG)
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                issue,
+                BACKLOG,
+                project_id=project_id,
+                actor=actor_login,
+                authority=TransitionAuthority.PROJECT_OWNER,
+                reason_code="intake.owner_promoted_to_backlog",
+            )
             new_status = BACKLOG
 
         tracker.add_comment(resolved_identifier, audit_comment, author=actor_login)
@@ -14391,7 +14544,20 @@ async def api_add_label(identifier: str, request: Request):
                         status_code=status_code,
                     )
             else:
-                tracker.update_issue(resolved_identifier, status=status_from_label)
+                _apply_task_status_transition(
+                    orch,
+                    tracker,
+                    existing_issue,
+                    status_from_label,
+                    project_id=project_id,
+                    actor=(
+                        transition_actor
+                        or _request_actor_login(body, request)
+                        or "api"
+                    ),
+                    authority=TransitionAuthority.API,
+                    reason_code="api.status_label_applied",
+                )
                 terminal_payload = None
         else:
             tracker.add_label(resolved_identifier, label)
@@ -14963,10 +15129,15 @@ async def api_add_comment(identifier: str, request: Request):
                     canonicalize_status(issue.state) == NEEDS_ANSWER
                     or "asking_question" in issue.labels
                 ):
-                    await _run_api_io(
-                        tracker.update_issue,
-                        resolved_identifier,
-                        status=OPEN,
+                    _apply_task_status_transition(
+                        orch,
+                        tracker,
+                        issue,
+                        OPEN,
+                        project_id=project_id,
+                        actor=author,
+                        authority=TransitionAuthority.API,
+                        reason_code="api.question_answered",
                     )
                     if "asking_question" in issue.labels:
                         await _run_api_io(
@@ -19937,9 +20108,18 @@ async def api_retry_review(project_id: str, review_id: str):
                 branch,
             )
         else:
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                matched,
+                NEEDS_CI_FIX,
+                project_id=project_id,
+                actor="oompah",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.ci_retry_requested",
+            )
             tracker.update_issue(
                 matched.identifier,
-                status=NEEDS_CI_FIX,
                 priority="0",
                 **{"add-label": "ci-fix"},
             )
@@ -20030,9 +20210,18 @@ def _notify_conflict_on_task(
         # Mark the task if it's in a terminal state, and add label atomically
         state_lower = issue.state.strip().lower()
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                issue,
+                NEEDS_REBASE,
+                project_id=project_id,
+                actor="oompah",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.merge_conflict_detected",
+            )
             tracker.update_issue(
                 issue.identifier,
-                status=NEEDS_REBASE,
                 priority="0",
                 **{"add-label": "merge-conflict"},
             )
@@ -20043,9 +20232,18 @@ def _notify_conflict_on_task(
             )
         else:
             try:
+                _apply_task_status_transition(
+                    orch,
+                    tracker,
+                    issue,
+                    NEEDS_REBASE,
+                    project_id=project_id,
+                    actor="oompah",
+                    authority=TransitionAuthority.SYSTEM,
+                    reason_code="review.merge_conflict_detected",
+                )
                 tracker.update_issue(
                     issue.identifier,
-                    status=NEEDS_REBASE,
                     **{"add-label": "merge-conflict"},
                 )
             except Exception as label_exc:
@@ -21209,6 +21407,18 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
         tracker,
         identifier,
         current_status=issue.state,
+        status_transition=lambda current, status, **fields: (
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                current,
+                status,
+                project_id=str(project.id),
+                actor=str(fields["actor"]),
+                authority=TransitionAuthority.API,
+                reason_code=str(fields["reason_code"]),
+            )
+        ),
     )
     if result.promoted:
         logger.info("Promoted %s to Backlog via intake approval", identifier)
@@ -21241,6 +21451,18 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
                 tracker,
                 identifier,
                 current_status=issue.state,
+                status_transition=lambda current, status, **fields: (
+                    _apply_task_status_transition(
+                        orch,
+                        tracker,
+                        current,
+                        status,
+                        project_id=str(project.id),
+                        actor=str(fields["actor"]),
+                        authority=TransitionAuthority.API,
+                        reason_code=str(fields["reason_code"]),
+                    )
+                ),
             )
             if result.promoted:
                 logger.info("Promoted %s to Backlog after intake validation", identifier)
@@ -21932,7 +22154,17 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
             )
             return
         else:
-            tracker.update_issue(issue.identifier, status=IN_REVIEW)
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                issue,
+                IN_REVIEW,
+                project_id=str(project.id),
+                actor="oompah-webhook",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.webhook_review_opened",
+                exact_head=review_head or None,
+            )
             logger.info(
                 "webhook: marked %s as In Review (PR #%s opened/reopened, branch=%s)",
                 issue.identifier,

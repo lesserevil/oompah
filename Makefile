@@ -112,7 +112,7 @@ help:
 	@echo "  test-serial    Run pytest serially for race/debug diagnostics"
 	@echo "  workflow-soak-ci  Run the deterministic bounded 120-task workflow soak"
 	@echo "  workflow-soak  Run the longer deterministic operator workflow soak"
-	@echo "  terminal-audit-scan  Reject unauthorized direct terminal tracker writes"
+	@echo "  terminal-audit-scan  Reject unauthorized direct task-status writes"
 	@echo "  run-granian    Run oompah in the foreground using the Granian ASGI server (opt-in; see TASK-472)"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"

@@ -563,6 +563,10 @@ class TestServerAskingQuestionLabelRemoval:
             mock_tracker.remove_label.assert_called_once_with(
                 "test-001", "asking_question"
             )
+            mock_orch._transition_issue_status.assert_called_once()
+            transition_args = mock_orch._transition_issue_status.call_args.args
+            assert transition_args[0] is mock_issue
+            assert transition_args[1] == "Open"
         finally:
             server_mod._orchestrator = original_orch
 

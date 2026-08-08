@@ -772,6 +772,14 @@ class TestGitHubManualCloseRace:
         orch.state.claimed.add(issue_id)
 
         mock_tracker = MagicMock()
+        tracked_issue = _issue(
+            id=issue_id,
+            identifier=gh_id,
+            project_id="proj-gh",
+            state="In Progress",
+            description="Investigate the stalled GitHub task.",
+        )
+        _bind_status_tracker(mock_tracker, tracked_issue)
         with (
             patch("oompah.server._get_tracker", return_value=mock_tracker),
             patch.object(srv, "_orchestrator", orch),
@@ -834,6 +842,14 @@ class TestGitHubManualCloseRace:
         orch.state.claimed.add(issue_id)
 
         mock_tracker = MagicMock()
+        tracked_issue = _issue(
+            id=issue_id,
+            identifier=gh_id,
+            project_id="proj-gh",
+            state="In Progress",
+            description="Investigate the stalled GitHub task.",
+        )
+        _bind_status_tracker(mock_tracker, tracked_issue)
         with (
             patch("oompah.server._get_tracker", return_value=mock_tracker),
             patch.object(srv, "_orchestrator", orch),
@@ -926,6 +942,14 @@ class TestGitHubManualCloseRace:
         orch.state.claimed.add(issue_id)
 
         mock_tracker = MagicMock()
+        tracked_issue = _issue(
+            id=issue_id,
+            identifier=gh_id,
+            project_id="proj-gh",
+            state="In Progress",
+            description="Investigate the stalled GitHub task.",
+        )
+        _bind_status_tracker(mock_tracker, tracked_issue)
         with (
             patch("oompah.server._get_tracker", return_value=mock_tracker),
             patch.object(srv, "_orchestrator", orch),

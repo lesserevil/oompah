@@ -78,6 +78,11 @@ def test_submit_endpoint_accepts_the_assigned_task_worktree_and_enqueues_it(
         "metadata"
     )
     tracker.update_issue.side_effect = lambda *args, **kwargs: calls.append("status")
+    orch._transition_issue_status.side_effect = (
+        lambda current, status, **_fields: tracker.update_issue(
+            current.identifier, status=status
+        )
+    )
 
     try:
         with (
@@ -772,6 +777,11 @@ def _submit_test_bed(tmp_path, *, issue_state, existing_integration):
     queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
     orch.config.parallel_epic_children_enabled = True
     orch.integration_queue = queue
+    orch._transition_issue_status.side_effect = (
+        lambda current, status, **_fields: tracker.update_issue(
+            current.identifier, status=status
+        )
+    )
     return issue, tracker, orch, queue
 
 

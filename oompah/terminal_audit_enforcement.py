@@ -518,6 +518,7 @@ class TerminalAuditEnforcement:
         ]
         | None = None,
         lifecycle_issue_lock: Callable[[str], Any] | None = None,
+        recover_status: Callable[..., object] | None = None,
     ) -> None:
         self.state_path = state_path or service_state_path
         if self.state_path is None and load_state is None:
@@ -531,6 +532,7 @@ class TerminalAuditEnforcement:
         self._lifecycle_issue_lock = lifecycle_issue_lock or (
             lambda _task_id: contextlib.nullcontext()
         )
+        self._recover_status_callback = recover_status
         self.state = TerminalAuditEnforcementState()
         self._state_loaded = False
         self.pending_audits: list[PendingAudit] = []
@@ -549,6 +551,34 @@ class TerminalAuditEnforcement:
         # unapplied result intent is an actionable finalization failure, not a
         # provider transport or command-policy failure.
         self.finalization_failure_counts: dict[str, int] = {}
+
+    def _recover_status(
+        self,
+        tracker: Any,
+        issue: Issue,
+        project_id: str,
+        requested_status: str,
+        *,
+        actor: str,
+        reason_code: str,
+        idempotency_key: str,
+    ) -> None:
+        """Route a persisted audit compensation through transition journaling."""
+
+        operation = self._recover_status_callback or getattr(
+            tracker, "recover_task_status", None
+        )
+        if not callable(operation):
+            raise RuntimeError("Task transition recovery service is unavailable")
+        operation(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            actor=actor,
+            reason_code=reason_code,
+            idempotency_key=idempotency_key,
+        )
 
     def _load_root_state(self) -> dict[str, Any]:
         if self._load_state_callback is not None:
@@ -2640,8 +2670,22 @@ class TerminalAuditEnforcement:
         try:
             # The exact Done authority is the evidence for this repair.  Do
             # not reopen implementation work or create a new audit attempt.
-            # TERMINAL-AUDIT-ALLOW OOMPAH-725: serialized legacy reconciliation.
-            tracker.update_issue(identifier, status=DONE)
+            authority_ids = sorted(
+                [str(record.audit_id) for record in done_records]
+                + [str(record.override_id) for record in done_overrides]
+            )
+            self._recover_status(
+                tracker,
+                issue,
+                project_id,
+                DONE,
+                actor="terminal-audit-enforcement",
+                reason_code="audit.shared_epic_done_recovered",
+                idempotency_key=(
+                    f"audit-shared-epic-done:{project_id}:{identifier}:"
+                    f"{','.join(authority_ids)}"
+                ),
+            )
         except Exception:
             logger.warning(
                 "Could not restore incompatible Merged child %s/%s to Done",
@@ -2787,9 +2831,18 @@ class TerminalAuditEnforcement:
             and not (current_rank and target_rank and current_rank >= target_rank)
         ):
             try:
-                # TERMINAL-AUDIT-ALLOW OOMPAH-483: this status is authorized
-                # by the already persisted owner override evidence.
-                tracker.update_issue(identifier, status=target_status)
+                self._recover_status(
+                    tracker,
+                    issue,
+                    project_id,
+                    target_status,
+                    actor="project-owner-override",
+                    reason_code="audit.owner_override_recovered",
+                    idempotency_key=(
+                        f"audit-override:{project_id}:{identifier}:"
+                        f"{target_override.override_id}"
+                    ),
+                )
             except Exception:
                 logger.warning(
                     "terminal-audit override recovery status write failed for %s/%s",
@@ -3287,10 +3340,18 @@ class TerminalAuditEnforcement:
                         and current_rank >= desired_rank
                     ):
                         try:
-                            # TERMINAL-AUDIT-ALLOW OOMPAH-483: replay only a
-                            # current completed decision or an exact durable
-                            # owner-rearm staging intent.
-                            tracker.update_issue(identifier, status=desired_status)
+                            self._recover_status(
+                                tracker,
+                                issue,
+                                project_id,
+                                desired_status,
+                                actor="terminal-auditor",
+                                reason_code="audit.result_recovered",
+                                idempotency_key=(
+                                    f"audit-result:{project_id}:{identifier}:"
+                                    f"{selected_key[0]}:{selected_key[1]}"
+                                ),
+                            )
                         except Exception:
                             logger.warning(
                                 "terminal-audit result recovery status write failed for %s/%s",

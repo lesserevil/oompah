@@ -1938,6 +1938,7 @@ class Orchestrator:
             lifecycle_issue_lock=lambda task_id: self.issue_transition_lock(
                 task_id
             ).sync(),
+            recover_status=self._recover_terminal_audit_status,
         )
         self._terminal_audit_started = False
         self._terminal_audit_last_scan: float = 0.0
@@ -9769,6 +9770,59 @@ class Orchestrator:
         assert outcome is not None
         return outcome
 
+    def _recover_terminal_audit_status(
+        self,
+        issue: Issue,
+        requested_status: str,
+        *,
+        project_id: str,
+        tracker: TrackerProtocol,
+        actor: str,
+        reason_code: str,
+        idempotency_key: str,
+    ) -> TransitionOutcome:
+        """Journal and verify one already-authorized audit compensation."""
+
+        if reason_code in {
+            "audit.owner_override_recovered",
+            "provenance.owner_revision_authorized",
+        }:
+            authority = TransitionAuthority.PROJECT_OWNER
+        elif reason_code.startswith("intake."):
+            authority = TransitionAuthority.SYSTEM
+        else:
+            authority = TransitionAuthority.AUDITOR
+        intent = self._build_transition_intent(
+            issue,
+            requested_status,
+            project_id=project_id,
+            actor=actor,
+            authority=authority,
+            reason_code=reason_code,
+            originating_job="terminal-audit-enforcement",
+            evidence_generation=None,
+            exact_head=None,
+            idempotency_key=idempotency_key,
+        )
+        service = TaskTransitionService(
+            project_id=project_id,
+            tracker=tracker,
+            journal=self.task_transition_journal,
+            write_lock=lambda: self.project_store.project_write_lock(project_id),
+        )
+        request = service.recover_authorized(intent)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            outcome = asyncio.run(request)
+        else:
+            with ThreadPoolExecutor(
+                max_workers=1,
+                thread_name_prefix="task-recovery-transition",
+            ) as pool:
+                outcome = pool.submit(asyncio.run, request).result()
+        return self._require_committed_transition(outcome)
+
     @staticmethod
     def _task_status_transition_succeeded(outcome: TransitionOutcome) -> bool:
         """Return whether a transition has a verified committed effect."""
@@ -9990,6 +10044,7 @@ class Orchestrator:
         evidence_generation: str | None = None,
         exact_head: str | None = None,
         idempotency_key: str | None = None,
+        authorized_recovery: bool = False,
     ) -> TransitionOutcome:
         """Journal, fence, apply, and verify one async lifecycle decision."""
 
@@ -10011,7 +10066,11 @@ class Orchestrator:
             effective_project_id,
             effective_tracker,
         )
-        outcome = await service.execute(intent)
+        outcome = await (
+            service.recover_authorized(intent)
+            if authorized_recovery
+            else service.execute(intent)
+        )
         logger.info(
             "Task transition outcome task=%s expected=%s requested=%s "
             "disposition=%s reason=%s transition_id=%s",
@@ -10038,6 +10097,7 @@ class Orchestrator:
         evidence_generation: str | None = None,
         exact_head: str | None = None,
         idempotency_key: str | None = None,
+        authorized_recovery: bool = False,
     ) -> TransitionOutcome:
         """Synchronous bridge for maintenance lanes and legacy callback hooks.
 
@@ -10060,6 +10120,7 @@ class Orchestrator:
             evidence_generation=evidence_generation,
             exact_head=exact_head,
             idempotency_key=idempotency_key,
+            authorized_recovery=authorized_recovery,
         )
         try:
             asyncio.get_running_loop()
@@ -10086,6 +10147,7 @@ class Orchestrator:
         evidence_generation: str | None = None,
         exact_head: str | None = None,
         idempotency_key: str | None = None,
+        authorized_recovery: bool = False,
     ) -> TransitionOutcome:
         """Fetch a fresh authority snapshot, then execute a fenced transition."""
 
@@ -10106,6 +10168,7 @@ class Orchestrator:
             evidence_generation=evidence_generation,
             exact_head=exact_head,
             idempotency_key=idempotency_key,
+            authorized_recovery=authorized_recovery,
         )
 
     async def _transition_identifier_status_async(
@@ -10122,6 +10185,7 @@ class Orchestrator:
         evidence_generation: str | None = None,
         exact_head: str | None = None,
         idempotency_key: str | None = None,
+        authorized_recovery: bool = False,
     ) -> TransitionOutcome:
         issue = await asyncio.to_thread(tracker.fetch_issue_detail, identifier)
         if issue is None:
@@ -10140,6 +10204,7 @@ class Orchestrator:
             evidence_generation=evidence_generation,
             exact_head=exact_head,
             idempotency_key=idempotency_key,
+            authorized_recovery=authorized_recovery,
         )
 
     def _resolve_issue_project_id(
@@ -38813,7 +38878,10 @@ class Orchestrator:
                         reason_code="watchdog.orphaned_owner_released",
                     )
                     if updates:
-                        tracker.update_issue(current.identifier, **updates)
+                        tracker.update_issue(
+                            current.identifier,
+                            priority=updates["priority"],
+                        )
                 reset_count += 1
                 self.state.completed.discard(current.id)
                 self._orphan_reset_counts[current.id] = (
@@ -42511,6 +42579,17 @@ class Orchestrator:
                     should_stop=lambda: self._job_deadline_exceeded("release_picks"),
                     terminal_transition_requester=(
                         self._request_terminal_transition_from_maintenance
+                    ),
+                    status_transition=lambda current, status, **fields: (
+                        self._transition_issue_status(
+                            current,
+                            status,
+                            project_id=str(project.id),
+                            tracker=tracker,
+                            actor=str(fields["actor"]),
+                            authority=TransitionAuthority.SYSTEM,
+                            reason_code=str(fields["reason_code"]),
+                        )
                     ),
                 )
                 if result.changed:
@@ -46725,6 +46804,17 @@ class Orchestrator:
                         auto_promote=auto_promote,
                         allow_decomposition=allow_decomposition,
                         project=project,
+                        status_transition=lambda current, status, **fields: (
+                            self._transition_issue_status(
+                                current,
+                                status,
+                                project_id=issue.project_id,
+                                tracker=tracker,
+                                actor=str(fields["actor"]),
+                                authority=TransitionAuthority.SYSTEM,
+                                reason_code=str(fields["reason_code"]),
+                            )
+                        ),
                     )
             except Exception as exc:  # noqa: BLE001
                 metrics["error_count"] += 1

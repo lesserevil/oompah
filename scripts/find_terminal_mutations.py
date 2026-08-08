@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when Python sources contain unauthorized terminal tracker writes."""
+"""Fail when Python sources contain unauthorized task-status tracker writes."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     for mutation in unauthorized:
         print(f"ERROR: {mutation.describe()}", file=sys.stderr)
         print(
-            "  Route the transition through TerminalTransitionCoordinator or "
+            "  Route the transition through TaskTransitionService or "
             "document an exact allowlist entry in "
             "oompah/terminal_mutation_scanner.py.",
             file=sys.stderr,
@@ -30,14 +30,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if unauthorized:
         print(
-            f"Found {len(unauthorized)} unauthorized terminal mutation(s).",
+            f"Found {len(unauthorized)} unauthorized task-status mutation(s).",
             file=sys.stderr,
         )
         return 1
 
     allowed_count = sum(mutation.allowed for mutation in mutations)
     print(
-        f"Terminal mutation scan passed: {len(mutations)} identified, "
+        f"Task-status mutation scan passed: {len(mutations)} identified, "
         f"{allowed_count} explicitly allowlisted."
     )
     return 0

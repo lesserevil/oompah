@@ -38,6 +38,7 @@ Design invariants
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -813,6 +814,8 @@ class ProvenanceGuardedTracker:
         identifier: str,
         actor: ContributorIdentity,
         reason: str,
+        *,
+        status_transition: Callable[..., object] | None = None,
     ) -> SuppressionMutationResult:
         """Open one suppressed record and durably authorize its new revision.
 
@@ -856,7 +859,22 @@ class ProvenanceGuardedTracker:
                     "owner revision requires a terminal or Open retry state"
                 )
             if current_status != OPEN:
-                self._provenance_tracker.update_issue(identifier, status=OPEN)
+                if not callable(status_transition):
+                    raise ProvenanceSuppressionError(
+                        "task transition recovery service is unavailable"
+                    )
+                status_transition(
+                    current,
+                    OPEN,
+                    tracker=self._provenance_tracker,
+                    project_id=self._provenance_project_id,
+                    actor=actor.identity,
+                    reason_code="provenance.owner_revision_authorized",
+                    idempotency_key=(
+                        f"provenance-owner-revision:{self._provenance_project_id}:"
+                        f"{identifier}:{suppression.authority_generation + 1}"
+                    ),
+                )
             return authorize_new_revision(store, identifier, actor, reason)
 
 

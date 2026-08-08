@@ -60,6 +60,11 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     mock_orch.state.retry_attempts = {}
     mock_orch.state.claimed = set()
     mock_orch.state.completed = set()
+    mock_orch._transition_issue_status.side_effect = (
+        lambda current, status, **_fields: mock_tracker.update_issue(
+            current.identifier, status=status
+        )
+    )
 
     return mock_orch, mock_tracker
 

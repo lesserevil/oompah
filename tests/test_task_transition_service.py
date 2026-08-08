@@ -337,6 +337,110 @@ async def test_invalid_detail_proxy_falls_back_to_exact_point_read(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_authorized_recovery_journals_and_verifies_compensating_status(tmp_path):
+    issue = _issue(state="Merged")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        issue,
+        requested_status="Done",
+        authority=TransitionAuthority.AUDITOR,
+        actor="terminal-auditor",
+        reason_code="audit.shared_epic_done_recovered",
+        idempotency_key="audit-recovery-1",
+        originating_job="terminal-audit-enforcement",
+        evidence_generation=None,
+    )
+
+    outcome = await service.recover_authorized(intent)
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert outcome.applied_status == "Done"
+    assert tracker.updates == [("TASK-1", "Done")]
+    assert [event.phase for event in service.journal.events(outcome.transition_id)] == [
+        TransitionPhase.REQUESTED,
+        TransitionPhase.APPLYING,
+        TransitionPhase.APPLIED,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_authorized_recovery_rejects_unapproved_authority_or_reason(tmp_path):
+    issue = _issue(state="Merged")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    worker = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Done",
+            authority=TransitionAuthority.WORKER,
+            reason_code="audit.result_recovered",
+        )
+    )
+    unscoped_reason = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Done",
+            authority=TransitionAuthority.AUDITOR,
+            reason_code="worker.result_recovered",
+        )
+    )
+    mismatched_authority = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Done",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="audit.result_recovered",
+        )
+    )
+
+    assert worker.reason_code == "transition.recovery_authority_rejected"
+    assert unscoped_reason.reason_code == "transition.recovery_authority_rejected"
+    assert mismatched_authority.reason_code == "transition.recovery_authority_rejected"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("authority", "reason_code"),
+    [
+        (TransitionAuthority.SYSTEM, "intake.external_issue_reopened"),
+        (
+            TransitionAuthority.PROJECT_OWNER,
+            "provenance.owner_revision_authorized",
+        ),
+        (
+            TransitionAuthority.PROJECT_OWNER,
+            "audit.owner_override_recovered",
+        ),
+    ],
+)
+async def test_authorized_recovery_accepts_exact_authority_reason_pairs(
+    tmp_path,
+    authority,
+    reason_code,
+):
+    issue = _issue(state="Archived")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.recover_authorized(
+        _intent(
+            issue,
+            requested_status="Open",
+            authority=authority,
+            reason_code=reason_code,
+            idempotency_key=f"recovery:{authority.value}:{reason_code}",
+            evidence_generation=None,
+        )
+    )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "Open")]
+
+
+@pytest.mark.asyncio
 async def test_nonterminal_write_holds_shared_project_lock(tmp_path):
     lock = threading.RLock()
 

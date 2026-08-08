@@ -1545,3 +1545,252 @@ class TaskTransitionService:
                 intent.task_id,
                 claim_token,
             )
+
+    async def recover_authorized(self, intent: TransitionIntent) -> TransitionOutcome:
+        """Apply a pre-authorized recovery without re-running lifecycle policy.
+
+        This narrow path exists for durable authorities that are themselves the
+        source of truth for a compensating write: terminal-audit verdict/override
+        recovery, cancelled intake retirement, and provenance owner rearm.  It
+        retains the same immutable journal, per-task claim, status/version CAS,
+        ambiguous-write recovery, and verification as ordinary transitions, but
+        deliberately does not restage a terminal audit or require a normal graph
+        edge that the recorded compensation is repairing.
+        """
+
+        authority_matches_reason = (
+            intent.authority is TransitionAuthority.AUDITOR
+            and intent.reason_code.startswith("audit.")
+            and intent.reason_code != "audit.owner_override_recovered"
+        ) or (
+            intent.authority is TransitionAuthority.PROJECT_OWNER
+            and intent.reason_code
+            in {
+                "audit.owner_override_recovered",
+                "provenance.owner_revision_authorized",
+            }
+        ) or (
+            intent.authority is TransitionAuthority.SYSTEM
+            and intent.reason_code.startswith("intake.")
+        )
+        if not authority_matches_reason:
+            return TransitionOutcome(
+                transition_id="",
+                project_id=intent.project_id,
+                task_id=intent.task_id,
+                disposition=TransitionDisposition.REJECTED,
+                reason_code="transition.recovery_authority_rejected",
+                observed_status="",
+                observed_version=None,
+                requested_status=intent.requested_status,
+            )
+        if intent.project_id != self.project_id:
+            return TransitionOutcome(
+                transition_id="",
+                project_id=intent.project_id,
+                task_id=intent.task_id,
+                disposition=TransitionDisposition.REJECTED,
+                reason_code="transition.project_mismatch",
+                observed_status="",
+                observed_version=None,
+                requested_status=intent.requested_status,
+            )
+
+        begin = await asyncio.to_thread(
+            self.journal.begin,
+            intent,
+            lease_ttl_seconds=self.claim_ttl_seconds,
+        )
+        if begin.replay is not None:
+            return begin.replay
+        if begin.waiting is not None:
+            return begin.waiting
+        if begin.claim_token is None:
+            raise TransitionJournalError("transition claim was not acquired")
+
+        transition_id = begin.transition_id
+        claim_token = begin.claim_token
+        try:
+            issue, fetch_error = await self._try_fetch(intent.task_id)
+            if fetch_error is not None:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.RETRYABLE,
+                    "transition.tracker_read_failed",
+                    None,
+                    retryable=True,
+                    details={"error_type": type(fetch_error).__name__},
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.RETRY_SCHEDULED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            if issue is None:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    "transition.task_missing",
+                    None,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            if issue.project_id and str(issue.project_id) != intent.project_id:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    "transition.project_mismatch",
+                    issue,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+
+            observed_status = canonicalize_status(issue.state)
+            observed_version = issue_authority_version(issue)
+            if observed_status == intent.requested_status:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.ALREADY_APPLIED,
+                    "transition.already_applied",
+                    issue,
+                    applied_status=observed_status,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.RECOVERED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            stale_reason = None
+            stale_details: dict[str, Any] = {}
+            if observed_status != intent.expected_status:
+                stale_reason = "transition.stale_status"
+                stale_details["expected_status"] = intent.expected_status
+            elif observed_version != intent.expected_version:
+                stale_reason = "transition.stale_version"
+                stale_details["expected_version"] = intent.expected_version
+            if stale_reason is not None:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    stale_reason,
+                    issue,
+                    details=stale_details,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+
+            await asyncio.to_thread(
+                self.journal.append,
+                transition_id,
+                TransitionPhase.APPLYING,
+                intent.reason_code,
+            )
+            try:
+                await self._update(intent.task_id, intent.requested_status)
+            except Exception as exc:  # noqa: BLE001 - verify ambiguous write
+                latest, _ = await self._try_fetch(intent.task_id)
+                if latest and canonicalize_status(latest.state) == intent.requested_status:
+                    outcome = self._outcome(
+                        transition_id,
+                        intent,
+                        TransitionDisposition.RECOVERED,
+                        "transition.effect_recovered",
+                        latest,
+                        applied_status=intent.requested_status,
+                    )
+                    await asyncio.to_thread(
+                        self.journal.append,
+                        transition_id,
+                        TransitionPhase.RECOVERED,
+                        outcome.reason_code,
+                        outcome,
+                    )
+                    return outcome
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.RETRYABLE,
+                    "transition.tracker_write_failed",
+                    latest or issue,
+                    retryable=True,
+                    details={"error_type": type(exc).__name__},
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.RETRY_SCHEDULED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+
+            latest, _ = await self._try_fetch(intent.task_id)
+            if latest is None or canonicalize_status(latest.state) != intent.requested_status:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.RETRYABLE,
+                    "transition.verify_pending",
+                    latest or issue,
+                    retryable=True,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.VERIFY_PENDING,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            outcome = self._outcome(
+                transition_id,
+                intent,
+                TransitionDisposition.APPLIED,
+                "transition.applied",
+                latest,
+                applied_status=intent.requested_status,
+            )
+            await asyncio.to_thread(
+                self.journal.append,
+                transition_id,
+                TransitionPhase.APPLIED,
+                outcome.reason_code,
+                outcome,
+            )
+            return outcome
+        finally:
+            await asyncio.to_thread(
+                self.journal.release,
+                intent.project_id,
+                intent.task_id,
+                claim_token,
+            )

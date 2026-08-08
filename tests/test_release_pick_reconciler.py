@@ -628,6 +628,59 @@ class TestReconcileWaitingHealStale:
         assert written_entries[0].status == ReleasePick.TASK_CREATED
 
 
+def test_task_created_release_pick_threads_status_transition_to_pr_creator():
+    source = _issue(
+        "TASK-1",
+        state=MERGED,
+        project_id="project-1",
+        backports=[
+            {
+                "branch": "release/1.0",
+                "status": "task_created",
+                "task_id": "TASK-1.1",
+                "commits": ["a" * 40],
+            }
+        ],
+        release_pick_metadata_loaded=True,
+    )
+    child = _issue(
+        "TASK-1.1",
+        target_branch="release/1.0",
+        parent_id="TASK-1",
+        project_id="project-1",
+        backport_of={
+            "source": "TASK-1",
+            "branch": "release/1.0",
+            "status": "task_created",
+        },
+        release_pick_metadata_loaded=True,
+    )
+    tracker = _make_tracker(all_issues=[source, child])
+    status_transition = MagicMock()
+    updated = BackportEntry(
+        branch="release/1.0",
+        status=ReleasePick.PR_OPEN,
+        task_id="TASK-1.1",
+        commits=("a" * 40,),
+    )
+
+    with patch(
+        "oompah.release_pick_reconciler._cherry_pick_and_open_pr",
+        return_value=updated,
+    ) as create_review:
+        result = reconcile_release_picks(
+            tracker,
+            project_store=MagicMock(),
+            project_id="project-1",
+            scm=MagicMock(),
+            repo="owner/repo",
+            status_transition=status_transition,
+        )
+
+    assert result.advanced == 1
+    assert create_review.call_args.kwargs["status_transition"] is status_transition
+
+
 # ---------------------------------------------------------------------------
 # reconcile_release_picks — terminal child → advance parent entry
 # ---------------------------------------------------------------------------

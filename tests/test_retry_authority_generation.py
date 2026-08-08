@@ -2251,6 +2251,8 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
         tracker = MagicMock()
         fetch_count = 0
         detail_fetch_count = 0
+        persisted_integration = issue.integration
+        persisted_work_branch = issue.work_branch
 
         def fetch(_issue_ids):
             nonlocal fetch_count
@@ -2279,9 +2281,21 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
                 assert issue.id in orch.state.running
                 fresh_detail_fetch.set()
                 assert release_fresh_detail_fetch.wait(timeout=3)
-            else:
+            elif detail_fetch_count > 7:
                 raise AssertionError("unexpected submission detail refresh")
-            return replace(issue, state=tracker_state["state"])
+            return replace(
+                issue,
+                state=tracker_state["state"],
+                integration=persisted_integration,
+                work_branch=persisted_work_branch,
+            )
+
+        def set_metadata(_identifier, key, value):
+            nonlocal persisted_integration, persisted_work_branch
+            if key == "oompah.integration":
+                persisted_integration = IntegrationRecord.from_dict(value)
+            elif key == "oompah.work_branch":
+                persisted_work_branch = str(value)
 
         bind_record = orch.bind_accepted_submission_record
 
@@ -2292,6 +2306,7 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
         tracker.fetch_issue_states_by_ids.side_effect = fetch
         tracker.fetch_issue_detail.side_effect = fetch_detail
         tracker.update_issue.side_effect = update
+        tracker.set_metadata_field.side_effect = set_metadata
         orch._tracker_for_issue = MagicMock(return_value=tracker)
         orch.bind_accepted_submission_record = MagicMock(
             side_effect=bind_after_publication

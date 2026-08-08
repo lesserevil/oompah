@@ -455,6 +455,18 @@ def _make_tracker(issues: list, comments_by_id: dict | None = None) -> MagicMock
     return tracker
 
 
+def _authoritative_test_reopen(
+    _project_id,
+    issue,
+    tracker,
+    _decision,
+    comment_body,
+) -> bool:
+    tracker.update_issue(issue.identifier, status=OPEN)
+    tracker.add_comment(issue.identifier, comment_body, author="oompah")
+    return True
+
+
 class TestRunWatchdogAuditSafeReopen:
     def test_safe_reopen_accidental_needs_human(self):
         """A task with a completion comment (no question) in NEEDS_HUMAN → reopened."""
@@ -462,7 +474,11 @@ class TestRunWatchdogAuditSafeReopen:
         comments = [_comment("oompah", "Agent completed the task successfully. Pushed.")]
         tracker = _make_tracker([issue], {"T-100": comments})
 
-        result = run_watchdog_audit([(None, tracker)], run_id=1)
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=1,
+            reopen_executor=_authoritative_test_reopen,
+        )
 
         assert result.tasks_audited == 1
         assert result.tasks_actionable == 1
@@ -487,6 +503,7 @@ class TestRunWatchdogAuditSafeReopen:
             evidence_provider=lambda _project_id, _issue, _tracker: {
                 "review": {"number": "692", "state": "merged"}
             },
+            reopen_executor=_authoritative_test_reopen,
         )
 
         assert result.tasks_actionable == 1
@@ -498,7 +515,11 @@ class TestRunWatchdogAuditSafeReopen:
         comments = [_comment("ci-bot", "All checks passed on the branch.")]
         tracker = _make_tracker([issue], {"T-101": comments})
 
-        result = run_watchdog_audit([(None, tracker)], run_id=2)
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=2,
+            reopen_executor=_authoritative_test_reopen,
+        )
 
         assert result.tasks_actionable == 1
         assert result.actions_taken == 1
@@ -509,7 +530,11 @@ class TestRunWatchdogAuditSafeReopen:
         comments = [_comment("oompah", "Conflict resolved — branch is clean.")]
         tracker = _make_tracker([issue], {"T-102": comments})
 
-        result = run_watchdog_audit([(None, tracker)], run_id=3)
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=3,
+            reopen_executor=_authoritative_test_reopen,
+        )
 
         assert result.actions_taken == 1
         tracker.update_issue.assert_called_once_with("T-102", status=OPEN)
@@ -590,6 +615,7 @@ class TestRunWatchdogAuditIdempotency:
         result = run_watchdog_audit(
             [("proj-a", tracker_a), ("proj-b", tracker_b)],
             run_id=9,
+            reopen_executor=_authoritative_test_reopen,
         )
 
         assert result.tasks_audited == 2
@@ -674,6 +700,7 @@ class TestRunWatchdogAuditTelemetry:
         result = run_watchdog_audit(
             [("bad-proj", bad_tracker), ("good-proj", good_tracker)],
             run_id=11,
+            reopen_executor=_authoritative_test_reopen,
         )
 
         assert len(result.errors) >= 1

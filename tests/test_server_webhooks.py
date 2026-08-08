@@ -1687,6 +1687,11 @@ class TestWebhookInReviewReconciliation:
         mock_tracker.update_issue = MagicMock()
         mock_tracker.set_metadata_field = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        orch._transition_issue_status.side_effect = (
+            lambda current, status, **_fields: mock_tracker.update_issue(
+                current.identifier, status=status
+            )
+        )
         # _resolve_task_for_branch is used by the updated webhook handlers
         # to support both Backlog and GitHub-backed task lookup.
         orch._resolve_task_for_branch = MagicMock(return_value=mock_issue)

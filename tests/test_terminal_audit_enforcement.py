@@ -154,6 +154,14 @@ class _Tracker:
                 self.status_updates.append((identifier, kwargs["status"]))
                 issue.state = kwargs["status"]
 
+    def recover_task_status(
+        self,
+        issue: Issue,
+        requested_status: str,
+        **_fields: object,
+    ) -> None:
+        self.update_issue(issue.identifier, status=requested_status)
+
 
 class _OverrideRaceTracker(_Tracker):
     """Inject a concurrent override while the recovery updater reads current state."""
