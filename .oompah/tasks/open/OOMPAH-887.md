@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-07T23:02:34.433586Z'
+updated_at: '2026-08-08T03:57:12.329367Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -62,6 +62,30 @@ oompah.integration:
     is at 8bd96dd5389d6d3c13004f27365eb5f080fb8be6, not accepted head 5403e4b196cfae75cc7333d69b062d66c33fef8e;
     refusing to reset it'
 oompah.work_branch: OOMPAH-887
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1b9319d3127e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-887
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bf48c50ab000d7751d4abc164c5b32aa3f52995e3e92cd638dc7b4624d31e2ae
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation for OOMPAH-887: its accepted implementation
+      is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
+      Independent composition review completed, affected tests passed 392/392, and
+      the exact full make test passed 17,860 with zero failures.'
+    created_at: '2026-08-08T03:57:10.535276+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
