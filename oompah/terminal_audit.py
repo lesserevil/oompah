@@ -87,6 +87,7 @@ class FailureClassification(str, Enum):
     INFRASTRUCTURE_ERROR = "infrastructure_error"
     POLICY_INCOMPATIBILITY = "policy_incompatibility"
     FINALIZATION_FAILURE = "finalization_failure"
+    SCHEDULER_PAUSE = "scheduler_pause"
 
     @classmethod
     def from_raw(cls, raw: Any) -> "FailureClassification":

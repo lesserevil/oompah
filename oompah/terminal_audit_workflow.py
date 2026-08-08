@@ -23,7 +23,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
 
-from oompah.terminal_audit import RequestState, TerminalAuditRecord
+from oompah.terminal_audit import (
+    FailureClassification,
+    RequestState,
+    TerminalAuditRecord,
+)
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
@@ -1074,6 +1078,25 @@ class TerminalAuditWorkflow:
             now=self.clock(),
         )
 
+    def lifecycle_requeue(
+        self,
+        job: WorkflowJob,
+        *,
+        reason: str = "audit interrupted by scheduler lifecycle",
+    ) -> WorkflowJob:
+        """Return one lifecycle-interrupted lease without consuming a try."""
+
+        if job.lease_token is None:
+            raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
+        return self.store.requeue_owned_without_attempt(
+            job.job_id,
+            job.lease_token,
+            expected_phase=AuditWorkflowPhase.RUNNING.value,
+            phase=AuditWorkflowPhase.QUEUED.value,
+            reason=_safe_text(reason, "reason"),
+            now=self.clock(),
+        )
+
     def action_required(
         self,
         job: WorkflowJob,
@@ -1230,7 +1253,7 @@ class TerminalAuditWorkflow:
                 raise WorkflowJobLeaseLost(
                     f"terminal-audit job has no lease: {job.job_id}"
                 )
-            self.store.reclaim_abandoned(
+            reclaimed = self.store.reclaim_abandoned(
                 job.job_id,
                 job.lease_token,
                 lease_owner=self.lease_owner,
@@ -1238,12 +1261,31 @@ class TerminalAuditWorkflow:
                 expected_phase=AuditWorkflowPhase.RUNNING.value,
                 now=self.clock(),
             )
-            current = self.store.get(job.job_id)
-            self.retry(
-                current,
-                category=WorkflowFailureCategory.ABANDONED,
-                reason="exact auditor attempt was abandoned during restart",
+            checkpoint_attempt_id = str(
+                (reclaimed.checkpoint or {}).get("attempt_id") or ""
             )
+            interrupted_attempt = next(
+                (
+                    attempt
+                    for attempt in record.attempts
+                    if attempt.attempt_id == checkpoint_attempt_id
+                    and attempt.verdict is None
+                    and attempt.failure_classification
+                    is FailureClassification.SCHEDULER_PAUSE
+                ),
+                None,
+            )
+            if interrupted_attempt is not None:
+                self.lifecycle_requeue(
+                    reclaimed,
+                    reason="scheduler lifecycle interruption recovered after restart",
+                )
+            else:
+                self.retry(
+                    reclaimed,
+                    category=WorkflowFailureCategory.ABANDONED,
+                    reason="exact auditor attempt was abandoned during restart",
+                )
             job = self.store.get(job.job_id)
         return self._decision_from_job(record, job)
 

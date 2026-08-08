@@ -146,6 +146,7 @@ _AUDIT_REARM_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.POLICY_INCOMPATIBILITY,
     FailureClassification.MALFORMED_RESULT,
     FailureClassification.FINALIZATION_FAILURE,
+    FailureClassification.SCHEDULER_PAUSE,
 })
 
 
@@ -328,6 +329,7 @@ _NONTERMINAL_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.MALFORMED_RESULT,
     FailureClassification.INFRASTRUCTURE_ERROR,
     FailureClassification.POLICY_INCOMPATIBILITY,
+    FailureClassification.SCHEDULER_PAUSE,
 })
 _NON_SUBSTANTIVE_REARM_CLASSES: frozenset[FailureClassification] = (
     _NONTERMINAL_CLASSES

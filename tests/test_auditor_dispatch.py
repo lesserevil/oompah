@@ -680,6 +680,75 @@ def test_policy_rejection_still_rotates_and_consumes_candidate():
     assert (plan2.candidate.provider_id, plan2.candidate.model) == ("provider-b", "model-b")
 
 
+def test_scheduler_pause_preserves_second_candidate_after_policy_denial():
+    """OOMPAH-855: maintenance cannot manufacture candidate exhaustion."""
+    from oompah.terminal_audit import FailureClassification
+
+    now = datetime(2026, 8, 7, tzinfo=timezone.utc)
+    candidates = [
+        Candidate("provider-a", "model-a"),
+        Candidate("provider-b", "model-b"),
+    ]
+    attempt_ids = iter(
+        (
+            "attempt-policy",
+            "attempt-paused",
+            "attempt-resumed",
+            "attempt-prelaunch",
+        )
+    )
+    lane = AuditorDispatchLane(
+        _Selector(candidates),
+        max_attempts=2,
+        max_transport_retries=1,
+        attempt_ttl_seconds=60,
+        clock=lambda: now,
+        id_factory=lambda: next(attempt_ids),
+    )
+    record = _record()
+
+    policy_plan, _ = lane.plan(record, [], branch_key="branch-1")
+    assert policy_plan is not None
+    record = lane.finish_attempt(
+        lane.persist_plan(record, policy_plan),
+        policy_plan.attempt_id,
+        reason="auditor policy denial limit reached",
+        failure_classification=FailureClassification.POLICY_INCOMPATIBILITY,
+    )
+    pause_plan, _ = lane.plan(record, [], branch_key="branch-1")
+    assert pause_plan is not None
+    assert pause_plan.candidate == candidates[1]
+    record = lane.finish_attempt(
+        lane.persist_plan(record, pause_plan),
+        pause_plan.attempt_id,
+        reason="operator pause interrupted auditor before verdict",
+        failure_classification=FailureClassification.SCHEDULER_PAUSE,
+    )
+
+    assert AuditorDispatchLane.attempted_pairs(record) == {
+        ("provider-a", "model-a")
+    }
+    assert len(AuditorDispatchLane.substantive_attempts(record)) == 1
+    assert AuditorDispatchLane.transport_retry_attempts(record) == []
+    assert len(AuditorDispatchLane.budgeted_attempts(record)) == 1
+    retry, exhaustion = lane.plan(record, [], branch_key="branch-1")
+    assert exhaustion is None
+    assert retry is not None
+    assert retry.candidate == candidates[1]
+    assert retry.rotation_count == 2
+
+    prelaunch = lane.record_prelaunch_failure(
+        lane.finish_attempt(
+            lane.persist_plan(record, retry),
+            retry.attempt_id,
+            reason="another routine pause",
+            failure_classification=FailureClassification.SCHEDULER_PAUSE,
+        ),
+        reason="revision binding temporarily unavailable",
+    )
+    assert prelaunch is not None
+
+
 def test_transport_retry_budget_is_bounded_without_consuming_candidate():
     """A repeating delivery failure becomes actionable only after its budget."""
     from oompah.terminal_audit import FailureClassification

@@ -5996,6 +5996,10 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._paused = True
             self._provider_admission_generation += 1
+            self._mark_running_auditors_for_lifecycle_retirement_locked(
+                reason="scheduler_pause",
+                error="operator pause interrupted auditor before verdict",
+            )
         self._save_paused_state()
         preserved_recovery_ids: set[str] = set()
         with self._retry_authority_lock:
@@ -7849,6 +7853,26 @@ class Orchestrator:
             await self._terminate_running(issue_id, cleanup_workspace=False)
         self._notify_observers()
 
+    def _mark_running_auditors_for_lifecycle_retirement_locked(
+        self,
+        *,
+        reason: str,
+        error: str,
+    ) -> None:
+        """Fence live auditors for a non-consuming lifecycle retirement.
+
+        The caller owns ``_provider_admission_lock``.  Never overwrite a more
+        specific failure (policy denial, timeout, explicit revocation): those
+        outcomes retain their existing scheduling semantics.
+        """
+
+        for entry in self._running_values_snapshot():
+            if not entry.is_auditor or entry.forced_exit_reason:
+                continue
+            entry.retirement_pending = True
+            entry.forced_exit_reason = reason
+            entry.forced_exit_error = error
+
     def _activate_unpaused_dispatch(self) -> bool:
         """Open timers and publish resume after every durable owner is ready."""
 
@@ -8256,6 +8280,17 @@ class Orchestrator:
                     )
                 if interrupted:
                     raise asyncio.CancelledError
+
+            # Any auditor still running after the bounded drain crossed real
+            # provider admission.  Mark its eventual safe-stop retirement as
+            # lifecycle-owned before publishing restart recovery authority.
+            # A result that wins concurrently remains durable and causes
+            # ``_finish_audit_attempt`` to no-op.
+            with self._provider_admission_lock:
+                self._mark_running_auditors_for_lifecycle_retirement_locked(
+                    reason="scheduler_pause",
+                    error="graceful restart interrupted auditor before verdict",
+                )
 
             restart_issues = [
                 {
@@ -11880,6 +11915,10 @@ class Orchestrator:
             self._quiesced = True
             self._provider_admission_generation += 1
             self._termination_scheduling_closed = True
+            self._mark_running_auditors_for_lifecycle_retirement_locked(
+                reason="scheduler_pause",
+                error="graceful shutdown interrupted auditor before verdict",
+            )
         workflow_runtime_drained = True
         if self.workflow_runtime is not None:
             workflow_runtime_drained = await self.workflow_runtime.drain(
@@ -16448,7 +16487,8 @@ class Orchestrator:
 
                 if self._audit_branch_busy(issue, branch_key):
                     continue
-                if len(record.attempts) >= lane.max_attempts:
+                budgeted_attempts = lane.budgeted_attempts(record)
+                if len(budgeted_attempts) >= lane.max_attempts:
                     latest_attempt = record.attempts[-1] if record.attempts else None
                     binding_exhausted = bool(
                         record.selected_sha is None
@@ -16479,7 +16519,9 @@ class Orchestrator:
                     retry_after = timestamp(
                         datetime.now(timezone.utc)
                         + timedelta(
-                            milliseconds=self._backoff_delay(len(record.attempts) + 1)
+                            milliseconds=self._backoff_delay(
+                                len(budgeted_attempts) + 1
+                            )
                         )
                     )
                     failed = lane.record_prelaunch_failure(
@@ -56585,6 +56627,8 @@ class Orchestrator:
             failure_classification = (
                 FailureClassification.POLICY_INCOMPATIBILITY
                 if reason == "auditor_policy_denial_exhausted"
+                else FailureClassification.SCHEDULER_PAUSE
+                if reason == "scheduler_pause"
                 else FailureClassification.FINALIZATION_FAILURE
                 if reason in {"normal", "max_turns"}
                 else FailureClassification.INFRASTRUCTURE_ERROR
@@ -56593,10 +56637,14 @@ class Orchestrator:
                 target,
                 entry.audit_attempt_id,
                 reason=error or reason,
-                retry_after=timestamp(
-                    datetime.now(timezone.utc)
-                    + timedelta(
-                        milliseconds=self._backoff_delay(rotation + 1)
+                retry_after=(
+                    None
+                    if failure_classification is FailureClassification.SCHEDULER_PAUSE
+                    else timestamp(
+                        datetime.now(timezone.utc)
+                        + timedelta(
+                            milliseconds=self._backoff_delay(rotation + 1)
+                        )
                     )
                 ),
                 failure_classification=failure_classification,
@@ -56611,16 +56659,26 @@ class Orchestrator:
             )
             if workflow_job is not None:
                 try:
-                    self.terminal_audit_workflow.retry(
-                        workflow_job,
-                        category=(
-                            WorkflowFailureCategory.POLICY
-                            if failure_classification
-                            is FailureClassification.POLICY_INCOMPATIBILITY
-                            else WorkflowFailureCategory.TRANSPORT
-                        ),
-                        reason="auditor attempt ended before finalization",
-                    )
+                    if (
+                        failure_classification
+                        is FailureClassification.SCHEDULER_PAUSE
+                    ):
+                        if metadata_updated:
+                            self.terminal_audit_workflow.lifecycle_requeue(
+                                workflow_job,
+                                reason="scheduler lifecycle interrupted auditor",
+                            )
+                    else:
+                        self.terminal_audit_workflow.retry(
+                            workflow_job,
+                            category=(
+                                WorkflowFailureCategory.POLICY
+                                if failure_classification
+                                is FailureClassification.POLICY_INCOMPATIBILITY
+                                else WorkflowFailureCategory.TRANSPORT
+                            ),
+                            reason="auditor attempt ended before finalization",
+                        )
                 except Exception as workflow_exc:  # noqa: BLE001 - metadata remains authoritative
                     logger.warning(
                         "Could not schedule durable audit retry for %s: %s",

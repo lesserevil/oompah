@@ -34,6 +34,9 @@ _TRANSPORT_FAILURE_CLASSIFICATIONS: frozenset[FailureClassification] = frozenset
         FailureClassification.FINALIZATION_FAILURE,
     }
 )
+_NON_CONSUMING_LIFECYCLE_CLASSIFICATIONS: frozenset[FailureClassification] = (
+    frozenset({FailureClassification.SCHEDULER_PAUSE})
+)
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -432,10 +435,20 @@ def build_terminal_audit_health(
                 1
                 for attempt in record.attempts
                 if attempt.verdict is not None
-                or attempt.failure_classification
-                not in _TRANSPORT_FAILURE_CLASSIFICATIONS
+                or (
+                    attempt.failure_classification
+                    not in _NON_CONSUMING_LIFECYCLE_CLASSIFICATIONS
+                    and attempt.failure_classification
+                    not in _TRANSPORT_FAILURE_CLASSIFICATIONS
+                )
             )
-            transport_used = len(record.attempts) - substantive_used
+            transport_used = sum(
+                1
+                for attempt in record.attempts
+                if attempt.verdict is None
+                and attempt.failure_classification
+                in _TRANSPORT_FAILURE_CLASSIFICATIONS
+            )
             substantive_exhausted = substantive_used >= max_attempts
             # A zero retry budget still permits the initial audit launch.  It
             # becomes exhausted only after a transport attempt actually

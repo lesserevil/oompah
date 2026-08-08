@@ -4157,6 +4157,12 @@ class TestClassifyFailureToStatus:
             is None
         )
 
+    def test_scheduler_pause_returns_none_for_nonterminal(self) -> None:
+        assert (
+            classify_failure_to_status(FailureClassification.SCHEDULER_PAUSE)
+            is None
+        )
+
     def test_unsafe_archive_restores_pre_audit_state(self) -> None:
         assert (
             classify_failure_to_status(

@@ -413,6 +413,32 @@ class TestLaunchAndTransportFailures:
 
 
 class TestRetryExhaustion:
+    def test_scheduler_pause_is_normal_and_consumes_no_retry_budget(self):
+        """Routine lifecycle interruption stays out of operator warnings."""
+        from dataclasses import replace
+
+        interrupted = replace(
+            _attempt(
+                "attempt-paused",
+                failure_reason="operator pause interrupted auditor before verdict",
+                ended_at=NOW.isoformat(),
+            ),
+            failure_classification=FailureClassification.SCHEDULER_PAUSE,
+        )
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=[interrupted]))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=1,
+        )
+
+        assert health.retry_exhausted_count == 0
+        assert health.transport_retry_pending_count == 0
+        assert health.transport_failure_count == 0
+        sources = {alert["source"] for alert in terminal_audit_health_alerts(health)}
+        assert HEALTH_ALERT_PREFIX + "retry_exhausted" not in sources
+        assert HEALTH_ALERT_PREFIX + "transport_retry_pending" not in sources
+
     def test_transport_recovery_is_not_candidate_exhaustion(self):
         """A pre-verdict delivery failure surfaces a recovery signal, not no_auditor."""
         from dataclasses import replace

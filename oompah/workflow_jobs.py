@@ -4165,6 +4165,79 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def requeue_owned_without_attempt(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        expected_phase: str,
+        phase: str,
+        reason: str,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Release an exact lease when local lifecycle stopped the invocation.
+
+        ``claim_next`` increments ``attempts`` at the execution boundary.  An
+        operator pause or graceful lifecycle drain before a durable result is
+        not an execution failure, so this exact inverse transition restores
+        the prior count while clearing the callback-bearing checkpoint.  The
+        running lease token is required, which fences late output and makes a
+        repeated recovery observationally idempotent.
+        """
+
+        required_phase = _required_text(expected_phase, "expected_phase")
+        normalized_phase = _required_text(phase, "phase")
+        message = _required_text(reason, "reason")
+        with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                owned = self._owned_row_locked(job_id, lease_token, now=timestamp)
+                if str(owned["phase"]) != required_phase:
+                    raise WorkflowJobLeaseLost(
+                        f"workflow job phase is no longer owned: {job_id}"
+                    )
+                restored_attempts = max(int(owned["attempts"]) - 1, 0)
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET state = ?, phase = ?, attempts = ?,
+                           lease_owner = NULL, lease_token = NULL,
+                           lease_expires_at = NULL, retry_at = NULL,
+                           failure_category = NULL, last_error = NULL,
+                           checkpoint_json = NULL,
+                           result_transition_json = NULL,
+                           updated_at = ?, completed_at = NULL
+                     WHERE job_id = ? AND state = ? AND lease_token = ?
+                       AND phase = ?
+                    """,
+                    (
+                        WorkflowJobState.QUEUED.value,
+                        normalized_phase,
+                        restored_attempts,
+                        timestamp,
+                        job_id,
+                        WorkflowJobState.RUNNING.value,
+                        lease_token,
+                        required_phase,
+                    ),
+                )
+                row = self._row_locked(job_id)
+                self._append_event_locked(
+                    row,
+                    "lifecycle_requeued",
+                    payload={
+                        "reason": message,
+                        "restored_attempts": restored_attempts,
+                    },
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def supersede(
         self,
         job_id: str,

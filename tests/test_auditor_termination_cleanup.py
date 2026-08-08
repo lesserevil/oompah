@@ -18,6 +18,7 @@ from oompah.orchestrator import (
     RuntimeTerminationCoordinator,
     RuntimeTerminationPublicationTimeout,
 )
+from oompah.roles import Candidate
 from oompah.statuses import IN_VALIDATION, READY_TO_INTEGRATE
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
@@ -35,6 +36,7 @@ from oompah.terminal_audit import (
     Verdict,
     compute_evidence_fingerprint,
 )
+from oompah.terminal_transition_coordinator import AuditResult
 
 
 def _orchestrator(tmp_path) -> Orchestrator:
@@ -1471,6 +1473,213 @@ def test_uncommitted_normal_exit_is_a_finalization_failure(tmp_path) -> None:
     assert finish.call_args.kwargs["failure_classification"] == (
         FailureClassification.FINALIZATION_FAILURE
     )
+
+
+def test_pause_before_verdict_requeues_same_auditor_without_budget_use(
+    tmp_path,
+) -> None:
+    """OOMPAH-855: pause, retirement, and resume preserve exact eligibility."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        entry = _entry("attempt-paused")
+        release = asyncio.Event()
+        entry.worker_task = asyncio.create_task(release.wait())
+        fingerprint = compute_evidence_fingerprint(
+            "requirements",
+            "project-1",
+            entry.identifier,
+        )
+        queued = TerminalAuditRecord(
+            audit_id=entry.audit_id,
+            project_id="project-1",
+            task_id=entry.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+        )
+        workflow_job = orch.terminal_audit_workflow.start(
+            queued,
+            attempt_id=entry.audit_attempt_id,
+            candidate=Candidate("provider-a", "model-a"),
+        )
+        assert workflow_job is not None
+        entry.audit_workflow_job_id = workflow_job.job_id
+        entry.audit_workflow_lease_token = workflow_job.lease_token
+        attempt = AuditAttempt(
+            attempt_id=entry.audit_attempt_id,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            provider_id="provider-a",
+            model="model-a",
+            request_state=RequestState.IN_PROGRESS,
+        )
+        document = MagicMock(
+            pending_chain=[
+                TerminalAuditRecord(
+                    audit_id=entry.audit_id,
+                    project_id="project-1",
+                    task_id=entry.identifier,
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=fingerprint,
+                    request_state=RequestState.IN_PROGRESS,
+                    attempts=[attempt],
+                )
+            ]
+        )
+        audit_store = MagicMock()
+        audit_store.read.return_value = document
+
+        def persist(_store, _issue, updated, **_kwargs):
+            document.pending_chain = [updated]
+            return True
+
+        orch.state.running[entry.issue.id] = entry
+        orch.state.claimed.add(entry.issue.id)
+        orch.state.claimed_issues[entry.issue.id] = entry.issue
+        orch._audit_branch_claims[entry.branch_key] = entry.audit_attempt_id
+        with (
+            patch.object(orch, "_audit_store", return_value=audit_store),
+            patch.object(orch, "_audit_update_record", side_effect=persist),
+            patch.object(orch, "_managed_processes", return_value={}),
+            patch.object(orch, "_reconcile_audit_budget_spend", return_value=True),
+            patch.object(orch, "_release_audit_budget_reservation", return_value=True),
+            patch.object(orch, "_remove_audit_workspace"),
+            patch.object(orch, "_fire_task_cost_record"),
+            patch.object(orch, "_fire_telemetry_comment"),
+            patch.object(orch, "_post_comment"),
+        ):
+            orch.pause()
+            for _ in range(300):
+                if entry.issue.id not in orch.state.running:
+                    break
+                await asyncio.sleep(0.01)
+
+        assert entry.issue.id not in orch.state.running
+        interrupted = document.pending_chain[0]
+        ended = interrupted.attempts[-1]
+        assert ended.failure_classification is FailureClassification.SCHEDULER_PAUSE
+        assert ended.next_retry_at is None
+        assert orch.unpause() is True
+        resumed = orch.terminal_audit_workflow.start(
+            interrupted,
+            attempt_id="attempt-resumed",
+            candidate=Candidate("provider-a", "model-a"),
+        )
+        assert resumed is not None
+        assert resumed.attempts == 1
+        assert resumed.checkpoint["candidate"] == {
+            "provider_id": "provider-a",
+            "model": "model-a",
+        }
+
+    asyncio.run(scenario())
+
+
+def test_pause_does_not_overwrite_policy_or_explicit_cancel_reason(tmp_path) -> None:
+    """Lifecycle retirement preserves genuine operator/policy semantics."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        policy = _entry("attempt-policy")
+        policy.forced_exit_reason = "auditor_policy_denial_exhausted"
+        cancelled = _entry("attempt-cancelled")
+        cancelled.issue.id = "issue-cancelled"
+        cancelled.forced_exit_reason = "authority_revoked"
+        healthy = _entry("attempt-healthy")
+        healthy.issue.id = "issue-healthy"
+        orch.state.running = {
+            policy.issue.id: policy,
+            cancelled.issue.id: cancelled,
+            healthy.issue.id: healthy,
+        }
+        observed = asyncio.Event()
+
+        async def observe_retirements() -> None:
+            observed.set()
+
+        with patch.object(
+            orch,
+            "_terminate_all_running",
+            side_effect=observe_retirements,
+        ):
+            orch.pause()
+            await asyncio.wait_for(observed.wait(), timeout=3)
+
+        assert policy.forced_exit_reason == "auditor_policy_denial_exhausted"
+        assert cancelled.forced_exit_reason == "authority_revoked"
+        assert healthy.forced_exit_reason == "scheduler_pause"
+
+    asyncio.run(scenario())
+
+
+def test_pause_after_durable_finalizing_result_does_not_duplicate_apply(
+    tmp_path,
+) -> None:
+    """A typed durable verdict wins the race with lifecycle retirement."""
+
+    orch = _orchestrator(tmp_path)
+    entry = _entry("attempt-finalizing")
+    fingerprint = compute_evidence_fingerprint(
+        "requirements",
+        "project-1",
+        entry.identifier,
+    )
+    record = TerminalAuditRecord(
+        audit_id=entry.audit_id,
+        project_id="project-1",
+        task_id=entry.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[
+            AuditAttempt(
+                attempt_id=entry.audit_attempt_id,
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                provider_id="provider-a",
+                model="model-a",
+                request_state=RequestState.IN_PROGRESS,
+            )
+        ],
+    )
+    running = orch.terminal_audit_workflow.start(
+        record,
+        attempt_id=entry.audit_attempt_id,
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    finalizing = orch.terminal_audit_workflow.mark_finalizing(
+        running,
+        record,
+        result=AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.PASS,
+            failure_classification=None,
+            message="exact head is green",
+            safe_evidence={"gate": "passed"},
+            attempt_id=entry.audit_attempt_id,
+        ),
+        attempt_id=entry.audit_attempt_id,
+        lease_token=running.lease_token,
+    )
+    entry.audit_workflow_job_id = finalizing.job_id
+    entry.audit_workflow_lease_token = finalizing.lease_token
+    store = MagicMock()
+    store.read.return_value = MagicMock(pending_chain=[record])
+
+    with (
+        patch.object(orch, "_audit_store", return_value=store),
+        patch.object(orch, "_audit_update_record") as update,
+    ):
+        assert orch._finish_audit_attempt(entry, "scheduler_pause", None) is False
+
+    update.assert_not_called()
+    durable = orch.workflow_job_store.get(finalizing.job_id)
+    assert durable.phase == "finalizing"
+    assert durable.lease_token == finalizing.lease_token
 
 
 def test_tool_result_delivery_timeout_is_retryable_transport_failure(tmp_path) -> None:

@@ -43,6 +43,15 @@ _TRANSPORT_FAILURE_CLASSIFICATIONS: frozenset[FailureClassification] = frozenset
     }
 )
 
+# Operator pause and lifecycle drain deliberately interrupt healthy local work.
+# They are neither a candidate verdict nor a provider transport attempt, so
+# they consume neither scheduling budget.  Keeping the classification out of
+# ``_TRANSPORT_FAILURE_CLASSIFICATIONS`` is intentional: repeated maintenance
+# must not exhaust the bounded transport retry lane either.
+_NON_CONSUMING_LIFECYCLE_CLASSIFICATIONS: frozenset[FailureClassification] = (
+    frozenset({FailureClassification.SCHEDULER_PAUSE})
+)
+
 
 def _is_transport_retry(attempt: AuditAttempt) -> bool:
     """Return whether *attempt* ended in a retryable transport failure.
@@ -57,6 +66,14 @@ def _is_transport_retry(attempt: AuditAttempt) -> bool:
     if attempt.verdict is not None:
         return False
     return attempt.failure_classification in _TRANSPORT_FAILURE_CLASSIFICATIONS
+
+
+def _is_non_consuming_lifecycle_interruption(attempt: AuditAttempt) -> bool:
+    """Return whether local lifecycle control interrupted before a verdict."""
+
+    if attempt.verdict is not None:
+        return False
+    return attempt.failure_classification in _NON_CONSUMING_LIFECYCLE_CLASSIFICATIONS
 
 
 def utc_now() -> datetime:
@@ -336,6 +353,7 @@ class AuditorDispatchLane:
             if attempt.provider_id
             and attempt.model
             and not _is_transport_retry(attempt)
+            and not _is_non_consuming_lifecycle_interruption(attempt)
         }
 
     @staticmethod
@@ -346,6 +364,7 @@ class AuditorDispatchLane:
             attempt
             for attempt in record.attempts
             if not _is_transport_retry(attempt)
+            and not _is_non_consuming_lifecycle_interruption(attempt)
         ]
 
     @staticmethod
@@ -356,6 +375,16 @@ class AuditorDispatchLane:
             attempt
             for attempt in record.attempts
             if _is_transport_retry(attempt)
+        ]
+
+    @staticmethod
+    def budgeted_attempts(record: TerminalAuditRecord) -> list[AuditAttempt]:
+        """Attempts that consume either substantive or transport capacity."""
+
+        return [
+            attempt
+            for attempt in record.attempts
+            if not _is_non_consuming_lifecycle_interruption(attempt)
         ]
 
     def current_attempt(self, record: TerminalAuditRecord) -> AuditAttempt | None:
@@ -550,7 +579,7 @@ class AuditorDispatchLane:
         ``None`` means the record has already exhausted this lane's budget.
         """
 
-        if len(record.attempts) >= self.max_attempts:
+        if len(self.budgeted_attempts(record)) >= self.max_attempts:
             return None
         from oompah.terminal_audit import FailureClassification
 

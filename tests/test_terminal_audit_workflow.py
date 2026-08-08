@@ -7,6 +7,7 @@ import pytest
 
 from oompah.roles import Candidate
 from oompah.terminal_audit import (
+    AuditAttempt,
     EvidenceFingerprint,
     FailureClassification,
     RequestState,
@@ -24,6 +25,7 @@ from oompah.terminal_transition_coordinator import AuditResult
 from oompah.workflow_jobs import (
     WorkflowJobSpec,
     WorkflowJobState,
+    WorkflowJobLeaseLost,
     WorkflowJobStore,
     WorkflowJobStoreError,
 )
@@ -632,6 +634,123 @@ def test_restart_requeues_audit_without_a_live_attempt(durable):
     recovered = workflow.recover(current, active_attempt_identities=set())
     assert recovered.phase is AuditWorkflowPhase.RETRY_WAIT
     assert workflow.decision(current).phase is AuditWorkflowPhase.RETRY_WAIT
+
+
+def test_lifecycle_requeue_restores_workflow_attempt_and_fences_late_result(
+    tmp_path,
+):
+    """OOMPAH-855: repeated pauses do not consume durable job attempts."""
+
+    clock = Clock()
+    store = WorkflowJobStore(str(tmp_path / "audit.sqlite3"), clock=clock)
+    workflow = TerminalAuditWorkflow(
+        store,
+        lease_owner="audit-worker-1",
+        lease_seconds=30,
+        max_attempts=1,
+        retry_delay_seconds=0,
+        clock=clock,
+    )
+    current = record()
+    try:
+        first = workflow.start(
+            current,
+            attempt_id="attempt-paused-1",
+            candidate=Candidate("provider-a", "model-a"),
+        )
+        assert first is not None
+        assert first.attempts == 1
+        queued = workflow.lifecycle_requeue(first, reason="operator pause")
+        assert queued.state is WorkflowJobState.QUEUED
+        assert queued.attempts == 0
+        assert queued.checkpoint is None
+
+        with pytest.raises(WorkflowJobLeaseLost):
+            workflow.mark_finalizing(
+                first,
+                current,
+                result=result(current, attempt_id="attempt-paused-1"),
+                attempt_id="attempt-paused-1",
+                lease_token=first.lease_token,
+            )
+
+        second = workflow.start(
+            current,
+            attempt_id="attempt-paused-2",
+            candidate=Candidate("provider-a", "model-a"),
+        )
+        assert second is not None
+        assert second.attempts == 1
+        queued_again = workflow.lifecycle_requeue(second, reason="graceful drain")
+        assert queued_again.state is WorkflowJobState.QUEUED
+        assert queued_again.attempts == 0
+        assert workflow.decision(current).phase is AuditWorkflowPhase.QUEUED
+
+        verdict_owner = workflow.start(
+            current,
+            attempt_id="attempt-with-verdict",
+            candidate=Candidate("provider-a", "model-a"),
+        )
+        assert verdict_owner is not None
+        finalizing = workflow.mark_finalizing(
+            verdict_owner,
+            current,
+            result=result(current, attempt_id="attempt-with-verdict"),
+            attempt_id="attempt-with-verdict",
+            lease_token=verdict_owner.lease_token,
+        )
+        with pytest.raises(WorkflowJobLeaseLost):
+            workflow.lifecycle_requeue(
+                verdict_owner,
+                reason="late pause retirement",
+            )
+        preserved = store.get(finalizing.job_id)
+        assert preserved.phase == AuditWorkflowPhase.FINALIZING.value
+        assert preserved.checkpoint == finalizing.checkpoint
+    finally:
+        store.close()
+
+
+def test_restart_recovers_classified_pause_without_consuming_workflow_attempt(
+    durable,
+):
+    """A crash between metadata finalization and lease release is idempotent."""
+
+    workflow, store, _clock = durable
+    current = record()
+    running = workflow.start(
+        current,
+        attempt_id="attempt-before-restart",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    interrupted = replace(
+        current,
+        request_state=RequestState.PENDING,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-before-restart",
+                target_state=current.target_state,
+                evidence_fingerprint=current.evidence_fingerprint,
+                request_state=RequestState.PENDING,
+                provider_id="provider-a",
+                model="model-a",
+                ended_at="2026-08-07T12:00:00+00:00",
+                failure_classification=FailureClassification.SCHEDULER_PAUSE,
+            )
+        ],
+    )
+
+    recovered = workflow.recover(interrupted, active_attempt_identities=set())
+    persisted = store.get(running.job_id)
+    assert recovered.phase is AuditWorkflowPhase.QUEUED
+    assert persisted.state is WorkflowJobState.QUEUED
+    assert persisted.attempts == 0
+    assert persisted.checkpoint is None
+
+    repeated = workflow.recover(interrupted, active_attempt_identities=set())
+    assert repeated.phase is AuditWorkflowPhase.QUEUED
+    assert store.get(running.job_id).attempts == 0
 
 
 def test_checkpoint_excludes_oversized_or_untrusted_output(durable):
