@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-07T12:42:12.972567Z'
-updated_at: '2026-08-08T16:26:20.450358Z'
+updated_at: '2026-08-08T16:26:26.852086Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-886
 target_branch: null
 review_url: null
@@ -115,7 +115,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:26:16.566126+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-886
+    target_state: Done
+    evidence_fingerprint: f72314b3af80d7c3e0719c18c66bffa8cb7e03e17505234139a8cb4bbd569f09
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:26:25.159287+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -245,5 +255,12 @@ author: oompah
 created: 2026-08-08 08:05
 ---
 Direct implementation complete on isolated exact-base branch at 03b93535839026ed530063006af4ff3a11706068. Native Markdown tracker now provides project+operation+marker keyed atomic create-once with payload mismatch fencing, concurrent/restart/ambiguous commit recovery, and state-branch checkpoint recovery; GitHub/GitLab fail closed. Epic rebase helper reservations now retry only through that primitive and reconcile the original task rather than deadlocking or duplicating. Brokered tracker/adapter/epic/state-branch matrix: 774 passed; terminal mutation scan, secret scan, py_compile, and diff check passed. Awaiting systemic composition/exact gate.
+---
+author: oompah
+created: 2026-08-08 16:26
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

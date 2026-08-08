@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-808
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Fence nested-epic dispatch until prerequisite code is reachable
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-08T12:03:46.587596Z'
+updated_at: '2026-08-08T16:26:32.520208Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -106,6 +106,30 @@ oompah.work_contributors:
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T22:07:57.768504+00:00'
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d111279cfc9c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-808
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f0aa6bf985eb3b25c1257ecc99f4144d598ad52542eec7557b59cb474237a33f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:26:28.673363+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
