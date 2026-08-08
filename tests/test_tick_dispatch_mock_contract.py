@@ -580,7 +580,14 @@ def _dispatch_replacement_violations(source: str, filename: str) -> list[str]:
     return violations
 
 
+@pytest.mark.timeout(30)
 def test_tick_dispatch_replacements_use_faithful_helper() -> None:
+    """Scan the growing test corpus within a load-safe scoped deadline.
+
+    This is an architectural whole-corpus check, not a constant-time unit
+    test.  Keep the global five-second timeout strict for ordinary tests while
+    allowing saturated exact gates enough time to parse every test module.
+    """
     violations = [
         violation
         for path in sorted(Path(__file__).parent.glob("test_*.py"))
