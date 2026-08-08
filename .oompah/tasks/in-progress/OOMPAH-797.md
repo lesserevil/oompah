@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:28.518646Z'
-updated_at: '2026-08-07T18:22:47.568474Z'
+updated_at: '2026-08-08T07:52:19.251463Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ Build a deterministic production-like workload with at least 100 tasks across pr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 07:52
+---
+Direct implementation started in isolated worktree based exactly on systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Scope: deterministic >=100-task multi-project soak harness, bounded CI target, longer operator target/docs, and assertions for liveness/fairness/retries/restart/UI/resource/alerts. Focused validation will use the shared dedicated broker.
+---
+<!-- COMMENTS:END -->
