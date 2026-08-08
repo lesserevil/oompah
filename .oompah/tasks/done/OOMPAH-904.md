@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-904
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:server] Post-commit worker cleanup failed for OOMPAH-647'
 parent: null
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:33:51.824852Z'
-updated_at: '2026-08-07T21:12:17.099634Z'
+updated_at: '2026-08-08T03:57:43.824880Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-33099a05fe73
+    project_id: proj-14849f1b
+    task_id: OOMPAH-904
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6426a4776f9a7d7ea5e22f758094c6a0305b8c234d3adadb93f93b247217cf06
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation for OOMPAH-904: its accepted implementation
+      is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
+      Independent composition review completed, affected tests passed 392/392, and
+      the exact full make test passed 17,860 with zero failures.'
+    created_at: '2026-08-08T03:57:39.820467+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
