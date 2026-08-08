@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 from importlib import metadata
 import json
@@ -57,7 +58,11 @@ _GATE_CLEANUP_MAX_DEPTH = 256
 _GATE_CLEANUP_MAX_OPERATIONS = 32_768
 _GATE_CLEANUP_SLICE_SECONDS = 1.0
 _GATE_DEFERRED_CLEANUP_LIMIT = 256
+_GATE_CLEANUP_RETRY_INITIAL_SECONDS = 0.05
+_GATE_CLEANUP_RETRY_MAX_SECONDS = 5.0
+_GATE_CLEANUP_RETRY_WARNING_ATTEMPT = 8
 _GATE_REMOVAL_REMOVED = "removed"
+_GATE_REMOVAL_PROGRESS = "progress"
 _GATE_REMOVAL_INCOMPLETE = "incomplete"
 _GATE_REMOVAL_UNSAFE = "unsafe"
 _GATE_ROOT_NAME_PATTERN = rf"{re.escape(_GATE_CONTAINER_PREFIX)}[a-z0-9_]{{8}}"
@@ -290,11 +295,18 @@ class BranchQualityGate:
     _active_gate_root_identities: dict[str, tuple[int, int]] = {}
     _deferred_gate_cleanups: dict[
         str,
-        tuple[Path, Path, tuple[int, int]],
+        tuple[Path, Path, tuple[int, int], int, float],
     ] = {}
     _deferred_gate_cleanup_overflow = False
     _deferred_gate_cleanup_overflow_generation = 0
+    _gate_namespace_generation = 0
     _deferred_gate_discovery: Iterator[os.DirEntry[str]] | None = None
+    _deferred_gate_discovery_root: Path | None = None
+    _deferred_gate_discovery_baseline: tuple[int, int] | None = None
+    _deferred_gate_sidecar_phase = "collect"
+    _deferred_gate_sidecar_cursor: str | None = None
+    _deferred_gate_sidecar_candidates: dict[str, Path] = {}
+    _deferred_gate_sidecar_protected: set[str] = set()
     _deferred_gate_cleanup_thread: threading.Thread | None = None
     # Durable tombstones for cancelled generations: set before the gate
     # spawns so that pre-spawn authority withdrawals (during snapshot
@@ -980,7 +992,11 @@ class BranchQualityGate:
         # to the retained root as a new work item.  Candidate-controlled depth
         # therefore cannot consume recursion, descriptors, or unbounded frames.
         frames: list[tuple[str, tuple[int, int], tuple[int, int]]] = []
-        directory_descriptor: int | None = os.dup(root_descriptor)
+        directory_descriptor: int | None = None
+        try:
+            directory_descriptor = os.dup(root_descriptor)
+        except OSError:
+            return _GATE_REMOVAL_INCOMPLETE
         operation_count = 0
         made_progress = False
         deadline = time.monotonic() + _GATE_CLEANUP_SLICE_SECONDS
@@ -993,7 +1009,7 @@ class BranchQualityGate:
                         or time.monotonic() >= deadline
                     )
                 ):
-                    return _GATE_REMOVAL_INCOMPLETE
+                    return _GATE_REMOVAL_PROGRESS
                 operation_count += 1
                 directory_metadata = os.fstat(directory_descriptor)
                 if (
@@ -1186,12 +1202,18 @@ class BranchQualityGate:
             if (int(final_root.st_dev), int(final_root.st_ino)) != expected_identity:
                 return _GATE_REMOVAL_UNSAFE
             os.rmdir(name, dir_fd=parent_descriptor)
-        except OSError:
+        except OSError as exc:
             # Every retry reopens and revalidates the exact quarantine inode.
             # A transient descriptor, signal, or filesystem failure therefore
             # pauses progress safely instead of orphaning a partially reaped
             # tree.  Explicit inode/device/ownership mismatches return UNSAFE.
-            return _GATE_REMOVAL_INCOMPLETE
+            if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+                return _GATE_REMOVAL_UNSAFE
+            return (
+                _GATE_REMOVAL_PROGRESS
+                if made_progress
+                else _GATE_REMOVAL_INCOMPLETE
+            )
         finally:
             if directory_descriptor is not None:
                 os.close(directory_descriptor)
@@ -1208,7 +1230,8 @@ class BranchQualityGate:
     @classmethod
     def _forget_gate_root(cls, root: Path) -> None:
         with cls._processes_lock:
-            cls._active_gate_root_identities.pop(str(root), None)
+            if cls._active_gate_root_identities.pop(str(root), None) is not None:
+                cls._gate_namespace_generation += 1
 
     @classmethod
     def _deferred_gate_cleanup_slice(
@@ -1242,7 +1265,16 @@ class BranchQualityGate:
                 expected_identity,
                 root_descriptor,
             )
-        except OSError:
+        except FileNotFoundError:
+            # A missing name does not prove that the expected inode was
+            # deleted; a same-UID namespace racer may have renamed it away.
+            # Preserve the sidecar as durable evidence and stop this claim.
+            return _GATE_REMOVAL_UNSAFE
+        except OSError as exc:
+            if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+                # A non-directory or symlink at the durable quarantine name
+                # is a namespace substitution, not a transient open failure.
+                return _GATE_REMOVAL_UNSAFE
             return _GATE_REMOVAL_INCOMPLETE
         finally:
             if root_descriptor is not None:
@@ -1252,15 +1284,48 @@ class BranchQualityGate:
 
     @classmethod
     def _discover_deferred_gate_cleanups(cls) -> bool:
-        """Refill the bounded in-memory reaper queue from durable quarantines."""
+        """Advance one bounded, generation-fenced maintenance pass."""
         temp_root = Path(tempfile.gettempdir()).resolve()
+
+        def reset_scan(*, discard_batch: bool) -> None:
+            with cls._processes_lock:
+                if cls._deferred_gate_discovery is not None:
+                    cls._deferred_gate_discovery.close()
+                cls._deferred_gate_discovery = None
+                cls._deferred_gate_discovery_baseline = None
+                cls._deferred_gate_sidecar_protected.clear()
+                if discard_batch:
+                    cls._deferred_gate_sidecar_candidates.clear()
+                    cls._deferred_gate_sidecar_phase = "collect"
+
         with cls._processes_lock:
+            if cls._deferred_gate_discovery_root != temp_root:
+                if cls._deferred_gate_discovery is not None:
+                    cls._deferred_gate_discovery.close()
+                cls._deferred_gate_discovery = None
+                cls._deferred_gate_discovery_baseline = None
+                cls._deferred_gate_discovery_root = temp_root
+                cls._deferred_gate_sidecar_phase = "collect"
+                cls._deferred_gate_sidecar_cursor = None
+                cls._deferred_gate_sidecar_candidates.clear()
+                cls._deferred_gate_sidecar_protected.clear()
             if cls._deferred_gate_discovery is None:
                 try:
                     cls._deferred_gate_discovery = os.scandir(temp_root)
                 except OSError:
                     return False
-            candidates = cls._deferred_gate_discovery
+                cls._deferred_gate_discovery_baseline = (
+                    cls._deferred_gate_cleanup_overflow_generation,
+                    cls._gate_namespace_generation,
+                )
+            entries = cls._deferred_gate_discovery
+            baseline = cls._deferred_gate_discovery_baseline
+            sidecar_phase = cls._deferred_gate_sidecar_phase
+            sidecar_cursor = cls._deferred_gate_sidecar_cursor
+        if baseline is None:
+            reset_scan(discard_batch=True)
+            return False
+
         deadline = time.monotonic() + _GATE_ROOT_DISCOVERY_SECONDS
         inspected = 0
         try:
@@ -1269,61 +1334,303 @@ class BranchQualityGate:
                 and time.monotonic() < deadline
             ):
                 try:
-                    entry = next(candidates)
+                    entry = next(entries)
                 except StopIteration:
-                    candidates.close()
+                    entries.close()
                     with cls._processes_lock:
-                        if cls._deferred_gate_discovery is candidates:
+                        if cls._deferred_gate_discovery is entries:
                             cls._deferred_gate_discovery = None
-                    return True
-                inspected += 1
-                quarantine = Path(entry.path)
-                if _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(quarantine.name) is None:
-                    continue
-                abandoned = cls._abandoned_gate_quarantine(
-                    quarantine,
-                    now=time.time(),
-                    allow_current_owner=True,
-                )
-                if abandoned is None:
-                    continue
-                root_name, identity = abandoned
-                root = quarantine.parent / root_name
-                key = f"{quarantine}:{identity[0]}:{identity[1]}"
-                with cls._processes_lock:
-                    if key in cls._deferred_gate_cleanups:
-                        continue
-                    if (
-                        len(cls._deferred_gate_cleanups)
-                        >= _GATE_DEFERRED_CLEANUP_LIMIT
-                    ):
+                            cls._deferred_gate_discovery_baseline = None
+                        generation_is_current = baseline == (
+                            cls._deferred_gate_cleanup_overflow_generation,
+                            cls._gate_namespace_generation,
+                        )
+                    if not generation_is_current:
+                        reset_scan(discard_batch=True)
                         return False
-                    cls._deferred_gate_cleanups[key] = (
-                        root,
-                        quarantine,
-                        identity,
+                    if sidecar_phase == "collect":
+                        with cls._processes_lock:
+                            if cls._deferred_gate_sidecar_candidates:
+                                cls._deferred_gate_sidecar_phase = "verify"
+                                cls._deferred_gate_sidecar_protected.clear()
+                                return False
+                            cls._deferred_gate_sidecar_cursor = None
+                        return True
+
+                    with cls._processes_lock:
+                        sidecars = tuple(
+                            cls._deferred_gate_sidecar_candidates.items()
+                        )
+                        protected = frozenset(
+                            cls._deferred_gate_sidecar_protected
+                        )
+                        namespace_generation = cls._gate_namespace_generation
+                    for sidecar_name, sidecar in sidecars:
+                        root_name = sidecar_name[
+                            1 : -len(_GATE_ROOT_OWNER_FILE)
+                        ]
+                        if root_name in protected:
+                            continue
+                        cls._remove_orphan_gate_sidecar(
+                            sidecar,
+                            root_name,
+                            now=time.time(),
+                            expected_namespace_generation=namespace_generation,
+                        )
+                    with cls._processes_lock:
+                        if cls._gate_namespace_generation != namespace_generation:
+                            reset_required = True
+                        else:
+                            cls._deferred_gate_sidecar_cursor = max(
+                                (name for name, _path in sidecars),
+                                default=cls._deferred_gate_sidecar_cursor,
+                            )
+                            cls._deferred_gate_sidecar_candidates.clear()
+                            cls._deferred_gate_sidecar_protected.clear()
+                            cls._deferred_gate_sidecar_phase = "collect"
+                            reset_required = False
+                    if reset_required:
+                        reset_scan(discard_batch=True)
+                    return False
+
+                inspected += 1
+                candidate = Path(entry.path)
+                if _GATE_ROOT_NAME_RE.fullmatch(candidate.name) is not None:
+                    stale_identity = cls._stale_gate_root(
+                        candidate,
+                        now=time.time(),
                     )
-                    cls._active_gate_root_identities[str(quarantine)] = identity
+                    if stale_identity is not None:
+                        cls._remove_stale_gate_root(candidate, stale_identity)
+                    continue
+
+                quarantine_match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(
+                    candidate.name
+                )
+                if quarantine_match is not None:
+                    if sidecar_phase == "verify":
+                        root_name = quarantine_match.group("root")
+                        with cls._processes_lock:
+                            if any(
+                                name
+                                == f".{root_name}{_GATE_ROOT_OWNER_FILE}"
+                                for name in cls._deferred_gate_sidecar_candidates
+                            ):
+                                cls._deferred_gate_sidecar_protected.add(root_name)
+                    abandoned = cls._abandoned_gate_quarantine(
+                        candidate,
+                        now=time.time(),
+                        allow_current_owner=True,
+                    )
+                    if abandoned is None:
+                        continue
+                    root_name, identity = abandoned
+                    root = candidate.parent / root_name
+                    if cls._schedule_deferred_gate_cleanup(
+                        root,
+                        candidate,
+                        identity,
+                    ):
+                        continue
+                    try:
+                        current = candidate.stat(follow_symlinks=False)
+                    except FileNotFoundError:
+                        logger.warning(
+                            "Deferred gate quarantine vanished before scheduling: %s",
+                            candidate,
+                        )
+                        continue
+                    except OSError:
+                        reset_scan(discard_batch=True)
+                        return False
+                    if (int(current.st_dev), int(current.st_ino)) == identity:
+                        reset_scan(discard_batch=True)
+                        return False
+                    logger.warning(
+                        "Deferred gate quarantine changed identity before scheduling: %s",
+                        candidate,
+                    )
+                    continue
+
+                if sidecar_phase != "collect":
+                    continue
+                suffix_length = len(_GATE_ROOT_OWNER_FILE)
+                if (
+                    not candidate.name.startswith(".")
+                    or not candidate.name.endswith(_GATE_ROOT_OWNER_FILE)
+                    or _GATE_ROOT_NAME_RE.fullmatch(
+                        candidate.name[1:-suffix_length]
+                    )
+                    is None
+                    or (
+                        sidecar_cursor is not None
+                        and candidate.name <= sidecar_cursor
+                    )
+                ):
+                    continue
+                with cls._processes_lock:
+                    sidecars = cls._deferred_gate_sidecar_candidates
+                    if candidate.name in sidecars:
+                        continue
+                    if len(sidecars) < _GATE_DEFERRED_CLEANUP_LIMIT:
+                        sidecars[candidate.name] = candidate
+                        continue
+                    largest = max(sidecars)
+                    if candidate.name < largest:
+                        sidecars.pop(largest)
+                        sidecars[candidate.name] = candidate
         except OSError:
-            candidates.close()
-            with cls._processes_lock:
-                if cls._deferred_gate_discovery is candidates:
-                    cls._deferred_gate_discovery = None
+            reset_scan(discard_batch=True)
             return False
         return False
+
+    @classmethod
+    def _remove_orphan_gate_sidecar(
+        cls,
+        sidecar: Path,
+        root_name: str,
+        *,
+        now: float,
+        expected_namespace_generation: int,
+    ) -> bool:
+        """Atomically claim one old owner record before inode-fenced removal."""
+        if _GATE_ROOT_NAME_RE.fullmatch(root_name) is None:
+            return False
+        root = sidecar.parent / root_name
+        parent_descriptor: int | None = None
+        sidecar_descriptor: int | None = None
+        claimed_name = f".{sidecar.name}.reap-{os.getpid()}-{time.time_ns()}"
+        claimed = False
+        identity: tuple[int, int] | None = None
+        try:
+            parent_descriptor = os.open(
+                sidecar.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            with cls._processes_lock:
+                if cls._gate_namespace_generation != expected_namespace_generation:
+                    return False
+                if str(root) in cls._active_gate_root_identities:
+                    return False
+                for active_path in cls._active_gate_root_identities:
+                    match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(
+                        Path(active_path).name
+                    )
+                    if match is not None and match.group("root") == root_name:
+                        return False
+                try:
+                    os.stat(
+                        root.name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                except FileNotFoundError:
+                    pass
+                else:
+                    return False
+                sidecar_descriptor = os.open(
+                    sidecar.name,
+                    getattr(os, "O_PATH", os.O_RDONLY)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_NONBLOCK", 0),
+                    dir_fd=parent_descriptor,
+                )
+                metadata = os.fstat(sidecar_descriptor)
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or metadata.st_uid != os.getuid()
+                    or now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS
+                ):
+                    return False
+                identity = (int(metadata.st_dev), int(metadata.st_ino))
+                os.rename(
+                    sidecar.name,
+                    claimed_name,
+                    src_dir_fd=parent_descriptor,
+                    dst_dir_fd=parent_descriptor,
+                )
+                claimed = True
+                final_metadata = os.stat(
+                    claimed_name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    int(final_metadata.st_dev),
+                    int(final_metadata.st_ino),
+                ) != identity:
+                    return False
+                os.unlink(claimed_name, dir_fd=parent_descriptor)
+                claimed = False
+                return True
+        except OSError:
+            return False
+        finally:
+            if claimed and parent_descriptor is not None and identity is not None:
+                try:
+                    current = os.stat(
+                        claimed_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (int(current.st_dev), int(current.st_ino)) == identity:
+                        try:
+                            os.stat(
+                                sidecar.name,
+                                dir_fd=parent_descriptor,
+                                follow_symlinks=False,
+                            )
+                        except FileNotFoundError:
+                            os.rename(
+                                claimed_name,
+                                sidecar.name,
+                                src_dir_fd=parent_descriptor,
+                                dst_dir_fd=parent_descriptor,
+                            )
+                except OSError:
+                    pass
+            if sidecar_descriptor is not None:
+                os.close(sidecar_descriptor)
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+
+    @classmethod
+    def _request_deferred_gate_discovery(cls) -> bool:
+        """Ensure one process-wide worker completes bounded startup discovery."""
+        with cls._processes_lock:
+            cls._deferred_gate_cleanup_overflow = True
+            cls._deferred_gate_cleanup_overflow_generation += 1
+            if cls._deferred_gate_cleanup_thread is not None:
+                return True
+            thread = threading.Thread(
+                target=cls._run_deferred_gate_cleanups,
+                name="quality-gate-cleanup-reaper",
+                daemon=True,
+            )
+            cls._deferred_gate_cleanup_thread = thread
+            try:
+                thread.start()
+            except RuntimeError:
+                cls._deferred_gate_cleanup_thread = None
+                return False
+            return True
 
     @classmethod
     def _run_deferred_gate_cleanups(cls) -> None:
         """Serially drain bounded cleanup slices outside the gate result path."""
         while True:
+            sleep_seconds = 0.01
             with cls._processes_lock:
-                if not cls._deferred_gate_cleanups:
-                    discover_overflow = cls._deferred_gate_cleanup_overflow
-                    if not discover_overflow:
-                        cls._deferred_gate_cleanup_thread = None
-                        return
-                else:
-                    discover_overflow = False
+                pending_count = len(cls._deferred_gate_cleanups)
+                discover_overflow = (
+                    cls._deferred_gate_cleanup_overflow
+                    and pending_count < _GATE_DEFERRED_CLEANUP_LIMIT
+                )
+                if pending_count == 0 and not discover_overflow:
+                    cls._deferred_gate_cleanup_thread = None
+                    return
             if discover_overflow:
                 with cls._processes_lock:
                     overflow_generation = (
@@ -1343,13 +1650,36 @@ class BranchQualityGate:
                     ):
                         cls._deferred_gate_cleanup_thread = None
                         return
-                if not discovery_complete:
-                    time.sleep(0.01)
-                continue
+                    pending_count = len(cls._deferred_gate_cleanups)
+                if pending_count == 0:
+                    if not discovery_complete:
+                        time.sleep(sleep_seconds)
+                    continue
             with cls._processes_lock:
-                key, (root, quarantine, identity) = next(
-                    iter(cls._deferred_gate_cleanups.items())
+                now = time.monotonic()
+                selected = next(
+                    (
+                        (key, cleanup)
+                        for key, cleanup in cls._deferred_gate_cleanups.items()
+                        if cleanup[4] <= now
+                    ),
+                    None,
                 )
+                if selected is None:
+                    next_retry = min(
+                        cleanup[4]
+                        for cleanup in cls._deferred_gate_cleanups.values()
+                    )
+                    sleep_seconds = max(
+                        min(next_retry - now, 0.25),
+                        0.01,
+                    )
+                else:
+                    key, cleanup = selected
+                    root, quarantine, identity, attempts, _retry_at = cleanup
+            if selected is None:
+                time.sleep(sleep_seconds)
+                continue
             try:
                 result = cls._deferred_gate_cleanup_slice(quarantine, identity)
             except Exception:  # noqa: BLE001 - a dead reaper must fail closed
@@ -1362,22 +1692,44 @@ class BranchQualityGate:
                 cls._unlink_gate_root_owner(root)
             with cls._processes_lock:
                 current = cls._deferred_gate_cleanups.get(key)
-                if current != (root, quarantine, identity):
+                if current != cleanup:
                     continue
-                if result == _GATE_REMOVAL_INCOMPLETE:
-                    # Reinsert at the tail so multiple abandoned roots make
-                    # fair progress through the single bounded reaper.
+                if result in {
+                    _GATE_REMOVAL_PROGRESS,
+                    _GATE_REMOVAL_INCOMPLETE,
+                }:
+                    if result == _GATE_REMOVAL_PROGRESS:
+                        attempts = 0
+                        retry_delay = 0.0
+                    else:
+                        attempts += 1
+                        retry_delay = min(
+                            _GATE_CLEANUP_RETRY_INITIAL_SECONDS
+                            * (2 ** min(attempts - 1, 16)),
+                            _GATE_CLEANUP_RETRY_MAX_SECONDS,
+                        )
                     cls._deferred_gate_cleanups.pop(key, None)
                     cls._deferred_gate_cleanups[key] = (
                         root,
                         quarantine,
                         identity,
+                        attempts,
+                        time.monotonic() + retry_delay,
                     )
                 else:
                     cls._deferred_gate_cleanups.pop(key, None)
                     cls._active_gate_root_identities.pop(str(quarantine), None)
             if result == _GATE_REMOVAL_INCOMPLETE:
-                time.sleep(0.01)
+                if attempts == _GATE_CLEANUP_RETRY_WARNING_ATTEMPT:
+                    logger.warning(
+                        "Deferred quality-gate cleanup remains transient after "
+                        "%d attempts; backing off retries for %s",
+                        attempts,
+                        quarantine,
+                    )
+                time.sleep(min(retry_delay, 0.25))
+            elif result == _GATE_REMOVAL_PROGRESS:
+                time.sleep(0)
             elif result == _GATE_REMOVAL_UNSAFE:
                 logger.warning(
                     "Deferred quality-gate cleanup stopped at an unsafe boundary: %s",
@@ -1390,10 +1742,35 @@ class BranchQualityGate:
         root: Path,
         quarantine: Path,
         expected_identity: tuple[int, int],
+        *,
+        transfer_from: Path | None = None,
     ) -> bool:
         """Queue one exact root for serial, bounded, convergent cleanup."""
         key = f"{quarantine}:{expected_identity[0]}:{expected_identity[1]}"
         with cls._processes_lock:
+            previous_cleanup = cls._deferred_gate_cleanups.get(key)
+            previous_quarantine_identity = cls._active_gate_root_identities.get(
+                str(quarantine)
+            )
+            previous_overflow = cls._deferred_gate_cleanup_overflow
+            previous_overflow_generation = (
+                cls._deferred_gate_cleanup_overflow_generation
+            )
+            previous_namespace_generation = cls._gate_namespace_generation
+            try:
+                metadata = quarantine.stat(follow_symlinks=False)
+            except OSError:
+                return False
+            if (int(metadata.st_dev), int(metadata.st_ino)) != expected_identity:
+                return False
+            if transfer_from is not None:
+                if (
+                    cls._active_gate_root_identities.get(str(transfer_from))
+                    != expected_identity
+                ):
+                    return False
+                cls._active_gate_root_identities.pop(str(transfer_from), None)
+                cls._gate_namespace_generation += 1
             if (
                 key not in cls._deferred_gate_cleanups
                 and len(cls._deferred_gate_cleanups)
@@ -1409,6 +1786,8 @@ class BranchQualityGate:
                     root,
                     quarantine,
                     expected_identity,
+                    0,
+                    0.0,
                 )
                 cls._active_gate_root_identities[str(quarantine)] = expected_identity
             if cls._deferred_gate_cleanup_thread is None:
@@ -1426,9 +1805,25 @@ class BranchQualityGate:
                     thread.start()
                 except RuntimeError:
                     cls._deferred_gate_cleanup_thread = None
-                    cls._deferred_gate_cleanups.pop(key, None)
-                    cls._active_gate_root_identities.pop(str(quarantine), None)
-                    cls._deferred_gate_cleanup_overflow = False
+                    if previous_cleanup is None:
+                        cls._deferred_gate_cleanups.pop(key, None)
+                    else:
+                        cls._deferred_gate_cleanups[key] = previous_cleanup
+                    if previous_quarantine_identity is None:
+                        cls._active_gate_root_identities.pop(str(quarantine), None)
+                    else:
+                        cls._active_gate_root_identities[str(quarantine)] = (
+                            previous_quarantine_identity
+                        )
+                    cls._deferred_gate_cleanup_overflow = previous_overflow
+                    cls._deferred_gate_cleanup_overflow_generation = (
+                        previous_overflow_generation
+                    )
+                    cls._gate_namespace_generation = previous_namespace_generation
+                    if transfer_from is not None:
+                        cls._active_gate_root_identities[str(transfer_from)] = (
+                            expected_identity
+                        )
                     return False
         return True
 
@@ -1573,6 +1968,7 @@ class BranchQualityGate:
                 return _GATE_REMOVAL_UNSAFE
         parent_descriptor: int | None = None
         root_descriptor: int | None = None
+        quarantine_published = False
         quarantine_name = (
             f".{root.name}.scavenge-{os.getpid()}-{time.time_ns()}"
         )
@@ -1602,12 +1998,14 @@ class BranchQualityGate:
                 )
                 if not active_authorized:
                     return _GATE_REMOVAL_UNSAFE
-            os.rename(
-                root.name,
-                quarantine_name,
-                src_dir_fd=parent_descriptor,
-                dst_dir_fd=parent_descriptor,
-            )
+                os.rename(
+                    root.name,
+                    quarantine_name,
+                    src_dir_fd=parent_descriptor,
+                    dst_dir_fd=parent_descriptor,
+                )
+                quarantine_published = True
+                cls._gate_namespace_generation += 1
             quarantined = os.stat(
                 quarantine_name,
                 dir_fd=parent_descriptor,
@@ -1615,12 +2013,14 @@ class BranchQualityGate:
             )
             if (int(quarantined.st_dev), int(quarantined.st_ino)) != expected_identity:
                 if not root.exists():
-                    os.rename(
-                        quarantine_name,
-                        root.name,
-                        src_dir_fd=parent_descriptor,
-                        dst_dir_fd=parent_descriptor,
-                    )
+                    with cls._processes_lock:
+                        os.rename(
+                            quarantine_name,
+                            root.name,
+                            src_dir_fd=parent_descriptor,
+                            dst_dir_fd=parent_descriptor,
+                        )
+                        cls._gate_namespace_generation += 1
                 return _GATE_REMOVAL_UNSAFE
             removal = cls._remove_gate_tree_at(
                 parent_descriptor,
@@ -1629,24 +2029,18 @@ class BranchQualityGate:
                 root_descriptor,
             )
             if removal != _GATE_REMOVAL_REMOVED:
-                if removal == _GATE_REMOVAL_INCOMPLETE:
-                    if allow_active_owner:
-                        # Publish the durable quarantine, not the vanished
-                        # canonical name, as the only live authority before the
-                        # reaper can discover queue overflow from disk.
-                        cls._forget_gate_root(root)
+                if removal in {
+                    _GATE_REMOVAL_PROGRESS,
+                    _GATE_REMOVAL_INCOMPLETE,
+                }:
                     scheduled = cls._schedule_deferred_gate_cleanup(
                         root,
                         root.parent / quarantine_name,
                         expected_identity,
+                        transfer_from=root if allow_active_owner else None,
                     )
                     if scheduled:
                         return _GATE_REMOVAL_INCOMPLETE
-                    if allow_active_owner:
-                        with cls._processes_lock:
-                            cls._active_gate_root_identities[str(root)] = (
-                                expected_identity
-                            )
                 try:
                     current_quarantine = os.stat(
                         quarantine_name,
@@ -1670,12 +2064,14 @@ class BranchQualityGate:
                                     follow_symlinks=False,
                                 )
                             except FileNotFoundError:
-                                os.rename(
-                                    quarantine_name,
-                                    root.name,
-                                    src_dir_fd=parent_descriptor,
-                                    dst_dir_fd=parent_descriptor,
-                                )
+                                with cls._processes_lock:
+                                    os.rename(
+                                        quarantine_name,
+                                        root.name,
+                                        src_dir_fd=parent_descriptor,
+                                        dst_dir_fd=parent_descriptor,
+                                    )
+                                    cls._gate_namespace_generation += 1
                         elif allow_active_owner:
                             # Partial fd-relative deletion can remove the
                             # identity capability before the final root rmdir
@@ -1692,6 +2088,24 @@ class BranchQualityGate:
             cls._unlink_gate_root_owner(root)
             return _GATE_REMOVAL_REMOVED
         except OSError:
+            if quarantine_published:
+                if cls._schedule_deferred_gate_cleanup(
+                    root,
+                    root.parent / quarantine_name,
+                    expected_identity,
+                    transfer_from=root if allow_active_owner else None,
+                ):
+                    return _GATE_REMOVAL_INCOMPLETE
+                if allow_active_owner:
+                    with cls._processes_lock:
+                        if (
+                            cls._active_gate_root_identities.get(str(root))
+                            == expected_identity
+                        ):
+                            cls._active_gate_root_identities.pop(str(root), None)
+                            cls._gate_namespace_generation += 1
+                cls._request_deferred_gate_discovery()
+                return _GATE_REMOVAL_INCOMPLETE
             return _GATE_REMOVAL_UNSAFE
         finally:
             if root_descriptor is not None:
@@ -1855,12 +2269,13 @@ class BranchQualityGate:
                     or expected_identity in cls._active_gate_root_identities.values()
                 ):
                     return False
-            os.rename(
-                quarantine.name,
-                claimed_name,
-                src_dir_fd=parent_descriptor,
-                dst_dir_fd=parent_descriptor,
-            )
+                os.rename(
+                    quarantine.name,
+                    claimed_name,
+                    src_dir_fd=parent_descriptor,
+                    dst_dir_fd=parent_descriptor,
+                )
+                cls._gate_namespace_generation += 1
             claimed = os.stat(
                 claimed_name,
                 dir_fd=parent_descriptor,
@@ -1868,12 +2283,14 @@ class BranchQualityGate:
             )
             if (int(claimed.st_dev), int(claimed.st_ino)) != expected_identity:
                 try:
-                    os.rename(
-                        claimed_name,
-                        quarantine.name,
-                        src_dir_fd=parent_descriptor,
-                        dst_dir_fd=parent_descriptor,
-                    )
+                    with cls._processes_lock:
+                        os.rename(
+                            claimed_name,
+                            quarantine.name,
+                            src_dir_fd=parent_descriptor,
+                            dst_dir_fd=parent_descriptor,
+                        )
+                        cls._gate_namespace_generation += 1
                 except OSError:
                     pass
                 return False
@@ -1885,7 +2302,8 @@ class BranchQualityGate:
             )
             if removal != _GATE_REMOVAL_REMOVED:
                 if (
-                    removal == _GATE_REMOVAL_INCOMPLETE
+                    removal
+                    in {_GATE_REMOVAL_PROGRESS, _GATE_REMOVAL_INCOMPLETE}
                     and cls._schedule_deferred_gate_cleanup(
                         root,
                         quarantine.parent / claimed_name,
@@ -1910,12 +2328,14 @@ class BranchQualityGate:
                                 follow_symlinks=False,
                             )
                         except FileNotFoundError:
-                            os.rename(
-                                claimed_name,
-                                quarantine.name,
-                                src_dir_fd=parent_descriptor,
-                                dst_dir_fd=parent_descriptor,
-                            )
+                            with cls._processes_lock:
+                                os.rename(
+                                    claimed_name,
+                                    quarantine.name,
+                                    src_dir_fd=parent_descriptor,
+                                    dst_dir_fd=parent_descriptor,
+                                )
+                                cls._gate_namespace_generation += 1
                 except OSError:
                     pass
                 return False
@@ -1934,11 +2354,12 @@ class BranchQualityGate:
         temp_root: Path,
         *,
         now: float,
-    ) -> int:
+    ) -> tuple[int, bool]:
         """Bound recovery of roots already renamed for deletion."""
         removed = 0
         matched = 0
         inspected = 0
+        complete = True
         deadline = time.monotonic() + _GATE_ROOT_DISCOVERY_SECONDS
         try:
             for quarantine in temp_root.iterdir():
@@ -1947,6 +2368,7 @@ class BranchQualityGate:
                     or matched >= _GATE_ROOT_SCAVENGE_LIMIT
                     or time.monotonic() >= deadline
                 ):
+                    complete = False
                     break
                 inspected += 1
                 if (
@@ -1967,15 +2389,22 @@ class BranchQualityGate:
                     cls._unlink_gate_root_owner(temp_root / root_name)
                     removed += 1
         except OSError:
-            pass
-        return removed
+            complete = False
+        return removed, complete
 
     @classmethod
-    def _scavenge_orphan_gate_sidecars(cls, temp_root: Path, *, now: float) -> int:
+    def _scavenge_orphan_gate_sidecars(
+        cls,
+        temp_root: Path,
+        *,
+        now: float,
+    ) -> tuple[int, bool]:
         """Age-bound external owner records whose exact root no longer exists."""
         entries: list[Path] = []
         inspected = 0
         deadline = time.monotonic() + _GATE_ROOT_DISCOVERY_SECONDS
+        with cls._processes_lock:
+            namespace_generation = cls._gate_namespace_generation
         try:
             iterator = iter(temp_root.iterdir())
             while (
@@ -1992,9 +2421,9 @@ class BranchQualityGate:
                 # Sidecars may authorize quarantines anywhere in the temp
                 # directory.  If the bounded snapshot is incomplete, retain
                 # all sidecars rather than deleting authority on partial data.
-                return 0
+                return 0, False
         except OSError:
-            return 0
+            return 0, False
         candidates = [
             path
             for path in entries
@@ -2024,19 +2453,16 @@ class BranchQualityGate:
                 or root_name in quarantined_roots
             ):
                 continue
-            try:
-                metadata = sidecar.lstat()
-                if (
-                    stat.S_ISDIR(metadata.st_mode)
-                    or metadata.st_uid != os.getuid()
-                    or now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS
-                ):
-                    continue
-                sidecar.unlink()
+            if cls._remove_orphan_gate_sidecar(
+                sidecar,
+                root_name,
+                now=now,
+                expected_namespace_generation=namespace_generation,
+            ):
                 removed += 1
-            except OSError:
-                continue
-        return removed
+        with cls._processes_lock:
+            complete = cls._gate_namespace_generation == namespace_generation
+        return removed, complete
 
     @classmethod
     def _scavenge_stale_gate_roots(cls) -> int:
@@ -2045,6 +2471,7 @@ class BranchQualityGate:
         removed = 0
         matched = 0
         inspected = 0
+        roots_complete = True
         deadline = time.monotonic() + _GATE_ROOT_DISCOVERY_SECONDS
         now = time.time()
         try:
@@ -2054,6 +2481,7 @@ class BranchQualityGate:
                     or matched >= _GATE_ROOT_SCAVENGE_LIMIT
                     or time.monotonic() >= deadline
                 ):
+                    roots_complete = False
                     break
                 inspected += 1
                 if _GATE_ROOT_NAME_RE.fullmatch(root.name) is None:
@@ -2068,12 +2496,17 @@ class BranchQualityGate:
                 ):
                     removed += 1
         except OSError:
-            pass
-        quarantines_removed = cls._scavenge_abandoned_gate_quarantines(
+            roots_complete = False
+        quarantines_removed, quarantines_complete = (
+            cls._scavenge_abandoned_gate_quarantines(
+            temp_root,
+            now=now,
+            )
+        )
+        sidecars_removed, sidecars_complete = cls._scavenge_orphan_gate_sidecars(
             temp_root,
             now=now,
         )
-        sidecars_removed = cls._scavenge_orphan_gate_sidecars(temp_root, now=now)
         if removed:
             logger.info("Scavenged %d stale quality-gate root(s)", removed)
         if quarantines_removed:
@@ -2086,6 +2519,11 @@ class BranchQualityGate:
                 "Scavenged %d orphan quality-gate owner sidecar(s)",
                 sidecars_removed,
             )
+        if not (roots_complete and quarantines_complete and sidecars_complete):
+            # The bounded synchronous pass keeps gate construction latency
+            # fixed. A single process-wide worker resumes persistent passes so
+            # entries beyond either cap cannot starve across repeated starts.
+            cls._request_deferred_gate_discovery()
         return removed + quarantines_removed
 
     @classmethod
@@ -2151,7 +2589,6 @@ class BranchQualityGate:
                 or _GATE_ROOT_NAME_RE.fullmatch(container.name) is None
                 or root.is_symlink()
                 or container.is_symlink()
-                or not resolved.exists()
                 or container.stat().st_uid != os.geteuid()
             ):
                 logger.warning("Refusing to remove unexpected gate root %s", root)
