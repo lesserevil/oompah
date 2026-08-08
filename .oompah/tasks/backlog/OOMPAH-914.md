@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:25:47.766180Z'
-updated_at: '2026-08-08T14:25:47.766180Z'
+updated_at: '2026-08-08T14:37:27.296794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ A live Backlog to Open request for OOMPAH-912 was interrupted while its durable 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 14:37
+---
+Direct owner implementation is in progress on the systemic composition branch. Recovery is being made durable: an expired foreign claim will reclaim and execute the exact immutable prior intent under CAS before retrying the waiting operator request; live leases and concurrent recovery remain fenced. Status remains Backlog only because this bug currently prevents normal promotion.
+---
+<!-- COMMENTS:END -->

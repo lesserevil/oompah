@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:23:18.279242Z'
-updated_at: '2026-08-08T14:23:18.279242Z'
+updated_at: '2026-08-08T14:37:24.735607Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,11 @@ The operation in `backend:server` should complete successfully, or degrade grace
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 14:37
+---
+Direct owner fix in progress on the systemic composition branch. This task is the error-watcher symptom of expected durable transition contention. The server now classifies transition.owner_active and transition.recovery_required as retryable HTTP 409 warnings instead of unexpected ERROR logs, so ordinary contention cannot auto-file another backend bug. Focused classification/API tests pass.
+---
+<!-- COMMENTS:END -->
