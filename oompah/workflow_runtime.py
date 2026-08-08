@@ -65,6 +65,10 @@ from oompah.workflow_jobs import (
     WorkflowJobStore,
     WorkflowSnapshotPublication,
 )
+from oompah.workflow_shadow import (
+    aggregate_workflow_domain_mode,
+    normalize_workflow_domain_modes,
+)
 from oompah.workflow_worker import (
     EffectObservation,
     EffectResult,
@@ -292,6 +296,10 @@ class WorkflowRuntime:
         store: WorkflowJobStore,
         journals: Mapping[str, TransitionJournal],
         mode: str = "off",
+        domain_modes: Mapping[str, str] | None = None,
+        rollout_require_qualification: bool = False,
+        rollout_min_shadow_sweeps: int = 3,
+        rollout_min_shadow_seconds: int = 300,
         handlers: Mapping[str, WorkflowActionHandler] | None = None,
         decision_limit: int = DEFAULT_RUNTIME_DECISION_LIMIT,
         batch_size: int = DEFAULT_RUNTIME_BATCH_SIZE,
@@ -311,6 +319,24 @@ class WorkflowRuntime:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
         self.mode = normalized_mode
+        self.domain_modes = normalize_workflow_domain_modes(
+            domain_modes,
+            fallback=normalized_mode,
+        )
+        aggregate_mode = aggregate_workflow_domain_mode(self.domain_modes)
+        if domain_modes is not None and aggregate_mode != normalized_mode:
+            raise ValueError(
+                "workflow runtime mode must match the aggregate domain modes"
+            )
+        self.rollout_require_qualification = bool(
+            rollout_require_qualification
+        )
+        self.rollout_min_shadow_sweeps = max(
+            int(rollout_min_shadow_sweeps), 1
+        )
+        self.rollout_min_shadow_seconds = max(
+            int(rollout_min_shadow_seconds), 0
+        )
         self.store = store
         self.project_bindings = dict(project_bindings)
         self.journals = dict(journals)
@@ -476,6 +502,10 @@ class WorkflowRuntime:
         configured_mode = configured_mode.strip().lower()
         if configured_mode not in {"off", "shadow", "enforce"}:
             configured_mode = "off"
+        configured_domain_modes = normalize_workflow_domain_modes(
+            getattr(orchestrator.config, "workflow_domain_modes", None),
+            fallback=configured_mode,
+        )
         configured_limit = getattr(
             orchestrator.config,
             "workflow_runtime_decision_limit",
@@ -862,6 +892,28 @@ class WorkflowRuntime:
             store=store,
             journals=journals,
             mode=configured_mode,
+            domain_modes=configured_domain_modes,
+            rollout_require_qualification=bool(
+                getattr(
+                    orchestrator.config,
+                    "workflow_rollout_require_qualification",
+                    False,
+                )
+            ),
+            rollout_min_shadow_sweeps=int(
+                getattr(
+                    orchestrator.config,
+                    "workflow_rollout_min_shadow_sweeps",
+                    3,
+                )
+            ),
+            rollout_min_shadow_seconds=int(
+                getattr(
+                    orchestrator.config,
+                    "workflow_rollout_min_shadow_seconds",
+                    300,
+                )
+            ),
             handlers=registered_handlers,
             decision_limit=configured_limit,
             batch_size=configured_batch,
@@ -937,6 +989,22 @@ class WorkflowRuntime:
                 self.mode = previous
                 raise
 
+    def set_domain_modes(self, modes: Mapping[str, str]) -> None:
+        """Validate a rollout-map reload without transferring live authority."""
+
+        normalized = normalize_workflow_domain_modes(modes)
+        aggregate = aggregate_workflow_domain_mode(normalized)
+        with self._lock:
+            if aggregate != self.mode:
+                raise WorkflowRuntimeError(
+                    "workflow domain modes do not match the aggregate runtime mode"
+                )
+            if self._started and normalized != self.domain_modes:
+                raise WorkflowRuntimeError(
+                    "workflow domain mode changes require a graceful service restart"
+                )
+            self.domain_modes = normalized
+
     @property
     def legacy_lifecycle_writers_enabled(self) -> bool:
         """Whether legacy lifecycle writers may run in this process."""
@@ -1010,6 +1078,12 @@ class WorkflowRuntime:
                 return dict(self._last_reconcile.get("recovery", {}))
             self._draining = False
         self.store.integrity_check()
+        self.store.prepare_rollout(
+            self.domain_modes,
+            require_qualification=self.rollout_require_qualification,
+            min_shadow_sweeps=self.rollout_min_shadow_sweeps,
+            min_shadow_seconds=self.rollout_min_shadow_seconds,
+        )
         for journal in set(self.journals.values()):
             journal.integrity_check()
         recovery = (
@@ -1152,24 +1226,46 @@ class WorkflowRuntime:
                         == "epic"
                         and canonicalize_status(issue.state) != IN_VALIDATION
                     ]
-                    batches = [
-                        binding.implementation_controller.evaluate(task_issues),
-                        binding.review_controller.evaluate(task_issues),
-                        binding.integration_controller.evaluate(task_issues),
-                        binding.epic_controller.evaluate(
-                            epic_issues, persist_evidence=False
-                        ),
-                    ]
+                    named_batches: list[tuple[str, Any]] = []
+                    if self.domain_modes["implementation"] != "off":
+                        named_batches.append(
+                            (
+                                "implementation",
+                                binding.implementation_controller.evaluate(
+                                    task_issues
+                                ),
+                            )
+                        )
+                    if self.domain_modes["review"] != "off":
+                        named_batches.append(
+                            (
+                                "review",
+                                binding.review_controller.evaluate(task_issues),
+                            )
+                        )
+                    if self.domain_modes["integration"] != "off":
+                        named_batches.append(
+                            (
+                                "integration",
+                                binding.integration_controller.evaluate(task_issues),
+                            )
+                        )
+                    if self.domain_modes["epic"] != "off":
+                        named_batches.append(
+                            (
+                                "epic",
+                                binding.epic_controller.evaluate(
+                                    epic_issues, persist_evidence=False
+                                ),
+                            )
+                        )
+                    batches = [batch for _name, batch in named_batches]
                     self._replace_project_decisions(project_id, batches)
                     report["projects"][project_id] = {
                         "issues": len(issues),
                         **{
                             name: {"decisions_seen": len(batch.tasks)}
-                            for name, batch in zip(
-                                ("implementation", "review", "integration", "epic"),
-                                batches,
-                                strict=True,
-                            )
+                            for name, batch in named_batches
                         },
                     }
                 except Exception as exc:
@@ -1181,6 +1277,29 @@ class WorkflowRuntime:
                     }
             with self._lock:
                 self._last_reconcile = report
+            project_results = tuple(report["projects"].values())
+            errors = [
+                str(value.get("error"))
+                for value in project_results
+                if isinstance(value, Mapping) and value.get("error")
+            ]
+            if not project_results or any(
+                not isinstance(value, Mapping)
+                or value.get("skipped")
+                or any(
+                    mode != "off" and domain not in value
+                    for domain, mode in self.domain_modes.items()
+                )
+                for value in project_results
+            ):
+                errors.append("shadow sweep did not cover every active project")
+            self.store.record_rollout_sweep(
+                {
+                    domain: ("; ".join(errors) if errors else None)
+                    for domain, mode in self.domain_modes.items()
+                    if mode == "shadow"
+                }
+            )
             return report
 
         # The job-store generation is global. Capture one generation before
@@ -1727,8 +1846,16 @@ class WorkflowRuntime:
     def health_snapshot(self) -> dict[str, Any]:
         with self._lock:
             last = dict(self._last_reconcile)
+        rollout_gate = self.store.rollout_readiness(
+            min_shadow_sweeps=self.rollout_min_shadow_sweeps,
+            min_shadow_seconds=self.rollout_min_shadow_seconds,
+        )
+        rollout = rollout_gate.pop("rollout")
         return {
             "mode": self.mode,
+            "domain_modes": dict(self.domain_modes),
+            "rollout": rollout,
+            "rollout_gate": rollout_gate,
             "started": self._started,
             "draining": self._draining,
             "legacy_lifecycle_writers_enabled": self.legacy_lifecycle_writers_enabled,

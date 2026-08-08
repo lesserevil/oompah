@@ -5695,6 +5695,7 @@ class Orchestrator:
         # coherent; operators apply it through the graceful restart path.
         if self.workflow_runtime is not None:
             self.workflow_runtime.set_mode(config.workflow_engine_mode)
+            self.workflow_runtime.set_domain_modes(config.workflow_domain_modes)
         # Reload the agent profile store from disk and overwrite
         # config.agent_profiles with what the JSON store has, so:
         #  - WORKFLOW.md changes still take effect (config carries fresh
@@ -11799,12 +11800,6 @@ class Orchestrator:
             )
         if restart_recovery_pending:
             self._schedule_restart_issue_recovery_for_resume()
-        if self.config.workflow_engine_mode == "enforce":
-            recovered = await asyncio.get_running_loop().run_in_executor(
-                self._tick_pool, self.workflow_controller.recover_startup
-            )
-            logger.info("Universal workflow controller startup recovery: %s", recovered)
-        full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
         logger.info(
             "Orchestrator starting event-driven loop "
             "full_sync_interval_ms=%d (safety-net poll_interval_ms=%d kept for compat)",
@@ -12428,6 +12423,9 @@ class Orchestrator:
             value: dict[str, Any] = {
                 "coordination_policy_denied": False,
                 "workflow_engine_mode": self.config.workflow_engine_mode,
+                "workflow_domain_modes": dict(
+                    getattr(self.config, "workflow_domain_modes", {}) or {}
+                ),
                 "duplicate_screening_enabled": (
                     self._duplicate_preflight_limit() > 0
                 ),
@@ -62995,6 +62993,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     300,
                 ),
                 "workflow_engine_mode": self.config.workflow_engine_mode,
+                "workflow_domain_modes": dict(
+                    getattr(self.config, "workflow_domain_modes", {}) or {}
+                ),
                 "workflow_shadow_scan_limit": (
                     self.config.workflow_shadow_scan_limit
                 ),

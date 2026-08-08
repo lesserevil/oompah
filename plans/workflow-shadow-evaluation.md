@@ -1,10 +1,12 @@
 # Workflow shadow evaluation
 
 The unified workflow engine can soak alongside the legacy orchestration paths
-before any consumer uses it for mutations. Set `OOMPAH_WORKFLOW_ENGINE_MODE` to
-`shadow` to enable a bounded, read-only comparison sweep. The default `off`
-mode preserves legacy behavior; `enforce` is reserved for the later durable-job
-cutover.
+before any consumer uses it for mutations. Set the four
+`OOMPAH_WORKFLOW_<DOMAIN>_MODE` controls to `shadow` to enable bounded,
+read-only domain comparison. A mixed map remains read-only; the durable runtime
+becomes mutation-capable only after all four persisted qualification gates
+permit `enforce`. The retired aggregate environment input is accepted only for
+upgrade compatibility and is not supported rollout configuration.
 
 ```mermaid
 flowchart LR
@@ -46,6 +48,9 @@ until that task has been evaluated and `503` in an API-only process that has no
 local scheduler diagnostic registry. The configured per-diagnostic bound is
 `OOMPAH_WORKFLOW_DIAGNOSTIC_MAX_BYTES`.
 
-Production should remain in `shadow` until expected legacy differences are
-classified, unexplained divergences are zero, and the later enforcement tasks
-have replaced mutating legacy consumers with durable jobs.
+Production should remain in aggregate `shadow` until expected legacy
+differences are classified, unexplained divergences are zero, every persisted
+domain gate passes, and `make workflow-rollout-check` succeeds for the chosen
+soak. Final all-domain enforcement and rollback are described in
+`docs/workflow-rollout.md`; internal ownership and persistence details are in
+`plans/workflow-rollout.md`.

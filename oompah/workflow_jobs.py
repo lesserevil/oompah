@@ -431,6 +431,10 @@ class WorkflowJobCorruptionError(WorkflowJobStoreError):
     """Persisted workflow-job content cannot be decoded safely."""
 
 
+class WorkflowRolloutGateError(WorkflowJobStoreError):
+    """A requested enforce cutover lacks persisted shadow evidence."""
+
+
 _CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS schema_meta (
     key TEXT PRIMARY KEY,
@@ -568,6 +572,24 @@ CREATE TABLE IF NOT EXISTS workflow_event_ordering (
 );
 """
 
+# Rollout evidence is an additive compatibility schema rather than a new
+# workflow-job schema generation.  A pre-rollout binary safely ignores this
+# table during an operator rollback, while the current binary can resume a
+# partially completed canary after any startup interruption.
+_CREATE_ROLLOUT_OBJECTS = """
+CREATE TABLE IF NOT EXISTS workflow_rollout_domains (
+    domain TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
+    mode_started_at REAL NOT NULL,
+    successful_shadow_sweeps INTEGER NOT NULL DEFAULT 0,
+    failed_shadow_sweeps INTEGER NOT NULL DEFAULT 0,
+    last_success_at REAL,
+    last_failure_at REAL,
+    last_error TEXT,
+    updated_at REAL NOT NULL
+);
+"""
+
 _V2_COLUMNS: dict[str, str] = {
     "expected_evidence_revision": "TEXT",
     "expected_head_sha": "TEXT",
@@ -683,8 +705,12 @@ class WorkflowJobStore:
             str(row["name"])
             for row in self._conn.execute("PRAGMA table_info(workflow_jobs)")
         }
-        migrate_payloads = "payload_json" not in columns
-        migrate_lanes = "scheduling_lane" not in columns
+        # Version metadata, not only column presence, drives data migration.
+        # A killed process may have committed SQLite's ALTER TABLE before it
+        # rewrote legacy specs.  Retrying from the older version marker makes
+        # that interrupted startup idempotent and restart-safe.
+        migrate_payloads = version < 4 or "payload_json" not in columns
+        migrate_lanes = version < 5 or "scheduling_lane" not in columns
         for name, declaration in _V2_COLUMNS.items():
             if name not in columns:
                 self._conn.execute(
@@ -724,6 +750,7 @@ class WorkflowJobStore:
                     f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
                 )
         self._conn.executescript(_CREATE_V5_OBJECTS)
+        self._conn.executescript(_CREATE_ROLLOUT_OBJECTS)
         # Version 4 did not persist ownership provenance.  Do not infer it
         # from a task cursor or a caller-controlled idempotency key: doing so
         # reclassifies a direct enqueue as scheduler authority after restart
@@ -738,6 +765,283 @@ class WorkflowJobStore:
             ("workflow_jobs_version", str(WORKFLOW_JOB_SCHEMA_VERSION)),
         )
         self._conn.commit()
+
+    def prepare_rollout(
+        self,
+        domain_modes: Mapping[str, object],
+        *,
+        require_qualification: bool,
+        min_shadow_sweeps: int,
+        min_shadow_seconds: int,
+    ) -> tuple[dict[str, Any], ...]:
+        """Persist desired domain modes and fence unsafe enforce promotion.
+
+        Shadow evidence is stored in the durable job database so a graceful
+        restart cannot reset the qualification clock or sample count.  Mode
+        changes are committed atomically across domains; an unsafe promotion
+        leaves every prior row untouched.
+        """
+
+        from oompah.workflow_shadow import normalize_workflow_domain_modes
+
+        modes = normalize_workflow_domain_modes(domain_modes)
+        required_sweeps = max(int(min_shadow_sweeps), 1)
+        required_seconds = max(int(min_shadow_seconds), 0)
+        now = float(self._clock())
+        with self._authority_mutation_guard():
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                rows = {
+                    str(row["domain"]): row
+                    for row in self._conn.execute(
+                        "SELECT * FROM workflow_rollout_domains"
+                    ).fetchall()
+                }
+                failures: list[str] = []
+                if require_qualification:
+                    for domain, target in modes.items():
+                        if target != "enforce":
+                            continue
+                        row = rows.get(domain)
+                        successes = int(
+                            row["successful_shadow_sweeps"] if row else 0
+                        )
+                        started_at = float(row["mode_started_at"] if row else now)
+                        last_success = row["last_success_at"] if row else None
+                        last_failure = row["last_failure_at"] if row else None
+                        prior_mode = str(row["mode"] if row else "off")
+                        if prior_mode not in {"shadow", "enforce"}:
+                            failures.append(f"{domain}: shadow mode has not run")
+                        elif successes < required_sweeps:
+                            failures.append(
+                                f"{domain}: {successes}/{required_sweeps} "
+                                "successful shadow sweeps"
+                            )
+                        elif now - started_at < required_seconds:
+                            failures.append(
+                                f"{domain}: shadow soak is "
+                                f"{int(now - started_at)}/{required_seconds}s"
+                            )
+                        elif last_success is None or (
+                            last_failure is not None
+                            and float(last_failure) >= float(last_success)
+                        ):
+                            failures.append(
+                                f"{domain}: latest shadow sweep did not succeed"
+                            )
+                if failures:
+                    raise WorkflowRolloutGateError(
+                        "workflow enforce qualification failed: "
+                        + "; ".join(failures)
+                    )
+
+                for domain, target in modes.items():
+                    row = rows.get(domain)
+                    if row is None:
+                        compatibility_enforce = (
+                            target == "enforce" and not require_qualification
+                        )
+                        self._conn.execute(
+                            """
+                            INSERT INTO workflow_rollout_domains(
+                                domain, mode, mode_started_at,
+                                successful_shadow_sweeps, last_success_at,
+                                updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                domain,
+                                target,
+                                (
+                                    now - required_seconds
+                                    if compatibility_enforce
+                                    else now
+                                ),
+                                required_sweeps if compatibility_enforce else 0,
+                                now if compatibility_enforce else None,
+                                now,
+                            ),
+                        )
+                        continue
+                    prior = str(row["mode"])
+                    if prior == target:
+                        if target == "enforce" and not require_qualification:
+                            self._conn.execute(
+                                """
+                                UPDATE workflow_rollout_domains
+                                   SET mode_started_at = MIN(mode_started_at, ?),
+                                       successful_shadow_sweeps = MAX(
+                                           successful_shadow_sweeps, ?
+                                       ),
+                                       last_success_at = COALESCE(
+                                           last_success_at, ?
+                                       ),
+                                       updated_at = ?
+                                 WHERE domain = ?
+                                """,
+                                (
+                                    now - required_seconds,
+                                    required_sweeps,
+                                    now,
+                                    now,
+                                    domain,
+                                ),
+                            )
+                        else:
+                            self._conn.execute(
+                                "UPDATE workflow_rollout_domains "
+                                "SET updated_at = ? WHERE domain = ?",
+                                (now, domain),
+                            )
+                        continue
+                    reset = target in {"off", "shadow"}
+                    self._conn.execute(
+                        """
+                        UPDATE workflow_rollout_domains
+                           SET mode = ?,
+                               mode_started_at = ?,
+                               successful_shadow_sweeps = ?,
+                               failed_shadow_sweeps = ?,
+                               last_success_at = ?,
+                               last_failure_at = ?,
+                               last_error = ?,
+                               updated_at = ?
+                         WHERE domain = ?
+                        """,
+                        (
+                            target,
+                            now if reset else float(row["mode_started_at"]),
+                            0 if reset else int(row["successful_shadow_sweeps"]),
+                            0 if reset else int(row["failed_shadow_sweeps"]),
+                            None if reset else row["last_success_at"],
+                            None if reset else row["last_failure_at"],
+                            None if reset else row["last_error"],
+                            now,
+                            domain,
+                        ),
+                    )
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+        return self.rollout_snapshot()
+
+    def record_rollout_sweep(
+        self,
+        outcomes: Mapping[str, str | None],
+    ) -> tuple[dict[str, Any], ...]:
+        """Record one bounded shadow outcome per configured domain."""
+
+        now = float(self._clock())
+        with self._authority_mutation_guard():
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                for domain, error in outcomes.items():
+                    row = self._conn.execute(
+                        "SELECT mode FROM workflow_rollout_domains WHERE domain = ?",
+                        (str(domain),),
+                    ).fetchone()
+                    if row is None or str(row["mode"]) != "shadow":
+                        continue
+                    if error is None:
+                        self._conn.execute(
+                            """
+                            UPDATE workflow_rollout_domains
+                               SET successful_shadow_sweeps =
+                                       successful_shadow_sweeps + 1,
+                                   last_success_at = ?, last_error = NULL,
+                                   updated_at = ?
+                             WHERE domain = ?
+                            """,
+                            (now, now, str(domain)),
+                        )
+                    else:
+                        self._conn.execute(
+                            """
+                            UPDATE workflow_rollout_domains
+                               SET failed_shadow_sweeps = failed_shadow_sweeps + 1,
+                                   last_failure_at = ?, last_error = ?,
+                                   updated_at = ?
+                             WHERE domain = ?
+                            """,
+                            (now, str(error)[:1000], now, str(domain)),
+                        )
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+        return self.rollout_snapshot()
+
+    def rollout_snapshot(self) -> tuple[dict[str, Any], ...]:
+        """Return redacted persisted rollout evidence in stable domain order."""
+
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM workflow_rollout_domains ORDER BY domain"
+            ).fetchall()
+        return tuple(
+            {
+                "domain": str(row["domain"]),
+                "mode": str(row["mode"]),
+                "mode_started_at": float(row["mode_started_at"]),
+                "successful_shadow_sweeps": int(
+                    row["successful_shadow_sweeps"]
+                ),
+                "failed_shadow_sweeps": int(row["failed_shadow_sweeps"]),
+                "last_success_at": row["last_success_at"],
+                "last_failure_at": row["last_failure_at"],
+                "last_error": row["last_error"],
+                "updated_at": float(row["updated_at"]),
+            }
+            for row in rows
+        )
+
+    def rollout_readiness(
+        self,
+        *,
+        min_shadow_sweeps: int,
+        min_shadow_seconds: int,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        """Project persisted evidence into the public canary gate result."""
+
+        from oompah.workflow_shadow import WORKFLOW_DOMAIN_NAMES
+
+        required_sweeps = max(int(min_shadow_sweeps), 1)
+        required_seconds = max(int(min_shadow_seconds), 0)
+        timestamp = float(self._clock() if now is None else now)
+        domains: dict[str, dict[str, Any]] = {}
+        rollout = self.rollout_snapshot()
+        for row in rollout:
+            last_success = row["last_success_at"]
+            last_failure = row["last_failure_at"]
+            latest_succeeded = last_success is not None and (
+                last_failure is None or float(last_success) > float(last_failure)
+            )
+            soak_age = max(0.0, timestamp - float(row["mode_started_at"]))
+            ready = row["mode"] == "enforce" or (
+                row["mode"] == "shadow"
+                and row["successful_shadow_sweeps"] >= required_sweeps
+                and soak_age >= required_seconds
+                and latest_succeeded
+            )
+            domains[row["domain"]] = {
+                "mode": row["mode"],
+                "ready": ready,
+                "successful_shadow_sweeps": row[
+                    "successful_shadow_sweeps"
+                ],
+                "shadow_soak_age_seconds": soak_age,
+                "latest_succeeded": latest_succeeded,
+            }
+        return {
+            "min_shadow_sweeps": required_sweeps,
+            "min_shadow_seconds": required_seconds,
+            "all_domains_ready": set(domains) == set(WORKFLOW_DOMAIN_NAMES)
+            and all(value["ready"] for value in domains.values()),
+            "domains": domains,
+            "rollout": list(rollout),
+        }
 
     @contextmanager
     def scheduling_batch(self):
@@ -4551,6 +4855,7 @@ class WorkflowJobStore:
             "fair_project_count": int(fairness["count"] or 0),
             "projects": per_project,
             "projects_truncated": len(project_rows) >= bounded_projects,
+            "rollout": list(self.rollout_snapshot()),
         }
 
     def integrity_check(self) -> None:

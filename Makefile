@@ -93,7 +93,7 @@ define port_in_use
 	fi
 endef
 
-.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial workflow-soak-ci workflow-soak terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status workflow-rollout-check logs test test-serial workflow-soak-ci workflow-soak terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -106,6 +106,7 @@ help:
 	@echo "  graceful       Alias for the normal draining restart"
 	@echo "  force-restart  Emergency hard stop + start; interrupts active agents"
 	@echo "  status         Print PID + state JSON if running"
+	@echo "  workflow-rollout-check  Run the bounded workflow canary/soak health gate"
 	@echo "  logs           Tail $(LOG_FILE)"
 	@echo "  test           Run pytest in parallel (OOMPAH_PYTEST_WORKERS, default: 4)"
 	@echo "  test-serial    Run pytest serially for race/debug diagnostics"
@@ -419,6 +420,9 @@ status:
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		echo "oompah is not running"; \
 	fi
+
+workflow-rollout-check: setup
+	@$(PYTHON) scripts/workflow_rollout_check.py
 
 test: test-setup terminal-audit-scan
 	@OOMPAH_PYTEST_WORKERS="$(PYTEST_WORKERS)" \

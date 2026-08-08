@@ -19,6 +19,7 @@ from oompah.workflow_jobs import (
     WorkflowJobState,
     WorkflowJobStore,
     WorkflowJobStoreError,
+    WorkflowRolloutGateError,
     WorkflowSnapshotPublication,
 )
 
@@ -813,6 +814,135 @@ def test_future_schema_is_rejected(tmp_path):
 
     with pytest.raises(WorkflowJobStoreError, match="newer"):
         WorkflowJobStore(str(path))
+
+
+def test_interrupted_column_first_migration_rewrites_legacy_specs_on_restart(
+    tmp_path,
+):
+    """A committed ALTER with an old version marker must resume data migration."""
+
+    path = str(tmp_path / "interrupted.sqlite3")
+    first = WorkflowJobStore(path)
+    original_spec = spec()
+    job = first.enqueue(original_spec)
+    legacy = original_spec.to_dict()
+    legacy.pop("payload")
+    legacy.pop("scheduling_lane")
+    legacy_json = json.dumps(legacy, sort_keys=True, separators=(",", ":"))
+    first._conn.execute(  # noqa: SLF001 - simulate a killed v3 migration
+        "UPDATE workflow_jobs SET spec_json = ?, spec_revision = ? WHERE job_id = ?",
+        (legacy_json, hashlib.sha256(legacy_json.encode()).hexdigest(), job.job_id),
+    )
+    first._conn.execute(  # noqa: SLF001
+        "UPDATE schema_meta SET value = '3' WHERE key = 'workflow_jobs_version'"
+    )
+    first._conn.commit()  # noqa: SLF001
+    first.close()
+
+    reopened = WorkflowJobStore(path)
+    try:
+        migrated = reopened.get(job.job_id)
+        assert migrated.payload is None
+        assert migrated.scheduling_lane == "decision"
+        assert reopened.schema_version == WORKFLOW_JOB_SCHEMA_VERSION
+        reopened.integrity_check()
+    finally:
+        reopened.close()
+
+
+def test_persisted_rollout_gate_survives_restart_and_allows_safe_rollback(
+    tmp_path, clock: Clock
+):
+    path = str(tmp_path / "rollout.sqlite3")
+    shadow = {domain: "shadow" for domain in (
+        "implementation", "review", "integration", "epic"
+    )}
+    enforce = {domain: "enforce" for domain in shadow}
+    first = WorkflowJobStore(path, clock=clock)
+    first.prepare_rollout(
+        shadow,
+        require_qualification=True,
+        min_shadow_sweeps=3,
+        min_shadow_seconds=300,
+    )
+    for _ in range(3):
+        first.record_rollout_sweep({domain: None for domain in shadow})
+    assert not first.rollout_readiness(
+        min_shadow_sweeps=3,
+        min_shadow_seconds=300,
+    )["all_domains_ready"]
+    first.close()
+
+    clock.advance(300)
+    restarted = WorkflowJobStore(path, clock=clock)
+    try:
+        assert restarted.rollout_readiness(
+            min_shadow_sweeps=3,
+            min_shadow_seconds=300,
+        )["all_domains_ready"]
+        rows = restarted.prepare_rollout(
+            enforce,
+            require_qualification=True,
+            min_shadow_sweeps=3,
+            min_shadow_seconds=300,
+        )
+        assert {row["mode"] for row in rows} == {"enforce"}
+
+        rolled_back = restarted.prepare_rollout(
+            shadow,
+            require_qualification=True,
+            min_shadow_sweeps=3,
+            min_shadow_seconds=300,
+        )
+        assert {row["mode"] for row in rolled_back} == {"shadow"}
+        assert all(row["successful_shadow_sweeps"] == 0 for row in rolled_back)
+    finally:
+        restarted.close()
+
+
+def test_rollout_gate_rejects_unqualified_enforce_atomically(store):
+    shadow = {domain: "shadow" for domain in (
+        "implementation", "review", "integration", "epic"
+    )}
+    store.prepare_rollout(
+        shadow,
+        require_qualification=True,
+        min_shadow_sweeps=2,
+        min_shadow_seconds=0,
+    )
+    store.record_rollout_sweep({domain: None for domain in shadow})
+
+    with pytest.raises(WorkflowRolloutGateError, match="1/2"):
+        store.prepare_rollout(
+            {domain: "enforce" for domain in shadow},
+            require_qualification=True,
+            min_shadow_sweeps=2,
+            min_shadow_seconds=0,
+        )
+
+    assert {row["mode"] for row in store.rollout_snapshot()} == {"shadow"}
+
+
+def test_legacy_enforce_configuration_can_adopt_explicit_domain_controls(store):
+    enforce = {domain: "enforce" for domain in (
+        "implementation", "review", "integration", "epic"
+    )}
+    compatibility = store.prepare_rollout(
+        enforce,
+        require_qualification=False,
+        min_shadow_sweeps=3,
+        min_shadow_seconds=300,
+    )
+
+    assert all(row["successful_shadow_sweeps"] >= 3 for row in compatibility)
+    adopted = store.prepare_rollout(
+        enforce,
+        require_qualification=True,
+        min_shadow_sweeps=3,
+        min_shadow_seconds=300,
+    )
+
+    assert {row["mode"] for row in adopted} == {"enforce"}
 
 
 def test_post_callback_commit_failure_compensates_and_same_generation_retries(store):

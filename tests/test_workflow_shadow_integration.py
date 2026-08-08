@@ -144,6 +144,59 @@ def test_config_rejects_unknown_mode_and_clamps_bounds():
     assert config.workflow_liveness_snapshot_stale_seconds == 1
 
 
+def test_per_domain_environment_controls_form_a_read_only_mixed_canary(
+    monkeypatch,
+):
+    monkeypatch.setenv("OOMPAH_WORKFLOW_IMPLEMENTATION_MODE", "shadow")
+    monkeypatch.setenv("OOMPAH_WORKFLOW_REVIEW_MODE", "off")
+    monkeypatch.setenv("OOMPAH_WORKFLOW_INTEGRATION_MODE", "shadow")
+    monkeypatch.setenv("OOMPAH_WORKFLOW_EPIC_MODE", "off")
+    monkeypatch.setenv("OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SWEEPS", "7")
+    monkeypatch.setenv("OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SECONDS", "60")
+
+    config = ServiceConfig.from_workflow(
+        WorkflowDefinition(config={}, prompt_template="test")
+    )
+
+    assert config.workflow_domain_modes == {
+        "implementation": "shadow",
+        "review": "off",
+        "integration": "shadow",
+        "epic": "off",
+    }
+    assert config.workflow_engine_mode == "shadow"
+    assert config.workflow_rollout_require_qualification
+    assert config.workflow_rollout_min_shadow_sweeps == 7
+    assert config.workflow_rollout_min_shadow_seconds == 60
+
+
+def test_per_domain_enforcement_requires_every_domain():
+    mixed = ServiceConfig(
+        workflow_domain_modes={
+            "implementation": "enforce",
+            "review": "shadow",
+            "integration": "shadow",
+            "epic": "shadow",
+        }
+    )
+    complete = ServiceConfig(
+        workflow_domain_modes={
+            "implementation": "enforce",
+            "review": "enforce",
+            "integration": "enforce",
+            "epic": "enforce",
+        }
+    )
+
+    assert mixed.workflow_engine_mode == "shadow"
+    assert complete.workflow_engine_mode == "enforce"
+
+
+def test_unknown_workflow_domain_is_rejected():
+    with pytest.raises(ValueError, match="unknown workflow rollout domain"):
+        ServiceConfig(workflow_domain_modes={"typo": "shadow"})
+
+
 def test_invalid_slo_environment_uses_default_and_nonpositive_is_rejected(
     monkeypatch,
 ):

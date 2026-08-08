@@ -22,6 +22,12 @@ from oompah.workflow_facts import WorkflowFacts
 
 
 WORKFLOW_ENGINE_MODES = frozenset({"off", "shadow", "enforce"})
+WORKFLOW_DOMAIN_NAMES = (
+    "implementation",
+    "review",
+    "integration",
+    "epic",
+)
 DEFAULT_DIAGNOSTIC_LIMIT = 100
 MAX_DIAGNOSTIC_LIMIT = 1000
 DEFAULT_MAX_DIAGNOSTIC_BYTES = 64 * 1024
@@ -49,6 +55,49 @@ def normalize_workflow_engine_mode(value: object) -> str:
             + ", ".join(sorted(WORKFLOW_ENGINE_MODES))
         )
     return mode
+
+
+def normalize_workflow_domain_modes(
+    values: Mapping[str, object] | None,
+    *,
+    fallback: object = "off",
+) -> dict[str, str]:
+    """Return a total, strictly validated mode map for workflow domains.
+
+    Domain controls deliberately share the existing ``off``/``shadow``/
+    ``enforce`` vocabulary.  Unknown domain names are rejected rather than
+    ignored: a misspelled rollout variable must never silently enable the
+    legacy writer for one domain while operators believe it is cut over.
+    """
+
+    raw = dict(values or {})
+    unknown = sorted(set(raw) - set(WORKFLOW_DOMAIN_NAMES))
+    if unknown:
+        raise ValueError(
+            "unknown workflow rollout domain(s): " + ", ".join(unknown)
+        )
+    default = normalize_workflow_engine_mode(fallback)
+    return {
+        domain: normalize_workflow_engine_mode(raw.get(domain, default))
+        for domain in WORKFLOW_DOMAIN_NAMES
+    }
+
+
+def aggregate_workflow_domain_mode(values: Mapping[str, object]) -> str:
+    """Project domain modes onto the safe process-wide ownership mode.
+
+    Mixed ``off``/``shadow`` configurations are a read-only canary.  Durable
+    mutation is enabled only after *every* domain is explicitly ``enforce``;
+    this prevents a partial cutover from racing a legacy lifecycle writer.
+    """
+
+    modes = normalize_workflow_domain_modes(values)
+    unique = set(modes.values())
+    if unique == {"off"}:
+        return "off"
+    if unique == {"enforce"}:
+        return "enforce"
+    return "shadow"
 
 
 def _required_text(value: object, name: str) -> str:

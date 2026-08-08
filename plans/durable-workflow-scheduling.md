@@ -72,6 +72,9 @@ contains no lease tokens or job payloads. The orchestrator publishes this as
 `workflow_jobs` in the normal state/WebSocket snapshot; global dashboard alerts
 remain reserved for genuinely operator-actionable decisions.
 
-Domain migrations register idempotent handlers and enable enforcement one
-domain at a time. Until a domain is cut over, its legacy consumer remains the
-mutating path; shadow decisions can be compared without creating durable work.
+Domain migrations register idempotent handlers and qualify shadow behavior one
+domain at a time. A mixed rollout map remains process-wide read-only. The
+durable worker receives mutation authority only on the final all-domain
+`enforce` restart, after complete handler coverage and persisted soak evidence
+pass. This avoids the contradictory state where one durable domain races a
+legacy lifecycle writer owned by another domain.

@@ -377,6 +377,61 @@ def test_shadow_runtime_compares_decisions_without_durable_mutation(tmp_path):
     store.close()
 
 
+def test_shadow_runtime_evaluates_only_enabled_rollout_domains(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-DOMAIN", state="In Review")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        domain_modes={
+            "implementation": "shadow",
+            "review": "off",
+            "integration": "off",
+            "epic": "off",
+        },
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert set(report["projects"]["project-1"]) == {
+        "issues",
+        "implementation",
+    }
+    assert runtime.health_snapshot()["domain_modes"]["review"] == "off"
+    rollout = {row["domain"]: row for row in store.rollout_snapshot()}
+    assert rollout["implementation"]["successful_shadow_sweeps"] == 1
+    assert rollout["review"]["successful_shadow_sweeps"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_runtime_rejects_domain_map_with_different_aggregate_mode(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-MODE")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+
+    with pytest.raises(ValueError, match="aggregate domain modes"):
+        WorkflowRuntime(
+            project_bindings={"project-1": binding},
+            store=store,
+            journals={"project-1": journal},
+            mode="off",
+            domain_modes={
+                "implementation": "shadow",
+                "review": "off",
+                "integration": "off",
+                "epic": "off",
+            },
+        )
+
+    journal.close()
+    store.close()
+
+
 def test_enforce_cutover_rejects_partial_handler_coverage(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([make_issue("TASK-CUTOVER")])

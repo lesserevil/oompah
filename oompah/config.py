@@ -679,10 +679,17 @@ class ServiceConfig:
     # environment-only operational setting so a forgotten lease cannot strand
     # work indefinitely.
     owner_claim_ttl_hours: int = 48
-    # Unified workflow-engine rollout. ``off`` preserves legacy behavior,
-    # ``shadow`` evaluates and compares without mutation, and ``enforce`` is
-    # reserved for the durable scheduler cutover. Environment-only.
+    # Aggregate compatibility projection for callers which have not yet moved
+    # to the per-domain rollout map.  Mixed domain modes project to ``shadow``;
+    # mutation is enabled only when every domain is ``enforce``.
     workflow_engine_mode: str = "off"
+    workflow_domain_modes: dict[str, str] = field(default_factory=dict)
+    # The persisted canary gate is automatically required when any per-domain
+    # environment control is present.  Direct ServiceConfig construction and
+    # the retired aggregate environment input retain restart compatibility.
+    workflow_rollout_require_qualification: bool = False
+    workflow_rollout_min_shadow_sweeps: int = 3
+    workflow_rollout_min_shadow_seconds: int = 300
     workflow_shadow_scan_limit: int = 100
     workflow_diagnostic_max_bytes: int = 64 * 1024
     # Bounded authoritative liveness projections. These limits cap persisted
@@ -838,10 +845,27 @@ class ServiceConfig:
             int(self.worktree_cleanup_interval_seconds), 1
         )
         self.owner_claim_ttl_hours = max(int(self.owner_claim_ttl_hours), 1)
-        from oompah.workflow_shadow import normalize_workflow_engine_mode
+        from oompah.workflow_shadow import (
+            aggregate_workflow_domain_mode,
+            normalize_workflow_domain_modes,
+            normalize_workflow_engine_mode,
+        )
 
         self.workflow_engine_mode = normalize_workflow_engine_mode(
             self.workflow_engine_mode
+        )
+        self.workflow_domain_modes = normalize_workflow_domain_modes(
+            self.workflow_domain_modes,
+            fallback=self.workflow_engine_mode,
+        )
+        self.workflow_engine_mode = aggregate_workflow_domain_mode(
+            self.workflow_domain_modes
+        )
+        self.workflow_rollout_min_shadow_sweeps = max(
+            int(self.workflow_rollout_min_shadow_sweeps), 1
+        )
+        self.workflow_rollout_min_shadow_seconds = max(
+            int(self.workflow_rollout_min_shadow_seconds), 0
         )
         self.workflow_shadow_scan_limit = min(
             max(int(self.workflow_shadow_scan_limit), 1), 1000
@@ -1184,6 +1208,31 @@ class ServiceConfig:
             for key, slo in LIVENESS_SLOS.items()
         }
 
+        legacy_workflow_mode = _env_str(
+            "OOMPAH_WORKFLOW_ENGINE_MODE", None, "off"
+        )
+        workflow_domain_env = {
+            "implementation": "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE",
+            "review": "OOMPAH_WORKFLOW_REVIEW_MODE",
+            "integration": "OOMPAH_WORKFLOW_INTEGRATION_MODE",
+            "epic": "OOMPAH_WORKFLOW_EPIC_MODE",
+        }
+        workflow_domain_modes = {
+            domain: _env_str(env_key, None, legacy_workflow_mode)
+            for domain, env_key in workflow_domain_env.items()
+        }
+        workflow_domain_controls_explicit = any(
+            env_key in os.environ for env_key in workflow_domain_env.values()
+        )
+        if (
+            "OOMPAH_WORKFLOW_ENGINE_MODE" in os.environ
+            and not workflow_domain_controls_explicit
+        ):
+            logger.warning(
+                "OOMPAH_WORKFLOW_ENGINE_MODE is a compatibility input; migrate "
+                "to the four OOMPAH_WORKFLOW_<DOMAIN>_MODE controls"
+            )
+
         return cls(
             tracker_kind=tracker_kind,
             tracker_active_states=_parse_state_list(
@@ -1436,8 +1485,16 @@ class ServiceConfig:
             owner_claim_ttl_hours=_parse_positive_env_int(
                 "OOMPAH_OWNER_CLAIM_TTL_HOURS", 48
             ),
-            workflow_engine_mode=_env_str(
-                "OOMPAH_WORKFLOW_ENGINE_MODE", None, "off"
+            workflow_engine_mode=legacy_workflow_mode,
+            workflow_domain_modes=workflow_domain_modes,
+            workflow_rollout_require_qualification=(
+                workflow_domain_controls_explicit
+            ),
+            workflow_rollout_min_shadow_sweeps=_env_int(
+                "OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SWEEPS", None, 3
+            ),
+            workflow_rollout_min_shadow_seconds=_env_int(
+                "OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SECONDS", None, 300
             ),
             workflow_shadow_scan_limit=_env_int(
                 "OOMPAH_WORKFLOW_SHADOW_SCAN_LIMIT", None, 100
