@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:09.296051Z'
-updated_at: '2026-08-07T18:22:12.907929Z'
+updated_at: '2026-08-08T08:02:16.176457Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Implement per-domain .env/.env.example rollout controls, persisted-schema migrat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 08:02
+---
+Direct implementation started in isolated branch direct/OOMPAH-787-on-systemic at exact systemic base 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Auditing shipped rollout/config/schema/docs first; will implement only remaining gaps and return a tested local commit for composition.
+---
+<!-- COMMENTS:END -->
