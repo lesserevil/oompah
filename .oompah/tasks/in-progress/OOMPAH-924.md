@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T19:33:35.949962Z'
-updated_at: '2026-08-08T19:42:06.826229Z'
+updated_at: '2026-08-08T19:47:10.932854Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,11 @@ The operation in `backend:__main__` should complete successfully, or degrade gra
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 19:47
+---
+Claimed directly. Root cause confirmed: graceful shutdown drains durable worker/handler operations but does not wait for an in-flight event-loop tick whose reconcile thread still owns WorkflowJobStore mutation authority. The shutdown path can therefore close the store authority fd before record_rollout_sweep completes. Implementing an explicit active-tick drain before persistent-store closure, with deterministic race regression coverage.
+---
+<!-- COMMENTS:END -->
