@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-912
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:workflow_runtime] Durable workflow reconcile failed for proj-14849f1b'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T14:11:47.740099Z'
-updated_at: '2026-08-08T14:25:12.336955Z'
+updated_at: '2026-08-08T15:37:30.666053Z'
 work_branch: null
 target_branch: null
 review_url: null
