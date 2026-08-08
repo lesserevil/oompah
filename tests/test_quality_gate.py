@@ -2300,7 +2300,11 @@ def test_gate_reports_poisoned_runtime_without_running_candidate(tmp_path):
     [
         pytest.param("true", "passed", id="success"),
         pytest.param("exit 4", "failed", id="configuration-failure"),
-        pytest.param("kill -KILL $$", "failed", id="candidate-crash"),
+        pytest.param(
+            "kill -KILL $$",
+            "infrastructure_error",
+            id="candidate-crash",
+        ),
     ],
 )
 def test_gate_cleans_server_owned_trusted_home_for_every_outcome(
