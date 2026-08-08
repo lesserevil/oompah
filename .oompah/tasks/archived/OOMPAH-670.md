@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-08-08T01:59:59.042030Z'
+updated_at: '2026-08-08T02:14:17.280044Z'
 work_branch: OOMPAH-670
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/633
@@ -123,6 +123,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-3b57a399e34e: '2026-08-01T01:35:32.540745+00:00'
     attempt-8200a44d8ddf: '2026-08-01T01:40:44.711560+00:00'
+    attempt-4c728b32d88a: '2026-08-08T02:14:13.203848+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-670
@@ -142,6 +143,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T01:40:44.711581+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-670
+    target_state: Archived
+    evidence_fingerprint: 89a380acb8522068b2352c305d69dfb080bec4d32aef4d999ea8a7d303618a61
+    audit_ids:
+    - audit-32b7ffb76a06
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T02:14:13.203866+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-670
@@ -167,6 +177,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T01:40:44.711605+00:00'
     applied_at: '2026-08-01T01:40:49.521121+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-670
+    audit_id: audit-32b7ffb76a06
+    attempt_id: attempt-4c728b32d88a
+    target_state: Archived
+    evidence_fingerprint: 89a380acb8522068b2352c305d69dfb080bec4d32aef4d999ea8a7d303618a61
+    status: Archived
+    audit_ids:
+    - audit-32b7ffb76a06
+    kind: result
+    applied: false
+    created_at: '2026-08-08T02:14:13.203888+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -242,7 +264,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-670
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -251,7 +273,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4c728b32d88a
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -263,6 +285,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-670
       selected_ref: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
       selected_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
+      verdict: pass
+      completed_at: '2026-08-08T02:14:13.203615+00:00'
+      ended_at: '2026-08-08T02:14:13.203615+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -271,7 +296,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T01:59:04.007462+00:00'
     selected_ref: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
     selected_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
-    updated_at: '2026-08-08T01:59:51.656594+00:00'
+    updated_at: '2026-08-08T02:14:13.203615+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3b57a399e34e
