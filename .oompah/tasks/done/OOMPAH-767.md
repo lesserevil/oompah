@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-767
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Prove safety and eventual progress with model-based fault testing
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:58.011307Z'
-updated_at: '2026-08-08T12:02:18.665894Z'
+updated_at: '2026-08-08T16:30:47.427460Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,30 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9d9f4206e875
+    project_id: proj-14849f1b
+    task_id: OOMPAH-767
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b695527aee044b555192232c241e6b6ed8e5519ddd6897a9a2141ba396e86dec
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope and its completed dependency wave are contained in that validated
+      head; owner override avoids fabricating a separate branch/integration generation.
+    created_at: '2026-08-08T16:30:43.362458+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
