@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T03:44:40.157106Z'
+updated_at: '2026-08-08T03:55:37.805079Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,29 @@ author: oompah
 created: 2026-08-08 03:44
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-08 03:55
+---
+**Understanding (Security Auditor Review)**
+
+Beginning security audit of OOMPAH-843 implementation for per-target deadlines and validation contract feasibility.
+
+**Scope Reviewed So Far**:
+1. Project model additions (oompah/models.py):
+   - New fields: auditor_validation_target_deadlines (dict[str, int])
+   - New field: auditor_validation_target_expected_seconds (dict[str, int])
+   - Validation in from_dict: targets validated for ASCII alphanumeric + '_.-', no duplicates
+   - Deadlines validated as positive integers, restricted to configured targets
+   - Serialization/deserialization with proper redaction in to_safe_dict
+
+**Key Security Vectors to Investigate**:
+1. Shell injection prevention for Make targets - validate execution safety
+2. Deadline enforcement at runtime - check api_agent.py and acp_backends
+3. Configuration error handling - does fail-closed behavior work correctly?
+4. Multi-project isolation - are deadlines properly scoped per project?
+5. Validation-resource lease interaction - does deadline validation respect queuing delays?
+
+**Next Steps**: Review auditor.py, api_agent.py, and acp_backends for runtime enforcement and attack surface.
 ---
 <!-- COMMENTS:END -->
