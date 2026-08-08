@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:09.296051Z'
-updated_at: '2026-08-08T08:02:16.176457Z'
+updated_at: '2026-08-08T08:30:41.687833Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-08 08:02
 ---
 Direct implementation started in isolated branch direct/OOMPAH-787-on-systemic at exact systemic base 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Auditing shipped rollout/config/schema/docs first; will implement only remaining gaps and return a tested local commit for composition.
+---
+author: oompah
+created: 2026-08-08 08:30
+---
+Direct implementation complete on isolated branch direct/OOMPAH-787-on-systemic at 106df6c547e5cc30be989ffef36978ebd279c29b (base 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183). Added four per-domain .env rollout modes with safe aggregate ownership, restart-persistent qualification/soak gates and state projection, interrupted schema-migration recovery, a bounded make workflow-rollout-check canary, final flag compatibility/retirement rules, and operator/internal rollout, recovery, why-not-progressing, alert, SLO, upgrade/rollback, and architecture docs. Exact final focused broker run: 85 passed; prior expanded run: 174 passed. Pycompile, focused Ruff, git diff check, terminal mutation scan, and secret scan passed. Worktree is clean and preserved for composition; no task status or remote was changed.
 ---
 <!-- COMMENTS:END -->
