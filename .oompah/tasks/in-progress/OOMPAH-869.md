@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-869
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make inherited validation-fence restart test deterministic under saturated
   gates
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-08T07:39:35.795929Z'
+updated_at: '2026-08-08T12:04:53.524941Z'
 work_branch: OOMPAH-869
 target_branch: null
 review_url: null
