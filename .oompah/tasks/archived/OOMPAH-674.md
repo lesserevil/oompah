@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-08T06:05:17.381890Z'
+updated_at: '2026-08-08T06:09:13.020206Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -110,6 +110,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-a14907dc5a93: '2026-08-01T05:11:38.787775+00:00'
     attempt-af077b3208be: '2026-08-01T05:14:29.909974+00:00'
+    attempt-65c55e3b2782: '2026-08-08T06:09:08.807186+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-674
@@ -129,6 +130,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T05:14:29.909996+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    target_state: Archived
+    evidence_fingerprint: 3c776126423075d0892fd4326cfe444e471f24909e23e9996e76534b1ad644bb
+    audit_ids:
+    - audit-19d1d5d121ef
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T06:09:08.807207+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-674
@@ -154,6 +164,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T05:14:29.910021+00:00'
     applied_at: '2026-08-01T05:14:35.270876+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    audit_id: audit-19d1d5d121ef
+    attempt_id: attempt-65c55e3b2782
+    target_state: Archived
+    evidence_fingerprint: 3c776126423075d0892fd4326cfe444e471f24909e23e9996e76534b1ad644bb
+    status: Archived
+    audit_ids:
+    - audit-19d1d5d121ef
+    kind: result
+    applied: false
+    created_at: '2026-08-08T06:09:08.807230+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -229,7 +251,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-674
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -238,7 +260,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-65c55e3b2782
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -250,6 +272,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-674
       selected_ref: 939abfda0d393cd98d95b61a71fb92df7ea740d0
       selected_sha: 939abfda0d393cd98d95b61a71fb92df7ea740d0
+      verdict: pass
+      completed_at: '2026-08-08T06:09:08.806892+00:00'
+      ended_at: '2026-08-08T06:09:08.806892+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -258,7 +283,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T06:03:52.087250+00:00'
     selected_ref: 939abfda0d393cd98d95b61a71fb92df7ea740d0
     selected_sha: 939abfda0d393cd98d95b61a71fb92df7ea740d0
-    updated_at: '2026-08-08T06:05:09.856615+00:00'
+    updated_at: '2026-08-08T06:09:08.806892+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a14907dc5a93
