@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:33:49.292212Z'
-updated_at: '2026-08-08T16:34:19.309148Z'
+updated_at: '2026-08-08T18:13:35.413192Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live recurrence on deployed d796a4b after OOMPAH-889: OOMPAH-588 is direct-owner
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 18:13
+---
+Implemented the complete direct-owner claim lifecycle fix at exact head 78b1c08cfc312e29203ce07f41f4c18cea72b89b. The change retires captured claims only after committed status transitions, persists and rolls back claim mutations, isolates exact-claim revocations in per-claim durable workflow lanes, preserves ABA replacements and valid Open preclaims, reconciles enqueue/refresh/exhaustion failures live, and recovers the postcommit crash boundary from immutable transition-request timestamps. Focused impacted suites are green (619-test broad slice plus targeted transition/owner suites), terminal mutation scan passed, and secret scan passed. Starting the exact full Makefile gate now.
+---
+<!-- COMMENTS:END -->
