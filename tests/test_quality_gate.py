@@ -2176,7 +2176,7 @@ def test_gate_startup_scavenges_roots_from_dead_service_generation(
 
 
 def _create_deep_gate_tree(root: Path, depth: int) -> None:
-    """Create a path deeper than PATH_MAX without constructing a long path."""
+    """Create a deeply nested tree without constructing one long pathname."""
     descriptor = os.open(
         root,
         os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
@@ -2205,7 +2205,11 @@ def test_gate_normal_cleanup_handles_candidate_depth_beyond_recursion_limit(
     run_root = BranchQualityGate._gate_run_root()
     container = run_root.parent
     owner_path = BranchQualityGate._gate_root_owner_path(container)
-    _create_deep_gate_tree(run_root, sys.getrecursionlimit() + 100)
+    depth = max(
+        sys.getrecursionlimit() + 100,
+        os.pathconf(run_root, "PC_PATH_MAX") // 2 + 100,
+    )
+    _create_deep_gate_tree(run_root, depth)
 
     BranchQualityGate._cleanup_gate_run_root(run_root)
 
@@ -2221,7 +2225,11 @@ def test_gate_stale_cleanup_handles_candidate_depth_beyond_recursion_limit(
     run_root = BranchQualityGate._gate_run_root()
     container = run_root.parent
     owner_path = BranchQualityGate._gate_root_owner_path(container)
-    _create_deep_gate_tree(run_root, sys.getrecursionlimit() + 100)
+    depth = max(
+        sys.getrecursionlimit() + 100,
+        os.pathconf(run_root, "PC_PATH_MAX") // 2 + 100,
+    )
+    _create_deep_gate_tree(run_root, depth)
     BranchQualityGate._forget_gate_root(container)
     owner = json.loads(owner_path.read_text(encoding="utf-8"))
     owner.update({"pid": 2_000_000_000, "process_start_ticks": 1})
@@ -2236,6 +2244,94 @@ def test_gate_stale_cleanup_handles_candidate_depth_beyond_recursion_limit(
     assert BranchQualityGate._scavenge_stale_gate_roots() == 1
     assert not container.exists()
     assert not owner_path.exists()
+
+
+@pytest.mark.parametrize("abandoned", [False, True], ids=["active", "abandoned"])
+def test_gate_cleanup_reopens_directory_scan_for_deferred_identity(
+    tmp_path,
+    monkeypatch,
+    abandoned,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    cursor_root = run_root / "cursor-regression"
+    cursor_root.mkdir()
+    current = cursor_root
+    for index in range(4):
+        (current / "identity").mkdir()
+        (current / "after-identity").write_text(str(index), encoding="utf-8")
+        child = current / "child"
+        child.mkdir()
+        current = child
+
+    if abandoned:
+        identity = (container.stat().st_dev, container.stat().st_ino)
+        BranchQualityGate._forget_gate_root(container)
+        quarantine = container.with_name(
+            f".{container.name}.scavenge-2000000000-123456789"
+        )
+        container.rename(quarantine)
+        assert BranchQualityGate._remove_abandoned_gate_quarantine(
+            quarantine,
+            container.name,
+            identity,
+        )
+        BranchQualityGate._unlink_gate_root_owner(container)
+    else:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    assert not container.exists()
+    assert not owner_path.exists()
+
+
+def test_gate_cleanup_defers_bounded_work_to_one_convergent_reaper(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_MAX_DEPTH", 2)
+    monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_MAX_OPERATIONS", 4)
+    monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_SLICE_SECONDS", 10.0)
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    _create_deep_gate_tree(run_root, 20)
+    for index in range(100):
+        (run_root / f"wide-{index:03d}").write_text("x", encoding="utf-8")
+    slice_count = 0
+    original_slice = BranchQualityGate._deferred_gate_cleanup_slice
+
+    def count_slice(_cls, quarantine, expected_identity):
+        nonlocal slice_count
+        slice_count += 1
+        return original_slice(quarantine, expected_identity)
+
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_deferred_gate_cleanup_slice",
+        classmethod(count_slice),
+    )
+
+    started = time.monotonic()
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+    synchronous_elapsed = time.monotonic() - started
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            pending = bool(BranchQualityGate._deferred_gate_cleanups)
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not container.exists() and not owner_path.exists() and not pending:
+            break
+        time.sleep(0.01)
+
+    assert synchronous_elapsed < 0.5
+    assert slice_count > 1
+    assert not container.exists()
+    assert not owner_path.exists()
+    assert not pending
+    assert reaper is None or not reaper.is_alive()
 
 
 def test_gate_scavenger_bounds_corrupt_or_legacy_root_lifetime(
@@ -2498,12 +2594,144 @@ def test_gate_abandoned_cleanup_refuses_post_verification_quarantine_swap(
         )
         assert expected_moved.exists()
         assert owner_path.exists()
+
+        old = time.time() - 10
+        os.utime(claimed_paths[0], (old, old))
+        os.utime(owner_path, (old, old))
+        monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+        assert BranchQualityGate._scavenge_stale_gate_roots() == 0
+        assert (claimed_paths[0] / "keep").read_text(encoding="utf-8") == (
+            "do not delete"
+        )
+        assert expected_moved.exists()
     finally:
         for path in (*claimed_paths, expected_moved):
             if path.exists():
                 assert BranchQualityGate._prepare_gate_container_removal(path)
                 shutil.rmtree(path, ignore_errors=True)
         owner_path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize("abandoned", [False, True], ids=["active", "abandoned"])
+@pytest.mark.parametrize("entry_kind", ["file", "symlink"])
+def test_gate_cleanup_fences_non_directory_substitution(
+    tmp_path,
+    monkeypatch,
+    abandoned,
+    entry_kind,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    identity = (container.stat().st_dev, container.stat().st_ino)
+    owner_path = BranchQualityGate._gate_root_owner_path(container)
+    candidate_target = tmp_path / "candidate-target"
+    victim_target = tmp_path / "victim-target"
+    candidate_target.write_text("candidate target", encoding="utf-8")
+    victim_target.write_text("victim target", encoding="utf-8")
+    entry = run_root / "race-entry"
+    victim = tmp_path / "victim-entry"
+    if entry_kind == "file":
+        entry.write_text("candidate", encoding="utf-8")
+        victim.write_text("victim", encoding="utf-8")
+    else:
+        entry.symlink_to(candidate_target)
+        victim.symlink_to(victim_target)
+
+    quarantine = container.with_name(
+        f".{container.name}.scavenge-2000000000-123456789"
+    )
+    if abandoned:
+        BranchQualityGate._forget_gate_root(container)
+        container.rename(quarantine)
+    original_open = os.open
+    swapped = False
+
+    def swap_after_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal swapped
+        descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
+        if (
+            not swapped
+            and path == "race-entry"
+            and dir_fd is not None
+            and flags & getattr(os, "O_PATH", 0)
+        ):
+            os.rename(
+                "race-entry",
+                "escaped-entry",
+                src_dir_fd=dir_fd,
+                dst_dir_fd=dir_fd,
+            )
+            os.rename(victim, "race-entry", dst_dir_fd=dir_fd)
+            swapped = True
+        return descriptor
+
+    with monkeypatch.context() as substitution:
+        substitution.setattr(os, "open", swap_after_open)
+        if abandoned:
+            assert not BranchQualityGate._remove_abandoned_gate_quarantine(
+                quarantine,
+                container.name,
+                identity,
+            )
+        else:
+            BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    retained_root = quarantine if abandoned else container
+    retained_run = retained_root / "run"
+    assert swapped
+    if entry_kind == "file":
+        assert (retained_run / "race-entry").read_text(encoding="utf-8") == (
+            "victim"
+        )
+        assert (retained_run / "escaped-entry").read_text(encoding="utf-8") == (
+            "candidate"
+        )
+    else:
+        assert (retained_run / "race-entry").readlink() == victim_target
+        assert (retained_run / "escaped-entry").readlink() == candidate_target
+        assert victim_target.read_text(encoding="utf-8") == "victim target"
+        assert candidate_target.read_text(encoding="utf-8") == "candidate target"
+
+    if abandoned:
+        assert BranchQualityGate._remove_abandoned_gate_quarantine(
+            quarantine,
+            container.name,
+            identity,
+        )
+        BranchQualityGate._unlink_gate_root_owner(container)
+    else:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+    assert not retained_root.exists()
+    assert not owner_path.exists()
+
+
+def test_gate_cleanup_refuses_cross_device_descendant(tmp_path, monkeypatch):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    cross_device = container / "cross-device"
+    cross_device.mkdir()
+    marker = cross_device / "keep"
+    marker.write_text("external mount payload", encoding="utf-8")
+    original_stat = os.stat
+
+    def report_other_device(path, *args, **kwargs):
+        metadata = original_stat(path, *args, **kwargs)
+        if path == "cross-device" and kwargs.get("dir_fd") is not None:
+            fields = list(metadata)
+            fields[2] = int(metadata.st_dev) + 1
+            return os.stat_result(fields)
+        return metadata
+
+    with monkeypatch.context() as device_boundary:
+        device_boundary.setattr(os, "stat", report_other_device)
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+    assert marker.read_text(encoding="utf-8") == "external mount payload"
+    assert container.exists()
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+    assert not container.exists()
 
 
 def test_gate_normal_cleanup_repairs_candidate_controlled_modes(

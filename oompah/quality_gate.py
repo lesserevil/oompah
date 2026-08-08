@@ -51,6 +51,13 @@ _GATE_ROOT_PREFIX = _GATE_CONTAINER_PREFIX
 _GATE_ROOT_OWNER_FILE = ".oompah-gate-owner.json"
 _GATE_ROOT_MAX_AGE_SECONDS = 24 * 60 * 60
 _GATE_ROOT_SCAVENGE_LIMIT = 256
+_GATE_CLEANUP_MAX_DEPTH = 256
+_GATE_CLEANUP_MAX_OPERATIONS = 32_768
+_GATE_CLEANUP_SLICE_SECONDS = 1.0
+_GATE_DEFERRED_CLEANUP_LIMIT = 256
+_GATE_REMOVAL_REMOVED = "removed"
+_GATE_REMOVAL_INCOMPLETE = "incomplete"
+_GATE_REMOVAL_UNSAFE = "unsafe"
 _GATE_ROOT_NAME_PATTERN = rf"{re.escape(_GATE_CONTAINER_PREFIX)}[a-z0-9_]{{8}}"
 _GATE_ROOT_NAME_RE = re.compile(rf"^{_GATE_ROOT_NAME_PATTERN}$")
 _GATE_ROOT_QUARANTINE_PATTERN = re.compile(
@@ -279,6 +286,11 @@ class BranchQualityGate:
     _active_owners: dict[int, QualityGateOwner | None] = {}
     _active_snapshots: dict[int, Path] = {}
     _active_gate_root_identities: dict[str, tuple[int, int]] = {}
+    _deferred_gate_cleanups: dict[
+        str,
+        tuple[Path, Path, tuple[int, int]],
+    ] = {}
+    _deferred_gate_cleanup_thread: threading.Thread | None = None
     # Durable tombstones for cancelled generations: set before the gate
     # spawns so that pre-spawn authority withdrawals (during snapshot
     # creation or between Popen and registration) are guaranteed to stop
@@ -927,7 +939,7 @@ class BranchQualityGate:
         name: str,
         expected_identity: tuple[int, int],
         root_descriptor: int,
-    ) -> bool:
+    ) -> str:
         """Delete one opened tree without following a substituted path.
 
         The caller retains both the parent and exact root descriptors across
@@ -944,22 +956,40 @@ class BranchQualityGate:
             or (int(root_metadata.st_dev), int(root_metadata.st_ino))
             != expected_identity
         ):
-            return False
+            return _GATE_REMOVAL_UNSAFE
+        initial_root = os.stat(
+            name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (int(initial_root.st_dev), int(initial_root.st_ino)) != expected_identity:
+            return _GATE_REMOVAL_UNSAFE
+        root_device = int(root_metadata.st_dev)
         # Each frame records the opened child's name and inode plus its exact
         # parent inode.  We retain only the current directory FD, then ascend
         # through ``..`` and verify the parent identity before removing the
-        # child name.  Candidate-controlled depth therefore consumes Python
-        # tuple memory, not recursion depth or one descriptor per level.
+        # child name.  Depth is capped; at the cap, a verified child is moved
+        # to the retained root as a new work item.  Candidate-controlled depth
+        # therefore cannot consume recursion, descriptors, or unbounded frames.
         frames: list[tuple[str, tuple[int, int], tuple[int, int]]] = []
         directory_descriptor: int | None = os.dup(root_descriptor)
+        operation_count = 0
+        deadline = time.monotonic() + _GATE_CLEANUP_SLICE_SECONDS
         try:
             while True:
+                if (
+                    operation_count >= _GATE_CLEANUP_MAX_OPERATIONS
+                    or time.monotonic() >= deadline
+                ):
+                    return _GATE_REMOVAL_INCOMPLETE
+                operation_count += 1
                 directory_metadata = os.fstat(directory_descriptor)
                 if (
                     not stat.S_ISDIR(directory_metadata.st_mode)
                     or directory_metadata.st_uid != os.geteuid()
+                    or int(directory_metadata.st_dev) != root_device
                 ):
-                    return False
+                    return _GATE_REMOVAL_UNSAFE
                 directory_identity = (
                     int(directory_metadata.st_dev),
                     int(directory_metadata.st_ino),
@@ -968,13 +998,26 @@ class BranchQualityGate:
 
                 selected: str | None = None
                 identity_present = False
-                with os.scandir(directory_descriptor) as entries:
-                    for entry in entries:
-                        if entry.name == _GATE_IDENTITY_ROOT_NAME:
-                            identity_present = True
-                            continue
-                        selected = entry.name
-                        break
+                scan_descriptor = os.open(
+                    ".",
+                    os.O_RDONLY
+                    | getattr(os, "O_DIRECTORY", 0)
+                    | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory_descriptor,
+                )
+                try:
+                    with os.scandir(scan_descriptor) as entries:
+                        for entry in entries:
+                            if (
+                                directory_identity == expected_identity
+                                and entry.name == _GATE_IDENTITY_ROOT_NAME
+                            ):
+                                identity_present = True
+                                continue
+                            selected = entry.name
+                            break
+                finally:
+                    os.close(scan_descriptor)
                 if selected is None and identity_present:
                     selected = _GATE_IDENTITY_ROOT_NAME
 
@@ -984,29 +1027,62 @@ class BranchQualityGate:
                         dir_fd=directory_descriptor,
                         follow_symlinks=False,
                     )
-                    if selected_metadata.st_uid != os.geteuid():
-                        return False
-                    if stat.S_ISDIR(selected_metadata.st_mode):
-                        path_descriptor: int | None = None
-                        child_descriptor: int | None = None
-                        try:
-                            path_descriptor = os.open(
-                                selected,
-                                getattr(os, "O_PATH", os.O_RDONLY)
-                                | getattr(os, "O_DIRECTORY", 0)
-                                | getattr(os, "O_NOFOLLOW", 0),
-                                dir_fd=directory_descriptor,
+                    if (
+                        selected_metadata.st_uid != os.geteuid()
+                        or int(selected_metadata.st_dev) != root_device
+                    ):
+                        return _GATE_REMOVAL_UNSAFE
+                    path_descriptor: int | None = None
+                    child_descriptor: int | None = None
+                    try:
+                        path_descriptor = os.open(
+                            selected,
+                            getattr(os, "O_PATH", os.O_RDONLY)
+                            | (
+                                getattr(os, "O_DIRECTORY", 0)
+                                if stat.S_ISDIR(selected_metadata.st_mode)
+                                else 0
                             )
-                            path_metadata = os.fstat(path_descriptor)
-                            child_identity = (
-                                int(path_metadata.st_dev),
-                                int(path_metadata.st_ino),
-                            )
-                            if child_identity != (
+                            | getattr(os, "O_NOFOLLOW", 0),
+                            dir_fd=directory_descriptor,
+                        )
+                        path_metadata = os.fstat(path_descriptor)
+                        selected_identity = (
+                            int(path_metadata.st_dev),
+                            int(path_metadata.st_ino),
+                        )
+                        if (
+                            selected_identity
+                            != (
                                 int(selected_metadata.st_dev),
                                 int(selected_metadata.st_ino),
-                            ):
-                                return False
+                            )
+                            or int(path_metadata.st_dev) != root_device
+                            or path_metadata.st_uid != os.geteuid()
+                        ):
+                            return _GATE_REMOVAL_UNSAFE
+                        if stat.S_ISDIR(path_metadata.st_mode):
+                            if len(frames) >= _GATE_CLEANUP_MAX_DEPTH:
+                                queue_name = (
+                                    f".oompah-cleanup-{os.getpid()}-{time.time_ns()}"
+                                )
+                                os.rename(
+                                    selected,
+                                    queue_name,
+                                    src_dir_fd=directory_descriptor,
+                                    dst_dir_fd=root_descriptor,
+                                )
+                                queued = os.stat(
+                                    queue_name,
+                                    dir_fd=root_descriptor,
+                                    follow_symlinks=False,
+                                )
+                                if (
+                                    int(queued.st_dev),
+                                    int(queued.st_ino),
+                                ) != selected_identity:
+                                    return _GATE_REMOVAL_UNSAFE
+                                continue
                             # O_PATH bypasses candidate-controlled 000 modes.
                             # Chmod through the retained descriptor, then open
                             # ``.`` relative to that same inode for traversal.
@@ -1022,29 +1098,39 @@ class BranchQualityGate:
                             if (
                                 int(child_metadata.st_dev),
                                 int(child_metadata.st_ino),
-                            ) != child_identity:
-                                return False
+                            ) != selected_identity:
+                                return _GATE_REMOVAL_UNSAFE
                             os.fchmod(child_descriptor, 0o700)
                             frames.append(
-                                (selected, child_identity, directory_identity)
+                                (selected, selected_identity, directory_identity)
                             )
                             os.close(directory_descriptor)
                             directory_descriptor = child_descriptor
                             child_descriptor = None
-                        finally:
-                            if child_descriptor is not None:
-                                os.close(child_descriptor)
-                            if path_descriptor is not None:
-                                os.close(path_descriptor)
-                    else:
-                        os.unlink(selected, dir_fd=directory_descriptor)
+                        else:
+                            final_entry = os.stat(
+                                selected,
+                                dir_fd=directory_descriptor,
+                                follow_symlinks=False,
+                            )
+                            if (
+                                int(final_entry.st_dev),
+                                int(final_entry.st_ino),
+                            ) != selected_identity:
+                                return _GATE_REMOVAL_UNSAFE
+                            os.unlink(selected, dir_fd=directory_descriptor)
+                    finally:
+                        if child_descriptor is not None:
+                            os.close(child_descriptor)
+                        if path_descriptor is not None:
+                            os.close(path_descriptor)
                     continue
 
                 if not frames:
                     break
                 leaf_name, leaf_identity, parent_identity = frames.pop()
                 if directory_identity != leaf_identity:
-                    return False
+                    return _GATE_REMOVAL_UNSAFE
                 parent_of_leaf = os.open(
                     "..",
                     os.O_RDONLY
@@ -1058,7 +1144,7 @@ class BranchQualityGate:
                         int(parent_metadata.st_dev),
                         int(parent_metadata.st_ino),
                     ) != parent_identity:
-                        return False
+                        return _GATE_REMOVAL_UNSAFE
                     final_leaf = os.stat(
                         leaf_name,
                         dir_fd=parent_of_leaf,
@@ -1068,7 +1154,7 @@ class BranchQualityGate:
                         int(final_leaf.st_dev),
                         int(final_leaf.st_ino),
                     ) != leaf_identity:
-                        return False
+                        return _GATE_REMOVAL_UNSAFE
                     os.rmdir(leaf_name, dir_fd=parent_of_leaf)
                     os.close(directory_descriptor)
                     directory_descriptor = parent_of_leaf
@@ -1083,14 +1169,14 @@ class BranchQualityGate:
                 follow_symlinks=False,
             )
             if (int(final_root.st_dev), int(final_root.st_ino)) != expected_identity:
-                return False
+                return _GATE_REMOVAL_UNSAFE
             os.rmdir(name, dir_fd=parent_descriptor)
         except OSError:
-            return False
+            return _GATE_REMOVAL_UNSAFE
         finally:
             if directory_descriptor is not None:
                 os.close(directory_descriptor)
-        return True
+        return _GATE_REMOVAL_REMOVED
 
     @classmethod
     def _register_gate_root(cls, root: Path) -> tuple[int, int]:
@@ -1104,6 +1190,133 @@ class BranchQualityGate:
     def _forget_gate_root(cls, root: Path) -> None:
         with cls._processes_lock:
             cls._active_gate_root_identities.pop(str(root), None)
+
+    @classmethod
+    def _deferred_gate_cleanup_slice(
+        cls,
+        quarantine: Path,
+        expected_identity: tuple[int, int],
+    ) -> str:
+        """Run one bounded removal slice for an already-authorized quarantine."""
+        parent_descriptor: int | None = None
+        root_descriptor: int | None = None
+        try:
+            parent_descriptor = os.open(
+                quarantine.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            root_descriptor = os.open(
+                quarantine.name,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_descriptor,
+            )
+            metadata = os.fstat(root_descriptor)
+            if (int(metadata.st_dev), int(metadata.st_ino)) != expected_identity:
+                return _GATE_REMOVAL_UNSAFE
+            return cls._remove_gate_tree_at(
+                parent_descriptor,
+                quarantine.name,
+                expected_identity,
+                root_descriptor,
+            )
+        except OSError:
+            return _GATE_REMOVAL_UNSAFE
+        finally:
+            if root_descriptor is not None:
+                os.close(root_descriptor)
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+
+    @classmethod
+    def _run_deferred_gate_cleanups(cls) -> None:
+        """Serially drain bounded cleanup slices outside the gate result path."""
+        while True:
+            with cls._processes_lock:
+                if not cls._deferred_gate_cleanups:
+                    cls._deferred_gate_cleanup_thread = None
+                    return
+                key, (root, quarantine, identity) = next(
+                    iter(cls._deferred_gate_cleanups.items())
+                )
+            try:
+                result = cls._deferred_gate_cleanup_slice(quarantine, identity)
+            except Exception:  # noqa: BLE001 - a dead reaper must fail closed
+                logger.exception(
+                    "Deferred quality-gate cleanup crashed for %s",
+                    quarantine,
+                )
+                result = _GATE_REMOVAL_UNSAFE
+            if result == _GATE_REMOVAL_REMOVED:
+                cls._unlink_gate_root_owner(root)
+            with cls._processes_lock:
+                current = cls._deferred_gate_cleanups.get(key)
+                if current != (root, quarantine, identity):
+                    continue
+                if result == _GATE_REMOVAL_INCOMPLETE:
+                    # Reinsert at the tail so multiple abandoned roots make
+                    # fair progress through the single bounded reaper.
+                    cls._deferred_gate_cleanups.pop(key, None)
+                    cls._deferred_gate_cleanups[key] = (
+                        root,
+                        quarantine,
+                        identity,
+                    )
+                else:
+                    cls._deferred_gate_cleanups.pop(key, None)
+                    cls._active_gate_root_identities.pop(str(quarantine), None)
+            if result == _GATE_REMOVAL_INCOMPLETE:
+                time.sleep(0.01)
+            elif result == _GATE_REMOVAL_UNSAFE:
+                logger.warning(
+                    "Deferred quality-gate cleanup stopped at an unsafe boundary: %s",
+                    quarantine,
+                )
+
+    @classmethod
+    def _schedule_deferred_gate_cleanup(
+        cls,
+        root: Path,
+        quarantine: Path,
+        expected_identity: tuple[int, int],
+    ) -> bool:
+        """Queue one exact root for serial, bounded, convergent cleanup."""
+        key = f"{quarantine}:{expected_identity[0]}:{expected_identity[1]}"
+        thread: threading.Thread | None = None
+        with cls._processes_lock:
+            if (
+                key not in cls._deferred_gate_cleanups
+                and len(cls._deferred_gate_cleanups)
+                >= _GATE_DEFERRED_CLEANUP_LIMIT
+            ):
+                return False
+            cls._deferred_gate_cleanups[key] = (
+                root,
+                quarantine,
+                expected_identity,
+            )
+            cls._active_gate_root_identities[str(quarantine)] = expected_identity
+            if cls._deferred_gate_cleanup_thread is None:
+                thread = threading.Thread(
+                    target=cls._run_deferred_gate_cleanups,
+                    name="quality-gate-cleanup-reaper",
+                    daemon=True,
+                )
+                cls._deferred_gate_cleanup_thread = thread
+        if thread is not None:
+            try:
+                thread.start()
+            except RuntimeError:
+                with cls._processes_lock:
+                    if cls._deferred_gate_cleanup_thread is thread:
+                        cls._deferred_gate_cleanup_thread = None
+                    cls._deferred_gate_cleanups.pop(key, None)
+                    cls._active_gate_root_identities.pop(str(quarantine), None)
+                return False
+        return True
 
     @classmethod
     def _write_gate_root_owner(cls, root: Path) -> None:
@@ -1186,7 +1399,12 @@ class BranchQualityGate:
                     or owner_metadata.st_uid != os.getuid()
                     or owner_metadata.st_size > 4096
                 ):
-                    raise ValueError("invalid gate-root owner metadata")
+                    return (
+                        identity
+                        if now - owner_metadata.st_mtime
+                        >= _GATE_ROOT_MAX_AGE_SECONDS
+                        else None
+                    )
                 payload = os.read(owner_descriptor, 4097)
             finally:
                 os.close(owner_descriptor)
@@ -1198,14 +1416,17 @@ class BranchQualityGate:
                     int(owner["root_device"]),
                     int(owner["root_inode"]),
                 )
-                if owner_identity != identity:
-                    raise ValueError("gate-root owner identity mismatch")
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                 return (
                     identity
                     if now - owner_metadata.st_mtime >= _GATE_ROOT_MAX_AGE_SECONDS
                     else None
                 )
+            if owner_identity != identity:
+                # A structurally valid sidecar is an inode capability, not
+                # generic permission to delete whatever later occupies its
+                # generated-looking path.
+                return None
             process_state, actual_ticks = cls._gate_process_identity(pid)
             if process_state == "unknown":
                 return None
@@ -1287,12 +1508,24 @@ class BranchQualityGate:
                         dst_dir_fd=parent_descriptor,
                     )
                 return False
-            if not cls._remove_gate_tree_at(
+            removal = cls._remove_gate_tree_at(
                 parent_descriptor,
                 quarantine_name,
                 expected_identity,
                 root_descriptor,
-            ):
+            )
+            if removal != _GATE_REMOVAL_REMOVED:
+                if (
+                    removal == _GATE_REMOVAL_INCOMPLETE
+                    and cls._schedule_deferred_gate_cleanup(
+                        root,
+                        root.parent / quarantine_name,
+                        expected_identity,
+                    )
+                ):
+                    if allow_active_owner:
+                        cls._forget_gate_root(root)
+                    return False
                 try:
                     current_quarantine = os.stat(
                         quarantine_name,
@@ -1420,8 +1653,6 @@ class BranchQualityGate:
                 )
                 pid = int(owner["pid"])
                 expected_ticks = int(owner["process_start_ticks"])
-                if owner_identity != identity:
-                    raise ValueError("gate-root owner identity mismatch")
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                 return (
                     (root_name, identity)
@@ -1429,6 +1660,10 @@ class BranchQualityGate:
                     >= _GATE_ROOT_MAX_AGE_SECONDS
                     else None
                 )
+            if owner_identity != identity:
+                # Preserve a replacement at the quarantine name.  A valid
+                # sidecar authorizes only its recorded inode, even after age.
+                return None
             process_state, actual_ticks = cls._gate_process_identity(
                 pid
             )
@@ -1515,12 +1750,22 @@ class BranchQualityGate:
                 except OSError:
                     pass
                 return False
-            if not cls._remove_gate_tree_at(
+            removal = cls._remove_gate_tree_at(
                 parent_descriptor,
                 claimed_name,
                 expected_identity,
                 quarantine_descriptor,
-            ):
+            )
+            if removal != _GATE_REMOVAL_REMOVED:
+                if (
+                    removal == _GATE_REMOVAL_INCOMPLETE
+                    and cls._schedule_deferred_gate_cleanup(
+                        root,
+                        quarantine.parent / claimed_name,
+                        expected_identity,
+                    )
+                ):
+                    return False
                 try:
                     current_claimed = os.stat(
                         claimed_name,
