@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-921
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Stop direct-owner terminal overrides from self-invalidating evidence
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T16:33:49.292212Z'
-updated_at: '2026-08-08T16:34:07.588364Z'
+updated_at: '2026-08-08T16:34:13.884391Z'
 work_branch: null
 target_branch: null
 review_url: null
