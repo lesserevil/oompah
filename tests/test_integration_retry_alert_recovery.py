@@ -19,6 +19,7 @@ from oompah.integration_queue import IntegrationQueueItem
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.integration_executor import IntegrationExecutionResult
+from oompah.quality_gate import QualityGateResult
 from tests.test_epic_strategy import _make_orch, _make_project_record
 
 
@@ -526,6 +527,80 @@ def test_route_integration_failure_marks_retryable_as_info(tmp_path):
     assert alert["recovery_state"] == "scheduled_retry"
     assert alert["action_required"] is False
     assert alert["level"] == "info"
+
+
+def test_route_gate_infrastructure_termination_retries_without_ci_fix(tmp_path):
+    """Signal-only gate termination preserves flow and truthful diagnostics."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orch = _make_orch(tmp_path, projects=[project])
+    orch.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id="TASK-1",
+        task_branch="epic-EPIC-1--task-TASK-1",
+        head_sha="a" * 40,
+        priority=1,
+    )
+    claimed = orch.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        lease_owner="lease-1",
+        dependency_map={"TASK-1": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Task",
+        state="Ready to Integrate",
+    )
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+
+    orch._route_integration_failure(
+        claimed,
+        IntegrationExecutionResult(
+            status="infrastructure_error",
+            message=(
+                "Combined-tree quality-gate runner terminated by SIGTERM "
+                "(return code -15); not a candidate CI failure."
+            ),
+            expected_epic_sha="b" * 40,
+            rebased_task_sha="c" * 40,
+            quality=QualityGateResult(
+                status="infrastructure_error",
+                head_sha="c" * 40,
+                command="make test",
+                return_code=-15,
+                terminating_signal=15,
+                interrupted=True,
+                interruption_source="external_signal",
+            ),
+        ),
+    )
+
+    refreshed = orch.integration_queue.get(project.id, "TASK-1")
+    assert refreshed is not None
+    assert refreshed.state == "ready"
+    assert refreshed.head_sha == "c" * 40
+    assert refreshed.next_retry_at is not None
+    metadata = tracker.set_metadata_field.call_args.args[2]
+    assert metadata["state"] == "ready"
+    assert metadata["gate_outcome"] == "infrastructure_retryable"
+    tracker.update_issue.assert_not_called()
+    assert all("ci-fix" not in str(call) for call in tracker.method_calls)
+    alert = next(
+        row
+        for row in orch._alerts
+        if row["source"] == f"integration_retry:{project.id}:TASK-1"
+    )
+    assert alert["recovery_state"] == "scheduled_retry"
+    assert alert["action_required"] is False
+    assert alert["level"] == "info"
+    assert alert["gate_outcome"] == "infrastructure_retryable"
+    assert "infrastructure" in alert["summary"].lower()
 
 
 def test_get_snapshot_publishes_reconciled_alerts(tmp_path):

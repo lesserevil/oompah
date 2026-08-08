@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -1132,6 +1133,140 @@ def test_failure_and_timeout_do_not_create_passing_evidence(tmp_path):
     assert not timed_out.passed
 
 
+def test_completed_failure_caches_positive_exit_with_exact_owner(tmp_path):
+    """A command exit remains candidate failure evidence across restart."""
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    state = tmp_path / "quality.json"
+    owner = QualityGateOwner("project-1", "task-1", head, "generation-1")
+
+    failed = _run(
+        _gate(state, repo),
+        repo,
+        "exit 1",
+        expected_head_sha=head,
+        owner=owner,
+    )
+    cached = _run(
+        _gate(state, repo),
+        repo,
+        "exit 1",
+        expected_head_sha=head,
+        owner=owner,
+    )
+
+    assert failed.status == "failed"
+    assert failed.return_code == 1
+    assert failed.terminating_signal is None
+    assert failed.interrupted is False
+    assert failed.interruption_source == "process_exit"
+    assert failed.owner == owner.to_dict()
+    assert failed.authority_generation == owner.authority_generation
+    assert cached.status == "failed"
+    assert cached.cached is True
+    assert cached.return_code == 1
+    assert cached.owner == owner.to_dict()
+
+
+@pytest.mark.parametrize(
+    ("signal_number", "signal_name"),
+    [(signal.SIGTERM, "TERM"), (signal.SIGKILL, "KILL")],
+)
+def test_signal_terminated_gate_is_retryable_infrastructure_evidence(
+    tmp_path,
+    signal_number,
+    signal_name,
+):
+    """Signal-only exits persist diagnostics but never poison an exact retry."""
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    state = tmp_path / "quality.json"
+    trigger = tmp_path / f"signal-{signal_name.lower()}"
+    trigger.write_text("terminate once\n", encoding="utf-8")
+    command = (
+        f"if test -f {shlex.quote(str(trigger))}; then "
+        f"rm -f {shlex.quote(str(trigger))}; kill -{signal_name} $$; fi"
+    )
+    first_owner = QualityGateOwner("project-1", "task-1", head, "generation-1")
+
+    terminated = _run(
+        _gate(state, repo),
+        repo,
+        command,
+        expected_head_sha=head,
+        owner=first_owner,
+    )
+    persisted = _gate(state, repo).lookup(
+        repo_identity="https://example.test/org/repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        command=command,
+    )
+
+    assert terminated.status == "infrastructure_error"
+    assert terminated.return_code == -int(signal_number)
+    assert terminated.terminating_signal == int(signal_number)
+    assert terminated.interrupted is True
+    assert terminated.interruption_source == "external_signal"
+    assert terminated.owner == first_owner.to_dict()
+    assert persisted is not None
+    assert persisted.cached is True
+    assert persisted.return_code == -int(signal_number)
+    assert persisted.terminating_signal == int(signal_number)
+
+    # Infrastructure evidence is observable but never reusable.  A normal
+    # scheduler pass (without retry_forced) must execute the same exact key.
+    replacement_owner = QualityGateOwner(
+        "project-1",
+        "task-1",
+        head,
+        "generation-2",
+    )
+    recovered = _run(
+        _gate(state, repo),
+        repo,
+        command,
+        expected_head_sha=head,
+        owner=replacement_owner,
+    )
+
+    assert recovered.status == "passed"
+    assert recovered.cached is False
+    assert recovered.return_code == 0
+    assert recovered.owner == replacement_owner.to_dict()
+
+
+def test_legacy_failed_cache_without_exit_evidence_is_rerun_safely(tmp_path):
+    """Restart does not trust an old ambiguous failure as product CI proof."""
+
+    repo = _git_repo(tmp_path)
+    state = tmp_path / "quality.json"
+    gate = _gate(state, repo)
+    command = "exit 1"
+    assert _run(gate, repo, command).status == "failed"
+    persisted = json.loads(state.read_text(encoding="utf-8"))
+    entry = next(iter(persisted["results"].values()))
+    for field_name in (
+        "return_code",
+        "terminating_signal",
+        "interrupted",
+        "interruption_source",
+        "owner",
+        "authority_generation",
+    ):
+        entry.pop(field_name, None)
+    state.write_text(json.dumps(persisted), encoding="utf-8")
+
+    restarted = _run(_gate(state, repo), repo, command)
+
+    assert restarted.status == "failed"
+    assert restarted.cached is False
+    assert restarted.return_code == 1
+
+
 def test_concurrent_readiness_checks_execute_once(tmp_path):
     repo = _git_repo(tmp_path)
     counter = tmp_path / "counter"
@@ -1365,6 +1500,13 @@ def test_durable_lease_cancellation_is_interrupted_not_a_test_failure(tmp_path):
         assert result.cancellation is not None
         assert result.cancellation["cancelled_by"] == "operator:alice"
         assert result.cancellation["reason"] == "critical-path preemption"
+        assert result.return_code is not None and result.return_code < 0
+        assert result.terminating_signal in {signal.SIGTERM, signal.SIGKILL}
+        assert result.terminating_signal == -result.return_code
+        assert result.interrupted is True
+        assert result.interruption_source == "validation_lease_cancellation"
+        assert result.owner == owner.to_dict()
+        assert result.authority_generation == owner.authority_generation
 
         replacement = _run(
             gate,
@@ -1475,6 +1617,56 @@ def test_quality_gate_state_reports_retryable_interrupt_and_clears_on_pass():
     )
     assert orch._quality_gate_state_snapshot()["status"] == "idle"
     assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
+def test_standalone_signal_termination_is_truthful_and_never_needs_ci_fix():
+    """Operator output distinguishes runner termination from test failure."""
+
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id="project-1",
+        state=READY_TO_INTEGRATE,
+    )
+    tracker = MagicMock()
+    orch = Orchestrator.__new__(Orchestrator)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authorities = {}
+    result = QualityGateResult(
+        status="infrastructure_error",
+        head_sha="a" * 40,
+        command="make test",
+        return_code=-signal.SIGTERM,
+        terminating_signal=signal.SIGTERM,
+        interrupted=True,
+        interruption_source="external_signal",
+    )
+
+    orch._record_quality_gate_failure(
+        issue,
+        "project-1",
+        "work",
+        "main",
+        result,
+    )
+
+    tracker.update_issue.assert_not_called()
+    comment = tracker.add_comment.call_args.args[1]
+    assert "terminated by SIGTERM (return code -15)" in comment
+    assert "retryable infrastructure evidence" in comment
+    assert "not a product CI failure" in comment
+
+    orch._quality_gate_outcomes_lock = threading.Lock()
+    orch._quality_gate_outcomes = {}
+    orch._remember_quality_gate_result("project-1", "task-1", result)
+    snapshot = orch._quality_gate_state_snapshot()
+    assert snapshot["status"] == "interrupted_for_retry"
+    assert snapshot["recent"][0]["return_code"] == -signal.SIGTERM
+    facts = orch._quality_gate_dashboard_alerts(snapshot)
+    assert facts[0]["action_required"] is False
+    assert facts[0]["recovery_state"] == "scheduled_retry"
+    assert "without a candidate-test verdict" in facts[0]["detail"]
 
 
 def test_quality_gate_outcomes_are_bounded_and_head_aware():
@@ -5713,6 +5905,10 @@ def test_quality_gate_cleans_up_on_timeout(tmp_path):
     result = _run(gate, repo, "sleep 10")
 
     assert result.status == "timed_out"
+    assert result.return_code == -signal.SIGKILL
+    assert result.terminating_signal == signal.SIGKILL
+    assert result.interrupted is False
+    assert result.interruption_source == "timeout"
     with BranchQualityGate._processes_lock:
         assert BranchQualityGate._active_processes == {}
 

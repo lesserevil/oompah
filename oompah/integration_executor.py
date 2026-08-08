@@ -49,6 +49,7 @@ class IntegrationExecutionResult:
             "epic_merge_failure": "epic merge",
             "task_push_race": "task branch compare-and-swap",
             "ci_failure": "combined-tree quality gate",
+            "infrastructure_error": "combined-tree quality-gate runner",
             "needs_rebase": "combined-tree quality gate",
             "interrupted": "combined-tree quality gate",
         }.get(self.status, "integration preparation")
@@ -938,6 +939,20 @@ def execute_integration(
                     "Combined-tree quality gate was refused because the task "
                     "branch does not contain the deployed lifecycle safety "
                     f"contract: {quality.output_tail[-4000:]}"
+                ),
+                expected_epic_sha=expected_epic_sha,
+                rebased_task_sha=rebased_sha,
+                quality=quality,
+            )
+        if quality.status in {"infrastructure_error", "error"}:
+            detail = quality.output_tail[-4000:].strip()
+            return IntegrationExecutionResult(
+                status="infrastructure_error",
+                message=(
+                    "Combined-tree quality-gate runner "
+                    f"{quality.exit_description}; this is infrastructure "
+                    "termination, not a candidate CI failure."
+                    + (f" Output tail: {detail}" if detail else "")
                 ),
                 expected_epic_sha=expected_epic_sha,
                 rebased_task_sha=rebased_sha,

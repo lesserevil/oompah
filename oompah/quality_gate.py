@@ -427,10 +427,33 @@ class QualityGateResult:
     cached: bool = False
     recorded_at: float | None = None
     cancellation: dict[str, str] | None = None
+    return_code: int | None = None
+    terminating_signal: int | None = None
+    interrupted: bool = False
+    interruption_source: str | None = None
+    owner: dict[str, str] | None = None
+    authority_generation: str | None = None
 
     @property
     def passed(self) -> bool:
         return self.status in {"passed", "not_configured"}
+
+    @property
+    def exit_description(self) -> str:
+        """Return a concise truthful description of process termination."""
+
+        if self.terminating_signal is not None:
+            try:
+                signal_name = signal.Signals(self.terminating_signal).name
+            except ValueError:
+                signal_name = f"signal {self.terminating_signal}"
+            return (
+                f"terminated by {signal_name} "
+                f"(return code {self.return_code})"
+            )
+        if self.return_code is not None:
+            return f"exited with return code {self.return_code}"
+        return "ended without subprocess exit evidence"
 
 
 @dataclass(frozen=True)
@@ -472,7 +495,7 @@ class QualityGateOwner:
 
     @property
     def complete(self) -> bool:
-        return all(
+        values = tuple(
             str(value or "").strip()
             for value in (
                 self.project_id,
@@ -481,6 +504,7 @@ class QualityGateOwner:
                 self.authority_generation,
             )
         )
+        return all(values) and all(len(value) <= 512 for value in values)
 
     @property
     def key(self) -> str:
@@ -645,6 +669,17 @@ class BranchQualityGate:
                 # The run thread uses this marker to return a non-cached
                 # interruption instead of recording a false CI failure.
                 setattr(process, "_oompah_interrupted", True)
+                setattr(
+                    process,
+                    "_oompah_interruption_source",
+                    (
+                        "owner_cancellation"
+                        if owner is not None
+                        else "generation_cancellation"
+                        if generation is not None
+                        else "service_shutdown"
+                    ),
+                )
             # Record a durable tombstone so that gates currently between
             # pre-spawn barrier checks (snapshot creation, Popen-to-
             # registration window) also stop on their next check.
@@ -4083,8 +4118,21 @@ class BranchQualityGate:
         for raw in entries.values():
             if not isinstance(raw, dict):
                 continue
-            if str(raw.get("status") or "") not in {"passed", "failed"}:
+            status = str(raw.get("status") or "")
+            if status not in {"passed", "failed"}:
                 continue
+            # Legacy failed rows did not preserve the raw subprocess exit.
+            # Some of those rows may therefore be externally-terminated gates
+            # misclassified as candidate failures.  Do not use them as proof
+            # that the command completed or as runtime high-water evidence.
+            if status == "failed":
+                return_code = raw.get("return_code")
+                if (
+                    isinstance(return_code, bool)
+                    or not isinstance(return_code, int)
+                    or return_code <= 0
+                ):
+                    continue
             repo_identity = str(raw.get("repo_identity") or "").strip()
             command = str(raw.get("command") or "").strip()
             seconds = cls._completed_duration_seconds(raw.get("duration_seconds"))
@@ -4290,7 +4338,12 @@ class BranchQualityGate:
                 )[:500]
                 entries.clear()
                 entries.update(newest)
-            if result.status in {"passed", "failed"}:
+            completed_verdict = result.status == "passed" or (
+                result.status == "failed"
+                and result.return_code is not None
+                and result.return_code > 0
+            )
+            if completed_verdict:
                 seconds = self._completed_duration_seconds(result.duration_seconds)
                 if seconds is not None:
                     duration_key = (repo_identity.strip(), result.command.strip())
@@ -4357,6 +4410,89 @@ class BranchQualityGate:
             duration = 0.0
         if not math.isfinite(duration) or duration < 0:
             duration = 0.0
+
+        raw_return_code = entry.get("return_code")
+        return_code = (
+            raw_return_code
+            if isinstance(raw_return_code, int)
+            and not isinstance(raw_return_code, bool)
+            else None
+        )
+        raw_terminating_signal = entry.get("terminating_signal")
+        terminating_signal = (
+            raw_terminating_signal
+            if isinstance(raw_terminating_signal, int)
+            and not isinstance(raw_terminating_signal, bool)
+            and raw_terminating_signal > 0
+            else None
+        )
+        if return_code is not None and return_code < 0:
+            expected_signal = -return_code
+            if terminating_signal not in {None, expected_signal}:
+                return None
+            terminating_signal = expected_signal
+        elif terminating_signal is not None:
+            # A signal is only meaningful for Python's negative subprocess
+            # return-code convention.  Reject inconsistent evidence rather
+            # than presenting fabricated termination provenance.
+            return None
+
+        raw_owner = entry.get("owner")
+        evidence_owner: dict[str, str] | None = None
+        if isinstance(raw_owner, dict):
+            expected_owner_fields = {
+                "project_id",
+                "task_id",
+                "head_sha",
+                "authority_generation",
+            }
+            if expected_owner_fields.issubset(raw_owner):
+                decoded_owner = {
+                    field_name: str(raw_owner.get(field_name) or "")
+                    for field_name in expected_owner_fields
+                }
+                if all(decoded_owner.values()) and all(
+                    len(value) <= 512 for value in decoded_owner.values()
+                ):
+                    evidence_owner = decoded_owner
+        raw_generation = entry.get("authority_generation")
+        authority_generation = (
+            str(raw_generation)
+            if (
+                isinstance(raw_generation, str)
+                and raw_generation
+                and len(raw_generation) <= 512
+            )
+            else None
+        )
+        if evidence_owner is not None:
+            if evidence_owner["head_sha"].strip().lower() != head_sha.lower():
+                return None
+            owner_generation = evidence_owner["authority_generation"]
+            if (
+                authority_generation is not None
+                and authority_generation != owner_generation
+            ):
+                return None
+            authority_generation = owner_generation
+        raw_interrupted = entry.get("interrupted", False)
+        interrupted = raw_interrupted if isinstance(raw_interrupted, bool) else False
+        raw_interruption_source = entry.get("interruption_source")
+        interruption_source = (
+            str(raw_interruption_source)
+            if isinstance(raw_interruption_source, str) and raw_interruption_source
+            else None
+        )
+        raw_cancellation = entry.get("cancellation")
+        cancellation = (
+            {
+                str(key): str(value)
+                for key, value in raw_cancellation.items()
+                if isinstance(key, str) and isinstance(value, str)
+            }
+            if isinstance(raw_cancellation, dict)
+            else None
+        )
         return QualityGateResult(
             status=status,
             head_sha=head_sha,
@@ -4365,6 +4501,13 @@ class BranchQualityGate:
             output_tail=str(entry.get("output_tail", "") or ""),
             cached=True,
             recorded_at=recorded_at,
+            cancellation=cancellation,
+            return_code=return_code,
+            terminating_signal=terminating_signal,
+            interrupted=interrupted,
+            interruption_source=interruption_source,
+            owner=evidence_owner,
+            authority_generation=authority_generation,
         )
 
     def record_compatible_auditor_pass(
@@ -4531,8 +4674,9 @@ class BranchQualityGate:
     ) -> QualityGateResult:
         """Return passing evidence or execute the configured full check.
 
-        When retry_forced=True, bypasses cache for failed/timed_out/error
-        results and re-executes. Passed results remain cached and reusable.
+        When retry_forced=True, bypasses cached candidate failures and
+        timeouts. Runner/infrastructure outcomes are always re-executed;
+        passed results remain cached and reusable.
 
         ``owner`` binds cancellation to the exact project/task/head and
         authority generation.  ``generation`` remains a compatibility path
@@ -4559,6 +4703,13 @@ class BranchQualityGate:
             )
 
         owned_generation = str(generation) if generation is not None else None
+        if owned_generation is not None and len(owned_generation) > 512:
+            return QualityGateResult(
+                status="infrastructure_error",
+                head_sha="",
+                command=command,
+                output_tail="Quality gate authority generation is too large.",
+            )
         owned_owner = owner if owner is not None and owner.complete else None
         if owner is not None and owned_owner is None:
             logger.warning(
@@ -4586,6 +4737,53 @@ class BranchQualityGate:
                 self._release_owner(owned_owner)
             elif owned_generation is not None:
                 self._release_generation(owned_generation)
+
+        def _owned_result(
+            *,
+            status: str,
+            head_sha: str,
+            duration_seconds: float = 0.0,
+            output_tail: str = "",
+            cancellation: dict[str, str] | None = None,
+            return_code: int | None = None,
+            interrupted: bool = False,
+            interruption_source: str | None = None,
+        ) -> QualityGateResult:
+            """Build one result with bounded, exact attempt provenance."""
+
+            normalized_return_code = (
+                return_code
+                if isinstance(return_code, int)
+                and not isinstance(return_code, bool)
+                else None
+            )
+            return QualityGateResult(
+                status=status,
+                head_sha=head_sha,
+                command=command,
+                duration_seconds=duration_seconds,
+                output_tail=str(output_tail or "")[-self.output_tail_bytes :],
+                cancellation=cancellation,
+                return_code=normalized_return_code,
+                terminating_signal=(
+                    -normalized_return_code
+                    if normalized_return_code is not None
+                    and normalized_return_code < 0
+                    else None
+                ),
+                interrupted=bool(interrupted),
+                interruption_source=(
+                    str(interruption_source)[:128]
+                    if interruption_source
+                    else None
+                ),
+                owner=(owned_owner.to_dict() if owned_owner is not None else None),
+                authority_generation=(
+                    str(owned_generation)
+                    if owned_generation is not None
+                    else None
+                ),
+            )
 
         # Serialize only identical evidence keys. Different exact heads must
         # be able to run concurrently so a replacement generation never waits
@@ -4691,6 +4889,28 @@ class BranchQualityGate:
             )
             if cached_result is None:
                 return loaded, None
+            # Runner/infrastructure termination is diagnostic evidence, not a
+            # reusable verdict about candidate code.  Legacy failed rows also
+            # lack enough exit evidence to prove that the command completed,
+            # so rerun them once under the structured schema.
+            if cached_result.status in {
+                "infrastructure_error",
+                "error",
+                "interrupted",
+            } or (
+                cached_result.status == "failed"
+                and (
+                    cached_result.return_code is None
+                    or cached_result.return_code <= 0
+                )
+            ) or (
+                cached_result.status == "timed_out"
+                and (
+                    cached_result.return_code is None
+                    or cached_result.interruption_source != "timeout"
+                )
+            ):
+                return loaded, None
             if retry_forced and cached_result.status in {
                 "failed",
                 "timed_out",
@@ -4771,12 +4991,13 @@ class BranchQualityGate:
             except ValidationLeaseCancelled as exc:
                 cancellation = _lease_cancellation()
                 _release_owned_generation()
-                return QualityGateResult(
+                return _owned_result(
                     status="interrupted",
                     head_sha=head_sha,
-                    command=command,
                     output_tail=str(exc),
                     cancellation=cancellation,
+                    interrupted=True,
+                    interruption_source="validation_lease_cancellation",
                 )
             except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
                 _release_owned_generation()
@@ -4819,12 +5040,17 @@ class BranchQualityGate:
                     owned_generation,
                     owner_key,
                 ):
-                    return QualityGateResult(
+                    return _owned_result(
                         status="interrupted",
                         head_sha=head_sha,
-                        command=command,
                         duration_seconds=time.monotonic() - started,
                         output_tail="Gate cancelled before snapshot creation.",
+                        interrupted=True,
+                        interruption_source=(
+                            "owner_cancellation"
+                            if owned_owner is not None
+                            else "generation_cancellation"
+                        ),
                     )
                 if is_current is not None:
                     try:
@@ -4835,12 +5061,13 @@ class BranchQualityGate:
                             "Quality gate pre-spawn authority check failed: %s", exc
                         )
                     if not authority_ok:
-                        return QualityGateResult(
+                        return _owned_result(
                             status="interrupted",
                             head_sha=head_sha,
-                            command=command,
                             duration_seconds=time.monotonic() - started,
                             output_tail="Gate authority withdrawn before snapshot creation.",
+                            interrupted=True,
+                            interruption_source="authority_withdrawn",
                         )
 
                 try:
@@ -4865,12 +5092,17 @@ class BranchQualityGate:
                     owned_generation,
                     owner_key,
                 ):
-                    return QualityGateResult(
+                    return _owned_result(
                         status="interrupted",
                         head_sha=head_sha,
-                        command=command,
                         duration_seconds=time.monotonic() - started,
                         output_tail="Gate cancelled after snapshot creation, before spawn.",
+                        interrupted=True,
+                        interruption_source=(
+                            "owner_cancellation"
+                            if owned_owner is not None
+                            else "generation_cancellation"
+                        ),
                     )
                 if is_current is not None:
                     try:
@@ -4881,12 +5113,13 @@ class BranchQualityGate:
                             "Quality gate pre-spawn authority check failed: %s", exc
                         )
                     if not authority_ok:
-                        return QualityGateResult(
+                        return _owned_result(
                             status="interrupted",
                             head_sha=head_sha,
-                            command=command,
                             duration_seconds=time.monotonic() - started,
                             output_tail="Gate authority withdrawn after snapshot, before spawn.",
+                            interrupted=True,
+                            interruption_source="authority_withdrawn",
                         )
 
                 try:
@@ -4979,6 +5212,15 @@ class BranchQualityGate:
                     )
                     if post_spawn_cancelled:
                         setattr(process, "_oompah_interrupted", True)
+                        setattr(
+                            process,
+                            "_oompah_interruption_source",
+                            (
+                                "owner_cancellation"
+                                if owned_owner is not None
+                                else "generation_cancellation"
+                            ),
+                        )
 
                 if post_spawn_cancelled:
                     # Kill the just-spawned process; the normal flow will
@@ -5027,22 +5269,73 @@ class BranchQualityGate:
                     self._active_processes.pop(process.pid, None)
                 cancellation = _lease_cancellation()
                 interrupted = interrupted or cancellation is not None
+                return_code = process.returncode
                 if interrupted:
-                    return QualityGateResult(
+                    return _owned_result(
                         status="interrupted",
                         head_sha=head_sha,
-                        command=command,
                         duration_seconds=duration,
                         output_tail=output_tail,
                         cancellation=cancellation,
+                        return_code=return_code,
+                        interrupted=True,
+                        interruption_source=(
+                            "validation_lease_cancellation"
+                            if cancellation is not None
+                            else str(
+                                getattr(
+                                    process,
+                                    "_oompah_interruption_source",
+                                    "owner_cancellation",
+                                )
+                            )
+                        ),
                     )
-                if process.returncode != 0:
-                    result = QualityGateResult(
-                        status="failed",
+                if return_code is not None and return_code < 0:
+                    result = _owned_result(
+                        status="infrastructure_error",
                         head_sha=head_sha,
-                        command=command,
                         duration_seconds=duration,
                         output_tail=output_tail,
+                        return_code=return_code,
+                        interrupted=True,
+                        interruption_source="external_signal",
+                    )
+                    self._store_result(
+                        entries,
+                        key,
+                        result,
+                        repo_identity=repo_identity,
+                        target_branch=target_branch,
+                        work_branch=work_branch,
+                    )
+                    return result
+                if return_code is None:
+                    result = _owned_result(
+                        status="infrastructure_error",
+                        head_sha=head_sha,
+                        duration_seconds=duration,
+                        output_tail=output_tail,
+                        interrupted=True,
+                        interruption_source="missing_exit_status",
+                    )
+                    self._store_result(
+                        entries,
+                        key,
+                        result,
+                        repo_identity=repo_identity,
+                        target_branch=target_branch,
+                        work_branch=work_branch,
+                    )
+                    return result
+                if return_code != 0:
+                    result = _owned_result(
+                        status="failed",
+                        head_sha=head_sha,
+                        duration_seconds=duration,
+                        output_tail=output_tail,
+                        return_code=return_code,
+                        interruption_source="process_exit",
                     )
                     self._store_result(
                         entries,
@@ -5076,21 +5369,35 @@ class BranchQualityGate:
                     self._active_processes.pop(process.pid, None)
                 cancellation = _lease_cancellation()
                 interrupted = interrupted or cancellation is not None
+                return_code = process.returncode
                 if interrupted:
-                    return QualityGateResult(
+                    return _owned_result(
                         status="interrupted",
                         head_sha=head_sha,
-                        command=command,
                         duration_seconds=duration,
                         output_tail=combined[-self.output_tail_bytes :],
                         cancellation=cancellation,
+                        return_code=return_code,
+                        interrupted=True,
+                        interruption_source=(
+                            "validation_lease_cancellation"
+                            if cancellation is not None
+                            else str(
+                                getattr(
+                                    process,
+                                    "_oompah_interruption_source",
+                                    "owner_cancellation",
+                                )
+                            )
+                        ),
                     )
-                result = QualityGateResult(
+                result = _owned_result(
                     status="timed_out",
                     head_sha=head_sha,
-                    command=command,
                     duration_seconds=duration,
                     output_tail=combined[-self.output_tail_bytes :],
+                    return_code=return_code,
+                    interruption_source="timeout",
                 )
                 self._store_result(
                     entries,
@@ -5102,21 +5409,24 @@ class BranchQualityGate:
                 )
                 return result
             except ValidationLeaseCancelled as exc:
-                return QualityGateResult(
+                return _owned_result(
                     status="interrupted",
                     head_sha=head_sha,
-                    command=command,
                     duration_seconds=time.monotonic() - started,
                     output_tail=str(exc),
                     cancellation=_lease_cancellation(),
+                    return_code=(process.returncode if process is not None else None),
+                    interrupted=True,
+                    interruption_source="validation_lease_cancellation",
                 )
             except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
-                result = QualityGateResult(
+                result = _owned_result(
                     status="error",
                     head_sha=head_sha,
-                    command=command,
                     duration_seconds=time.monotonic() - started,
                     output_tail=str(exc),
+                    return_code=(process.returncode if process is not None else None),
+                    interruption_source="runner_error",
                 )
                 self._store_result(
                     entries,
@@ -5149,12 +5459,13 @@ class BranchQualityGate:
                 if run_root is not None:
                     self._cleanup_gate_run_root(run_root)
 
-            result = QualityGateResult(
+            result = _owned_result(
                 status="passed",
                 head_sha=head_sha,
-                command=command,
                 duration_seconds=duration,
                 output_tail=output_tail,
+                return_code=(process.returncode if process is not None else 0),
+                interruption_source="process_exit",
             )
             self._store_result(
                 entries,

@@ -578,6 +578,44 @@ def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
 
 
+def test_executor_routes_signal_terminated_gate_as_infrastructure(tmp_path):
+    """A signal-only gate exit is retryable and never reported as CI failure."""
+
+    remote, epic, task, task_head = _repo(tmp_path)
+
+    class TerminatedGate:
+        def run(self, **kwargs):
+            return QualityGateResult(
+                status="infrastructure_error",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+                return_code=-15,
+                terminating_signal=15,
+                interrupted=True,
+                interruption_source="external_signal",
+            )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=TerminatedGate(),
+        quality_command="make test",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "infrastructure_error"
+    assert result.rebased_task_sha
+    assert result.quality is not None
+    assert result.quality.terminating_signal == 15
+    assert "SIGTERM" in result.message
+    assert "not a candidate CI failure" in result.message
+    assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
+
+
 def test_claimed_explicit_retry_bypasses_cached_gate_failure(tmp_path):
     """OOMPAH-523: the queue claim must deliver its retry intent to the gate."""
 

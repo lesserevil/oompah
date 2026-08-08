@@ -22389,9 +22389,13 @@ class Orchestrator:
         gate_outcome = (
             "cancelled_retryable"
             if result.status == "interrupted"
-            else "ci_failure"
-            if result.status == "ci_failure"
-            else None
+            else (
+                "infrastructure_retryable"
+                if result.status == "infrastructure_error"
+                else "ci_failure"
+                if result.status == "ci_failure"
+                else None
+            )
         )
         gate_cancellation = (
             dict(result.quality.cancellation)
@@ -22426,12 +22430,23 @@ class Orchestrator:
                         "title": (
                             f"Integration cancelled for {item.task_id}"
                             if gate_outcome == "cancelled_retryable"
-                            else f"Integration failed for {item.task_id}"
+                            else (
+                                "Integration runner interrupted for "
+                                f"{item.task_id}"
+                                if gate_outcome == "infrastructure_retryable"
+                                else f"Integration failed for {item.task_id}"
+                            )
                         ),
                         "summary": (
                             "Integration was cancelled and will retry during "
                             f"{result.failing_step or 'an unknown step'}."
                             if gate_outcome == "cancelled_retryable"
+                            else (
+                                "Integration infrastructure ended unexpectedly "
+                                "and will retry during "
+                                f"{result.failing_step or 'an unknown step'}."
+                            )
+                            if gate_outcome == "infrastructure_retryable"
                             else (
                                 "Integration failed during "
                                 f"{result.failing_step or 'an unknown step'}."
@@ -22473,7 +22488,11 @@ class Orchestrator:
         # that this executor already pushed. A task-branch push race means a
         # worker or operator changed the private branch concurrently; require
         # a fresh explicit submission instead of guessing which head wins.
-        retry_candidate = result.status in {"epic_head_race", "interrupted"}
+        retry_candidate = result.status in {
+            "epic_head_race",
+            "interrupted",
+            "infrastructure_error",
+        }
         retry_budget = max(
             int(getattr(self.config, "integration_retry_max_attempts", 5)),
             1,
@@ -30512,8 +30531,14 @@ class Orchestrator:
                 f"Head: `{result.head_sha or 'unknown'}`",
                 f"Command: `{result.command or 'unavailable'}`",
                 f"Result: `{result.status}`",
+                f"Process: {result.exit_description}",
                 "",
             ]
+            if result.interruption_source:
+                lines.insert(
+                    -1,
+                    f"Termination source: `{result.interruption_source}`",
+                )
             if result.status == "needs_rebase":
                 lines.append(
                     "Required: rebase this branch onto the current deployed "
@@ -30523,19 +30548,26 @@ class Orchestrator:
                     "leave the task in Done; Oompah will rerun the gate for "
                     "the new head before creating the PR/MR."
                 )
-            elif result.status != "infrastructure_error":
+            elif result.status not in {"infrastructure_error", "error"}:
                 lines.append(
                     "Required: run the command in the task worktree, fix the "
                     "failure, commit and push the repair, then leave the task "
                     "in Done. Oompah will rerun the gate for the new head "
                     "before creating the PR/MR."
                 )
-            if result.status == "infrastructure_error":
-                lines.append(
-                    "Infrastructure action required: repair or replace the "
-                    "operator-owned quality-gate runtime. No candidate CI-fix "
-                    "status was applied because the candidate command did not run."
-                )
+            if result.status in {"infrastructure_error", "error"}:
+                if result.interrupted:
+                    lines.append(
+                        "The gate runner ended without a candidate-test verdict. "
+                        "This is retryable infrastructure evidence, not a product "
+                        "CI failure, so no candidate CI-fix status was applied."
+                    )
+                else:
+                    lines.append(
+                        "Infrastructure action required: repair or replace the "
+                        "operator-owned quality-gate runtime. No candidate CI-fix "
+                        "status was applied because the candidate command did not run."
+                    )
             if output:
                 lines.extend(["", "Output tail:", "```text", output, "```"])
             if post_comment:
@@ -30551,7 +30583,7 @@ class Orchestrator:
                         return
                 else:
                     comment()
-            if result.status == "infrastructure_error":
+            if result.status in {"infrastructure_error", "error"}:
                 return
             repair_status = (
                 NEEDS_REBASE if result.status == "needs_rebase" else NEEDS_CI_FIX
@@ -62207,21 +62239,40 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         if lock is not None:
             with lock:
                 for (project_id, task_id), result in stored.items():
-                    outcomes.append(
-                        {
-                            "project_id": project_id,
-                            "task_id": task_id,
-                            "status": result.status,
-                            "head_sha": result.head_sha,
-                            "command": result.command,
-                            "cached": result.cached,
-                            "cancellation": result.cancellation,
-                        }
-                    )
+                    outcome = {
+                        "project_id": project_id,
+                        "task_id": task_id,
+                        "status": result.status,
+                        "head_sha": result.head_sha,
+                        "command": result.command,
+                        "cached": result.cached,
+                        "cancellation": result.cancellation,
+                    }
+                    termination = {
+                        "return_code": result.return_code,
+                        "terminating_signal": result.terminating_signal,
+                        "interrupted": result.interrupted,
+                        "interruption_source": result.interruption_source,
+                        "owner": result.owner,
+                        "authority_generation": result.authority_generation,
+                    }
+                    if any(
+                        value is not None and value is not False
+                        for value in termination.values()
+                    ):
+                        outcome.update(termination)
+                    outcomes.append(outcome)
         outcomes.sort(key=lambda row: (row["project_id"], row["task_id"]))
         if active:
             status = "running"
-        elif any(row["status"] == "interrupted" for row in outcomes):
+        elif any(
+            row["status"] == "interrupted"
+            or (
+                row["status"] in {"infrastructure_error", "error"}
+                and bool(row.get("interrupted"))
+            )
+            for row in outcomes
+        ):
             status = "interrupted_for_retry"
         elif any(
             row["status"]
@@ -62283,7 +62334,21 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             head_sha = str(outcome.get("head_sha") or "unknown")
             result = str(outcome.get("status") or "error")
             source = f"quality_gate:{project_id}:{task_id}:{head_sha}"
-            actionable = result not in {"passed", "not_configured", "interrupted"}
+            retryable_infrastructure = result == "interrupted" or (
+                result in {"infrastructure_error", "error"}
+                and bool(outcome.get("interrupted"))
+            )
+            termination_detail = ""
+            if outcome.get("terminating_signal") is not None:
+                termination_detail = (
+                    f" after signal {outcome.get('terminating_signal')} "
+                    f"(return code {outcome.get('return_code')})"
+                )
+            actionable = result not in {
+                "passed",
+                "not_configured",
+                "interrupted",
+            } and not retryable_infrastructure
             severity = "error" if result in {
                 "error",
                 "timed_out",
@@ -62294,23 +62359,50 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "source": source,
                     "severity": severity if actionable else "info",
                     "action_required": actionable,
-                    "recovery_state": result,
-                    "status": "active" if actionable else "historical",
+                    "recovery_state": (
+                        "scheduled_retry" if retryable_infrastructure else result
+                    ),
+                    "status": (
+                        "recovering"
+                        if retryable_infrastructure
+                        else "active"
+                        if actionable
+                        else "historical"
+                    ),
                     "active": actionable,
                     "summary": f"Branch quality gate {result} for {task_id}",
                     "detail": (
-                        f"The exact head {head_sha[:12]} did not pass the "
-                        f"configured branch quality command ({outcome.get('command') or 'unknown command'})."
+                        (
+                            f"The gate runner for exact head {head_sha[:12]} "
+                            f"ended{termination_detail} without a "
+                            "candidate-test verdict; Oompah "
+                            "will retry it automatically."
+                        )
+                        if retryable_infrastructure
+                        else (
+                            f"The exact head {head_sha[:12]} did not pass the "
+                            "configured branch quality command "
+                            f"({outcome.get('command') or 'unknown command'})."
+                        )
                     ),
                     "remediation": (
-                        "Fix the branch or quality-gate runtime, push a new head, "
-                        "and rerun the gate."
+                        "No operator action is required while the automatic "
+                        "retry is pending."
+                        if retryable_infrastructure
+                        else (
+                            "Fix the branch or quality-gate runtime, push a new "
+                            "head, and rerun the gate."
+                        )
                     ),
                     "project_id": project_id,
                     "task_id": task_id,
                     "head_sha": head_sha,
                     "command": outcome.get("command"),
                     "cached": bool(outcome.get("cached")),
+                    "return_code": outcome.get("return_code"),
+                    "terminating_signal": outcome.get("terminating_signal"),
+                    "interrupted": bool(outcome.get("interrupted")),
+                    "interruption_source": outcome.get("interruption_source"),
                 }
             )
         return facts

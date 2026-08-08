@@ -411,6 +411,7 @@ def test_quality_gate_history_uses_longest_completed_duration(tmp_path):
                     },
                     "failure": {
                         "status": "failed",
+                        "return_code": 1,
                         "repo_identity": "repo-1",
                         "command": "make test",
                         "duration_seconds": 1080.2,
@@ -455,6 +456,7 @@ def test_quality_gate_duration_high_water_survives_shorter_results_and_pruning(
             head_sha="a" * 40,
             command="make test",
             duration_seconds=1080.2,
+            return_code=1,
         ),
         repo_identity="repo-1",
         target_branch="main",
