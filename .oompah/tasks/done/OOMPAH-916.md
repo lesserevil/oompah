@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-916
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Unset removed .env configuration across graceful exec restarts
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:25.215337Z'
-updated_at: '2026-08-08T15:39:08.395407Z'
+updated_at: '2026-08-08T16:26:45.057217Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-199b73c4cd62
+    project_id: proj-14849f1b
+    task_id: OOMPAH-916
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 61240cf79492af987768c7d31b30b42f10748f29e87fc75c2a908fb9d4762590
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:26:40.953319+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

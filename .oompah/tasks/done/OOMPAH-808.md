@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-08T16:26:32.520208Z'
+updated_at: '2026-08-08T16:26:39.313600Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -126,7 +126,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:26:28.673363+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-808
+    target_state: Done
+    evidence_fingerprint: f0aa6bf985eb3b25c1257ecc99f4144d598ad52542eec7557b59cb474237a33f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:26:37.777734+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -287,5 +297,12 @@ author: oompah
 created: 2026-08-08 08:51
 ---
 Direct implementation completed on systemic base 6cbbd6ef7bb7 in preserved worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-808-direct.ndqjLZ. Commit 80628efa93416f9cc452b1d90373704c500d0c18 implements the fail-closed nested-dispatch topology fence, exact parent/dependency/ref generations, durable action-scoped repair leasing/CAS, safe nested-then-private ref advancement, restart-safe wait projection, and pre-provider/status/workspace race checks. Verification: broad dedicated-broker r7 green across 8 affected suites; final r9 green for nested topology + workflow jobs; py_compile/diff-check, terminal-audit scan, and secret scan green. Worktree is clean. Composition/submission intentionally left to the parent.
+---
+author: oompah
+created: 2026-08-08 16:26
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->
