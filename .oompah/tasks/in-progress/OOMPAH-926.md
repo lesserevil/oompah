@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T21:02:52.502402Z'
-updated_at: '2026-08-08T21:04:18.915245Z'
+updated_at: '2026-08-08T21:27:58.128622Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Live staged rollout regression on 2026-08-08 at bdabac3ff. After a five-minute a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 21:27
+---
+Implemented at exact head 6c7a6eabe79d5ca92929203fb50c211e946257ba. A reconcile interrupted by process-wide quiesce/drain is now rollout-evidence-neutral unless it contains a genuine source/controller error; the pre-drain quiesce gap is explicitly fenced. Rollout-gate startup rejections also receive a stable error class distinct from generic orchestrator crashes, preventing false deduplication into OOMPAH-924. Targeted regression tests pass 7/7, and the broad workflow/runtime/bootstrap/event-loop/error-watcher slice passes 259/259. Terminal mutation and secret scans pass. The exact full Makefile gate is running in the isolated composition worktree before live staged rollout.
+---
+<!-- COMMENTS:END -->
