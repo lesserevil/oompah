@@ -52,7 +52,15 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
-from oompah.task_transition_service import TerminalStageResult
+from oompah.task_transition_service import (
+    TerminalStageResult,
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionIntent,
+    TransitionOutcome,
+    TransitionPhase,
+    issue_authority_version,
+)
 
 
 # --------------------------------------------------------------------- helpers
@@ -7087,7 +7095,7 @@ class TestLabelMergedEpics:
 
         assert child.state == NEEDS_HUMAN
         first_instruction = tracker.add_comment.call_args.args[1]
-        assert "oompah:unlanded-done-child-recovery:v1" in first_instruction
+        assert orch._unlanded_done_recovery_is_current(proj.id, child)
 
         tracker.fetch_comments.return_value = [
             {"author": "oompah", "text": first_instruction}
@@ -7113,33 +7121,217 @@ class TestLabelMergedEpics:
             tracker.add_comment.call_args.args[1]
         )
         assert child.state == "In Validation"
+        assert not orch._unlanded_done_recovery_is_current(proj.id, child)
 
-    def test_untrusted_unlanded_recovery_marker_cannot_authorize_restore(
+    def test_later_needs_human_transition_consumes_done_recovery_authority(
         self,
         tmp_path,
     ):
-        orch = _make_orch(tmp_path)
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=NEEDS_HUMAN,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
         tracker = MagicMock()
-        marker = "<!-- oompah:unlanded-done-child-recovery:v1 -->"
         tracker.fetch_comments.return_value = [
-            {"author": "mallory", "text": marker},
-            {"text": marker},
+            {
+                "author": "oompah",
+                "text": "<!-- oompah:unlanded-done-child-recovery:v1 -->",
+            }
         ]
+        tracker.fetch_issue_detail.return_value = child
 
-        assert not orch._tracker_has_trusted_comment_marker(
-            tracker,
-            "OOMPAH-590",
-            marker,
+        def append_transition(intent, *, reason_code):
+            begun = orch.task_transition_journal.begin(intent)
+            assert begun.claim_token is not None
+            outcome = TransitionOutcome(
+                transition_id=begun.transition_id,
+                project_id=proj.id,
+                task_id=child.identifier,
+                disposition=TransitionDisposition.APPLIED,
+                reason_code="transition.applied",
+                observed_status=NEEDS_HUMAN,
+                observed_version=issue_authority_version(child),
+                requested_status=NEEDS_HUMAN,
+                applied_status=NEEDS_HUMAN,
+            )
+            orch.task_transition_journal.append(
+                begun.transition_id,
+                TransitionPhase.APPLIED,
+                reason_code,
+                outcome,
+            )
+            assert orch.task_transition_journal.release(
+                proj.id,
+                child.identifier,
+                begun.claim_token,
+            )
+
+        recovered_from = replace(child, state=DONE)
+        append_transition(
+            TransitionIntent(
+                project_id=proj.id,
+                task_id=child.identifier,
+                expected_status=DONE,
+                expected_version=issue_authority_version(recovered_from),
+                requested_status=NEEDS_HUMAN,
+                actor="oompah",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="maintenance.unlanded_done_child_recovered",
+                idempotency_key="initial-unlanded-done-recovery",
+                originating_job="merged-epic-reconciliation",
+            ),
+            reason_code="transition.applied",
+        )
+        assert orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        append_transition(
+            TransitionIntent(
+                project_id=proj.id,
+                task_id=child.identifier,
+                expected_status=DONE,
+                expected_version=issue_authority_version(recovered_from),
+                requested_status=NEEDS_HUMAN,
+                actor="oompah-watchdog",
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="watchdog.operator_action_required",
+                idempotency_key="later-unrelated-needs-human",
+                originating_job="stalled-task-watchdog",
+            ),
+            reason_code="transition.applied",
+        )
+        assert not orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_child_has_durable_landing_evidence",
+                return_value=True,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert child.state == NEEDS_HUMAN
+        assert not any(
+            call_args.kwargs.get("status") == DONE
+            for call_args in tracker.update_issue.call_args_list
         )
 
-        tracker.fetch_comments.return_value.append(
-            {"author": "oompah", "text": f"recovery\n{marker}"}
+    def test_transient_restore_failure_retains_done_recovery_authority(
+        self,
+        tmp_path,
+    ):
+        managed = _make_landing_evidence_repo(tmp_path, land_child=True)
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path / "orch", projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
         )
-        assert orch._tracker_has_trusted_comment_marker(
-            tracker,
-            "OOMPAH-590",
-            marker,
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=NEEDS_HUMAN,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
         )
+        recovered_from = replace(child, state=DONE)
+        recovery_intent = TransitionIntent(
+            project_id=proj.id,
+            task_id=child.identifier,
+            expected_status=DONE,
+            expected_version=issue_authority_version(recovered_from),
+            requested_status=NEEDS_HUMAN,
+            actor="oompah",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.unlanded_done_child_recovered",
+            idempotency_key="transient-original-recovery",
+            originating_job="merged-epic-reconciliation",
+        )
+        begun = orch.task_transition_journal.begin(recovery_intent)
+        assert begun.claim_token is not None
+        orch.task_transition_journal.append(
+            begun.transition_id,
+            TransitionPhase.APPLIED,
+            "transition.applied",
+            TransitionOutcome(
+                transition_id=begun.transition_id,
+                project_id=proj.id,
+                task_id=child.identifier,
+                disposition=TransitionDisposition.APPLIED,
+                reason_code="transition.applied",
+                observed_status=NEEDS_HUMAN,
+                observed_version=issue_authority_version(child),
+                requested_status=NEEDS_HUMAN,
+                applied_status=NEEDS_HUMAN,
+            ),
+        )
+        assert orch.task_transition_journal.release(
+            proj.id,
+            child.identifier,
+            begun.claim_token,
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
+        tracker.fetch_comments.return_value = []
+        restore_attempts = 0
+
+        def update_issue(_identifier, **fields):
+            nonlocal restore_attempts
+            if fields.get("status") != DONE:
+                return
+            restore_attempts += 1
+            if restore_attempts == 1:
+                raise RuntimeError("transient tracker transport failure")
+            child.state = DONE
+
+        tracker.update_issue.side_effect = update_issue
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert restore_attempts == 1
+        assert child.state == NEEDS_HUMAN
+        assert orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert restore_attempts == 2
+        assert child.state == "In Validation"
+        assert not orch._unlanded_done_recovery_is_current(proj.id, child)
 
     def test_refresh_failure_leaves_done_child_unchanged(self, tmp_path):
         """Unavailable authoritative refs must not trigger a stale demotion."""

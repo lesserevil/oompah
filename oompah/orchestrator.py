@@ -991,15 +991,6 @@ _CREDENTIAL_ERROR_PHRASES: tuple[str, ...] = (
     "api key not found",
 )
 
-# Durable, service-authored marker for the narrow Done -> Needs Human landing
-# compensation.  The merged-parent sweep revisits marker-bearing children so
-# a target ref that moves in the unavoidable cross-system gap between the last
-# Git probe and the tracker CAS converges on the next maintenance tick.
-_UNLANDED_DONE_RECOVERY_MARKER = (
-    "<!-- oompah:unlanded-done-child-recovery:v1 -->"
-)
-
-
 def _is_credential_error(error: str | None) -> bool:
     """Return True when *error* describes a missing or invalid credential.
 
@@ -44101,19 +44092,11 @@ class Orchestrator:
                 self._cleanup_landed_private_child_branch(epic, child)
                 continue
             child_status = canonicalize_status(child.state)
-            child_comments = None
-            if child_status == NEEDS_HUMAN:
-                fetch_comments = getattr(child_tracker, "fetch_comments", None)
-                if callable(fetch_comments):
-                    try:
-                        child_comments = fetch_comments(child.identifier)
-                    except Exception:  # noqa: BLE001 - recovery evidence fails closed
-                        child_comments = None
-            has_unlanded_done_recovery_marker = (
+            has_current_unlanded_done_recovery = (
                 child_status == NEEDS_HUMAN
-                and self._comments_have_trusted_marker(
-                    child_comments,
-                    _UNLANDED_DONE_RECOVERY_MARKER,
+                and self._unlanded_done_recovery_is_current(
+                    child_project_id,
+                    child,
                 )
             )
             if child_status == DONE and (
@@ -44131,7 +44114,7 @@ class Orchestrator:
                 continue
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
-            if child_status == DONE or has_unlanded_done_recovery_marker:
+            if child_status == DONE or has_current_unlanded_done_recovery:
                 if landing_refresh_error:
                     logger.info(
                         "Leaving epic child %s %s until authoritative refs for "
@@ -44149,7 +44132,7 @@ class Orchestrator:
                     child.identifier,
                 )
                 continue
-            if child_status == DONE or has_unlanded_done_recovery_marker:
+            if child_status == DONE or has_current_unlanded_done_recovery:
                 disposition_current, landing_reason = (
                     revalidate_done_child_disposition(
                         child, child_project_id, landing_reason
@@ -44157,7 +44140,7 @@ class Orchestrator:
                 )
                 if not disposition_current:
                     continue
-            if has_unlanded_done_recovery_marker and not landing_reason:
+            if has_current_unlanded_done_recovery and not landing_reason:
                 if not terminal_disposition_generation_still_current(child):
                     continue
                 child_issue_id = str(child.id or child.identifier)
@@ -44191,6 +44174,10 @@ class Orchestrator:
                             canonicalize_status(current_child.state) != NEEDS_HUMAN
                             or issue_authority_version(current_child)
                             != restored_version
+                            or not self._unlanded_done_recovery_is_current(
+                                child_project_id,
+                                current_child,
+                            )
                         ):
                             raise TrackerError(
                                 f"Task {child.identifier!r} authority changed "
@@ -44276,18 +44263,15 @@ class Orchestrator:
                     "move this task to Done only after the recovered work is "
                     "verified on the target branch."
                 )
-                if child_status == DONE or has_unlanded_done_recovery_marker:
-                    instruction = (
-                        f"{instruction}\n\n{_UNLANDED_DONE_RECOVERY_MARKER}"
-                    )
                 logger.warning(
                     "Epic child %s lacks landing evidence after epic %s merged; "
                     "moving it to Needs Human",
                     child.identifier,
                     epic.identifier,
                 )
-                if child_status == NEEDS_HUMAN and self._comments_match(
-                    child_comments,
+                if child_status == NEEDS_HUMAN and self._tracker_comment_matches(
+                    child_tracker,
+                    child.identifier,
                     instruction,
                 ):
                     logger.debug(
@@ -48802,62 +48786,53 @@ class Orchestrator:
                 return True
         return False
 
-    @staticmethod
-    def _tracker_has_trusted_comment_marker(
-        tracker,
-        identifier: str,
-        marker: str,
+    def _unlanded_done_recovery_is_current(
+        self,
+        project_id: str | None,
+        issue: Issue,
     ) -> bool:
-        """Return whether a current Oompah-authored comment contains ``marker``.
+        """Return whether the latest task event owns Done recovery authority.
 
-        Tracker comments are otherwise untrusted input.  Require an explicit
-        author/user field matching either the canonical service author or the
-        configured bot login before a marker can authorize lifecycle recovery.
+        The append-only transition journal is the capability.  Any later task
+        transition event consumes it, and the committed outcome must describe
+        the exact current Needs Human authority version.  Tracker comments are
+        intentionally excluded because their author field is caller supplied.
         """
 
-        fetch_comments = getattr(tracker, "fetch_comments", None)
-        if not callable(fetch_comments) or not str(marker or "").strip():
-            return False
+        scoped_project_id = str(
+            project_id or issue.project_id or "__legacy__"
+        ).strip()
         try:
-            comments = fetch_comments(identifier)
-        except Exception:  # noqa: BLE001 - recovery evidence fails closed
+            latest = self.task_transition_journal.latest_committed_task_transition(
+                scoped_project_id,
+                issue.identifier,
+            )
+        except Exception as exc:  # noqa: BLE001 - recovery authority fails closed
+            logger.debug(
+                "Could not read Done-child recovery authority for %s: %s",
+                issue.identifier,
+                exc,
+            )
             return False
-
-        return Orchestrator._comments_have_trusted_marker(comments, marker)
-
-    @staticmethod
-    def _comments_have_trusted_marker(comments, marker: str) -> bool:
-        """Return whether trusted ``comments`` contain one service marker."""
-
-        if not str(marker or "").strip():
+        if latest is None:
             return False
-
-        from oompah.label_auth import get_bot_login
-
-        trusted_logins = {
-            "oompah",
-            get_bot_login().strip().casefold() or "oompah",
-        }
-        for comment in comments or []:
-            if not isinstance(comment, dict):
-                continue
-            identities: list[str] = []
-            if "author" in comment:
-                identities.append(str(comment.get("author") or ""))
-            if "user" in comment:
-                raw_user = comment.get("user")
-                if isinstance(raw_user, dict):
-                    raw_user = raw_user.get("login") or raw_user.get("username")
-                identities.append(str(raw_user or ""))
-            if not identities or any(
-                identity.strip().casefold() not in trusted_logins
-                for identity in identities
-            ):
-                continue
-            text = str(comment.get("text") or comment.get("body") or "")
-            if marker in text:
-                return True
-        return False
+        intent, event = latest
+        outcome = event.outcome
+        return bool(
+            intent.authority is TransitionAuthority.SYSTEM
+            and intent.reason_code == "maintenance.unlanded_done_child_recovered"
+            and canonicalize_status(intent.expected_status) == DONE
+            and canonicalize_status(intent.requested_status) == NEEDS_HUMAN
+            and outcome is not None
+            and outcome.disposition
+            in {
+                TransitionDisposition.APPLIED,
+                TransitionDisposition.RECOVERED,
+            }
+            and canonicalize_status(outcome.applied_status) == NEEDS_HUMAN
+            and canonicalize_status(issue.state) == NEEDS_HUMAN
+            and outcome.observed_version == issue_authority_version(issue)
+        )
 
     # ------------------------------------------------------------------
     # Per-task cost telemetry

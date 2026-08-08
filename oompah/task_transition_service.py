@@ -640,6 +640,62 @@ class TransitionJournal:
         with self._lock:
             return self._latest_event_locked(transition_id)
 
+    def latest_committed_task_transition(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> tuple[TransitionIntent, TransitionJournalEvent] | None:
+        """Return the newest transition that committed a lifecycle effect.
+
+        Waiting, retryable, and rejected attempts do not supersede the task's
+        last committed authority.  This distinction lets an idempotent recovery
+        survive transient claim/transport failures while a later successful
+        human, auditor, or system transition still consumes the old capability.
+        """
+
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT event.*
+                  FROM task_transition_events AS event
+                  JOIN task_transition_requests AS request
+                    ON request.transition_id = event.transition_id
+                 WHERE request.project_id = ? AND request.task_id = ?
+                   AND event.outcome_json IS NOT NULL
+                 ORDER BY event.sequence DESC
+                """,
+                (
+                    _required_text(project_id, "project_id"),
+                    _required_text(task_id, "task_id"),
+                ),
+            ).fetchall()
+            for row in rows:
+                event = self._event_from_row(row)
+                if event.outcome is None or event.outcome.disposition not in {
+                    TransitionDisposition.APPLIED,
+                    TransitionDisposition.RECOVERED,
+                    TransitionDisposition.STAGED,
+                }:
+                    continue
+                intent_row = self._conn.execute(
+                    "SELECT intent_json FROM task_transition_requests "
+                    "WHERE transition_id = ?",
+                    (event.transition_id,),
+                ).fetchone()
+                if intent_row is None:
+                    raise TransitionJournalCorruptionError(
+                        "transition event has no immutable request"
+                    )
+                try:
+                    raw = json.loads(str(intent_row["intent_json"]))
+                    intent = TransitionIntent.from_dict(raw)
+                except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                    raise TransitionJournalCorruptionError(
+                        "invalid transition intent JSON"
+                    ) from exc
+                return intent, event
+            return None
+
     def events(self, transition_id: str) -> tuple[TransitionJournalEvent, ...]:
         with self._lock:
             rows = self._conn.execute(
