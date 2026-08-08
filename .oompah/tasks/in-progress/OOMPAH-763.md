@@ -77,7 +77,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-08T03:54:25.501423Z'
+updated_at: '2026-08-08T09:54:00.770305Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-08 03:54
 ---
 Published exact systemic-workflow candidate e74449e4f9303f35c2cc2c1c5fc78ee979f4d268 to epic-OOMPAH-763 with a fresh force-with-lease. Exact validation: terminal mutation scan passed; secret scan passed; affected composition surface 392 passed; independent race/lifecycle/dashboard reviews accepted after two review-found consistency fixes; full make test passed 17,860 tests with 7 skipped and 1 expected failure in 22m06s. Remote main bb82f7f39510f0e02886307291812f2f8b3e6901 is an ancestor of the published head.
+---
+author: oompah
+created: 2026-08-08 09:54
+---
+Consolidated systemic workflow head d9f9eff68 now includes OOMPAH-775/778, OOMPAH-792, OOMPAH-798, all prior implementation branches, and the previous full-gate repair. All superseded task worktrees/branches have been pruned; only the live checkout and consolidated review worktree remain. Static gates are green (20/20 authorized task-status writers, secret scan, compile/diff). The one exact full branch gate is running now; publication/deployment and terminal task updates follow a green gate.
 ---
 <!-- COMMENTS:END -->
