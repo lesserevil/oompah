@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-924
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:__main__] Orchestrator thread crashed'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T19:33:35.949962Z'
-updated_at: '2026-08-08T19:41:57.409974Z'
+updated_at: '2026-08-08T19:42:02.917783Z'
 work_branch: null
 target_branch: null
 review_url: null
