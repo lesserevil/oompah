@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-770
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Enforce universal nonterminal liveness and truthful operator alerts
 parent: OOMPAH-763
@@ -18,7 +18,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-08T12:02:30.529214Z'
+updated_at: '2026-08-08T16:31:00.213300Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,6 +26,30 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f78f6258ac71
+    project_id: proj-14849f1b
+    task_id: OOMPAH-770
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 02fbc812f8fddb7eaea74b739805db91d1b21710392021aa1c0465d65613f78f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope and its completed dependency wave are contained in that validated
+      head; owner override avoids fabricating a separate branch/integration generation.
+    created_at: '2026-08-08T16:30:56.199918+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
