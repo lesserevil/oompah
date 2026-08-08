@@ -77,7 +77,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-08T11:03:21.197526Z'
+updated_at: '2026-08-08T12:56:15.847317Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-08-08 11:03
 ---
 Systemic workflow repair composition is committed at 900295e723bd5fc61e3aff23e979d6fee882ee79. Focused validation is green, including 334 repaired epic/delivery cases, 85 rollup/transition authority cases, and the final Git/tracker self-heal race. Static terminal-mutation and secret gates pass. Starting the exact full branch gate now; publish/deploy/terminalization follows only after that head is green.
+---
+author: oompah
+created: 2026-08-08 12:56
+---
+Systemic composition advanced to b80e632fcb55658d37aa267bc7fa71ef0f044991 with OOMPAH-909 resource-leak/deadlock repair. All 27 non-terminal tasks remain directly owned through 2026-08-10 with no dependency cycle or expired claim. Exact full gate OOMPAH-763-full-b80e632 is now running; publish/deploy and dependency-safe closeout follow on green.
 ---
 <!-- COMMENTS:END -->
