@@ -264,8 +264,6 @@ class TestFetchAllReviewsSkipsHealthy:
 
     def test_polls_stale_project(self):
         """Project with old webhook is polled."""
-        old = datetime.now(timezone.utc) - timedelta(minutes=5)
-        proj = _make_orchestrator_with_store([old])._project_trackers
         stale_proj = _make_project(
             project_id="stale",
             last_webhook_received_at=datetime.now(timezone.utc) - timedelta(minutes=5),

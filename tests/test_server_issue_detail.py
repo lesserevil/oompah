@@ -482,7 +482,15 @@ class TestIssueDetailWithProjectId:
     def test_cache_hit_returns_cached_response(self, client):
         """GET detail returns cached data without calling tracker."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
-        cached_data = {"id": "cached", "identifier": "my-issue", "from_cache": True}
+        cached_data = {
+            "id": "cached",
+            "identifier": "my-issue",
+            "project_id": "proj-1",
+            "state": "Open",
+            "work_decision": None,
+            "work_decision_availability": "pending",
+            "from_cache": True,
+        }
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
@@ -575,7 +583,15 @@ class TestIssueDetailWithoutProjectId:
     def test_cache_hit_returns_cached_response_without_project_id(self, client):
         """GET detail returns cached data even without project_id in the URL."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
-        cached_data = {"id": "cached", "identifier": "my-issue", "from_cache": True}
+        cached_data = {
+            "id": "cached",
+            "identifier": "my-issue",
+            "project_id": "proj-1",
+            "state": "Open",
+            "work_decision": None,
+            "work_decision_availability": "pending",
+            "from_cache": True,
+        }
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),

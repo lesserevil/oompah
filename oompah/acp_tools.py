@@ -79,6 +79,7 @@ from oompah.terminal_audit import (
 from oompah.validation_resource_lease import managed_agent_validation_owner
 
 logger = logging.getLogger(__name__)
+_PROJECT_SNAPSHOT_UNSET = object()
 
 
 def _exec_publish_epic_rebase_candidate(
@@ -838,6 +839,7 @@ def _exec_oompah_task_command(
     project_store: Any = None,
     terminal_transition_coordinator: Any = None,
     submission_handler: Any = None,
+    project_snapshot: Any = _PROJECT_SNAPSHOT_UNSET,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
@@ -878,8 +880,14 @@ def _exec_oompah_task_command(
             f"but this ACP session is scoped to {project_id!r}"
         )
 
-    managed_project = None
-    if project_store is not None and project_id:
+    managed_project = project_snapshot
+    if managed_project is _PROJECT_SNAPSHOT_UNSET:
+        managed_project = None
+    if (
+        project_snapshot is _PROJECT_SNAPSHOT_UNSET
+        and project_store is not None
+        and project_id
+    ):
         try:
             managed_project = project_store.get(project_id)
         except Exception:  # noqa: BLE001 - task routing remains usable
@@ -1197,6 +1205,7 @@ async def _exec_oompah_task_command_async(
     project_store: Any = None,
     terminal_transition_coordinator: Any = None,
     submission_handler: Any = None,
+    project_snapshot: Any = _PROJECT_SNAPSHOT_UNSET,
 ) -> str | None:
     """Async direct-task router used by ACP tool handlers.
 
@@ -1252,8 +1261,14 @@ async def _exec_oompah_task_command_async(
             return "Error: task handoff comments must use author='oompah'"
 
     if args.subcommand == "submit":
-        managed_project = None
-        if project_store is not None and project_id:
+        managed_project = project_snapshot
+        if managed_project is _PROJECT_SNAPSHOT_UNSET:
+            managed_project = None
+        if (
+            project_snapshot is _PROJECT_SNAPSHOT_UNSET
+            and project_store is not None
+            and project_id
+        ):
             try:
                 managed_project = project_store.get(project_id)
             except Exception:  # noqa: BLE001 - lifecycle service fails closed
@@ -1332,6 +1347,7 @@ async def _exec_oompah_task_command_async(
         project_store,
         terminal_transition_coordinator,
         submission_handler,
+        project_snapshot,
     )
 
 

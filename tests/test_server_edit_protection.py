@@ -75,8 +75,16 @@ class TestEditStateTracking:
 
     def test_focus_handler_sets_editingState(self, script):
         """Card focus handler must set editingState to protect the edit."""
-        assert "editingState = { identifier:" in script or \
-               "editingState = {identifier:" in script
+        match = re.search(
+            r"editingState\s*=\s*\{(.*?)\};",
+            script,
+            re.DOTALL,
+        )
+        assert match, "focus handler must assign an editingState object"
+        assignment = match.group(1)
+        assert "identifier:" in assignment
+        assert "projectId:" in assignment
+        assert "field:" in assignment
 
     def test_blur_handler_clears_editingState(self, script):
         """Card blur handler must clear editingState when done editing."""

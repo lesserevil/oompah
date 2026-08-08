@@ -923,6 +923,72 @@ def test_wrong_schema_and_corrupt_nested_records_use_conservative_progress():
         )
 
 
+def test_fail_closed_restore_discards_existing_untrusted_cumulative_history():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    initial = _observe(tracker, (_recovery(),))
+    assert initial.recovery_count == 1
+
+    tracker.restore("not-a-mapping", now=NOW)
+    health = _observe(tracker, (_recovery(),), generation=2, now=NOW)
+
+    assert health.recovery_count == 0
+    assert health.tasks[0].recovery_count == 0
+    assert set(tracker.to_state()["event_signature_ledger"]["bits"]) == {"f"}
+
+
+def test_partial_corrupt_restore_keeps_event_aggregates_consistent():
+    original = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(
+        original,
+        (
+            _recovery("TASK-1"),
+            _action_required("TASK-2"),
+            _recovery("TASK-3"),
+        ),
+    )
+    state = original.to_state()
+    state["records"] = [
+        {"task_id": "truncated"} if item["task_id"] == "TASK-3" else item
+        for item in state["records"]
+    ]
+
+    restored = WorkflowLivenessTracker(clock=lambda: NOW)
+    restored.restore(state, now=NOW)
+    before = restored.snapshot(now=NOW)
+    after = _observe(
+        restored,
+        (_recovery("TASK-1"), _action_required("TASK-2")),
+        generation=2,
+        now=NOW,
+    )
+
+    assert before.recovery_count == 0
+    assert before.escalation_count == 0
+    assert before.reassessment_count == 0
+    assert all(item.recovery_count == 0 for item in before.tasks)
+    assert all(item.escalation_count == 0 for item in before.tasks)
+    assert all(item.reassessment_count == 0 for item in before.tasks)
+    assert before.projects["project-a"]["recovery_count"] == 0
+    assert before.projects["project-a"]["escalation_count"] == 0
+    assert before.projects["project-a"]["reassessment_count"] == 0
+    assert after.recovery_count == sum(item.recovery_count for item in after.tasks)
+    assert after.escalation_count == sum(
+        item.escalation_count for item in after.tasks
+    )
+    assert after.reassessment_count == sum(
+        item.reassessment_count for item in after.tasks
+    )
+    assert after.projects["project-a"]["recovery_count"] == after.recovery_count
+    assert (
+        after.projects["project-a"]["escalation_count"]
+        == after.escalation_count
+    )
+    assert (
+        after.projects["project-a"]["reassessment_count"]
+        == after.reassessment_count
+    )
+
+
 def test_corrupt_persisted_authority_revisions_cannot_renew_liveness_slo():
     original = WorkflowLivenessTracker(clock=lambda: NOW)
     decision = _decision()

@@ -8,12 +8,14 @@ do not raise ProjectError("Unknown project: coroot").
 
 from __future__ import annotations
 
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
+from oompah.config import ServiceConfig
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
@@ -58,8 +60,11 @@ class TestTrackerForProjectNameFallback:
         # We test via a real Orchestrator instance with a patched project_store
         # and _new_tracker_for_project so we never touch git or the network.
         orch = MagicMock(spec=Orchestrator)
+        orch.config = ServiceConfig()
         orch.project_store = store
         orch._project_trackers = {}
+        orch._project_trackers_lock = threading.RLock()
+        orch._project_tracker_generation = 1
         fake_tracker = MagicMock()
         orch._new_tracker_for_project.return_value = fake_tracker
 

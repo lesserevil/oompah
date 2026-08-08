@@ -1461,6 +1461,61 @@ class TestTaskScopeDirectPath:
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
 
+    def test_api_agent_submit_uses_coherent_first_read_project_snapshot(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _execute_tool
+
+        tracker = MagicMock()
+        project = SimpleNamespace(
+            access_token="original-token",
+            forge_kind="gitlab",
+        )
+        store = MagicMock()
+        store.get.return_value = project
+        submission_handler = MagicMock(
+            return_value=SimpleNamespace(direct_failure_message=None)
+        )
+
+        def rotate_project_during_policy_check(*_args, **_kwargs):
+            project.access_token = "rotated-token"
+            project.forge_kind = "github"
+            return None
+
+        with (
+            patch(
+                "oompah.api_agent.check_shell_command",
+                side_effect=rotate_project_during_policy_check,
+            ),
+            patch(
+                "oompah.task_cli._git_submission_evidence",
+                return_value={
+                    "task_branch": "TASK-1",
+                    "head_sha": "a" * 40,
+                    "remote_head_sha": "a" * 40,
+                    "worktree_clean": True,
+                },
+            ) as evidence,
+        ):
+            result = _execute_tool(
+                tmp_path,
+                "run_command",
+                {"command": "oompah task submit TASK-1 --summary 'Done'"},
+                task_tracker=tracker,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                project_store=store,
+                submission_handler=submission_handler,
+            )
+
+        assert result == "Submitted for integration: TASK-1"
+        store.get.assert_called_once_with("proj-a")
+        assert evidence.call_args.kwargs["access_token"] == "original-token"
+        assert evidence.call_args.kwargs["forge_kind"] == "gitlab"
+        assert project.access_token == "rotated-token"
+        assert project.forge_kind == "github"
+
     @pytest.mark.parametrize(
         "command",
         [

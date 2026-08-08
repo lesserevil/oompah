@@ -84,6 +84,7 @@ def attach_project(orch: Orchestrator, tracker) -> None:
     project.to_safe_dict = lambda: {"id": "project-a"}
     orch.project_store.list_all.return_value = [project]
     orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._notify_observers = MagicMock()
     orch._notify_state_only = MagicMock()
 
 
@@ -178,7 +179,8 @@ def test_orchestrator_shadow_sweep_is_read_only_and_bounded(tmp_path):
     tracker.add_comment.assert_not_called()
     tracker.add_label.assert_not_called()
     tracker.remove_label.assert_not_called()
-    orch._notify_state_only.assert_called_once()
+    orch._notify_observers.assert_called_once()
+    orch._notify_state_only.assert_not_called()
 
 
 def test_orchestrator_enforce_sweep_materializes_universal_recovery(tmp_path):
@@ -289,6 +291,7 @@ def test_multi_project_partial_failure_retains_healthy_project_and_attribution(
     orch._tracker_for_project = MagicMock(
         side_effect=lambda project_id: good if project_id == "project-a" else failed
     )
+    orch._notify_observers = MagicMock()
     orch._notify_state_only = MagicMock()
 
     result = orch._run_workflow_controller_sweep()
@@ -300,6 +303,8 @@ def test_multi_project_partial_failure_retains_healthy_project_and_attribution(
     assert health.source_errors == {"project-b": "TimeoutError"}
     assert health.projects["project-b"]["source_error"] == "TimeoutError"
     assert orch.workflow_job_store.list_jobs(project_id="project-a")
+    orch._notify_observers.assert_called_once()
+    orch._notify_state_only.assert_not_called()
 
 
 def test_orchestrator_restart_restores_then_converges_liveness_state(tmp_path):

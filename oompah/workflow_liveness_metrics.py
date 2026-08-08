@@ -1046,6 +1046,12 @@ class WorkflowLivenessTracker:
             self._reconciliation_complete = False
             self._required_recovery_count = 0
             self._materialized_recovery_count = 0
+            self._cumulative_recovery_count = 0
+            self._cumulative_escalation_count = 0
+            self._cumulative_divergence_count = 0
+            self._cumulative_restart_convergence_count = 0
+            self._cumulative_reassessment_count = 0
+            self._last_divergence_revision = None
             self._event_ledger = _BoundedEventLedger.saturated()
             self._restart_started_at = rendered
             self._restart_deadline_at = rendered
@@ -1110,6 +1116,17 @@ class WorkflowLivenessTracker:
             if ledger_valid and not state_corrupt
             else _BoundedEventLedger.saturated()
         )
+        if state_corrupt:
+            # Structurally valid records may still preserve useful timing and
+            # evidence, but their event totals cannot remain nonzero after the
+            # containing aggregate history has been discarded.  Keeping them
+            # would make task/project totals exceed the reset global counters
+            # permanently because the saturated ledger correctly forbids a
+            # later recount.
+            for record in records.values():
+                record.recovery_count = 0
+                record.escalation_count = 0
+                record.reassessment_count = 0
         with self._lock:
             self._records = records
             for record in self._records.values():
@@ -1275,7 +1292,11 @@ class WorkflowLivenessTracker:
             except (TypeError, ValueError):
                 self._required_recovery_count = 0
                 self._materialized_recovery_count = 0
-            cumulative = raw.get("cumulative", {})
+            # A corrupt nested record makes the aggregate history untrustworthy
+            # too.  Keep the event ledger saturated so a later fresh scan cannot
+            # recount unknown history, but do not publish persisted counters that
+            # can no longer be tied to valid bounded records.
+            cumulative = raw.get("cumulative", {}) if not state_corrupt else {}
             cumulative = cumulative if isinstance(cumulative, Mapping) else {}
             for attribute, key in (
                 ("_cumulative_recovery_count", "recovery_count"),
@@ -1579,7 +1600,7 @@ class WorkflowLivenessTracker:
                     self._cumulative_divergence_count += current_divergence
             self._last_divergence_revision = divergence_revision
             if self._coverage_complete:
-                if self._restored:
+                if self._restored and not self._state_corrupt:
                     self._cumulative_restart_convergence_count += 1
                 self._restored = False
                 self._state_corrupt = False

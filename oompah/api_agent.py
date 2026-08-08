@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import inspect
 import json
 import logging
@@ -1643,6 +1644,13 @@ def _execute_tool(
                     if project_store is not None and project_id
                     else None
                 )
+                # ProjectStore returns its mutable in-memory Project instance
+                # and updates that object in place.  Freeze the first read so
+                # policy evaluation and direct task submission cannot observe
+                # different credential/forge generations during a concurrent
+                # project update.
+                if project is not None:
+                    project = copy.copy(project)
             except Exception as exc:
                 if getattr(action_policy, "auditor_session", False) is True:
                     return (
@@ -1701,6 +1709,7 @@ def _execute_tool(
                 workspace_path=workspace,
                 project_store=project_store,
                 submission_handler=submission_handler,
+                project_snapshot=project,
             )
             if direct is not None:
                 return direct
