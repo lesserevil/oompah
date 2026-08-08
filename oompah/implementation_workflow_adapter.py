@@ -240,6 +240,47 @@ class OrchestratorImplementationEffects:
         self._bound_tracker = tracker
         self._mutations: dict[str, asyncio.Task[ImplementationDisposition]] = {}
 
+    def _mutation_finished(
+        self,
+        key: str,
+        mutation: asyncio.Task[ImplementationDisposition],
+    ) -> None:
+        """Retire one exact shielded mutation after its real completion."""
+
+        if self._mutations.get(key) is mutation:
+            self._mutations.pop(key, None)
+        if not mutation.cancelled():
+            # The worker-facing awaiter may have been cancelled by a timeout.
+            # Consume a detached mutation failure without changing what any
+            # concurrent waiter observes from the same task.
+            mutation.exception()
+
+    @property
+    def pending_mutation_count(self) -> int:
+        """Return shielded effects which still own external/store access."""
+
+        return sum(not mutation.done() for mutation in self._mutations.values())
+
+    async def drain_mutations(self, *, timeout_seconds: float | None = None) -> bool:
+        """Wait for already-started shielded mutations without cancelling them."""
+
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        pending = tuple(
+            mutation for mutation in self._mutations.values() if not mutation.done()
+        )
+        if not pending:
+            return True
+        waiter = asyncio.gather(*pending, return_exceptions=True)
+        try:
+            if timeout_seconds is None:
+                await waiter
+            else:
+                await asyncio.wait_for(asyncio.shield(waiter), timeout_seconds)
+        except TimeoutError:
+            return False
+        return True
+
     @property
     def receipts(self) -> ImplementationReceiptStore:
         """Open the effect ledger lazily so shadow construction is zero-write."""
@@ -573,6 +614,11 @@ class OrchestratorImplementationEffects:
         if mutation is None or mutation.done():
             mutation = asyncio.create_task(self._apply(context))
             self._mutations[key] = mutation
+            mutation.add_done_callback(
+                lambda completed, mutation_key=key: self._mutation_finished(
+                    mutation_key, completed
+                )
+            )
         try:
             return await asyncio.shield(mutation)
         except asyncio.CancelledError:

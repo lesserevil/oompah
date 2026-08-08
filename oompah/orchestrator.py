@@ -1739,6 +1739,13 @@ class Orchestrator:
         # The usage file lives next to the service-state file so it shares
         # the same directory isolation in tests.
         _state_dir = os.path.dirname(state_path or DEFAULT_SERVICE_STATE_PATH) or "."
+        # Graceful stop and the scheduler-loop ``finally`` block can drain the
+        # same orchestrator concurrently.  Persistent stores are process
+        # resources, so give their final close one synchronous, idempotent
+        # ownership boundary that is safe across event loops and threads.
+        self._owned_resources_close_lock = threading.Lock()
+        self._owned_persistent_stores_closed = False
+        self._closed_owned_resources: dict[str, object] = {}
         self._candidate_selector = CandidateSelector(
             path=os.path.join(_state_dir, "role_usage.json")
         )
@@ -12411,12 +12418,6 @@ class Orchestrator:
             logger.info("Terminated %d quality gate process group(s)", terminated)
         self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         await self._drain_background_work()
-        if self.workflow_runtime is not None:
-            self.workflow_runtime.close()
-        receipt_store = getattr(self, "_implementation_receipt_store", None)
-        if receipt_store is not None:
-            receipt_store.close()
-            self._implementation_receipt_store = None
         logger.info("Orchestrator stopped")
         return True
 
@@ -12589,9 +12590,56 @@ class Orchestrator:
                 wait=True,
                 cancel_futures=False,
             )
-        self.review_capacity_store.close()
-        self.workflow_job_store.close()
-        self.task_transition_journal.close()
+        await asyncio.to_thread(self._close_owned_persistent_stores)
+
+    def _close_owned_persistent_stores(self) -> None:
+        """Close every persistent store owned by this orchestrator once."""
+
+        with self._owned_resources_close_lock:
+            self._owned_persistent_stores_closed = False
+            failures: list[tuple[str, Exception]] = []
+            for name in (
+                "workflow_runtime",
+                "_implementation_receipt_store",
+                "coordination_store",
+                "integration_queue",
+                "review_capacity_store",
+                "workflow_job_store",
+                "task_transition_journal",
+            ):
+                resource = getattr(self, name, None)
+                if resource is None:
+                    continue
+                if self._closed_owned_resources.get(name) is resource:
+                    continue
+                close = getattr(resource, "close", None)
+                if not callable(close):
+                    # Lightweight behavioral test doubles are not owned
+                    # process resources. Production resources all expose the
+                    # explicit close contract.
+                    continue
+                try:
+                    close()
+                except Exception as exc:  # noqa: BLE001 - close every store
+                    failures.append((name, exc))
+                    logger.exception(
+                        "Failed to close orchestrator-owned resource %s", name
+                    )
+                else:
+                    # Retain the exact object, rather than only ``id()``: a
+                    # later lazy receipt can otherwise reuse the old integer
+                    # identity and be mistaken for an already-closed store.
+                    self._closed_owned_resources[name] = resource
+                    if name == "_implementation_receipt_store":
+                        # A failed close must retain the exact store so the
+                        # fail-closed shutdown retry can try it again.
+                        self._implementation_receipt_store = None
+            if failures:
+                names = ", ".join(name for name, _exc in failures)
+                raise RuntimeError(
+                    f"failed to close orchestrator-owned resources: {names}"
+                ) from failures[0][1]
+            self._owned_persistent_stores_closed = True
 
     def _workflow_shadow_running_entry(
         self,

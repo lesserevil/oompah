@@ -48,6 +48,8 @@ def _issue(
     issue_type: str = "task",
     priority: int | None = None,
     submitted_at: str | None = None,
+    head_sha: str = "a" * 40,
+    with_integration: bool = True,
 ) -> Issue:
     issue = Issue(
         id=f"id-{identifier}",
@@ -60,11 +62,13 @@ def _issue(
         priority=priority,
         work_branch=branch or identifier,
     )
-    if submitted_at is not None:
+    if with_integration:
         issue.integration = IntegrationRecord(
             state="ready",
+            mode="standalone",
             task_branch=branch or identifier,
-            submitted_at=submitted_at,
+            head_sha=head_sha,
+            submitted_at=submitted_at or "2026-08-01T00:00:00Z",
         )
     return issue
 
@@ -74,7 +78,7 @@ def _review(
     *,
     state: str = "open",
     review_id: str = "42",
-    head_sha: str = "abc123",
+    head_sha: str = "a" * 40,
     source_branch: str | None = None,
     target_branch: str = "trunk",
 ) -> ReviewRequest:
@@ -93,12 +97,10 @@ def _review(
 
 
 def _close_orchestrator(orch: Orchestrator) -> None:
-    orch.integration_queue.close()
-    orch.coordination_store.close()
-    orch.review_capacity_store.close()
-    orch.task_transition_journal.close()
-    orch._tick_pool.shutdown(wait=True, cancel_futures=True)
-    orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
+    for pool in (orch._tick_pool, orch._refresh_pool, orch._integration_pool):
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=False)
+    orch._close_owned_persistent_stores()
 
 
 class _MemoryTracker:
@@ -348,8 +350,8 @@ def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
     assert orch._set_standalone_delivery_head(
         authority,
         task.work_branch or "",
-        "abc123",
-        lambda: "abc123",
+        "a" * 40,
+        lambda: "a" * 40,
     )
 
     def concurrent_refresh() -> Issue:
@@ -574,6 +576,45 @@ def test_real_orchestrator_provider_store_and_project_create_review(harness):
     assert not _delivery_alerts(orch)
 
 
+def test_top_level_legacy_ready_task_adopts_remote_head_for_delivery(harness):
+    """A pre-receipt standalone task still gains exact delivery authority."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue(
+        "TASK-LEGACY-READY",
+        branch="feature/legacy-ready",
+        with_integration=False,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.set_metadata_field.side_effect = (
+        lambda _identifier, key, value: setattr(task, "review_head", value)
+        if key == "oompah.review_head"
+        else None
+    )
+    tracker.update_issue.side_effect = (
+        lambda _identifier, **fields: setattr(task, "state", fields["status"])
+    )
+    provider.create_review.return_value = _review(
+        "feature/legacy-ready",
+        review_id="102",
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
+    assert authority.head_sha == "a" * 40
+    gate.assert_called_once_with(
+        project,
+        task,
+        "feature/legacy-ready",
+        "trunk",
+    )
+    provider.create_review.assert_called_once()
+    tracker.update_issue.assert_called_once_with(
+        "TASK-LEGACY-READY", status=IN_REVIEW
+    )
+
+
 def test_standalone_delivery_preserves_explicit_target_branch(harness):
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-RELEASE", branch="feature/release-fix")
@@ -667,7 +708,7 @@ def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness
         submitted_at="2026-08-01T02:00:00Z",
     )
     provider.get_branch_head_sha.side_effect = lambda _repo, branch: (
-        None if branch == invalid.work_branch else "abc123"
+        None if branch == invalid.work_branch else "a" * 40
     )
     provider.list_open_reviews.return_value = []
     provider.create_review.return_value = _review(
@@ -842,10 +883,13 @@ def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
 
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-INHERITED", parent_id="PARENT")
+    task.integration = None
     parent = _issue("PARENT", issue_type="task")
     parent.state = OPEN
+    parent.integration = None
     blocker = _issue("TASK-PARENT-UPSTREAM")
     blocker.state = OPEN
+    blocker.integration = None
     parent.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
     tracker.fetch_issues_by_states.return_value = [task]
     _set_all_issues(tracker, [task, parent, blocker])
@@ -869,8 +913,10 @@ def test_non_epic_parent_rollup_edge_does_not_self_block_child(harness):
 
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-CHILD", parent_id="PARENT")
+    task.integration = None
     parent = _issue("PARENT", issue_type="task")
     parent.state = OPEN
+    parent.integration = None
     parent.blocked_by = [BlockerRef(id=task.id, identifier=task.identifier)]
     tracker.fetch_issues_by_states.return_value = [task]
     _set_all_issues(tracker, [task, parent])
@@ -1006,7 +1052,7 @@ def test_existing_open_review_is_reused_idempotently(harness):
         ("TASK-3", "oompah.review_number", "99"),
         ("TASK-3", "oompah.work_branch", "TASK-3"),
         ("TASK-3", "oompah.target_branch", "trunk"),
-        ("TASK-3", "oompah.review_head", "abc123"),
+        ("TASK-3", "oompah.review_head", "a" * 40),
     ]
 
 
@@ -1202,7 +1248,7 @@ def test_existing_integration_queue_row_prevents_competing_review(harness):
         epic_id="EPIC-1",
         task_id=task.identifier,
         task_branch=task.work_branch or task.identifier,
-        head_sha="abc123",
+        head_sha="a" * 40,
         priority=task.priority,
         submitted_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -1298,8 +1344,8 @@ def test_exact_durable_review_slot_is_not_reported_as_capacity_wait(harness):
     assert orch._set_standalone_delivery_head(
         authority,
         task.work_branch or task.identifier,
-        "abc123",
-        lambda: "abc123",
+        "a" * 40,
+        lambda: "a" * 40,
     )
     orch.review_capacity_store.adopt(
         project_id=project.id,
@@ -1486,7 +1532,7 @@ def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(
     authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     assert reservation.review_id == "604"
     assert reservation.authority_generation == authority.generation
-    assert reservation.head_sha == "abc123"
+    assert reservation.head_sha == "a" * 40
 
 
 def test_restart_recognizes_exact_uncommitted_reservation_without_false_wait(
@@ -1522,13 +1568,13 @@ def test_restart_recognizes_exact_uncommitted_reservation_without_false_wait(
         open_review_ids=[],
         reservation_id="old-process-generation",
         authority_generation="old-process-generation",
-        head_sha="abc123",
+        head_sha="a" * 40,
     )
     assert reservation is not None and reservation.acquired_new
     _close_orchestrator(orch_one)
 
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "abc123"
+    provider.get_branch_head_sha.return_value = "a" * 40
     provider.find_pr_for_branch.return_value = None
     provider.list_open_reviews.return_value = []
     provider.create_review.return_value = _review(task.identifier, review_id="604")
@@ -1618,9 +1664,9 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     )
     provider_store = ProviderStore(str(tmp_path / "providers.json"))
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "restart-sha"
+    provider.get_branch_head_sha.return_value = "b" * 40
     created = _review("TASK-7", review_id="77")
-    created.head_sha = "restart-sha"
+    created.head_sha = "b" * 40
     # The first process performs lookup + final pre-create CAS; the restarted
     # process performs lookup + final open-review adoption CAS.
     provider.find_pr_for_branch.side_effect = [None, None, created, created]
@@ -1630,7 +1676,7 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     )
 
     tracker_one = mock.MagicMock()
-    task_one = _issue("TASK-7")
+    task_one = _issue("TASK-7", head_sha="b" * 40)
     tracker_one.fetch_issues_by_states.return_value = [task_one]
     tracker_one.fetch_issue_detail.return_value = task_one
     orch_one = _make_orchestrator(
@@ -1648,7 +1694,7 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     _close_orchestrator(orch_one)
 
     tracker_two = mock.MagicMock()
-    task_two = _issue("TASK-7")
+    task_two = _issue("TASK-7", head_sha="b" * 40)
     tracker_two.fetch_issues_by_states.return_value = [task_two]
     tracker_two.fetch_issue_detail.return_value = task_two
     orch_two = _make_orchestrator(
@@ -1798,7 +1844,7 @@ def test_changed_remote_head_cancels_stale_gate_result(harness):
     task = _issue("TASK-HEAD-RACE", branch="feature/head-race")
     tracker.fetch_issues_by_states.return_value = [task]
     tracker.fetch_issue_detail.return_value = task
-    provider.get_branch_head_sha.side_effect = ["head-before", "head-after"]
+    provider.get_branch_head_sha.side_effect = ["a" * 40, "b" * 40]
     gate.return_value = True
 
     orch._reconcile_standalone_ready_to_integrate_tasks()
@@ -2709,7 +2755,7 @@ def test_open_review_metadata_failure_cannot_advance_status(harness):
         task.work_branch or "",
         state="open",
         review_id="713",
-        head_sha="abc123",
+        head_sha="a" * 40,
     )
     provider.find_pr_for_branch.return_value = exact_open
 
@@ -2736,7 +2782,7 @@ def test_created_review_metadata_failure_cannot_advance_status(harness):
         task.work_branch or "",
         state="open",
         review_id="714",
-        head_sha="abc123",
+        head_sha="a" * 40,
     )
 
     def fail_review_head(_identifier, key, _value) -> None:
@@ -2763,7 +2809,7 @@ def test_created_review_close_fence_wins_before_tracker_publication(harness):
         task.work_branch or "",
         state="open",
         review_id="715",
-        head_sha="abc123",
+        head_sha="a" * 40,
     )
 
     def close_before_create_returns(*_args, **_kwargs):
@@ -3069,15 +3115,15 @@ def test_merged_review_completes_real_done_and_merged_audits(
         repo_path=str(tmp_path / "repo"),
         default_branch="trunk",
     )
-    task = _issue("TASK-9")
+    task = _issue("TASK-9", head_sha="c" * 40)
     tracker = _MemoryTracker(task)
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "merged-sha"
+    provider.get_branch_head_sha.return_value = "c" * 40
     provider.find_pr_for_branch.return_value = _review(
         "TASK-9",
         state="merged",
         review_id="90",
-        head_sha="merged-sha",
+        head_sha="c" * 40,
     )
     monkeypatch.setattr(
         "oompah.orchestrator.detect_provider",

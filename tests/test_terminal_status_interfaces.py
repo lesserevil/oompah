@@ -768,6 +768,7 @@ class _Tracker:
     def update_issue(self, identifier: str, **fields: str) -> None:
         if "status" in fields:
             self.status_updates.append((identifier, fields["status"]))
+            self.issue.state = fields["status"]
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> None:
         self.comments.append((identifier, text))
@@ -837,6 +838,11 @@ def _orchestrator(issue: Issue):
     orch.state.claimed = set()
     orch.state.completed = set()
     orch.request_refresh = MagicMock()
+
+    def transition_issue_status(current, requested_status, **_kwargs):
+        tracker.update_issue(current.identifier, status=requested_status)
+
+    orch._transition_issue_status.side_effect = transition_issue_status
     return orch, tracker, coordinator
 
 

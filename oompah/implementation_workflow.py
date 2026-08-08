@@ -879,6 +879,20 @@ class ImplementationWorkflowHandler:
     def __init__(self, backend: ImplementationWorkflowBackend) -> None:
         self.backend = backend
 
+    @property
+    def pending_mutation_count(self) -> int:
+        effects = getattr(self.backend, "effects", None)
+        return int(getattr(effects, "pending_mutation_count", 0) or 0)
+
+    async def drain_mutations(self, *, timeout_seconds: float | None = None) -> bool:
+        effects = getattr(self.backend, "effects", None)
+        drain = getattr(effects, "drain_mutations", None)
+        if not callable(drain):
+            return True
+        result = drain(timeout_seconds=timeout_seconds)
+        resolved = await _resolve(result)
+        return resolved is not False
+
     async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
         result = await _resolve(self.backend.revalidate(context))
         if not isinstance(result, RevalidationResult):

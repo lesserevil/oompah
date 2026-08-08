@@ -18,6 +18,7 @@ from oompah.implementation_workflow import (
     ImplementationDisposition,
     ImplementationOwnershipSource,
     ImplementationState,
+    ImplementationWorkflowHandler,
 )
 from oompah.implementation_workflow_adapter import (
     ImplementationReceiptStore,
@@ -37,7 +38,11 @@ from oompah.statuses import (
     OPEN,
     READY_TO_INTEGRATE,
 )
-from oompah.task_transition_service import issue_authority_version
+from oompah.task_transition_service import (
+    TransitionJournal,
+    issue_authority_version,
+)
+from oompah.workflow_runtime import WorkflowRuntime, WorkflowRuntimeError
 from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobStore
 from oompah.workflow_worker import (
     VerificationResult,
@@ -319,6 +324,60 @@ async def test_start_dispatches_exact_generation_without_direct_status_write(tmp
     assert tracker.status_writes == []
     assert transition.requested_status == IN_PROGRESS
     effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_outer_apply_keeps_runtime_open_until_inner_mutation_drains(
+    tmp_path,
+):
+    issue = make_issue()
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    jobs, context = make_context(tmp_path)
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def blocked_apply(_context):
+        started.set()
+        await release.wait()
+        return disposition(context)
+
+    effects._apply = blocked_apply
+    handler = ImplementationWorkflowHandler(
+        ProductionImplementationWorkflowBackend(effects)
+    )
+    journal = TransitionJournal(str(tmp_path / "runtime-transitions.sqlite3"))
+    runtime = WorkflowRuntime(
+        project_bindings={},
+        store=jobs,
+        journals={"project-a": journal},
+        mode="off",
+        handlers={ImplementationAction.START.value: handler},
+    )
+
+    outer = asyncio.create_task(effects.apply(context))
+    await started.wait()
+    outer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await outer
+
+    assert effects.pending_mutation_count == 1
+    assert handler.pending_mutation_count == 1
+    assert runtime.pending_operation_count == 1
+    with pytest.raises(WorkflowRuntimeError, match="1 operation"):
+        runtime.close()
+    assert await runtime.drain(timeout_seconds=0.01) is False
+
+    drain = asyncio.create_task(runtime.drain(timeout_seconds=1.0))
+    await asyncio.sleep(0)
+    assert drain.done() is False
+    release.set()
+    assert await drain is True
+    assert effects.pending_mutation_count == 0
+    assert runtime.pending_operation_count == 0
+
+    runtime.close()
+    jobs.close()
 
 
 @pytest.mark.asyncio

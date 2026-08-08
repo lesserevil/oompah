@@ -15,6 +15,9 @@ Currently this contains:
 from __future__ import annotations
 
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 
 import pytest
 
@@ -222,3 +225,238 @@ def _isolate_registered_secrets():
     clear_registered_secrets()
     yield
     clear_registered_secrets()
+
+
+class _OompahTestResourceRegistry:
+    """Own real per-test orchestrator pools and persistent SQLite stores."""
+
+    def __init__(self) -> None:
+        self._orchestrators: list[dict[str, object]] = []
+        self._stores: list[object] = []
+        self._lock = threading.RLock()
+        self._close_lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+        self._constructor_context = threading.local()
+        self._active_constructors = 0
+        self._seal_event = threading.Event()
+        self._closing = False
+        self._closed = False
+
+    def begin_constructor(self, resource_type: str) -> None:
+        """Admit one constructor before teardown seals the test boundary."""
+
+        with self._condition:
+            nested = bool(getattr(self._constructor_context, "depth", 0))
+            if (self._closing or self._closed) and not nested:
+                raise RuntimeError(
+                    f"{resource_type} constructed after test resource boundary sealed"
+                )
+            self._active_constructors += 1
+            self._constructor_context.depth = (
+                getattr(self._constructor_context, "depth", 0) + 1
+            )
+
+    def end_constructor(self) -> None:
+        with self._condition:
+            self._constructor_context.depth -= 1
+            self._active_constructors -= 1
+            self._condition.notify_all()
+
+    def register_orchestrator(self, orchestrator: object) -> None:
+        with self._lock:
+            self._orchestrators.append({"orchestrator": orchestrator, "pools": []})
+
+    def capture_pools(self, orchestrator: object) -> None:
+        with self._lock:
+            for record in reversed(self._orchestrators):
+                if record["orchestrator"] is not orchestrator:
+                    continue
+                pools = record["pools"]
+                assert isinstance(pools, list)
+                for name in ("_tick_pool", "_refresh_pool", "_integration_pool"):
+                    pool = getattr(orchestrator, name, None)
+                    if isinstance(pool, ThreadPoolExecutor) and all(
+                        existing is not pool for existing in pools
+                    ):
+                        pools.append(pool)
+                return
+
+    def register_store(self, store: object) -> None:
+        with self._lock:
+            self._stores.append(store)
+
+    def close_all(self) -> None:
+        """Drain pools before stores and report every cleanup failure."""
+
+        with self._close_lock:
+            self._close_all()
+
+    def _close_all(self) -> None:
+        """Serialized implementation of :meth:`close_all`."""
+
+        with self._condition:
+            if self._closed:
+                return
+            self._closing = True
+            self._seal_event.set()
+            while self._active_constructors:
+                self._condition.wait()
+            orchestrators = list(self._orchestrators)
+
+        failures: list[str] = []
+        seen_pools: set[int] = set()
+        for record in reversed(orchestrators):
+            orchestrator = record["orchestrator"]
+            self.capture_pools(orchestrator)
+            pools = record["pools"]
+            assert isinstance(pools, list)
+            for pool in reversed(pools):
+                if not isinstance(pool, ThreadPoolExecutor) or id(pool) in seen_pools:
+                    continue
+                seen_pools.add(id(pool))
+                try:
+                    pool.shutdown(wait=True, cancel_futures=False)
+                except Exception as exc:  # noqa: BLE001 - drain every owner
+                    failures.append(f"executor shutdown failed: {exc!r}")
+                live_threads = [
+                    thread.name
+                    for thread in getattr(pool, "_threads", ())
+                    if thread.is_alive()
+                ]
+                if live_threads:
+                    failures.append(
+                        "executor retained live threads: " + ", ".join(live_threads)
+                    )
+
+        # Exercise the same once-only close boundary as production.  Raw
+        # store tracking remains necessary for stores constructed directly by
+        # tests, but must not double-close orchestrator-owned resources.
+        owned_resource_ids: set[int] = set()
+        for record in reversed(orchestrators):
+            orchestrator = record["orchestrator"]
+            for name in (
+                "workflow_runtime",
+                "_implementation_receipt_store",
+                "coordination_store",
+                "integration_queue",
+                "review_capacity_store",
+                "workflow_job_store",
+                "task_transition_journal",
+            ):
+                resource = getattr(orchestrator, name, None)
+                if resource is not None:
+                    owned_resource_ids.add(id(resource))
+                    if name == "workflow_runtime":
+                        owned_resource_ids.update(
+                            id(journal)
+                            for journal in getattr(resource, "journals", {}).values()
+                        )
+            close_owned = getattr(orchestrator, "_close_owned_persistent_stores", None)
+            if not callable(close_owned):
+                continue
+            try:
+                close_owned()
+            except Exception as exc:  # noqa: BLE001 - close every owner
+                failures.append(
+                    f"{type(orchestrator).__name__} resource close failed: {exc!r}"
+                )
+
+        with self._lock:
+            stores = list(self._stores)
+        seen_stores: set[int] = set()
+        for store in reversed(stores):
+            if id(store) in seen_stores or id(store) in owned_resource_ids:
+                continue
+            seen_stores.add(id(store))
+            close = getattr(store, "close", None)
+            if close is None:
+                continue
+            try:
+                close()
+            except Exception as exc:  # noqa: BLE001 - close every owner
+                failures.append(
+                    f"{type(store).__name__} close failed: {exc!r}"
+                )
+
+        with self._lock:
+            if not failures:
+                self._orchestrators.clear()
+                self._stores.clear()
+                self._closed = True
+                self._closing = False
+
+        if failures:
+            raise AssertionError("owned test resource cleanup failed: " + "; ".join(failures))
+
+
+@pytest.fixture(autouse=True)
+def _close_owned_oompah_resources(monkeypatch):
+    """Keep real Oompah stores and executor pools inside one test boundary."""
+
+    from oompah.coordination import CoordinationStore
+    from oompah.implementation_workflow_adapter import ImplementationReceiptStore
+    from oompah.integration_queue import IntegrationQueueStore
+    from oompah.orchestrator import Orchestrator
+    from oompah.review_capacity import ReviewCapacityStore
+    from oompah.task_transition_service import TransitionJournal
+    from oompah.workflow_jobs import WorkflowJobStore
+
+    registry = _OompahTestResourceRegistry()
+
+    def tracked_store_init(original):
+        @wraps(original)
+        def initialize(store, *args, **kwargs):
+            registry.begin_constructor(type(store).__name__)
+            try:
+                original(store, *args, **kwargs)
+            except BaseException:
+                close = getattr(store, "close", None)
+                if callable(close):
+                    try:
+                        close()
+                    except BaseException:
+                        pass
+                raise
+            else:
+                registry.register_store(store)
+            finally:
+                registry.end_constructor()
+
+        return initialize
+
+    for store_class in (
+        CoordinationStore,
+        ImplementationReceiptStore,
+        IntegrationQueueStore,
+        ReviewCapacityStore,
+        WorkflowJobStore,
+        TransitionJournal,
+    ):
+        monkeypatch.setattr(
+            store_class,
+            "__init__",
+            tracked_store_init(store_class.__init__),
+        )
+
+    original_orchestrator_init = Orchestrator.__init__
+
+    @wraps(original_orchestrator_init)
+    def tracked_orchestrator_init(orchestrator, *args, **kwargs):
+        registry.begin_constructor("orchestrator")
+        try:
+            registry.register_orchestrator(orchestrator)
+            try:
+                original_orchestrator_init(orchestrator, *args, **kwargs)
+            finally:
+                registry.capture_pools(orchestrator)
+        finally:
+            registry.end_constructor()
+
+    monkeypatch.setattr(Orchestrator, "__init__", tracked_orchestrator_init)
+
+    yield registry
+
+    try:
+        registry.close_all()
+    except AssertionError as exc:
+        pytest.fail(str(exc))

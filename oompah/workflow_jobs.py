@@ -664,7 +664,14 @@ class WorkflowJobStore:
         except Exception:
             if hasattr(self, "_conn"):
                 self._conn.close()
-            os.close(self._authority_lock_fd)
+            if self._authority_lock_fd >= 0:
+                try:
+                    os.close(self._authority_lock_fd)
+                finally:
+                    # Failed construction is also an ownership boundary.
+                    # Mark the descriptor retired before a wrapper/finalizer
+                    # can retry cleanup and close a reused unrelated fd.
+                    self._authority_lock_fd = -1
             raise
 
     @contextmanager

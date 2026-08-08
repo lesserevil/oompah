@@ -923,6 +923,13 @@ class TestTerminateRunningWritesCostRecord:
                 raise RuntimeError("snapshot backend unavailable")
 
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = entry.issue
+
+        def update_issue(_identifier, **fields):
+            if "status" in fields:
+                entry.issue.state = fields["status"]
+
+        tracker.update_issue.side_effect = update_issue
         orch.project_store = RecoveryStore()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._fire_task_cost_record = MagicMock()
@@ -933,8 +940,12 @@ class TestTerminateRunningWritesCostRecord:
         ) is False
         assert entry.identifier not in orch.state.running
         assert entry.issue.id in orch.state.completed
-        tracker.mark_needs_human.assert_called_once()
-        assert "snapshot backend unavailable" in tracker.mark_needs_human.call_args.args[1]
+        tracker.update_issue.assert_called_once_with(
+            entry.identifier,
+            status="Needs Human",
+        )
+        tracker.add_comment.assert_called_once()
+        assert "snapshot backend unavailable" in tracker.add_comment.call_args.args[1]
 
     def test_publication_interruption_reopens_without_needs_human(self, tmp_path):
         """A retained checkpoint stays scheduler/direct-owner recoverable."""
@@ -963,8 +974,19 @@ class TestTerminateRunningWritesCostRecord:
             state="In Progress",
             project_id="project-1",
         )
+        current.integration = IntegrationRecord(
+            state="working",
+            task_branch=entry.identifier,
+            head_sha=context["snapshot_head"],
+        )
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = current
+
+        def update_issue(_identifier, **fields):
+            if "status" in fields:
+                current.state = fields["status"]
+
+        tracker.update_issue.side_effect = update_issue
         orch.project_store = RecoveryStore()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()

@@ -55,7 +55,12 @@ def _make_orchestrator(issue: Issue, project=None):
     tracker.repo = "repo"
     tracker.fetch_issue_detail.return_value = issue
     tracker.fetch_comments.return_value = []
-    tracker.update_issue = MagicMock()
+
+    def update_issue(_identifier, **fields):
+        if "status" in fields:
+            issue.state = fields["status"]
+
+    tracker.update_issue = MagicMock(side_effect=update_issue)
     tracker.add_label = MagicMock()
     tracker.remove_label = MagicMock()
     tracker.add_comment = MagicMock(return_value={"ok": True})
@@ -73,6 +78,11 @@ def _make_orchestrator(issue: Issue, project=None):
     orch.state.retry_attempts = {}
     orch.state.claimed = set()
     orch.state.completed = set()
+
+    def transition_issue_status(current, requested_status, **_kwargs):
+        tracker.update_issue(current.identifier, status=requested_status)
+
+    orch._transition_issue_status.side_effect = transition_issue_status
     return orch, tracker
 
 

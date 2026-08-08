@@ -557,6 +557,12 @@ class TestTaskScopeDirectPath:
         orch.project_store = project_store
         orch.config.parallel_epic_children_enabled = False
         orch.issue_transition_lock.side_effect = lambda _issue_id: asyncio.Lock()
+
+        def transition_issue_status(issue, requested_status, **_kwargs):
+            tracker.update_issue(issue.identifier, status=requested_status)
+            issue.state = requested_status
+
+        orch._transition_issue_status.side_effect = transition_issue_status
         if coordination is not None:
             orch.coordination_checkpoint = coordination.coordination_checkpoint
             orch.coordination_send = coordination.coordination_send
@@ -1325,6 +1331,12 @@ class TestTaskScopeDirectPath:
                 raise RuntimeError("assignment projection unavailable")
 
         tracker.set_metadata_field.side_effect = set_metadata
+
+        def update_issue(_identifier, **fields):
+            if "status" in fields:
+                issue.state = fields["status"]
+
+        tracker.update_issue.side_effect = update_issue
         orch = Orchestrator(
             config=ServiceConfig(),
             workflow_path="WORKFLOW.md",
@@ -1449,10 +1461,10 @@ class TestTaskScopeDirectPath:
         assert not any(
             key[0] == issue.id for key in orch._scheduled_termination_entries
         )
-        assert tracker.update_issue.call_args_list == [
-            call(issue.identifier, status="Ready to Integrate"),
-            call(issue.identifier, status="Ready to Integrate"),
-        ]
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status="Ready to Integrate",
+        )
         queued = orch.integration_queue.items(
             project_id=issue.project_id,
             epic_id=issue.parent_id,
@@ -2286,6 +2298,11 @@ class TestFailedHandoffLifecycle:
 
         tracker.update_issue.side_effect = update_issue
         server_orch = MagicMock()
+
+        def transition_issue_status(current, requested_status, **_kwargs):
+            tracker.update_issue(current.identifier, status=requested_status)
+
+        server_orch._transition_issue_status.side_effect = transition_issue_status
         server_orch._tracker_for_project.return_value = tracker
         server_orch.project_store.list_all.return_value = []
         server_orch.config.parallel_epic_children_enabled = False
@@ -2428,13 +2445,29 @@ class TestFailedHandoffLifecycle:
         )
         orch.state.running[issue.id] = entry
         orch.tracker = MagicMock()
+        orch.tracker.fetch_issue_detail.return_value = issue
+
+        def update_issue(_identifier, **fields):
+            if "status" in fields:
+                issue.state = fields["status"]
+
+        orch.tracker.update_issue.side_effect = update_issue
+        orch._fire_work_contributor_record = MagicMock()
 
         asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
 
         assert issue.id in orch.state.completed
         assert issue.id not in orch.state.running
-        orch.tracker.mark_needs_human.assert_called_once()
-        assert "handoff" in orch.tracker.mark_needs_human.call_args.args[1].lower()
+        orch.tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status="Needs Human",
+        )
+        handoff_comments = [
+            comment
+            for comment in orch.tracker.add_comment.call_args_list
+            if "handoff" in comment.args[1].lower()
+        ]
+        assert len(handoff_comments) == 1
         assert not orch.state.retry_attempts
 
     def test_enforce_failed_handoff_schedules_needs_human_without_retry(
@@ -2460,7 +2493,7 @@ class TestFailedHandoffLifecycle:
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
         orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch.workflow_runtime = SimpleNamespace(enforce=True, close=MagicMock())
         orch._schedule_implementation_workflow_event = MagicMock(
             return_value=SimpleNamespace(job_id="handoff-failure")
         )
@@ -2517,7 +2550,7 @@ class TestFailedHandoffLifecycle:
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
         orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch.workflow_runtime = SimpleNamespace(enforce=True, close=MagicMock())
         orch._schedule_implementation_workflow_event = MagicMock()
         orch._schedule_retry = MagicMock()
         orch._notify_observers = MagicMock()
@@ -2571,7 +2604,7 @@ class TestFailedHandoffLifecycle:
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
         orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch.workflow_runtime = SimpleNamespace(enforce=True, close=MagicMock())
         orch._schedule_implementation_workflow_event = MagicMock(
             return_value=SimpleNamespace(job_id="needs-human")
         )
@@ -2692,6 +2725,11 @@ class TestCoordinationSendRaces:
         tracker.update_issue.side_effect = update_issue
 
         orch = MagicMock()
+
+        def transition_issue_status(current, requested_status, **_kwargs):
+            tracker.update_issue(current.identifier, status=requested_status)
+
+        orch._transition_issue_status.side_effect = transition_issue_status
         orch._tracker_for_project.return_value = tracker
         orch.project_store.list_all.return_value = []
         orch.config.parallel_epic_children_enabled = False

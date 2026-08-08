@@ -516,6 +516,20 @@ class TestYoloEpicStrategyGate:
             return None
 
         tracker.fetch_issue_detail.side_effect = fetch_detail
+
+        def update_issue(identifier, **fields):
+            issue = fetch_detail(identifier)
+            if issue is None:
+                return
+            if "status" in fields:
+                issue.state = fields["status"]
+            if "priority" in fields:
+                issue.priority = int(fields["priority"])
+            label = fields.get("add-label")
+            if label and label not in issue.labels:
+                issue.labels.append(label)
+
+        tracker.update_issue.side_effect = update_issue
         orch._project_trackers[project.id] = tracker
         return tracker
 
@@ -623,11 +637,15 @@ class TestYoloEpicStrategyGate:
             "224",
             comment=ANY,
         )
-        tracker.mark_needs_human.assert_called_once()
-        comment_args = tracker.mark_needs_human.call_args.args
+        tracker.update_issue.assert_called_once_with(
+            "TASK-733",
+            status="Needs Human",
+        )
+        tracker.add_comment.assert_called_once()
+        comment_args = tracker.add_comment.call_args.args
         assert comment_args[0] == "TASK-733"
         assert "Closed stale standalone PR #224" in comment_args[1]
-        assert tracker.mark_needs_human.call_args.kwargs == {"author": "oompah"}
+        assert tracker.add_comment.call_args.kwargs == {"author": "oompah"}
         records = list(orch._yolo_action_history)
         assert len(records) == 1
         assert records[0].action_type == "close_invalid_review"

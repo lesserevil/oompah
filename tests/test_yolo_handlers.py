@@ -13,12 +13,12 @@ Covers the rebase-before-notify behavior in
 from __future__ import annotations
 
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import EpicRebaseState
+from oompah.models import EpicRebaseState, Issue
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
 from oompah.statuses import IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE
@@ -62,6 +62,25 @@ def _make_review_request(
         ci_status=ci_status,
         has_conflicts=has_conflicts,
     )
+
+
+def _stateful_tracker(issue: Issue) -> MagicMock:
+    """Return a tracker whose point read confirms its mocked writes."""
+
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+
+    def update_issue(_identifier, **fields):
+        if "status" in fields:
+            issue.state = fields["status"]
+        if "priority" in fields:
+            issue.priority = int(fields["priority"])
+        label = fields.get("add-label")
+        if label and label not in issue.labels:
+            issue.labels.append(label)
+
+    tracker.update_issue.side_effect = update_issue
+    return tracker
 
 
 def _make_orchestrator(tmp_path, projects=None):
@@ -147,22 +166,30 @@ class TestYoloNotifyConflictRebaseFirst:
             source_branch="trickle-real",
         )
 
-        tracker = MagicMock()
-        existing = MagicMock()
-        existing.state = "closed"
-        existing.labels = []
-        existing.identifier = "trickle-real"
-        existing.id = "trickle-real"
-        tracker.fetch_issue_detail.return_value = existing
+        existing = Issue(
+            id="trickle-real",
+            identifier="trickle-real",
+            title="Conflict repair",
+            state="closed",
+            project_id=project.id,
+        )
+        tracker = _stateful_tracker(existing)
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
 
         # Task path ran: comment + reopen
         provider.rebase_review.assert_called_once_with("org/repo", "30")
-        tracker.fetch_issue_detail.assert_called_once()
+        tracker.fetch_issue_detail.assert_called()
         tracker.add_comment.assert_called_once()
-        tracker.update_issue.assert_called_once()
+        assert tracker.update_issue.call_args_list == [
+            call("trickle-real", status=NEEDS_REBASE),
+            call(
+                "trickle-real",
+                priority="0",
+                **{"add-label": "merge-conflict"},
+            ),
+        ]
 
     # --- Path 3: rebase fails with non-conflict reason -> task-notify still fires ---
 
@@ -183,13 +210,14 @@ class TestYoloNotifyConflictRebaseFirst:
             source_branch="trickle-real-31",
         )
 
-        tracker = MagicMock()
-        existing = MagicMock()
-        existing.state = "closed"
-        existing.labels = []
-        existing.identifier = "trickle-real-31"
-        existing.id = "trickle-real-31"
-        tracker.fetch_issue_detail.return_value = existing
+        existing = Issue(
+            id="trickle-real-31",
+            identifier="trickle-real-31",
+            title="Conflict repair",
+            state="closed",
+            project_id=project.id,
+        )
+        tracker = _stateful_tracker(existing)
         orch._project_trackers[project.id] = tracker
 
         with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
@@ -197,9 +225,16 @@ class TestYoloNotifyConflictRebaseFirst:
 
         # The safety net is preserved: task-notify path still ran.
         provider.rebase_review.assert_called_once_with("org/repo", "31")
-        tracker.fetch_issue_detail.assert_called_once()
+        tracker.fetch_issue_detail.assert_called()
         tracker.add_comment.assert_called_once()
-        tracker.update_issue.assert_called_once()
+        assert tracker.update_issue.call_args_list == [
+            call("trickle-real-31", status=NEEDS_REBASE),
+            call(
+                "trickle-real-31",
+                priority="0",
+                **{"add-label": "merge-conflict"},
+            ),
+        ]
         # WARNING surfaced so an operator can see the non-conflict failure
         # didn't get the cheap rebase path.
         assert any(
@@ -222,22 +257,30 @@ class TestYoloNotifyConflictRebaseFirst:
             source_branch="trickle-real-32",
         )
 
-        tracker = MagicMock()
-        existing = MagicMock()
-        existing.state = "closed"
-        existing.labels = []
-        existing.identifier = "trickle-real-32"
-        existing.id = "trickle-real-32"
-        tracker.fetch_issue_detail.return_value = existing
+        existing = Issue(
+            id="trickle-real-32",
+            identifier="trickle-real-32",
+            title="Conflict repair",
+            state="closed",
+            project_id=project.id,
+        )
+        tracker = _stateful_tracker(existing)
         orch._project_trackers[project.id] = tracker
 
         with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
             orch._yolo_notify_conflict(project, provider, "org/repo", "32")
 
         provider.rebase_review.assert_called_once_with("org/repo", "32")
-        tracker.fetch_issue_detail.assert_called_once()
+        tracker.fetch_issue_detail.assert_called()
         tracker.add_comment.assert_called_once()
-        tracker.update_issue.assert_called_once()
+        assert tracker.update_issue.call_args_list == [
+            call("trickle-real-32", status=NEEDS_REBASE),
+            call(
+                "trickle-real-32",
+                priority="0",
+                **{"add-label": "merge-conflict"},
+            ),
+        ]
         # And a WARNING was emitted so we can spot the raising provider.
         assert any("rebase raised" in rec.message.lower() for rec in caplog.records), (
             "expected WARNING for raising provider.rebase_review, got: "
@@ -245,8 +288,7 @@ class TestYoloNotifyConflictRebaseFirst:
         )
 
     def test_deferred_issue_reopened_for_conflict(self, tmp_path):
-        """Non-terminal, non-actionable states like 'deferred' are reopened as P0
-        for conflict resolution, not just labeled and left behind."""
+        """A review-owned task is routed through the legal repair transition."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -257,13 +299,15 @@ class TestYoloNotifyConflictRebaseFirst:
             source_branch="trickle-deferred-33",
         )
 
-        tracker = MagicMock()
-        existing = MagicMock()
-        existing.state = "deferred"
-        existing.labels = ["merge-conflict"]
-        existing.identifier = "trickle-deferred-33"
-        existing.id = "trickle-deferred-33"
-        tracker.fetch_issue_detail.return_value = existing
+        existing = Issue(
+            id="trickle-deferred-33",
+            identifier="trickle-deferred-33",
+            title="Conflict repair",
+            state="In Review",
+            labels=["merge-conflict"],
+            project_id=project.id,
+        )
+        tracker = _stateful_tracker(existing)
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "33")
@@ -272,12 +316,14 @@ class TestYoloNotifyConflictRebaseFirst:
         tracker.add_comment.assert_called_once()
         # The issue MUST be reopened from deferred -> open with P0 priority so
         # the conflict-resolution agent can actually be dispatched.
-        tracker.update_issue.assert_called_once_with(
-            "trickle-deferred-33",
-            status="Needs Rebase",
-            priority="0",
-            **{"add-label": "merge-conflict"},
-        )
+        assert tracker.update_issue.call_args_list == [
+            call("trickle-deferred-33", status=NEEDS_REBASE),
+            call(
+                "trickle-deferred-33",
+                priority="0",
+                **{"add-label": "merge-conflict"},
+            ),
+        ]
 
     def test_orphan_recovery_cross_restart_dedup_skips_filing(self, tmp_path):
         """When an open issue with the matching label already exists in the
@@ -505,14 +551,16 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
     def test_epic_branch_parent_ci_fix_label_marks_mature_epic(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
-        tracker = MagicMock()
-        epic = MagicMock(
+        epic = Issue(
             identifier="TASK-706",
             id="TASK-706",
+            title="Epic",
             labels=["ci-fix"],
             state="In Review",
             issue_type="epic",
+            project_id=project.id,
         )
+        tracker = _stateful_tracker(epic)
         tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
         orch._project_trackers[project.id] = tracker
         orch._file_orphan_recovery_task = MagicMock()
@@ -525,12 +573,10 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
 
         orch._file_orphan_recovery_task.assert_not_called()
         tracker.create_issue.assert_not_called()
-        tracker.update_issue.assert_called_once_with(
-            "TASK-706",
-            status=NEEDS_CI_FIX,
-            priority="0",
-            **{"add-label": "ci-fix"},
-        )
+        assert tracker.update_issue.call_args_list == [
+            call("TASK-706", status=NEEDS_CI_FIX),
+            call("TASK-706", priority="0", **{"add-label": "ci-fix"}),
+        ]
 
     def test_true_orphan_still_files_recovery_task(self, tmp_path):
         project = _make_project()
@@ -548,13 +594,15 @@ class TestYoloNotifyConflictEpicBranch:
     """A conflict on a mature EPIC branch repairs the epic PR directly."""
 
     def _epic(self):
-        epic = MagicMock()
-        epic.issue_type = "epic"
-        epic.identifier = "TASK-18"
-        epic.id = "TASK-18"
-        epic.state = "Backlog"
-        epic.labels = []
-        return epic
+        return Issue(
+            id="TASK-18",
+            identifier="TASK-18",
+            title="Epic",
+            issue_type="epic",
+            state="In Review",
+            labels=[],
+            project_id="proj-1",
+        )
 
     def test_mature_epic_branch_conflict_marks_epic_needs_rebase(self, tmp_path):
         project = _make_project()
@@ -568,8 +616,7 @@ class TestYoloNotifyConflictEpicBranch:
         provider.get_review.return_value = _make_review_request(
             review_id="42", source_branch="epic-TASK-18", target_branch="dev",
         )
-        tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = self._epic()
+        tracker = _stateful_tracker(self._epic())
         with patch.object(
             orch,
             "_fetch_epic_children",
@@ -579,12 +626,10 @@ class TestYoloNotifyConflictEpicBranch:
             orch._yolo_notify_conflict(project, provider, "org/repo", "42")
 
         tracker.create_issue.assert_not_called()
-        tracker.update_issue.assert_called_once_with(
-            "TASK-18",
-            status=NEEDS_REBASE,
-            priority="0",
-            **{"add-label": "merge-conflict"},
-        )
+        assert tracker.update_issue.call_args_list == [
+            call("TASK-18", status=NEEDS_REBASE),
+            call("TASK-18", priority="0", **{"add-label": "merge-conflict"}),
+        ]
 
     def test_epic_branch_conflict_idempotent_when_rebase_sibling_open(self, tmp_path):
         project = _make_project()

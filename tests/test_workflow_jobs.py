@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -801,7 +802,10 @@ def test_schema_v1_is_upgraded_without_losing_job(tmp_path):
         upgraded.close()
 
 
-def test_future_schema_is_rejected(tmp_path):
+def test_future_schema_is_rejected_without_double_closing_authority_fd(
+    tmp_path,
+    monkeypatch,
+):
     path = tmp_path / "future.sqlite3"
     connection = sqlite3.connect(path)
     connection.executescript(
@@ -812,8 +816,19 @@ def test_future_schema_is_rejected(tmp_path):
     )
     connection.close()
 
+    real_close = os.close
+    close_calls: list[int] = []
+
+    def tracked_close(fd: int) -> None:
+        close_calls.append(fd)
+        real_close(fd)
+
+    monkeypatch.setattr("oompah.workflow_jobs.os.close", tracked_close)
+
     with pytest.raises(WorkflowJobStoreError, match="newer"):
         WorkflowJobStore(str(path))
+
+    assert len(close_calls) == 1
 
 
 def test_interrupted_column_first_migration_rewrites_legacy_specs_on_restart(

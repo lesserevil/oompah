@@ -59,6 +59,7 @@ from oompah.terminal_transition_coordinator import (
     AuditResult,
     TerminalTransitionCoordinator,
 )
+from oompah.task_transition_service import TransitionJournal
 
 
 def test_duplicate_recovery_projection_prefers_active_attempt_identity() -> None:
@@ -220,11 +221,12 @@ def _issue(identifier: str, state: str, evidence: str, project: str | None = Non
     return issue
 
 
-def _enforcer(tmp_path, *, terminal_states=("Done",)):
+def _enforcer(tmp_path, *, terminal_states=("Done",), recover_status=None):
     return TerminalAuditEnforcement(
         str(tmp_path / "service_state.json"),
         terminal_states=terminal_states,
         project_store=_LockStore(),
+        recover_status=recover_status,
     )
 
 
@@ -237,6 +239,17 @@ def _native_tracker(root) -> OompahMarkdownTracker:
         default_branch="main",
         git_sync=False,
     )
+
+
+def _native_recovery_owner(tmp_path) -> Orchestrator:
+    """Provide the real durable recovery callback without a full scheduler."""
+
+    owner = Orchestrator.__new__(Orchestrator)
+    owner.project_store = _LockStore()
+    owner.task_transition_journal = TransitionJournal(
+        str(tmp_path / "task_transition_journal.sqlite3")
+    )
+    return owner
 
 
 def _native_integration(*, head_sha: str) -> IntegrationRecord:
@@ -1412,11 +1425,13 @@ def test_native_oompah_660_repair_survives_refresh_and_restart(
         ),
     )
     state_path = tmp_path / "service_state.json"
+    recovery_owner = _native_recovery_owner(tmp_path)
     first = TerminalAuditEnforcement(
         str(state_path),
         terminal_states=("Done",),
         project_store=_LockStore(),
         validate_terminal_transition=_shared_epic_conflict,
+        recover_status=recovery_owner._recover_terminal_audit_status,
     ).reconcile_lifecycle_batch([(project_id, tracker)], max_attempts=1)
 
     assert first["status"] == "complete"
@@ -1436,6 +1451,7 @@ def test_native_oompah_660_repair_survives_refresh_and_restart(
         terminal_states=("Done",),
         project_store=_LockStore(),
         validate_terminal_transition=_shared_epic_conflict,
+        recover_status=recovery_owner._recover_terminal_audit_status,
     ).reconcile_lifecycle_batch(
         [(project_id, restarted_tracker)], max_attempts=1
     )
@@ -3733,7 +3749,11 @@ def test_native_markdown_restart_replays_current_result_intent(tmp_path):
     )
 
     restarted = _native_tracker(repo)
-    assert _enforcer(tmp_path / "restart").recover_pending_audits(
+    recovery_owner = _native_recovery_owner(tmp_path / "restart")
+    assert _enforcer(
+        tmp_path / "restart",
+        recover_status=recovery_owner._recover_terminal_audit_status,
+    ).recover_pending_audits(
         [("project-a", restarted)]
     ) == []
     refreshed = restarted.fetch_issue_detail(issue.identifier)
