@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-08T16:27:45.690331Z'
+updated_at: '2026-08-08T16:27:51.217764Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-811
 target_branch: null
 review_url: null
@@ -127,7 +127,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:27:41.544293+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-811
+    target_state: Done
+    evidence_fingerprint: 32ef7df64b958ae9dc80b8b32fd249442a2582053250cfd7b4ca6669090499a6
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:27:49.741359+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -178,5 +188,12 @@ author: oompah
 created: 2026-08-08 08:13
 ---
 Direct owner audit on the current systemic composition found the requested restart-safe rebase saga already present in the canonical durable integration workflow: rebase intent is persisted before Git mutation; prepare_task_publication advances queue authority with predecessor/publication-pending evidence; the tracker checkpoint is repaired under the task transition lock; complete_task_publication fences gate launch; exact-head/generation authority is revalidated throughout; stale/task-push/epic-head races route as superseded or retryable, while Needs CI Fix is reserved for ci_failure. Existing production-composed tests cover pre-push intent crash, post-push checkpoint recovery, queue-first tracker repair/CAS loss, exact gate-head binding, force-with-lease loss, concurrent resubmit, and genuine exact-head CI failure. I am treating OOMPAH-811 as implementation-complete on the systemic composition and will include these suites in the final exact-head gate before terminalizing it.
+---
+author: oompah
+created: 2026-08-08 16:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->
