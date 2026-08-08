@@ -3456,36 +3456,38 @@ def test_gate_orphan_sidecar_final_unlink_detects_name_replacement(
     os.utime(sidecar, (old, old))
     displaced = tmp_path / "displaced-final-orphan-claim"
     monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
-    original_unlink = os.unlink
+    original_exchange = quality_gate._rename_exchange_at
     swapped = False
 
-    def swap_at_unlink(path, *args, **kwargs):
+    def swap_at_exchange(left_dir_fd, left_name, right_dir_fd, right_name):
         nonlocal swapped
-        directory_fd = kwargs.get("dir_fd")
         if (
-            isinstance(path, str)
-            and directory_fd is not None
-            and quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(path)
+            quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(left_name)
             and not swapped
         ):
             swapped = True
             os.rename(
-                path,
+                left_name,
                 displaced.name,
-                src_dir_fd=directory_fd,
-                dst_dir_fd=directory_fd,
+                src_dir_fd=left_dir_fd,
+                dst_dir_fd=left_dir_fd,
             )
             replacement_fd = os.open(
-                path,
+                left_name,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL,
                 0o400,
-                dir_fd=directory_fd,
+                dir_fd=left_dir_fd,
             )
             os.write(replacement_fd, b"replacement evidence")
             os.close(replacement_fd)
-        return original_unlink(path, *args, **kwargs)
+        return original_exchange(
+            left_dir_fd,
+            left_name,
+            right_dir_fd,
+            right_name,
+        )
 
-    monkeypatch.setattr(os, "unlink", swap_at_unlink)
+    monkeypatch.setattr(quality_gate, "_rename_exchange_at", swap_at_exchange)
     with BranchQualityGate._processes_lock:
         generation = BranchQualityGate._gate_namespace_generation
 
@@ -3497,6 +3499,10 @@ def test_gate_orphan_sidecar_final_unlink_detects_name_replacement(
     )
     assert swapped
     assert displaced.read_text(encoding="utf-8") == "expected evidence"
+    assert any(
+        path.read_text(encoding="utf-8") == "replacement evidence"
+        for path in tmp_path.glob(f".{root_name}.sidecar-reap-*")
+    )
 
 
 def test_gate_sidecar_claim_crash_is_verified_then_reaped(tmp_path, monkeypatch):
@@ -3615,6 +3621,47 @@ def test_gate_sidecar_claim_protected_by_quarantine_is_revisited(
         if not claim.exists() and reaper is None:
             break
         time.sleep(0.01)
+    assert not claim.exists()
+    assert reaper is None
+
+
+def test_gate_sidecar_claim_protected_by_active_root_is_revisited(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    run_root = BranchQualityGate._gate_run_root()
+    container = run_root.parent
+    sidecar = BranchQualityGate._gate_root_owner_path(container)
+    metadata = sidecar.stat()
+    claim = tmp_path / (
+        f".{container.name}.sidecar-reap-{metadata.st_dev}-{metadata.st_ino}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    sidecar.rename(claim)
+
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+            attempts = BranchQualityGate._deferred_gate_discovery_attempts
+        if claim.exists() and reaper is not None and attempts > 0:
+            break
+        time.sleep(0.01)
+    assert claim.exists()
+    assert reaper is not None
+    assert attempts > 0
+
+    BranchQualityGate._cleanup_gate_run_root(run_root)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not claim.exists() and reaper is None:
+            break
+        time.sleep(0.01)
+    assert not container.exists()
     assert not claim.exists()
     assert reaper is None
 
@@ -3757,36 +3804,38 @@ def test_gate_sidecar_claim_final_unlink_detects_name_replacement(
     displaced = tmp_path / "displaced-final-recovery-claim"
     claim_match = quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(claim.name)
     assert claim_match is not None
-    original_unlink = os.unlink
+    original_exchange = quality_gate._rename_exchange_at
     swapped = False
 
-    def swap_at_unlink(path, *args, **kwargs):
+    def swap_at_exchange(left_dir_fd, left_name, right_dir_fd, right_name):
         nonlocal swapped
-        directory_fd = kwargs.get("dir_fd")
         if (
-            isinstance(path, str)
-            and directory_fd is not None
-            and quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(path)
+            quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(left_name)
             and not swapped
         ):
             swapped = True
             os.rename(
-                path,
+                left_name,
                 displaced.name,
-                src_dir_fd=directory_fd,
-                dst_dir_fd=directory_fd,
+                src_dir_fd=left_dir_fd,
+                dst_dir_fd=left_dir_fd,
             )
             replacement_fd = os.open(
-                path,
+                left_name,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL,
                 0o400,
-                dir_fd=directory_fd,
+                dir_fd=left_dir_fd,
             )
             os.write(replacement_fd, b"replacement authority")
             os.close(replacement_fd)
-        return original_unlink(path, *args, **kwargs)
+        return original_exchange(
+            left_dir_fd,
+            left_name,
+            right_dir_fd,
+            right_name,
+        )
 
-    monkeypatch.setattr(os, "unlink", swap_at_unlink)
+    monkeypatch.setattr(quality_gate, "_rename_exchange_at", swap_at_exchange)
     try:
         with BranchQualityGate._processes_lock:
             BranchQualityGate._deferred_gate_sidecar_phase = "verify"
@@ -3801,9 +3850,13 @@ def test_gate_sidecar_claim_final_unlink_detects_name_replacement(
             require_sidecar_batch=True,
             report_status=True,
         )
-        assert result == quality_gate._GATE_REMOVAL_INCOMPLETE
+        assert result == quality_gate._GATE_REMOVAL_UNSAFE
         assert swapped
         assert displaced.read_text(encoding="utf-8") == "expected authority"
+        assert any(
+            path.read_text(encoding="utf-8") == "replacement authority"
+            for path in tmp_path.glob(f".{root_name}.sidecar-reap-*")
+        )
     finally:
         with BranchQualityGate._processes_lock:
             BranchQualityGate._deferred_gate_sidecar_candidates.clear()
@@ -3863,8 +3916,10 @@ def test_gate_terminal_sidecar_retries_transient_claim_publication(
     shutil.rmtree(container)
     original_unlink = Path.unlink
     original_claim = quality_gate._rename_noreplace_at
+    original_link = os.link
     unlink_failed = False
     claim_failed = False
+    link_failed = False
 
     def fail_first_owner_unlink(path, *args, **kwargs):
         nonlocal unlink_failed
@@ -3890,12 +3945,20 @@ def test_gate_terminal_sidecar_retries_transient_claim_publication(
             destination,
         )
 
+    def fail_first_claim_link(source, destination, *args, **kwargs):
+        nonlocal link_failed
+        if source == owner_path.name and not link_failed:
+            link_failed = True
+            raise OSError(errno.EMFILE, "injected transient link publication failure")
+        return original_link(source, destination, *args, **kwargs)
+
     monkeypatch.setattr(Path, "unlink", fail_first_owner_unlink)
     monkeypatch.setattr(
         quality_gate,
         "_rename_noreplace_at",
         fail_first_claim_rename,
     )
+    monkeypatch.setattr(os, "link", fail_first_claim_link)
 
     assert not BranchQualityGate._unlink_gate_root_owner(container)
     deadline = time.monotonic() + 5
@@ -3909,6 +3972,7 @@ def test_gate_terminal_sidecar_retries_transient_claim_publication(
 
     assert unlink_failed
     assert claim_failed
+    assert link_failed
     assert not owner_path.exists()
     assert not claims
     assert reaper is None

@@ -78,6 +78,7 @@ _GATE_SIDECAR_CLAIM_PATTERN = re.compile(
     r"-[1-9][0-9]*-[1-9][0-9]*$"
 )
 _RENAME_NOREPLACE = 1
+_RENAME_EXCHANGE = 2
 
 
 def _gate_sidecar_candidate_root_name(name: str) -> str | None:
@@ -123,6 +124,146 @@ def _rename_noreplace_at(
     ):
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error))
+
+
+def _rename_exchange_at(
+    left_dir_fd: int,
+    left_name: str,
+    right_dir_fd: int,
+    right_name: str,
+) -> None:
+    """Atomically exchange two Linux pathnames."""
+    function = ctypes.CDLL(None, use_errno=True).renameat2
+    function.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    function.restype = ctypes.c_int
+    if (
+        function(
+            left_dir_fd,
+            os.fsencode(left_name),
+            right_dir_fd,
+            os.fsencode(right_name),
+            _RENAME_EXCHANGE,
+        )
+        != 0
+    ):
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def _unlink_at(directory_fd: int, name: str) -> None:
+    """Invoke unlinkat directly after an atomic namespace capture."""
+    function = ctypes.CDLL(None, use_errno=True).unlinkat
+    function.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int)
+    function.restype = ctypes.c_int
+    if function(directory_fd, os.fsencode(name), 0) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def _capture_and_unlink_gate_sidecar_at(
+    parent_descriptor: int,
+    claimed_name: str,
+    expected_descriptor: int,
+    root_name: str,
+) -> str:
+    """Atomically capture a name before deleting only its expected inode."""
+    expected_metadata = os.fstat(expected_descriptor)
+    expected_identity = (
+        int(expected_metadata.st_dev),
+        int(expected_metadata.st_ino),
+    )
+    placeholder_name = (
+        f".{root_name}.sidecar-reap-{expected_identity[0]}-{expected_identity[1]}"
+        f"-{os.getpid()}-{time.time_ns()}"
+    )
+    placeholder_descriptor = os.open(
+        placeholder_name,
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0),
+        0o000,
+        dir_fd=parent_descriptor,
+    )
+    exchanged = False
+    placeholder_identity: tuple[int, int] | None = None
+    try:
+        placeholder_metadata = os.fstat(placeholder_descriptor)
+        placeholder_identity = (
+            int(placeholder_metadata.st_dev),
+            int(placeholder_metadata.st_ino),
+        )
+        _rename_exchange_at(
+            parent_descriptor,
+            claimed_name,
+            parent_descriptor,
+            placeholder_name,
+        )
+        exchanged = True
+        captured = os.stat(
+            placeholder_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        installed = os.stat(
+            claimed_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        captured_identity = (int(captured.st_dev), int(captured.st_ino))
+        installed_identity = (int(installed.st_dev), int(installed.st_ino))
+        if (
+            captured_identity != expected_identity
+            or installed_identity != placeholder_identity
+        ):
+            # Restore the atomically captured replacement without deleting it.
+            if (
+                captured_identity != placeholder_identity
+                and installed_identity == placeholder_identity
+            ):
+                _rename_exchange_at(
+                    parent_descriptor,
+                    claimed_name,
+                    parent_descriptor,
+                    placeholder_name,
+                )
+                exchanged = False
+            return _GATE_REMOVAL_UNSAFE
+
+        # Delete the known placeholder first.  If the process crashes after
+        # exchange, the expected inode remains under a recognizable claim.
+        _unlink_at(parent_descriptor, claimed_name)
+        if os.fstat(placeholder_descriptor).st_nlink != 0:
+            return _GATE_REMOVAL_INCOMPLETE
+        _unlink_at(parent_descriptor, placeholder_name)
+        exchanged = False
+        return (
+            _GATE_REMOVAL_REMOVED
+            if os.fstat(expected_descriptor).st_nlink == 0
+            else _GATE_REMOVAL_INCOMPLETE
+        )
+    finally:
+        os.close(placeholder_descriptor)
+        if not exchanged and placeholder_identity is not None:
+            try:
+                remaining = os.stat(
+                    placeholder_name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    int(remaining.st_dev),
+                    int(remaining.st_ino),
+                ) == placeholder_identity:
+                    _unlink_at(parent_descriptor, placeholder_name)
+            except OSError:
+                pass
 
 
 class _SandboxUnavailable(RuntimeError):
@@ -1381,6 +1522,7 @@ class BranchQualityGate:
         identity = (int(metadata.st_dev), int(metadata.st_ino))
         with cls._processes_lock:
             cls._active_gate_root_identities[str(root)] = identity
+            cls._note_gate_namespace_change(root.name)
         return identity
 
     @classmethod
@@ -1668,6 +1810,16 @@ class BranchQualityGate:
                 inspected += 1
                 candidate = Path(entry.path)
                 if _GATE_ROOT_NAME_RE.fullmatch(candidate.name) is not None:
+                    if sidecar_phase == "verify":
+                        with cls._processes_lock:
+                            if any(
+                                _gate_sidecar_candidate_root_name(name)
+                                == candidate.name
+                                for name in cls._deferred_gate_sidecar_candidates
+                            ):
+                                cls._deferred_gate_sidecar_protected.add(
+                                    candidate.name
+                                )
                     stale_identity = cls._stale_gate_root(
                         candidate,
                         now=time.time(),
@@ -1794,13 +1946,13 @@ class BranchQualityGate:
                 ):
                     return outcome(_GATE_REMOVAL_INCOMPLETE)
                 if str(root) in cls._active_gate_root_identities:
-                    return outcome(_GATE_REMOVAL_UNSAFE)
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 for active_path in cls._active_gate_root_identities:
                     match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(
                         Path(active_path).name
                     )
                     if match is not None and match.group("root") == root_name:
-                        return outcome(_GATE_REMOVAL_UNSAFE)
+                        return outcome(_GATE_REMOVAL_INCOMPLETE)
                 try:
                     os.stat(
                         root.name,
@@ -1810,7 +1962,7 @@ class BranchQualityGate:
                 except FileNotFoundError:
                     pass
                 else:
-                    return outcome(_GATE_REMOVAL_UNSAFE)
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 sidecar_descriptor = os.open(
                     sidecar.name,
                     getattr(os, "O_PATH", os.O_RDONLY)
@@ -1822,7 +1974,11 @@ class BranchQualityGate:
                 if (
                     not stat.S_ISREG(metadata.st_mode)
                     or metadata.st_uid != os.getuid()
-                    or now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS
+                    or (
+                        not require_sidecar_batch
+                        and now - metadata.st_mtime
+                        < _GATE_ROOT_MAX_AGE_SECONDS
+                    )
                 ):
                     return outcome(_GATE_REMOVAL_UNSAFE)
                 identity = (int(metadata.st_dev), int(metadata.st_ino))
@@ -1848,13 +2004,15 @@ class BranchQualityGate:
                     int(final_metadata.st_ino),
                 ) != identity:
                     return outcome(_GATE_REMOVAL_UNSAFE)
-                os.unlink(claimed_name, dir_fd=parent_descriptor)
+                removal = _capture_and_unlink_gate_sidecar_at(
+                    parent_descriptor,
+                    claimed_name,
+                    sidecar_descriptor,
+                    root_name,
+                )
                 cls._gate_namespace_generation += 1
-                if os.fstat(sidecar_descriptor).st_nlink != 0:
-                    claimed = False
-                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 claimed = False
-                return outcome(_GATE_REMOVAL_REMOVED)
+                return outcome(removal)
         except FileNotFoundError:
             return outcome(_GATE_REMOVAL_UNSAFE)
         except OSError as exc:
@@ -1949,13 +2107,13 @@ class BranchQualityGate:
                     return outcome(_GATE_REMOVAL_UNSAFE)
                 root = claim.parent / root_name
                 if str(root) in cls._active_gate_root_identities:
-                    return outcome(_GATE_REMOVAL_UNSAFE)
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 for active_path in cls._active_gate_root_identities:
                     match = _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(
                         Path(active_path).name
                     )
                     if match is not None and match.group("root") == root_name:
-                        return outcome(_GATE_REMOVAL_UNSAFE)
+                        return outcome(_GATE_REMOVAL_INCOMPLETE)
                 try:
                     os.stat(
                         root_name,
@@ -1965,7 +2123,7 @@ class BranchQualityGate:
                 except FileNotFoundError:
                     pass
                 else:
-                    return outcome(_GATE_REMOVAL_UNSAFE)
+                    return outcome(_GATE_REMOVAL_INCOMPLETE)
                 try:
                     canonical_metadata = os.stat(
                         canonical_name,
@@ -2023,11 +2181,14 @@ class BranchQualityGate:
                     int(final_metadata.st_ino),
                 ) != expected_identity:
                     return outcome(_GATE_REMOVAL_UNSAFE)
-                os.unlink(recheck_name, dir_fd=parent_descriptor)
+                removal = _capture_and_unlink_gate_sidecar_at(
+                    parent_descriptor,
+                    recheck_name,
+                    claim_descriptor,
+                    root_name,
+                )
                 cls._gate_namespace_generation += 1
-                if os.fstat(claim_descriptor).st_nlink != 0:
-                    return outcome(_GATE_REMOVAL_INCOMPLETE)
-                return outcome(_GATE_REMOVAL_REMOVED)
+                return outcome(removal)
         except FileNotFoundError:
             return outcome(_GATE_REMOVAL_UNSAFE)
         except OSError as exc:
