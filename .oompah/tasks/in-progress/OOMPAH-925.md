@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T20:59:18.475816Z'
-updated_at: '2026-08-08T21:54:11.080009Z'
+updated_at: '2026-08-08T21:57:18.754111Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,6 +68,15 @@ Directly claimed for closure with the systemic rollout. This alert was emitted b
 ---
 author: oompah
 created: 2026-08-08 21:54
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: Orchestrator shutdown remains fenced; runtime recovery is not durable for issue_ids=[] journals=['workflow runtime drain']
+---
+author: oompah
+created: 2026-08-08 21:57
 ---
 Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
 
