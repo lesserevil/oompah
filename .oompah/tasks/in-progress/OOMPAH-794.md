@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:23.320051Z'
-updated_at: '2026-08-07T18:22:29.582401Z'
+updated_at: '2026-08-08T09:20:31.531349Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ After domain enforcement and soak gates, remove legacy eligibility summaries, di
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 09:20
+---
+Independent implementation complete for composition: commit 31710c44741fca893d0b1663c83378defaa5a9f4 on direct/OOMPAH-794-on-systemic, based on e48d953e45e9e39933d86b46bf0b11faedd6a008. Runtime installation is now a one-way lifecycle authority boundary; legacy startup/tick/refresh/retry fallbacks cannot run in off/shadow. Focused high-risk suites passed (314 authority-fallback, 163 restart/event, final 16 regression); terminal mutation scan passed. Full broker: 18,557 passed with 16 unrelated composed-head failures. No push or status change performed.
+---
+<!-- COMMENTS:END -->
