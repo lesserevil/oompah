@@ -1039,15 +1039,75 @@ class TestLoadDotenv:
     def test_startup_env_overrides_inherited_oompah_config(
         self, tmp_path, monkeypatch
     ):
-        from oompah.__main__ import _load_startup_env
+        from oompah import __main__ as main_mod
 
+        monkeypatch.setattr(main_mod, "_STARTUP_ENV_KEYS", set())
         monkeypatch.setenv("OOMPAH_MAX_CONCURRENT_AGENTS", "5")
         path = self._make_env(tmp_path, "OOMPAH_MAX_CONCURRENT_AGENTS=16\n")
 
-        count = _load_startup_env(path)
+        count = main_mod._load_startup_env(path)
 
         assert count == 1
         assert os.environ["OOMPAH_MAX_CONCURRENT_AGENTS"] == "16"
+
+    def test_startup_env_removes_deleted_keys_and_preserves_external_keys(
+        self, tmp_path, monkeypatch
+    ):
+        from oompah import __main__ as main_mod
+
+        monkeypatch.setattr(main_mod, "_STARTUP_ENV_KEYS", set())
+        monkeypatch.setenv("OOMPAH_EXTERNAL_ONLY", "external")
+        path = self._make_env(
+            tmp_path,
+            "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE=shadow\n"
+            "OOMPAH_MAX_CONCURRENT_AGENTS=5\n",
+        )
+
+        assert main_mod._load_startup_env(path) == 2
+        Path(path).write_text("OOMPAH_MAX_CONCURRENT_AGENTS=16\n")
+
+        assert main_mod._load_startup_env(path) == 1
+        assert "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE" not in os.environ
+        assert os.environ["OOMPAH_MAX_CONCURRENT_AGENTS"] == "16"
+        assert os.environ["OOMPAH_EXTERNAL_ONLY"] == "external"
+
+    def test_managed_keys_survive_missing_file_without_erasing_environment(
+        self, tmp_path, monkeypatch
+    ):
+        managed = {"OOMPAH_PREVIOUSLY_MANAGED"}
+        monkeypatch.setenv("OOMPAH_PREVIOUSLY_MANAGED", "last-known-good")
+        monkeypatch.setenv("OOMPAH_EXTERNAL_ONLY", "external")
+
+        count = load_dotenv(
+            str(tmp_path / "missing.env"),
+            override=True,
+            managed_keys=managed,
+        )
+
+        assert count == 0
+        assert managed == {"OOMPAH_PREVIOUSLY_MANAGED"}
+        assert os.environ["OOMPAH_PREVIOUSLY_MANAGED"] == "last-known-good"
+        assert os.environ["OOMPAH_EXTERNAL_ONLY"] == "external"
+
+    def test_managed_keys_survive_unreadable_file_without_erasing_environment(
+        self, tmp_path, monkeypatch
+    ):
+        path = self._make_env(tmp_path, "OOMPAH_REPLACEMENT=value\n")
+        managed = {"OOMPAH_PREVIOUSLY_MANAGED"}
+        monkeypatch.setenv("OOMPAH_PREVIOUSLY_MANAGED", "last-known-good")
+        monkeypatch.setenv("OOMPAH_EXTERNAL_ONLY", "external")
+
+        def _unreadable(*_args, **_kwargs):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr("builtins.open", _unreadable)
+        count = load_dotenv(path, override=True, managed_keys=managed)
+
+        assert count == 0
+        assert managed == {"OOMPAH_PREVIOUSLY_MANAGED"}
+        assert os.environ["OOMPAH_PREVIOUSLY_MANAGED"] == "last-known-good"
+        assert os.environ["OOMPAH_EXTERNAL_ONLY"] == "external"
+        assert "OOMPAH_REPLACEMENT" not in os.environ
 
     def test_escape_sequences_in_double_quotes(self, tmp_path):
         path = self._make_env(tmp_path, r'OOMPAH_TEST_ESC="line1\nline2"' + "\n")

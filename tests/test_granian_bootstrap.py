@@ -386,6 +386,36 @@ class TestMainServerArgument:
             "8090",
         ]
 
+    def test_restart_server_process_reloads_env_before_exec(self, monkeypatch):
+        """The shared Uvicorn/Granian boundary reconciles dotenv first."""
+        from oompah import __main__ as main_mod
+
+        calls: list[tuple[str, object]] = []
+
+        def _reload(path):
+            calls.append(("reload", path))
+            return 1
+
+        def _execv(executable, argv):
+            calls.append(("execv", (executable, argv)))
+
+        monkeypatch.setattr(main_mod, "_load_startup_env", _reload)
+        monkeypatch.setattr(main_mod.os, "execv", _execv)
+
+        main_mod._restart_server_process(
+            "/service/config.env",
+            ["server", "--paused", "--port", "8090"],
+        )
+
+        assert calls[0] == ("reload", "/service/config.env")
+        assert calls[1] == (
+            "execv",
+            (
+                sys.executable,
+                [sys.executable, "-m", "oompah", "server", "--port", "8090"],
+            ),
+        )
+
     def test_bare_oompah_prints_help_without_starting_server(
         self, monkeypatch, capsys
     ):
@@ -496,8 +526,10 @@ class TestMainServerArgument:
 
         called: list[tuple] = []
 
-        def _fake_run_granian(workflow_path, cli_port, start_paused=False):
-            called.append((workflow_path, cli_port, start_paused))
+        def _fake_run_granian(
+            workflow_path, cli_port, start_paused=False, env_file=".env"
+        ):
+            called.append((workflow_path, cli_port, start_paused, env_file))
 
         with (
             patch("oompah.__main__._load_startup_env", return_value=0),
@@ -511,6 +543,7 @@ class TestMainServerArgument:
         assert len(called) == 1
         assert called[0][0] == str(wf)
         assert called[0][1] is None  # no --port given
+        assert called[0][3] == main_mod.os.path.abspath(".env")
 
     def test_server_invalid_choice_exits(self, tmp_path, monkeypatch):
         """An unrecognised --server value causes argparse to exit."""

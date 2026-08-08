@@ -35,7 +35,12 @@ class WorkflowError(Exception):
         self.error_class = error_class
 
 
-def load_dotenv(path: str = ".env", override: bool = False) -> int:
+def load_dotenv(
+    path: str = ".env",
+    override: bool = False,
+    *,
+    managed_keys: set[str] | None = None,
+) -> int:
     """Load environment variables from a .env file.
 
     Parses a .env file and sets variables in os.environ. This is a
@@ -52,6 +57,13 @@ def load_dotenv(path: str = ".env", override: bool = False) -> int:
         path: Path to the .env file. Defaults to ".env" in the current dir.
         override: If True, override existing environment variables.
                   If False (default), skip variables already set.
+        managed_keys: Optional mutable set of keys managed by the previous
+                      successful load.  When supplied, keys removed from a
+                      successfully read file are also removed from
+                      ``os.environ``, and the set is updated to the keys in
+                      the current file.  A missing or unreadable file leaves
+                      both the environment and the set unchanged, preserving
+                      the last known-good configuration.
 
     Returns:
         Number of variables loaded.
@@ -59,7 +71,8 @@ def load_dotenv(path: str = ".env", override: bool = False) -> int:
     if not os.path.exists(path):
         return 0
 
-    count = 0
+    entries: list[tuple[str, str]] = []
+    current_keys: set[str] = set()
     try:
         with open(path, "r", encoding="utf-8") as f:
             for lineno, line in enumerate(f, start=1):
@@ -86,13 +99,24 @@ def load_dotenv(path: str = ".env", override: bool = False) -> int:
                     continue
 
                 value = _parse_env_value(raw_value)
-
-                if override or key not in os.environ:
-                    os.environ[key] = value
-                    count += 1
+                entries.append((key, value))
+                current_keys.add(key)
 
     except OSError as exc:
         logger.warning("Failed to read .env file %s: %s", path, exc)
+        return 0
+
+    if managed_keys is not None:
+        for key in managed_keys - current_keys:
+            os.environ.pop(key, None)
+        managed_keys.clear()
+        managed_keys.update(current_keys)
+
+    count = 0
+    for key, value in entries:
+        if override or key not in os.environ:
+            os.environ[key] = value
+            count += 1
 
     return count
 

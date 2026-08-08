@@ -15,12 +15,27 @@ logger = logging.getLogger("oompah")
 # that _run_granian() should re-exec after Granian exits.
 _GRANIAN_RESTART_SENTINEL = ".oompah-granian-restart"
 
+# Keys loaded from the process's authoritative dotenv file.  The set remains
+# live until an in-process restart re-execs the interpreter, allowing the
+# restart boundary to remove values that an operator deleted from the file.
+_STARTUP_ENV_KEYS: set[str] = set()
+
 
 def _load_startup_env(env_file: str) -> int:
-    """Load the startup .env file as the authoritative config source."""
+    """Reconcile the authoritative startup .env with the process environment.
+
+    A missing or unreadable file retains the last successfully loaded values.
+    This avoids erasing configuration because of a transient filesystem
+    failure; an intentionally empty readable file remains authoritative and
+    removes every value previously managed by it.
+    """
     from oompah.config import load_dotenv
 
-    return load_dotenv(os.path.abspath(env_file), override=True)
+    return load_dotenv(
+        os.path.abspath(env_file),
+        override=True,
+        managed_keys=_STARTUP_ENV_KEYS,
+    )
 
 
 _VALID_SERVER_BACKENDS = ("uvicorn", "granian")
@@ -78,6 +93,25 @@ def _restart_execv_args(argv: list[str]) -> list[str]:
     if not execv_args:
         return ["server"]
     return execv_args
+
+
+def _restart_server_process(env_file: str, argv: list[str]) -> None:
+    """Reload authoritative config and re-exec either supported server.
+
+    Both Uvicorn and Granian use this boundary.  Reconciliation happens before
+    ``execv`` because the replacement process inherits ``os.environ``; without
+    it, dotenv keys deleted since startup would survive in the new image.
+    """
+    loaded = _load_startup_env(env_file)
+    if loaded > 0:
+        logger.info(
+            "Reloaded %d variable(s) from %s before restart",
+            loaded,
+            os.path.abspath(env_file),
+        )
+    execv_args = _restart_execv_args(argv)
+    logger.info("Restarting via os.execv: %s %s", sys.executable, execv_args)
+    os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
 
 
 def _build_server_parser(
@@ -300,7 +334,12 @@ def main() -> None:
         sys.exit(1)
 
     if server_backend == "granian":
-        _run_granian(workflow_path, args.port, start_paused=args.paused)
+        _run_granian(
+            workflow_path,
+            args.port,
+            start_paused=args.paused,
+            env_file=env_path,
+        )
         return
 
     # --- uvicorn path (default) ---
@@ -322,9 +361,7 @@ def main() -> None:
         if restart:
             # Drop --paused from the re-exec argv so an in-process restart
             # doesn't keep forcing pause when the user had already resumed.
-            execv_args = _restart_execv_args(sys.argv[1:])
-            logger.info("Restarting via os.execv: %s %s", sys.executable, execv_args)
-            os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
+            _restart_server_process(env_path, sys.argv[1:])
         break
 
 
@@ -332,6 +369,7 @@ def _run_granian(
     workflow_path: str,
     cli_port: int | None,
     start_paused: bool = False,
+    env_file: str = ".env",
 ) -> None:
     """Launch oompah under the Granian ASGI server.
 
@@ -401,12 +439,8 @@ def _run_granian(
     # Check for restart sentinel written by the lifespan _supervise task.
     if os.path.exists(_GRANIAN_RESTART_SENTINEL):
         os.remove(_GRANIAN_RESTART_SENTINEL)
-        execv_args = _restart_execv_args(sys.argv[1:])
-        logger.info(
-            "Restart sentinel found; re-executing: %s %s",
-            sys.executable, execv_args,
-        )
-        os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
+        logger.info("Restart sentinel found; re-executing")
+        _restart_server_process(env_file, sys.argv[1:])
 
 
 async def _run(
