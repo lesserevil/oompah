@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-08-08T01:10:50.133115Z'
+updated_at: '2026-08-08T01:10:57.333596Z'
 work_branch: OOMPAH-669
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/631
@@ -177,8 +177,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-8e01e2b46bcc
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T01:10:46.326219+00:00'
+    applied_at: '2026-08-08T01:10:54.944916+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -525,5 +526,30 @@ author: oompah
 created: 2026-08-08 00:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 01:10
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: bc5f4a60780a97bf9a16fd532b00ff0a33642cc0
+- implementation_commit: e8761afb6029bad39bf28e82b45a6cce92ad0768
+- pr: 631
+- focused_tests: 10/10 in test_worker_submission.py
+- full_gate: 14547 passed, 7 skipped, 1 xfailed in 378.44s
+- key_fixes: server.py:3265 (lifecycle-aware return), 3281-3292 (reconciliation)
+- test_coverage[0]: test_same_head_resubmit_from_in_progress_restores_ready_lifecycle
+- test_coverage[1]: test_same_head_resubmit_from_needs_human_restores_ready_lifecycle
+- test_coverage[2]: test_same_head_resubmit_from_needs_ci_fix_restores_ready_lifecycle
+- test_coverage[3]: test_duplicate_same_head_submit_already_ready_is_fully_idempotent
+- test_coverage[4]: test_same_head_resubmit_does_not_leak_to_other_projects
+- requirements_met[0]: 201 submit response durable Ready lifecycle
+- requirements_met[1]: Same-head recovery no empty commit
+- requirements_met[2]: No duplicate integration loop
+- requirements_met[3]: Lifecycle reconciles In Progress/Needs Human/Needs CI Fix to Ready
+- requirements_met[4]: Duplicate submits at Ready fully idempotent
 ---
 <!-- COMMENTS:END -->
