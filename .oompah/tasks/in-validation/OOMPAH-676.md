@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T06:11:44.155206Z'
+updated_at: '2026-08-08T07:04:13.700966Z'
 work_branch: OOMPAH-676
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/638
@@ -255,6 +255,25 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-01T06:04:15.796051+00:00'
     updated_at: '2026-08-01T06:11:20.547593+00:00'
+  - version: 1
+    audit_id: audit-ca8f3fbd49b4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf3096119b1c0017e6ce9838ad6a0fb9eef4c4cb7ce43c6c2686d806bac5142f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-08T07:04:09.571496+00:00'
+    selected_ref: f9f1463a06f1236fba60722393bab132b6018de2
+    selected_sha: f9f1463a06f1236fba60722393bab132b6018de2
   attempt_history:
   - version: 1
     attempt_id: attempt-e30fe34ea93a
