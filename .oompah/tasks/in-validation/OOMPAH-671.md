@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-08-08T01:59:21.714866Z'
+updated_at: '2026-08-08T02:00:07.855192Z'
 work_branch: OOMPAH-671
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/634
@@ -153,12 +153,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-671
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: a432d5fc26f27a027cfc764208411878fbd9cbb106addeac61b545359b551900
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8213b5093b10
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a432d5fc26f27a027cfc764208411878fbd9cbb106addeac61b545359b551900
+      created_at: '2026-08-08T01:59:56.891389+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-08T01:59:56.891389+00:00'
+      branch_key: OOMPAH-671
+      selected_ref: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
+      selected_sha: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
     requested_by:
       version: 1
       identity: oompah
@@ -167,6 +182,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T01:59:17.900742+00:00'
     selected_ref: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
     selected_sha: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
+    updated_at: '2026-08-08T01:59:56.891389+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-31bcf8c69258
@@ -194,6 +210,21 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-01T01:43:30.886891+00:00'
     branch_key: OOMPAH-671
+  - version: 1
+    attempt_id: attempt-8213b5093b10
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a432d5fc26f27a027cfc764208411878fbd9cbb106addeac61b545359b551900
+    created_at: '2026-08-08T01:59:56.891389+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-08T01:59:56.891389+00:00'
+    branch_key: OOMPAH-671
+    selected_ref: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
+    selected_sha: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
 oompah.task_costs:
   total_input_tokens: 120
   total_output_tokens: 13077
@@ -355,5 +386,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 48s
 - Log: OOMPAH-671__20260801T014339Z.jsonl
+---
+author: oompah
+created: 2026-08-08 02:00
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-08 02:00
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
