@@ -22,7 +22,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
+from oompah.orchestrator import TaskTransitionNotApplied
 from oompah.server import app
+from oompah.task_transition_service import (
+    TransitionDisposition,
+    TransitionOutcome,
+)
 from oompah.tracker import StateBranchFetchError, TrackerError
 
 
@@ -60,6 +65,24 @@ def _make_mock_orchestrator(
 
     mock_orch = MagicMock()
     mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+    if raise_on_update is not None:
+        failed_outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id=project_id,
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.RETRYABLE,
+            reason_code="transition.tracker_write_failed",
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+            details={"error_type": type(raise_on_update).__name__},
+        )
+        mock_orch._transition_issue_status = MagicMock(
+            side_effect=TaskTransitionNotApplied(failed_outcome)
+        )
+    else:
+        mock_orch._transition_issue_status = MagicMock()
     mock_orch.config = MagicMock()
     mock_orch.config.tracker_terminal_states = []
     mock_orch.state = MagicMock()
@@ -150,6 +173,56 @@ class TestErrorClassForStateBranchFetchError:
 
         exc = StateBranchFetchError("x")
         assert _error_class_for_tracker_exc(exc) != "tracker_failed"
+
+
+class TestDurableTransitionErrorClassification:
+    @pytest.mark.parametrize(
+        "reason_code",
+        [
+            "transition.tracker_read_failed",
+            "transition.tracker_write_failed",
+        ],
+    )
+    def test_recovers_redacted_tracker_type_for_transport_failures(
+        self,
+        reason_code: str,
+    ) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.RETRYABLE,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+            details={"error_type": StateBranchFetchError.__name__},
+        )
+
+        assert server_module._transition_tracker_error_type(
+            TaskTransitionNotApplied(outcome)
+        ) == StateBranchFetchError.__name__
+
+    def test_does_not_reclassify_nontransport_transition_rejection(self) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code="transition.head_mismatch",
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            details={"error_type": StateBranchFetchError.__name__},
+        )
+
+        assert (
+            server_module._transition_tracker_error_type(
+                TaskTransitionNotApplied(outcome)
+            )
+            is None
+        )
 
 
 # ---------------------------------------------------------------------------

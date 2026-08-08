@@ -65,6 +65,25 @@ def _orchestrator(tmp_path) -> Orchestrator:
     )
 
 
+def _durable_tracker(issue: Issue) -> MagicMock:
+    """Return a tracker double whose point reads observe persisted writes."""
+
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.side_effect = lambda identifiers: (
+        [issue]
+        if issue.id in identifiers or issue.identifier in identifiers
+        else []
+    )
+
+    def _update(_identifier: str, **fields: str) -> None:
+        if fields.get("status") is not None:
+            issue.state = fields["status"]
+
+    tracker.update_issue.side_effect = _update
+    return tracker
+
+
 def _create_test_worktree(tmp_path: Path, head_sha: str = "a" * 40) -> str:
     """Create a minimal git worktree for testing."""
     repo_dir = tmp_path / "repo"
@@ -333,8 +352,7 @@ async def test_durable_clean_submission_leaves_status_to_transition_service(tmp_
         accepted_submission_record=record,
         authority_revoked=True,
     )
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     project_store = MagicMock()
     project_store.preserve_worktree_changes.return_value = None
     orch.state.running[issue.id] = entry
@@ -391,8 +409,7 @@ async def test_revoked_submission_preserves_against_accepted_branch_when_project
         accepted_submission_record=record,
         authority_revoked=True,
     )
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     store = MagicMock()
     store.preserve_worktree_changes.return_value = None
     orch = _orchestrator(tmp_path)
@@ -415,10 +432,9 @@ async def test_revoked_submission_preserves_against_accepted_branch_when_project
         workspace,
         accepted_branch,
     )
-    tracker.update_issue.assert_called_once_with(
-        issue.identifier,
-        status=READY_TO_INTEGRATE,
-    )
+    # The accepted task is already Ready; the transition journal recovers the
+    # idempotent state without issuing a redundant tracker write.
+    tracker.update_issue.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -450,8 +466,7 @@ async def test_consumed_prior_checkpoint_does_not_reopen_successor_submission(tm
         assignment_id="assignment-1",
         workspace_path=workspace,
     )
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     store = MagicMock()
     store.preserve_worktree_changes.return_value = {
         "snapshot_head": "b" * 40,
@@ -475,10 +490,9 @@ async def test_consumed_prior_checkpoint_does_not_reopen_successor_submission(tm
         )
 
     store.consume_worktree_recovery_if_incorporated.assert_called_once()
-    tracker.update_issue.assert_called_once_with(
-        issue.identifier,
-        status=READY_TO_INTEGRATE,
-    )
+    # Consuming an older checkpoint leaves the successor's already-Ready
+    # generation untouched.
+    tracker.update_issue.assert_not_called()
     assert issue.id in orch.state.completed
 
 
@@ -519,8 +533,7 @@ def test_restart_reconciliation_distinguishes_consumed_and_current_recovery(
         project_store=store,
         state_path=str(tmp_path / "restart-state.json"),
     )
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     orch._project_trackers[issue.project_id] = tracker
     orch._post_comment = MagicMock()
 
@@ -572,8 +585,7 @@ def test_restart_recovery_preserves_against_accepted_branch_when_projection_is_s
         project_store=store,
         state_path=str(tmp_path / "restart-state.json"),
     )
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     orch._project_trackers[issue.project_id] = tracker
 
     result = orch._reconcile_pending_recovery_publications(discover=True)
@@ -627,8 +639,7 @@ async def test_unpublished_active_operation_checkpoint_blocks_integration(tmp_pa
         "pending_ref": "refs/oompah/recovery-pending/TASK-1",
         "recovery_ref": "refs/oompah/recovery/TASK-1",
     }
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     store = MagicMock()
     store.preserve_worktree_changes.side_effect = RecoveryPublicationError(
         "transfer interrupted",
@@ -682,8 +693,7 @@ async def test_published_commit_tree_checkpoint_with_unchanged_head_reopens(tmp_
         assignment_id="assignment-1",
         workspace_path=workspace,
     )
-    tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = issue
+    tracker = _durable_tracker(issue)
     store = MagicMock()
     store.preserve_worktree_changes.return_value = {
         "snapshot_head": "c" * 40,

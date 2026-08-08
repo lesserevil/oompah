@@ -1274,6 +1274,9 @@ def test_claim_returns_exact_generation_when_another_connection_cancels(tmp_path
         def rollback(self):
             return real_connection.rollback()
 
+        def close(self):
+            return real_connection.close()
+
     store._conn = CancelAfterCommit()
     claimed = store.claim_next(
         project_id="p1",

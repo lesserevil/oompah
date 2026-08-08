@@ -52908,7 +52908,12 @@ class Orchestrator:
                     tracker=tracker,
                     authority=TransitionAuthority.SYSTEM,
                     reason_code="restart.recovery_publication_interrupted",
-                    exact_head=snapshot_head or None,
+                    # The recovery snapshot is the unaccepted late work that
+                    # makes this transition necessary.  Fence the reopen on
+                    # the task's currently accepted head instead; requiring
+                    # the distinct recovery head would reject every genuine
+                    # publication-interrupted recovery as a head mismatch.
+                    exact_head=issue_exact_head(current),
                 )
             self._post_comment(entry.identifier, message, project_id=project_id)
         except Exception as exc:  # noqa: BLE001 - retained checkpoint is authority
@@ -58521,7 +58526,6 @@ class Orchestrator:
         # failures when formatters or other tools run after submission acceptance.
         accepted_record = getattr(entry, "accepted_submission_record", None)
         if accepted_record and revoked:
-            project_id = entry.issue.project_id if entry.issue else None
             await self._handle_revoked_submission_exit(
                 entry,
                 issue_id,

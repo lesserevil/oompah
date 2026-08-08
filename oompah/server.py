@@ -3470,6 +3470,30 @@ def _apply_task_status_transition(
     )
 
 
+def _transition_tracker_error_type(exc: Exception) -> str | None:
+    """Return a tracker error type retained by a failed durable transition.
+
+    ``TaskTransitionService`` converts an ambiguous tracker read or write into
+    a retryable outcome so callers cannot mistake the failed mutation for a
+    commit.  The original exception type remains in the outcome's redacted
+    details.  Preserve that narrow classification at API boundaries without
+    exposing tracker exception text or treating unrelated transition
+    rejections as transport failures.
+    """
+
+    outcome = getattr(exc, "outcome", None)
+    if getattr(outcome, "reason_code", None) not in {
+        "transition.tracker_read_failed",
+        "transition.tracker_write_failed",
+    }:
+        return None
+    details = getattr(outcome, "details", None)
+    if not isinstance(details, Mapping):
+        return None
+    error_type = details.get("error_type")
+    return error_type if isinstance(error_type, str) and error_type else None
+
+
 def _mark_tracker_needs_human(
     orch,
     tracker,
@@ -14218,7 +14242,10 @@ async def api_update_issue(identifier: str, request: Request):
     except Exception as exc:
         from oompah.tracker import StateBranchFetchError
 
-        if isinstance(exc, StateBranchFetchError):
+        if (
+            isinstance(exc, StateBranchFetchError)
+            or _transition_tracker_error_type(exc) == StateBranchFetchError.__name__
+        ):
             # Transient network failure syncing the state branch — degrade
             # gracefully so error_watcher is not triggered.
             logger.warning("Update issue state-branch sync skipped: %s", exc)
