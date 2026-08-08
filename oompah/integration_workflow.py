@@ -1409,6 +1409,51 @@ class OrchestratorIntegrationActionBackend:
                     retryable=True,
                 )
             _require_current_attempt_evidence()
+            try:
+                current_parent = self.tracker.fetch_issue_detail(parent_id)
+            except Exception as exc:  # noqa: BLE001 - hierarchy lookup boundary
+                raise WorkflowActionError(
+                    f"integration parent target is unavailable: {exc}",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                ) from exc
+            if (
+                current_parent is None
+                or str(
+                    getattr(current_parent, "identifier", "")
+                    or getattr(current_parent, "id", "")
+                    or ""
+                ).strip()
+                != parent_id
+                or (
+                    getattr(current_parent, "project_id", None)
+                    and str(current_parent.project_id) != self.project_id
+                )
+            ):
+                raise WorkflowActionError(
+                    "integration parent target could not be resolved exactly",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            replacement_base_branch = str(
+                getattr(current_parent, "work_branch", "")
+                or self.orchestrator.project_store.epic_branch_name(parent_id)
+                or ""
+            ).strip()
+            if not replacement_base_branch:
+                raise WorkflowActionError(
+                    "integration parent has no hierarchy target branch",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            recorded_base_branch = str(
+                getattr(record, "base_branch", "") or ""
+            ).strip()
+            replacement_base_sha = (
+                getattr(record, "base_sha", None)
+                if recorded_base_branch == replacement_base_branch
+                else None
+            )
             replaced = self.orchestrator.integration_queue.replace_task_identity(
                 self.project_id,
                 context.job.task_id,
@@ -1416,8 +1461,8 @@ class OrchestratorIntegrationActionBackend:
                 epic_id=parent_id,
                 task_branch=branch,
                 head_sha=head,
-                base_branch=getattr(record, "base_branch", None),
-                base_sha=getattr(record, "base_sha", None),
+                base_branch=replacement_base_branch,
+                base_sha=replacement_base_sha,
                 priority=getattr(issue, "priority", None),
                 submitted_at=getattr(record, "submitted_at", None),
             )

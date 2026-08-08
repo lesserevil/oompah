@@ -142,6 +142,8 @@ _AUDIT_REARM_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.NO_AUDITOR,
     FailureClassification.INFRASTRUCTURE_ERROR,
     FailureClassification.POLICY_INCOMPATIBILITY,
+    FailureClassification.MALFORMED_RESULT,
+    FailureClassification.FINALIZATION_FAILURE,
 })
 
 
@@ -166,28 +168,33 @@ def _audit_recovery_classifications(
             or attempt.evidence_fingerprint != record.evidence_fingerprint
         ):
             return None
-        try:
-            classification = FailureClassification.from_raw(
-                attempt.failure_classification
-            )
-        except (TypeError, ValueError):
-            return None
+        raw_classification = attempt.failure_classification
+        if raw_classification is None and attempt.verdict == Verdict.ERROR:
+            # Older execution failures predate durable classifications. ERROR
+            # is itself a non-substantive transport/executor outcome; retain
+            # owner recovery for those exact completed audit generations.
+            classification = FailureClassification.INFRASTRUCTURE_ERROR
+        else:
+            try:
+                classification = FailureClassification.from_raw(
+                    raw_classification
+                )
+            except (TypeError, ValueError):
+                return None
         verdict = attempt.verdict
         if verdict is None:
-            if (
-                classification != FailureClassification.INFRASTRUCTURE_ERROR
-                or attempt.request_state
-                not in (RequestState.PENDING, RequestState.IN_PROGRESS)
-            ):
+            if classification not in _AUDIT_REARM_CLASSES:
                 return None
-        elif attempt.request_state != RequestState.COMPLETED:
-            return None
         if verdict == Verdict.PASS:
             return None
-        if classification == FailureClassification.INFRASTRUCTURE_ERROR:
-            if verdict not in (None, Verdict.ERROR, Verdict.FAIL, Verdict.NEEDS_HUMAN):
+        if verdict == Verdict.NEEDS_HUMAN:
+            if not (
+                classification == FailureClassification.INFRASTRUCTURE_ERROR
+                and attempt.origin
+                == AuditAttemptOrigin.COORDINATOR_RETRY_EXHAUSTION
+            ):
                 return None
-        elif verdict not in (Verdict.FAIL, Verdict.NEEDS_HUMAN):
+        elif verdict not in (None, Verdict.ERROR, Verdict.FAIL):
             return None
         classifications.add(classification)
     return classifications
@@ -1914,6 +1921,29 @@ class TerminalTransitionCoordinator:
                     else "audit_retry"
                 )
 
+                def _is_intervening_recurrence_source(
+                    fresh: TerminalAuditRecord,
+                    exhausted: TerminalAuditRecord,
+                ) -> bool:
+                    """Prove that *fresh* is an E1 recurrence after another source."""
+
+                    return bool(
+                        exhausted.source_generation < fresh.source_generation
+                        and any(
+                            record.project_id == project_id
+                            and record.task_id == current_issue.identifier
+                            and exhausted.source_generation
+                            < record.source_generation
+                            < fresh.source_generation
+                            and (
+                                record.target_state != fresh.target_state
+                                or record.evidence_fingerprint
+                                != fresh.evidence_fingerprint
+                            )
+                            for record in chain
+                        )
+                    )
+
                 def _authorization(
                     fresh: TerminalAuditRecord,
                     exhausted: TerminalAuditRecord,
@@ -1979,6 +2009,75 @@ class TerminalTransitionCoordinator:
                         ),
                         None,
                     )
+                    if history_row is None and (
+                        authority.request_state == RequestState.PENDING
+                        and not authority.attempts
+                    ):
+                        # E1 -> E2 -> E1 creates a fresh pending metadata row,
+                        # while the durable workflow identity for E1 correctly
+                        # remains exhausted. Explicit owner recovery authorizes
+                        # that coalesced recurrence from its exact superseded
+                        # failed source instead of creating another pending row.
+                        exhausted_source = next(
+                            (
+                                record
+                                for record in reversed(chain)
+                                if record.audit_id != authority.audit_id
+                                and record.project_id == project_id
+                                and record.task_id == current_issue.identifier
+                                and record.target_state == requested_target
+                                and record.evidence_fingerprint
+                                == locked_fingerprint
+                                and record.request_state
+                                == RequestState.SUPERSEDED
+                                and _is_intervening_recurrence_source(
+                                    authority,
+                                    record,
+                                )
+                                and _classified_audit_recovery_action(record)
+                                == requested_action
+                            ),
+                            None,
+                        )
+                        if exhausted_source is not None:
+                            now = _now_iso8601()
+                            updated_history = list(history)
+                            updated_history.append(
+                                _authorization(
+                                    authority,
+                                    exhausted_source,
+                                    now,
+                                )
+                            )
+                            unknown_fields = dict(doc.unknown_fields)
+                            unknown_fields[_TERMINAL_REARM_HISTORY_KEY] = (
+                                updated_history
+                            )
+                            rearm_intent_id = f"audit-rearm:{authority.audit_id}"
+                            unknown_fields = _record_terminal_result_intent(
+                                unknown_fields,
+                                project_id=project_id,
+                                task_id=current_issue.identifier,
+                                audit_id=authority.audit_id,
+                                target_state=requested_target,
+                                evidence_fingerprint=locked_fingerprint,
+                                attempt_id=rearm_intent_id,
+                                status=IN_VALIDATION,
+                                audit_ids=[authority.audit_id],
+                                kind="audit_rearm",
+                            )
+                            decision = TransitionResult(
+                                success=True,
+                                audit_id=authority.audit_id,
+                                audit_ids=[authority.audit_id],
+                                queued_targets=[requested_target],
+                                coalesced=True,
+                                status_staged=False,
+                            )
+                            return replace(
+                                doc,
+                                unknown_fields=unknown_fields,
+                            )
                     if history_row is None:
                         return doc
                     mode = (
@@ -2002,7 +2101,7 @@ class TerminalTransitionCoordinator:
                         )
                     except (TypeError, ValueError):
                         return doc
-                    if authority.requested_by != history_actor or not (
+                    if not (
                         is_authorized_status_actor(history_actor.identity, project)
                         and is_project_owner(history_actor.identity, project)
                     ):
@@ -2024,6 +2123,14 @@ class TerminalTransitionCoordinator:
                         None,
                     )
                     if exhausted is None:
+                        return doc
+                    if (
+                        authority.requested_by != history_actor
+                        and not _is_intervening_recurrence_source(
+                            authority,
+                            exhausted,
+                        )
+                    ):
                         return doc
                     decision = TransitionResult(
                         success=True,
@@ -2168,6 +2275,8 @@ class TerminalTransitionCoordinator:
                     ) -> TerminalAuditMetadata:
                         unknown_fields = _mark_terminal_result_intent_applied(
                             doc.unknown_fields,
+                            project_id=project_id,
+                            task_id=current_issue.identifier,
                             audit_id=decision.audit_id or "",
                             attempt_id=rearm_intent_id or "",
                         )
@@ -4820,7 +4929,7 @@ def _has_terminal_retirement(
             and row.get("target_state") == target_state.value
             and row.get("evidence_fingerprint") == evidence_fingerprint.digest
         ):
-            if row.get("kind") != "result" or revision_binding is None:
+            if row.get("kind") != "result":
                 return True
             raw_ids = row.get("audit_ids", [])
             retired_ids = (
@@ -4836,8 +4945,13 @@ def _has_terminal_retirement(
                 and record.task_id == task_id
                 and record.target_state == target_state
                 and record.evidence_fingerprint == evidence_fingerprint
-                and record.selected_ref == revision_binding.selected_ref
-                and record.selected_sha == revision_binding.selected_sha
+                and (
+                    revision_binding is None
+                    or (
+                        record.selected_ref == revision_binding.selected_ref
+                        and record.selected_sha == revision_binding.selected_sha
+                    )
+                )
             ]
             if not retired_records:
                 continue

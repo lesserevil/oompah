@@ -152,6 +152,45 @@ class _ObservedAlertLock:
         self._lock.release()
 
 
+def test_legacy_alert_registry_installs_one_lock_during_concurrent_first_use():
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator._alerts = []
+    worker_count = 8
+    start = threading.Barrier(worker_count + 1)
+    snapshots: list[list[dict[str, object]]] = []
+    errors: list[BaseException] = []
+    created_locks: list[object] = []
+    real_rlock = threading.RLock
+
+    def delayed_rlock():
+        # Release the GIL inside lock construction so every unguarded caller
+        # observes the missing instance attribute before any can install it.
+        time.sleep(0.02)
+        lock = real_rlock()
+        created_locks.append(lock)
+        return lock
+
+    def snapshot() -> None:
+        try:
+            start.wait(timeout=5)
+            snapshots.append(orchestrator._alerts_snapshot())
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=snapshot) for _ in range(worker_count)]
+    with mock.patch("oompah.orchestrator.threading.RLock", new=delayed_rlock):
+        for thread in threads:
+            thread.start()
+        start.wait(timeout=5)
+        for thread in threads:
+            thread.join(timeout=5)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    assert snapshots == [[] for _ in range(worker_count)]
+    assert created_locks == [orchestrator._alerts_lock]
+
+
 def _make_real_audit_harness(tmp_path, issue: Issue, tracker: _IntegratedAuditTracker):
     project = Project(
         id="proj-1",
@@ -922,7 +961,7 @@ def test_queue_first_legacy_checkpoint_repairs_tracker_before_terminal_stage(tmp
         side_effect=lambda **_kwargs: order.append("peers")
     )
     orchestrator.request_terminal_transition = mock.AsyncMock(
-        return_value=TransitionResult(success=True)
+        return_value=TransitionResult(success=True, status_staged=True)
     )
     try:
         staged = asyncio.run(
@@ -1919,6 +1958,7 @@ def test_changed_base_sha_revokes_executor_authority(tmp_path):
 
 def test_candidate_head_atomically_rebinds_queue_tracker_and_gate_owner(tmp_path):
     issue = _issue(integration_state="ready")
+    issue.parent_id = "OOMPAH-804"
     issue.integration = replace(
         issue.integration,
         base_branch="epic-OOMPAH-768--task-OOMPAH-804",

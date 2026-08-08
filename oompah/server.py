@@ -5123,9 +5123,10 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and existing.base_branch == base_branch
         and existing.base_sha == base_sha
     ):
+        existing_mode = getattr(existing, "mode", None)
         return (
             existing
-            if getattr(existing, "mode", None) == delivery_mode
+            if existing_mode in (None, delivery_mode)
             else replace(existing, mode=delivery_mode)
         )
     now = datetime.now(timezone.utc).isoformat()
@@ -5160,9 +5161,10 @@ async def _persist_worker_submission(
 
     Idempotency is scoped to a *duplicate accepted* generation: when the exact
     branch/head is already accepted and the canonical tracker status is
-    ``Ready to Integrate``, no lifecycle or summary writes fire.  Canonical
-    metadata repairs (delivery mode and the mutable ``work_branch`` projection)
-    remain permitted on that path.  This preserves the existing ``open_review``
+    ``Ready to Integrate``, no lifecycle or summary writes fire.  The mutable
+    ``work_branch`` projection and explicitly conflicting delivery modes may
+    still be repaired, but a missing legacy mode is not inferred. This preserves
+    the existing ``open_review``
     / queue-owned properties while letting a same-head recovery from ``In
     Progress`` / ``Needs Human`` / ``Needs CI Fix`` write the ``Ready to
     Integrate`` status and a fresh summary comment so the 201 response is
@@ -5182,7 +5184,7 @@ async def _persist_worker_submission(
     )
     if record is not existing:
         # Persist new-generation evidence and canonical repairs (for example,
-        # a legacy accepted generation without the service-derived mode).
+        # an explicitly conflicting service-derived delivery mode).
         # Exact duplicate records retain object identity and skip this write.
         await _run_api_io(
             tracker.set_metadata_field,

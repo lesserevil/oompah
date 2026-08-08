@@ -13,7 +13,7 @@ import pytest
 
 from oompah.auditor_dispatch import AuditorDispatchLane
 from oompah.models import Issue
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, _AuditCandidateScan
 from oompah.roles import Candidate
 from oompah.statuses import DONE, IN_VALIDATION, MERGED, NEEDS_HUMAN, OPEN
 from oompah.terminal_audit import (
@@ -42,6 +42,8 @@ from oompah.workflow_jobs import WorkflowFailureCategory
 
 PROJECT_ID = "proj-durable"
 TASK_ID = "TASK-1"
+SELECTED_REF = "refs/heads/review/TASK-1"
+SELECTED_SHA = "a" * 40
 
 
 class _ProjectLocks:
@@ -52,12 +54,21 @@ class _ProjectLocks:
         return self._lock
 
 
+class _RevisionProjectLocks(_ProjectLocks):
+    def get(self, _project_id: str) -> SimpleNamespace:
+        return SimpleNamespace(default_branch="main")
+
+    def resolve_audit_revision(self, _project_id: str, _revision: str) -> str:
+        return SELECTED_SHA
+
+
 class _Tracker:
     def __init__(self) -> None:
         self.metadata: dict[str, dict] = {}
         self.metadata_write_count = 0
         self.status = "In Review"
         self.cache_invalidations = 0
+        self.fail_status_updates = False
 
     def invalidate_read_cache(self) -> None:
         self.cache_invalidations += 1
@@ -71,6 +82,8 @@ class _Tracker:
 
     def update_issue(self, _identifier: str, **changes) -> None:
         if "status" in changes:
+            if self.fail_status_updates:
+                raise RuntimeError("tracker status writes unavailable")
             self.status = changes["status"]
 
     def add_comment(self, _identifier: str, _text: str, author: str = "oompah") -> dict:
@@ -124,12 +137,35 @@ def _orchestrator(
     workflow: TerminalAuditWorkflow,
 ) -> Orchestrator:
     orchestrator = Orchestrator.__new__(Orchestrator)
+
+    async def _prepare_audit_selector(issue, *, probe_missing=True):
+        del probe_missing
+        return orchestrator._audit_selector(issue, project=None), None
+
     orchestrator.workflow_job_store = store
     orchestrator.terminal_audit_workflow = workflow
     orchestrator.terminal_transition_coordinator = coordinator
+    orchestrator.project_store = coordinator._project_store
     orchestrator._tick_pool = None
+    orchestrator._audit_rollback_persistence_failed = False
+    orchestrator._audit_rollback_lock = threading.RLock()
+    orchestrator._pending_audit_rollbacks = {}
+    orchestrator._reconcile_audit_budget_reservations = lambda: None
+    orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
+    orchestrator._terminal_audit_manual_alerts = {}
+    orchestrator._sync_terminal_audit_observability_alerts = MagicMock()
+    orchestrator._refresh_terminal_audit_validation_configuration_alerts = MagicMock()
+    orchestrator._terminal_audit_validation_configuration_error = MagicMock(
+        return_value=None
+    )
+    orchestrator._prepare_audit_selector = _prepare_audit_selector
+    orchestrator._revisionless_archive_evidence = MagicMock(return_value=None)
+    orchestrator._bind_audit_record_revision = MagicMock(
+        side_effect=lambda _issue, record: record
+    )
     orchestrator._running_values_snapshot = lambda: []
     orchestrator._tracker_for_project = lambda _project_id: tracker
+    orchestrator._tracker_for_issue = lambda _issue: tracker
     orchestrator._record_audit_outcome_ownership = MagicMock()
     return orchestrator
 
@@ -551,9 +587,9 @@ def test_natural_completed_e1_e2_e1_reuses_exact_superseded_pass(
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock()
     orchestrator._refresh_terminal_audit_health = MagicMock()
     orchestrator._dispatch = AsyncMock()
@@ -561,7 +597,7 @@ def test_natural_completed_e1_e2_e1_reuses_exact_superseded_pass(
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -674,9 +710,9 @@ def test_natural_completed_failure_recurrence_replays_fail_closed_disposition(
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock()
     orchestrator._refresh_terminal_audit_health = MagicMock()
     orchestrator._dispatch = AsyncMock()
@@ -684,7 +720,7 @@ def test_natural_completed_failure_recurrence_replays_fail_closed_disposition(
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -801,22 +837,34 @@ def test_natural_exhausted_e1_e2_e1_requires_owner_rearm_before_dispatch(
     )
     assert workflow.ensure(recurrence_record).state is WorkflowJobState.EXHAUSTED
 
-    owner_rearm = asyncio.run(
-        coordinator.retry_failed_audit(
-            tracker.fetch_issue_detail(TASK_ID),
-            TargetState.DONE,
-            ContributorIdentity("project-owner", "api"),
-            PROJECT_ID,
-            "Independent auditor capacity has been restored.",
-            SimpleNamespace(
-                tracker_owner="project-owner",
-                status_actor_login=None,
-                status_label_authorized_logins=["project-owner"],
-            ),
+    def owner_rearm():
+        return asyncio.run(
+            coordinator.retry_failed_audit(
+                tracker.fetch_issue_detail(TASK_ID),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Independent auditor capacity has been restored.",
+                SimpleNamespace(
+                    tracker_owner="project-owner",
+                    status_actor_login=None,
+                    status_label_authorized_logins=["project-owner"],
+                ),
+            )
         )
-    )
-    assert owner_rearm.success and owner_rearm.coalesced
-    assert owner_rearm.audit_id == recurrence_record.audit_id
+
+    tracker.fail_status_updates = True
+    failed_rearm = owner_rearm()
+    assert not failed_rearm.success
+    assert failed_rearm.reason == "status_stage_failed"
+
+    tracker.fail_status_updates = False
+    recovered_rearm = owner_rearm()
+    repeated_rearm = owner_rearm()
+    assert recovered_rearm.success and recovered_rearm.coalesced
+    assert repeated_rearm.success and repeated_rearm.coalesced
+    assert recovered_rearm.audit_id == recurrence_record.audit_id
+    assert repeated_rearm.audit_id == recurrence_record.audit_id
     document = metadata.read(TASK_ID)
     authorization = document.unknown_fields[
         "oompah.terminal_audit_rearm_history"
@@ -829,12 +877,18 @@ def test_natural_exhausted_e1_e2_e1_requires_owner_rearm_before_dispatch(
     orchestrator.project_store = locks
     orchestrator._audit_metrics = {}
     orchestrator._audit_branch_claims = {}
+    orchestrator._terminal_audit_manual_alerts = {}
+    orchestrator._sync_terminal_audit_observability_alerts = MagicMock()
+    orchestrator._refresh_terminal_audit_validation_configuration_alerts = MagicMock()
+    orchestrator._terminal_audit_validation_configuration_error = MagicMock(
+        return_value=None
+    )
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock(
         return_value=SimpleNamespace(
             select_candidates=lambda _contributors, *, exclude: (
@@ -842,6 +896,13 @@ def test_natural_exhausted_e1_e2_e1_requires_owner_rearm_before_dispatch(
                 None,
             )
         )
+    )
+    orchestrator._prepare_audit_selector = AsyncMock(
+        return_value=(orchestrator._audit_selector.return_value, None)
+    )
+    orchestrator._revisionless_archive_evidence = MagicMock(return_value=None)
+    orchestrator._bind_audit_record_revision = MagicMock(
+        side_effect=lambda _issue, record: record
     )
     orchestrator._tracker_for_issue = lambda _issue: tracker
     orchestrator._audit_branch_busy = MagicMock(return_value=False)
@@ -851,7 +912,7 @@ def test_natural_exhausted_e1_e2_e1_requires_owner_rearm_before_dispatch(
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -978,9 +1039,9 @@ def test_restart_abandonment_exhaustion_remains_owner_rearmable(tmp_path) -> Non
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock(return_value=selector)
     orchestrator._tracker_for_issue = lambda _issue: tracker
     orchestrator._refresh_terminal_audit_health = MagicMock()
@@ -989,7 +1050,7 @@ def test_restart_abandonment_exhaustion_remains_owner_rearmable(tmp_path) -> Non
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=2,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -1096,9 +1157,9 @@ def test_action_required_checkpoint_replays_result_after_restart(tmp_path) -> No
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock()
     orchestrator._refresh_terminal_audit_health = MagicMock()
     orchestrator._dispatch = AsyncMock()
@@ -1106,7 +1167,7 @@ def test_action_required_checkpoint_replays_result_after_restart(tmp_path) -> No
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -1198,16 +1259,16 @@ def test_completed_done_recurrence_preserves_validation_for_pending_merged(
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock(return_value=MagicMock())
     orchestrator._refresh_terminal_audit_health = MagicMock()
     orchestrator.config = SimpleNamespace(
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
     writes_before_dispatch = tracker.metadata_write_count
 
@@ -1355,6 +1416,8 @@ def test_live_structured_retryable_result_rotates_to_next_exact_attempt(
         request_state=RequestState.IN_PROGRESS,
         provider_id="provider-a",
         model="model-a",
+        selected_ref=SELECTED_REF,
+        selected_sha=SELECTED_SHA,
         created_at="2026-08-05T12:00:00+00:00",
         started_at="2026-08-05T12:00:00+00:00",
     )
@@ -1362,6 +1425,8 @@ def test_live_structured_retryable_result_rotates_to_next_exact_attempt(
         pending,
         request_state=RequestState.IN_PROGRESS,
         attempts=[launched_attempt],
+        selected_ref=SELECTED_REF,
+        selected_sha=SELECTED_SHA,
     )
     metadata.update(
         TASK_ID,
@@ -1473,6 +1538,8 @@ def test_non_substantive_max_attempts_owner_rearm_redispatches(tmp_path) -> None
             request_state=RequestState.IN_PROGRESS,
             provider_id=f"provider-{attempt_number}",
             model=f"model-{attempt_number}",
+            selected_ref=SELECTED_REF,
+            selected_sha=SELECTED_SHA,
             created_at=f"2026-08-05T12:0{attempt_number}:00+00:00",
             started_at=f"2026-08-05T12:0{attempt_number}:00+00:00",
         )
@@ -1480,6 +1547,8 @@ def test_non_substantive_max_attempts_owner_rearm_redispatches(tmp_path) -> None
             current,
             request_state=RequestState.IN_PROGRESS,
             attempts=[*current.attempts, attempt],
+            selected_ref=SELECTED_REF,
+            selected_sha=SELECTED_SHA,
         )
         metadata.update(
             TASK_ID,
@@ -1607,9 +1676,9 @@ def test_non_substantive_max_attempts_owner_rearm_redispatches(tmp_path) -> None
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock(
         return_value=SimpleNamespace(
             select_candidates=lambda _contributors, *, exclude: (
@@ -1626,7 +1695,7 @@ def test_non_substantive_max_attempts_owner_rearm_redispatches(tmp_path) -> None
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -1683,6 +1752,8 @@ def test_finalization_failure_routes_exact_attempt_and_owner_rearms_dispatch(
         request_state=RequestState.IN_PROGRESS,
         provider_id="provider-a",
         model="model-a",
+        selected_ref=SELECTED_REF,
+        selected_sha=SELECTED_SHA,
         created_at="2026-08-05T12:00:00+00:00",
         started_at="2026-08-05T12:00:00+00:00",
     )
@@ -1690,6 +1761,8 @@ def test_finalization_failure_routes_exact_attempt_and_owner_rearms_dispatch(
         pending,
         request_state=RequestState.IN_PROGRESS,
         attempts=[launched_attempt],
+        selected_ref=SELECTED_REF,
+        selected_sha=SELECTED_SHA,
     )
     metadata.update(
         TASK_ID,
@@ -1921,9 +1994,9 @@ def test_done_result_applied_before_crash_replays_exact_validation_status(
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock()
     orchestrator._refresh_terminal_audit_health = MagicMock()
     orchestrator._dispatch = AsyncMock()
@@ -1931,7 +2004,7 @@ def test_done_result_applied_before_crash_replays_exact_validation_status(
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -2087,9 +2160,9 @@ def test_evidence_recurrence_dispatches_from_fresh_activation(tmp_path) -> None:
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: [
-        tracker.fetch_issue_detail(TASK_ID)
-    ]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
     orchestrator._audit_selector = MagicMock(
         return_value=SimpleNamespace(
             select_candidates=lambda _contributors, *, exclude: (
@@ -2106,7 +2179,7 @@ def test_evidence_recurrence_dispatches_from_fresh_activation(tmp_path) -> None:
         audit_priority=100,
         audit_lane_scan_limit=100,
         audit_max_attempts=3,
-        audit_attempt_ttl_seconds=3600,
+        audit_attempt_ttl=3600,
     )
 
     asyncio.run(orchestrator._dispatch_audit_lane())
@@ -2311,7 +2384,7 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
     """OOMPAH-824: restart consumes one PASS without a second provider."""
 
     tracker = _Tracker()
-    locks = _ProjectLocks()
+    locks = _RevisionProjectLocks()
     coordinator = TerminalTransitionCoordinator(
         tracker=tracker,
         project_store=locks,
@@ -2349,6 +2422,8 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
         request_state=RequestState.IN_PROGRESS,
         provider_id="provider-opus",
         model="model-opus",
+        selected_ref=pending_merged.selected_ref,
+        selected_sha=pending_merged.selected_sha,
         created_at="2026-08-05T12:04:00+00:00",
         started_at="2026-08-05T12:04:00+00:00",
     )
@@ -2357,6 +2432,8 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
         audit_id="audit-11ec4964b81b",
         request_state=RequestState.IN_PROGRESS,
         attempts=[live_attempt],
+        selected_ref=pending_merged.selected_ref,
+        selected_sha=pending_merged.selected_sha,
         created_at="2026-08-05T12:01:00+00:00",
         updated_at="2026-08-05T12:04:00+00:00",
     )
@@ -2416,10 +2493,10 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
-    orchestrator._fetch_audit_candidates = lambda: (
-        [tracker.fetch_issue_detail(TASK_ID)]
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
         if tracker.status == IN_VALIDATION
-        else []
+        else ()
     )
     orchestrator._refresh_terminal_audit_health = MagicMock()
     orchestrator._dispatch = AsyncMock()
@@ -2927,6 +3004,12 @@ def test_completed_result_finalization_is_preserved_during_worker_exit(tmp_path)
 def test_finalization_replay_precedes_pause_and_capacity_gates() -> None:
     orchestrator = Orchestrator.__new__(Orchestrator)
     orchestrator._audit_metrics = {}
+    orchestrator._tick_pool = None
+    orchestrator._audit_rollback_persistence_failed = False
+    orchestrator._audit_rollback_lock = threading.RLock()
+    orchestrator._pending_audit_rollbacks = {}
+    orchestrator._reconcile_audit_budget_reservations = MagicMock()
+    orchestrator._refresh_terminal_audit_validation_configuration_alerts = MagicMock()
     orchestrator._replay_terminal_audit_finalizations = AsyncMock(return_value=1)
     orchestrator._dispatch_is_blocked = MagicMock(return_value=True)
     orchestrator._is_rate_limited = MagicMock(return_value=False)

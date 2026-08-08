@@ -919,8 +919,6 @@ class TestTaskScopeDirectPath:
             "remote_head_sha": "a" * 40,
             "worktree_clean": True,
         }
-        expected_integration = issue.integration.to_dict()
-        expected_integration["mode"] = "queue"
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value=evidence,
@@ -947,11 +945,6 @@ class TestTaskScopeDirectPath:
         assert first == "Submitted for integration: OOMPAH-814"
         assert second == first
         assert tracker.set_metadata_field.call_args_list == [
-            call(
-                "OOMPAH-814",
-                "oompah.integration",
-                expected_integration,
-            ),
             call("OOMPAH-814", "oompah.work_branch", "OOMPAH-814"),
         ]
         tracker.update_issue.assert_not_called()

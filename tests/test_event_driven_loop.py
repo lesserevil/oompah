@@ -879,6 +879,9 @@ class TestRunEventDrivenLoop:
                 # With coalescing they may merge into a single dispatch pass.
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED))
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.WORKER_EXIT))
+                # Shutdown refuses to start another tick after the stop fence
+                # is raised, so wait for the queued event tick to complete
+                # before setting that fence instead of racing a fixed sleep.
                 await asyncio.wait_for(queued_event_tick_completed.wait(), timeout=2.0)
                 orch._stopping = True
                 # Unblock queue.get()

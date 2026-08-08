@@ -587,14 +587,19 @@ async def test_scheduled_integration_attempt_recovers_missing_queue_row(tmp_path
 
 @pytest.mark.asyncio
 async def test_integration_attempt_rehomes_exact_row_after_task_reparent(tmp_path):
+    nested_target = "epic/E-ROOT--task-E-NEW"
     task = issue("TASK-A", head="a" * 40)
     task.parent_id = "E-NEW"
+    task.target_branch = nested_target
     task.integration = replace(
         task.integration,
         mode="queue",
-        base_branch="epic/E-NEW",
+        base_branch=nested_target,
+        base_sha="b" * 40,
     )
-    tracker = MetadataTracker([task])
+    parent = issue("E-NEW")
+    parent.work_branch = nested_target
+    tracker = MetadataTracker([task, parent])
     fact_collector = collector(tracker)
     decision = evaluate_task(task, fact_collector.collect(task.identifier))
     queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
@@ -660,6 +665,8 @@ async def test_integration_attempt_rehomes_exact_row_after_task_reparent(tmp_pat
     assert executed == ["E-NEW"]
     assert current is not None
     assert current.epic_id == "E-NEW"
+    assert current.base_branch == nested_target
+    assert current.base_sha == "b" * 40
     assert current.state == "blocked"
     assert effect.receipt["route"] == "ci_fix"
 
@@ -674,7 +681,9 @@ async def test_reparented_queue_normalizes_target_before_landing_shortcut(tmp_pa
         base_branch="epic/E-OLD",
         base_sha="b" * 40,
     )
-    tracker = MetadataTracker([task])
+    parent = issue("E-NEW")
+    parent.work_branch = "epic/E-NEW"
+    tracker = MetadataTracker([task, parent])
     fact_collector = collector(tracker)
     decision = evaluate_task(task, fact_collector.collect(task.identifier))
     queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
@@ -749,6 +758,8 @@ async def test_reparented_queue_normalizes_target_before_landing_shortcut(tmp_pa
     assert executed == []
     assert current is not None
     assert current.epic_id == "E-NEW"
+    assert current.base_branch == "epic/E-NEW"
+    assert current.base_sha is None
     assert current.state == "ready"
     assert record.mode == "queue"
     assert record.base_branch == "epic/E-NEW"
@@ -770,7 +781,12 @@ async def test_containment_change_finishes_prepared_private_publication_before_r
         base_sha="e" * 40,
         head_sha="d" * 40,
     )
-    tracker = MetadataTracker([task])
+    tracked_issues = [task]
+    if replacement_parent is not None:
+        parent = issue(replacement_parent)
+        parent.work_branch = f"epic/{replacement_parent}"
+        tracked_issues.append(parent)
+    tracker = MetadataTracker(tracked_issues)
     fact_collector = collector(tracker)
     queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
     predecessor = queue.enqueue(

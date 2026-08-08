@@ -525,6 +525,13 @@ _DUPLICATE_CORPUS_STOP_WORDS = frozenset(
 
 logger = logging.getLogger(__name__)
 
+# ``Orchestrator.__init__`` installs an instance alert lock for every normal
+# service instance.  A few restart/compatibility paths construct a lightweight
+# instance without running ``__init__``; serialize that one-time installation
+# so concurrent first use cannot leave callers protecting the registry with
+# different locks.
+_ALERT_REGISTRY_LOCK_BOOTSTRAP = threading.Lock()
+
 # Auto-concurrency is deliberately conservative: an agent may run tests,
 # compilers, or browser tooling in addition to the model client itself.
 _AUTO_CONCURRENCY_CPU_THREADS_PER_AGENT = 4
@@ -2722,8 +2729,21 @@ class Orchestrator:
         a project lock.
         """
 
-        with self._alerts_lock:
+        with self._alert_registry_lock():
             return [dict(alert) for alert in self._alerts]
+
+    def _alert_registry_lock(self) -> threading.RLock:
+        """Return the single lock owned by this alert registry instance."""
+
+        lock = getattr(self, "_alerts_lock", None)
+        if lock is not None:
+            return lock
+        with _ALERT_REGISTRY_LOCK_BOOTSTRAP:
+            lock = getattr(self, "_alerts_lock", None)
+            if lock is None:
+                lock = threading.RLock()
+                self._alerts_lock = lock
+            return lock
 
     def _replace_alerts_matching(
         self,
@@ -2733,7 +2753,7 @@ class Orchestrator:
         """Atomically replace the alert family selected by ``predicate``."""
 
         replacement_rows = [dict(alert) for alert in replacements]
-        with self._alerts_lock:
+        with self._alert_registry_lock():
             retained = [alert for alert in self._alerts if not predicate(alert)]
             removed = len(self._alerts) - len(retained)
             self._alerts = [*retained, *replacement_rows]
@@ -2762,7 +2782,7 @@ class Orchestrator:
         """Replace one alert unless its relevant payload is already current."""
 
         replacement = dict(alert)
-        with self._alerts_lock:
+        with self._alert_registry_lock():
             existing = next(
                 (candidate for candidate in self._alerts if candidate.get("source") == source),
                 None,
@@ -2786,7 +2806,7 @@ class Orchestrator:
     ) -> bool:
         """Atomically transform an existing source alert, if present."""
 
-        with self._alerts_lock:
+        with self._alert_registry_lock():
             existing = next(
                 (candidate for candidate in self._alerts if candidate.get("source") == source),
                 None,
@@ -17040,7 +17060,7 @@ class Orchestrator:
         ).isoformat()
         # Classification consumes only the indexes built above, so holding the
         # alert lock here cannot invert with a project/tracker lock.
-        with self._alerts_lock:
+        with self._alert_registry_lock():
             for alert in self._alerts:
                 source = str(alert.get("source") or "")
                 if not source.startswith("integration_retry:"):
@@ -22049,13 +22069,14 @@ class Orchestrator:
         )
         authority_generation = gate_generation or (
             f"integration:{item.project_id}:{item.task_id}:"
-            f"{item.head_sha}:{item.lease_owner or ''}"
+            f"{accepted_head}:{item.lease_owner or ''}"
         )
-        durable_commit_allowed = (
-            commit_allowed
-            if commit_allowed is not None
-            else lambda: self._integration_task_still_ready(item)
-        )
+        # ``is_current`` already proves the exact durable queue/tracker lease,
+        # including the narrowly-scoped pre-canonical candidate exception.
+        # A workflow caller may add a stricter generation fence, but restart
+        # recovery must not replace that exception with the strict tracker
+        # check before canonicalization has had a chance to repair metadata.
+        durable_commit_allowed = commit_allowed or (lambda: True)
 
         def combined_commit_allowed() -> bool:
             return bool(durable_commit_allowed() and is_current())
@@ -25384,7 +25405,11 @@ class Orchestrator:
 
         states = [NEEDS_HUMAN, OPEN, DUPLICATE_CANDIDATE]
         project_store = getattr(self, "project_store", None)
-        projects = project_store.list_all() if project_store is not None else []
+        projects = (
+            list(project_store.list_all())
+            if project_store is not None
+            else []
+        )
         if not projects:
             try:
                 return list(self.tracker.fetch_issues_by_states(states))
@@ -25499,11 +25524,6 @@ class Orchestrator:
             if identity in seen:
                 continue
             seen.add(identity)
-            observed_record = DuplicateScreeningRecord.from_raw(
-                getattr(observed, "duplicate_screening", None)
-            )
-            if observed_record is None or not observed_record.is_owner_resolved:
-                continue
             try:
                 tracker = self._tracker_for_issue(observed)
             except (ProjectError, TrackerError):

@@ -3056,6 +3056,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "The audit execution path is healthy again.",
                 self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
@@ -4308,11 +4309,15 @@ class TestApplyPassSingleTarget:
             target_state=TargetState.DONE,
             evidence_fingerprint=_fingerprint(),
             request_state=RequestState.IN_PROGRESS,
+            selected_ref="origin/main",
+            selected_sha="a" * 40,
         )
         local = replace(
             _pending_record(audit_id="audit-shared"),
             request_state=RequestState.IN_PROGRESS,
             attempts=[attempt],
+            selected_ref="origin/main",
+            selected_sha="a" * 40,
         )
         foreign = replace(local, project_id="project-foreign")
         document = TerminalAuditMetadata(
@@ -4440,6 +4445,17 @@ class TestApplyPassChainedTargets:
             ),
             selected_ref="origin/main",
             selected_sha="a" * 40,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-done-a",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                    selected_ref="origin/main",
+                    selected_sha="a" * 40,
+                )
+            ],
         )
         merged = replace(
             _pending_record(
