@@ -9,8 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import pytest
-
 from oompah.terminal_audit_observability import (
     AuditAlertCondition,
     TerminalAuditAlertRegistry,

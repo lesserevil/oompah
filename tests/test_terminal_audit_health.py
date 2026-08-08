@@ -266,6 +266,7 @@ class TestAgedBacklogAndStaleValidation:
         backlog_alert = next(a for a in alerts if "backlog_age" in a["source"])
         assert backlog_alert["level"] == "info"
         assert backlog_alert["action_required"] is False
+        assert backlog_alert["recovery_state"] == "automatic_recovery"
 
     def test_stale_in_validation_no_record_surfaces_validation_alert(self):
         """An In Validation task with no audit record beyond threshold is stale."""
@@ -536,6 +537,10 @@ class TestRecoveryAndAlertClearing:
         # Now simulate recovery: empty queue
         health2 = build_terminal_audit_health([], now=NOW + timedelta(seconds=1))
         assert not health2.degraded
+        assert health2.pending_count == 0
+        assert health2.stale_pending_count == 0
+        assert health2.oldest_pending_at is None
+        assert health2.oldest_pending_age_seconds is None
         alerts = terminal_audit_health_alerts(health2)
         assert alerts == [], f"Expected no alerts after recovery: {alerts}"
 

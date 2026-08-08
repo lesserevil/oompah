@@ -525,8 +525,6 @@ def terminal_audit_health_alerts(
                 "severity": level,
                 "source": HEALTH_ALERT_PREFIX + source,
                 "stable_id": HEALTH_ALERT_PREFIX + source,
-                "action_required": True,
-                "recovery_state": "active",
                 "lifecycle_state": "active",
                 "status": "active",
                 "active": True,
