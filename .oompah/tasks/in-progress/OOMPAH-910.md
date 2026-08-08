@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-910
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Prevent owner-revision cross-thread project-lock deadlock
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T13:34:11.755473Z'
-updated_at: '2026-08-08T13:34:11.755473Z'
+updated_at: '2026-08-08T13:34:53.907182Z'
 work_branch: null
 target_branch: null
 review_url: null
