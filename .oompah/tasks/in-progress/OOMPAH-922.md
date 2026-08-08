@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:46:56.941856Z'
-updated_at: '2026-08-08T17:05:37.523300Z'
+updated_at: '2026-08-08T17:10:57.454621Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,11 @@ The operation in `backend:server` should complete successfully, or degrade grace
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 17:10
+---
+Implemented the shared recurrence fix at 8a0b6948a1089b625d4ba416bde1bfed1da7a424. Structured durable-transition REJECTED outcomes now return HTTP 409 transition_rejected and log at INFO, so illegal-edge/generation-required client conflicts no longer create error-watcher tasks or health warnings. Focused regression suite: 25 passed; terminal mutation scan and secret scan passed. Exact full gate is next.
+---
+<!-- COMMENTS:END -->
