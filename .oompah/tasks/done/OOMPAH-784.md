@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-784
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add workflow liveness SLO metrics and evidence-backed recovery health
 parent: OOMPAH-770
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T18:57:53.597861Z'
+updated_at: '2026-08-08T04:09:33.194266Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -171,6 +171,29 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-770--task-OOMPAH-784
     source_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
     completed_at: '2026-08-06T03:54:04.054991+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-228e7d5a3f1e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-784
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 288f953affea87b3b5e6dbc99911f36ca7b760429f1ee4c713ab999d15f2d558
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation: accepted OOMPAH-784 stack is fully ancestor/patch-contained
+      in published e74449e4; it has no children, and the exact parent full gate passed
+      17,860 tests with zero failures.'
+    created_at: '2026-08-08T04:09:29.043569+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
