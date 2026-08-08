@@ -712,14 +712,17 @@ class ProvenanceGuardedTracker:
     orchestrator is wrapped in this facade, making ``update_issue`` and the
     protocol's status-changing convenience methods share one durable fence.
 
-    The dedicated :meth:`authorize_owner_revision` operation encapsulates its
-    fail-safe Open write and marker clearance under the same project lock;
-    callers cannot obtain a general-purpose raw status writer from this
-    facade.  Every ordinary status-changing method is frozen while suppression
-    is active, including terminal-to-terminal audit or auto-archive writes.
-    Malformed or unreadable marker metadata likewise rejects all status
-    mutations until an operator repairs it; error text never includes the
-    persisted payload.
+    The dedicated :meth:`authorize_owner_revision` operation keeps its
+    fail-safe Open write fenced between two project-lock phases; callers cannot
+    obtain a general-purpose raw status writer from this facade.  Releasing the
+    project lock for the journaled status transition is required because that
+    transition may perform its tracker write on another thread.  Suppression
+    remains active throughout that phase and is revalidated under the lock
+    before it is cleared.  Every ordinary status-changing method is frozen
+    while suppression is active, including terminal-to-terminal audit or
+    auto-archive writes.  Malformed or unreadable marker metadata likewise
+    rejects all status mutations until an operator repairs it; error text
+    never includes the persisted payload.
     """
 
     def __init__(
@@ -863,17 +866,46 @@ class ProvenanceGuardedTracker:
                     raise ProvenanceSuppressionError(
                         "task transition recovery service is unavailable"
                     )
-                status_transition(
-                    current,
-                    OPEN,
-                    tracker=self._provenance_tracker,
-                    project_id=self._provenance_project_id,
-                    actor=actor.identity,
-                    reason_code="provenance.owner_revision_authorized",
-                    idempotency_key=(
-                        f"provenance-owner-revision:{self._provenance_project_id}:"
-                        f"{identifier}:{suppression.authority_generation + 1}"
-                    ),
+            authority_generation = suppression.authority_generation
+
+        if current_status != OPEN:
+            assert status_transition is not None
+            status_transition(
+                current,
+                OPEN,
+                tracker=self._provenance_tracker,
+                project_id=self._provenance_project_id,
+                actor=actor.identity,
+                reason_code="provenance.owner_revision_authorized",
+                idempotency_key=(
+                    f"provenance-owner-revision:{self._provenance_project_id}:"
+                    f"{identifier}:{authority_generation + 1}"
+                ),
+            )
+
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            current = self._provenance_tracker.fetch_issue_detail(identifier)
+            if current is None:
+                raise ProvenanceOwnerRevisionNotFoundError(
+                    "owner revision target was not found"
+                )
+            if canonicalize_status(current.state) != OPEN:
+                raise ProvenanceOwnerRevisionStateError(
+                    "owner revision status transition did not commit Open"
+                )
+            suppression = load_provenance_suppression_status(store, identifier)
+            if suppression.malformed:
+                raise ProvenanceSuppressionError(
+                    "stored provenance-suppression metadata is structurally invalid"
+                )
+            if (
+                not suppression.suppressed
+                or suppression.authority_generation != authority_generation
+            ):
+                raise ProvenanceOwnerRevisionStateError(
+                    "owner revision authority changed during status transition"
                 )
             return authorize_new_revision(store, identifier, actor, reason)
 

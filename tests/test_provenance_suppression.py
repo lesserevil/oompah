@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import threading
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -586,6 +587,52 @@ class TestProvenanceGuardedTracker:
         restarted.update_issue("TASK-1", status="Open")
 
         assert tracker.updates == [("TASK-1", {"status": "Open"})]
+
+    def test_owner_revision_releases_project_lock_for_status_transition(self) -> None:
+        class _RevisionTracker(_StatusTracker):
+            def __init__(self) -> None:
+                super().__init__()
+                self.issue = SimpleNamespace(state="Merged")
+
+            def fetch_issue_detail(self, _identifier: str) -> object:
+                return self.issue
+
+        tracker = _RevisionTracker()
+        locks = _LockStore()
+        store = TerminalAuditMetadataStore(tracker, locks, "proj-1")
+        mark_provenance_only(store, "TASK-1", _owner(), "retained")
+        guarded = self._guarded(tracker, locks)
+        transition_lock_acquired: list[bool] = []
+
+        def _transition(issue: object, _status: str, **_fields: object) -> None:
+            project_lock = locks.project_write_lock("proj-1")
+
+            def _acquire_from_transition_thread() -> None:
+                acquired = project_lock.acquire(timeout=1)
+                transition_lock_acquired.append(acquired)
+                if acquired:
+                    project_lock.release()
+
+            worker = threading.Thread(target=_acquire_from_transition_thread)
+            worker.start()
+            worker.join(timeout=2)
+            assert transition_lock_acquired == [True]
+            # The durable fence stays active until the Open transition has
+            # committed and the facade reacquires the project lock.
+            assert load_provenance_suppression_status(
+                store, "TASK-1"
+            ).suppressed is True
+            issue.state = "Open"  # type: ignore[attr-defined]
+
+        result = guarded.authorize_owner_revision(
+            "TASK-1",
+            _owner(),
+            "new revision",
+            status_transition=_transition,
+        )
+
+        assert result.marker.suppressed is False
+        assert result.marker.authority_generation == 1
 
     def test_unreadable_metadata_fails_closed_without_payload(self) -> None:
         class _UnreadableTracker(_StatusTracker):
