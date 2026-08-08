@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-08T03:09:10.198338Z'
+updated_at: '2026-08-08T03:09:19.712441Z'
 work_branch: OOMPAH-672
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/635
@@ -97,8 +97,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8d72b422-9130-465c-b9f5-990ac6ca3df0
 oompah.task_costs:
-  total_input_tokens: 208
-  total_output_tokens: 15186
+  total_input_tokens: 220
+  total_output_tokens: 20182
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -106,8 +106,8 @@ oompah.task_costs:
       output_tokens: 5345
       cost_usd: 0.0
     unknown:
-      input_tokens: 62
-      output_tokens: 9841
+      input_tokens: 74
+      output_tokens: 14837
       cost_usd: 0.0
   runs:
   - profile: default
@@ -128,6 +128,12 @@ oompah.task_costs:
     output_tokens: 4186
     cost_usd: 0.0
     recorded_at: '2026-08-01T02:06:20.222292+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 12
+    output_tokens: 4996
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T03:09:15.765045+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-672__20260801T001834Z
@@ -571,5 +577,15 @@ Safe evidence:
 - prior_full_gate: make test 388.4s green on head 32eb28d59 (recorded by orchestrator on 2026-08-01)
 - stale_gate_note: Scheduler evidence is stale; supplemental focused checks confirm correctness; prior full gate was green
 - commit_attribution: oompah trailer present, correct
+---
+author: oompah
+created: 2026-08-08 03:09
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 27, Tool calls: 14
+- Tokens: 12 in / 5.0K out [5.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 12s
+- Log: OOMPAH-672__20260808T030219Z.jsonl
 ---
 <!-- COMMENTS:END -->
