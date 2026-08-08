@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-894
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Coalesce repeated owner rearm without erasing retained auto-archive provenance
 parent: OOMPAH-763
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-08T12:04:32.156478Z'
+updated_at: '2026-08-08T16:27:35.029464Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-319b12991196
+    project_id: proj-14849f1b
+    task_id: OOMPAH-894
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 642890b8c42ebed8bcf5cb299f9121437c1cfa8a369c4dd71f25b4880b31ac36
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:27:30.975178+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
