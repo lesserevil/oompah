@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-08T01:02:10.355721Z'
+updated_at: '2026-08-08T01:02:26.141509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,8 +61,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 57004dc6-4e48-4c28-9024-8679bbe3dd1c
 oompah.task_costs:
-  total_input_tokens: 2590643
-  total_output_tokens: 52048
+  total_input_tokens: 2590679
+  total_output_tokens: 52534
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -74,8 +74,8 @@ oompah.task_costs:
       output_tokens: 30315
       cost_usd: 0.0
     unknown:
-      input_tokens: 103
-      output_tokens: 17598
+      input_tokens: 139
+      output_tokens: 18084
       cost_usd: 0.0
   runs:
   - profile: default
@@ -132,6 +132,12 @@ oompah.task_costs:
     output_tokens: 4123
     cost_usd: 0.0
     recorded_at: '2026-08-01T00:35:38.091921+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 36
+    output_tokens: 486
+    cost_usd: 0.0
+    recorded_at: '2026-08-08T01:02:23.081290+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -1033,5 +1039,15 @@ Safe evidence:
 - gate_evidence_note: evidence fingerprint stale (new audit attempt); prior gate at same HEAD documented; focused tests show no regression
 - commits_on_main: 0ce87c6ec, 04d681f10
 - working_tree: clean
+---
+author: oompah
+created: 2026-08-08 01:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 16
+- Tokens: 36 in / 486 out [522 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 59s
+- Log: OOMPAH-665__20260808T005739Z.jsonl
 ---
 <!-- COMMENTS:END -->
