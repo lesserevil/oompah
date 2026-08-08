@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:16:12.155503Z'
-updated_at: '2026-08-08T16:26:58.095528Z'
+updated_at: '2026-08-08T16:27:04.674461Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       This task scope is contained in that validated head; owner override avoids fabricating
       a separate branch/integration generation.
     created_at: '2026-08-08T16:26:54.183027+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-889
+    target_state: Done
+    evidence_fingerprint: 36fb7a4069f71853f22ad8db6876fce0cfa9bb68578b8b778a865673019cf1f3
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T16:27:03.083240+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -64,5 +74,12 @@ author: oompah
 created: 2026-08-07 13:34
 ---
 Additional live recurrence: OOMPAH-764 is a nested epic with all canonical children terminal and stale PR #742 closed. Stale review reconciliation regressed it from audited Done to In Review. Three consecutive authenticated owner Done overrides were rejected with evidence-fingerprint mismatch even after fresh reads, so this is not ordinary request staleness; native epic rollup/metadata writes prevent the exact maintenance terminal repair from committing. Add OOMPAH-764 to the regression corpus and prove the repaired terminal status survives nested-parent rollup/review reconciliation.
+---
+author: oompah
+created: 2026-08-08 16:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d; exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b). This task scope is contained in that validated head; owner override avoids fabricating a separate branch/integration generation.
 ---
 <!-- COMMENTS:END -->

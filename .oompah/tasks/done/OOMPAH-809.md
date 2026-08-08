@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-809
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Reserve workflow-repair capacity while terminal audits drain
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-08T12:03:54.747316Z'
+updated_at: '2026-08-08T16:27:09.899264Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-809
 target_branch: null
 review_url: null
@@ -83,6 +83,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-809
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T22:02:38.699157+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-99b285f7c52f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-809
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cb54242eb68658cc9724f994f62682ca52a07854e13e8b5ec8a3c7a2c1cefc3a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Systemic composition delivered and deployed at d796a4be9a7b0f2dd079cef8ce17e6ec6ecfd62d;
+      exact-head make test passed (18,744 passed, 7 skipped, 2 xfailed; artifact /home/shedwards/.oompah/tmp/OOMPAH-763-full-d796a4b.R3hV9b).
+      This task scope is contained in that validated head; owner override avoids fabricating
+      a separate branch/integration generation.
+    created_at: '2026-08-08T16:27:05.693552+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
