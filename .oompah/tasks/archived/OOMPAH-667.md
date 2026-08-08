@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-08-08T00:57:02.606688Z'
+updated_at: '2026-08-08T01:09:33.903563Z'
 work_branch: OOMPAH-667
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/629
@@ -152,6 +152,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-e0d3e435db98: '2026-08-01T00:02:07.669699+00:00'
     attempt-7ad4c42ec884: '2026-08-01T00:04:37.186208+00:00'
+    attempt-002bd9fbc22c: '2026-08-08T01:09:29.447896+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-667
@@ -171,6 +172,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T00:04:37.186220+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    target_state: Archived
+    evidence_fingerprint: b01be5925cc0d71474ef0b4bc8c1151587ad483ef1972d387a756cabdb6be6a3
+    audit_ids:
+    - audit-ffbbdb2bad83
+    kind: result
+    applied: true
+    retired_at: '2026-08-08T01:09:29.447916+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-667
@@ -196,6 +206,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T00:04:37.186243+00:00'
     applied_at: '2026-08-01T00:04:42.455878+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    audit_id: audit-ffbbdb2bad83
+    attempt_id: attempt-002bd9fbc22c
+    target_state: Archived
+    evidence_fingerprint: b01be5925cc0d71474ef0b4bc8c1151587ad483ef1972d387a756cabdb6be6a3
+    status: Archived
+    audit_ids:
+    - audit-ffbbdb2bad83
+    kind: result
+    applied: false
+    created_at: '2026-08-08T01:09:29.447940+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -271,7 +293,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-667
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -280,7 +302,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-002bd9fbc22c
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -292,6 +314,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-667
       selected_ref: 669094c81f4b2d52431134b99f084878223785dc
       selected_sha: 669094c81f4b2d52431134b99f084878223785dc
+      verdict: pass
+      completed_at: '2026-08-08T01:09:29.447608+00:00'
+      ended_at: '2026-08-08T01:09:29.447608+00:00'
     requested_by:
       version: 1
       identity: oompah
@@ -300,7 +325,7 @@ oompah.terminal_audit:
     created_at: '2026-08-08T00:56:22.200745+00:00'
     selected_ref: 669094c81f4b2d52431134b99f084878223785dc
     selected_sha: 669094c81f4b2d52431134b99f084878223785dc
-    updated_at: '2026-08-08T00:56:53.673797+00:00'
+    updated_at: '2026-08-08T01:09:29.447608+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e0d3e435db98
