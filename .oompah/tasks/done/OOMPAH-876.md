@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-876
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Retry auditor transport failures without consuming substantive candidate capacity
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:51:10.232904Z'
-updated_at: '2026-08-07T18:24:43.024272Z'
+updated_at: '2026-08-08T07:22:29.304043Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-876
 target_branch: null
 review_url: null
@@ -137,6 +137,29 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-768--task-OOMPAH-876
     source_sha: 324a533586fa2f57bdd54c10fd9e054df9c50d62
     completed_at: '2026-08-07T12:07:28.525026+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-de0ce54f6a3f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-876
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bc1fe0fb3108ced4e76c9bab1d8305ac566c2f12e2a0b45ccb0735fd7acd809f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation: accepted OOMPAH-876 retry/health repair
+      is contained in published epic-OOMPAH-768 at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822;
+      focused and full gates passed.'
+    created_at: '2026-08-08T07:22:23.833845+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
