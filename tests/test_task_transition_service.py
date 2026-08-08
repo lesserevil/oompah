@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
 import pytest
@@ -1256,7 +1257,7 @@ def test_integrity_check_rejects_corrupt_immutable_payload(tmp_path):
         journal.integrity_check()
 
 
-def test_expired_foreign_claim_requires_recovery_before_new_intent(tmp_path):
+def test_expired_foreign_claim_is_durably_recovered_by_new_intent(tmp_path):
     clock = [100.0]
     path = str(tmp_path / "transitions.sqlite3")
     journal = TransitionJournal(path, clock=lambda: clock[0])
@@ -1267,12 +1268,355 @@ def test_expired_foreign_claim_requires_recovery_before_new_intent(tmp_path):
     clock[0] = 111.0
     second = replace(first, idempotency_key="job-2", originating_job="job-2")
 
-    waiting = journal.begin(second, lease_ttl_seconds=10)
+    recovered = journal.begin(second, lease_ttl_seconds=10)
 
-    assert waiting.waiting.reason_code == "transition.recovery_required"
-    resumed = journal.begin(first, lease_ttl_seconds=10)
-    assert resumed.transition_id == first_started.transition_id
-    assert resumed.claim_token is not None
+    assert recovered.claim_token is not None
+    assert recovered.waiting is None
+    expiration = journal.events(first_started.transition_id)[-1]
+    assert expiration.phase is TransitionPhase.RETRY_SCHEDULED
+    assert expiration.reason_code == "transition.claim_expired"
+    assert expiration.outcome is not None
+    assert expiration.outcome.retryable is True
+    assert expiration.outcome.details == {
+        "lease_expires_at": 110.0,
+        "replacement_transition_id": recovered.transition_id,
+    }
+    old_retry = journal.begin(first, lease_ttl_seconds=10)
+    assert old_retry.waiting is not None
+    assert old_retry.waiting.reason_code == "transition.owner_active"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mutation", "reason_code"),
+    [
+        ({"state": "Needs Human"}, "transition.stale_status"),
+        ({"assignment_id": "generation-2"}, "transition.stale_version"),
+    ],
+)
+async def test_expired_foreign_claim_recovery_preserves_tracker_cas(
+    tmp_path,
+    mutation,
+    reason_code,
+):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    original = _issue()
+    abandoned = _intent(original)
+    started = journal.begin(abandoned, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        abandoned.reason_code,
+    )
+    clock[0] = 111.0
+    tracker = FakeTracker(replace(original, **mutation))
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    replacement = replace(
+        abandoned,
+        idempotency_key="job-2",
+        originating_job="job-2",
+    )
+
+    outcome = await service.execute(replacement)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == reason_code
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_expired_foreign_claim_resumes_exact_unapplied_intent(tmp_path):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    tracker = FakeTracker(_issue())
+    abandoned = _intent(tracker.issue)
+    started = journal.begin(abandoned, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        abandoned.reason_code,
+    )
+    clock[0] = 111.0
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    replacement = replace(
+        abandoned,
+        idempotency_key="job-2",
+        originating_job="job-2",
+    )
+
+    outcome = await service.execute(replacement)
+
+    assert outcome.disposition is TransitionDisposition.ALREADY_APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+    assert journal.latest_event(started.transition_id).phase is TransitionPhase.APPLIED
+
+
+@pytest.mark.asyncio
+async def test_expired_foreign_claim_recovers_effect_already_applied(tmp_path):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    before = _issue()
+    abandoned = _intent(before)
+    started = journal.begin(abandoned, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        abandoned.reason_code,
+    )
+    clock[0] = 111.0
+    tracker = FakeTracker(replace(before, state="In Progress"))
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    replacement = replace(
+        abandoned,
+        idempotency_key="job-2",
+        originating_job="job-2",
+    )
+
+    outcome = await service.execute(replacement)
+
+    assert outcome.disposition is TransitionDisposition.ALREADY_APPLIED
+    assert tracker.updates == []
+    recovered = journal.latest_event(started.transition_id)
+    assert recovered.phase is TransitionPhase.RECOVERED
+    assert recovered.outcome.reason_code == "transition.already_applied"
+
+
+@pytest.mark.asyncio
+async def test_retryable_expired_recovery_keeps_original_obligation(tmp_path):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    tracker = FakeTracker(_issue())
+    abandoned = _intent(tracker.issue)
+    started = journal.begin(abandoned, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        abandoned.reason_code,
+    )
+    clock[0] = 111.0
+    tracker.fetch_failures = 2
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    replacement = replace(
+        abandoned,
+        requested_status="Needs Human",
+        idempotency_key="job-2",
+        originating_job="job-2",
+    )
+
+    first_pending = await service.execute(replacement)
+    second_pending = await service.execute(replacement)
+    resolved = await service.execute(replacement)
+
+    assert first_pending.disposition is TransitionDisposition.WAITING
+    assert first_pending.reason_code == "transition.recovery_pending"
+    assert first_pending.retryable is True
+    assert second_pending.disposition is TransitionDisposition.WAITING
+    assert second_pending.reason_code == "transition.recovery_pending"
+    assert resolved.disposition is TransitionDisposition.REJECTED
+    assert resolved.reason_code == "transition.stale_status"
+    assert tracker.updates == [("TASK-1", "In Progress")]
+    assert journal.latest_event(started.transition_id).phase is TransitionPhase.APPLIED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entrypoint", ["execute", "recover_authorized"])
+async def test_expired_authorized_recovery_uses_compensation_lane(
+    tmp_path,
+    entrypoint,
+):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    tracker = FakeTracker(_issue(state="Archived"))
+    abandoned = _intent(
+        tracker.issue,
+        requested_status="Open",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        actor="project-owner",
+        reason_code="provenance.owner_revision_authorized",
+        idempotency_key="owner-recovery-1",
+        originating_job="owner-recovery-1",
+        evidence_generation=None,
+    )
+    started = journal.begin(abandoned, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        abandoned.reason_code,
+    )
+    clock[0] = 111.0
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    replacement = replace(
+        abandoned,
+        idempotency_key="owner-recovery-2",
+        originating_job="owner-recovery-2",
+    )
+
+    outcome = await getattr(service, entrypoint)(replacement)
+
+    assert outcome.disposition is TransitionDisposition.ALREADY_APPLIED
+    assert tracker.updates == [("TASK-1", "Open")]
+    recovered = journal.latest_event(started.transition_id)
+    assert recovered.phase is TransitionPhase.APPLIED
+    assert recovered.outcome.reason_code == "transition.applied"
+
+
+@pytest.mark.asyncio
+async def test_expired_recovery_fences_conflicting_newer_intent(tmp_path):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    tracker = FakeTracker(_issue())
+    abandoned = _intent(tracker.issue)
+    started = journal.begin(abandoned, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        abandoned.reason_code,
+    )
+    clock[0] = 111.0
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    conflicting = replace(
+        abandoned,
+        requested_status="Needs Human",
+        idempotency_key="job-2",
+        originating_job="job-2",
+    )
+
+    outcome = await service.execute(conflicting)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_status"
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+def test_only_one_concurrent_claimant_recovers_expired_foreign_claim(tmp_path):
+    clock = [100.0]
+    path = str(tmp_path / "transitions.sqlite3")
+    bootstrap = TransitionJournal(path, clock=lambda: clock[0])
+    issue = _issue()
+    abandoned = _intent(issue)
+    abandoned_started = bootstrap.begin(abandoned, lease_ttl_seconds=10)
+    clock[0] = 111.0
+    journals = [
+        TransitionJournal(path, clock=lambda: clock[0]),
+        TransitionJournal(path, clock=lambda: clock[0]),
+    ]
+    intents = [
+        replace(
+            abandoned,
+            actor=f"worker-{number}",
+            idempotency_key=f"job-{number}",
+            originating_job=f"job-{number}",
+        )
+        for number in (2, 3)
+    ]
+    barrier = threading.Barrier(2)
+
+    def contend(index):
+        barrier.wait(timeout=5)
+        return journals[index].begin(intents[index], lease_ttl_seconds=10)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(contend, range(2)))
+
+    owners = [result for result in results if result.claim_token is not None]
+    waiters = [result for result in results if result.waiting is not None]
+    assert len(owners) == 1
+    assert len(waiters) == 1
+    assert waiters[0].waiting.reason_code == "transition.owner_active"
+    expiration_events = [
+        event
+        for event in bootstrap.events(abandoned_started.transition_id)
+        if event.reason_code == "transition.claim_expired"
+    ]
+    assert len(expiration_events) == 1
+
+
+def test_expired_claim_recovery_fails_closed_on_mismatched_history(tmp_path):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    first = _intent(_issue())
+    journal.begin(first, lease_ttl_seconds=10)
+    other_issue = _issue(id="TASK-2", identifier="TASK-2")
+    other_started = journal.begin(
+        _intent(
+            other_issue,
+            idempotency_key="other-task",
+            originating_job="other-task",
+        ),
+        lease_ttl_seconds=10,
+    )
+    journal._conn.execute(  # noqa: SLF001 - corruption recovery probe
+        """
+        UPDATE task_transition_claims SET transition_id = ?
+         WHERE project_id = ? AND task_id = ?
+        """,
+        (other_started.transition_id, first.project_id, first.task_id),
+    )
+    journal._conn.commit()  # noqa: SLF001
+    clock[0] = 111.0
+    replacement = replace(
+        first,
+        idempotency_key="job-3",
+        originating_job="job-3",
+    )
+
+    with pytest.raises(
+        TransitionJournalCorruptionError,
+        match="claim does not match its immutable request",
+    ):
+        journal.begin(replacement, lease_ttl_seconds=10)
 
 
 def test_replay_of_final_intent_cleans_claim_left_by_process_death(tmp_path):

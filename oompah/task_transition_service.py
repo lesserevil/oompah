@@ -206,6 +206,44 @@ def issue_exact_head(issue: Issue) -> str | None:
     return review_head.lower() if review_head else None
 
 
+def _is_authorized_recovery_intent(intent: TransitionIntent) -> bool:
+    """Return whether an intent belongs to the narrow compensation lane."""
+
+    return (
+        intent.authority is TransitionAuthority.AUDITOR
+        and intent.reason_code.startswith("audit.")
+        and intent.reason_code != "audit.owner_override_recovered"
+    ) or (
+        intent.authority is TransitionAuthority.PROJECT_OWNER
+        and intent.reason_code
+        in {
+            "audit.owner_override_recovered",
+            "provenance.owner_revision_authorized",
+        }
+    ) or (
+        intent.authority is TransitionAuthority.SYSTEM
+        and (
+            intent.reason_code.startswith("intake.")
+            or (
+                intent.reason_code == "maintenance.container_cycle_restored"
+                and canonicalize_status(intent.expected_status) == NEEDS_HUMAN
+                and canonicalize_status(intent.requested_status)
+                == READY_TO_INTEGRATE
+            )
+            or (
+                intent.reason_code == "maintenance.unlanded_done_child_recovered"
+                and canonicalize_status(intent.expected_status) == DONE
+                and canonicalize_status(intent.requested_status) == NEEDS_HUMAN
+            )
+            or (
+                intent.reason_code == "maintenance.landed_done_child_restored"
+                and canonicalize_status(intent.expected_status) == NEEDS_HUMAN
+                and canonicalize_status(intent.requested_status) == DONE
+            )
+        )
+    )
+
+
 class TransitionAuthority(str, Enum):
     """Authority class carried by every mutation intent."""
 
@@ -558,6 +596,9 @@ class _BeginResult:
     replay: TransitionOutcome | None = None
     waiting: TransitionOutcome | None = None
     previous_phase: TransitionPhase | None = None
+    recovery_transition_id: str | None = None
+    recovery_intent: TransitionIntent | None = None
+    recovery_previous_phase: TransitionPhase | None = None
 
 
 class TransitionJournal:
@@ -909,32 +950,149 @@ class TransitionJournal:
                         self._conn.commit()
                         return _BeginResult(transition_id, None, waiting=waiting)
                     if active_transition != transition_id:
-                        waiting = TransitionOutcome(
-                            transition_id=transition_id,
-                            project_id=intent.project_id,
-                            task_id=intent.task_id,
-                            disposition=TransitionDisposition.WAITING,
-                            reason_code="transition.recovery_required",
-                            observed_status="",
-                            observed_version=None,
-                            requested_status=intent.requested_status,
-                            retryable=True,
-                            details={"recover_transition_id": active_transition},
-                        )
-                        self._append_locked(
-                            transition_id,
+                        active_request = self._conn.execute(
+                            """
+                            SELECT * FROM task_transition_requests
+                             WHERE transition_id = ?
+                            """,
+                            (active_transition,),
+                        ).fetchone()
+                        if (
+                            active_request is None
+                            or str(active_request["project_id"]) != intent.project_id
+                            or str(active_request["task_id"]) != intent.task_id
+                        ):
+                            raise TransitionJournalCorruptionError(
+                                "transition claim does not match its immutable request"
+                            )
+                        active_latest = self._latest_event_locked(active_transition)
+                        if active_latest is None:
+                            raise TransitionJournalCorruptionError(
+                                "transition claim has no immutable journal history"
+                            )
+                        try:
+                            active_intent = TransitionIntent.from_dict(
+                                json.loads(str(active_request["intent_json"]))
+                            )
+                        except (
+                            TypeError,
+                            ValueError,
+                            json.JSONDecodeError,
+                        ) as exc:
+                            raise TransitionJournalCorruptionError(
+                                "invalid intent for expired transition claim"
+                            ) from exc
+                        if (
+                            active_intent.revision
+                            != str(active_request["intent_revision"])
+                            or active_intent.project_id != intent.project_id
+                            or active_intent.task_id != intent.task_id
+                        ):
+                            raise TransitionJournalCorruptionError(
+                                "intent mismatch for expired transition claim"
+                            )
+                        if active_latest.phase in FINAL_PHASES:
+                            if active_latest.outcome is None:
+                                raise TransitionJournalCorruptionError(
+                                    "final expired transition has no durable outcome"
+                                )
+                        else:
+                            expired = TransitionOutcome(
+                                transition_id=active_transition,
+                                project_id=active_intent.project_id,
+                                task_id=active_intent.task_id,
+                                disposition=TransitionDisposition.RETRYABLE,
+                                reason_code="transition.claim_expired",
+                                observed_status="",
+                                observed_version=None,
+                                requested_status=active_intent.requested_status,
+                                retryable=True,
+                                details={
+                                    "replacement_transition_id": transition_id,
+                                    "lease_expires_at": active_until,
+                                },
+                            )
+                            self._append_locked(
+                                active_transition,
+                                active_intent.project_id,
+                                active_intent.task_id,
+                                TransitionPhase.RETRY_SCHEDULED,
+                                expired.reason_code,
+                                expired,
+                            )
+                            recovery_waiting = TransitionOutcome(
+                                transition_id=transition_id,
+                                project_id=intent.project_id,
+                                task_id=intent.task_id,
+                                disposition=TransitionDisposition.WAITING,
+                                reason_code="transition.recovery_in_progress",
+                                observed_status="",
+                                observed_version=None,
+                                requested_status=intent.requested_status,
+                                retryable=True,
+                                details={
+                                    "recover_transition_id": active_transition,
+                                },
+                            )
+                            self._append_locked(
+                                transition_id,
+                                intent.project_id,
+                                intent.task_id,
+                                TransitionPhase.WAITING,
+                                recovery_waiting.reason_code,
+                                recovery_waiting,
+                            )
+                            recovered = self._conn.execute(
+                                """
+                                UPDATE task_transition_claims
+                                   SET claim_token = ?, claimed_at = ?,
+                                       lease_expires_at = ?
+                                 WHERE project_id = ? AND task_id = ?
+                                   AND transition_id = ? AND claim_token = ?
+                                   AND lease_expires_at = ?
+                                """,
+                                (
+                                    claim_token,
+                                    now,
+                                    now + lease_ttl_seconds,
+                                    intent.project_id,
+                                    intent.task_id,
+                                    active_transition,
+                                    str(active["claim_token"]),
+                                    active_until,
+                                ),
+                            )
+                            if recovered.rowcount != 1:
+                                raise TransitionJournalError(
+                                    "expired transition claim changed during recovery"
+                                )
+                            self._conn.commit()
+                            return _BeginResult(
+                                transition_id,
+                                claim_token,
+                                recovery_transition_id=active_transition,
+                                recovery_intent=active_intent,
+                                recovery_previous_phase=active_latest.phase,
+                            )
+                    deleted = self._conn.execute(
+                        """
+                        DELETE FROM task_transition_claims
+                         WHERE project_id = ? AND task_id = ?
+                           AND transition_id = ? AND claim_token = ?
+                           AND lease_expires_at = ?
+                        """,
+                        (
                             intent.project_id,
                             intent.task_id,
-                            TransitionPhase.WAITING,
-                            waiting.reason_code,
-                            waiting,
-                        )
-                        self._conn.commit()
-                        return _BeginResult(transition_id, None, waiting=waiting)
-                    self._conn.execute(
-                        "DELETE FROM task_transition_claims WHERE project_id = ? AND task_id = ?",
-                        (intent.project_id, intent.task_id),
+                            active_transition,
+                            str(active["claim_token"]),
+                            active_until,
+                        ),
                     )
+                    if deleted.rowcount != 1:
+                        raise TransitionJournalError(
+                            "expired transition claim changed during recovery"
+                        )
 
                 self._conn.execute(
                     """
@@ -970,6 +1128,26 @@ class TransitionJournal:
                  WHERE project_id = ? AND task_id = ? AND claim_token = ?
                 """,
                 (project_id, task_id, claim_token),
+            )
+            self._conn.commit()
+            return cursor.rowcount == 1
+
+    def expire_for_retry(
+        self,
+        project_id: str,
+        task_id: str,
+        claim_token: str,
+    ) -> bool:
+        """Yield a claim while retaining its durable recovery obligation."""
+
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                UPDATE task_transition_claims
+                   SET lease_expires_at = ?
+                 WHERE project_id = ? AND task_id = ? AND claim_token = ?
+                """,
+                (self._clock(), project_id, task_id, claim_token),
             )
             self._conn.commit()
             return cursor.rowcount == 1
@@ -1129,6 +1307,25 @@ class TaskTransitionService:
             **fields,
         )
 
+    async def _execute_recovery_claimed(
+        self,
+        intent: TransitionIntent,
+        begin: _BeginResult,
+    ) -> TransitionOutcome:
+        """Resume an expired immutable intent through its original lane."""
+
+        if _is_authorized_recovery_intent(intent):
+            return await self._recover_authorized_claimed(
+                intent,
+                begin,
+                retain_retryable_claim=True,
+            )
+        return await self._execute_claimed(
+            intent,
+            begin,
+            retain_retryable_claim=True,
+        )
+
     async def execute(self, intent: TransitionIntent) -> TransitionOutcome:
         """Journal, fence, apply, and verify one status transition."""
 
@@ -1149,15 +1346,67 @@ class TaskTransitionService:
             intent,
             lease_ttl_seconds=self.claim_ttl_seconds,
         )
+        if begin.recovery_intent is not None:
+            recovery = await self._execute_recovery_claimed(
+                begin.recovery_intent,
+                _BeginResult(
+                    transition_id=_required_text(
+                        begin.recovery_transition_id,
+                        "recovery_transition_id",
+                    ),
+                    claim_token=begin.claim_token,
+                    previous_phase=begin.recovery_previous_phase,
+                ),
+            )
+            if recovery.retryable:
+                pending = self._outcome(
+                    begin.transition_id,
+                    intent,
+                    TransitionDisposition.WAITING,
+                    "transition.recovery_pending",
+                    None,
+                    retryable=True,
+                    details={
+                        "recover_transition_id": recovery.transition_id,
+                        "recovery_reason_code": recovery.reason_code,
+                    },
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    begin.transition_id,
+                    TransitionPhase.WAITING,
+                    pending.reason_code,
+                    pending,
+                )
+                return pending
+            begin = await asyncio.to_thread(
+                self.journal.begin,
+                intent,
+                lease_ttl_seconds=self.claim_ttl_seconds,
+            )
         if begin.replay is not None:
             return begin.replay
         if begin.waiting is not None:
             return begin.waiting
         if begin.claim_token is None:
             raise TransitionJournalError("transition claim was not acquired")
+        return await self._execute_claimed(intent, begin)
+
+    async def _execute_claimed(
+        self,
+        intent: TransitionIntent,
+        begin: _BeginResult,
+        *,
+        retain_retryable_claim: bool = False,
+    ) -> TransitionOutcome:
+        """Execute an intent whose exact durable task claim is already held."""
+
+        if begin.claim_token is None:
+            raise TransitionJournalError("transition claim was not acquired")
 
         transition_id = begin.transition_id
         claim_token = begin.claim_token
+        outcome: TransitionOutcome | None = None
         try:
             issue, fetch_error = await self._try_fetch(intent.task_id)
             if fetch_error is not None:
@@ -1722,12 +1971,24 @@ class TaskTransitionService:
             )
             return outcome
         finally:
-            await asyncio.to_thread(
-                self.journal.release,
-                intent.project_id,
-                intent.task_id,
-                claim_token,
-            )
+            if retain_retryable_claim and outcome is not None and outcome.retryable:
+                retained = await asyncio.to_thread(
+                    self.journal.expire_for_retry,
+                    intent.project_id,
+                    intent.task_id,
+                    claim_token,
+                )
+                if not retained:
+                    raise TransitionJournalError(
+                        "retryable recovery lost its durable task claim"
+                    )
+            else:
+                await asyncio.to_thread(
+                    self.journal.release,
+                    intent.project_id,
+                    intent.task_id,
+                    claim_token,
+                )
 
     async def recover_authorized(self, intent: TransitionIntent) -> TransitionOutcome:
         """Apply a pre-authorized recovery without re-running lifecycle policy.
@@ -1741,42 +2002,7 @@ class TaskTransitionService:
         edge that the recorded compensation is repairing.
         """
 
-        authority_matches_reason = (
-            intent.authority is TransitionAuthority.AUDITOR
-            and intent.reason_code.startswith("audit.")
-            and intent.reason_code != "audit.owner_override_recovered"
-        ) or (
-            intent.authority is TransitionAuthority.PROJECT_OWNER
-            and intent.reason_code
-            in {
-                "audit.owner_override_recovered",
-                "provenance.owner_revision_authorized",
-            }
-        ) or (
-            intent.authority is TransitionAuthority.SYSTEM
-            and (
-                intent.reason_code.startswith("intake.")
-                or (
-                    intent.reason_code == "maintenance.container_cycle_restored"
-                    and canonicalize_status(intent.expected_status) == NEEDS_HUMAN
-                    and canonicalize_status(intent.requested_status)
-                    == READY_TO_INTEGRATE
-                )
-                or (
-                    intent.reason_code
-                    == "maintenance.unlanded_done_child_recovered"
-                    and canonicalize_status(intent.expected_status) == DONE
-                    and canonicalize_status(intent.requested_status) == NEEDS_HUMAN
-                )
-                or (
-                    intent.reason_code
-                    == "maintenance.landed_done_child_restored"
-                    and canonicalize_status(intent.expected_status) == NEEDS_HUMAN
-                    and canonicalize_status(intent.requested_status) == DONE
-                )
-            )
-        )
-        if not authority_matches_reason:
+        if not _is_authorized_recovery_intent(intent):
             return TransitionOutcome(
                 transition_id="",
                 project_id=intent.project_id,
@@ -1804,15 +2030,67 @@ class TaskTransitionService:
             intent,
             lease_ttl_seconds=self.claim_ttl_seconds,
         )
+        if begin.recovery_intent is not None:
+            recovery = await self._execute_recovery_claimed(
+                begin.recovery_intent,
+                _BeginResult(
+                    transition_id=_required_text(
+                        begin.recovery_transition_id,
+                        "recovery_transition_id",
+                    ),
+                    claim_token=begin.claim_token,
+                    previous_phase=begin.recovery_previous_phase,
+                ),
+            )
+            if recovery.retryable:
+                pending = self._outcome(
+                    begin.transition_id,
+                    intent,
+                    TransitionDisposition.WAITING,
+                    "transition.recovery_pending",
+                    None,
+                    retryable=True,
+                    details={
+                        "recover_transition_id": recovery.transition_id,
+                        "recovery_reason_code": recovery.reason_code,
+                    },
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    begin.transition_id,
+                    TransitionPhase.WAITING,
+                    pending.reason_code,
+                    pending,
+                )
+                return pending
+            begin = await asyncio.to_thread(
+                self.journal.begin,
+                intent,
+                lease_ttl_seconds=self.claim_ttl_seconds,
+            )
         if begin.replay is not None:
             return begin.replay
         if begin.waiting is not None:
             return begin.waiting
         if begin.claim_token is None:
             raise TransitionJournalError("transition claim was not acquired")
+        return await self._recover_authorized_claimed(intent, begin)
+
+    async def _recover_authorized_claimed(
+        self,
+        intent: TransitionIntent,
+        begin: _BeginResult,
+        *,
+        retain_retryable_claim: bool = False,
+    ) -> TransitionOutcome:
+        """Execute an authorized compensation whose durable claim is held."""
+
+        if begin.claim_token is None:
+            raise TransitionJournalError("transition claim was not acquired")
 
         transition_id = begin.transition_id
         claim_token = begin.claim_token
+        outcome: TransitionOutcome | None = None
         try:
             issue, fetch_error = await self._try_fetch(intent.task_id)
             if fetch_error is not None:
@@ -1991,9 +2269,21 @@ class TaskTransitionService:
             )
             return outcome
         finally:
-            await asyncio.to_thread(
-                self.journal.release,
-                intent.project_id,
-                intent.task_id,
-                claim_token,
-            )
+            if retain_retryable_claim and outcome is not None and outcome.retryable:
+                retained = await asyncio.to_thread(
+                    self.journal.expire_for_retry,
+                    intent.project_id,
+                    intent.task_id,
+                    claim_token,
+                )
+                if not retained:
+                    raise TransitionJournalError(
+                        "retryable recovery lost its durable task claim"
+                    )
+            else:
+                await asyncio.to_thread(
+                    self.journal.release,
+                    intent.project_id,
+                    intent.task_id,
+                    claim_token,
+                )
