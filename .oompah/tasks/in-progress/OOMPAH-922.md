@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:46:56.941856Z'
-updated_at: '2026-08-08T17:12:55.785370Z'
+updated_at: '2026-08-08T17:18:12.370903Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-08-08 17:12
 ---
 Correction to the prior progress comment: the amended commit's exact SHA is 8a0b6948ab0efb7a12f475b9f1cffc2d2a04a719. The short SHA remains 8a0b6948a; the earlier full SHA was copied from the pre-amend commit suffix and is not a Git object.
+---
+author: oompah
+created: 2026-08-08 17:18
+---
+Review hardening amended the fix to 7a4a5a3c0f912e24a00a55346af39ce7ca99213a (superseding 8a0b6948a). Expected policy REJECTED outcomes are now explicitly allowlisted for INFO/409; ambiguous terminal-stage and future operational rejections remain ERROR/500 so error_watcher still catches genuine backend failures. Focused suite: 28 passed; safety scans passed. Restarting the exact full gate on this head.
 ---
 <!-- COMMENTS:END -->
