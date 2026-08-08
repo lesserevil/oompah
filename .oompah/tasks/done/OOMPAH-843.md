@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T04:09:56.049997Z'
+updated_at: '2026-08-08T04:10:01.768880Z'
 work_branch: OOMPAH-843
 target_branch: null
 review_url: null
@@ -141,7 +141,17 @@ oompah.terminal_audit:
       gate passed 17,860 tests with zero failures; the later reopen was stale recovery
       churn for the same accepted head.'
     created_at: '2026-08-08T04:09:51.978461+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-843
+    target_state: Done
+    evidence_fingerprint: 49e370c84025e9180158b02141bb5eb5af790cbbe51372509262d41df8e65a05
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-08T04:10:00.200794+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -473,5 +483,12 @@ author: oompah
 created: 2026-08-08 04:07
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-08 04:09
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner reconciliation: composed OOMPAH-843 repair a1917e770 is an ancestor of published e74449e4. Its exact review was accepted, 1,659 broad focused tests plus 42 deadline regressions passed, and the exact parent full gate passed 17,860 tests with zero failures; the later reopen was stale recovery churn for the same accepted head.
 ---
 <!-- COMMENTS:END -->
