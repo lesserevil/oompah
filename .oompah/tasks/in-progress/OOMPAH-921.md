@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:33:49.292212Z'
-updated_at: '2026-08-08T18:13:35.413192Z'
+updated_at: '2026-08-08T18:39:03.224683Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-08 18:13
 ---
 Implemented the complete direct-owner claim lifecycle fix at exact head 78b1c08cfc312e29203ce07f41f4c18cea72b89b. The change retires captured claims only after committed status transitions, persists and rolls back claim mutations, isolates exact-claim revocations in per-claim durable workflow lanes, preserves ABA replacements and valid Open preclaims, reconciles enqueue/refresh/exhaustion failures live, and recovers the postcommit crash boundary from immutable transition-request timestamps. Focused impacted suites are green (619-test broad slice plus targeted transition/owner suites), terminal mutation scan passed, and secret scan passed. Starting the exact full Makefile gate now.
+---
+author: oompah
+created: 2026-08-08 18:39
+---
+Full branch gate at 78b1c08 exposed a compatibility regression: the new post-commit owner-claim capture assumed _owner_claims_lock on deliberately minimal Orchestrator.__new__ integrations, causing 33 cascading failures. Added a narrow absent-runtime guard and regression coverage in 3fd4a37c78c242111b5293cfd3f5601ab8740787. Exact failed nodes now pass 33/33; affected suites pass 710/710; scans pass. Mandatory full gate is rerunning at exact clean head 3fd4a37.
 ---
 <!-- COMMENTS:END -->
