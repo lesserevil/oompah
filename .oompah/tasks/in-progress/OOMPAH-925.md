@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-925
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: '[backend:orchestrator] Orchestrator shutdown remains fenced; runtime recovery
   is not durable for issue_ids=[] journals=[''workflow runtime drain'']'
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T20:59:18.475816Z'
-updated_at: '2026-08-08T21:26:50.506604Z'
+updated_at: '2026-08-08T21:26:56.282337Z'
 work_branch: null
 target_branch: null
 review_url: null
