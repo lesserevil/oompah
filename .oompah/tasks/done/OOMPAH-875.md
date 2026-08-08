@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-875
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Prevent slow scheduler lanes from starving Ready integration claims
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T08:44:33.807355Z'
-updated_at: '2026-08-07T18:24:29.907158Z'
+updated_at: '2026-08-08T07:18:10.211415Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-875
 target_branch: null
 review_url: null
@@ -107,6 +107,30 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-768--task-OOMPAH-875
     source_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
     completed_at: '2026-08-07T08:52:53.909241+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e4d5d856c228
+    project_id: proj-14849f1b
+    task_id: OOMPAH-875
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0e9b797f1adaf7d06a5cd76cbd0e0e154ebb55f1ebb001d1d5b2e6f62cf85b50
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation: accepted OOMPAH-875 lane-isolation repair
+      plus composed fixture correction are contained in published epic-OOMPAH-768
+      at exact validated head 9a893835d7c4a522def2e39e929ac2be3f090822; focused and
+      full gates passed.'
+    created_at: '2026-08-08T07:18:06.145002+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
