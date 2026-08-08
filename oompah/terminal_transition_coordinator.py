@@ -2085,10 +2085,32 @@ class TerminalTransitionCoordinator:
                         if evidence_addendum is not None
                         else "infrastructure_recovery"
                     )
+                    # ``authority.requested_by`` is immutable transition
+                    # provenance and may intentionally remain auto_archive so
+                    # an unbound retention audit can later witness origin/main.
+                    # The durable history row separately owns rearm
+                    # authorization and exact-repeat identity.
+                    if history_row.get("version") != 1:
+                        return doc
                     if history_row.get("mode") != mode:
                         return doc
                     history_reason = history_row.get("reason")
-                    if not isinstance(history_reason, str) or not history_reason.strip():
+                    if (
+                        not isinstance(history_reason, str)
+                        or history_reason
+                        != redact_terminal_audit_text(reason.strip())
+                    ):
+                        return doc
+                    if (
+                        history_row.get("evidence_fingerprint")
+                        != authority.evidence_fingerprint.digest
+                    ):
+                        return doc
+                    history_generation = history_row.get("source_generation")
+                    if (
+                        isinstance(history_generation, bool)
+                        or history_generation != authority.source_generation
+                    ):
                         return doc
                     if normalized_addendum is not None:
                         if history_row.get("evidence_addendum") != normalized_addendum:
@@ -2100,6 +2122,8 @@ class TerminalTransitionCoordinator:
                             history_row.get("actor")
                         )
                     except (TypeError, ValueError):
+                        return doc
+                    if history_actor != authorized_actor:
                         return doc
                     if not (
                         is_authorized_status_actor(history_actor.identity, project)
@@ -2123,14 +2147,6 @@ class TerminalTransitionCoordinator:
                         None,
                     )
                     if exhausted is None:
-                        return doc
-                    if (
-                        authority.requested_by != history_actor
-                        and not _is_intervening_recurrence_source(
-                            authority,
-                            exhausted,
-                        )
-                    ):
                         return doc
                     decision = TransitionResult(
                         success=True,

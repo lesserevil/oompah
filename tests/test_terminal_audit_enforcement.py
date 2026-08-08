@@ -3333,6 +3333,92 @@ def test_retry_status_failure_restarts_into_exact_validation_and_accepts_verdict
     )
 
 
+def test_auto_archive_rearm_restart_uses_owner_history_not_request_provenance(
+    tmp_path,
+):
+    """Restart accepts owner proof while preserving late-binding authority."""
+
+    issue = _issue("TASK-1", "Needs Human", "evidence-a", project="project-a")
+    tracker = _Tracker([issue])
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project-a")
+    failed_attempt = AuditAttempt(
+        attempt_id="attempt-no-auditor",
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.FAIL,
+        failure_classification=FailureClassification.NO_AUDITOR,
+    )
+    exhausted = TerminalAuditRecord(
+        audit_id="audit-exhausted-auto-archive",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[failed_attempt],
+        requested_by=ContributorIdentity("oompah", "auto_archive"),
+        previous_state="Done",
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[exhausted]).to_dict()
+    }
+    lock_store = _LockStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker,
+        lock_store,
+        post_comments=False,
+    )
+    owner = ContributorIdentity("project-owner", "api")
+    project = SimpleNamespace(
+        tracker_owner=owner.identity,
+        status_actor_login=None,
+        status_label_authorized_logins=[owner.identity],
+    )
+
+    tracker.fail_status_updates = True
+    retry = asyncio.run(
+        coordinator.retry_failed_audit(
+            issue,
+            TargetState.ARCHIVED,
+            owner,
+            "project-a",
+            "Independent auditor capacity restored.",
+            project,
+            evidence_fingerprint=fingerprint,
+        )
+    )
+    assert retry.success is False
+    assert retry.reason == "status_stage_failed"
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata["TASK-1"][METADATA_KEY]
+    )
+    pending = document.pending_chain[-1]
+    authorization = document.unknown_fields[
+        "oompah.terminal_audit_rearm_history"
+    ][-1]
+    assert pending.requested_by == ContributorIdentity("oompah", "auto_archive")
+    assert authorization["actor"] == owner.to_dict()
+    assert document.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][-1]["applied"] is False
+
+    tracker.fail_status_updates = False
+    restarted = _enforcer(
+        tmp_path,
+        terminal_states=("Done", "Archived"),
+    )
+    recovered = restarted.recover_pending_audits([("project-a", tracker)])
+
+    assert issue.state == "In Validation"
+    assert [item.audit_id for item in recovered] == [pending.audit_id]
+    repaired = TerminalAuditMetadata.from_dict(
+        tracker.metadata["TASK-1"][METADATA_KEY]
+    )
+    assert repaired.pending_chain[-1].requested_by == ContributorIdentity(
+        "oompah", "auto_archive"
+    )
+    assert repaired.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][-1]["applied"] is True
+
+
 def test_recovery_retires_result_intent_after_task_evidence_changes(tmp_path):
     """A completed result for an obsolete task revision must never be replayed."""
     tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])

@@ -2915,8 +2915,10 @@ class TestRetryFailedAudit:
         ) in metrics.calls
 
     def test_owner_rearm_retains_unbound_auto_archive_provenance(self) -> None:
-        """A recovery owner is recorded without losing retention authority."""
+        """Repeated recovery survives restart without losing retention authority."""
         tracker = _MemoryTracker()
+        sha = "d" * 40
+        project_store = _RevisionLockStore({"origin/main": sha})
         exhausted = replace(
             _exhausted_no_auditor_record(),
             previous_state=DONE,
@@ -2925,39 +2927,57 @@ class TestRetryFailedAudit:
             selected_sha=None,
         )
         _seed_metadata(tracker, [exhausted])
-        coordinator = _coordinator(tracker, post_comments=False)
+        owner = ContributorIdentity("project-owner", "api")
+        reason = "Auditor capacity was restored."
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
 
-        result = _run(
+        first = _run(
             coordinator.retry_failed_audit(
                 _issue(NEEDS_HUMAN),
                 TargetState.ARCHIVED,
-                ContributorIdentity("project-owner", "api"),
+                owner,
                 PROJECT_ID,
-                "Auditor capacity was restored.",
+                reason,
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+        restarted = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        repeated = _run(
+            restarted.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                owner,
+                PROJECT_ID,
+                reason,
                 self._owner_project(),
                 evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
         document = TerminalAuditMetadataStore(
-            tracker, _LockStore(), PROJECT_ID
+            tracker, project_store, PROJECT_ID
         ).read(TASK_ID)
         fresh = document.pending_chain[-1]
         history = document.unknown_fields["oompah.terminal_audit_rearm_history"]
-        assert result.success is True
+        assert first.success is True
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == first.audit_id
         assert fresh.requested_by == ContributorIdentity("oompah", "auto_archive")
-        assert history[-1]["actor"] == ContributorIdentity(
-            "project-owner", "api"
-        ).to_dict()
+        assert len(history) == 1
+        assert history[0]["actor"] == owner.to_dict()
+        assert history[0]["source_generation"] == fresh.source_generation
 
-        sha = "d" * 40
-        project_store = _RevisionLockStore({"origin/main": sha})
-        binding_coordinator = TerminalTransitionCoordinator(
-            tracker=tracker,
-            project_store=project_store,
-            post_comments=False,
-        )
-        binding = binding_coordinator._request_revision_binding(
+        binding = restarted._request_revision_binding(
             TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID),
             _issue(IN_VALIDATION),
             TargetState.ARCHIVED,
@@ -2969,6 +2989,10 @@ class TestRetryFailedAudit:
         assert binding is not None
         assert binding.selected_ref == "origin/main"
         assert binding.selected_sha == sha
+        rebound = TerminalAuditMetadataStore(
+            tracker, project_store, PROJECT_ID
+        ).read(TASK_ID).pending_chain[-1]
+        assert rebound.requested_by == ContributorIdentity("oompah", "auto_archive")
 
     def test_owner_rearm_bound_auto_archive_uses_owner_provenance(self) -> None:
         """A pinned retention audit needs no inherited late-binding authority."""
@@ -2996,6 +3020,17 @@ class TestRetryFailedAudit:
                 evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
+        repeated = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                owner,
+                PROJECT_ID,
+                "Auditor capacity was restored.",
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
 
         document = TerminalAuditMetadataStore(
             tracker, _LockStore(), PROJECT_ID
@@ -3004,10 +3039,160 @@ class TestRetryFailedAudit:
         history = document.unknown_fields["oompah.terminal_audit_rearm_history"]
 
         assert result.success is True
+        assert repeated.success is True
+        assert repeated.coalesced is True
         assert fresh.requested_by == owner
         assert fresh.selected_ref == "origin/main"
         assert fresh.selected_sha == sha
         assert history[-1]["actor"] == owner.to_dict()
+
+    @pytest.mark.parametrize(
+        "variation",
+        ["actor", "reason", "fingerprint", "source_generation"],
+    )
+    def test_rearm_coalescing_rejects_changed_authorization_identity(
+        self,
+        variation: str,
+    ) -> None:
+        tracker = _MemoryTracker()
+        project_store = _LockStore()
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            previous_state=DONE,
+            requested_by=ContributorIdentity("oompah", "auto_archive"),
+            selected_ref=None,
+            selected_sha=None,
+        )
+        _seed_metadata(tracker, [exhausted])
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        owner = ContributorIdentity("project-owner", "api")
+        other_owner = ContributorIdentity("backup-owner", "api")
+        project = SimpleNamespace(
+            tracker_owner=owner.identity,
+            status_actor_login=None,
+            status_label_authorized_logins=[owner.identity, other_owner.identity],
+        )
+        reason = "Auditor capacity was restored."
+
+        first = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                owner,
+                PROJECT_ID,
+                reason,
+                project,
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+        assert first.success is True
+
+        repeat_actor = other_owner if variation == "actor" else owner
+        repeat_reason = (
+            "A different recovery reason."
+            if variation == "reason"
+            else reason
+        )
+        repeat_fingerprint = (
+            _alt_fingerprint()
+            if variation == "fingerprint"
+            else exhausted.evidence_fingerprint
+        )
+        store = TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID)
+        if variation == "source_generation":
+
+            def _advance_generation(
+                document: TerminalAuditMetadata,
+            ) -> TerminalAuditMetadata:
+                chain = list(document.pending_chain)
+                chain[-1] = replace(
+                    chain[-1],
+                    source_generation=chain[-1].source_generation + 1,
+                )
+                return replace(document, pending_chain=chain)
+
+            store.update(TASK_ID, _advance_generation)
+
+        repeated = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                repeat_actor,
+                PROJECT_ID,
+                repeat_reason,
+                project,
+                evidence_fingerprint=repeat_fingerprint,
+            )
+        )
+
+        document = store.read(TASK_ID)
+        assert repeated.success is False
+        assert repeated.reason == "audit_not_retryable"
+        assert len(document.pending_chain) == 2
+        assert len(
+            document.unknown_fields["oompah.terminal_audit_rearm_history"]
+        ) == 1
+
+    def test_concurrent_exact_rearm_repeats_keep_one_history_entry(self) -> None:
+        tracker = _MemoryTracker()
+        project_store = _LockStore()
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            previous_state=DONE,
+            requested_by=ContributorIdentity("oompah", "auto_archive"),
+            selected_ref=None,
+            selected_sha=None,
+        )
+        _seed_metadata(tracker, [exhausted])
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        owner = ContributorIdentity("project-owner", "api")
+        reason = "Auditor capacity was restored."
+        args = (
+            _issue(NEEDS_HUMAN),
+            TargetState.ARCHIVED,
+            owner,
+            PROJECT_ID,
+            reason,
+            self._owner_project(),
+        )
+
+        async def _rearm_twice() -> list[TransitionResult]:
+            return list(
+                await asyncio.gather(
+                    coordinator.retry_failed_audit(
+                        *args,
+                        evidence_fingerprint=exhausted.evidence_fingerprint,
+                    ),
+                    coordinator.retry_failed_audit(
+                        *args,
+                        evidence_fingerprint=exhausted.evidence_fingerprint,
+                    ),
+                )
+            )
+
+        results = asyncio.run(_rearm_twice())
+        document = TerminalAuditMetadataStore(
+            tracker, project_store, PROJECT_ID
+        ).read(TASK_ID)
+
+        assert all(result.success for result in results)
+        assert sum(result.coalesced for result in results) == 1
+        assert len({result.audit_id for result in results}) == 1
+        assert len(document.pending_chain) == 2
+        assert len(
+            document.unknown_fields["oompah.terminal_audit_rearm_history"]
+        ) == 1
+        assert document.pending_chain[-1].requested_by == ContributorIdentity(
+            "oompah", "auto_archive"
+        )
 
     @pytest.mark.parametrize(
         ("verdict", "classification", "origin"),

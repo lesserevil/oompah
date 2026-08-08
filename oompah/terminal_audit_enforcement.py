@@ -40,6 +40,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.terminal_audit import (
+    ContributorIdentity,
     EvidenceFingerprint,
     OverrideRecord,
     RequestState,
@@ -3088,7 +3089,33 @@ class TerminalAuditEnforcement:
                         "infrastructure_recovery": "audit_retry",
                         "evidence_addendum": "audit_retry_evidence_addendum",
                     }.get(mode)
-                    actor = history_row.get("actor") if history_row is not None else None
+                    actor = (
+                        history_row.get("actor")
+                        if history_row is not None
+                        else None
+                    )
+                    try:
+                        rearm_actor = ContributorIdentity.from_dict(actor)
+                    except (TypeError, ValueError):
+                        rearm_actor = None
+                    # The history actor is the durable owner authorization.
+                    # ``record.requested_by`` remains the original transition
+                    # provenance and can legitimately be auto_archive.
+                    history_generation = (
+                        history_row.get("source_generation")
+                        if history_row is not None
+                        else None
+                    )
+                    history_reason = (
+                        history_row.get("reason")
+                        if history_row is not None
+                        else None
+                    )
+                    authorized_at = (
+                        history_row.get("authorized_at")
+                        if history_row is not None
+                        else None
+                    )
                     superseded_id = (
                         history_row.get("superseded_audit_id")
                         if history_row is not None
@@ -3104,11 +3131,17 @@ class TerminalAuditEnforcement:
                     )
                     if (
                         history_row is None
+                        or history_row.get("version") != 1
                         or expected_action is None
-                        or not isinstance(actor, Mapping)
-                        or record.requested_by is None
-                        or actor.get("identity") != record.requested_by.identity
-                        or actor.get("source") != record.requested_by.source
+                        or rearm_actor is None
+                        or not isinstance(history_reason, str)
+                        or not history_reason.strip()
+                        or not isinstance(authorized_at, str)
+                        or not authorized_at.strip()
+                        or history_row.get("evidence_fingerprint")
+                        != record.evidence_fingerprint.digest
+                        or isinstance(history_generation, bool)
+                        or history_generation != record.source_generation
                         or prior is None
                         or prior.project_id != project_id
                         or prior.task_id != identifier
