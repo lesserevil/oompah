@@ -1734,6 +1734,7 @@ class TestResetOrphanedInProgress:
             _make_issue("TRICKLE-2", state=IN_REVIEW, parent_id=issue.identifier),
             _make_issue("TRICKLE-3", state=MERGED, parent_id=issue.identifier),
         ]
+        mock_tracker.fetch_children.return_value = children
 
         with patch.object(orch, "_fetch_epic_children", return_value=children):
             orch._reset_orphaned_in_progress([issue])

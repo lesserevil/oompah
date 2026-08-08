@@ -27461,6 +27461,157 @@ class Orchestrator:
         """Return the tracker-backed effective state for a shared-epic child."""
         return child.state
 
+    @staticmethod
+    def _epic_rollup_authority_generation(
+        epic: Issue,
+        children: Sequence[Issue],
+    ) -> str:
+        """Return the exact parent/child generation for one rollup decision.
+
+        Parent status is derived state, so the parent's tracker revision alone
+        is not enough authority for a write: a child may change after the
+        maintenance scan computed its target.  Bind the transition to every
+        lifecycle-bearing parent and child field used by the workflow CAS.
+        """
+
+        child_versions = sorted(
+            (
+                str(child.id or child.identifier),
+                issue_authority_version(child),
+            )
+            for child in children
+        )
+        payload = json.dumps(
+            {
+                "parent": issue_authority_version(epic),
+                "children": child_versions,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _reconciliation_children(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+    ) -> list[Issue] | None:
+        """Read exact child lineage, returning ``None`` when it is unavailable.
+
+        ``_fetch_epic_children`` deliberately maps tracker errors to an empty
+        list for best-effort display and planning callers.  Lifecycle
+        reconciliation must instead fail closed: unavailable lineage is not
+        evidence that an In Progress task is an orphaned leaf.
+        """
+
+        try:
+            children = tracker.fetch_children(issue.id)
+        except Exception as exc:  # noqa: BLE001 - authority read fails closed
+            logger.warning(
+                "Deferred lifecycle reconciliation for %s: child lineage "
+                "is unavailable (%s)",
+                issue.identifier,
+                type(exc).__name__,
+            )
+            return None
+        if children is None:
+            return []
+        if isinstance(children, list):
+            return children
+        try:
+            return list(children)
+        except TypeError:
+            logger.warning(
+                "Deferred lifecycle reconciliation for %s: tracker returned "
+                "invalid child lineage",
+                issue.identifier,
+            )
+            return None
+
+    def _commit_epic_rollup_status(
+        self,
+        *,
+        tracker: TrackerProtocol,
+        epic: Issue,
+        children: Sequence[Issue],
+        rolled_status: str,
+    ) -> bool:
+        """Commit one nonterminal rollup status under exact task authority."""
+
+        expected_generation = self._epic_rollup_authority_generation(
+            epic,
+            children,
+        )
+        issue_id = str(epic.id or epic.identifier)
+        project_id = epic.project_id
+        project_lock = (
+            self.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
+        )
+        with self.issue_transition_lock(issue_id).sync(), project_lock:
+            try:
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                refreshed = tracker.fetch_issue_detail(epic.identifier)
+            except Exception as exc:  # noqa: BLE001 - stale writes fail closed
+                logger.warning(
+                    "Deferred rollup reconciliation for %s: current task "
+                    "authority is unavailable (%s)",
+                    epic.identifier,
+                    type(exc).__name__,
+                )
+                return False
+            if refreshed is None:
+                logger.warning(
+                    "Deferred rollup reconciliation for %s: current task "
+                    "authority is unavailable",
+                    epic.identifier,
+                )
+                return False
+            # A few compatibility tracker doubles return a duck object rather
+            # than the protocol's Issue.  Production trackers return Issue;
+            # retain the observed snapshot only for that legacy shape.
+            current = refreshed if isinstance(refreshed, Issue) else epic
+            if not current.project_id:
+                current.project_id = project_id
+            current_children = self._reconciliation_children(tracker, current)
+            if current_children is None:
+                return False
+            current_generation = self._epic_rollup_authority_generation(
+                current,
+                current_children,
+            )
+            if current_generation != expected_generation:
+                logger.info(
+                    "Deferred stale rollup reconciliation for %s: parent or "
+                    "child authority generation changed",
+                    epic.identifier,
+                )
+                return False
+            if self._scheduler_owns_project_issue(current.id, project_id):
+                logger.info(
+                    "Deferred rollup reconciliation for owned task %s",
+                    epic.identifier,
+                )
+                return False
+            claim = self._live_owner_claim_for_issue_locked(
+                current.id,
+                project_id,
+            )
+            if claim is not None:
+                logger.info(
+                    "Deferred rollup reconciliation for directly owned task "
+                    "%s (owner=%s)",
+                    epic.identifier,
+                    claim.owner_login,
+                )
+                return False
+            tracker.update_issue(epic.identifier, status=rolled_status)
+        epic.state = rolled_status
+        return True
+
     def _all_non_terminal_epics(self) -> list[Issue]:
         """Every unfinished epic across all projects, regardless of the
         dispatch active-state filter.
@@ -27708,8 +27859,13 @@ class Orchestrator:
                     # In Validation. Don't update epic.state locally since the
                     # coordinator manages it from here.
                 else:
-                    tracker.update_issue(epic.identifier, status=rolled)
-                    epic.state = rolled
+                    if not self._commit_epic_rollup_status(
+                        tracker=tracker,
+                        epic=epic,
+                        children=children,
+                        rolled_status=rolled_status,
+                    ):
+                        continue
                 updated += 1
                 logger.info(
                     "Reconciled epic %s status to %s from %d child issue(s)",
@@ -32000,11 +32156,15 @@ class Orchestrator:
         if dispatch_gate:
             if status not in _EPIC_REVIEW_REPAIR_STATUSES:
                 return False
-        elif (
-            status not in _EPIC_REVIEW_REPAIR_RUNNING_STATUSES
-            and labels.isdisjoint(_EPIC_REVIEW_REPAIR_LABELS)
-        ):
-            return False
+        elif status == IN_PROGRESS:
+            # In Progress is also the ordinary derived state for a rollup
+            # parent with active children.  It denotes a running epic repair
+            # only when the repair label survived the dispatch transition.
+            if labels.isdisjoint(_EPIC_REVIEW_REPAIR_LABELS):
+                return False
+        elif status not in _EPIC_REVIEW_REPAIR_RUNNING_STATUSES:
+            if labels.isdisjoint(_EPIC_REVIEW_REPAIR_LABELS):
+                return False
         return self._is_mature_epic_review_issue(issue, children)
 
     def _epic_branch_for_issue(self, epic: Issue) -> str:
@@ -37567,12 +37727,6 @@ class Orchestrator:
         for issue in all_issues:
             if _state_key(issue.state) != "in_progress":
                 continue
-            if (issue.issue_type or "").strip().lower() == "epic":
-                # Planning epic state is a rollup of child state. A mature
-                # epic review repair is different: the epic itself is the
-                # dispatch unit for CI/rebase work on the existing epic PR.
-                if not self._is_epic_review_repair_issue(issue):
-                    continue
             if issue.id in running_ids or issue.id in retry_ids:
                 continue
             if issue.id in claimed_ids:
@@ -37596,33 +37750,90 @@ class Orchestrator:
                     if project_id
                     else contextlib.nullcontext()
                 )
-                with _lock_ctx:
+                with self.issue_transition_lock(
+                    str(issue.id or issue.identifier)
+                ).sync(), _lock_ctx:
+                    try:
+                        invalidate = getattr(tracker, "invalidate_read_cache", None)
+                        if callable(invalidate):
+                            invalidate()
+                        refreshed = tracker.fetch_issue_detail(issue.identifier)
+                    except Exception as exc:  # noqa: BLE001 - fail closed
+                        logger.warning(
+                            "Deferred orphan recovery for %s: current task "
+                            "authority is unavailable (%s)",
+                            issue.identifier,
+                            type(exc).__name__,
+                        )
+                        continue
+                    if refreshed is None:
+                        logger.warning(
+                            "Deferred orphan recovery for %s: current task "
+                            "authority is unavailable",
+                            issue.identifier,
+                        )
+                        continue
+                    current = refreshed if isinstance(refreshed, Issue) else issue
+                    if not current.project_id:
+                        current.project_id = project_id
+                    if _state_key(current.state) != "in_progress":
+                        continue
+                    if self._scheduler_owns_project_issue(current.id, project_id):
+                        continue
+                    children = self._reconciliation_children(tracker, current)
+                    if children is None:
+                        continue
+                    epic_review_repair = self._is_epic_review_repair_issue(
+                        current,
+                        children=children,
+                    )
+                    if (
+                        self._is_epic_rollup_parent(current, children)
+                        and not epic_review_repair
+                    ):
+                        logger.info(
+                            "Preserved rollup parent %s during orphan recovery "
+                            "(%d child issue(s))",
+                            current.identifier,
+                            len(children),
+                        )
+                        continue
+                    if accepted_submission_branch(current) and not epic_review_repair:
+                        logger.info(
+                            "Preserved accepted submission %s during orphan "
+                            "recovery (head=%s)",
+                            current.identifier,
+                            str(issue_exact_head(current) or "")[:12],
+                        )
+                        continue
                     claim = self._live_owner_claim_for_issue_locked(
-                        issue.id,
+                        current.id,
                         project_id,
                     )
                     if claim is not None:
                         logger.info(
                             "Preserved direct-owner work %s during orphan reset "
                             "(owner=%s, expires_at=%s)",
-                            issue.identifier,
+                            current.identifier,
                             claim.owner_login,
                             datetime.fromtimestamp(
                                 claim.expires_at, tz=timezone.utc
                             ).isoformat(),
                         )
                         continue
-                    if issue.id in self.state.completed:
+                    if current.id in self.state.completed:
                         # TERMINAL-AUDIT-ALLOW OOMPAH-483: reassert Done only
                         # for an issue already present in the completed set.
                         # The enforcement sweep still verifies audit metadata.
-                        tracker.update_issue(issue.identifier, status=DONE)
+                        tracker.update_issue(current.identifier, status=DONE)
                         logger.info(
                             "Preserved completed issue %s as Done during orphan reset",
-                            issue.identifier,
+                            current.identifier,
                         )
                         continue
-                    labels = {str(label).lower() for label in (issue.labels or [])}
+                    labels = {
+                        str(label).lower() for label in (current.labels or [])
+                    }
                     status = OPEN
                     updates: dict[str, str] = {}
                     if "merge-conflict" in labels:
@@ -37631,18 +37842,18 @@ class Orchestrator:
                     elif "ci-fix" in labels:
                         status = NEEDS_CI_FIX
                         updates["priority"] = "0"
-                    tracker.update_issue(issue.identifier, status=status, **updates)
+                    tracker.update_issue(current.identifier, status=status, **updates)
                 reset_count += 1
-                self.state.completed.discard(issue.id)
-                self._orphan_reset_counts[issue.id] = (
-                    self._orphan_reset_counts.get(issue.id, 0) + 1
+                self.state.completed.discard(current.id)
+                self._orphan_reset_counts[current.id] = (
+                    self._orphan_reset_counts.get(current.id, 0) + 1
                 )
                 logger.info(
                     "Reset orphaned In Progress issue %s to %s "
                     "(no agent attached, count=%d)",
-                    issue.identifier,
+                    current.identifier,
                     status,
-                    self._orphan_reset_counts[issue.id],
+                    self._orphan_reset_counts[current.id],
                 )
             except Exception as exc:
                 logger.debug(
