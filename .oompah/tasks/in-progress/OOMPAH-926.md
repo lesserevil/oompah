@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T21:02:52.502402Z'
-updated_at: '2026-08-08T21:27:58.128622Z'
+updated_at: '2026-08-08T21:48:59.700882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-08 21:27
 ---
 Implemented at exact head 6c7a6eabe79d5ca92929203fb50c211e946257ba. A reconcile interrupted by process-wide quiesce/drain is now rollout-evidence-neutral unless it contains a genuine source/controller error; the pre-drain quiesce gap is explicitly fenced. Rollout-gate startup rejections also receive a stable error class distinct from generic orchestrator crashes, preventing false deduplication into OOMPAH-924. Targeted regression tests pass 7/7, and the broad workflow/runtime/bootstrap/event-loop/error-watcher slice passes 259/259. Terminal mutation and secret scans pass. The exact full Makefile gate is running in the isolated composition worktree before live staged rollout.
+---
+author: oompah
+created: 2026-08-08 21:48
+---
+Exact candidate 6c7a6eabe79d5ca92929203fb50c211e946257ba passed the complete Makefile gate: 18,803 passed, 7 skipped, 2 xfailed, 43 warnings in 1201.05s. The commit was atomically published to the systemic task/epic refs and deployed live in all-shadow mode. Post-restart authoritative readiness converged on the exact build with healthy service, zero global alerts, all four domains qualified, zero expired leases, and zero exhausted jobs. The five-minute live all-shadow canary is now running.
 ---
 <!-- COMMENTS:END -->
