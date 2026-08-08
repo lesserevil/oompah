@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-08-08T02:14:17.280044Z'
+updated_at: '2026-08-08T02:14:25.166414Z'
 work_branch: OOMPAH-670
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/633
@@ -187,8 +187,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-32b7ffb76a06
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-08T02:14:13.203888+00:00'
+    applied_at: '2026-08-08T02:14:23.588186+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -705,5 +706,22 @@ author: oompah
 created: 2026-08-08 01:59
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-08 02:14
+---
+Audit PASS — Archived
+
+OOMPAH-670 is complete and eligible for archival. Implementation verified: dashboard.html conditionally omits actor fields in authenticated mutations, state syncs http_auth.enabled, and all acceptance criteria are met.
+
+Safe evidence:
+- exact_head_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
+- fresh_full_gate_result: 14555 passed, 7 skipped, 1 xfailed in 377.08s
+- implementation.httpAuthEnabled_flag: line 2507: let httpAuthEnabled = false
+- implementation.state_update: line ~3010: httpAuthEnabled = (state.http_auth && state.http_auth.enabled) || false
+- implementation.mutation_guards: updateIssue, performIntakeAction, openDetailPanel all check httpAuthEnabled
+- regression_tests: tests/test_dashboard_authenticated_mutations.py: 13/13 PASSED
+- ci_fix_test: test_tick_starts_maintenance_future: PASSED (1.14s)
+- acceptance_criteria: All verified: authenticated status moves, authenticated intake actions, no client actor when auth enabled, backward compatible unauthenticated, server spoofing rejection unchanged
 ---
 <!-- COMMENTS:END -->
