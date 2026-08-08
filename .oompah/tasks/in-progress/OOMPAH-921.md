@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:33:49.292212Z'
-updated_at: '2026-08-08T18:39:03.224683Z'
+updated_at: '2026-08-08T19:12:48.259179Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-08 18:39
 ---
 Full branch gate at 78b1c08 exposed a compatibility regression: the new post-commit owner-claim capture assumed _owner_claims_lock on deliberately minimal Orchestrator.__new__ integrations, causing 33 cascading failures. Added a narrow absent-runtime guard and regression coverage in 3fd4a37c78c242111b5293cfd3f5601ab8740787. Exact failed nodes now pass 33/33; affected suites pass 710/710; scans pass. Mandatory full gate is rerunning at exact clean head 3fd4a37.
+---
+author: oompah
+created: 2026-08-08 19:12
+---
+Live shadow validation at 3fd4a37 passed the 31-sample rollout canary but exposed a production wiring gap: owner_claim_retirements was registered only in legacy step5c, while runtime-bound production ticks schedule _run_non_lifecycle_housekeeping exclusively. Startup pruned 43 expired claims, but unexpired terminal claims therefore remained. Fixed the durable-runtime boundary with exact callback/architecture regressions in 6a995d1d99914964465c025b1054a763563eb973. Focused 430 tests and repository scans pass; mandatory exact-head full gate is running.
 ---
 <!-- COMMENTS:END -->
