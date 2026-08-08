@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T20:59:18.475816Z'
-updated_at: '2026-08-08T22:12:10.285201Z'
+updated_at: '2026-08-08T22:32:15.529958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-08-08 22:12
 ---
 Live rollout disproved the earlier assumption that OOMPAH-924 fully covered this alert: all three 6c7a6eabe graceful cutovers safely completed, but admitted 50-100s corpus reconciles exceeded the runtime's 10s bounded drain probe and emitted repeated false CRITICAL durability failures. Forensics confirmed one quiesced PID retained stores/authority until reconcile completion, then logged Orchestrator stopped before exec; there were no overlapping writers, closed-store access, bad FDs, or recovery rows. Fixed at ce8b839811c2f0ff297179278aa3aa6171c5705b by classifying a False drain result as safe retained-owner progress (INFO + retry), while preserving CRITICAL handling for real journal/worker retirement failures and exception handling. New regressions pass 2/2; the broad event-loop/workflow/resource/bootstrap slice passes 148/148. Exact full gate is running before repeat live restart validation.
+---
+author: oompah
+created: 2026-08-08 22:32
+---
+Exact candidate ce8b839811c2f0ff297179278aa3aa6171c5705b passed the complete repository gate: 18,805 passed, 7 skipped, 2 xfailed, 43 warnings in 1203.07s. Focused shutdown/runtime coverage also passed (148 tests). Proceeding to staged live rollout; main remains unchanged until rollout acceptance completes.
 ---
 <!-- COMMENTS:END -->
