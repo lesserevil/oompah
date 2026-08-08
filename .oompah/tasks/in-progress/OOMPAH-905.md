@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T19:44:43.282351Z'
-updated_at: '2026-08-07T19:57:57.131634Z'
+updated_at: '2026-08-08T03:58:02.238015Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-66f34ffeabb6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-905
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4e9c5f58a462d61d16cb5c4c5d150862318d2617768ac2f3be954ca311c40fc5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation for OOMPAH-905: its accepted implementation
+      is patch-contained in published epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
+      Independent composition review completed, affected tests passed 392/392, and
+      the exact full make test passed 17,860 with zero failures.'
+    created_at: '2026-08-08T03:58:00.441671+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
