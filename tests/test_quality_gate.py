@@ -3530,6 +3530,187 @@ def test_gate_sidecar_claim_crash_is_verified_then_reaped(tmp_path, monkeypatch)
     assert reaper is None
 
 
+@pytest.mark.parametrize(
+    "crash_state",
+    ["before-exchange", "after-exchange", "after-placeholder-unlink"],
+)
+def test_gate_sidecar_exchange_crash_is_restored_then_reaped(
+    tmp_path,
+    monkeypatch,
+    crash_state,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-ssssssss"
+    evidence = tmp_path / "exchange-crash-source"
+    evidence.write_text("expected evidence", encoding="utf-8")
+    expected = evidence.stat()
+    claimant = os.getpid()
+    claim_nonce = time.time_ns()
+    claim = tmp_path / (
+        f".{root_name}.sidecar-reap-{expected.st_dev}-{expected.st_ino}"
+        f"-{claimant}-{claim_nonce}"
+    )
+    evidence.rename(claim)
+    placeholder = tmp_path / "exchange-placeholder"
+    placeholder.touch(mode=0o000)
+    placeholder_metadata = placeholder.stat()
+    swap = tmp_path / (
+        f".{root_name}.sidecar-swap-{expected.st_dev}-{expected.st_ino}"
+        f"-{claimant}-{claim_nonce}-{placeholder_metadata.st_dev}"
+        f"-{placeholder_metadata.st_ino}-{os.getpid()}-{time.time_ns()}"
+    )
+    placeholder.rename(swap)
+    if crash_state != "before-exchange":
+        parent_descriptor = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            quality_gate._rename_exchange_at(
+                parent_descriptor,
+                claim.name,
+                parent_descriptor,
+                swap.name,
+            )
+            if crash_state == "after-placeholder-unlink":
+                quality_gate._unlink_at(parent_descriptor, claim.name)
+        finally:
+            os.close(parent_descriptor)
+
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not claim.exists() and not swap.exists() and reaper is None:
+            break
+        time.sleep(0.01)
+
+    assert not claim.exists()
+    assert not swap.exists()
+    assert reaper is None
+
+
+def test_gate_unnamed_exchange_placeholder_fstat_failure_leaves_no_artifact(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-tttttttt"
+    sidecar = tmp_path / f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
+    sidecar.write_text("retry evidence", encoding="utf-8")
+    old = time.time() - 10
+    os.utime(sidecar, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+    original_fstat = os.fstat
+    failed = False
+
+    def fail_unnamed_placeholder_once(descriptor):
+        nonlocal failed
+        try:
+            target = os.readlink(f"/proc/self/fd/{descriptor}")
+        except OSError:
+            target = ""
+        if not failed and " (deleted)" in target and "/#" in target:
+            failed = True
+            raise OSError(errno.EMFILE, "injected placeholder fstat failure")
+        return original_fstat(descriptor)
+
+    monkeypatch.setattr(os, "fstat", fail_unnamed_placeholder_once)
+    with BranchQualityGate._processes_lock:
+        generation = BranchQualityGate._gate_namespace_generation
+
+    assert not BranchQualityGate._remove_orphan_gate_sidecar(
+        sidecar,
+        root_name,
+        now=time.time(),
+        expected_namespace_generation=generation,
+    )
+    assert failed
+    assert not sidecar.exists()
+    assert len(list(tmp_path.glob(f".{root_name}.sidecar-reap-*"))) == 1
+    assert not list(tmp_path.glob(f".{root_name}.sidecar-swap-*"))
+
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not list(tmp_path.glob(f".{root_name}.sidecar-*")) and reaper is None:
+            break
+        time.sleep(0.01)
+
+    assert not sidecar.exists()
+    assert not list(tmp_path.glob(f".{root_name}.sidecar-*"))
+    assert reaper is None
+
+
+def test_gate_post_exchange_transient_does_not_promote_placeholder(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
+    root_name = "oompah-quality-gate-uuuuuuuu"
+    canonical = tmp_path / f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
+    canonical.write_text("expected evidence", encoding="utf-8")
+    old = time.time() - 10
+    os.utime(canonical, (old, old))
+    monkeypatch.setattr(quality_gate, "_GATE_ROOT_MAX_AGE_SECONDS", 1)
+    original_exchange = quality_gate._rename_exchange_at
+    original_stat = os.stat
+    exchange_completed = False
+    failed = False
+
+    def record_exchange(left_dir_fd, left_name, right_dir_fd, right_name):
+        nonlocal exchange_completed
+        result = original_exchange(
+            left_dir_fd,
+            left_name,
+            right_dir_fd,
+            right_name,
+        )
+        if quality_gate._GATE_SIDECAR_CLAIM_PATTERN.fullmatch(left_name):
+            exchange_completed = True
+        return result
+
+    def fail_first_post_exchange_stat(path, *args, **kwargs):
+        nonlocal failed
+        if (
+            exchange_completed
+            and not failed
+            and isinstance(path, str)
+            and quality_gate._GATE_SIDECAR_SWAP_PATTERN.fullmatch(path)
+        ):
+            failed = True
+            raise OSError(errno.EMFILE, "injected post-exchange stat failure")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(quality_gate, "_rename_exchange_at", record_exchange)
+    monkeypatch.setattr(os, "stat", fail_first_post_exchange_stat)
+    with BranchQualityGate._processes_lock:
+        generation = BranchQualityGate._gate_namespace_generation
+
+    assert not BranchQualityGate._remove_orphan_gate_sidecar(
+        canonical,
+        root_name,
+        now=time.time(),
+        expected_namespace_generation=generation,
+    )
+    assert exchange_completed
+    assert failed
+    assert not canonical.exists()
+
+    assert BranchQualityGate._request_deferred_gate_discovery()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        with BranchQualityGate._processes_lock:
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        if not list(tmp_path.glob(f".{root_name}.sidecar-*")) and reaper is None:
+            break
+        time.sleep(0.01)
+
+    assert not canonical.exists()
+    assert not list(tmp_path.glob(f".{root_name}.sidecar-*"))
+    assert reaper is None
+
+
 def test_gate_sidecar_claim_transient_recheck_failure_is_retried(
     tmp_path,
     monkeypatch,

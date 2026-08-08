@@ -75,10 +75,19 @@ _GATE_ROOT_QUARANTINE_PATTERN = re.compile(
 _GATE_SIDECAR_CLAIM_PATTERN = re.compile(
     rf"^\.(?P<root>{_GATE_ROOT_NAME_PATTERN})"
     r"\.sidecar-reap-(?P<device>[1-9][0-9]*)-(?P<inode>[1-9][0-9]*)"
+    r"-(?P<claimant>[1-9][0-9]*)-(?P<nonce>[1-9][0-9]*)$"
+)
+_GATE_SIDECAR_SWAP_PATTERN = re.compile(
+    rf"^\.(?P<root>{_GATE_ROOT_NAME_PATTERN})"
+    r"\.sidecar-swap-(?P<device>[1-9][0-9]*)-(?P<inode>[1-9][0-9]*)"
+    r"-(?P<claimant>[1-9][0-9]*)-(?P<nonce>[1-9][0-9]*)"
+    r"-(?P<placeholder_device>[1-9][0-9]*)"
+    r"-(?P<placeholder_inode>[1-9][0-9]*)"
     r"-[1-9][0-9]*-[1-9][0-9]*$"
 )
 _RENAME_NOREPLACE = 1
 _RENAME_EXCHANGE = 2
+_AT_EMPTY_PATH = 0x1000
 
 
 def _gate_sidecar_candidate_root_name(name: str) -> str | None:
@@ -90,7 +99,10 @@ def _gate_sidecar_candidate_root_name(name: str) -> str | None:
     ):
         return name[1:-suffix_length]
     claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(name)
-    return claim_match.group("root") if claim_match is not None else None
+    if claim_match is not None:
+        return claim_match.group("root")
+    swap_match = _GATE_SIDECAR_SWAP_PATTERN.fullmatch(name)
+    return swap_match.group("root") if swap_match is not None else None
 
 
 def _rename_noreplace_at(
@@ -166,6 +178,31 @@ def _unlink_at(directory_fd: int, name: str) -> None:
         raise OSError(error, os.strerror(error))
 
 
+def _link_descriptor_at(source_fd: int, destination_dir_fd: int, name: str) -> None:
+    """Publish one unnamed inode without reopening it through a pathname."""
+    function = ctypes.CDLL(None, use_errno=True).linkat
+    function.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+    )
+    function.restype = ctypes.c_int
+    if (
+        function(
+            source_fd,
+            b"",
+            destination_dir_fd,
+            os.fsencode(name),
+            _AT_EMPTY_PATH,
+        )
+        != 0
+    ):
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
 def _capture_and_unlink_gate_sidecar_at(
     parent_descriptor: int,
     claimed_name: str,
@@ -173,25 +210,22 @@ def _capture_and_unlink_gate_sidecar_at(
     root_name: str,
 ) -> str:
     """Atomically capture a name before deleting only its expected inode."""
+    claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(claimed_name)
+    if claim_match is None or claim_match.group("root") != root_name:
+        return _GATE_REMOVAL_UNSAFE
     expected_metadata = os.fstat(expected_descriptor)
     expected_identity = (
         int(expected_metadata.st_dev),
         int(expected_metadata.st_ino),
     )
-    placeholder_name = (
-        f".{root_name}.sidecar-reap-{expected_identity[0]}-{expected_identity[1]}"
-        f"-{os.getpid()}-{time.time_ns()}"
-    )
     placeholder_descriptor = os.open(
-        placeholder_name,
-        os.O_WRONLY
-        | os.O_CREAT
-        | os.O_EXCL
-        | getattr(os, "O_NOFOLLOW", 0),
+        ".",
+        os.O_RDWR | getattr(os, "O_TMPFILE", 0),
         0o000,
         dir_fd=parent_descriptor,
     )
     exchanged = False
+    swap_name: str | None = None
     placeholder_identity: tuple[int, int] | None = None
     try:
         placeholder_metadata = os.fstat(placeholder_descriptor)
@@ -199,15 +233,22 @@ def _capture_and_unlink_gate_sidecar_at(
             int(placeholder_metadata.st_dev),
             int(placeholder_metadata.st_ino),
         )
+        swap_name = (
+            f".{root_name}.sidecar-swap-{expected_identity[0]}"
+            f"-{expected_identity[1]}-{claim_match.group('claimant')}"
+            f"-{claim_match.group('nonce')}-{placeholder_identity[0]}"
+            f"-{placeholder_identity[1]}-{os.getpid()}-{time.time_ns()}"
+        )
+        _link_descriptor_at(placeholder_descriptor, parent_descriptor, swap_name)
         _rename_exchange_at(
             parent_descriptor,
             claimed_name,
             parent_descriptor,
-            placeholder_name,
+            swap_name,
         )
         exchanged = True
         captured = os.stat(
-            placeholder_name,
+            swap_name,
             dir_fd=parent_descriptor,
             follow_symlinks=False,
         )
@@ -231,7 +272,7 @@ def _capture_and_unlink_gate_sidecar_at(
                     parent_descriptor,
                     claimed_name,
                     parent_descriptor,
-                    placeholder_name,
+                    swap_name,
                 )
                 exchanged = False
             return _GATE_REMOVAL_UNSAFE
@@ -241,7 +282,7 @@ def _capture_and_unlink_gate_sidecar_at(
         _unlink_at(parent_descriptor, claimed_name)
         if os.fstat(placeholder_descriptor).st_nlink != 0:
             return _GATE_REMOVAL_INCOMPLETE
-        _unlink_at(parent_descriptor, placeholder_name)
+        _unlink_at(parent_descriptor, swap_name)
         exchanged = False
         return (
             _GATE_REMOVAL_REMOVED
@@ -251,19 +292,22 @@ def _capture_and_unlink_gate_sidecar_at(
     finally:
         os.close(placeholder_descriptor)
         if not exchanged and placeholder_identity is not None:
-            try:
-                remaining = os.stat(
-                    placeholder_name,
-                    dir_fd=parent_descriptor,
-                    follow_symlinks=False,
-                )
-                if (
-                    int(remaining.st_dev),
-                    int(remaining.st_ino),
-                ) == placeholder_identity:
-                    _unlink_at(parent_descriptor, placeholder_name)
-            except OSError:
-                pass
+            for cleanup_name in (swap_name,):
+                if cleanup_name is None:
+                    continue
+                try:
+                    remaining = os.stat(
+                        cleanup_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        int(remaining.st_dev),
+                        int(remaining.st_ino),
+                    ) == placeholder_identity:
+                        _unlink_at(parent_descriptor, cleanup_name)
+                except OSError:
+                    pass
 
 
 class _SandboxUnavailable(RuntimeError):
@@ -1766,16 +1810,23 @@ class BranchQualityGate:
                         claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(
                             sidecar_name
                         )
+                        swap_match = _GATE_SIDECAR_SWAP_PATTERN.fullmatch(
+                            sidecar_name
+                        )
                         if root_name in protected:
-                            if claim_match is not None:
-                                # A claim owns the only sidecar name.  Keep the
-                                # persistent pass alive until its matching
-                                # root/quarantine disappears; canonical
-                                # missing_ok cleanup cannot request a retry.
+                            if claim_match is not None or swap_match is not None:
+                                # A claim or interrupted exchange owns the only
+                                # sidecar name. Keep the persistent pass alive
+                                # until its matching root/quarantine disappears.
                                 with cls._processes_lock:
                                     cls._deferred_gate_discovery_unresolved = True
                             continue
-                        if claim_match is not None:
+                        if swap_match is not None:
+                            sidecar_result = cls._recover_gate_sidecar_swap(
+                                sidecar,
+                                swap_match,
+                            )
+                        elif claim_match is not None:
                             sidecar_result = cls._recover_gate_sidecar_claim(
                                 sidecar,
                                 claim_match,
@@ -1792,6 +1843,15 @@ class BranchQualityGate:
                                 require_sidecar_batch=True,
                                 report_status=True,
                             )
+                        if swap_match is not None and sidecar_result in {
+                            _GATE_REMOVAL_REMOVED,
+                            _GATE_REMOVAL_PROGRESS,
+                        }:
+                            # The original claim can sort before the swap name.
+                            # Restart collection so cursor pagination cannot
+                            # strand the now-recoverable predecessor.
+                            reset_scan(discard_batch=True)
+                            return False
                         with cls._processes_lock:
                             if sidecar_result == _GATE_REMOVAL_REMOVED:
                                 cls._deferred_gate_discovery_made_progress = True
@@ -2004,6 +2064,10 @@ class BranchQualityGate:
                     int(final_metadata.st_ino),
                 ) != identity:
                     return outcome(_GATE_REMOVAL_UNSAFE)
+                # From this point onward the durable claim/exchange protocol
+                # owns recovery.  The outer canonical rollback must never
+                # rename a post-exchange placeholder into owner authority.
+                claimed = False
                 removal = _capture_and_unlink_gate_sidecar_at(
                     parent_descriptor,
                     claimed_name,
@@ -2011,7 +2075,6 @@ class BranchQualityGate:
                     root_name,
                 )
                 cls._gate_namespace_generation += 1
-                claimed = False
                 return outcome(removal)
         except FileNotFoundError:
             return outcome(_GATE_REMOVAL_UNSAFE)
@@ -2200,6 +2263,136 @@ class BranchQualityGate:
         finally:
             if claim_descriptor is not None:
                 os.close(claim_descriptor)
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+
+    @classmethod
+    def _recover_gate_sidecar_swap(
+        cls,
+        swap: Path,
+        swap_match: re.Match[str],
+    ) -> str:
+        """Restore or finish one identity-encoded exchange crash state."""
+        root_name = swap_match.group("root")
+        expected_identity = (
+            int(swap_match.group("device")),
+            int(swap_match.group("inode")),
+        )
+        placeholder_identity = (
+            int(swap_match.group("placeholder_device")),
+            int(swap_match.group("placeholder_inode")),
+        )
+        original_name = (
+            f".{root_name}.sidecar-reap-{expected_identity[0]}"
+            f"-{expected_identity[1]}-{swap_match.group('claimant')}"
+            f"-{swap_match.group('nonce')}"
+        )
+        parent_descriptor: int | None = None
+        swap_descriptor: int | None = None
+        original_descriptor: int | None = None
+        placeholder_descriptor: int | None = None
+        try:
+            parent_descriptor = os.open(
+                swap.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            swap_descriptor = os.open(
+                swap.name,
+                getattr(os, "O_PATH", os.O_RDONLY)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
+                dir_fd=parent_descriptor,
+            )
+            swap_metadata = os.fstat(swap_descriptor)
+            if (
+                not stat.S_ISREG(swap_metadata.st_mode)
+                or swap_metadata.st_uid != os.getuid()
+            ):
+                return _GATE_REMOVAL_UNSAFE
+            swap_identity = (
+                int(swap_metadata.st_dev),
+                int(swap_metadata.st_ino),
+            )
+            try:
+                original_descriptor = os.open(
+                    original_name,
+                    getattr(os, "O_PATH", os.O_RDONLY)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_NONBLOCK", 0),
+                    dir_fd=parent_descriptor,
+                )
+            except FileNotFoundError:
+                original_identity = None
+            else:
+                original_metadata = os.fstat(original_descriptor)
+                original_identity = (
+                    int(original_metadata.st_dev),
+                    int(original_metadata.st_ino),
+                )
+
+            with cls._processes_lock:
+                if (
+                    swap_identity == expected_identity
+                    and original_identity == placeholder_identity
+                ):
+                    _rename_exchange_at(
+                        parent_descriptor,
+                        original_name,
+                        parent_descriptor,
+                        swap.name,
+                    )
+                    cls._gate_namespace_generation += 1
+                    swap_identity = placeholder_identity
+                    original_identity = expected_identity
+                    placeholder_descriptor = original_descriptor
+                elif swap_identity == expected_identity and original_identity is None:
+                    _rename_noreplace_at(
+                        parent_descriptor,
+                        swap.name,
+                        parent_descriptor,
+                        original_name,
+                    )
+                    cls._gate_namespace_generation += 1
+                    return _GATE_REMOVAL_PROGRESS
+
+                if swap_identity != placeholder_identity:
+                    return _GATE_REMOVAL_UNSAFE
+                if placeholder_descriptor is None:
+                    placeholder_descriptor = swap_descriptor
+                if original_identity not in {expected_identity, None}:
+                    return _GATE_REMOVAL_UNSAFE
+                current = os.stat(
+                    swap.name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    int(current.st_dev),
+                    int(current.st_ino),
+                ) != placeholder_identity:
+                    return _GATE_REMOVAL_UNSAFE
+                _unlink_at(parent_descriptor, swap.name)
+                cls._gate_namespace_generation += 1
+                return (
+                    _GATE_REMOVAL_REMOVED
+                    if os.fstat(placeholder_descriptor).st_nlink == 0
+                    else _GATE_REMOVAL_INCOMPLETE
+                )
+        except FileNotFoundError:
+            return _GATE_REMOVAL_REMOVED
+        except OSError as exc:
+            return (
+                _GATE_REMOVAL_UNSAFE
+                if exc.errno in {errno.ELOOP, errno.ENOTDIR}
+                else _GATE_REMOVAL_INCOMPLETE
+            )
+        finally:
+            if original_descriptor is not None:
+                os.close(original_descriptor)
+            if swap_descriptor is not None:
+                os.close(swap_descriptor)
             if parent_descriptor is not None:
                 os.close(parent_descriptor)
 
@@ -3059,6 +3252,7 @@ class BranchQualityGate:
             return 0, False
         claims_present = any(
             _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(path.name) is not None
+            or _GATE_SIDECAR_SWAP_PATTERN.fullmatch(path.name) is not None
             for path in entries
         )
         candidates = [
