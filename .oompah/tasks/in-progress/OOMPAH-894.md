@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-07T18:25:19.136792Z'
+updated_at: '2026-08-08T07:31:07.465883Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live diagnostic while repairing OOMPAH-877: an exhausted unbound auto-archive au
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-08 07:31
+---
+Implementation started in isolated worktree at systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Reproducing repeated owner-rearm provenance/idempotency conflict and adding focused concurrency/restart coverage.
+---
+<!-- COMMENTS:END -->
