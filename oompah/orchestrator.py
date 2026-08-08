@@ -12554,6 +12554,16 @@ class Orchestrator:
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
         self._maybe_cleanup_storage()
+        # Direct-owner retirement removes stale authority after a lifecycle
+        # decision has already committed; it never chooses or writes task
+        # status.  Production ticks use this durable-runtime housekeeping
+        # bundle instead of the legacy epic-maintenance bundle, so wire the
+        # reconciler here as well as in the unbound compatibility path.
+        self._run_maintenance_job(
+            "owner_claim_retirements",
+            self._reconcile_inactive_owner_claims,
+            min_interval_s=60.0,
+        )
         self._update_repo_hygiene_health()
 
     def _dispatch_event_key(self, event: DispatchEvent) -> str:

@@ -152,8 +152,27 @@ def test_housekeeping_bundle_contains_only_non_lifecycle_operations() -> None:
         "_maybe_heal_repos",
         "_maybe_cleanup_worktrees",
         "_maybe_cleanup_storage",
+        "_run_maintenance_job",
         "_update_repo_hygiene_health",
     }
+
+
+def test_runtime_housekeeping_schedules_owner_claim_retirement() -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._maybe_heal_repos = Mock()
+    orchestrator._maybe_cleanup_worktrees = Mock()
+    orchestrator._maybe_cleanup_storage = Mock()
+    orchestrator._reconcile_inactive_owner_claims = Mock()
+    orchestrator._run_maintenance_job = Mock()
+    orchestrator._update_repo_hygiene_health = Mock()
+
+    orchestrator._run_non_lifecycle_housekeeping()
+
+    orchestrator._run_maintenance_job.assert_called_once_with(
+        "owner_claim_retirements",
+        orchestrator._reconcile_inactive_owner_claims,
+        min_interval_s=60.0,
+    )
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow", "enforce"])
