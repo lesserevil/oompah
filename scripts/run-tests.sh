@@ -5,6 +5,19 @@ mode="${1:-parallel}"
 shift || true
 workers="${OOMPAH_PYTEST_WORKERS-4}"
 configured_root="${OOMPAH_PYTEST_TEMP_ROOT:-${HOME}/.oompah/tmp}"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+test_python="${OOMPAH_TEST_PYTHON:-}"
+if [[ -z "${test_python}" && -n "${OOMPAH_TASK_VENV:-}" ]]; then
+    test_python="${OOMPAH_TASK_VENV}/bin/python"
+fi
+if [[ -z "${test_python}" ]]; then
+    test_python="${repo_root}/.venv/bin/python"
+fi
+if [[ "${test_python}" != /* || ! -x "${test_python}" ]]; then
+    echo "ERROR: quality-gate Python must be an absolute executable path (got '${test_python}')." >&2
+    echo "Run 'make test-setup' or set OOMPAH_TEST_PYTHON explicitly." >&2
+    exit 2
+fi
 
 case "${configured_root}" in
     "~")
@@ -114,7 +127,7 @@ trap cleanup_test_run EXIT
 # another checkout.  Do not inherit the service URL, credentials, or scoped
 # task capability into tests.  Give any lifecycle test a private port and PID
 # state rooted below this one disposable run directory.
-test_server_port="$(python -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+test_server_port="$("${test_python}" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
 export OOMPAH_PYTEST_GATE=1
 export OOMPAH_PYTEST_RUN_ROOT="${test_run_root}"
 export OOMPAH_PYTEST_WORKER_HOME_ROOT="${test_worker_home_root}"
@@ -158,10 +171,10 @@ else
 fi
 
 set +e
-# Make exports .venv/bin ahead of the system PATH, and test-setup installs this
-# project's editable test dependencies there.  Invoke that interpreter directly
-# so an already-prepared gate does not require a second uv subprocess.
-python -m pytest "${pytest_args[@]}"
+# test-setup installs this project's editable test dependencies into the
+# configured task/repository environment. Invoke that interpreter directly so
+# a broker or nested gate never depends on the caller's PATH.
+"${test_python}" -m pytest "${pytest_args[@]}"
 test_status=$?
 set -e
 exit "${test_status}"

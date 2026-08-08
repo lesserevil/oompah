@@ -2802,13 +2802,18 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
 def test_dead_aged_waiter_is_pruned_before_fresh_priority_selection(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     lease = ValidationResourceLease(
-        state_path, aging_seconds=0.01, poll_seconds=0.005
+        # Keep the later requests provably fresh even on a saturated xdist
+        # host. The old 10 ms band let a 210 ms scheduling delay correctly
+        # make the worker starvation-protected before the held slot released.
+        state_path,
+        aging_seconds=1.0,
+        poll_seconds=0.005,
     )
     held = lease.acquire(_gate_owner("blocker", "held"))
     script = """
 import sys
 from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
-lease = ValidationResourceLease(sys.argv[1], aging_seconds=0.01, poll_seconds=0.005)
+lease = ValidationResourceLease(sys.argv[1], aging_seconds=1.0, poll_seconds=0.005)
 lease.acquire(ValidationLeaseOwner.worker(project_id='repair', task_id='dead-worker', authority_generation='dead'))
 """
     dead = subprocess.Popen(
@@ -2817,7 +2822,7 @@ lease.acquire(ValidationLeaseOwner.worker(project_id='repair', task_id='dead-wor
         env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])},
     )
     _wait_for(lambda: lease.status().waiter_count == 1)
-    _age_waiter(state_path, "dead-worker", seconds=0.22)
+    _age_waiter(state_path, "dead-worker", seconds=22.0)
     dead.terminate()
     dead.wait(timeout=3)
     _wait_for(lambda: lease.status().waiter_count == 0)

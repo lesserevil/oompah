@@ -345,7 +345,12 @@ def test_ambiguous_repository_matches_fail_closed_with_actionable_alert(
         assert len(snapshot_alerts) == 1
         assert snapshot_alerts[0]["severity"] == "error"
         assert snapshot_alerts[0]["active"] is True
-        assert "proj-one, proj-two" in snapshot_alerts[0]["sanitized_detail"]
+        assert (
+            snapshot_alerts[0]["sanitized_detail"]
+            == "Additional diagnostic output is available."
+        )
+        assert snapshot_alerts[0]["diagnostic_available"] is True
+        assert "proj-one, proj-two" in snapshot_alerts[0]["diagnostic"]
     finally:
         server._orchestrator = saved_orchestrator
         server._error_watcher = None

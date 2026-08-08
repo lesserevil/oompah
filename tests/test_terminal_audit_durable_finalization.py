@@ -130,6 +130,18 @@ def _failed_result(
     )
 
 
+def _test_audit_metrics(**overrides):
+    metrics = {
+        "dispatch_count": 0,
+        "rotation_count": 0,
+        "exhaustion_count": 0,
+        "in_progress_count": 0,
+        "last_error": None,
+    }
+    metrics.update(overrides)
+    return metrics
+
+
 def _orchestrator(
     tracker: _Tracker,
     coordinator: TerminalTransitionCoordinator,
@@ -150,6 +162,9 @@ def _orchestrator(
     orchestrator._audit_rollback_persistence_failed = False
     orchestrator._audit_rollback_lock = threading.RLock()
     orchestrator._pending_audit_rollbacks = {}
+    orchestrator._maintenance_cursors = {}
+    orchestrator._save_state = MagicMock(return_value=True)
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._reconcile_audit_budget_reservations = lambda: None
     orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
     orchestrator._terminal_audit_manual_alerts = {}
@@ -583,7 +598,7 @@ def test_natural_completed_e1_e2_e1_reuses_exact_superseded_pass(
 
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
@@ -706,7 +721,7 @@ def test_natural_completed_failure_recurrence_replays_fail_closed_disposition(
     )
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
@@ -875,7 +890,7 @@ def test_natural_exhausted_e1_e2_e1_requires_owner_rearm_before_dispatch(
 
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._audit_branch_claims = {}
     orchestrator._terminal_audit_manual_alerts = {}
     orchestrator._sync_terminal_audit_observability_alerts = MagicMock()
@@ -1029,12 +1044,7 @@ def test_restart_abandonment_retries_same_candidate_without_duplicate_auditor(tm
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
     orchestrator.state = SimpleNamespace(claimed=set(), claimed_issues={})
-    orchestrator._audit_metrics = {
-        "exhaustion_count": 0,
-        "last_error": None,
-        "dispatch_count": 0,
-        "rotation_count": 0,
-    }
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._audit_branch_claims = {}
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
@@ -1129,7 +1139,7 @@ def test_action_required_checkpoint_replays_result_after_restart(tmp_path) -> No
         reopened_workflow,
     )
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {"exhaustion_count": 0}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
@@ -1231,7 +1241,7 @@ def test_completed_done_recurrence_preserves_validation_for_pending_merged(
 
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
@@ -1592,7 +1602,7 @@ def test_non_substantive_max_attempts_owner_rearm_redispatches(tmp_path) -> None
         assert workflow.ensure(current).state is expected_state
 
     exhausted_job = workflow.ensure(current)
-    orchestrator._audit_metrics = {"exhaustion_count": 0, "last_error": None}
+    orchestrator._audit_metrics = _test_audit_metrics()
     asyncio.run(
         orchestrator._route_no_auditor(
             tracker.fetch_issue_detail(TASK_ID),
@@ -1647,7 +1657,7 @@ def test_non_substantive_max_attempts_owner_rearm_redispatches(tmp_path) -> None
     )
 
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._audit_branch_claims = {}
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
@@ -1786,7 +1796,7 @@ def test_finalization_failure_routes_exact_attempt_and_owner_rearms_dispatch(
     assert exhausted.checkpoint["attempt_id"] == launched_attempt.attempt_id
 
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
-    orchestrator._audit_metrics = {"exhaustion_count": 0, "last_error": None}
+    orchestrator._audit_metrics = _test_audit_metrics()
     asyncio.run(
         orchestrator._route_no_auditor(
             tracker.fetch_issue_detail(TASK_ID),
@@ -1966,7 +1976,7 @@ def test_done_result_applied_before_crash_replays_exact_validation_status(
         ),
     )
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
@@ -2131,7 +2141,7 @@ def test_evidence_recurrence_dispatches_from_fresh_activation(tmp_path) -> None:
     )
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
     orchestrator.project_store = locks
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._audit_branch_claims = {}
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
@@ -2465,7 +2475,7 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
         reopened_store,
         reopened_workflow,
     )
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
     orchestrator._available_slots = MagicMock(return_value=1)
@@ -2521,7 +2531,7 @@ def test_resolved_archive_is_retired_after_cancel_crash_and_restart(tmp_path) ->
     workflow = TerminalAuditWorkflow(store)
     queued = workflow.ensure(archive_record)
     orchestrator = _orchestrator(tracker, coordinator, store, workflow)
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     snapshot = SimpleNamespace(
         failure_modes=["unresolved dependencies"],
         restoration_guidance=SimpleNamespace(
@@ -2979,7 +2989,7 @@ def test_completed_result_finalization_is_preserved_during_worker_exit(tmp_path)
 
 def test_finalization_replay_precedes_pause_and_capacity_gates() -> None:
     orchestrator = Orchestrator.__new__(Orchestrator)
-    orchestrator._audit_metrics = {}
+    orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._tick_pool = None
     orchestrator._audit_rollback_persistence_failed = False
     orchestrator._audit_rollback_lock = threading.RLock()

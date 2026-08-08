@@ -670,6 +670,8 @@ class TestYoloNotifyConflictEpicBranch:
             review_id="42", source_branch="epic-TASK-18", target_branch="dev",
         )
         tracker = MagicMock()
+        tracker.supports_atomic_create_once = True
+        tracker.create_issue_once.return_value.identifier = "TASK-18.2"
         epic = self._epic()
         epic.project_id = project.id
         tracker.fetch_issue_detail.return_value = epic
@@ -680,7 +682,7 @@ class TestYoloNotifyConflictEpicBranch:
             orch._project_trackers[project.id] = tracker
             orch._yolo_notify_conflict(project, provider, "org/repo", "42")
 
-        tracker.create_issue.assert_called_once()
+        tracker.create_issue_once.assert_called_once()
         orch._set_epic_rebase_state.assert_called_once_with(
             "TASK-18",
             EpicRebaseState.REBASING,
@@ -696,13 +698,15 @@ class TestFileRebaseTaskPriority:
         epic.identifier = "TASK-18"
         epic.project_id = project.id
         tracker = MagicMock()
+        tracker.supports_atomic_create_once = True
+        tracker.create_issue_once.return_value.identifier = "TASK-18.2"
         orch._active_epic_rebase_siblings = MagicMock(return_value=[])
         orch._observe_epic_rebase_generation = MagicMock(
             return_value=("generation-1", "epic-head-1", "dev-head-1")
         )
         orch._file_rebase_task(tracker, epic, "epic-TASK-18", "dev")
-        tracker.create_issue.assert_called_once()
+        tracker.create_issue_once.assert_called_once()
         # P0 so it bypasses the open-PR cap;
         # otherwise the conflicting epic PR (which holds the in-flight slot)
         # would block the very agent that must resolve it.
-        assert tracker.create_issue.call_args.kwargs.get("priority") == 0
+        assert tracker.create_issue_once.call_args.kwargs.get("priority") == 0

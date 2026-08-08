@@ -321,8 +321,15 @@ class TestMakefileStructure:
                 "PYTEST_XDIST_WORKER",
                 "PYTEST_XDIST_WORKER_COUNT",
                 "PYTEST_XDIST_TESTRUNUID",
+                "VIRTUAL_ENV",
             ):
                 gate_env.pop(key, None)
+            # The dedicated broker invokes pytest by absolute interpreter and
+            # intentionally does not promise Makefile's venv-prefixed PATH.
+            # A nested direct runner must resolve this checkout's prepared
+            # interpreter rather than falling back to system Python.
+            gate_env["PATH"] = "/usr/bin:/bin"
+            gate_env.pop("OOMPAH_TEST_PYTHON", None)
             gate_env["OOMPAH_SERVER_URL"] = f"http://127.0.0.1:{sentinel_port}"
             gate_env["OOMPAH_SERVER_PORT"] = str(sentinel_port)
             targets = [

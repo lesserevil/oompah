@@ -76,6 +76,8 @@ def _orchestrator() -> Orchestrator:
     orchestrator._audit_rollback_persistence_failed = False
     orchestrator._audit_rollback_lock = threading.RLock()
     orchestrator._pending_audit_rollbacks = {}
+    orchestrator._maintenance_cursors = {}
+    orchestrator._save_state = MagicMock(return_value=True)
     orchestrator.terminal_audit_workflow = MagicMock()
     orchestrator.terminal_audit_workflow.finalizing_jobs.return_value = []
     orchestrator.terminal_transition_coordinator = SimpleNamespace(
@@ -89,7 +91,13 @@ def _orchestrator() -> Orchestrator:
     )
     orchestrator._reconcile_and_release_audit_budget = MagicMock(return_value=True)
     orchestrator._reconcile_audit_budget_reservations = MagicMock()
-    orchestrator._audit_metrics = {"exhaustion_count": 0, "last_error": None}
+    orchestrator._audit_metrics = {
+        "dispatch_count": 0,
+        "rotation_count": 0,
+        "exhaustion_count": 0,
+        "in_progress_count": 0,
+        "last_error": None,
+    }
     return orchestrator
 
 

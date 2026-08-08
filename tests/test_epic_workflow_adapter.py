@@ -1577,6 +1577,7 @@ async def test_orchestrator_stop_retains_runtime_after_initial_drain_budget():
         _provider_admission_lock=threading.RLock(),
         _provider_admission_generation=0,
         _termination_scheduling_closed=False,
+        _mark_running_auditors_for_lifecycle_retirement_locked=MagicMock(),
         workflow_runtime=runtime,
         _drain_scheduled_terminations=AsyncMock(),
         _running_items_snapshot=lambda: (),
@@ -1587,6 +1588,13 @@ async def test_orchestrator_stop_retains_runtime_after_initial_drain_budget():
     stopped = await Orchestrator.stop(orchestrator)
 
     assert stopped is False
+    retirement = (
+        orchestrator._mark_running_auditors_for_lifecycle_retirement_locked
+    )
+    retirement.assert_called_once_with(
+        reason="scheduler_pause",
+        error="graceful shutdown interrupted auditor before verdict",
+    )
     runtime.drain.assert_awaited_once_with(timeout_seconds=10.0)
     orchestrator._drain_background_work.assert_not_awaited()
     runtime.close.assert_not_called()

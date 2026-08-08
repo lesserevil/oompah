@@ -427,10 +427,12 @@ workflow-rollout-check: setup
 test: test-setup terminal-audit-scan
 	@OOMPAH_PYTEST_WORKERS="$(PYTEST_WORKERS)" \
 		OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
+		OOMPAH_TEST_PYTHON="$(abspath $(PYTHON))" \
 		scripts/run-tests.sh parallel
 
 test-serial: test-setup
 	@OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
+		OOMPAH_TEST_PYTHON="$(abspath $(PYTHON))" \
 		scripts/run-tests.sh serial
 
 workflow-soak-ci: test-setup
