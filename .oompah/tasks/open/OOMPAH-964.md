@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T16:26:49.965142Z'
+updated_at: '2026-08-09T16:27:16.522562Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-09 16:27
+---
+Implemented defense-in-depth rejection of PR-backed GitHub issue_comment events at both webhook parsing and native-intake boundaries. Genuine issue comments remain covered and the full focused modules pass (265 tests), along with terminal-audit, secret, and diff checks. Pushed exact head fe2cb2d612c82d71e2637254fd79c30db5124377 and opened PR #773; hosted CI run 31323802373 is in progress.
 ---
 <!-- COMMENTS:END -->

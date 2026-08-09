@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T16:27:01.318277Z'
+updated_at: '2026-08-09T16:27:14.655846Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -59,7 +59,18 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:26:52.974826+00:00'
     selected_ref: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
     selected_sha: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-945
+    target_state: Done
+    evidence_fingerprint: b5832f95f60866a606034ed5b62fdf3147df4fcbd413f40d912ebc6b363bdd91
+    audit_ids:
+    - audit-f8c3a0d0da6a
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:27:10.350522+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-945
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +111,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:53:34.839367+00:00'
     selected_ref: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
     selected_sha: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
-    updated_at: '2026-08-09T15:51:23.096338+00:00'
+    updated_at: '2026-08-09T16:27:10.350484+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-475c928e6cee
@@ -223,5 +234,12 @@ author: oompah
 created: 2026-08-09 15:51
 ---
 Auditor attempt ended: graceful restart interrupted auditor before verdict. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-09 16:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner override after exact accepted head 748fd1da7f5c3c97e9ac9695092c477412ffea2b was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435, merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python 3.11/3.12/3.13 checks successful.
 ---
 <!-- COMMENTS:END -->
