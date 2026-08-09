@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-08-09T14:59:47.450633Z'
-updated_at: '2026-08-09T16:11:41.756822Z'
+updated_at: '2026-08-09T16:11:54.993781Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,15 @@ created: 2026-08-09 16:11
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Project-owner cleanup of an erroneously imported GitHub pull request: OOMPAH-963 points to merged PR #768 and duplicates the delivered OOMPAH-960 review artifact. Runtime logs prove PR issue_comment events entered the uncovered intake path; OOMPAH-964 tracks the systemic fix.
+---
+author: oompah
+created: 2026-08-09 16:11
+---
+Archived by owner override as erroneous PR-comment intake; no implementation belongs to OOMPAH-963. Systemic prevention is OOMPAH-964.
+---
+author: oompah
+created: 2026-08-09 16:11
+---
+Archived as erroneous PR-comment intake; systemic prevention is OOMPAH-964.
 ---
 <!-- COMMENTS:END -->
