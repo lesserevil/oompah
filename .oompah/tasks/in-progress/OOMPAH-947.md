@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T09:40:36.515151Z'
+updated_at: '2026-08-09T10:15:21.815634Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live regression after completed OOMPAH-809 on main b7e7d950: scheduler generatio
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 10:15
+---
+Implemented bounded terminal-audit slicing: project-fair durable cursor rotation, configurable candidate-operation and runtime budgets, time-bounded read-only preparation, per-lane selector authority caching, coalesced continuation, and cross-slice truthful health completion while finalizations and fenced mutations retain exact ownership. Focused validation is green: 314 audit/config/orchestrator tests passed; the wider audit caller suite previously passed 636 tests with one pre-existing AsyncMock warning. Preparing the exact reviewed head for submission.
+---
+<!-- COMMENTS:END -->
