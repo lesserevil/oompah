@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T16:25:26.622591Z'
-updated_at: '2026-08-09T16:41:15.721685Z'
+updated_at: '2026-08-09T17:07:22.645583Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,5 +93,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-09 17:07
+---
+Final correction pushed at f8ebb383e on PR #774. False terminal-audit authority proofs remain an expected publication-supersession retry at INFO, while a missing proof provider remains a genuine WorkflowRuntimeError at ERROR. Validation: 432 affected tests, 10 focused proof tests, terminal-audit mutation scan, secret scan, critical Ruff, and diff checks pass; exact-head independent re-review and hosted 3.11/3.12/3.13 are pending.
 ---
 <!-- COMMENTS:END -->
