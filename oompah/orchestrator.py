@@ -2405,12 +2405,16 @@ class Orchestrator:
             "policy_incompatibility_count": 0,
             "retry_exhausted_count": 0,
             "transport_retry_pending_count": 0,
+            "suspended_count": 0,
+            "suspended_project_ids": [],
             "oldest_pending_age_seconds": None,
             "stale_in_validation_count": 0,
             "last_error": None,
         }
         # Aggregated terminal-audit health, rebuilt after every lane scan.
-        self._audit_health: TerminalAuditHealth = TerminalAuditHealth()
+        self._audit_health: TerminalAuditHealth = TerminalAuditHealth.from_dict(
+            state_data.get("terminal_audit_health")
+        )
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -3053,8 +3057,11 @@ class Orchestrator:
                 record = entry.record
                 if record is None:
                     continue
+                suspended = self._is_project_paused(record.project_id)
                 configuration_error = (
-                    self._terminal_audit_validation_configuration_error(
+                    None
+                    if suspended
+                    else self._terminal_audit_validation_configuration_error(
                         record.project_id
                     )
                 )
@@ -3071,6 +3078,7 @@ class Orchestrator:
                         issue_created_at=None,
                         record=record,
                         configuration_error=bool(configuration_error),
+                        suspended=suspended,
                     )
                 )
             self._refresh_terminal_audit_health(
@@ -3078,7 +3086,12 @@ class Orchestrator:
                 scan_complete=bool(result.get("scan_complete", True)),
                 scan_error_count=int(result.get("scan_error_count", 0)),
                 finalization_failure_count=sum(
-                    self._terminal_audit_enforcement.finalization_failure_counts.values()
+                    count
+                    for project_id, count in (
+                        self._terminal_audit_enforcement
+                        .finalization_failure_counts.items()
+                    )
+                    if not self._is_project_paused(project_id)
                 ),
             )
             for entry in self._terminal_audit_enforcement.state.grandfathered:
@@ -3782,6 +3795,7 @@ class Orchestrator:
                 scan_complete=False,
                 scan_error_count=scan_error_count,
             )
+        previous_health = getattr(self, "_audit_health", TerminalAuditHealth())
         self._audit_health = health
         # Update the raw metrics so callers reading _audit_metrics still work.
         self._audit_metrics.update({
@@ -3796,6 +3810,8 @@ class Orchestrator:
             "transport_retry_pending_count": (
                 health.transport_retry_pending_count
             ),
+            "suspended_count": health.suspended_count,
+            "suspended_project_ids": list(health.suspended_project_ids),
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
             "stale_in_validation_count": health.stale_in_validation_count,
             "health_scan_complete": health.scan_complete,
@@ -3811,7 +3827,14 @@ class Orchestrator:
             or alert.get("source") == "terminal_audit_health",
             terminal_audit_health_alerts(health),
         )
-        if health.degraded:
+        # Persist actionable health and every categorical projection change.
+        # The age field is deliberately excluded so a healthy periodic scan
+        # does not rewrite the service state solely because time advanced.
+        previous_projection = previous_health.to_dict()
+        current_projection = health.to_dict()
+        previous_projection.pop("oldest_pending_age_seconds", None)
+        current_projection.pop("oldest_pending_age_seconds", None)
+        if health.degraded or current_projection != previous_projection:
             self._save_state(terminal_audit_health=health.to_dict())
 
     def _load_paused_state(self) -> bool:
@@ -16951,10 +16974,10 @@ class Orchestrator:
                 0,
             )
 
-        if _audit_slots_available() <= 0:
-            metrics["last_dispatched_count"] = 0
-            metrics["capacity_deferred"] = True
-            return {"audit_dispatch": 0.0, "audit_scan": 0.0}
+        # Health projection is independent of provider capacity.  A full lane
+        # must still observe paused projects (and current active backlog) so a
+        # zero-slot tick cannot retain a contradictory prior health snapshot.
+        metrics["capacity_deferred"] = _audit_slots_available() <= 0
 
         candidate_scan = await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._fetch_audit_candidates
@@ -16967,7 +16990,6 @@ class Orchestrator:
         # reserved for the authoritative TerminalAuditHealth generation and
         # can intentionally retain last-complete facts during a partial scan.
         metrics["discovered_candidate_count"] = discovered_candidate_count
-        metrics["capacity_deferred"] = False
         dispatched = 0
         dispatch_limit = max(
             int(getattr(self.config, "audit_lane_dispatch_limit", 2)),
@@ -16980,13 +17002,12 @@ class Orchestrator:
         last_processed_cursor: str | None = None
 
         for issue in candidates:
-            if _audit_slots_available() <= 0 or dispatched >= dispatch_limit:
-                break
             processed_candidate_count += 1
             cursor = self._audit_candidate_cursor_key(issue)
             last_processed_cursor = cursor
             metrics["cursor"] = cursor
-            if self._dispatch_is_blocked(issue):
+            project_suspended = self._is_project_paused(issue.project_id)
+            if not project_suspended and self._dispatch_is_blocked(issue):
                 continue
             try:
                 store = self._audit_store(issue)
@@ -17006,7 +17027,9 @@ class Orchestrator:
                     )
                 )
                 validation_configuration_error = (
-                    self._terminal_audit_validation_configuration_error(
+                    None
+                    if project_suspended
+                    else self._terminal_audit_validation_configuration_error(
                         issue.project_id
                     )
                 )
@@ -17023,9 +17046,28 @@ class Orchestrator:
                         quarantined=document.is_quarantined,
                         finalization_failure_count=finalization_failure_count,
                         configuration_error=bool(validation_configuration_error),
+                        suspended=project_suspended,
                     )
                 )
                 observation_index = len(observations) - 1
+                # A project can pause between candidate discovery and metadata
+                # read.  Keep the observation, but never cross the dispatch
+                # boundary while either the observed or current state blocks.
+                if project_suspended:
+                    continue
+                if self._dispatch_is_blocked(issue):
+                    # If pause won the race after metadata was read, publish
+                    # the same suspended projection as a normally observed
+                    # paused candidate.  Other lifecycle gates retain the
+                    # active observation because they do not suspend the
+                    # project's backlog semantics.
+                    if self._is_project_paused(issue.project_id):
+                        observations[observation_index] = replace(
+                            observations[observation_index],
+                            configuration_error=False,
+                            suspended=True,
+                        )
+                    continue
                 if record is None:
                     continue
                 if validation_configuration_error:
@@ -17037,6 +17079,12 @@ class Orchestrator:
                 self._clear_terminal_audit_validation_configuration(
                     issue.project_id or "legacy",
                 )
+                if (
+                    _audit_slots_available() <= 0
+                    or dispatched >= dispatch_limit
+                ):
+                    metrics["capacity_deferred"] = True
+                    continue
                 rearm_authorization = self._terminal_audit_rearm_authorization(
                     document,
                     record,

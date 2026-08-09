@@ -179,6 +179,7 @@ def _orchestrator(
         side_effect=lambda _issue, record: record
     )
     orchestrator._running_values_snapshot = lambda: []
+    orchestrator._is_project_paused = MagicMock(return_value=False)
     orchestrator._tracker_for_project = lambda _project_id: tracker
     orchestrator._tracker_for_issue = lambda _issue: tracker
     orchestrator._record_audit_outcome_ownership = MagicMock()

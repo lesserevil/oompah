@@ -4055,6 +4055,73 @@ def test_orchestrator_recovery_converges_live_queue_metrics_and_health(tmp_path)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_paused_audit_health_survives_restart_and_resume_reactivates_it(tmp_path):
+    """Startup keeps paused audits durable while resume restores live health."""
+    live = _pending_record("project-a", "TASK-1", "audit-live")
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[live]).to_dict()
+    }
+    state_path = tmp_path / "service_state.json"
+    paused = True
+
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    try:
+        orchestrator._terminal_audit_scopes = lambda: [("project-a", tracker)]
+        orchestrator._is_project_paused = lambda _project_id: paused
+        orchestrator._run_terminal_audit_enforcement()
+
+        health = orchestrator.get_snapshot()["terminal_audit_health"]
+        assert health["pending_count"] == 0
+        assert health["stale_pending_count"] == 0
+        assert health["suspended_count"] == 1
+        assert health["suspended_project_ids"] == ["project-a"]
+        assert health["degraded"] is False
+        stored = TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        )
+        assert stored.pending_chain == [live]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    restarted = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "restarted-workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    try:
+        # Persisted/API health retains the non-degrading suspended projection
+        # before the restart scan, then converges to the same durable facts.
+        recovered = restarted.get_snapshot()["terminal_audit_health"]
+        assert recovered["suspended_count"] == 1
+        assert recovered["suspended_project_ids"] == ["project-a"]
+        assert recovered["degraded"] is False
+
+        restarted._terminal_audit_scopes = lambda: [("project-a", tracker)]
+        restarted._is_project_paused = lambda _project_id: paused
+        restarted._run_terminal_audit_enforcement()
+        assert restarted._audit_health.suspended_count == 1
+
+        paused = False
+        restarted._run_terminal_audit_enforcement()
+        resumed = restarted.get_snapshot()["terminal_audit_health"]
+        assert resumed["suspended_count"] == 0
+        assert resumed["suspended_project_ids"] == []
+        assert resumed["pending_count"] == 1
+
+        persisted = json.loads(state_path.read_text(encoding="utf-8"))
+        assert persisted["terminal_audit_health"]["suspended_count"] == 0
+        assert persisted["terminal_audit_health"]["pending_count"] == 1
+    finally:
+        restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
+        restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_orchestrator_terminal_audit_merge_preserves_unrelated_state(tmp_path):
     state_path = tmp_path / "service_state.json"
     state_path.write_text(

@@ -98,6 +98,11 @@ class AuditHealthObservation:
     # A pre-launch validation-contract error is configuration health, not a
     # transport, policy-attempt, or stale-backlog failure.
     configuration_error: bool = False
+    # Paused projects retain their durable audit records and workflow jobs,
+    # but those records are not active backlog while dispatch is suspended.
+    # Keeping suspension on the observation lets every projection path apply
+    # the same semantics without deleting or rewriting audit authority.
+    suspended: bool = False
 
 
 @dataclass
@@ -122,6 +127,8 @@ class TerminalAuditHealth:
     # be reported as substantive candidate exhaustion.
     transport_retry_pending_count: int = 0
     quarantined_count: int = 0
+    suspended_count: int = 0
+    suspended_project_ids: tuple[str, ...] = ()
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS
     scan_complete: bool = True
     scan_error_count: int = 0
@@ -169,6 +176,8 @@ class TerminalAuditHealth:
             "retry_exhausted_count": self.retry_exhausted_count,
             "transport_retry_pending_count": self.transport_retry_pending_count,
             "quarantined_count": self.quarantined_count,
+            "suspended_count": self.suspended_count,
+            "suspended_project_ids": list(self.suspended_project_ids),
             "stale_after_seconds": self.stale_after_seconds,
             "scan_complete": self.scan_complete,
             "scan_error_count": self.scan_error_count,
@@ -198,6 +207,7 @@ class TerminalAuditHealth:
             "retry_exhausted_count",
             "transport_retry_pending_count",
             "quarantined_count",
+            "suspended_count",
             "stale_after_seconds",
             "scan_error_count",
         )
@@ -210,6 +220,17 @@ class TerminalAuditHealth:
         if oldest is None:
             values["oldest_pending_at"] = raw.get("oldest_pending_at")
         values["scan_complete"] = bool(raw.get("scan_complete", True))
+        suspended_projects_raw = raw.get("suspended_project_ids", ())
+        if isinstance(suspended_projects_raw, (list, tuple, set)):
+            values["suspended_project_ids"] = tuple(
+                sorted(
+                    {
+                        str(project_id)
+                        for project_id in suspended_projects_raw
+                        if str(project_id).strip()
+                    }
+                )
+            )
         projects_raw = raw.get("projects", {})
         projects: dict[str, dict[str, int]] = {}
         if isinstance(projects_raw, dict):
@@ -323,6 +344,8 @@ def build_terminal_audit_health(
     exhausted = 0
     transport_retry_pending = 0
     quarantined = 0
+    suspended = 0
+    suspended_projects: set[str] = set()
     oldest: datetime | None = None
     projects: dict[str, dict[str, int]] = {}
 
@@ -343,6 +366,21 @@ def build_terminal_audit_health(
         else:
             observation = raw_observation
             record = observation.record
+
+        if observation.suspended:
+            # Suspension is a dispatch state, not degradation.  Preserve one
+            # count per durable live audit while excluding its age, failures,
+            # quarantine, and validation configuration from active health.
+            if record is not None and record.request_state in {
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            }:
+                suspended += 1
+                project_id = str(observation.project_id or "")
+                if project_id:
+                    suspended_projects.add(project_id)
+                increment(observation.project_id, "suspended_count")
+            continue
 
         if observation.finalization_failure_count:
             count = max(0, int(observation.finalization_failure_count))
@@ -509,6 +547,8 @@ def build_terminal_audit_health(
         retry_exhausted_count=exhausted,
         transport_retry_pending_count=transport_retry_pending,
         quarantined_count=quarantined,
+        suspended_count=suspended,
+        suspended_project_ids=tuple(sorted(suspended_projects)),
         stale_after_seconds=stale_after_seconds,
         scan_complete=scan_complete,
         scan_error_count=scan_error_count,
