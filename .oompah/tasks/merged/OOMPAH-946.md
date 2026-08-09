@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T14:03:15.481786Z'
+updated_at: '2026-08-09T14:03:29.674143Z'
 work_branch: OOMPAH-946
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/758
@@ -206,13 +206,13 @@ oompah.terminal_audit:
     selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
     selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
 oompah.task_costs:
-  total_input_tokens: 346
-  total_output_tokens: 12307
+  total_input_tokens: 660
+  total_output_tokens: 21533
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 346
-      output_tokens: 12307
+      input_tokens: 660
+      output_tokens: 21533
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -221,6 +221,12 @@ oompah.task_costs:
     output_tokens: 12307
     cost_usd: 0.0
     recorded_at: '2026-08-09T12:04:28.059551+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 314
+    output_tokens: 9226
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T14:03:25.638044+00:00'
 ---
 ## Summary
 
@@ -311,5 +317,15 @@ Safe evidence:
 - invariants_maintained: No sleep-based replacement, native capacity fence preserved, process survives parent exit until exact generation terminates
 - gate_result: Authoritative make test passed 8e2527b74e958127861621fdbcebb627d0929e24 in 159.3s
 - previous_audit: Attempt #1 gave Audit PASS with same fingerprint
+---
+author: oompah
+created: 2026-08-09 14:03
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 85, Tool calls: 38
+- Tokens: 314 in / 9.2K out [9.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 56s
+- Log: OOMPAH-946__20260809T135838Z.jsonl
 ---
 <!-- COMMENTS:END -->
