@@ -311,6 +311,99 @@ def test_all_auditor_catalogs_share_python_regex_context_contract(
     assert opencode_result == claude_result
 
 
+def test_all_auditor_catalogs_expose_canonical_top_level_result_contract(
+    tmp_path,
+    monkeypatch,
+):
+    pytest.importorskip("claude_agent_sdk")
+    pytest.importorskip("agents")
+    from oompah.acp_tools import (
+        build_codex_tool_catalog,
+        build_opencode_tool_catalog,
+        build_tool_catalog,
+    )
+
+    def fake_tool(name, description, input_schema):
+        def decorate(handler):
+            return SimpleNamespace(
+                name=name,
+                description=description,
+                input_schema=input_schema,
+                handler=handler,
+            )
+
+        return decorate
+
+    monkeypatch.setitem(sys.modules, "opencode", SimpleNamespace(tool=fake_tool))
+    target = _target()
+    policy = auditor_policy(task_identifier="task-1", project_id="project-1")
+    claude_results = []
+    opencode_results = []
+    claude_tool = next(
+        item
+        for item in build_tool_catalog(
+            str(tmp_path),
+            auditor=True,
+            action_policy=policy,
+            audit_target=target,
+            audit_result_handler=claude_results.append,
+        )
+        if item.name == AUDITOR_RESULT_TOOL_NAME
+    )
+    opencode_tool = next(
+        item
+        for item in build_opencode_tool_catalog(
+            str(tmp_path),
+            auditor=True,
+            action_policy=policy,
+            audit_target=target,
+            audit_result_handler=opencode_results.append,
+        )
+        if item.name == AUDITOR_RESULT_TOOL_NAME
+    )
+    codex_tool = next(
+        item
+        for item in build_codex_tool_catalog(
+            str(tmp_path),
+            auditor=True,
+            action_policy=policy,
+            audit_target=target,
+            audit_result_handler=lambda _result: None,
+        )
+        if item.name == AUDITOR_RESULT_TOOL_NAME
+    )
+    expected = AUDITOR_RESULT_TOOL_SCHEMA["function"]["parameters"]
+
+    assert claude_tool.input_schema == expected
+    assert opencode_tool.input_schema == expected
+    assert codex_tool.params_json_schema == expected
+    assert "result" not in expected["properties"]
+
+    payload = {
+        "audit_id": target.audit_id,
+        "target_state": target.target_state,
+        "evidence_fingerprint": target.evidence_fingerprint,
+        "verdict": "pass",
+        "message": "Exact result contract accepted.",
+        "attempt_id": target.attempt_id,
+    }
+    claude_response = asyncio.run(claude_tool.handler(payload))["content"][0]["text"]
+    opencode_response = asyncio.run(opencode_tool.handler(payload))["content"][0][
+        "text"
+    ]
+
+    assert json.loads(claude_response)["accepted"] is True
+    assert json.loads(opencode_response)["accepted"] is True
+    assert len(claude_results) == 1
+    assert len(opencode_results) == 1
+
+    rejected = asyncio.run(claude_tool.handler({"result": payload}))["content"][0][
+        "text"
+    ]
+    assert rejected.startswith("Error:")
+    assert len(claude_results) == 1
+
+
 @pytest.mark.parametrize(
     "command",
     [

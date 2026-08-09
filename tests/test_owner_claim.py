@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import types
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,6 +22,15 @@ from fastapi.testclient import TestClient
 
 import oompah.server as server_module
 from oompah.config import ServiceConfig
+from oompah.integration import IntegrationRecord
+from oompah.implementation_workflow import (
+    ImplementationAction,
+    ImplementationWorkflowHandler,
+)
+from oompah.implementation_workflow_adapter import (
+    OrchestratorImplementationEffects,
+    ProductionImplementationWorkflowBackend,
+)
 from oompah.models import Issue, Project, RunningEntry, WorkflowDefinition
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore, RecoveryPublicationError
@@ -30,12 +40,15 @@ from oompah.task_transition_service import (
     TransitionDisposition,
     TransitionOutcome,
     TransitionPhase,
+    issue_authority_version,
 )
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
 )
 from oompah.workflow_jobs import WorkflowJobSpec
+from oompah.workflow_fact_model import FactDomain
+from oompah.workflow_worker import DurableWorkflowWorker, WorkflowRunDisposition
 
 
 def _project_store(tmp_path) -> tuple[ProjectStore, Project]:
@@ -130,6 +143,7 @@ def test_live_direct_owner_claim_survives_repeated_orphan_scans(tmp_path):
             "expires_in_seconds": snapshot[0]["expires_in_seconds"],
             "is_expired": False,
             "renewable": True,
+            "retirement_pending": False,
         }
     ]
 
@@ -215,6 +229,8 @@ def test_owner_claim_retirement_marker_survives_restart(tmp_path):
     assert restored is not None
     assert restored.claim_id == claim.claim_id
     assert restored.retirement_pending is True
+    projection = restarted._owner_claim_snapshot(restored, now=time.time())
+    assert projection["retirement_pending"] is True
 
 
 def test_committed_status_transition_retires_exact_claim_durably(tmp_path):
@@ -488,6 +504,445 @@ def test_live_reconciliation_preserves_unmarked_open_preclaim(tmp_path):
     orch._schedule_implementation_workflow_event.assert_not_called()
 
 
+def test_durable_validation_transition_retires_exact_captured_claim(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    head = "a" * 40
+    issue.state = "Ready to Integrate"
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=issue.identifier,
+        head_sha=head,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-submitted-to-ready",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="claim-revocation")
+    )
+    job = SimpleNamespace(
+        action="validation_submission",
+        project_id=issue.project_id,
+        task_id=issue.identifier,
+        expected_head_sha=head,
+        payload={
+            "owner_claim_id": claim.claim_id,
+            "owner_login": claim.owner_login,
+        },
+    )
+
+    assert orch._retire_owner_claim_after_validation_transition(job)
+
+    pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert pending is not None
+    assert pending.claim_id == claim.claim_id
+    assert pending.retirement_pending is True
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"].value == "authority_revocation"
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+    assert scheduled["payload"]["expected_status"] == "Ready to Integrate"
+    assert scheduled["expected_head_sha"] == head
+    authority_source = orch._workflow_shadow_sources(issue)[
+        FactDomain.IMPLEMENTATION_AUTHORITY
+    ]
+    assert authority_source(issue) == {"lease_expires_at": None}
+
+
+def test_production_validation_job_hands_standalone_owner_to_ready_workflow(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    head = "c" * 40
+    issue.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=issue.identifier,
+        head_sha=head,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-production-validation",
+    )
+    orch.config.parallel_epic_children_enabled = False
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="exact-owner-revocation")
+    )
+    submission = orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            generation="production-validation-generation",
+            action=ImplementationAction.VALIDATION_SUBMISSION.value,
+            idempotency_key="production-validation-submission",
+            payload={
+                "expected_status": issue.state,
+                "owner_claim_id": claim.claim_id,
+                "owner_login": claim.owner_login,
+                "head_sha": head,
+                "work_branch": issue.identifier,
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=head,
+        )
+    )
+    effects = OrchestratorImplementationEffects(
+        orch,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+    handler = ImplementationWorkflowHandler(
+        ProductionImplementationWorkflowBackend(effects)
+    )
+    worker = DurableWorkflowWorker(
+        store=orch.workflow_job_store,
+        handlers={ImplementationAction.VALIDATION_SUBMISSION.value: handler},
+        transition_services={
+            str(issue.project_id): orch._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="production-validation-worker",
+        retry_delay_seconds=0.01,
+    )
+
+    result = asyncio.run(worker.run_once())
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert orch.workflow_job_store.get(submission.job_id).state.value == "completed"
+    assert issue.state == "Ready to Integrate"
+    pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert pending is not None
+    assert pending.claim_id == claim.claim_id
+    assert pending.retirement_pending is True
+    authority_source = orch._workflow_shadow_sources(issue)[
+        FactDomain.IMPLEMENTATION_AUTHORITY
+    ]
+    assert authority_source(issue) == {"lease_expires_at": None}
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"] is ImplementationAction.AUTHORITY_REVOCATION
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+    effects.receipts.close()
+
+
+def test_validation_restart_replays_precommit_intent_and_retires_exact_claim(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    head = "f" * 40
+    issue.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=issue.identifier,
+        head_sha=head,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-crash-after-ready-write",
+    )
+    orch.config.parallel_epic_children_enabled = False
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    submission = orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            generation="validation-crash-after-ready-write",
+            action=ImplementationAction.VALIDATION_SUBMISSION.value,
+            idempotency_key="validation-crash-after-ready-write",
+            payload={
+                "expected_status": issue.state,
+                "owner_claim_id": claim.claim_id,
+                "owner_login": claim.owner_login,
+                "head_sha": head,
+                "work_branch": issue.identifier,
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=head,
+        )
+    )
+    effects = OrchestratorImplementationEffects(
+        orch,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+    worker = DurableWorkflowWorker(
+        store=orch.workflow_job_store,
+        handlers={
+            ImplementationAction.VALIDATION_SUBMISSION.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={
+            str(issue.project_id): orch._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="validation-precheckpoint-crash-worker",
+        retry_delay_seconds=0.01,
+    )
+
+    def commit_ready_then_die(_identifier, **fields):
+        issue.state = fields["status"]
+        raise SystemExit("simulated death after Ready tracker commit")
+
+    tracker.update_issue.side_effect = commit_ready_then_die
+    with pytest.raises(SystemExit, match="after Ready tracker commit"):
+        asyncio.run(worker.run_once())
+
+    stranded = orch.workflow_job_store.get(submission.job_id)
+    assert issue.state == "Ready to Integrate"
+    # asyncio.run quarantines the still-owned worker while propagating this
+    # artificial BaseException. A real process death leaves the persisted
+    # transition_intent phase; both preserve the same checkpoint payload.
+    assert stranded.phase == "quarantined"
+    assert stranded.checkpoint["transition_intent"]["expected_status"] == (
+        "In Progress"
+    )
+    assert "transition" not in stranded.checkpoint
+    current = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert current is not None
+    assert current.claim_id == claim.claim_id
+    assert current.retirement_pending is False
+
+    orch._close_owned_persistent_stores()
+    restarted_store, project = _project_store(tmp_path)
+    restarted = Orchestrator(
+        config=ServiceConfig(
+            owner_claim_ttl_hours=48,
+            duplicate_preflight_max_agents=0,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=restarted_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    tracker.reset_mock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.return_value = [issue]
+    tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+        issue, "state", fields["status"]
+    )
+    restarted._project_trackers[project.id] = tracker
+    restarted.config.parallel_epic_children_enabled = False
+    restarted.workflow_runtime = SimpleNamespace(enforce=True)
+    restarted._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="restarted-exact-owner-revocation")
+    )
+    # A full process restart makes the old transition owner unavailable. Move
+    # only the journal clock beyond its bounded claim TTL to model that fact.
+    restarted.task_transition_journal._clock = lambda: time.time() + 301
+    assert restarted.workflow_job_store.recover_abandoned() == 1
+    restarted_effects = OrchestratorImplementationEffects(
+        restarted,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+    restarted_worker = DurableWorkflowWorker(
+        store=restarted.workflow_job_store,
+        handlers={
+            ImplementationAction.VALIDATION_SUBMISSION.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(restarted_effects)
+                )
+            )
+        },
+        transition_services={
+            str(issue.project_id): restarted._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="validation-precheckpoint-recovery-worker",
+        retry_delay_seconds=0.01,
+    )
+
+    result = asyncio.run(restarted_worker.run_once())
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert restarted.workflow_job_store.get(submission.job_id).state.value == (
+        "completed"
+    )
+    tracker.update_issue.assert_not_called()
+    pending = restarted._owner_claim_for_issue(issue.id, issue.project_id)
+    assert pending is not None
+    assert pending.claim_id == claim.claim_id
+    assert pending.retirement_pending is True
+    scheduled = restarted._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"] is ImplementationAction.AUTHORITY_REVOCATION
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+    restarted._close_owned_persistent_stores()
+
+
+def test_stale_production_validation_job_retains_direct_owner_claim(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    accepted_head = "d" * 40
+    issue.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=issue.identifier,
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-stale-validation-keeps",
+    )
+    orch.config.parallel_epic_children_enabled = False
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+    stale = orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            generation="stale-production-validation",
+            action=ImplementationAction.VALIDATION_SUBMISSION.value,
+            idempotency_key="stale-production-validation",
+            payload={
+                "expected_status": issue.state,
+                "owner_claim_id": claim.claim_id,
+                "owner_login": claim.owner_login,
+                "head_sha": accepted_head,
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=accepted_head,
+        )
+    )
+    # A newer accepted head invalidates the queued submission before any
+    # transition/finalizer authority is exercised.
+    issue.integration = replace(issue.integration, head_sha="e" * 40)
+    effects = OrchestratorImplementationEffects(
+        orch,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+    worker = DurableWorkflowWorker(
+        store=orch.workflow_job_store,
+        handlers={
+            ImplementationAction.VALIDATION_SUBMISSION.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={
+            str(issue.project_id): orch._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="stale-production-validation-worker",
+    )
+
+    result = asyncio.run(worker.run_once())
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert orch.workflow_job_store.get(stale.job_id).state.value == "superseded"
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is claim
+    assert claim.retirement_pending is False
+    orch._schedule_implementation_workflow_event.assert_not_called()
+    effects.receipts.close()
+
+
+def test_stale_validation_transition_cannot_revoke_aba_owner_claim(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    head = "b" * 40
+    issue.state = "Ready to Integrate"
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=issue.identifier,
+        head_sha=head,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    old_claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-submitted-before-aba",
+    )
+    assert orch.release_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        expected_claim_id=old_claim.claim_id,
+    )
+    replacement = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="bob",
+        claim_id="claim-replacement-after-aba",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+    stale_job = SimpleNamespace(
+        action="validation_submission",
+        project_id=issue.project_id,
+        task_id=issue.identifier,
+        expected_head_sha=head,
+        payload={
+            "owner_claim_id": old_claim.claim_id,
+            "owner_login": old_claim.owner_login,
+        },
+    )
+
+    assert not orch._retire_owner_claim_after_validation_transition(stale_job)
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is replacement
+    orch._schedule_implementation_workflow_event.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_head"),
+    (("In Progress", "a" * 40), ("Ready to Integrate", "b" * 40)),
+)
+def test_validation_handoff_retains_claim_until_status_and_head_commit(
+    tmp_path, state, expected_head
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = state
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=issue.identifier,
+        head_sha="a" * 40,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-before-validation-commit",
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+    job = SimpleNamespace(
+        action="validation_submission",
+        project_id=issue.project_id,
+        task_id=issue.identifier,
+        expected_head_sha=expected_head,
+        payload={
+            "owner_claim_id": claim.claim_id,
+            "owner_login": claim.owner_login,
+        },
+    )
+
+    assert not orch._retire_owner_claim_after_validation_transition(job)
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is claim
+    assert claim.retirement_pending is False
+    orch._schedule_implementation_workflow_event.assert_not_called()
+
+
 def test_live_reconciliation_retires_marked_claim_after_return_to_in_progress(
     tmp_path,
 ):
@@ -621,6 +1076,179 @@ def test_transition_requested_before_new_claim_cannot_retire_that_claim(tmp_path
         project_id=issue.project_id,
         claim=claim,
     )
+
+
+def _commit_validation_submission_transition(
+    orch, issue, *, captured_claim_id: str
+):
+    submission = orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            generation=f"validation-{captured_claim_id}",
+            action="validation_submission",
+            idempotency_key=f"validation:{captured_claim_id}",
+            payload={"owner_claim_id": captured_claim_id},
+        )
+    )
+    intent = orch._build_transition_intent(
+        issue,
+        "Ready to Integrate",
+        project_id=issue.project_id,
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="implementation.validation_submission",
+        originating_job=submission.job_id,
+        evidence_generation=submission.generation,
+        exact_head=None,
+        idempotency_key=f"validation-transition:{captured_claim_id}",
+    )
+    started = orch.task_transition_journal.begin(intent)
+    issue.state = "Ready to Integrate"
+    outcome = TransitionOutcome(
+        transition_id=started.transition_id,
+        project_id=str(issue.project_id),
+        task_id=issue.identifier,
+        disposition=TransitionDisposition.APPLIED,
+        reason_code="transition.applied",
+        observed_status=issue.state,
+        observed_version="ready-version",
+        requested_status=issue.state,
+        applied_status=issue.state,
+    )
+    orch.task_transition_journal.append(
+        started.transition_id,
+        TransitionPhase.APPLIED,
+        outcome.reason_code,
+        outcome,
+    )
+    return submission
+
+
+def test_retirement_scan_handles_request_and_commit_order_interleaving(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    preclaim_intent = orch._build_transition_intent(
+        issue,
+        "Open",
+        project_id=issue.project_id,
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="test.delayed_preclaim_transition",
+        originating_job="delayed-preclaim-transition",
+        evidence_generation=None,
+        exact_head=None,
+        idempotency_key="delayed-preclaim-transition",
+    )
+    preclaim = orch.task_transition_journal.begin(preclaim_intent)
+    assert preclaim.claim_token is not None
+    assert orch.task_transition_journal.release(
+        str(issue.project_id), issue.identifier, preclaim.claim_token
+    )
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-between-request-and-commit",
+    )
+    _commit_validation_submission_transition(
+        orch,
+        issue,
+        captured_claim_id=claim.claim_id,
+    )
+
+    # Commit the older request after the valid validation transition. Journal
+    # results are event-sequence ordered, so this older request is encountered
+    # first even though its request timestamp predates the owner claim.
+    delayed = TransitionOutcome(
+        transition_id=preclaim.transition_id,
+        project_id=str(issue.project_id),
+        task_id=issue.identifier,
+        disposition=TransitionDisposition.APPLIED,
+        reason_code="test.delayed_preclaim_transition",
+        observed_status="Open",
+        observed_version="delayed-preclaim-version",
+        requested_status="Open",
+        applied_status="Open",
+    )
+    orch.task_transition_journal.append(
+        preclaim.transition_id,
+        TransitionPhase.APPLIED,
+        delayed.reason_code,
+        delayed,
+    )
+
+    assert orch._claim_has_committed_retirement_transition(
+        issue=issue,
+        project_id=issue.project_id,
+        claim=claim,
+    )
+
+
+def test_postcommit_recovery_retires_exact_submitting_claim(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-captured-by-submission",
+    )
+    _commit_validation_submission_transition(
+        orch,
+        issue,
+        captured_claim_id=claim.claim_id,
+    )
+    tracker.fetch_all_issues.return_value = [issue]
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="recovered-exact-revocation")
+    )
+
+    with (
+        patch.object(
+            orch,
+            "_has_active_owner_claim_revocation",
+            return_value=False,
+        ),
+        patch.object(orch, "_notify_state_only"),
+    ):
+        assert orch._reconcile_inactive_owner_claims() == 1
+
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["payload"]["claim_id"] == claim.claim_id
+
+
+def test_postcommit_recovery_preserves_replacement_claim_from_aba(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    old_claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-captured-before-replacement",
+    )
+    assert orch.release_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        expected_claim_id=old_claim.claim_id,
+    )
+    replacement = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="bob",
+        claim_id="claim-replacement-before-ready-commit",
+    )
+    _commit_validation_submission_transition(
+        orch,
+        issue,
+        captured_claim_id=old_claim.claim_id,
+    )
+    tracker.fetch_all_issues.return_value = [issue]
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+
+    assert orch._reconcile_inactive_owner_claims() == 0
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is replacement
+    assert replacement.retirement_pending is False
+    orch._schedule_implementation_workflow_event.assert_not_called()
 
 
 def test_active_owner_claim_revocation_lookup_is_exact(tmp_path):
@@ -968,6 +1596,7 @@ def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_p
         released = client.request(
             "DELETE", endpoint, json={"actor_login": "alice"}
         )
+        retiring = client.get(endpoint)
 
     assert released.status_code == 202, released.text
     release_call = orch._schedule_implementation_workflow_event.call_args_list[
@@ -979,6 +1608,9 @@ def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_p
     assert pending is not None
     assert pending.claim_id == external_claim.claim_id
     assert pending.retirement_pending is True
+    assert retiring.status_code == 200
+    assert retiring.json()["active"] is False
+    assert retiring.json()["retirement_pending"] is True
 
 
 def test_enforce_retry_cleanup_does_not_supersede_direct_owner_revocation(tmp_path):
