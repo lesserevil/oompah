@@ -1484,6 +1484,53 @@ class WorkflowJobStore:
             values.append(value)
         return tuple(values)
 
+    def latest_landing_facts_for_pair(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        source: str,
+        target: str,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return the newest durable fact for one exact landing obligation.
+
+        Pair-scoped recovery must not scan the bounded all-obligation
+        projection: a task with more than ``MAX_SCAN_LIMIT`` distinct pairs
+        could otherwise hide a lexically later exact match forever.  The
+        lookup remains bounded to one row by constraining the indexed
+        source/target identity in SQL.
+
+        A tuple keeps the evidence boundary fail closed: callers still reject
+        any store implementation that supplies more than one current row for
+        the supposedly exact pair.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        expected_source = _required_text(source, "source")
+        expected_target = _required_text(target, "target")
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT fact_json FROM workflow_landing_facts
+                 WHERE project_id = ? AND task_id = ?
+                   AND source = ? AND target = ?
+                   AND json_extract(fact_json, '$.durable') = 1
+                 ORDER BY recorded_at DESC, evidence_revision DESC
+                 LIMIT 1
+                """,
+                (project, task, expected_source, expected_target),
+            ).fetchall()
+        values: list[dict[str, Any]] = []
+        for row in rows:
+            value = _decode_json_object(row["fact_json"], "landing_fact")
+            if value is None or str(value.get("project_id") or "") != project:
+                raise WorkflowJobCorruptionError(
+                    "landing fact project scope is invalid"
+                )
+            values.append(value)
+        return tuple(values)
+
     @property
     def schema_version(self) -> int:
         with self._lock:
