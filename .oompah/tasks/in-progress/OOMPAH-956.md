@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-956
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not consume workflow failure attempts for administrative deferrals
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T11:50:38.428705Z'
+updated_at: '2026-08-09T11:51:58.797181Z'
 work_branch: null
 target_branch: null
 review_url: null
