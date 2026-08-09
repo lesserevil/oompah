@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-966
 type: bug
-status: Open
+status: Done
 priority: 1
 title: Fence completed workflow effects until completion callbacks settle
 parent: null
@@ -13,13 +13,34 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T16:29:54.272144Z'
-updated_at: '2026-08-09T17:14:20.253556Z'
+updated_at: '2026-08-09T17:38:26.370286Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c46ac0732a9f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-966
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 48dbc93627f96806b0b07a90c339ddfd2c0f891c4761cd132cd6ae68994bc7ec
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Regression child delivered in the exact reviewed OOMPAH-962 merge.
+    created_at: '2026-08-09T17:38:18.021642+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
