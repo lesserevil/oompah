@@ -2842,9 +2842,11 @@ class WorkflowRuntime:
                         proof_source = (
                             binding.terminal_audit_snapshot_proof_source
                         )
-                        if not callable(proof_source) or not proof_source(
-                            decision, observed
-                        ):
+                        if not callable(proof_source):
+                            raise WorkflowRuntimeError(
+                                "terminal-audit snapshot proof is unavailable"
+                            )
+                        if not proof_source(decision, observed):
                             raise WorkflowPublicationSuperseded(
                                 "terminal-audit disposition changed before "
                                 "publication"
@@ -2856,9 +2858,11 @@ class WorkflowRuntime:
                         action,
                     ) in terminal_publication_proofs:
                         proof_source = binding.terminal_audit_proof_source
-                        if not callable(proof_source) or not proof_source(
-                            decision, observed, action
-                        ):
+                        if not callable(proof_source):
+                            raise WorkflowRuntimeError(
+                                "terminal-audit authority proof is unavailable"
+                            )
+                        if not proof_source(decision, observed, action):
                             raise WorkflowPublicationSuperseded(
                                 "terminal-audit authority changed before publication"
                             )
