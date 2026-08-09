@@ -260,14 +260,12 @@ def test_claude_auditor_can_page_search_and_submit_after_large_command(
     verdict = asyncio.run(
         tools["submit_audit_result"].handler(
             {
-                "result": {
-                    "audit_id": target.audit_id,
-                    "target_state": target.target_state,
-                    "evidence_fingerprint": target.evidence_fingerprint,
-                    "verdict": "pass",
-                    "message": "The bounded command result was inspected.",
-                    "attempt_id": target.attempt_id,
-                }
+                "audit_id": target.audit_id,
+                "target_state": target.target_state,
+                "evidence_fingerprint": target.evidence_fingerprint,
+                "verdict": "pass",
+                "message": "The bounded command result was inspected.",
+                "attempt_id": target.attempt_id,
             }
         )
     )["content"][0]["text"]
