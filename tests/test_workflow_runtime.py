@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import subprocess
 import threading
 import time
@@ -595,7 +596,12 @@ def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
     assert proof_calls == [True, False]
     assert proof_fences == [(False, False), (True, True)]
     assert len(publications) == 1
-    assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+    assert report["requires_reconcile"] is True
+    assert report["reconcile_reason"] == "publication_authority_changed"
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "terminal-audit authority changed before publication",
+    }
     runtime.close()
     store.close()
 
@@ -714,7 +720,7 @@ def test_active_terminal_audit_proof_shares_store_publication_fence(
 
 
 def test_action_required_terminal_disposition_is_revalidated_at_marker(
-    tmp_path
+    tmp_path, caplog
 ):
     task = make_issue("TASK-AUDIT-ACTION", state="In Validation")
     store = WorkflowJobStore(str(tmp_path / "jobs-action.sqlite3"))
@@ -737,12 +743,14 @@ def test_action_required_terminal_disposition_is_revalidated_at_marker(
     binding.terminal_audit_publication_lock = lambda: threading.RLock()
     proof_fences = []
 
+    proof_results = iter((False, True))
+
     def changed_disposition(_decision, value):
         assert value["action_required"] is True
         proof_fences.append(
             (store._conn.in_transaction, store._authority_lock_depth > 0)
         )
-        return False
+        return next(proof_results)
 
     binding.terminal_audit_snapshot_proof_source = changed_disposition
     controller = UniversalTotalityLivenessController(store=store)
@@ -757,10 +765,32 @@ def test_action_required_terminal_disposition_is_revalidated_at_marker(
     )
 
     asyncio.run(runtime.start())
-    report = runtime.reconcile()
+    with caplog.at_level(logging.INFO, logger="oompah.workflow_runtime"):
+        report = runtime.reconcile()
 
     assert proof_fences == [(True, True)]
-    assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+    assert report["requires_reconcile"] is True
+    assert report["reconcile_reason"] == "publication_authority_changed"
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "terminal-audit disposition changed before publication",
+    }
+    assert any(
+        record.levelno == logging.INFO
+        and "Durable workflow publication superseded" in record.message
+        for record in caplog.records
+    )
+    assert not any(
+        record.levelno >= logging.ERROR
+        and "Durable workflow publication failed" in record.message
+        for record in caplog.records
+    )
+
+    fresh = runtime.reconcile()
+
+    assert proof_fences == [(True, True), (True, True)]
+    assert fresh["projects"]["project-1"]["snapshot"]["published"] is True
+    assert "requires_reconcile" not in fresh
     runtime.close()
     store.close()
 

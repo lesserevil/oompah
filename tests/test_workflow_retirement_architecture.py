@@ -267,6 +267,56 @@ def test_saturated_runtime_batch_requests_one_follow_up_tick() -> None:
     )
 
 
+def test_superseded_publication_requests_one_full_reconcile_tick() -> None:
+    runtime = SimpleNamespace(
+        mode="enforce",
+        started=True,
+        worker=SimpleNamespace(accepting=True),
+        start=AsyncMock(),
+        reconcile_async=AsyncMock(
+            return_value={
+                "requires_reconcile": True,
+                "reconcile_reason": "publication_authority_changed",
+            }
+        ),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator.config = SimpleNamespace(full_sync_interval_ms=30_000)
+    orchestrator._terminal_audit_started = False
+    orchestrator._terminal_audit_last_scan = 0.0
+    orchestrator._monotonic_clock = Mock(side_effect=[10.0, 10.01])
+    orchestrator._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+    orchestrator._request_workflow_reconcile_continuation = Mock(
+        return_value=True
+    )
+    orchestrator._request_workflow_batch_continuation = Mock(return_value=True)
+    orchestrator._maintenance_future = None
+    orchestrator._run_non_lifecycle_housekeeping = Mock()
+    orchestrator._notify_observers = Mock()
+    orchestrator._handle_auto_update = AsyncMock()
+    orchestrator._tick_pool = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        with patch(
+            "oompah.orchestrator.validate_dispatch_config", return_value=[]
+        ):
+            asyncio.run(orchestrator._run_durable_workflow_tick(started_at=10.0))
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True)
+
+    orchestrator._request_workflow_reconcile_continuation.assert_called_once_with(
+        reason="publication_authority_changed"
+    )
+    orchestrator._request_workflow_batch_continuation.assert_not_called()
+    assert (
+        orchestrator._last_tick_metrics[
+            "workflow_reconcile_continuation_requested"
+        ]
+        is True
+    )
+
+
 def test_workflow_batch_continuation_posts_coalescible_admission_wake() -> None:
     orchestrator = object.__new__(Orchestrator)
     orchestrator.workflow_runtime = SimpleNamespace(
@@ -284,6 +334,31 @@ def test_workflow_batch_continuation_posts_coalescible_admission_wake() -> None:
     event = orchestrator._post_event.call_args.args[0]
     assert event.event_type is DispatchEventType.WORKFLOW_ADMISSION
     assert event.payload == {"reason": "workflow_batch_saturated"}
+
+
+def test_workflow_reconcile_continuation_posts_coalescible_full_scan() -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = SimpleNamespace(
+        worker=SimpleNamespace(accepting=True)
+    )
+    orchestrator._provider_admission_lock = threading.RLock()
+    orchestrator._stopping = False
+    orchestrator._quiesced = False
+    orchestrator._paused = False
+    orchestrator._set_refresh_requested = Mock()
+    orchestrator._post_event = Mock()
+
+    assert (
+        orchestrator._request_workflow_reconcile_continuation(
+            reason="publication_authority_changed"
+        )
+        is True
+    )
+
+    orchestrator._set_refresh_requested.assert_called_once_with()
+    event = orchestrator._post_event.call_args.args[0]
+    assert event.event_type is DispatchEventType.REFRESH_REQUESTED
+    assert event.payload == {"reason": "publication_authority_changed"}
 
 
 @pytest.mark.parametrize(
@@ -313,6 +388,37 @@ def test_workflow_batch_continuation_respects_shutdown_fences(
     orchestrator._post_event = Mock()
 
     assert orchestrator._request_workflow_batch_continuation() is False
+    orchestrator._set_refresh_requested.assert_not_called()
+    orchestrator._post_event.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("stopping", "quiesced", "paused", "accepting"),
+    (
+        (True, False, False, True),
+        (False, True, False, True),
+        (False, False, True, True),
+        (False, False, False, False),
+    ),
+)
+def test_workflow_reconcile_continuation_respects_shutdown_fences(
+    stopping: bool,
+    quiesced: bool,
+    paused: bool,
+    accepting: bool,
+) -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = SimpleNamespace(
+        worker=SimpleNamespace(accepting=accepting)
+    )
+    orchestrator._provider_admission_lock = threading.RLock()
+    orchestrator._stopping = stopping
+    orchestrator._quiesced = quiesced
+    orchestrator._paused = paused
+    orchestrator._set_refresh_requested = Mock()
+    orchestrator._post_event = Mock()
+
+    assert orchestrator._request_workflow_reconcile_continuation() is False
     orchestrator._set_refresh_requested.assert_not_called()
     orchestrator._post_event.assert_not_called()
 
