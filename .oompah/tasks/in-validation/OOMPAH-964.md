@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-964
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Ignore PR-backed issue comments in GitHub issue intake
 parent: null
@@ -13,13 +13,69 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T16:46:41.634947Z'
+updated_at: '2026-08-09T17:16:40.395608Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-3b82473e5c6a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-964
+    digest: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+  - version: 1
+    audit_id: audit-2ed0e89f0435
+    project_id: proj-14849f1b
+    task_id: OOMPAH-964
+    digest: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3b82473e5c6a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-964
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T17:16:34.821342+00:00'
+    selected_ref: origin/OOMPAH-964
+    selected_sha: 21861cac88967f1b7b1fb171c8bb78ded3fd346c
+  - version: 1
+    audit_id: audit-2ed0e89f0435
+    project_id: proj-14849f1b
+    task_id: OOMPAH-964
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T17:16:34.821342+00:00'
+    selected_ref: origin/OOMPAH-964
+    selected_sha: 21861cac88967f1b7b1fb171c8bb78ded3fd346c
+  attempt_history: []
 ---
 ## Summary
 
@@ -73,5 +129,10 @@ author: oompah
 created: 2026-08-09 16:46
 ---
 Second independent review found the final falsey non-null edge: an empty pull_request object must still be PR-backed. Corrected exact head 21861cac8 now rejects every non-null marker at both parser and native-intake boundaries while missing/null markers remain genuine issue comments. Added empty-object regressions; 418 webhook/intake/approval/server tests plus terminal mutation, secret, critical lint, and diff checks pass. Final hosted matrix and independent re-review are running.
+---
+author: oompah
+created: 2026-08-09 17:16
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
