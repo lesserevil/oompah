@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-944
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Use canonical child landing proof in epic cleanup
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T12:53:18.679759Z'
+updated_at: '2026-08-09T12:53:25.287140Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-09 12:53
 ---
 Reconciled the in-flight integration deadlock: the accepted task commits are authoritatively contained in origin/epic-OOMPAH-940, so the exhausted administrative integration job is obsolete. Advancing to terminal validation while OOMPAH-958 fixes the systemic lease contract.
+---
+author: oompah
+created: 2026-08-09 12:53
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
