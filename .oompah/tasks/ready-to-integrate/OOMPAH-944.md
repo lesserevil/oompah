@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:34:51.708995Z'
+updated_at: '2026-08-09T09:55:22.613937Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-09 09:34
 ---
 Unified epic cleanup with canonical exact child landing proof while preserving strict deletion safety; 167 focused tests pass.
+---
+author: oompah
+created: 2026-08-09 09:55
+---
+Review found and fixed an under-lock cleanup mismatch: preselection accepted a pruned child via canonical durable landing evidence, but deletion still required a live tracker head. The deletion fence now revalidates the same unique exact durable source/target/revision proof while preserving child/epic authority-version checks. Added full apply_epic_effect coverage for live and pruned heads. Focused results: adapter 45 passed; cross-cleanup selection 38 passed. Pushed c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca.
 ---
 <!-- COMMENTS:END -->
