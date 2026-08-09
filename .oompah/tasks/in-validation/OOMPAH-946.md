@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-946
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 2
 title: Remove detached native-validation descendant lifetime race
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T11:09:53.249851Z'
+updated_at: '2026-08-09T11:17:50.341032Z'
 work_branch: OOMPAH-946
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/758
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/758
 oompah.review_number: '758'
 oompah.target_branch: main
 oompah.review_head: 8e2527b74e958127861621fdbcebb627d0929e24
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-1dbbda00b201
+    project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    digest: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+  - version: 1
+    audit_id: audit-5b710ff06745
+    project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    digest: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1dbbda00b201
+    project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T11:17:43.998080+00:00'
+    selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
+    selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
+  - version: 1
+    audit_id: audit-5b710ff06745
+    project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T11:17:43.998080+00:00'
+    selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
+    selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
+  attempt_history: []
 ---
 ## Summary
 
@@ -59,5 +115,10 @@ author: oompah
 created: 2026-08-09 11:09
 ---
 Branch quality gate passed for `8e2527b74e958127861621fdbcebb627d0929e24` using `make test` in 159.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 11:17
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
