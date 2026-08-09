@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-972
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Repair stale editable installs after worktree retirement
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:04:23.044711Z'
+updated_at: '2026-08-09T20:05:12.086853Z'
 work_branch: null
 target_branch: null
 review_url: null
