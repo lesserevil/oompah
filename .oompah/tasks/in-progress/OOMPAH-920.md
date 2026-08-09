@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:18:41.997110Z'
-updated_at: '2026-08-09T05:14:37.996156Z'
+updated_at: '2026-08-09T05:14:43.073287Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c99920cc40f3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-920
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3ba2bac441d3e822b66496bb0ec69874cdbc07e858072c2905a196a7acb592c9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:14:41.544442+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
