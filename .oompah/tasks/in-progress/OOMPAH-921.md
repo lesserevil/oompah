@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:33:49.292212Z'
-updated_at: '2026-08-08T19:12:48.259179Z'
+updated_at: '2026-08-09T05:14:59.214019Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-08-08 19:12
 ---
 Live shadow validation at 3fd4a37 passed the 31-sample rollout canary but exposed a production wiring gap: owner_claim_retirements was registered only in legacy step5c, while runtime-bound production ticks schedule _run_non_lifecycle_housekeeping exclusively. Startup pruned 43 expired claims, but unexpired terminal claims therefore remained. Fixed the durable-runtime boundary with exact callback/architecture regressions in 6a995d1d99914964465c025b1054a763563eb973. Focused 430 tests and repository scans pass; mandatory exact-head full gate is running.
+---
+author: oompah
+created: 2026-08-09 05:14
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
