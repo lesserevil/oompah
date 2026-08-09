@@ -391,9 +391,10 @@ restart: setup
 
 graceful: restart
 
-# The emergency path still stages before touching the running service.  It
-# skips the graceful agent-drain wait, but activation and health verification
-# remain transactional so an install failure cannot strand the old pair.
+# The emergency path is deliberately HTTP-independent.  It verifies the stored
+# process identity, stages the candidate, applies bounded TERM->KILL quarantine,
+# activates only after the old service is gone, and then starts/verifies the
+# newly canonical candidate pair.
 force-restart: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
 		$(PYTHON) scripts/canonical_cli_cutover.py \
@@ -407,6 +408,11 @@ force-restart: setup
 			--pid-meta-file "$(PID_META_FILE)" \
 			--quarantine-timeout "$(STOP_TIMEOUT)" \
 			--force || exit 1; \
+		NEWPID=$$(cat "$(PID_FILE)" 2>/dev/null || :); \
+		if [ -z "$$NEWPID" ] || ! kill -0 "$$NEWPID" 2>/dev/null; then \
+			rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+			$(MAKE) --no-print-directory start; \
+		fi; \
 	else \
 		$(MAKE) --no-print-directory start; \
 	fi

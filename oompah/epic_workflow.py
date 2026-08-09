@@ -224,6 +224,7 @@ class EpicFactCollector:
         sources: Mapping[FactDomain | str, Callable[[Issue], Any]] | None = None,
         landing_collector: GitLandingCollector | None = None,
         clock: Callable[[], datetime] | None = None,
+        cooperative_checkpoint: Callable[[], None] | None = None,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
         self.tracker = tracker
@@ -237,6 +238,7 @@ class EpicFactCollector:
         )
         self.sources = sources
         self.clock = clock
+        self.cooperative_checkpoint = cooperative_checkpoint
 
     def _graph(self, root: Issue) -> EpicGraph:
         direct: list[Mapping[str, Any]] = []
@@ -350,6 +352,8 @@ class EpicFactCollector:
         prior_landings: Mapping[Any, LandingFact] | None = None,
         epic_revision: str | None = None,
     ) -> WorkflowFacts:
+        if self.cooperative_checkpoint is not None:
+            self.cooperative_checkpoint()
         task_id = _required_text(task_id, "task_id")
         root = self.tracker.fetch_issue_detail(task_id)
         if root is None:
@@ -358,6 +362,7 @@ class EpicFactCollector:
                 tracker=self.tracker,
                 sources=self.sources,
                 clock=self.clock,
+                cooperative_checkpoint=self.cooperative_checkpoint,
             )
             return collector.collect(task_id)
         try:
@@ -373,6 +378,7 @@ class EpicFactCollector:
                 sources=self.sources,
                 containment_source=failed,
                 clock=self.clock,
+                cooperative_checkpoint=self.cooperative_checkpoint,
             )
             return base.collect(task_id)
         requested_epic_revision = _exact_head(epic_revision) or _revision(root)
@@ -425,6 +431,7 @@ class EpicFactCollector:
             ),
             landing_collector=self.landing_collector,
             clock=self.clock,
+            cooperative_checkpoint=self.cooperative_checkpoint,
         )
         return base.collect(task_id, landing_requests=tuple(requests))
 

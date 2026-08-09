@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -491,6 +493,8 @@ def test_force_restart_uses_transaction_without_agent_drain(tmp_path):
     assert "--force" in force
     assert '--pid-file "$(PID_FILE)"' in force
     assert '--pid-meta-file "$(PID_META_FILE)"' in force
+    assert 'kill -0 "$$NEWPID"' in force
+    assert "$(MAKE) --no-print-directory start" in force
 
 
 def test_cli_server_build_id_equality_after_start(tmp_path):
@@ -572,10 +576,191 @@ def test_cli_server_build_id_equality_after_restart(tmp_path):
 
 
 def test_cli_server_build_id_equality_after_force_restart(tmp_path):
-    """Verify CLI and server report the same revision after force-restart."""
+    """Force bypasses even responsive HTTP before the replacement start."""
     server = _LiveOldServer()
     revision, _ = _run_cutover(tmp_path, server, force=True)
     assert revision == server.new_revision
+    assert server.calls == []
+    assert server.stopped is True
+
+
+def test_force_restart_recovers_verified_service_without_http(tmp_path):
+    """Emergency force stages, quarantines, then activates without HTTP."""
+
+    old_revision = "a" * 40
+    new_revision = "b" * 40
+    canonical = _canonical(tmp_path, old_revision)
+    activation = _FakeActivation()
+    sequence: list[str] = []
+
+    def unavailable(method, path, body):
+        raise AssertionError(f"force restart made an HTTP request: {method} {path}")
+
+    def stage(**kwargs):
+        sequence.append("stage")
+        return _stager(tmp_path, new_revision)(**kwargs)
+
+    def activate(*args, **kwargs):
+        sequence.append("activate")
+        return activation
+
+    def quarantine(_reason):
+        sequence.append("quarantine")
+
+    revision = graceful_cutover(
+        repo=REPO_ROOT,
+        canonical=canonical,
+        url="http://127.0.0.1:8090",
+        environ={"PATH": str(canonical.parent), "HOME": str(tmp_path / "home")},
+        request=unavailable,
+        stage=stage,
+        activate=activate,
+        quarantine=quarantine,
+        force=True,
+    )
+
+    assert revision == new_revision
+    assert sequence == ["stage", "quarantine", "activate"]
+    assert activation.commit_count == 1
+    assert activation.rollback_count == 0
+
+
+def test_force_restart_activation_failure_leaves_service_stopped_and_old_cli(
+    tmp_path,
+):
+    """Activation failure after quarantine cannot expose a mismatched pair."""
+
+    old_revision = "a" * 40
+    canonical = _canonical(tmp_path, old_revision)
+    quarantines: list[str] = []
+
+    with pytest.raises(CutoverError, match="activation failed before quarantine"):
+        graceful_cutover(
+            repo=REPO_ROOT,
+            canonical=canonical,
+            url="http://127.0.0.1:8090",
+            environ={
+                "PATH": str(canonical.parent),
+                "HOME": str(tmp_path / "home"),
+            },
+            request=lambda *_args: (_ for _ in ()).throw(
+                TimeoutError("old HTTP control plane wedged")
+            ),
+            stage=_stager(tmp_path, "b" * 40),
+            activate=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                SyncError("activation failed before quarantine")
+            ),
+            quarantine=quarantines.append,
+            force=True,
+        )
+
+    assert len(quarantines) == 1
+    assert old_revision in subprocess.check_output(
+        [str(canonical), "--version"], text=True
+    )
+
+
+def test_force_restart_quarantine_failure_keeps_old_cli_and_skips_activation(
+    tmp_path,
+):
+    """A failed exact stop cannot activate the candidate launcher."""
+
+    old_revision = "a" * 40
+    canonical = _canonical(tmp_path, old_revision)
+    activation_called = False
+
+    def activate(*_args, **_kwargs):
+        nonlocal activation_called
+        activation_called = True
+        return _FakeActivation()
+
+    with pytest.raises(CutoverError, match="verified process would not stop"):
+        graceful_cutover(
+            repo=REPO_ROOT,
+            canonical=canonical,
+            url="http://127.0.0.1:8090",
+            environ={
+                "PATH": str(canonical.parent),
+                "HOME": str(tmp_path / "home"),
+            },
+            request=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("force restart must not use HTTP")
+            ),
+            stage=_stager(tmp_path, "b" * 40),
+            activate=activate,
+            quarantine=lambda _reason: (_ for _ in ()).throw(
+                CutoverError("verified process would not stop")
+            ),
+            force=True,
+        )
+
+    assert activation_called is False
+    assert old_revision in subprocess.check_output(
+        [str(canonical), "--version"], text=True
+    )
+
+
+def test_force_restart_offline_path_kills_only_verified_pid_and_activates(tmp_path):
+    """The production offline path needs no response from the old listener."""
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    pid_file = tmp_path / "oompah.pid"
+    meta_file = tmp_path / "oompah.pid.meta"
+    canonical = _canonical(tmp_path, "a" * 40)
+    activation = _FakeActivation()
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import signal,time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "print('ready', flush=True); time.sleep(60)"
+            ),
+        ],
+        cwd=workspace,
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert process.stdout is not None
+        assert process.stdout.readline().strip() == "ready"
+        identity = read_identity(process.pid)
+        assert identity is not None
+        pid_file.write_text(f"{process.pid}\n", encoding="utf-8")
+        meta_file.write_text(json.dumps(identity), encoding="utf-8")
+
+        revision = graceful_cutover(
+            repo=workspace,
+            canonical=canonical,
+            url="http://127.0.0.1:8090",
+            environ={
+                "PATH": str(canonical.parent),
+                "HOME": str(tmp_path / "home"),
+            },
+            request=lambda *_args: (_ for _ in ()).throw(
+                TimeoutError("old HTTP control plane wedged")
+            ),
+            stage=_stager(tmp_path, "b" * 40),
+            activate=lambda *_args, **_kwargs: activation,
+            pid_file=pid_file,
+            pid_meta_file=meta_file,
+            quarantine_timeout=0.05,
+            force=True,
+        )
+
+        assert revision == "b" * 40
+        assert activation.commit_count == 1
+        assert activation.rollback_count == 0
+        assert read_identity(process.pid) is None
+        assert not pid_file.exists()
+        assert not meta_file.exists()
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=2)
 
 
 def test_activation_failure_resumes_old_pair(tmp_path):
@@ -763,6 +948,57 @@ def test_quarantine_stops_only_the_captured_owned_process(tmp_path):
         if process.poll() is None:
             process.terminate()
             process.wait(timeout=2)
+
+
+def test_emergency_quarantine_bounds_sigterm_and_escalates_exact_identity(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    pid_file = tmp_path / "oompah.pid"
+    meta_file = tmp_path / "oompah.pid.meta"
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import signal,time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "print('ready', flush=True); time.sleep(60)"
+            ),
+        ],
+        cwd=workspace,
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert process.stdout is not None
+        assert process.stdout.readline().strip() == "ready"
+        identity = read_identity(process.pid)
+        assert identity is not None
+        pid_file.write_text(f"{process.pid}\n", encoding="utf-8")
+        meta_file.write_text(json.dumps(identity), encoding="utf-8")
+        owned = _capture_owned_service(
+            repo=workspace,
+            pid_file=pid_file,
+            pid_meta_file=meta_file,
+        )
+
+        started = time.monotonic()
+        _quarantine_owned_service(
+            owned,
+            timeout=0.05,
+            kill_after_timeout=True,
+        )
+        elapsed = time.monotonic() - started
+
+        assert elapsed < 2
+        assert read_identity(process.pid) is None
+        assert not pid_file.exists()
+        assert not meta_file.exists()
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=2)
 
 
 def test_quarantine_capture_refuses_stale_process_identity(tmp_path):

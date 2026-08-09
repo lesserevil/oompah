@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 import uuid
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
@@ -124,6 +125,7 @@ RUNTIME_ACTIONS = frozenset().union(*_DOMAIN_ACTIONS.values())
 RUNTIME_CONTROL_ACTIONS = frozenset(
     {
         "authority_revocation",
+        "direct_owner_claim",
         "validation_submission",
         "worker_exit",
         "implementation_recovery",
@@ -172,6 +174,10 @@ _EXPECTED_LIVENESS_ACTIONS = RUNTIME_ACTIONS | {
 }
 if set(_LIVENESS_ACTION_OWNER) != _EXPECTED_LIVENESS_ACTIONS:
     raise RuntimeError("workflow liveness action ownership registry is incomplete")
+
+
+class _WorkflowReconciliationInterrupted(BaseException):
+    """Internal cooperative stop before a workflow snapshot is published."""
 
 
 class WorkflowRuntimeError(RuntimeError):
@@ -547,6 +553,28 @@ class WorkflowRuntime:
         # section so overlapping reconciles cannot both spend the same slot.
         self._effect_admission_lock = asyncio.Lock()
         self._closed = False
+        self._reconcile_thread = threading.local()
+        for binding in self.project_bindings.values():
+            collectors = [
+                getattr(binding, "collector", None),
+                getattr(binding, "epic_collector", None),
+                *(
+                    getattr(controller, "collector", None)
+                    for controller in (
+                        binding.implementation_controller,
+                        binding.review_controller,
+                        binding.integration_controller,
+                        binding.epic_controller,
+                    )
+                    if controller is not None
+                ),
+            ]
+            for collector in {
+                id(item): item for item in collectors if item is not None
+            }.values():
+                if not hasattr(collector, "cooperative_checkpoint"):
+                    continue
+                collector.cooperative_checkpoint = self._reconciliation_checkpoint
         self._topology_signature = topology_signature
         self._topology_source = topology_source
         self._topology_change_handler = topology_change_handler
@@ -2080,7 +2108,39 @@ class WorkflowRuntime:
         finally:
             self._release_reconcile()
 
+    def _reconciliation_checkpoint(self) -> None:
+        """Yield the GIL and stop a pre-publication corpus pass on drain."""
+
+        if not bool(getattr(self._reconcile_thread, "active", False)):
+            return
+        time.sleep(0)
+        with self._lock:
+            if self._draining:
+                raise _WorkflowReconciliationInterrupted
+
     def _reconcile_once(self) -> dict[str, Any]:
+        """Run one admitted pass with cooperative lifecycle interruption."""
+
+        self._reconcile_thread.active = True
+        try:
+            return self._reconcile_world_once()
+        except _WorkflowReconciliationInterrupted:
+            partial = getattr(self._reconcile_thread, "report", None)
+            report = dict(partial) if isinstance(partial, Mapping) else {
+                "mode": self.mode,
+            }
+            report["skipped"] = True
+            report["reason"] = (
+                "workflow reconciliation interrupted by lifecycle drain"
+            )
+            with self._lock:
+                self._last_reconcile = dict(report)
+            return report
+        finally:
+            self._reconcile_thread.active = False
+            self._reconcile_thread.report = None
+
+    def _reconcile_world_once(self) -> dict[str, Any]:
         """Run one admitted synchronous reconciliation."""
 
         if not self._started:
@@ -2092,6 +2152,7 @@ class WorkflowRuntime:
         if self._draining or self.mode == "off":
             return {"mode": self.mode, "skipped": True}
         report: dict[str, Any] = {"mode": self.mode, "projects": {}}
+        self._reconcile_thread.report = report
         policy_cut = self._capture_liveness_policy()
         liveness_slo_seconds = (
             policy_cut.seconds if policy_cut is not None else None
@@ -2124,6 +2185,7 @@ class WorkflowRuntime:
                         == "epic"
                         and canonicalize_status(issue.state) != IN_VALIDATION
                     ]
+                    report["projects"][project_id] = {"issues": len(issues)}
                     named_batches: list[tuple[str, Any]] = []
                     if self.domain_modes["implementation"] != "off":
                         named_batches.append(
@@ -2313,6 +2375,7 @@ class WorkflowRuntime:
                     == "epic"
                     and canonicalize_status(issue.state) != IN_VALIDATION
                 ]
+                report["projects"][project_id] = {"issues": len(issues)}
                 implementation_checkpoint = dict(
                     binding.implementation_controller._latest
                 )

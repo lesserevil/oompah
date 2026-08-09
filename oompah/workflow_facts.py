@@ -562,6 +562,7 @@ class WorkflowFactCollector:
         landing_collector: GitLandingCollector | None = None,
         integration_queue: IntegrationQueueProtocol | None = None,
         clock: Callable[[], datetime] | None = None,
+        cooperative_checkpoint: Callable[[], None] | None = None,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
         self.tracker = tracker
@@ -592,6 +593,7 @@ class WorkflowFactCollector:
             raise ValueError("landing collector project does not match fact collector")
         self.integration_queue = integration_queue
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self.cooperative_checkpoint = cooperative_checkpoint
 
     def _now(self) -> tuple[datetime, str]:
         now = self._clock()
@@ -828,6 +830,8 @@ class WorkflowFactCollector:
         *,
         landing_requests: Sequence[LandingRequest] = (),
     ) -> WorkflowFacts:
+        if self.cooperative_checkpoint is not None:
+            self.cooperative_checkpoint()
         task_id = _required_text(task_id, "task_id")
         now, now_iso = self._now()
         try:

@@ -70,6 +70,7 @@ from oompah.workflow_jobs import (
 )
 from oompah.workflow_runtime import (
     RUNTIME_ACTIONS,
+    RUNTIME_CONTROL_ACTIONS,
     WorkflowProjectBinding,
     WorkflowRuntime,
     WorkflowRuntimeError,
@@ -998,6 +999,249 @@ async def wait_for_runtime_effects(runtime, *, timeout_seconds=2.0):
             await asyncio.sleep(0.001)
 
     await asyncio.wait_for(wait_until_idle(), timeout_seconds)
+
+
+def test_large_reconcile_cooperatively_releases_lifecycle_drain(tmp_path):
+    """A current large-corpus fact pass cannot retain shutdown authority."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker(
+        [make_issue(f"TASK-{index:04d}") for index in range(256)]
+    )
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+    checkpoint_entered = threading.Event()
+    release_checkpoint = threading.Event()
+    checkpoint_calls = 0
+    runtime_checkpoint = binding.collector.cooperative_checkpoint
+
+    def blocked_checkpoint():
+        nonlocal checkpoint_calls
+        checkpoint_calls += 1
+        if checkpoint_calls == 8:
+            checkpoint_entered.set()
+            assert release_checkpoint.wait(2), "lifecycle drain did not release scan"
+        assert runtime_checkpoint is not None
+        runtime_checkpoint()
+
+    binding.collector.cooperative_checkpoint = blocked_checkpoint
+
+    async def exercise():
+        await runtime.start()
+        reconcile = asyncio.create_task(runtime.reconcile_async())
+        assert await asyncio.to_thread(checkpoint_entered.wait, 1)
+        drain = asyncio.create_task(runtime.drain(timeout_seconds=1))
+        for _ in range(100):
+            if runtime._draining:
+                break
+            await asyncio.sleep(0)
+        assert runtime._draining is True
+        release_checkpoint.set()
+        report = await asyncio.wait_for(reconcile, 1)
+        assert await asyncio.wait_for(drain, 1) is True
+        return report
+
+    try:
+        report = asyncio.run(exercise())
+    finally:
+        release_checkpoint.set()
+
+    assert report["mode"] == "shadow"
+    assert report["skipped"] is True
+    assert report["reason"] == (
+        "workflow reconciliation interrupted by lifecycle drain"
+    )
+    assert report["projects"]["project-1"]["issues"] == 256
+    assert checkpoint_calls < 256
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize(
+    ("domain", "state", "issue_type"),
+    (
+        ("review", "In Review", "task"),
+        ("integration", "Ready to Integrate", "task"),
+        ("epic", "Open", "epic"),
+    ),
+)
+def test_each_domain_collector_cooperates_with_drain(
+    tmp_path,
+    domain,
+    state,
+    issue_type,
+):
+    """Distinct review/integration/epic collectors all receive the fence."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker(
+        [make_issue("DOMAIN-DRAIN", state=state, issue_type=issue_type)]
+    )
+    binding, journal = make_binding(tmp_path, tracker, store)
+    if domain == "epic":
+        selected_collector = binding.epic_collector
+    else:
+        selected_collector = WorkflowFactCollector(
+            project_id="project-1",
+            tracker=tracker,
+            sources=binding.collector.sources,
+        )
+        getattr(binding, f"{domain}_controller").collector = selected_collector
+    assert selected_collector is not None
+    modes = {
+        name: "shadow" if name == domain else "off"
+        for name in ("implementation", "review", "integration", "epic")
+    }
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        domain_modes=modes,
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    runtime_checkpoint = selected_collector.cooperative_checkpoint
+    assert runtime_checkpoint is not None
+
+    def blocked_checkpoint():
+        entered.set()
+        assert release.wait(2), "lifecycle drain did not release domain collector"
+        runtime_checkpoint()
+
+    selected_collector.cooperative_checkpoint = blocked_checkpoint
+
+    async def exercise():
+        await runtime.start()
+        reconcile = asyncio.create_task(runtime.reconcile_async())
+        assert await asyncio.to_thread(entered.wait, 1)
+        drain = asyncio.create_task(runtime.drain(timeout_seconds=1))
+        for _ in range(100):
+            if runtime._draining:
+                break
+            await asyncio.sleep(0)
+        release.set()
+        report = await asyncio.wait_for(reconcile, 1)
+        assert await asyncio.wait_for(drain, 1) is True
+        return report
+
+    try:
+        report = asyncio.run(exercise())
+    finally:
+        release.set()
+
+    assert modes["implementation"] == "off"
+    assert report["skipped"] is True
+    assert report["projects"]["project-1"]["issues"] == 1
+    runtime.close()
+    store.close()
+
+
+def test_revoked_retained_calls_preserve_fence_and_reserved_owner_control(
+    tmp_path,
+):
+    """Stale calls stay fenced while priority-0 control uses its own slot."""
+
+    assert "direct_owner_claim" in RUNTIME_CONTROL_ACTIONS
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    release_data = threading.Event()
+    data_started = asyncio.Event()
+    started_count = 0
+    control_completed = asyncio.Event()
+
+    class SleepingDataHandler(CompleteHandler):
+        async def apply(self, context):
+            nonlocal started_count
+            if context.job.action == "standalone_delivery":
+                started_count += 1
+                if started_count == 3:
+                    data_started.set()
+                await asyncio.to_thread(release_data.wait)
+            return await super().apply(context)
+
+        async def build_transition(self, context, verification):
+            if context.job.action == "direct_owner_claim":
+                control_completed.set()
+            return None
+
+    for index in range(3):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"STALE-{index}",
+                generation=f"stale-{index}",
+                action="standalone_delivery",
+                idempotency_key=f"stale-{index}",
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(SleepingDataHandler()),
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await runtime._run_due(("project-1",))
+        await asyncio.wait_for(data_started.wait(), 1)
+        running = store.list_jobs(states=(WorkflowJobState.RUNNING.value,))
+        assert len(running) == 3
+        for job in running:
+            store.supersede(
+                job.job_id,
+                generation=job.generation,
+                replacement_generation="lifecycle-final:Merged",
+                reason="task became lifecycle-final",
+            )
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id="OWNER-CLAIM",
+                generation="owner-claim-1",
+                action="direct_owner_claim",
+                idempotency_key="owner-claim-1",
+                priority=0,
+            )
+        )
+
+        try:
+            second = await runtime._run_due(("project-1",))
+            await asyncio.wait_for(control_completed.wait(), 1)
+            for _ in range(100):
+                if runtime.health_snapshot()["worker"]["retained"] == 3:
+                    break
+                await asyncio.sleep(0.001)
+            retained_before_release = runtime.health_snapshot()["worker"]
+            assert retained_before_release["retained"] == 3
+            assert retained_before_release["active"] == 3
+        finally:
+            release_data.set()
+        await wait_for_runtime_effects(runtime)
+        return first, second
+
+    first, second = asyncio.run(exercise())
+
+    assert first["scheduled"] == 3
+    assert first["active_lanes"] == {"control": 0, "shared": 3}
+    assert second["scheduled"] == 1
+    assert second["active_lanes"]["shared"] == 3
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    assert store.list_jobs(
+        task_id="OWNER-CLAIM", states=(WorkflowJobState.COMPLETED.value,)
+    )
+    runtime.close()
+    store.close()
 
 
 def accepted_projection_wiring():

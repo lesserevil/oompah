@@ -9,6 +9,10 @@ prove the candidate pair, prove that the untouched old service can be paired
 with the rollback launcher, or stop the exact lifecycle-owned service before
 returning an uncertain result.  The helper never knowingly leaves a live
 server paired with a launcher for another revision.
+
+The explicit force mode is an offline emergency transaction: it never calls
+the old HTTP control plane and signals only a process whose stored identity was
+verified before candidate staging.
 """
 
 from __future__ import annotations
@@ -208,6 +212,7 @@ def _quarantine_owned_service(
     service: OwnedService,
     *,
     timeout: float,
+    kill_after_timeout: bool = False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
     """Stop only the process that still matches the captured identity."""
@@ -259,8 +264,44 @@ def _quarantine_owned_service(
             service.pid_meta_file.unlink(missing_ok=True)
             return
         if time.monotonic() >= deadline:
+            if not kill_after_timeout:
+                raise CutoverError(
+                    f"owned service PID {service.pid} did not stop within {timeout:g}s"
+                )
+            # SIGKILL is reserved for the explicit emergency path.  Re-read
+            # the immutable process generation immediately before escalation;
+            # never signal a PID which exited and was reused during the TERM
+            # grace period.
+            if not identity_matches(
+                service.expected,
+                pid=service.pid,
+                workspace=str(service.workspace),
+            ):
+                raise CutoverError(
+                    "refusing emergency SIGKILL because the lifecycle PID "
+                    "identity changed during quarantine"
+                )
+            if process_group == service.pid and session == service.pid:
+                os.killpg(service.pid, signal.SIGKILL)
+            else:
+                os.kill(service.pid, signal.SIGKILL)
+            # Kernel/process-table settlement after SIGKILL is normally
+            # immediate but can exceed a sub-second test/operator TERM grace.
+            # Keep this second phase independently bounded without inheriting
+            # an arbitrarily large configured drain timeout.
+            kill_deadline = time.monotonic() + max(min(timeout, 5.0), 1.0)
+            while time.monotonic() < kill_deadline:
+                try:
+                    reaped_pid, _ = os.waitpid(service.pid, os.WNOHANG)
+                except ChildProcessError:
+                    reaped_pid = 0
+                if reaped_pid == service.pid or read_identity(service.pid) is None:
+                    service.pid_file.unlink(missing_ok=True)
+                    service.pid_meta_file.unlink(missing_ok=True)
+                    return
+                sleep(min(0.1, max(kill_deadline - time.monotonic(), 0.01)))
             raise CutoverError(
-                f"owned service PID {service.pid} did not stop within {timeout:g}s"
+                f"owned service PID {service.pid} survived emergency SIGKILL"
             )
         sleep(min(0.1, max(deadline - time.monotonic(), 0.01)))
 
@@ -515,24 +556,117 @@ def graceful_cutover(
                 body=body,
             )
 
-    old_health = request("GET", "/healthz", None)
-    old_state = request("GET", "/api/v1/state", None)
+    owned_service: OwnedService | None = None
+    if quarantine is None:
+        if pid_file is None or pid_meta_file is None:
+            raise CutoverError(
+                "a restart cutover requires both --pid-file and --pid-meta-file "
+                "so an uncertain service can be stopped by exact identity"
+            )
+        # Capture process identity before consulting HTTP.  The emergency
+        # force path exists precisely for a live listener which cannot answer
+        # health/state, and must never derive kill authority from that socket.
+        owned_service = _capture_owned_service(
+            repo=repo,
+            pid_file=pid_file,
+            pid_meta_file=pid_meta_file,
+        )
+
+    def quarantine_service(
+        reason: str,
+        *,
+        kill_after_timeout: bool = False,
+    ) -> None:
+        if quarantine is not None:
+            quarantine(reason)
+            return
+        if owned_service is None:
+            raise CutoverError(
+                "post-restart identity is uncertain, but no verified PID/meta "
+                "identity was supplied for safe quarantine"
+            )
+        _quarantine_owned_service(
+            owned_service,
+            timeout=quarantine_timeout,
+            kill_after_timeout=kill_after_timeout,
+            sleep=sleep,
+        )
+
+    if force:
+        # ``make force-restart`` is the bounded offline recovery path, not a
+        # faster variant of graceful HTTP drain.  Never make its success
+        # depend on a listener which may answer health but wedge on the next
+        # lifecycle request.  Staging verifies the candidate before the exact
+        # old process is stopped; activation follows quarantine so no live old
+        # server is ever paired with a launcher for the candidate revision.
+        staged_emergency: StagedCLI | None = None
+        activation_emergency: Activation | None = None
+        try:
+            staged_emergency = stage(
+                repo=repo,
+                source_url=source_url,
+                uv=uv,
+                environ=env,
+                operator_path=operator_path,
+            )
+            quarantine_service(
+                "emergency force-restart requested; old HTTP lifecycle "
+                "control is deliberately bypassed",
+                kill_after_timeout=True,
+            )
+            activation_emergency = activate(
+                staged_emergency,
+                canonical=canonical,
+                tool_dir=tool_dir,
+                bin_dir=bin_dir,
+                environ=env,
+                operator_path=operator_path,
+            )
+            activation_emergency.commit()
+            activation_emergency = None
+            return staged_emergency.revision
+        except Exception as exc:
+            if activation_emergency is not None:
+                activation_emergency.rollback()
+            if isinstance(exc, (CutoverError, SyncError)):
+                raise CutoverError(str(exc)) from exc
+            raise CutoverError(f"emergency force-restart failed: {exc}") from exc
+        finally:
+            if staged_emergency is not None:
+                staged_emergency.cleanup()
+
+    initial_observation_error: Exception | None = None
+    old_health: dict[str, Any] = {}
+    old_state: dict[str, Any] = {}
+    try:
+        old_health = request("GET", "/healthz", None)
+        old_state = request("GET", "/api/v1/state", None)
+    except Exception as exc:  # noqa: BLE001 - force has an offline authority path
+        initial_observation_error = exc
     old_observation = ServiceObservation(old_health, old_state, ())
     old_instance = old_observation.health_instance
     old_health_revision = old_observation.health_revision
     old_state_revision = old_observation.state_revision
-    if not (
+    if initial_observation_error is None and not (
         old_health.get("status") == "ok"
         and old_instance
         and old_observation.state_instance == old_instance
         and old_health_revision
         and old_state_revision == old_health_revision
     ):
-        raise CutoverError(
+        initial_observation_error = CutoverError(
             "running health and authenticated state do not report the same "
             "non-null service instance and exact revision; refusing to risk "
             "a CLI/server mismatch"
         )
+    if initial_observation_error is not None:
+        if isinstance(initial_observation_error, CutoverError):
+            raise initial_observation_error
+        raise CutoverError(
+            "running service HTTP control plane is unavailable; refusing "
+            "a graceful cutover"
+        ) from initial_observation_error
+
     old_revision = old_health_revision
     current = subprocess.run(
         [str(canonical), "--version"],
@@ -575,34 +709,6 @@ def graceful_cutover(
                 f"failed to repair canonical CLI from running service revision {old_revision}; "
                 f"manual recovery may be needed: {sync_exc}"
             ) from sync_exc
-
-    owned_service: OwnedService | None = None
-    if quarantine is None:
-        if pid_file is None or pid_meta_file is None:
-            raise CutoverError(
-                "a restart cutover requires both --pid-file and --pid-meta-file "
-                "so an uncertain service can be stopped by exact identity"
-            )
-        owned_service = _capture_owned_service(
-            repo=repo,
-            pid_file=pid_file,
-            pid_meta_file=pid_meta_file,
-        )
-
-    def quarantine_service(reason: str) -> None:
-        if quarantine is not None:
-            quarantine(reason)
-            return
-        if owned_service is None:
-            raise CutoverError(
-                "post-restart identity is uncertain, but no verified PID/meta "
-                "identity was supplied for safe quarantine"
-            )
-        _quarantine_owned_service(
-            owned_service,
-            timeout=quarantine_timeout,
-            sleep=sleep,
-        )
 
     was_paused = bool(old_state.get("paused"))
     quiesced_by_cutover = False
