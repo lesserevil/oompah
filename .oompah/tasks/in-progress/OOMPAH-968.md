@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:03:31.934141Z'
+updated_at: '2026-08-09T19:06:10.129089Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-08-09 19:03
 ---
 Exact head 514bc9e30 fences absent-to-retained provenance publication races, fails closed on audit-read and generation-zero edge cases, and proves clean/stale/exhausted convergence. 553 focused tests and two independent reviews are green.
+---
+author: oompah
+created: 2026-08-09 19:06
+---
+Prior submission is superseded by pushed corrective head 285fc11fe. The supported absent-to-authorize-new-revision path now records the revising owner, reason, and timestamps on its generation-one marker, so the writer, adapter, decision, and publication proof agree. Added direct persistence, production adapter, and truly absent-to-authorize runtime coverage. Verification: 555 focused tests pass; critical Ruff/diff checks pass. Final independent re-reviews are in progress; do not integrate 514bc9e30.
 ---
 <!-- COMMENTS:END -->
