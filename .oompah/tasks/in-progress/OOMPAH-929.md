@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T02:47:20.781959Z'
-updated_at: '2026-08-09T02:55:22.447102Z'
+updated_at: '2026-08-09T03:12:10.317056Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-09 02:47
 ---
 Live reproduction confirmed at workflow generations 39 and 40: required_recovery_count=132, materialized_recovery_count=130, with OOMPAH-869 and OOMPAH-899 repeatedly replaying terminal superseded validation_submission jobs. Release advance is paused until the store/runtime fix, focused tests, exact gate, and all-enforce live convergence complete.
+---
+author: oompah
+created: 2026-08-09 03:12
+---
+Fix committed and pushed at fba45f07e. The 177-test affected matrix passes. Exact gate then exposed a separate reproducible live-project test-fixture isolation defect, filed as OOMPAH-930; release remains paused until that fixture defect is corrected and the exact gate passes.
 ---
 <!-- COMMENTS:END -->
