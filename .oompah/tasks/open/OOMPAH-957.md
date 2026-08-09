@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-957
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Stabilize concurrent validation and review-capacity CI regressions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:10:50.093058Z'
+updated_at: '2026-08-09T12:11:01.889111Z'
 work_branch: null
 target_branch: null
 review_url: null
