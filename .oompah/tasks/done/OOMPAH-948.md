@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T16:19:06.478105Z'
+updated_at: '2026-08-09T16:19:18.269354Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -55,7 +55,8 @@ oompah.terminal_audit:
     evidence_fingerprint: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
     audit_ids:
     - audit-99898cc9a80c
-    kind: result
+    - audit-1c147ee3beb8
+    kind: override
     applied: true
     retired_at: '2026-08-09T14:46:28.501604+00:00'
   oompah.terminal_audit_result_intents:
@@ -72,6 +73,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T14:46:28.501614+00:00'
     applied_at: '2026-08-09T14:46:35.923212+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-aa767f34f18b
@@ -95,7 +97,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:19:02.155746+00:00'
     selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +144,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-948
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -157,6 +159,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:09:07.549841+00:00'
     selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    updated_at: '2026-08-09T16:19:11.951835+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ff8967af61e
@@ -344,5 +347,17 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: normal, Duration: 38m 1s
 - Log: OOMPAH-948__20260809T141044Z.jsonl
+---
+author: oompah
+created: 2026-08-09 16:19
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner recovery of stuck Needs Human task: PR #763 exact head 43531865cb7a8ba62ee5b2310f136e55b57d12e5 passed hosted Python 3.11/3.12/3.13 CI in run 31314554882 and merged as e8ef2a4c04affdfd1919f906712d21df40538af7. The completion auditor ran for 38 minutes and produced only a generic redacted operator prompt, not actionable code evidence; the rollout work is already on main.
+---
+author: oompah
+created: 2026-08-09 16:19
+---
+Directly resolved the stale Needs Human audit after confirming exact-head hosted CI and merged PR #763.
 ---
 <!-- COMMENTS:END -->
