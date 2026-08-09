@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:00:50.008927Z'
+updated_at: '2026-08-09T15:03:14.892152Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-09 15:00
 ---
 Implemented durable exact-publication retirement proofs for managed zero-job/decision cuts, terminal-audit handoffs, and lifecycle-final cuts, including production runtime coordinator wiring. Proofs remain fail-closed until their exact snapshot publishes; immediate event handoffs survive snapshot rollback; active jobs are marked before late failure; current replay jobs and unrelated event lanes remain actionable; rearm clears proofs for ABA safety. Focused affected suites pass (301 + 84 tests), new targeted migration/runtime/race tests pass, terminal mutation scan and secret scan pass. Rebasing onto current main next, then repeating focused validation.
+---
+author: oompah
+created: 2026-08-09 15:03
+---
+Review-ready head b4d84c207fe2160dfbd502ffd9b0f95ff561142a is pushed on OOMPAH-961 after rebasing onto current main 4b31fb659. Validation: 392 affected workflow tests passed; make terminal-audit-scan passed; make check-secrets passed. The exact-publication proof covers blocked/action zero-job decisions, production Done landing.waiting, managed-to-terminal-audit, final task/epic lifecycle, rollback/restart, skipped generations, concurrent publication, late completion, cross-domain isolation, current replay, and ABA rearm.
 ---
 <!-- COMMENTS:END -->
