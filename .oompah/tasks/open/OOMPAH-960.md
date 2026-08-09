@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:14.654158Z'
-updated_at: '2026-08-09T14:21:20.415066Z'
+updated_at: '2026-08-09T14:22:56.267566Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Fix integration/Done decision evidence composition so a child task can consume i
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 14:22
+---
+Direct-owner implementation started in isolated worktree /home/shedwards/src/oompah-960 on branch OOMPAH-960. I am adding fail-closed parent-scoped child landing evidence composition and focused route/source/revision/current-containment/restart regressions; no service mutation or deployment. The Open to In Progress CLI transition was correctly rejected because the workflow generation is required, so implementation proceeds under the explicit owner assignment while preserving tracker fencing.
+---
+<!-- COMMENTS:END -->
