@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-933
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make protected-main CI reproduce the supported quality gate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:09:37.822614Z'
-updated_at: '2026-08-09T06:09:37.822614Z'
+updated_at: '2026-08-09T06:09:50.660254Z'
 work_branch: null
 target_branch: null
 review_url: null
