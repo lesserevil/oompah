@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-938
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make validation lease aging regression deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T08:25:48.619150Z'
-updated_at: '2026-08-09T08:25:48.619150Z'
+updated_at: '2026-08-09T08:26:06.715510Z'
 work_branch: null
 target_branch: null
 review_url: null
