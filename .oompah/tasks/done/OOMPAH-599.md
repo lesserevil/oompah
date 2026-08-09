@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-08-03T20:03:47.399827Z'
+updated_at: '2026-08-09T20:12:40.149594Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -160,6 +160,28 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-7ebe0ee587e6
     created_at: '2026-08-03T20:03:45.112000+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-599 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:12:38.404518+00:00'
+    updated_at: '2026-08-09T20:12:38.404518+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-599 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:12:38.404518+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -212,6 +234,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T04:23:47.707138+00:00'
     updated_at: '2026-07-31T04:45:29.861977+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-3be366dd9df2
     project_id: proj-14849f1b
@@ -229,6 +252,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T05:12:21.088061+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-7ebe0ee587e6
     project_id: proj-14849f1b
@@ -263,6 +287,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T05:12:34.794570+00:00'
     updated_at: '2026-07-31T05:20:31.267773+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-a3ab71aa9f01
