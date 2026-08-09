@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T11:33:20.594372Z'
+updated_at: '2026-08-09T11:34:20.882721Z'
 work_branch: OOMPAH-948
 target_branch: null
 review_url: null

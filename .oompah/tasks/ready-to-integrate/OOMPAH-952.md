@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-952
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Retire obsolete landed reviews and exact capacity reservations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T11:30:51.290726Z'
+updated_at: '2026-08-09T11:34:23.825829Z'
 work_branch: OOMPAH-952
 target_branch: null
 review_url: null
