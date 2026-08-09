@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T16:29:54.272144Z'
-updated_at: '2026-08-09T16:41:20.247083Z'
+updated_at: '2026-08-09T16:51:36.828248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-08-09 16:41
 ---
 Implemented directly on the active OOMPAH-962 integration branch at exact head bb0cc60f6440809184d7f50c4149fae11b4da604. Callback-pending tasks remain retained/pending through atomic one-shot settlement; close and drain stay fenced; the fast-admission test now synchronizes on the actual completion observer. Deterministic callback-gap regression and focused pair passed 30 repetitions; 821 composed tests plus safety/static scans pass. PR #770 hosted run 31324369226 is qualifying the exact head, and independent review is running.
+---
+author: oompah
+created: 2026-08-09 16:51
+---
+Independent review found that _run_due still filtered task.done callback-pending entries from lane activity, allowing a same-loop continuation to report false idle before result publication. Corrected and pushed exact OOMPAH-962 head c8f359c88: every retained entry now occupies its lane until _effect_finished atomically publishes/removes it. Added deterministic same-loop ordering regression proving the gap reports active=1, then exactly one settled result requests the world scan. Runtime/integration 199 tests and 616 broader composed tests plus scans/lint/diff pass. Fresh hosted matrix is running; final independent re-review remains required.
 ---
 <!-- COMMENTS:END -->
