@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T09:56:33.498190Z'
+updated_at: '2026-08-09T10:02:49.043161Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Live regression observed during the 2026-08-09 OOMPAH-939 rollout: after the orc
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 10:02
+---
+Additional live evidence: cleanup completed full historical scans at 09:54:46, 09:56:49, and 09:59:29 even though graceful drain quiesced new dispatch at 09:46:21. The configured batch limit counts successful deletions rather than examined rows, so 178 safe skips consume no budget and the cursor resets, causing repeated full scans. Temporary rollout mitigation staged in .env: OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE=0 until this task lands; automated cleanup will be re-enabled immediately after the bounded examined-row cursor is deployed.
+---
+<!-- COMMENTS:END -->
