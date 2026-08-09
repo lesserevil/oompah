@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:23:37.669062Z'
-updated_at: '2026-08-09T08:50:22.994817Z'
+updated_at: '2026-08-09T08:50:31.472320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,5 +88,10 @@ created: 2026-08-09 08:50
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Project-owner direct delivery is on protected main at b7e7d950 after PR #750 and all hosted tests passed; live restart acceptance confirms paused obligations are suspended without degrading terminal-audit health.
+---
+author: oompah
+created: 2026-08-09 08:50
+---
+Merged in PR #750 at b7e7d950; hosted CI and live pause/restart health acceptance passed.
 ---
 <!-- COMMENTS:END -->
