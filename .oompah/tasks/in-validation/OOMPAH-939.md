@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T13:05:51.184423Z'
+updated_at: '2026-08-09T13:28:13.176196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -479,5 +479,10 @@ author: oompah
 created: 2026-08-09 13:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 13:28
+---
+Coordination: graceful cutover is waiting on this audit. Do not request unsupported shell fallbacks; finish with the exposed bounded inspection tools and call submit_audit_result now using the evidence already collected.
 ---
 <!-- COMMENTS:END -->

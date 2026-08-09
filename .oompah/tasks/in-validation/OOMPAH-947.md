@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T13:06:02.318227Z'
+updated_at: '2026-08-09T13:28:10.546170Z'
 work_branch: OOMPAH-947
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-08-09 13:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 13:28
+---
+Coordination: the auditor-initiated make test process has exited. Do not request unsupported shell fallbacks; use the exposed bounded inspection tools and submit_audit_result now with the evidence already collected.
 ---
 <!-- COMMENTS:END -->
