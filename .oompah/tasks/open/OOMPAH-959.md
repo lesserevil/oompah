@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: In Validation
+status: Open
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T15:08:20.013826Z'
+updated_at: '2026-08-09T15:29:38.209395Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-08-09 15:08
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 15:29
+---
+Acceptance audit found the first-half saturation signal still routed every continuation through a full tracker/controller world scan. Completed the remaining fast-path scope at exact pushed head 54bad7ddd2e467d7d9dae2b48906e945ed09ff91, rebased on origin/main be4ec5d95 (including OOMPAH-960). Pure durable-admission bursts now use a distinct coalesced event and an exact captured+accepted+published generation/project cut; every SQLite claim/probe is atomically fenced to that generation, with topology, pause, quiesce, drain, lane-cap, same-task, and fairness checks preserved. Completion edges drain existing durable rows without a world scan, then trigger one full reconcile only after the published queue empties. Production-shaped coverage proves 5 effects drain across 1 full plus 4 fast slices with one tracker fetch and unchanged snapshot generation; stale-cut, project-pause, mixed-event, fallback, no-spin, restart/concurrency adjacent coverage passes. Verification after rebasing: 503 affected tests passed; task-status mutation scan passed 20/20; secret scan exited successfully; targeted undefined-name lint and diff checks passed.
 ---
 <!-- COMMENTS:END -->
