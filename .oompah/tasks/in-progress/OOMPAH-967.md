@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:26:25.972525Z'
-work_branch: null
+updated_at: '2026-08-09T18:27:33.442926Z'
+work_branch: OOMPAH-967
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-967
+  base_branch: epic-OOMPAH-940
+  base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  head_sha: 9dc053c7decd709dd6b46a7034adf7a26e646233
+  submitted_at: '2026-08-09T18:27:21.528495+00:00'
+  updated_at: '2026-08-09T18:27:21.528495+00:00'
+oompah.work_branch: OOMPAH-967
 ---
 ## Summary
 
@@ -45,5 +57,10 @@ author: oompah
 created: 2026-08-09 18:26
 ---
 Corrective head 9dc053c7d is pushed. Terminal provenance and audit facts now share one metadata-store instance, preserving exact missing/error semantics while retained authority still short-circuits unrelated audit handling. Verification: 479 focused workflow tests pass (including all terminal-audit shadow regressions), critical Ruff checks pass, and git diff checks pass. Final independent re-review is in progress before submission.
+---
+author: oompah
+created: 2026-08-09 18:27
+---
+Honor authenticated retained terminal provenance in canonical workflow decisions, fail closed on invalid authority, and fence zero-job publication against authority changes. Head 9dc053c7d is pushed; 479 focused tests and independent review are green.
 ---
 <!-- COMMENTS:END -->
