@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T10:43:11.140128Z'
-work_branch: null
+updated_at: '2026-08-09T10:43:26.525703Z'
+work_branch: OOMPAH-948
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-948
+  head_sha: 08701a1925d1a6f2a3daf872f22ddda46357540e
+  submitted_at: '2026-08-09T10:43:15.307424+00:00'
+  updated_at: '2026-08-09T10:43:15.307424+00:00'
+oompah.work_branch: OOMPAH-948
 ---
 ## Summary
 
@@ -42,5 +52,10 @@ author: oompah
 created: 2026-08-09 10:43
 ---
 Implemented and pushed exact head 08701a192. Cleanup now uses bounded native state pages and durable per-project round-robin cursors across terminal tasks, stale directories, and stale branches; every safe skip/error consumes the operation slice; a 15s cooperative deadline and drain fences yield between exact candidates; partial/error/disabled health is truthful; only budget/deadline deferrals coalesce; cursor saves are checked and serialized; storage cleanup no longer bypasses the worktree lane. Verification: 510 scheduler/config tests and 300 tracker/project/storage tests passed; cold-cache 1,000-task regression parses only the page limit; terminal mutation, secret, diff, and fatal/static scans passed.
+---
+author: oompah
+created: 2026-08-09 10:43
+---
+Bound worktree cleanup as durable fair maintenance at 08701a192
 ---
 <!-- COMMENTS:END -->
