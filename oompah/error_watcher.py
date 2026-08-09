@@ -21,11 +21,12 @@ import logging
 import os
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from watchfiles import awatch
 
-from oompah.statuses import is_terminal_status
+from oompah.statuses import DONE, is_terminal_status
 from oompah.tracker import TrackerProtocol
 
 logger = logging.getLogger(__name__)
@@ -71,9 +72,16 @@ class ErrorWatcher:
     with any :class:`~oompah.tracker.TrackerProtocol` backend.
     """
 
-    def __init__(self, tracker: TrackerProtocol, project_id: str | None = None):
+    def __init__(
+        self,
+        tracker: TrackerProtocol,
+        project_id: str | None = None,
+        *,
+        status_transition: Callable[..., object] | None = None,
+    ):
         self._tracker = tracker
         self._project_id = project_id
+        self._status_transition = status_transition
         self._seen: dict[str, _ErrorRecord] = {}
         self._handler: _TaskLoggingHandler | None = None
 
@@ -315,13 +323,19 @@ class ErrorWatcher:
                         "Could not post resolution comment on %s: %s",
                         task_id, exc,
                     )
-                # TERMINAL-AUDIT-ALLOW OOMPAH-483: this closes only an
-                # oompah-generated transient diagnostic after the correlated
-                # originating retry succeeds.  The tracker-local recovery path
-                # may not have managed-project coordinator context.
-                self._tracker.close_issue(
-                    task_id,
-                    reason="retry succeeded; transient (auto-closed by error_watcher)",
+                transition = self._status_transition or getattr(
+                    self._tracker, "transition_issue_status", None
+                )
+                if not callable(transition):
+                    raise RuntimeError("Task transition service is unavailable")
+                issue = self._tracker.fetch_issue_detail(task_id)
+                if issue is None:
+                    raise RuntimeError("transient error task is unavailable")
+                transition(
+                    issue,
+                    DONE,
+                    actor="error-watcher",
+                    reason_code="watchdog.transient_error_recovered",
                 )
                 logger.info(
                     "Auto-closed transient error task %s (issue=%s resolved)",

@@ -119,6 +119,23 @@ class ToolLivenessMonitor:
         # removed.  This makes result_delivered observable without keeping a
         # provider slot or a RunningEntry liveness owner alive.
         self._terminal_counts = {"result_delivered": 0}
+        # Time spent in explicitly bounded tool phases is accounted
+        # separately from the provider/model turn deadline. This value is
+        # monotonic for the lifetime of the session and includes capacity
+        # wait, command runtime, and bounded result delivery.
+        self._outer_deadline_extension_seconds = 0.0
+        self._outer_protected_started_monotonic: float | None = None
+
+    def _begin_outer_protection_locked(self, now: float) -> None:
+        if not self._active:
+            self._outer_protected_started_monotonic = now
+
+    def _finish_outer_protection_locked(self, now: float) -> None:
+        started = self._outer_protected_started_monotonic
+        if self._active or started is None:
+            return
+        self._outer_deadline_extension_seconds += max(0.0, now - started)
+        self._outer_protected_started_monotonic = None
 
     def request_cancel(self) -> None:
         """Withdraw authority for queued tool work without inventing a process."""
@@ -140,19 +157,19 @@ class ToolLivenessMonitor:
         """Register a tool invocation and return its opaque invocation id."""
 
         timeout = max(float(timeout_s), 0.0)
-        now = time.monotonic()
         invocation_id = uuid.uuid4().hex
-        execution = _ToolExecution(
-            invocation_id=invocation_id,
-            tool_name=tool_name,
-            started_monotonic=now,
-            deadline_monotonic=now + timeout,
-            command_timeout_s=timeout,
-            last_heartbeat_monotonic=now,
-            result_delivery_required=bool(result_delivery_required),
-        )
         with self._lock:
-            self._active[invocation_id] = execution
+            now = time.monotonic()
+            self._begin_outer_protection_locked(now)
+            self._active[invocation_id] = _ToolExecution(
+                invocation_id=invocation_id,
+                tool_name=tool_name,
+                started_monotonic=now,
+                deadline_monotonic=now + timeout,
+                command_timeout_s=timeout,
+                last_heartbeat_monotonic=now,
+                result_delivery_required=bool(result_delivery_required),
+            )
         return invocation_id
 
     def start_waiting(
@@ -163,9 +180,10 @@ class ToolLivenessMonitor:
     ) -> str:
         """Register a capacity wait without starting the command timeout."""
 
-        now = time.monotonic()
         invocation_id = uuid.uuid4().hex
         with self._lock:
+            now = time.monotonic()
+            self._begin_outer_protection_locked(now)
             self._active[invocation_id] = _ToolExecution(
                 invocation_id=invocation_id,
                 tool_name=tool_name,
@@ -188,8 +206,8 @@ class ToolLivenessMonitor:
         """Start the bounded command clock after capacity is acquired."""
 
         timeout = max(float(timeout_s), 0.0)
-        now = time.monotonic()
         with self._lock:
+            now = time.monotonic()
             execution = self._active.get(invocation_id)
             if execution is None:
                 return
@@ -284,9 +302,11 @@ class ToolLivenessMonitor:
             if execution is None:
                 return None
             execution.phase = "result_delivered"
-            execution.last_heartbeat_monotonic = time.monotonic()
+            now = time.monotonic()
+            execution.last_heartbeat_monotonic = now
             self._terminal_counts["result_delivered"] += 1
             self._active.pop(execution.invocation_id, None)
+            self._finish_outer_protection_locked(now)
             return execution.invocation_id
 
     mark_result_delivered = result_delivered
@@ -318,7 +338,27 @@ class ToolLivenessMonitor:
         """Remove a completed invocation; subsequent snapshots are empty."""
 
         with self._lock:
-            self._active.pop(invocation_id, None)
+            execution = self._active.pop(invocation_id, None)
+            if execution is not None:
+                self._finish_outer_protection_locked(time.monotonic())
+
+    def outer_deadline_extension_seconds(self) -> float:
+        """Return cumulative wall time owned by bounded tool phases.
+
+        Active invocations contribute through the current instant, so an
+        outer provider timeout remains paused throughout capacity wait,
+        command execution, and result delivery. Retired invocations have
+        already been folded into the cumulative total.
+        """
+
+        with self._lock:
+            now = time.monotonic()
+            active_elapsed = (
+                max(0.0, now - self._outer_protected_started_monotonic)
+                if self._outer_protected_started_monotonic is not None
+                else 0.0
+            )
+            return self._outer_deadline_extension_seconds + active_elapsed
 
     def snapshots(self) -> list[ToolLivenessSnapshot]:
         """Return active invocations and refresh process liveness.

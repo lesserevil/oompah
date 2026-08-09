@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -137,6 +138,141 @@ class TestOompahMarkdownTrackerCreate:
         repaired = tracker.fetch_issue_detail(issue.identifier)
         assert repaired is not None
         assert repaired.description == "### Context\n\nRepaired description."
+
+
+class TestOompahMarkdownTrackerCreateOnce:
+    @staticmethod
+    def _create_once(tracker, **overrides):
+        kwargs = {
+            "title": "Repair stale epic",
+            "issue_type": "task",
+            "description": "Rebase the exact generation.",
+            "priority": 0,
+            "initial_status": NEEDS_REBASE,
+            "labels": ["repair"],
+            "parent": None,
+            "project_id": "project-1",
+            "operation_kind": "epic_rebase_helper",
+            "creation_marker": "generation-1",
+        }
+        kwargs.update(overrides)
+        return tracker.create_issue_once(**kwargs)
+
+    def test_exact_retry_returns_original_task_and_persists_key(self, tmp_path):
+        tracker = _tracker(tmp_path)
+
+        first = self._create_once(tracker)
+        second = self._create_once(tracker)
+
+        assert first.identifier == second.identifier == "REPO-1"
+        paths = list((tmp_path / "repo" / ".oompah" / "tasks").glob("*/*.md"))
+        assert len(paths) == 1
+        assert _frontmatter(paths[0])["oompah.create_once"] == {
+            "version": 1,
+            "project_id": "project-1",
+            "operation_kind": "epic_rebase_helper",
+            "creation_marker": "generation-1",
+            "request_fingerprint": _frontmatter(paths[0])["oompah.create_once"][
+                "request_fingerprint"
+            ],
+        }
+
+    def test_same_key_with_different_payload_fails_closed(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        self._create_once(tracker)
+
+        with pytest.raises(TrackerError, match="different payload"):
+            self._create_once(tracker, title="Different repair")
+
+        assert len(list(tracker.tasks_root.glob("*/*.md"))) == 1
+
+    def test_project_and_operation_are_part_of_creation_key(self, tmp_path):
+        tracker = _tracker(tmp_path)
+
+        first = self._create_once(tracker)
+        second = self._create_once(tracker, project_id="project-2")
+        third = self._create_once(tracker, operation_kind="other_repair")
+
+        assert {first.identifier, second.identifier, third.identifier} == {
+            "REPO-1",
+            "REPO-2",
+            "REPO-3",
+        }
+
+    def test_concurrent_same_key_allocates_exactly_one_task(self, tmp_path):
+        tracker = _tracker(tmp_path)
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _index: self._create_once(tracker), range(16)))
+
+        assert {issue.identifier for issue in results} == {"REPO-1"}
+        assert len(list(tracker.tasks_root.glob("*/*.md"))) == 1
+
+    def test_new_tracker_instance_recovers_original_task(self, tmp_path):
+        first_tracker = _tracker(tmp_path)
+        created = self._create_once(first_tracker)
+        restarted = _tracker_for_root(tmp_path / "repo")
+
+        recovered = self._create_once(restarted)
+
+        assert recovered.identifier == created.identifier
+        assert len(list(restarted.tasks_root.glob("*/*.md"))) == 1
+
+    @pytest.mark.parametrize("loss_after_write", [False, True])
+    def test_ambiguous_commit_boundary_retries_same_task(
+        self, tmp_path, monkeypatch, loss_after_write
+    ):
+        root = tmp_path / "repo"
+        root.mkdir()
+        subprocess.run(
+            ["git", "init", "-q", "-b", "main"], cwd=root, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Oompah Test"], cwd=root, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "oompah@example.invalid"],
+            cwd=root,
+            check=True,
+        )
+        (root / "README.md").write_text("seed\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "seed"], cwd=root, check=True)
+        tracker = _tracker_for_root(root, git_sync=True)
+        original_commit = tracker._commit_and_push
+        calls = 0
+
+        def _lose_response(subject):
+            nonlocal calls
+            calls += 1
+            if loss_after_write:
+                original_commit(subject)
+            raise TrackerError("ambiguous commit response")
+
+        monkeypatch.setattr(tracker, "_commit_and_push", _lose_response)
+        with pytest.raises(TrackerError, match="ambiguous commit response"):
+            self._create_once(tracker)
+        monkeypatch.setattr(tracker, "_commit_and_push", original_commit)
+
+        recovered = self._create_once(tracker)
+
+        assert calls == 1
+        assert recovered.identifier == "REPO-1"
+        assert len(list(tracker.tasks_root.glob("*/*.md"))) == 1
+        task_commits = subprocess.run(
+            ["git", "log", "--format=%s", "--", ".oompah/tasks"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        assert task_commits == [
+            (
+                "Create oompah task REPO-1"
+                if loss_after_write
+                else "Recover create-once task REPO-1"
+            )
+        ]
 
 
 class TestOompahMarkdownTrackerMutations:

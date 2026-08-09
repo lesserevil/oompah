@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -40,6 +41,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import TrackerAuthError, TrackerError
+from oompah.task_transition_service import TransitionAuthority
 from oompah.webhooks import WebhookEvent
 
 logger = logging.getLogger(__name__)
@@ -48,6 +50,33 @@ EXTERNAL_GITHUB_METADATA_KEY = "oompah.external.github"
 INTAKE_COMMENT_METADATA_KEY = "oompah.intake_comment"
 _TERMINAL_CLOSE_KEYS = {status_key(MERGED), status_key(ARCHIVED)}
 _NATIVE_TRACKER_KINDS = {"oompah_md", "oompah.md", "oompah"}
+
+
+def _orchestrator_status_transition(
+    orch: Any,
+    tracker: Any,
+    project_id: str,
+) -> Callable[..., object]:
+    """Bind native intake reconciliation to the durable transition service."""
+
+    def transition(issue: Issue, status: str, **fields: object) -> object:
+        operation = getattr(orch, "_transition_issue_status", None)
+        if not callable(operation):
+            raise RuntimeError("Task transition service is unavailable")
+        if not issue.project_id:
+            issue.project_id = project_id
+        return operation(
+            issue,
+            status,
+            project_id=project_id,
+            tracker=tracker,
+            actor=str(fields.get("actor") or "github-intake"),
+            authority=TransitionAuthority.SYSTEM,
+            reason_code=str(fields["reason_code"]),
+            authorized_recovery=bool(fields.get("authorized_recovery", False)),
+        )
+
+    return transition
 
 
 def project_uses_github_issue_intake(project: Project | None) -> bool:
@@ -291,6 +320,7 @@ def _reconcile_native_status_from_github_issue(
     *,
     project_id: str | None = None,
     project_store: object | None = None,
+    status_transition: Callable[..., object] | None = None,
 ) -> Issue | None:
     """Apply GitHub open/closed state (and backfill missing metadata) to an
     already-imported native task."""
@@ -338,7 +368,18 @@ def _reconcile_native_status_from_github_issue(
         or bool(metadata.get("external_closed_at"))
     )
     if current_status == ARCHIVED and was_closed_by_github:
-        native_tracker.update_issue(existing.identifier, status=PROPOSED)
+        transition = status_transition or getattr(
+            native_tracker, "transition_issue_status", None
+        )
+        if not callable(transition):
+            raise RuntimeError("Task transition service is unavailable")
+        transition(
+            existing,
+            PROPOSED,
+            actor="github-intake",
+            reason_code="intake.external_issue_reopened",
+            authorized_recovery=True,
+        )
         metadata["last_github_state"] = "open"
         metadata["external_reopened_at"] = _now_iso()
         metadata["last_synced_status"] = PROPOSED
@@ -362,7 +403,18 @@ def _reconcile_native_status_from_github_issue(
         )
         if cancelled:
             restored_status = previous_state or PROPOSED
-            native_tracker.update_issue(existing.identifier, status=restored_status)
+            transition = status_transition or getattr(
+                native_tracker, "transition_issue_status", None
+            )
+            if not callable(transition):
+                raise RuntimeError("Task transition service is unavailable")
+            transition(
+                existing,
+                restored_status,
+                actor="github-intake",
+                reason_code="intake.external_retirement_cancelled",
+                authorized_recovery=True,
+            )
             metadata["last_github_state"] = "open"
             metadata["external_reopened_at"] = _now_iso()
             metadata["last_synced_status"] = restored_status
@@ -524,6 +576,7 @@ def ensure_native_issue_for_github_issue(
     github_issue: Issue,
     *,
     post_import_comment: bool = True,
+    status_transition: Callable[..., object] | None = None,
 ) -> Issue | None:
     """Create or update the native Proposed task corresponding to a GitHub issue."""
     external_id = github_issue.identifier
@@ -534,6 +587,7 @@ def ensure_native_issue_for_github_issue(
             github_issue,
             existing,
             metadata,
+            status_transition=status_transition,
         )
 
     # A corrupt task file was found for this external issue — do not create a
@@ -751,6 +805,9 @@ def handle_github_issue_event_for_native_project(
             project.name,
         )
         return
+    status_transition = _orchestrator_status_transition(
+        orch, native_tracker, str(project.id)
+    )
 
     fallback_issue = _github_issue_from_event(event, project)
     github_issue = _fetch_github_issue(github_tracker, external_id, fallback_issue)
@@ -763,6 +820,7 @@ def handle_github_issue_event_for_native_project(
             github_issue,
             project_id=project.id,
             project_store=getattr(orch, "project_store", None),
+            status_transition=status_transition,
         )
         return
 
@@ -775,6 +833,7 @@ def handle_github_issue_event_for_native_project(
             metadata,
             project_id=project.id,
             project_store=getattr(orch, "project_store", None),
+            status_transition=status_transition,
         ) or existing
         if event.event_type == "issue_comment" and event.action in {"created", "edited"}:
             metadata = _get_external_metadata(native_tracker, internal.identifier)
@@ -817,6 +876,7 @@ def handle_github_issue_event_for_native_project(
         github_issue,
         project_id=project.id,
         project_store=getattr(orch, "project_store", None),
+        status_transition=status_transition,
     )
 
     if event.event_type == "issues" and event.action in {"opened", "edited", "reopened"}:
@@ -826,6 +886,7 @@ def handle_github_issue_event_for_native_project(
             native_tracker,
             github_tracker,
             github_issue,
+            status_transition=status_transition,
         )
         _copy_existing_github_comments(native_tracker, github_tracker, internal)
         return
@@ -837,6 +898,7 @@ def handle_github_issue_event_for_native_project(
             native_tracker,
             github_tracker,
             github_issue,
+            status_transition=status_transition,
         )
         if internal is None:
             return
@@ -874,6 +936,9 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
         return 0
     if github_tracker is None:
         return 0
+    status_transition = _orchestrator_status_transition(
+        orch, native_tracker, str(project.id)
+    )
     imported = 0
     try:
         github_issues = github_tracker.fetch_all_issues()
@@ -900,6 +965,7 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
                     github_issue,
                     project_id=project.id,
                     project_store=getattr(orch, "project_store", None),
+                    status_transition=status_transition,
                 )
                 continue
 
@@ -915,6 +981,7 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
                     metadata,
                     project_id=project.id,
                     project_store=getattr(orch, "project_store", None),
+                    status_transition=status_transition,
                 ) or existing
                 _copy_existing_github_comments(native_tracker, github_tracker, internal)
                 continue
@@ -924,6 +991,7 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
                 github_issue,
                 project_id=project.id,
                 project_store=getattr(orch, "project_store", None),
+                status_transition=status_transition,
             )
             if not _github_issue_ready_for_native_import(github_tracker, github_issue):
                 continue
@@ -932,6 +1000,7 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
                 github_tracker,
                 github_issue,
                 post_import_comment=True,
+                status_transition=status_transition,
             )
             if created is not None:
                 imported += 1

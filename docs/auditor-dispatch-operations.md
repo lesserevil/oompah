@@ -132,10 +132,17 @@ These `.env` settings control the dispatch lane.
 # independent providers). Must be a positive integer.
 OOMPAH_AUDIT_MAX_ATTEMPTS=3
 
-# Time-to-live (seconds) for a running auditor attempt.
-# A live auditor session older than this is considered abandoned and eligible
-# for retry. An attempt with no live worker is reclaimed immediately.
-# Recommended: 3600 (1 hour). Increase for slow CI environments.
+# Maximum pre-verdict transport or finalization failures that may retry
+# without consuming an independent candidate. The same verdict-capable
+# provider/model can be retried after bounded backoff. Set to 0 to make the
+# first such failure actionable; default: 3.
+OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES=3
+
+# Recovery grace (seconds) when no live-worker registry is available.
+# With the service registry, an attempt with no live worker is reclaimed
+# immediately and a live worker uses phase-specific liveness deadlines.
+# Queue and bounded validation runtime do not consume this grace period.
+# Recommended: 3600 (1 hour).
 OOMPAH_AUDIT_ATTEMPT_TTL=3600
 
 # Relative ordering among In Validation audits without an explicit task
@@ -144,10 +151,61 @@ OOMPAH_AUDIT_ATTEMPT_TTL=3600
 OOMPAH_AUDIT_PRIORITY=100
 
 # Maximum number of In Validation tasks scanned per scheduler tick.
-# Limits the audit lane's CPU time per tick. Set to 0 for no cap.
+# Limits the audit lane's CPU time per tick. A durable cursor rotates through
+# later candidates across ticks and restart. Set to 0 for no cap.
 # Recommended: 32–64.
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
+
+# Maximum auditor launches attempted in one scheduler tick. This separately
+# bounds provider-probe and dispatch work even when the scan window is larger.
+# Recommended: 1–4.
+OOMPAH_AUDIT_LANE_DISPATCH_LIMIT=2
+
+# Slots retained for runnable implementation/control-plane work while audits
+# drain. At total concurrency 1, Oompah alternates the two lanes durably.
+OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS=1
+
+# Maximum age (seconds) of a durable, exact provider/model health
+# observation. Missing or older observations are probed before reservation;
+# probe failure is not treated as healthy.
+OOMPAH_PROVIDER_HEALTH_TTL_SECONDS=300
+
+# Conservative input/output sizes used to reserve paid auditor capacity
+# before an implementation provider can start. With OOMPAH_BUDGET_LIMIT set,
+# every paid auditor model needs exact model_costs rates.
+OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS=65536
+OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS=32768
 ```
+
+#### Validation Target Budgets
+
+Auditors may run only exact `make TARGET` commands advertised by the project.
+Configure each explicit target with both an execution deadline and an expected
+duration through `PATCH /api/v1/projects/{project_id}`:
+
+```json
+{
+  "auditor_validation_targets": ["test-focused", "test"],
+  "auditor_validation_target_deadlines": {
+    "test-focused": 300,
+    "test": 1200
+  },
+  "auditor_validation_target_expected_seconds": {
+    "test-focused": 120,
+    "test": 1080
+  }
+}
+```
+
+Oompah also derives conservative duration evidence from completed exact branch
+gates. It persists a monotonic high-water duration for each exact repository
+and command, so pruning individual gate results cannot lower the effective
+expectation. The longest configured or observed duration wins. If no approved
+target has duration evidence, an explicit target has no duration evidence, the
+evidence store is corrupt or unavailable, or an expected duration exceeds its
+deadline, audit launch is blocked without consuming an attempt and the
+dashboard shows one project-scoped configuration alert. Capacity-queue time
+does not consume the target deadline.
 
 #### Global Settings That Affect Auditors
 
@@ -162,6 +220,11 @@ OOMPAH_BUDGET_LIMIT=50.00
 # Maximum retry backoff in milliseconds.
 OOMPAH_MAX_RETRY_BACKOFF_MS=300000
 ```
+
+The state snapshot exposes the audit/non-audit lane occupancy, reserved slot
+count, deferred audit count and cursor, and oldest runnable implementation age.
+A scan deferred only by these configured budgets is informational and advances
+automatically; tracker read failures remain actionable warnings.
 
 ### Auditor Role Configuration
 
@@ -193,7 +256,7 @@ and avoids `no_auditor` failures when one provider is temporarily unavailable.
    See `docs/multi-provider-roles.md` for the request shape.
 
 **Project whitelist:** If the project configuration includes a provider
-whitelist (`allowed_provider_ids`), only providers on that whitelist may be
+whitelist (`provider_whitelist`), only providers on that whitelist may be
 used as auditor candidates. Providers not on the whitelist are excluded from
 candidate selection even if they appear in `.oompah/roles.json`. Ensure at
 least two independently-listed providers are on the whitelist to guarantee
@@ -339,6 +402,18 @@ non-owner actors, changed heads, failed checks, and previously passed audits
 are rejected. Repeating the identical request coalesces with the one pending
 audit and does not create another auditor.
 
+Integrated-audit recovery alerts expose a `recovery_action` matching the
+coordinator contract. `audit_retry` is used for infrastructure, policy, or
+`no_auditor` exhaustion; `audit_retry_evidence_addendum` is reserved for
+matching `missing_evidence` records; all other completed records prescribe
+`audit_override`. A successful retry or override clears the task-level alert
+only after the tracker accepts its exact status. If retry metadata commits but
+`In Validation` cannot be restored, the API reports the divergence, leaves the
+alert actionable, and restart recovery replays the durable status intent. A
+concurrent PASS or override has newer authority and prevents that retry intent
+or the integrated-delivery replay from regressing `Done` or recreating the
+warning after restart.
+
 ## Explicit Owner Override
 
 When an audit is infeasible (e.g., no independent candidates available) or a
@@ -413,9 +488,24 @@ When Oompah restarts with pending audits in flight:
 1. The service reads `In Validation` tasks from the tracker and rebuilds the
    in-memory audit queue from their persisted `oompah.terminal_audit` metadata.
 2. A running attempt with no live worker is reclaimed immediately (no TTL wait).
-3. A running attempt whose worker is still live is honored until
-   `OOMPAH_AUDIT_ATTEMPT_TTL` expires, at which point it is reclaimed.
+3. A running attempt whose worker is still live remains owned while the
+   worker's phase-specific stall, tool, and validation deadlines supervise it.
 4. No duplicate audits are created. Recovery is idempotent.
+
+### Transport Recovery and Capacity
+
+A forced ACP shutdown or a tool-result delivery timeout before an auditor
+submits a verdict is an infrastructure failure, not a completed audit. Oompah
+retains the exact audit ID, evidence fingerprint, revision binding, and attempt
+history, then retries after bounded backoff without consuming that
+provider/model's independent-candidate slot. The dashboard reports this as
+**transport recovery in progress**. It reports **retries exhausted** only once
+the substantive-candidate limit or the configured transport-retry limit is
+reached.
+
+Candidates whose ACP backend cannot submit `submit_audit_result` are excluded
+from usable capacity and reported as `missing_audit_capability`; they do not
+make a no-auditor state appear healthy.
 
 Do **not** edit `oompah.terminal_audit` metadata or manually move a task out
 of `In Validation`. The metadata is the recovery source of truth. A manual

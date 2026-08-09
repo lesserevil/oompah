@@ -29,6 +29,11 @@ from oompah.acp_backends.base import (
     AcpBackendOptions,
     AcpBackendSession,
     BackendEvent,
+    begin_transport_contact,
+    cancel_transport_contact,
+    mark_transport_contacted,
+    tool_deadline_extension_seconds,
+    turn_deadline_exceeded,
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
@@ -365,11 +370,17 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            provider_auth_kind=self._options.provider_auth_kind,
         )
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         
-        if self._options.task_handoff_token and self._options.task_identifier:
+        if (
+            not self._options.isolate_remote_write
+            and self._options.task_handoff_token
+            and self._options.task_identifier
+        ):
             agent_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
 
         async def _can_use_tool(
@@ -489,9 +500,19 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         )
         yield start_event
 
+        transport_permit = False
         try:
+            admission_error = begin_transport_contact(self._options)
+            if admission_error is not None:
+                self._last_error = admission_error
+                self._status = "interrupted"
+                return
+            transport_permit = True
             async with ClaudeSDKClient(options=options) as client:
                 self._client = client
+                # Entering the SDK client is the Claude CLI/Popen boundary.
+                mark_transport_contacted(self._options)
+                transport_permit = False
 
                 await client.query(self._options.prompt)
 
@@ -503,13 +524,20 @@ class ClaudeAcpBackendSession(AcpBackendSession):
                 # for sessions with no comment_queue (the common case).
                 while True:
                     deadline = time.monotonic() + self._options.turn_timeout_s
+                    extension_baseline = tool_deadline_extension_seconds(
+                        self._options.tool_liveness
+                    )
                     _got_result = False  # set True when ResultMessage arrives
 
                     async for msg in client.receive_response():
                         if self._stop_requested:
                             self._status = "interrupted"
                             return
-                        if time.monotonic() > deadline:
+                        if turn_deadline_exceeded(
+                            deadline,
+                            tool_liveness=self._options.tool_liveness,
+                            extension_baseline_seconds=extension_baseline,
+                        ):
                             yield self._emit(
                                 "acp_turn_timeout",
                                 payload={"timeout_s": self._options.turn_timeout_s},
@@ -666,6 +694,8 @@ class ClaudeAcpBackendSession(AcpBackendSession):
             )
             self._status = "errored"
         finally:
+            if transport_permit:
+                cancel_transport_contact(self._options)
             self._client = None
             if self._sysprompt_file:
                 with contextlib.suppress(OSError):

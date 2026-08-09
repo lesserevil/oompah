@@ -143,6 +143,12 @@ def _make_orch_with_running(tmp_path, issue: Issue) -> Orchestrator:
     """Orchestrator with the issue already registered in state.running."""
     orch = _make_orchestrator(tmp_path)
     orch._on_worker_exit = AsyncMock()
+
+    async def _allow_legacy_test_targets(_issue, targets):
+        return targets, None
+
+    orch._reserve_auditor_for_contributor = _allow_legacy_test_targets
+    orch._stage_work_contributor_launch = AsyncMock(return_value=None)
     orch.state.running[issue.id] = RunningEntry(
         worker_task=None,
         identifier=issue.identifier,

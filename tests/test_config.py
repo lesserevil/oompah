@@ -661,13 +661,21 @@ class TestAuditDispatchConfiguration:
     def setup_method(self):
         """Clear OOMPAH_AUDIT_* env vars so tests run in a clean environment."""
         for key in list(os.environ):
-            if key.startswith("OOMPAH_AUDIT_") or key.startswith("OOMPAH_VERIFY_COMPLETION"):
+            if (
+                key.startswith("OOMPAH_AUDIT_")
+                or key.startswith("OOMPAH_VERIFY_COMPLETION")
+                or key == "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS"
+            ):
                 os.environ.pop(key, None)
 
     def teardown_method(self):
         """Restore clean environment after each test."""
         for key in list(os.environ):
-            if key.startswith("OOMPAH_AUDIT_") or key.startswith("OOMPAH_VERIFY_COMPLETION"):
+            if (
+                key.startswith("OOMPAH_AUDIT_")
+                or key.startswith("OOMPAH_VERIFY_COMPLETION")
+                or key == "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS"
+            ):
                 os.environ.pop(key, None)
 
     def test_audit_max_attempts_default(self):
@@ -694,6 +702,20 @@ class TestAuditDispatchConfiguration:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.audit_max_attempts >= 1
 
+    def test_audit_max_transport_retries_default_and_from_env(self, monkeypatch):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        assert ServiceConfig.from_workflow(wf).audit_max_transport_retries == 3
+
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", "2")
+        assert ServiceConfig.from_workflow(wf).audit_max_transport_retries == 2
+
+    def test_audit_max_transport_retries_negative_is_clamped_to_zero(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", "-1")
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+        assert cfg.audit_max_transport_retries == 0
+
     def test_audit_attempt_ttl_default(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
@@ -704,6 +726,28 @@ class TestAuditDispatchConfiguration:
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.audit_attempt_ttl == 7200
+
+    def test_auditor_health_and_projection_defaults(self):
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.provider_health_ttl_seconds == 300
+        assert cfg.audit_projected_input_tokens == 65536
+        assert cfg.audit_projected_output_tokens == 32768
+
+    def test_auditor_health_and_projection_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_PROVIDER_HEALTH_TTL_SECONDS", "45")
+        monkeypatch.setenv("OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS", "12000")
+        monkeypatch.setenv("OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS", "3400")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.provider_health_ttl_seconds == 45
+        assert cfg.audit_projected_input_tokens == 12000
+        assert cfg.audit_projected_output_tokens == 3400
 
     def test_audit_priority_default(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
@@ -734,19 +778,45 @@ class TestAuditDispatchConfiguration:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.audit_lane_scan_limit == 0
 
+    def test_audit_lane_capacity_defaults(self):
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+        assert cfg.audit_lane_dispatch_limit == 2
+        assert cfg.audit_non_audit_reserved_slots == 1
+
+    def test_audit_lane_capacity_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_LANE_DISPATCH_LIMIT", "7")
+        monkeypatch.setenv("OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS", "3")
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+        assert cfg.audit_lane_dispatch_limit == 7
+        assert cfg.audit_non_audit_reserved_slots == 3
+
     def test_audit_settings_documented_in_env_example(self):
         env_example = Path(__file__).parents[1] / ".env.example"
         content = env_example.read_text(encoding="utf-8")
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
+        assert "OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES" in content
         assert "OOMPAH_AUDIT_ATTEMPT_TTL" in content
+        assert "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS" in content
+        assert "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS" in content
+        assert "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS" in content
         assert "OOMPAH_AUDIT_PRIORITY" in content
         assert "OOMPAH_AUDIT_LANE_SCAN_LIMIT" in content
+        assert "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT" in content
+        assert "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS" in content
 
     def test_auditor_dispatch_doc_exists(self):
         doc_path = Path(__file__).parents[1] / "docs" / "auditor-dispatch-operations.md"
         assert doc_path.exists(), "docs/auditor-dispatch-operations.md must exist"
         content = doc_path.read_text(encoding="utf-8")
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
+        assert "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS" in content
+        assert "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS" in content
+        assert "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT" in content
+        assert "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS" in content
         assert "Needs Human" in content
         assert "override" in content.lower()
 
@@ -969,15 +1039,75 @@ class TestLoadDotenv:
     def test_startup_env_overrides_inherited_oompah_config(
         self, tmp_path, monkeypatch
     ):
-        from oompah.__main__ import _load_startup_env
+        from oompah import __main__ as main_mod
 
+        monkeypatch.setattr(main_mod, "_STARTUP_ENV_KEYS", set())
         monkeypatch.setenv("OOMPAH_MAX_CONCURRENT_AGENTS", "5")
         path = self._make_env(tmp_path, "OOMPAH_MAX_CONCURRENT_AGENTS=16\n")
 
-        count = _load_startup_env(path)
+        count = main_mod._load_startup_env(path)
 
         assert count == 1
         assert os.environ["OOMPAH_MAX_CONCURRENT_AGENTS"] == "16"
+
+    def test_startup_env_removes_deleted_keys_and_preserves_external_keys(
+        self, tmp_path, monkeypatch
+    ):
+        from oompah import __main__ as main_mod
+
+        monkeypatch.setattr(main_mod, "_STARTUP_ENV_KEYS", set())
+        monkeypatch.setenv("OOMPAH_EXTERNAL_ONLY", "external")
+        path = self._make_env(
+            tmp_path,
+            "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE=shadow\n"
+            "OOMPAH_MAX_CONCURRENT_AGENTS=5\n",
+        )
+
+        assert main_mod._load_startup_env(path) == 2
+        Path(path).write_text("OOMPAH_MAX_CONCURRENT_AGENTS=16\n")
+
+        assert main_mod._load_startup_env(path) == 1
+        assert "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE" not in os.environ
+        assert os.environ["OOMPAH_MAX_CONCURRENT_AGENTS"] == "16"
+        assert os.environ["OOMPAH_EXTERNAL_ONLY"] == "external"
+
+    def test_managed_keys_survive_missing_file_without_erasing_environment(
+        self, tmp_path, monkeypatch
+    ):
+        managed = {"OOMPAH_PREVIOUSLY_MANAGED"}
+        monkeypatch.setenv("OOMPAH_PREVIOUSLY_MANAGED", "last-known-good")
+        monkeypatch.setenv("OOMPAH_EXTERNAL_ONLY", "external")
+
+        count = load_dotenv(
+            str(tmp_path / "missing.env"),
+            override=True,
+            managed_keys=managed,
+        )
+
+        assert count == 0
+        assert managed == {"OOMPAH_PREVIOUSLY_MANAGED"}
+        assert os.environ["OOMPAH_PREVIOUSLY_MANAGED"] == "last-known-good"
+        assert os.environ["OOMPAH_EXTERNAL_ONLY"] == "external"
+
+    def test_managed_keys_survive_unreadable_file_without_erasing_environment(
+        self, tmp_path, monkeypatch
+    ):
+        path = self._make_env(tmp_path, "OOMPAH_REPLACEMENT=value\n")
+        managed = {"OOMPAH_PREVIOUSLY_MANAGED"}
+        monkeypatch.setenv("OOMPAH_PREVIOUSLY_MANAGED", "last-known-good")
+        monkeypatch.setenv("OOMPAH_EXTERNAL_ONLY", "external")
+
+        def _unreadable(*_args, **_kwargs):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr("builtins.open", _unreadable)
+        count = load_dotenv(path, override=True, managed_keys=managed)
+
+        assert count == 0
+        assert managed == {"OOMPAH_PREVIOUSLY_MANAGED"}
+        assert os.environ["OOMPAH_PREVIOUSLY_MANAGED"] == "last-known-good"
+        assert os.environ["OOMPAH_EXTERNAL_ONLY"] == "external"
+        assert "OOMPAH_REPLACEMENT" not in os.environ
 
     def test_escape_sequences_in_double_quotes(self, tmp_path):
         path = self._make_env(tmp_path, r'OOMPAH_TEST_ESC="line1\nline2"' + "\n")

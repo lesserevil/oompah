@@ -39,6 +39,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_ROLES_PATH = ".oompah/roles.json"
@@ -384,15 +386,16 @@ class RoleStore:
             RoleError: On validation failure.
         """
         self._validate_multi(name, strategy, candidates)
-        with self._lock:
-            role = Role(
-                name=name.strip(),
-                strategy=strategy,
-                candidates=list(candidates),
-                updated_at=datetime.now(timezone.utc),
-            )
-            self._roles[role.name] = role
-            self._save()
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            with self._lock:
+                role = Role(
+                    name=name.strip(),
+                    strategy=strategy,
+                    candidates=list(candidates),
+                    updated_at=datetime.now(timezone.utc),
+                )
+                self._roles[role.name] = role
+                self._save()
         self._fire_reload("set")
         return role
 
@@ -401,11 +404,12 @@ class RoleStore:
 
         Returns True iff something was removed.
         """
-        with self._lock:
-            if name not in self._roles:
-                return False
-            del self._roles[name]
-            self._save()
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            with self._lock:
+                if name not in self._roles:
+                    return False
+                del self._roles[name]
+                self._save()
         self._fire_reload("delete")
         return True
 
@@ -434,9 +438,10 @@ class RoleStore:
 
         Replaces the entire store with the snapshot contents.
         """
-        with self._lock:
-            self._roles = dict(snapshot)
-            self._save()
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            with self._lock:
+                self._roles = dict(snapshot)
+                self._save()
         self._fire_reload("restore")
 
     # ------------------------------------------------------------------

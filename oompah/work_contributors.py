@@ -1,8 +1,9 @@
 """Worker contributor provenance tracking for oompah (OOMPAH-468).
 
-Persists compact WorkContributor records at successful worker exit so the
-audit evidence collector can identify every provider/model that contributed
-to a task or epic revision without relying on transient RunningEntry state.
+Persists a compact provider/model fence synchronously before worker launch so
+the audit evidence collector cannot miss a contributor after a crash or
+restart. Successful worker exit adds revision and completion evidence on a
+best-effort basis without replacing the pre-launch safety record.
 
 Storage key: ``oompah.work_contributors`` in the issue's tracker metadata.
 
@@ -13,9 +14,9 @@ agent log files).
 
 Usage
 -----
-At worker exit (successful), the orchestrator calls
-:func:`merge_contributor_records` to accumulate the new contributor into
-the existing list and writes it back via the tracker protocol.
+Before launch, the orchestrator calls :func:`merge_contributor_records` and
+verifies the result through a fresh tracker read. At successful worker exit it
+uses the same merge helper to accumulate richer completion evidence.
 
 For epic audit evidence, call :func:`collect_epic_contributors` to derive
 the union of contributors across the epic's own branch work plus all child
@@ -25,6 +26,7 @@ revision.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import subprocess
 from dataclasses import dataclass
@@ -35,11 +37,54 @@ logger = logging.getLogger(__name__)
 #: Tracker metadata key under which contributor lists are stored.
 METADATA_KEY: str = "oompah.work_contributors"
 
+# Durable non-empty identity used where persisted/runtime authority requires
+# an exact model key but an ACP SDK intentionally owns model selection.
+SDK_MANAGED_MODEL: str = "__sdk_managed__"
+
 #: Sentinel model names that indicate the model was not resolved to a
 #: specific ID — SDK-managed subscription, CLI subprocess default, etc.
 _UNKNOWN_MODEL_NAMES: frozenset[str] = frozenset(
-    {"", "default", "cli-managed", "cli"}
+    {
+        "",
+        "default",
+        "cli-managed",
+        "cli",
+        "sdk-managed",
+        SDK_MANAGED_MODEL,
+        "unknown",
+        "auto",
+    }
 )
+
+
+def normalize_contributor_model(model: Any) -> str | None:
+    """Normalize unresolved model sentinels for storage and comparison."""
+
+    if model is None:
+        return None
+    value = str(model).strip()
+    return None if value.casefold() in _UNKNOWN_MODEL_NAMES else value
+
+
+def contributor_run_identity(
+    base_run_id: str,
+    provider_id: str | None,
+    model: Any,
+) -> str:
+    """Return the stable upsert key for one exact provider/model launch.
+
+    A single orchestrator run can contact more than one model (for example,
+    focus triage followed by the selected implementation model).  Including
+    the exact contributor identity prevents those records from overwriting
+    each other, while using the same key before launch and at completion lets
+    the latter enrich the crash-safe fence instead of appending a duplicate.
+    """
+
+    normalized_model = normalize_contributor_model(model) or ""
+    digest = hashlib.sha256(
+        f"{provider_id or ''}\0{normalized_model}".encode("utf-8")
+    ).hexdigest()[:12]
+    return f"{base_run_id}--contributor-{digest}"
 
 
 # ---------------------------------------------------------------------------
@@ -49,16 +94,16 @@ _UNKNOWN_MODEL_NAMES: frozenset[str] = frozenset(
 
 @dataclass
 class WorkContributor:
-    """Compact, serialisable record for one successful worker run.
+    """Compact, serialisable record for one worker launch identity.
 
     Fields are intentionally limited to safe, non-secret identifiers.
     No credentials, prompts, cost figures, or log paths are stored.
     """
 
     run_id: str
-    """Unique identifier for this run, derived from the agent log file
-    basename without the ``.jsonl`` extension.  Falls back to
-    ``<issue-identifier>__<timestamp>`` when no log path is available."""
+    """Unique provider/model launch key derived from the dispatch run ID.
+    Legacy completion-only records may instead use the agent-log basename or
+    ``<issue-identifier>__<timestamp>`` fallback."""
 
     provider_id: str | None
     """Opaque provider identifier (e.g. ``prov-abc123``).  Set to the
@@ -91,7 +136,7 @@ class WorkContributor:
     Empty string or None when the git repo was unavailable."""
 
     completed_at: str
-    """ISO-8601 UTC timestamp of when the worker exited successfully."""
+    """ISO-8601 UTC timestamp of successful exit; blank before completion."""
 
     # ------------------------------------------------------------------
     # Serialisation helpers
@@ -144,8 +189,9 @@ def merge_contributor_records(
 ) -> dict[str, Any]:
     """Accumulate *new_contributor* into the existing ``oompah.work_contributors`` dict.
 
-    The existing ``runs`` list is preserved in full — prior contributors
-    are never discarded here.  Filtering for a specific audit revision
+    The existing ``runs`` list is preserved in full. A matching non-empty
+    ``run_id`` is replaced so later evidence can enrich a staged record
+    without duplicating it. Filtering for a specific audit revision
     (e.g. "discard runs whose source_sha is not an ancestor of HEAD") is
     performed at read time by :func:`collect_epic_contributors`.
 
@@ -158,7 +204,19 @@ def merge_contributor_records(
     runs: list[dict[str, Any]] = []
     if existing and isinstance(existing.get("runs"), list):
         runs = list(existing["runs"])
-    runs.append(new_contributor.to_dict())
+    serialized = new_contributor.to_dict()
+    replaced = False
+    for index, existing_run in enumerate(runs):
+        if (
+            isinstance(existing_run, dict)
+            and new_contributor.run_id
+            and str(existing_run.get("run_id") or "") == new_contributor.run_id
+        ):
+            runs[index] = serialized
+            replaced = True
+            break
+    if not replaced:
+        runs.append(serialized)
     return {"runs": runs}
 
 

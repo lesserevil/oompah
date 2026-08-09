@@ -42,6 +42,21 @@ def _make_orchestrator(tmp_path, **config_kwargs) -> Orchestrator:
     )
 
 
+def _stub_unrelated_run_startup(orch: Orchestrator) -> None:
+    """Keep run-loop tests out of tracker-backed startup reconciliation."""
+
+    orch._run_terminal_audit_enforcement = MagicMock()
+    orch._reconcile_owner_duplicate_resolution_boundaries = MagicMock()
+    orch._ensure_integration_audit_lane = MagicMock()
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch.startup_cleanup = AsyncMock()
+    orch._reconcile_pending_recovery_publications = MagicMock()
+    orch._recover_restart_issues = AsyncMock(return_value=True)
+    orch._restore_persisted_retries = AsyncMock()
+    orch._wake_integration_lane = MagicMock()
+    orch.workflow_controller.recover_startup = MagicMock()
+
+
 # ---------------------------------------------------------------------------
 # ServiceConfig: full_sync_interval_ms
 # ---------------------------------------------------------------------------
@@ -196,8 +211,7 @@ class TestRunLoopUpdatesSyncTime:
                 orch._stopping = True
 
         orch._tick = _fake_tick
-        orch.startup_cleanup = AsyncMock()
-        orch._recover_restart_issues = AsyncMock()
+        _stub_unrelated_run_startup(orch)
 
         assert orch._last_full_sync == 0.0
         asyncio.run(orch.run())
@@ -227,8 +241,7 @@ class TestRunLoopUpdatesSyncTime:
                 orch._stopping = True
 
         orch._tick = _fake_tick
-        orch.startup_cleanup = AsyncMock()
-        orch._recover_restart_issues = AsyncMock()
+        _stub_unrelated_run_startup(orch)
 
         # Simulate an already-elapsed interval (last sync was long ago)
         orch._last_full_sync = time.monotonic() - 2.0
@@ -258,5 +271,7 @@ class TestFullSyncDueIntervalVariants:
     ])
     def test_parametrised(self, tmp_path, interval_ms, elapsed_s, expected):
         orch = _make_orchestrator(tmp_path, full_sync_interval_ms=interval_ms)
-        orch._last_full_sync = time.monotonic() - elapsed_s
-        assert orch._full_sync_due() is expected
+        now = 1_000.0
+        orch._last_full_sync = now - elapsed_s
+        with patch("oompah.orchestrator.time.monotonic", return_value=now):
+            assert orch._full_sync_due() is expected

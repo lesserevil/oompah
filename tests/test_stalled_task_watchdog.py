@@ -18,6 +18,8 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -42,6 +44,11 @@ from oompah.stalled_task_watchdog import (
     classify_stalled_task,
     is_stalled_status,
     run_watchdog_audit,
+)
+from oompah.integration import IntegrationRecord
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    TransitionDisposition,
 )
 
 
@@ -448,6 +455,18 @@ def _make_tracker(issues: list, comments_by_id: dict | None = None) -> MagicMock
     return tracker
 
 
+def _authoritative_test_reopen(
+    _project_id,
+    issue,
+    tracker,
+    _decision,
+    comment_body,
+) -> bool:
+    tracker.update_issue(issue.identifier, status=OPEN)
+    tracker.add_comment(issue.identifier, comment_body, author="oompah")
+    return True
+
+
 class TestRunWatchdogAuditSafeReopen:
     def test_safe_reopen_accidental_needs_human(self):
         """A task with a completion comment (no question) in NEEDS_HUMAN → reopened."""
@@ -455,7 +474,11 @@ class TestRunWatchdogAuditSafeReopen:
         comments = [_comment("oompah", "Agent completed the task successfully. Pushed.")]
         tracker = _make_tracker([issue], {"T-100": comments})
 
-        result = run_watchdog_audit([(None, tracker)], run_id=1)
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=1,
+            reopen_executor=_authoritative_test_reopen,
+        )
 
         assert result.tasks_audited == 1
         assert result.tasks_actionable == 1
@@ -480,6 +503,7 @@ class TestRunWatchdogAuditSafeReopen:
             evidence_provider=lambda _project_id, _issue, _tracker: {
                 "review": {"number": "692", "state": "merged"}
             },
+            reopen_executor=_authoritative_test_reopen,
         )
 
         assert result.tasks_actionable == 1
@@ -491,7 +515,11 @@ class TestRunWatchdogAuditSafeReopen:
         comments = [_comment("ci-bot", "All checks passed on the branch.")]
         tracker = _make_tracker([issue], {"T-101": comments})
 
-        result = run_watchdog_audit([(None, tracker)], run_id=2)
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=2,
+            reopen_executor=_authoritative_test_reopen,
+        )
 
         assert result.tasks_actionable == 1
         assert result.actions_taken == 1
@@ -502,7 +530,11 @@ class TestRunWatchdogAuditSafeReopen:
         comments = [_comment("oompah", "Conflict resolved — branch is clean.")]
         tracker = _make_tracker([issue], {"T-102": comments})
 
-        result = run_watchdog_audit([(None, tracker)], run_id=3)
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=3,
+            reopen_executor=_authoritative_test_reopen,
+        )
 
         assert result.actions_taken == 1
         tracker.update_issue.assert_called_once_with("T-102", status=OPEN)
@@ -583,6 +615,7 @@ class TestRunWatchdogAuditIdempotency:
         result = run_watchdog_audit(
             [("proj-a", tracker_a), ("proj-b", tracker_b)],
             run_id=9,
+            reopen_executor=_authoritative_test_reopen,
         )
 
         assert result.tasks_audited == 2
@@ -667,6 +700,7 @@ class TestRunWatchdogAuditTelemetry:
         result = run_watchdog_audit(
             [("bad-proj", bad_tracker), ("good-proj", good_tracker)],
             run_id=11,
+            reopen_executor=_authoritative_test_reopen,
         )
 
         assert len(result.errors) >= 1
@@ -752,6 +786,45 @@ class TestOrchestratorIntegration:
         assert evidence["branch"]["canonical_ref"] == "main"
         assert evidence["ci"]["status"] == "passed"
         assert evidence["audit"]["pending_chain"]
+
+    def test_collects_integration_record_for_internal_gate_authority(self, tmp_path):
+        """OOMPAH-806: the integration record must be exposed as evidence."""
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="T-806",
+            identifier="T-806",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="feature/T-806",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            "oompah.integration": {
+                "state": "blocked",
+                "head_sha": "ef5e8c30e" + "0" * 31,
+                "last_error": "combined-tree gate failed",
+                "task_branch": "feature/T-806",
+            },
+        }
+        provider = MagicMock()
+        provider.is_available.return_value = True
+        provider.get_review.return_value = None
+        provider.get_branch_head_sha.return_value = "ef5e8c30e" + "0" * 31
+        provider.get_branch_ci_status.return_value = "passed"
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            evidence = orch._collect_stalled_watchdog_evidence(
+                "project-1", issue, tracker
+            )
+
+        assert "integration" in evidence
+        assert evidence["integration"]["state"] == "blocked"
+        assert evidence["integration"]["head_sha"] == "ef5e8c30e" + "0" * 31
 
     def test_scheduler_watchdog_wakes_once_after_clearing_stale_completed(
         self, tmp_path
@@ -995,7 +1068,7 @@ _OOMPAH_814_HEAD = "254b131c713bece56500a72408f796c46bfee8d0"
 _REPAIR_HEAD = "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f"
 
 
-def _blocked_gate_row(orch):
+def _blocked_gate_row(orch, *, candidate_head=None):
     orch.integration_queue.enqueue(
         project_id="project-1",
         epic_id="EPIC-1",
@@ -1011,6 +1084,15 @@ def _blocked_gate_row(orch):
         satisfied={"dependency"},
     )
     assert claimed is not None
+    if candidate_head is not None:
+        assert orch.integration_queue.record_candidate(
+            project_id="project-1",
+            task_id="OOMPAH-814",
+            lease_owner="gate-owner",
+            expected_head_sha=_OOMPAH_814_HEAD,
+            candidate_head_sha=candidate_head,
+            candidate_base_sha="a" * 40,
+        ) is not None
     assert orch.integration_queue.fail(
         "project-1",
         "OOMPAH-814",
@@ -1216,6 +1298,11 @@ class TestGateFailureFencesWatchdogReopen:
             evidence="legacy comment fallback without queue authority",
         )
 
+        def update_issue(_identifier, *, status, **_kwargs):
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
+
         executed = orch._execute_stalled_watchdog_reopen(
             "project-1",
             issue,
@@ -1319,7 +1406,7 @@ class TestGateFailureFencesWatchdogReopen:
         project.repo_url = "https://github.com/example/repo.git"
         project.access_token = None
         first = _make_orchestrator(tmp_path, projects=[project])
-        blocked = _blocked_gate_row(first)
+        blocked = _blocked_gate_row(first, candidate_head=_REPAIR_HEAD)
         assert blocked is not None
         first.integration_queue.close()
 
@@ -1333,7 +1420,7 @@ class TestGateFailureFencesWatchdogReopen:
             integration=IntegrationRecord(
                 state="ready",
                 task_branch="OOMPAH-814",
-                head_sha=_OOMPAH_814_HEAD,
+                head_sha=_REPAIR_HEAD,
             ),
         )
 
@@ -1351,7 +1438,7 @@ class TestGateFailureFencesWatchdogReopen:
         )
 
         assert snapshot["status"] == "failed"
-        assert snapshot["head_sha"] == _OOMPAH_814_HEAD
+        assert snapshot["head_sha"] == _REPAIR_HEAD
         assert snapshot["generation"].startswith("integration-queue-v1:")
 
     def test_action_time_queue_cas_rejects_concurrent_gate_transition(self, tmp_path):
@@ -1411,7 +1498,7 @@ class TestGateFailureFencesWatchdogReopen:
         from oompah.integration import IntegrationRecord
 
         orch = _make_orchestrator(tmp_path)
-        blocked = _blocked_gate_row(orch)
+        blocked = _blocked_gate_row(orch, candidate_head=_REPAIR_HEAD)
         assert blocked is not None
         issue = Issue(
             id="OOMPAH-814",
@@ -1422,11 +1509,16 @@ class TestGateFailureFencesWatchdogReopen:
             integration=IntegrationRecord(
                 state="ready",
                 task_branch="OOMPAH-814",
-                head_sha=_OOMPAH_814_HEAD,
+                head_sha=_REPAIR_HEAD,
             ),
         )
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+
+        def update_issue(_identifier, *, status, **_kwargs):
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
         decision = StalledTaskDecision(
             task_id=issue.identifier,
             project_id="project-1",
@@ -1726,9 +1818,11 @@ class TestGateFailureFencesWatchdogReopen:
             return issue
 
         tracker.fetch_issue_detail.side_effect = fetch_current
-        tracker.update_issue.side_effect = lambda *_a, **_k: order.append(
-            "watchdog-open"
-        )
+        def update_issue(_identifier, *, status, **_kwargs):
+            issue.state = status
+            order.append("watchdog-open")
+
+        tracker.update_issue.side_effect = update_issue
         decision = StalledTaskDecision(
             task_id=issue.identifier,
             project_id="project-1",
@@ -2161,6 +2255,112 @@ class TestGateFailureFencesWatchdogReopen:
         assert decision.classification == "insufficient_evidence"
         assert decision.action == "none"
         assert decision.evidence_head == _OOMPAH_814_HEAD
+
+    def test_watchdog_and_gate_completion_have_one_generation_winner(
+        self, tmp_path
+    ):
+        """A stale watchdog observation cannot race past a blocked gate CAS."""
+
+        head = "a" * 40
+        current = Issue(
+            id="issue-806-race",
+            identifier="T-806-race",
+            title="gate race",
+            state="Ready to Integrate",
+            project_id="project-1",
+            assignment_id="implementation-generation-1",
+            head_sha=head,
+            integration=IntegrationRecord(
+                state="blocked",
+                task_branch="feature/T-806-race",
+                head_sha=head,
+                last_error="combined-tree gate failed",
+            ),
+        )
+
+        class ConcurrentTracker:
+            def __init__(self, issue):
+                self.issue = issue
+                self.lock = threading.Lock()
+                self.updates = []
+
+            def fetch_issue_detail(self, identifier):
+                with self.lock:
+                    assert identifier == self.issue.identifier
+                    return replace(self.issue)
+
+            def update_issue(self, identifier, **fields):
+                with self.lock:
+                    assert identifier == self.issue.identifier
+                    self.updates.append((identifier, fields["status"]))
+                    self.issue = replace(self.issue, state=fields["status"])
+
+        tracker = ConcurrentTracker(current)
+        orch = _make_orchestrator(tmp_path)
+        stale_watchdog_issue = replace(
+            current,
+            state=NEEDS_CI_FIX,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="feature/T-806-race",
+                head_sha=head,
+            ),
+        )
+        gate_issue = replace(current)
+        barrier = threading.Barrier(3)
+
+        def watchdog_transition():
+            barrier.wait()
+            return orch._request_task_status_transition_from_maintenance(
+                project_id="project-1",
+                tracker=tracker,
+                issue=stale_watchdog_issue,
+                requested_status=OPEN,
+                actor="oompah-stalled-watchdog",
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="watchdog.stalled_recovery",
+                idempotency_key="race:watchdog",
+                originating_job="watchdog:race",
+            )
+
+        def gate_transition():
+            barrier.wait()
+            return orch._request_task_status_transition_from_maintenance(
+                project_id="project-1",
+                tracker=tracker,
+                issue=gate_issue,
+                requested_status=NEEDS_CI_FIX,
+                actor="oompah-integration-gate",
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="integration.gate_failure",
+                idempotency_key="race:gate",
+                originating_job="integration:race",
+            )
+
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                watchdog_future = pool.submit(watchdog_transition)
+                gate_future = pool.submit(gate_transition)
+                barrier.wait()
+                watchdog_outcome = watchdog_future.result(timeout=5)
+                gate_outcome = gate_future.result(timeout=5)
+
+            assert gate_outcome.disposition is TransitionDisposition.APPLIED
+            assert watchdog_outcome.disposition is TransitionDisposition.REJECTED
+            assert watchdog_outcome.reason_code in {
+                "transition.stale_status",
+                "transition.stale_version",
+            }
+            assert tracker.issue.state == NEEDS_CI_FIX
+            assert tracker.updates == [("T-806-race", NEEDS_CI_FIX)]
+        finally:
+            orch.task_transition_journal.close()
+            orch.integration_queue.close()
+            orch.coordination_store.close()
+            orch.review_capacity_store.close()
+            orch.workflow_job_store.close()
+            orch._tick_pool.shutdown(wait=True, cancel_futures=True)
+            orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 # ---------------------------------------------------------------------------

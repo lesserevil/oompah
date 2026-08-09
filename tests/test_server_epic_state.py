@@ -9,6 +9,7 @@ clear 409 (epic_state_reverted) rather than silently returning ok=true.
 from __future__ import annotations
 
 import asyncio
+import threading
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
@@ -59,6 +60,11 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     mock_orch.state.retry_attempts = {}
     mock_orch.state.claimed = set()
     mock_orch.state.completed = set()
+    mock_orch._transition_issue_status.side_effect = (
+        lambda current, status, **_fields: mock_tracker.update_issue(
+            current.identifier, status=status
+        )
+    )
 
     return mock_orch, mock_tracker
 
@@ -212,8 +218,10 @@ class TestUpdateIssueNeedsHumanComment:
 
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
-        mock_tracker.update_issue.assert_not_called()
-        mock_tracker.mark_needs_human.assert_called_once_with(
+        mock_orch._transition_issue_status.assert_called_once()
+        assert mock_orch._transition_issue_status.call_args.args[1] == "Needs Human"
+        mock_tracker.mark_needs_human.assert_not_called()
+        mock_tracker.add_comment.assert_called_once_with(
             "task-1",
             "Human action required: choose the deployment path.",
             author="oompah",
@@ -235,7 +243,7 @@ class TestUpdateIssueNeedsHumanComment:
             )
 
         assert resp.status_code == 200
-        comment = mock_tracker.mark_needs_human.call_args.args[1]
+        comment = mock_tracker.add_comment.call_args.args[1]
         assert "Human action required" in comment
         assert "move the task back to Open" in comment
 
@@ -329,6 +337,43 @@ class TestEpicStateVerification:
         # to read `existing_issue` for the is_epic check, but it must NOT
         # call it again for the Epic verification loop.
         assert mock_tracker.fetch_issue_detail.call_count == 2
+
+    def test_non_epic_state_writer_owns_project_mutation_fence(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="open"
+        )
+        lock = threading.RLock()
+        mock_orch.project_store.project_write_lock.return_value = lock
+
+        def update_issue(_identifier, **_fields):
+            assert lock._is_owned()  # type: ignore[attr-defined]
+
+        mock_tracker.update_issue.side_effect = update_issue
+
+        async def transition(current, requested_status, **_fields):
+            def mutate() -> None:
+                with lock:
+                    mock_tracker.update_issue(
+                        current.identifier,
+                        status=requested_status,
+                    )
+
+            await asyncio.to_thread(mutate)
+
+        mock_orch._transition_issue_status_async = transition
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            response = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "in_progress", "project_id": "proj-1"},
+            )
+
+        assert response.status_code == 200
+        mock_tracker.update_issue.assert_called_once()
 
     def test_epic_state_update_persists_returns_200(self, client):
         """When Epic state change persists, return 200 ok."""

@@ -1456,6 +1456,8 @@ class GitHubIssueTracker:
         from environment variables automatically.
     """
 
+    supports_atomic_create_once = False
+
     def __init__(
         self,
         *,
@@ -2017,6 +2019,36 @@ class GitHubIssueTracker:
                     pass  # Best-effort; the label still encodes the terminal status.
 
         return _gh_issue_to_issue(gh_issue, self.owner, self.repo)
+
+    def create_issue_once(
+        self,
+        title: str,
+        issue_type: str = "task",
+        description: str | None = None,
+        priority: int | None = None,
+        initial_status: str | None = None,
+        labels: list[str] | None = None,
+        parent: str | None = None,
+        *,
+        project_id: str,
+        operation_kind: str,
+        creation_marker: str,
+    ) -> Issue:
+        del (
+            title,
+            issue_type,
+            description,
+            priority,
+            initial_status,
+            labels,
+            parent,
+            project_id,
+            operation_kind,
+            creation_marker,
+        )
+        raise TrackerError(
+            "GitHub Issues does not provide atomic create-once task creation"
+        )
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         """Update one or more fields on an existing GitHub issue.

@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TypeVar
 
+from oompah.integration import accepted_submission_branch
 
 CURRENT_VERSION = 1
 """Current serialized terminal-audit record version."""
@@ -86,9 +87,27 @@ class FailureClassification(str, Enum):
     INFRASTRUCTURE_ERROR = "infrastructure_error"
     POLICY_INCOMPATIBILITY = "policy_incompatibility"
     FINALIZATION_FAILURE = "finalization_failure"
+    SCHEDULER_PAUSE = "scheduler_pause"
 
     @classmethod
     def from_raw(cls, raw: Any) -> "FailureClassification":
+        return _parse_enum(cls, raw)
+
+
+class AuditAttemptOrigin(str, Enum):
+    """Trusted internal provenance for coordinator-authored attempts.
+
+    Auditor result payloads cannot set this field.  It exists so later owner
+    recovery can distinguish a coordinator's bounded retry-exhaustion
+    projection from a substantive ``NEEDS_HUMAN`` verdict submitted by an
+    auditor.
+    """
+
+    COORDINATOR_RETRY_EXHAUSTION = "coordinator_retry_exhaustion"
+    COORDINATOR_ABANDONED_RECOVERY = "coordinator_abandoned_recovery"
+
+    @classmethod
+    def from_raw(cls, raw: Any) -> "AuditAttemptOrigin":
         return _parse_enum(cls, raw)
 
 
@@ -163,6 +182,17 @@ def _optional_non_negative_int(
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(
             f"{type_name} optional field {key!r} must be a non-negative integer"
+        )
+    return value
+
+
+def _optional_positive_int(
+    raw: Mapping[str, Any], key: str, type_name: str, *, default: int = 1
+) -> int:
+    value = raw.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            f"{type_name} optional field {key!r} must be a positive integer"
         )
     return value
 
@@ -818,17 +848,18 @@ def compute_issue_evidence_fingerprint(
         A tracker issue object with optional properties:
         - description: task requirements text
         - identifier, id: task identifier
-        - source_branch, work_branch, branch_name: source branch (with fallback to integration.task_branch)
-        - source_sha: source commit SHA (with fallback to integration.head_sha)
-        - target_branch: target branch (with fallback to integration.base_branch)
-        - target_sha: target commit SHA (with fallback to integration.integrated_sha, integration.base_sha)
+        - source_branch, work_branch, branch_name: projected source branch
+        - source_sha: projected source commit SHA
+        - target_branch: projected target branch
+        - target_sha: projected target commit SHA
         - review_id, review_number: review identifier
         - review_state: review lifecycle state
         - contributors: list of ContributorIdentity or strings
         - child_audit_digests: list of child audit fingerprint digests
         - issue_type: "epic" or other type (used to resolve epic branches)
         - parent_id: parent epic ID (for nested epics)
-        - integration: optional integration record with task_branch, head_sha, base_branch, integrated_sha, base_sha
+        - integration: optional durable integration record; an accepted generation's
+          task_branch/head_sha/base_branch/base_sha override stale projections
     project_id : str
         The managed project ID that owns this issue.
 
@@ -871,16 +902,52 @@ def compute_issue_evidence_fingerprint(
                 ),
             )
     else:
-        # Preserve the v1 fingerprint shape exactly. Repository resolution is
-        # persisted separately as an AuditRevisionBinding so deploying the
-        # resolver cannot invalidate an in-flight legacy audit.
-        source_branch = str(
-            getattr(issue, "source_branch", None)
-            or getattr(issue, "work_branch", None)
-            or getattr(integration, "task_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        )
+        # Preserve the v1 projection fallback shape until a durable accepted
+        # generation exists. Repository resolution is persisted separately as
+        # an AuditRevisionBinding so mutable candidate order does not
+        # invalidate an in-flight legacy audit.
+        accepted_branch = accepted_submission_branch(issue)
+        if accepted_branch:
+            # Once a generation crosses the submission boundary, its durable
+            # integration record owns the exact branch/head/base evidence.
+            # Mutable tracker projections may still describe the generation
+            # that preceded it after a crash or delayed refresh.
+            source_branch = accepted_branch
+            source_sha = str(getattr(integration, "head_sha", None) or "")
+            target_branch = str(
+                getattr(integration, "base_branch", None)
+                or getattr(issue, "target_branch", None)
+                or ""
+            )
+            target_sha = str(
+                getattr(integration, "base_sha", None)
+                or getattr(issue, "target_sha", None)
+                or ""
+            )
+        else:
+            source_branch = str(
+                getattr(issue, "source_branch", None)
+                or getattr(issue, "work_branch", None)
+                or getattr(integration, "task_branch", None)
+                or getattr(issue, "branch_name", None)
+                or ""
+            )
+            source_sha = str(
+                getattr(issue, "source_sha", None)
+                or getattr(integration, "head_sha", None)
+                or ""
+            )
+            target_branch = str(
+                getattr(issue, "target_branch", None)
+                or getattr(integration, "base_branch", None)
+                or ""
+            )
+            target_sha = str(
+                getattr(issue, "target_sha", None)
+                or integrated_sha
+                or getattr(integration, "base_sha", None)
+                or ""
+            )
         if not source_branch:
             issue_identifier = str(
                 getattr(issue, "identifier", None)
@@ -894,23 +961,6 @@ def compute_issue_evidence_fingerprint(
             )
             if epic_branches:
                 source_branch = epic_branches[0]
-
-        source_sha = str(
-            getattr(issue, "source_sha", None)
-            or getattr(integration, "head_sha", None)
-            or ""
-        )
-        target_branch = str(
-            getattr(issue, "target_branch", None)
-            or getattr(integration, "base_branch", None)
-            or ""
-        )
-        target_sha = str(
-            getattr(issue, "target_sha", None)
-            or integrated_sha
-            or getattr(integration, "base_sha", None)
-            or ""
-        )
 
     return compute_evidence_fingerprint(
         requirements_text=str(getattr(issue, "description", None) or ""),
@@ -963,6 +1013,7 @@ class AuditAttempt:
     next_retry_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    origin: AuditAttemptOrigin | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.attempt_id, str) or not self.attempt_id.strip():
@@ -977,6 +1028,8 @@ class AuditAttempt:
             self.failure_classification = FailureClassification.from_raw(
                 self.failure_classification
             )
+        if self.origin is not None:
+            self.origin = AuditAttemptOrigin.from_raw(self.origin)
         if self.requested_by is not None and not isinstance(
             self.requested_by, ContributorIdentity
         ):
@@ -1026,6 +1079,8 @@ class AuditAttempt:
             result["verdict"] = self.verdict.value
         if self.failure_classification is not None:
             result["failure_classification"] = self.failure_classification.value
+        if self.origin is not None:
+            result["origin"] = self.origin.value
         if self.requested_by is not None:
             result["requested_by"] = self.requested_by.to_dict()
         if self.created_at is not None:
@@ -1061,6 +1116,11 @@ class AuditAttempt:
             failure_classification=(
                 FailureClassification.from_raw(data["failure_classification"])
                 if "failure_classification" in data
+                else None
+            ),
+            origin=(
+                AuditAttemptOrigin.from_raw(data["origin"])
+                if "origin" in data
                 else None
             ),
             requested_by=(
@@ -1103,6 +1163,7 @@ class TerminalAuditRecord:
     updated_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    source_generation: int = 1
 
     def __post_init__(self) -> None:
         for name in ("audit_id", "project_id", "task_id"):
@@ -1133,6 +1194,14 @@ class TerminalAuditRecord:
         if binding is not None:
             self.selected_ref = binding.selected_ref
             self.selected_sha = binding.selected_sha
+        if (
+            isinstance(self.source_generation, bool)
+            or not isinstance(self.source_generation, int)
+            or self.source_generation < 1
+        ):
+            raise ValueError(
+                "TerminalAuditRecord.source_generation must be a positive integer"
+            )
 
     @property
     def id(self) -> str:
@@ -1156,6 +1225,7 @@ class TerminalAuditRecord:
             "request_state": self.request_state.value,
             "evidence_fingerprint": self.evidence_fingerprint.to_dict(),
             "attempts": [attempt.to_dict() for attempt in self.attempts],
+            "source_generation": self.source_generation,
         }
         if self.requested_by is not None:
             result["requested_by"] = self.requested_by.to_dict()
@@ -1199,6 +1269,9 @@ class TerminalAuditRecord:
             updated_at=_optional_string(data, "updated_at", cls.__name__),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
+            source_generation=_optional_positive_int(
+                data, "source_generation", cls.__name__
+            ),
         )
 
 
@@ -1284,6 +1357,7 @@ AuditRecord = TerminalAuditRecord
 __all__ = [
     "CURRENT_VERSION",
     "AuditAttempt",
+    "AuditAttemptOrigin",
     "AuditRecord",
     "AuditRevisionBinding",
     "AuditVerdict",

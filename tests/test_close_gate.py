@@ -841,6 +841,11 @@ class TestOrchestratorCloseGateWiring:
         current = _closed_issue(issue.identifier)
 
         mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = current
+        mock_tracker.fetch_issue_states_by_ids.return_value = [current]
+        mock_tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            current, "state", fields["status"]
+        )
         orch.tracker = mock_tracker
 
         refused = CloseGateResult(

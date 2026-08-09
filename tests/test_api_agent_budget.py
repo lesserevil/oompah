@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import time
 
 import pytest
@@ -22,6 +23,89 @@ from oompah.api_agent import (
     _estimate_tokens,
     _prune_messages_to_fit,
 )
+
+
+def test_session_forwards_validation_and_submission_authority_by_keyword(
+    tmp_path,
+    monkeypatch,
+):
+    """Composed authority bundles cannot shift positionally at tool dispatch."""
+
+    from oompah.api_agent import ApiAgentSession
+
+    validation_lease = object()
+    project_store = object()
+    successful_validation_handler = lambda _command, _workspace: None
+    submission_handler = lambda *_args, **_kwargs: None
+    lease_cancelled = lambda: False
+    captured: list[dict[str, object]] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "list_files",
+                                        "arguments": "{}",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            },
+            {"choices": [{"message": {"content": "done"}}]},
+        ]
+    )
+
+    async def fake_call_api(_self, _messages):
+        return next(responses)
+
+    def fake_execute_tool(workspace, name, args, **kwargs):
+        captured.append(
+            {
+                "workspace": workspace,
+                "name": name,
+                "args": args,
+                **kwargs,
+            }
+        )
+        return "[]"
+
+    monkeypatch.setattr(ApiAgentSession, "_call_api", fake_call_api)
+    monkeypatch.setattr("oompah.api_agent._execute_tool", fake_execute_tool)
+    session = ApiAgentSession(
+        base_url="http://example.invalid",
+        api_key="test",
+        model="test-model",
+        workspace_path=str(tmp_path),
+        validation_lease=validation_lease,
+        successful_validation_handler=successful_validation_handler,
+        project_store=project_store,
+        submission_handler=submission_handler,
+    )
+
+    result = asyncio.run(
+        session.run_task("inspect the workspace", is_cancelled=lease_cancelled)
+    )
+
+    assert result.status == "succeeded"
+    assert len(captured) == 1
+    forwarded = captured[0]
+    assert forwarded["validation_lease"] is validation_lease
+    assert (
+        forwarded["successful_validation_handler"]
+        is successful_validation_handler
+    )
+    assert forwarded["project_store"] is project_store
+    assert forwarded["submission_handler"] is submission_handler
+    assert forwarded["lease_cancelled"] is lease_cancelled
 
 
 def _msg(role: str, content: str = "x", **extra) -> dict:
@@ -281,6 +365,88 @@ class TestCallApiBudget:
         mt = captured["payload"]["max_tokens"]
         assert mt >= _MIN_MAX_OUTPUT_TOKENS
 
+    def test_transport_authority_runs_in_http_thread_at_actual_edge(
+        self, tmp_path, monkeypatch
+    ):
+        """A revocation after scheduling but before urlopen prevents contact."""
+        from oompah.api_agent import ApiAgentSession, _http_post as real_http_post
+
+        scheduled = threading.Event()
+        release_edge = threading.Event()
+        revoked = threading.Event()
+        opened = []
+
+        def delayed_http_post(url, headers, body, ssl_ctx, **kwargs):
+            scheduled.set()
+            assert release_edge.wait(timeout=2)
+            return real_http_post(url, headers, body, ssl_ctx, **kwargs)
+
+        def forbidden_urlopen(*_args, **_kwargs):
+            opened.append(True)
+            raise AssertionError("revoked API transport reached urlopen")
+
+        monkeypatch.setattr("oompah.api_agent._http_post", delayed_http_post)
+        monkeypatch.setattr("urllib.request.urlopen", forbidden_urlopen)
+        session = ApiAgentSession(
+            base_url="http://provider.invalid",
+            api_key="",
+            model="m",
+            workspace_path=str(tmp_path),
+            before_transport_contact=lambda: (
+                "runtime authority was revoked" if revoked.is_set() else None
+            ),
+        )
+
+        async def exercise():
+            call = asyncio.create_task(
+                session._call_api([_msg("system"), _msg("user", "hi")])
+            )
+            assert await asyncio.to_thread(scheduled.wait, 2)
+            revoked.set()
+            release_edge.set()
+            with pytest.raises(RuntimeError, match="authority was revoked"):
+                await call
+
+        asyncio.run(exercise())
+
+        assert opened == []
+        assert session.transport_contacted is False
+
+    def test_transport_authority_is_consumed_once_across_http_retry(
+        self, tmp_path, monkeypatch
+    ):
+        """A retry reuses only the admitted run, not its mutable callback."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        admissions = []
+        attempts = []
+
+        def fake_post(url, headers, body, ssl_ctx, **kwargs):
+            attempts.append(url)
+            assert kwargs["before_transport_contact"]() is None
+            if len(attempts) == 1:
+                raise TransientServerError("retry")
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        async def no_sleep(_delay):
+            return None
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", no_sleep)
+        session = ApiAgentSession(
+            base_url="http://provider.invalid",
+            api_key="",
+            model="m",
+            workspace_path=str(tmp_path),
+            before_transport_contact=lambda: admissions.append("admit") or None,
+        )
+
+        asyncio.run(session._call_api([_msg("system"), _msg("user", "hi")]))
+
+        assert len(attempts) == 2
+        assert admissions == ["admit"]
+        assert session.transport_contacted is True
+
 
 # ---------------------------------------------------------------------------
 # Per-dispatch JSONL agent logging — captures every request, response,
@@ -440,13 +606,20 @@ class TestAgentLogging:
 import urllib.error as _ue
 
 
+class _ClosableFakeReader:
+    """Minimal HTTPError body reader that satisfies its close contract."""
+
+    def close(self):
+        return None
+
+
 class TestHttpPostClassification:
     """_http_post must distinguish retryable from permanent failures."""
 
     def test_5xx_raises_transient_server_error(self, monkeypatch):
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"EngineCore boom"
 
@@ -489,7 +662,7 @@ class TestHttpPostClassification:
     def test_429_still_raises_rate_limit_error(self, monkeypatch):
         from oompah.api_agent import _http_post, RateLimitError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"slow down"
 
@@ -507,7 +680,7 @@ class TestHttpPostClassification:
     def test_4xx_other_than_429_is_permanent(self, monkeypatch):
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"bad request"
 
@@ -669,7 +842,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         can distinguish it from 5xx."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":{"message":"Authentication Error","code":"401"}}'
 
@@ -692,7 +865,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         digging through logs."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":{"message":"Server disconnected without sending a response.","type":"auth_error","code":"401"}}'
 
@@ -712,7 +885,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         retry semantics (no Retry-After on 401)."""
         from oompah.api_agent import _http_post, RateLimitError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b"unauthorized"
 
@@ -732,7 +905,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         retryable. 400 is still a permanent RuntimeError."""
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":"bad request"}'
 
@@ -768,7 +941,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         must be wrapped as TransientServerError so normal retry logic fires."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY.encode()
 
@@ -789,7 +962,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         """status_code must be 404 so callers can distinguish it from 5xx."""
         from oompah.api_agent import _http_post, TransientServerError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY.encode()
 
@@ -810,7 +983,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         treated as transient."""
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":"Not Found"}'
 
@@ -834,7 +1007,7 @@ class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
         is still a permanent error."""
         from oompah.api_agent import _http_post, RetryableError
 
-        class FakeReader:
+        class FakeReader(_ClosableFakeReader):
             def read(self):
                 return b'{"error":{"message":"litellm.NotFoundError: something else"}}'
 
@@ -1254,6 +1427,220 @@ class TestUnknownToolHelpfulErrorWhenLooksShellish:
 # ---------------------------------------------------------------------------
 
 class TestRunCommandEnvOverrides:
+    def test_env_argv0_cannot_turn_nested_bash_into_unleased_login_shell(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        home = tmp_path / "service-home"
+        home.mkdir()
+        startup_marker = tmp_path / "argv0-profile-ran"
+        heavy_marker = tmp_path / "argv0-profile-heavy-command-ran"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        (home / ".bash_profile").write_text(
+            f': > "{startup_marker}"\n"{fake_make}" test\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HOME", str(home))
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "env --argv0=-bash bash -c 'printf trusted'"},
+            require_validation_lease=True,
+        )
+
+        assert "ownership metadata is incomplete" in result
+        assert startup_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_inherited_pytest_addopts_requires_capacity_for_focused_node(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "pytest tests/test_one.py::test_case"},
+            env_overrides={"PYTEST_ADDOPTS": "-n auto"},
+            require_validation_lease=True,
+        )
+
+        assert "ownership metadata is incomplete" in result
+
+    @pytest.mark.parametrize(
+        ("profile_name", "command"),
+        [
+            (".bash_profile", "bash -lc 'printf trusted'"),
+            (".bashrc", "bash -ic 'printf trusted'"),
+            (".zshenv", "zsh -c 'printf trusted'"),
+        ],
+    )
+    def test_inherited_home_nested_shell_startup_requires_capacity(
+        self,
+        tmp_path,
+        monkeypatch,
+        profile_name,
+        command,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        home = tmp_path / "service-home"
+        home.mkdir()
+        startup_marker = tmp_path / "nested-shell-startup-ran"
+        heavy_marker = tmp_path / "nested-shell-heavy-command-ran"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        (home / profile_name).write_text(
+            f': > "{startup_marker}"\n"{fake_make}" test\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HOME", str(home))
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": command},
+            require_validation_lease=True,
+        )
+
+        assert "ownership metadata is incomplete" in result
+        assert startup_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_inherited_bash_env_cannot_run_before_api_command(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+
+        startup_marker = tmp_path / "bash-env-ran"
+        heavy_marker = tmp_path / "bash-env-heavy-command-ran"
+        startup = tmp_path / "task-bash-env"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        startup.write_text(
+            f': > "{startup_marker}"\n"{fake_make}" test\n',
+            encoding="utf-8",
+        )
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "printf trusted"},
+            env_overrides={"BASH_ENV": str(startup)},
+        )
+
+        assert result == "stdout:\ntrusted\nexit_code: 0"
+        assert startup_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_inherited_dynamic_loader_controls_are_removed_before_api_shell(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        result = _exec_run_command(
+            tmp_path,
+            {
+                "command": (
+                    "printf '%s|%s|%s|%s' "
+                    '"${LD_PRELOAD-unset}" "${LD_AUDIT-unset}" '
+                    '"${LD_LIBRARY_PATH-unset}" '
+                    '"${DYLD_INSERT_LIBRARIES-unset}"'
+                )
+            },
+            env_overrides={
+                "LD_PRELOAD": "/task/hook.so",
+                "LD_AUDIT": "/task/audit.so",
+                "LD_LIBRARY_PATH": "/task/lib",
+                "DYLD_INSERT_LIBRARIES": "/task/hook.dylib",
+            },
+        )
+
+        assert result == "stdout:\nunset|unset|unset|unset\nexit_code: 0"
+
+    def test_imported_bash_function_cannot_replace_api_command(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+
+        function_marker = tmp_path / "imported-function-ran"
+        heavy_marker = tmp_path / "imported-function-heavy-command-ran"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        imported_function = (
+            f'() {{ : > "{function_marker}"; '
+            f'"{fake_make}" test; builtin printf task-function; }}'
+        )
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "printf trusted"},
+            env_overrides={"BASH_FUNC_printf%%": imported_function},
+        )
+
+        assert result == "stdout:\ntrusted\nexit_code: 0"
+        assert function_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_login_profile_cannot_run_or_replace_command_after_classification(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        home = tmp_path / "task-home"
+        home.mkdir()
+        marker = tmp_path / "profile-ran"
+        heavy_marker = tmp_path / "profile-heavy-command-ran"
+        trusted_bin = tmp_path / "trusted-bin"
+        task_bin = tmp_path / "task-bin"
+        trusted_bin.mkdir()
+        task_bin.mkdir()
+        trusted_probe = trusted_bin / "validation-profile-probe"
+        trusted_probe.write_text("#!/bin/sh\nprintf trusted\n", encoding="utf-8")
+        trusted_probe.chmod(0o700)
+        task_probe = task_bin / "validation-profile-probe"
+        task_probe.write_text("#!/bin/sh\nprintf task-profile\n", encoding="utf-8")
+        task_probe.chmod(0o700)
+        task_make = task_bin / "make"
+        task_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        task_make.chmod(0o700)
+        (home / ".bash_profile").write_text(
+            f': > "{marker}"\nexport PATH="{task_bin}:$PATH"\nmake test\n',
+            encoding="utf-8",
+        )
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "validation-profile-probe"},
+            env_overrides={
+                "HOME": str(home),
+                "PATH": f"{trusted_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}",
+            },
+        )
+
+        assert result == "stdout:\ntrusted\nexit_code: 0"
+        assert marker.exists() is False
+        assert heavy_marker.exists() is False
+
     def test_client_auth_values_are_not_inherited_by_agent_command(self, tmp_path, monkeypatch):
         from oompah.api_agent import _exec_run_command
 

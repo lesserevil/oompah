@@ -157,6 +157,8 @@ def _write_attachments_manifest(
 class TrackerProtocol(Protocol):
     """Common interface that every oompah tracker adapter must satisfy."""
 
+    supports_atomic_create_once: bool
+
     def fetch_candidate_issues(self) -> list[Issue]:
         """Return issues in active dispatchable states, sorted for dispatch."""
         ...
@@ -213,6 +215,29 @@ class TrackerProtocol(Protocol):
         parent: str | None = None,
     ) -> Issue:
         """Create a new issue and return the normalized Issue record."""
+        ...
+
+    def create_issue_once(
+        self,
+        title: str,
+        issue_type: str = "task",
+        description: str | None = None,
+        priority: int | None = None,
+        initial_status: str | None = None,
+        labels: list[str] | None = None,
+        parent: str | None = None,
+        *,
+        project_id: str,
+        operation_kind: str,
+        creation_marker: str,
+    ) -> Issue:
+        """Create or recover one issue for an exact durable creation key.
+
+        Adapters must set ``supports_atomic_create_once`` to true only when
+        marker lookup and issue allocation share one durable write boundary.
+        Unsupported adapters fail closed instead of emulating this operation
+        with a read followed by an ordinary create.
+        """
         ...
 
     def update_issue(self, identifier: str, **fields: str) -> None:

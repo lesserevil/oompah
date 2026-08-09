@@ -34,6 +34,7 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
 )
 from oompah.statuses import DONE, MERGED, ARCHIVED
+from oompah.work_contributors import METADATA_KEY as WORK_CONTRIBUTORS_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +197,96 @@ async def test_authorized_owner_can_override(
     comment_text = tracker.comments[0][1]
     assert "Override by owner" in comment_text
     assert "Fixing stale task" in comment_text
+
+
+@pytest.mark.asyncio
+async def test_successful_owner_override_reconciles_audit_budget_claim(
+    tracker, lock_store, project_id, task_id, fingerprint, owner_identity
+):
+    released = []
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=lock_store,
+        release_audit_budget_reservation=lambda project, task: released.append(
+            (project, task)
+        ),
+    )
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata(pending_chain=[], unknown_fields={}).to_dict()},
+    )
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Owner accepts this exact revision",
+        project=_MockProject(status_label_authorized_logins=["owner"]),
+    )
+
+    assert result.success is True
+    assert released == [(project_id, task_id)]
+
+
+@pytest.mark.asyncio
+async def test_owner_override_preserves_prelaunch_contributor_fence(
+    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+):
+    """Owner authority remains independent of contributor reservation data."""
+
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    contributor_fence = {
+        "runs": [
+            {
+                "run_id": "run-1--contributor-abc",
+                "provider_id": "implementation-provider",
+                "provider_name": "Implementation Provider",
+                "model_id": "implementation-model",
+                "focus": None,
+                "source_branch": "task-branch",
+                "source_sha": None,
+                "completed_at": "",
+            }
+        ]
+    }
+    tracker.set_metadata(
+        task_id,
+        {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[], unknown_fields={}
+            ).to_dict(),
+            WORK_CONTRIBUTORS_KEY: contributor_fence,
+        },
+    )
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Owner accepts this exact revision",
+        project=project,
+    )
+
+    assert result.success is True
+    assert tracker.get_metadata(task_id)[WORK_CONTRIBUTORS_KEY] == contributor_fence
 
 
 @pytest.mark.asyncio
@@ -532,8 +623,18 @@ async def test_stale_fingerprint_rejected(
 
 
 @pytest.mark.asyncio
-async def test_stale_fingerprint_rejected_against_pending_audit(
-    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+@pytest.mark.parametrize(
+    "active_state",
+    [RequestState.PENDING, RequestState.IN_PROGRESS],
+)
+async def test_stale_fingerprint_rejected_against_live_audit(
+    coordinator,
+    tracker,
+    project_id,
+    task_id,
+    fingerprint,
+    owner_identity,
+    active_state,
 ):
     """An override cannot use a fingerprint older than the pending request."""
     current = EvidenceFingerprint.from_evidence(
@@ -560,7 +661,7 @@ async def test_stale_fingerprint_rejected_against_pending_audit(
         task_id=task_id,
         target_state=TargetState.DONE,
         evidence_fingerprint=current,
-        request_state=RequestState.PENDING,
+        request_state=active_state,
         requested_by=owner_identity,
     )
     tracker.set_metadata(
@@ -1233,6 +1334,76 @@ async def test_override_rejected_when_current_record_fingerprint_mismatch(
     assert result.error_code == "fingerprint_mismatch"
     assert tracker.comments == []
     assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "historical_state",
+    [
+        RequestState.COMPLETED,
+        RequestState.CANCELLED,
+        RequestState.SUPERSEDED,
+    ],
+)
+async def test_historical_record_does_not_veto_fresh_owner_override(
+    coordinator,
+    tracker,
+    project_id,
+    task_id,
+    owner_identity,
+    historical_state,
+):
+    """Inactive audit evidence is history, not current transition authority."""
+
+    historical_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="historical evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    current_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="reopened task with current evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Progress",
+        title="Reopened task",
+        description="Current owner-reviewed scope",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    historical = TerminalAuditRecord(
+        audit_id=f"audit-{historical_state.value}",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=historical_fingerprint,
+        request_state=historical_state,
+        requested_by=owner_identity,
+    )
+    tracker.set_metadata(
+        task_id,
+        {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[historical]
+            ).to_dict()
+        },
+    )
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=current_fingerprint,
+        reason="Current project owner verified the reopened task.",
+        project=project,
+    )
+
+    assert result.success is True
+    assert result.applied_status == DONE
+    assert (task_id, DONE) in tracker.status_updates
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from oompah.agent import (
+    AgentError,
     AgentSession,
     ProcessIdentity,
     capture_workspace_processes,
@@ -42,6 +43,105 @@ async def test_start_creates_dedicated_posix_session(tmp_path, monkeypatch):
     assert "OOMPAH_SERVER_PASSWORD" not in child_env
     assert "OOMPAH_SERVER_PASSWORD_FILE" not in child_env
     assert child_env["OOMPAH_TASK_VENV"] == str(tmp_path / ".oompah" / "task-venv")
+
+
+@pytest.mark.asyncio
+async def test_epic_rebase_session_rejects_unbridged_cli_transport(tmp_path, monkeypatch):
+    """A CLI's provider transport and native shell cannot be separated."""
+    session = AgentSession("agent", str(tmp_path), isolate_remote_write=True)
+    monkeypatch.setenv("HOME", "/operator/home")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("GITHUB_TOKEN", "forge-secret")
+
+    with patch(
+        "oompah.agent.asyncio.create_subprocess_exec",
+        new=AsyncMock(),
+    ) as create_process:
+        with pytest.raises(AgentError, match="API/ACP bridged provider") as exc:
+            await session.start()
+
+    assert exc.value.error_class == "isolated_cli_unavailable"
+    create_process.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_admits_immediately_before_subprocess_and_marks_contact(tmp_path):
+    events: list[str] = []
+
+    def _admit():
+        events.append("permit")
+        return None
+
+    session = AgentSession(
+        "agent",
+        str(tmp_path),
+        before_transport_contact=_admit,
+        on_transport_contact=lambda: events.append("contacted"),
+        on_precontact_admission_cancelled=lambda: events.append("rollback"),
+    )
+    process = MagicMock(pid=None)
+    session._drain_stderr = AsyncMock()
+
+    async def _spawn(*_args, **_kwargs):
+        events.append("popen")
+        return process
+
+    with patch(
+        "oompah.agent.asyncio.create_subprocess_exec",
+        side_effect=_spawn,
+    ):
+        await session.start()
+        await asyncio.sleep(0)
+
+    assert events == ["permit", "popen", "contacted"]
+    assert session.transport_contacted is True
+
+
+@pytest.mark.asyncio
+async def test_start_rolls_back_unused_permit_when_local_popen_fails(tmp_path):
+    events: list[str] = []
+    session = AgentSession(
+        "missing-agent",
+        str(tmp_path),
+        before_transport_contact=lambda: events.append("permit") or None,
+        on_transport_contact=lambda: events.append("contacted"),
+        on_precontact_admission_cancelled=lambda: events.append("rollback"),
+    )
+
+    with patch(
+        "oompah.agent.asyncio.create_subprocess_exec",
+        new=AsyncMock(side_effect=FileNotFoundError("missing bash")),
+    ):
+        with pytest.raises(AgentError, match="Agent command not found"):
+            await session.start()
+
+    assert events == ["permit", "rollback"]
+    assert session.transport_contacted is False
+
+
+@pytest.mark.asyncio
+async def test_stop_before_start_prevents_permit_and_subprocess(tmp_path):
+    admit = MagicMock(return_value=None)
+    rollback = MagicMock()
+    session = AgentSession(
+        "agent",
+        str(tmp_path),
+        before_transport_contact=admit,
+        on_precontact_admission_cancelled=rollback,
+    )
+
+    await session.stop()
+    with patch(
+        "oompah.agent.asyncio.create_subprocess_exec",
+        new=AsyncMock(),
+    ) as create_process:
+        with pytest.raises(AgentError, match="cancelled before subprocess"):
+            await session.start()
+
+    admit.assert_not_called()
+    rollback.assert_not_called()
+    create_process.assert_not_awaited()
+    assert session.transport_contacted is False
 
 
 @pytest.mark.asyncio

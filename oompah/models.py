@@ -91,6 +91,34 @@ class EpicRebaseStateEntry:
     target_branch: str | None = None
     target_parent_id: str | None = None
     target_resolution: str = ""
+    # One scheduler-created helper owns one exact epic branch head. The target
+    # head is refreshable freshness evidence because native task writes may
+    # legitimately advance the default branch while that helper is active.
+    # This is persisted before worker admission so concurrent tick lanes and a
+    # restarted service cannot each grant mutation authority for the same epic
+    # generation.
+    authority_generation: str = ""
+    authority_task_id: str | None = None
+    authority_epic_head: str | None = None
+    authority_target_head: str | None = None
+    # Set before the non-idempotent tracker create.  An unknown create result
+    # therefore consumes the generation until a later tracker read attaches
+    # the created helper; it is never permission to issue a second create.
+    authority_creation_reserved: bool = False
+    authority_creation_marker: str = ""
+    authority_missing_since: float = 0.0
+    authority_missing_observations: int = 0
+    # Two-phase evidence for the server-owned epic rebase publisher.  The
+    # worker supplies only ``authority_publish_candidate``; every other field
+    # is resolved and persisted by the server before it performs the remote
+    # compare-and-swap.  A durable ``prepared`` record lets a restarted server
+    # distinguish a lost push response from an unrelated remote advance.
+    authority_publish_state: str = ""
+    authority_publish_candidate: str | None = None
+    authority_publish_lease_head: str | None = None
+    authority_publish_target_head: str | None = None
+    authority_publish_remote_head: str | None = None
+    authority_publish_verified_at: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -108,6 +136,34 @@ class EpicRebaseStateEntry:
             d["target_parent_id"] = self.target_parent_id
         if self.target_resolution:
             d["target_resolution"] = self.target_resolution
+        if self.authority_generation:
+            d["authority_generation"] = self.authority_generation
+        if self.authority_task_id:
+            d["authority_task_id"] = self.authority_task_id
+        if self.authority_epic_head:
+            d["authority_epic_head"] = self.authority_epic_head
+        if self.authority_target_head:
+            d["authority_target_head"] = self.authority_target_head
+        if self.authority_creation_reserved:
+            d["authority_creation_reserved"] = True
+        if self.authority_creation_marker:
+            d["authority_creation_marker"] = self.authority_creation_marker
+        if self.authority_missing_since:
+            d["authority_missing_since"] = self.authority_missing_since
+        if self.authority_missing_observations:
+            d["authority_missing_observations"] = self.authority_missing_observations
+        if self.authority_publish_state:
+            d["authority_publish_state"] = self.authority_publish_state
+        if self.authority_publish_candidate:
+            d["authority_publish_candidate"] = self.authority_publish_candidate
+        if self.authority_publish_lease_head:
+            d["authority_publish_lease_head"] = self.authority_publish_lease_head
+        if self.authority_publish_target_head:
+            d["authority_publish_target_head"] = self.authority_publish_target_head
+        if self.authority_publish_remote_head:
+            d["authority_publish_remote_head"] = self.authority_publish_remote_head
+        if self.authority_publish_verified_at:
+            d["authority_publish_verified_at"] = self.authority_publish_verified_at
         return d
 
     @classmethod
@@ -121,6 +177,30 @@ class EpicRebaseStateEntry:
             target_branch=(str(d.get("target_branch", "")).strip() or None),
             target_parent_id=(str(d.get("target_parent_id", "")).strip() or None),
             target_resolution=str(d.get("target_resolution", "") or ""),
+            authority_generation=str(d.get("authority_generation", "") or ""),
+            authority_task_id=(str(d.get("authority_task_id", "")).strip() or None),
+            authority_epic_head=(str(d.get("authority_epic_head", "")).strip() or None),
+            authority_target_head=(str(d.get("authority_target_head", "")).strip() or None),
+            authority_creation_reserved=bool(d.get("authority_creation_reserved", False)),
+            authority_creation_marker=str(d.get("authority_creation_marker", "") or ""),
+            authority_missing_since=float(d.get("authority_missing_since", 0) or 0),
+            authority_missing_observations=int(d.get("authority_missing_observations", 0) or 0),
+            authority_publish_state=str(d.get("authority_publish_state", "") or ""),
+            authority_publish_candidate=(
+                str(d.get("authority_publish_candidate", "")).strip() or None
+            ),
+            authority_publish_lease_head=(
+                str(d.get("authority_publish_lease_head", "")).strip() or None
+            ),
+            authority_publish_target_head=(
+                str(d.get("authority_publish_target_head", "")).strip() or None
+            ),
+            authority_publish_remote_head=(
+                str(d.get("authority_publish_remote_head", "")).strip() or None
+            ),
+            authority_publish_verified_at=float(
+                d.get("authority_publish_verified_at", 0) or 0
+            ),
         )
 
 
@@ -331,6 +411,13 @@ class LiveSession:
     # (or "no cost" for subscription/api/cli paths). See issue
     # oompah-zlz_2-ag7h.
     sdk_cost_usd: float | None = None
+    # Counter fields begin at zero for live dashboard rendering.  They become
+    # billing authority only after the transport reports a terminal usage
+    # envelope.  In particular, a contacted provider which disconnects,
+    # crashes, or is revoked before that envelope must not be mistaken for a
+    # genuine zero-token, zero-cost attempt.
+    final_usage_observed: bool = False
+    final_cost_observed: bool = False
     # Opaque per-session monitor for bounded ACP tool subprocesses. It is
     # intentionally not part of dashboard serialization or persisted state.
     tool_liveness: Any = None
@@ -377,6 +464,11 @@ class RetryEntry:
     # Wall-clock due time is persisted separately from due_at_ms, which is a
     # process-local monotonic timestamp and cannot survive a restart.
     due_at_epoch_ms: float | None = None
+    # True when this entry preserves a dispatch that never reached provider
+    # admission. Replaying it retains first-dispatch routing and must not
+    # consume implementation retry budget merely because rollback was
+    # temporarily unavailable.
+    pre_admission_recovery: bool = False
     cancelled: bool = False
 
 
@@ -449,11 +541,42 @@ class Project:
     test_skip_paths: list[str] = field(default_factory=list)
     # Auditor validation command contract: explicit allowlist of non-mutating
     # Makefile/shell targets that the completion auditor may run for validation.
-    # Examples: ["test", "fmt-check", "lint", "help"]. The full test_command
-    # is always implicitly included. When empty (the default), falls back to the
-    # default allowlist. Enables aligning auditor prompt guidance with actual
-    # enforcement (OOMPAH-736).
+    # Examples: ["test", "fmt-check", "lint", "help"]. Targets must be
+    # enumerated explicitly; deadline configuration never expands this
+    # allowlist. When empty (the default), falls back to the default targets.
+    # Enables aligning auditor prompt guidance with actual enforcement
+    # (OOMPAH-736).
     auditor_validation_targets: list[str] = field(default_factory=list)
+    # Per-target command deadlines (seconds) for auditor validation targets.
+    # Maps target name (from auditor_validation_targets) to its required execution
+    # deadline. When a target is not in this dict, the global
+    # OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS applies. Enables projects to run
+    # longer validation commands (e.g., integration tests) within their deadline.
+    # Example: {"test": 1800, "test-serial": 2400, "check-secrets": 300}
+    auditor_validation_target_deadlines: dict[str, int] = field(default_factory=dict)
+    # Observed or operator-configured duration budget for each approved target.
+    # A configured duration greater than its effective deadline is rejected
+    # before an auditor can consume an attempt.
+    auditor_validation_target_expected_seconds: dict[str, int] = field(
+        default_factory=dict
+    )
+    # Derived at project load/update time. It is intentionally not persisted:
+    # the exact error can include effective environment fallback values.
+    auditor_validation_contract_error: str | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    # Maximum compatible exact-gate durations observed by the service. This is
+    # hydrated from quality_gates.json at runtime and is never user-authored or
+    # persisted in project configuration.
+    auditor_validation_target_observed_seconds: dict[str, int] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        compare=False,
+    )
     # Per-project strategy controlling how children of an epic relate to
     # branches and CI.  "shared" is the only supported value: each epic gets
     # ONE shared worktree and ONE shared branch; child tasks commit directly
@@ -662,6 +785,14 @@ class Project:
             d["test_skip_paths"] = list(self.test_skip_paths)
         if self.auditor_validation_targets:
             d["auditor_validation_targets"] = list(self.auditor_validation_targets)
+        if self.auditor_validation_target_deadlines:
+            d["auditor_validation_target_deadlines"] = dict(
+                self.auditor_validation_target_deadlines
+            )
+        if self.auditor_validation_target_expected_seconds:
+            d["auditor_validation_target_expected_seconds"] = dict(
+                self.auditor_validation_target_expected_seconds
+            )
         # Always emit epic_strategy so dashboards can render the current
         # mode without back-compat guessing.  "shared" is the only supported
         # value; always writing the field ensures legacy flat/stacked entries
@@ -897,6 +1028,73 @@ class Project:
                 state_branch_checkpoint_max_delay_ms = v if v > 0 else None
             except (TypeError, ValueError):
                 state_branch_checkpoint_max_delay_ms = None
+        raw_validation_targets = d.get("auditor_validation_targets")
+        if raw_validation_targets is None:
+            auditor_validation_targets: list[str] = []
+        elif not isinstance(raw_validation_targets, list):
+            raise ValueError("auditor_validation_targets must be a list of strings")
+        else:
+            auditor_validation_targets = []
+            seen_validation_targets: set[str] = set()
+            for raw_target in raw_validation_targets:
+                if not isinstance(raw_target, str):
+                    raise ValueError(
+                        "auditor_validation_targets entries must be strings"
+                    )
+                target = raw_target.strip()
+                if (
+                    not target
+                    or not target.isascii()
+                    or not all(
+                        char.isalnum() or char in "_.-" for char in target
+                    )
+                    or not target[0].isalnum()
+                ):
+                    raise ValueError(
+                        f"unsafe auditor validation target {target!r}"
+                    )
+                if target in seen_validation_targets:
+                    raise ValueError(
+                        f"duplicate auditor validation target {target!r}"
+                    )
+                seen_validation_targets.add(target)
+                auditor_validation_targets.append(target)
+
+        effective_validation_targets = set(
+            auditor_validation_targets
+            or ("test", "test-serial", "check-secrets")
+        )
+
+        def _strict_target_seconds_map(field_name: str) -> dict[str, int]:
+            raw_mapping = d.get(field_name)
+            if raw_mapping is None:
+                return {}
+            if not isinstance(raw_mapping, dict):
+                raise ValueError(f"{field_name} must be an object")
+            result: dict[str, int] = {}
+            for raw_target, raw_seconds in raw_mapping.items():
+                target = str(raw_target).strip()
+                if target not in effective_validation_targets:
+                    raise ValueError(
+                        f"{field_name} contains unapproved target {target!r}"
+                    )
+                if (
+                    isinstance(raw_seconds, bool)
+                    or not isinstance(raw_seconds, int)
+                    or raw_seconds <= 0
+                ):
+                    raise ValueError(
+                        f"{field_name}[{target!r}] must be a positive integer"
+                    )
+                result[target] = raw_seconds
+            return result
+
+        auditor_validation_target_deadlines = _strict_target_seconds_map(
+            "auditor_validation_target_deadlines"
+        )
+        auditor_validation_target_expected_seconds = _strict_target_seconds_map(
+            "auditor_validation_target_expected_seconds"
+        )
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -922,11 +1120,11 @@ class Project:
             test_command=test_command or None,
             test_command_full=test_command_full or None,
             test_skip_paths=test_skip_paths,
-            auditor_validation_targets=[
-                str(t).strip()
-                for t in (d.get("auditor_validation_targets") or [])
-                if str(t).strip()
-            ],
+            auditor_validation_targets=auditor_validation_targets,
+            auditor_validation_target_deadlines=auditor_validation_target_deadlines,
+            auditor_validation_target_expected_seconds=(
+                auditor_validation_target_expected_seconds
+            ),
             epic_strategy=epic_strategy,
             require_epic_for_tasks=bool(d.get("require_epic_for_tasks", False)),
             intake_auto_promote=bool(d.get("intake_auto_promote", True)),
@@ -1474,6 +1672,11 @@ class RunningEntry:
     is_auditor: bool = False
     audit_id: str | None = None
     audit_attempt_id: str | None = None
+    # Durable terminal-audit workflow ownership.  The lease token is an
+    # in-process secret and is intentionally never included in snapshots or
+    # comments; the job id is safe operational identity only.
+    audit_workflow_job_id: str | None = None
+    audit_workflow_lease_token: str | None = field(default=None, repr=False)
     branch_key: str | None = None
     # Unique assignment identity for this worker run.  Retry authority is
     # bound to this value so a replacement assignment cannot inherit it.
@@ -1506,6 +1709,18 @@ class RunningEntry:
     # process cleanup confirms every captured identity has exited.
     managed_processes: dict[int, Any] = field(default_factory=dict, repr=False)
     retirement_pending: bool = False
+    # Set only by the final, linearized provider-contact admission.  This is
+    # deliberately distinct from ``provider_started``: an owner override
+    # that loses the admission race must be able to see that contact was
+    # authorized even while durable budget persistence is completing.
+    provider_contact_permitted: bool = False
+    # OOMPAH-854's lifecycle admission gate is separate from final provider
+    # contact authorization above. A pause, quiesce, or restart can invalidate
+    # this generation after local setup but before the transport start task is
+    # published; retaining the exact task then lets retirement cancel it before
+    # it can contact a provider.
+    provider_admission_generation: int | None = None
+    provider_start_task: Any = field(default=None, repr=False)
     provider_started: bool = False
     # Read-only auditors are allowed a small number of policy mistakes before
     # the attempt is failed and rotated to another independent candidate.
@@ -1516,6 +1731,17 @@ class RunningEntry:
     # authority is revoked (OOMPAH-724). Used to fence submission handoff until
     # the revoked worker fully exits and its final worktree state is validated.
     accepted_submission_record: IntegrationRecord | None = None
+    # Provider configuration and billing authority captured by the final
+    # transport-admission CAS. ProviderStore updates mutate provider objects in
+    # place, so exit accounting and health publication must not re-interpret an
+    # old run using a newer endpoint, credential, billing mode, or rate table.
+    provider_configuration_signature: str | None = None
+    admitted_per_token_billed: bool | None = None
+    admitted_cost_per_1k_input: float | None = None
+    admitted_cost_per_1k_output: float | None = None
+    # Process-local owner-override generation captured before auditor setup.
+    # Registration compares it atomically with the task-scoped live generation.
+    auditor_authority_generation: int | None = None
 
     def classify_work_kind(self) -> str:
         """Classify the authoritative work_kind for this entry.
@@ -1555,6 +1781,7 @@ class OwnerClaim:
     claimed_at: float
     expires_at: float
     renewable: bool = True
+    retirement_pending: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1565,6 +1792,7 @@ class OwnerClaim:
             "claimed_at": self.claimed_at,
             "expires_at": self.expires_at,
             "renewable": self.renewable,
+            "retirement_pending": self.retirement_pending,
         }
 
     @classmethod
@@ -1582,6 +1810,7 @@ class OwnerClaim:
             claimed_at=float(raw.get("claimed_at", 0) or 0),
             expires_at=float(raw.get("expires_at", 0) or 0),
             renewable=bool(raw.get("renewable", True)),
+            retirement_pending=bool(raw.get("retirement_pending", False)),
         )
 
 

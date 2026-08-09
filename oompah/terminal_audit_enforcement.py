@@ -15,8 +15,9 @@ creates a new attempt.
 
 from __future__ import annotations
 
-import copy
+import contextlib
 import contextvars
+import copy
 import hashlib
 import json
 import logging
@@ -40,6 +41,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.terminal_audit import (
+    ContributorIdentity,
     EvidenceFingerprint,
     OverrideRecord,
     RequestState,
@@ -66,10 +68,12 @@ PENDING_REQUEST_STATES = frozenset({RequestState.PENDING, RequestState.IN_PROGRE
 TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+TERMINAL_REARM_HISTORY_KEY = "oompah.terminal_audit_rearm_history"
 LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
 LIFECYCLE_RECONCILIATION_VERSION = 2
 LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION = 2
+LIFECYCLE_RECONCILIATION_REPAIR_VERSION = 1
 LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION = 1
 LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY = "done_override_equivalence"
 DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE = 4
@@ -263,6 +267,45 @@ class GrandfatherTuple:
         )
 
 
+def _pending_record_authority_key(
+    record: TerminalAuditRecord,
+) -> tuple[int, int, int, float, str]:
+    """Return the deterministic restart authority of one duplicate record."""
+
+    in_progress = int(record.request_state is RequestState.IN_PROGRESS)
+    attempts = tuple(record.attempts or ())
+    active_attempt = int(
+        any(
+            attempt.request_state is RequestState.IN_PROGRESS
+            and not attempt.ended_at
+            for attempt in attempts
+        )
+    )
+    timestamps = [record.updated_at, record.created_at]
+    for attempt in attempts:
+        timestamps.extend(
+            (attempt.ended_at, attempt.started_at, attempt.created_at)
+        )
+    newest = float("-inf")
+    for raw in timestamps:
+        if not raw:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            newest = max(newest, parsed.timestamp())
+        except (TypeError, ValueError):
+            continue
+    return (
+        active_attempt,
+        in_progress,
+        record.source_generation,
+        newest,
+        record.audit_id,
+    )
+
+
 @dataclass
 class PendingAudit:
     """One queued audit request, including its unchanged attempt history."""
@@ -292,6 +335,12 @@ class PendingAudit:
             self.evidence_fingerprint.digest,
         )
 
+    @property
+    def audit_key(self) -> tuple[str, str, str]:
+        """Project/task-scoped audit identity used for recovery deduplication."""
+
+        return (self.project_id, self.task_id, self.audit_id)
+
     @classmethod
     def from_record(cls, record: TerminalAuditRecord, *, source: str = "metadata") -> "PendingAudit":
         return cls(
@@ -306,15 +355,24 @@ class PendingAudit:
         )
 
     def merge_record(self, record: TerminalAuditRecord) -> None:
-        """Merge metadata recovery without manufacturing an attempt."""
+        """Merge metadata recovery without manufacturing an attempt.
+
+        Exact-generation duplicates can survive an older writer or a crash.
+        Preserve every attempt id, but project the record which already owns
+        active execution so restart recovery binds to its claimed audit id
+        instead of an older pending sibling.
+        """
 
         self.attempt_ids = list(
             dict.fromkeys(
                 [*self.attempt_ids, *(attempt.attempt_id for attempt in record.attempts)]
             )
         )
-        if self.record is None:
+        if self.record is None or _pending_record_authority_key(
+            record
+        ) > _pending_record_authority_key(self.record):
             self.record = record
+            self.audit_id = record.audit_id
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -459,6 +517,8 @@ class TerminalAuditEnforcement:
             [Issue, str, Mapping[str, Issue]], Mapping[str, Any]
         ]
         | None = None,
+        lifecycle_issue_lock: Callable[[str], Any] | None = None,
+        recover_status: Callable[..., object] | None = None,
     ) -> None:
         self.state_path = state_path or service_state_path
         if self.state_path is None and load_state is None:
@@ -469,6 +529,10 @@ class TerminalAuditEnforcement:
         self._save_state_callback = save_state
         self._validate_terminal_transition = validate_terminal_transition
         self._lifecycle_landing_evidence = lifecycle_landing_evidence
+        self._lifecycle_issue_lock = lifecycle_issue_lock or (
+            lambda _task_id: contextlib.nullcontext()
+        )
+        self._recover_status_callback = recover_status
         self.state = TerminalAuditEnforcementState()
         self._state_loaded = False
         self.pending_audits: list[PendingAudit] = []
@@ -487,6 +551,34 @@ class TerminalAuditEnforcement:
         # unapplied result intent is an actionable finalization failure, not a
         # provider transport or command-policy failure.
         self.finalization_failure_counts: dict[str, int] = {}
+
+    def _recover_status(
+        self,
+        tracker: Any,
+        issue: Issue,
+        project_id: str,
+        requested_status: str,
+        *,
+        actor: str,
+        reason_code: str,
+        idempotency_key: str,
+    ) -> None:
+        """Route a persisted audit compensation through transition journaling."""
+
+        operation = self._recover_status_callback or getattr(
+            tracker, "recover_task_status", None
+        )
+        if not callable(operation):
+            raise RuntimeError("Task transition recovery service is unavailable")
+        operation(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            actor=actor,
+            reason_code=reason_code,
+            idempotency_key=idempotency_key,
+        )
 
     def _load_root_state(self) -> dict[str, Any]:
         if self._load_state_callback is not None:
@@ -795,7 +887,7 @@ class TerminalAuditEnforcement:
             source=source,
         )
         for existing in self.pending_audits:
-            if existing.key == candidate.key or existing.audit_id == candidate.audit_id:
+            if existing.key == candidate.key or existing.audit_key == candidate.audit_key:
                 return existing
         self.pending_audits.append(candidate)
         return candidate
@@ -803,7 +895,7 @@ class TerminalAuditEnforcement:
     def _queue_record(self, record: TerminalAuditRecord) -> None:
         candidate = PendingAudit.from_record(record)
         for existing in self.pending_audits:
-            if existing.audit_id == candidate.audit_id or existing.key == candidate.key:
+            if existing.audit_key == candidate.audit_key or existing.key == candidate.key:
                 existing.merge_record(record)
                 return
         self.pending_audits.append(candidate)
@@ -817,7 +909,7 @@ class TerminalAuditEnforcement:
                 (
                     existing
                     for existing in result
-                    if existing.audit_id == entry.audit_id or existing.key == entry.key
+                    if existing.audit_key == entry.audit_key or existing.key == entry.key
                 ),
                 None,
             )
@@ -827,8 +919,8 @@ class TerminalAuditEnforcement:
             match.attempt_ids = list(
                 dict.fromkeys([*match.attempt_ids, *entry.attempt_ids])
             )
-            if match.record is None:
-                match.record = entry.record
+            if entry.record is not None:
+                match.merge_record(entry.record)
         return result
 
     def _reconcile_current(
@@ -943,6 +1035,55 @@ class TerminalAuditEnforcement:
                         self._recover_terminal_result(store, tracker, issue, str(project_id))
             finally:
                 _recovery_snapshot.reset(token)
+            # Status-intent recovery above can move a task into or out of In
+            # Validation.  Refresh the tracker snapshot and build the dispatch
+            # projection from post-recovery state so a repaired rearm is
+            # immediately auditable in this same startup pass.  Some adapters
+            # do not mutate the Issue instance passed to ``update_issue``.
+            try:
+                all_issues = self._all_issues(tracker)
+            except Exception as exc:
+                self._error(f"validation_rescan_failed:{project_id}", exc)
+                self._recovery_scan_complete = False
+                self._recovery_scan_error_count += 1
+            issues = [
+                issue
+                for issue in all_issues
+                if status_key(getattr(issue, "state", ""))
+                == status_key(IN_VALIDATION)
+            ]
+            # A failed rearm status write intentionally leaves the task in its
+            # prior repair state, so it will not appear in ``issues`` yet.
+            # Still expose its unapplied durable intent as an actionable
+            # finalization failure until a later restart repairs the status.
+            for unstaged_issue in all_issues:
+                if status_key(getattr(unstaged_issue, "state", "")) == status_key(
+                    IN_VALIDATION
+                ):
+                    continue
+                try:
+                    unstaged_document = store.read(str(unstaged_issue.identifier))
+                except Exception:
+                    continue
+                raw_unstaged_intents = unstaged_document.unknown_fields.get(
+                    TERMINAL_RESULT_INTENTS_KEY, []
+                )
+                if not isinstance(raw_unstaged_intents, list):
+                    continue
+                failures = sum(
+                    1
+                    for raw_intent in raw_unstaged_intents
+                    if isinstance(raw_intent, Mapping)
+                    and raw_intent.get("applied", True) is False
+                    and raw_intent.get("project_id") == str(project_id)
+                    and raw_intent.get("task_id")
+                    == str(unstaged_issue.identifier)
+                )
+                if failures:
+                    self.finalization_failure_counts[str(project_id)] = (
+                        self.finalization_failure_counts.get(str(project_id), 0)
+                        + failures
+                    )
             for issue in issues:
                 current_fingerprint = self._authoritative_recovery_fingerprint(
                     issue,
@@ -1077,6 +1218,7 @@ class TerminalAuditEnforcement:
         return {
             "project_id": str(project_id),
             "task_id": str(task_id),
+            "repair_version": LIFECYCLE_RECONCILIATION_REPAIR_VERSION,
             "status": "pending",
             "attempts": 0,
             "last_error": None,
@@ -1259,6 +1401,7 @@ class TerminalAuditEnforcement:
                 return None
         payload = {
             "classifier_version": LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+            "repair_version": LIFECYCLE_RECONCILIATION_REPAIR_VERSION,
             "project_id": str(project_id),
             "task_id": str(issue.identifier),
             "state": canonicalize_status(getattr(issue, "state", "")),
@@ -1454,6 +1597,13 @@ class TerminalAuditEnforcement:
             )
             project_id = str(row.get("project_id", ""))
             snapshot = snapshots.get(project_id, {})
+            try:
+                previous_repair_version = max(
+                    int(row.get("repair_version", 0) or 0), 0
+                )
+            except (TypeError, ValueError):
+                previous_repair_version = 0
+            row["repair_version"] = LIFECYCLE_RECONCILIATION_REPAIR_VERSION
             if migrate_v1 and status == "exhausted":
                 # The v1 ledger did not persist enough target-relative input
                 # to compare retries safely.  Mark its single migration epoch
@@ -1513,7 +1663,12 @@ class TerminalAuditEnforcement:
                 migration_rearm = (
                     migration_pending and fingerprint is not None
                 )
-                if task_reappeared or migration_rearm or (
+                repair_rearm = bool(
+                    fingerprint is not None
+                    and previous_repair_version
+                    < LIFECYCLE_RECONCILIATION_REPAIR_VERSION
+                )
+                if task_reappeared or migration_rearm or repair_rearm or (
                     fingerprint is not None
                     and isinstance(previous, str)
                     and previous
@@ -1692,7 +1847,9 @@ class TerminalAuditEnforcement:
                                 tracker, self.project_store, project_id
                             )
                             try:
-                                with self.project_store.project_write_lock(project_id):
+                                with self._lifecycle_issue_lock(task_id), (
+                                    self.project_store.project_write_lock(project_id)
+                                ):
                                     document = store.read(task_id)
                                     try:
                                         current_target = TargetState.from_raw(
@@ -1783,7 +1940,9 @@ class TerminalAuditEnforcement:
                                     tracker, self.project_store, project_id
                                 )
                                 try:
-                                    with self.project_store.project_write_lock(project_id):
+                                    with self._lifecycle_issue_lock(task_id), (
+                                        self.project_store.project_write_lock(project_id)
+                                    ):
                                         # The discovery snapshot can go stale
                                         # before this serialized mutation
                                         # boundary. Re-read the complete scoped
@@ -2511,8 +2670,22 @@ class TerminalAuditEnforcement:
         try:
             # The exact Done authority is the evidence for this repair.  Do
             # not reopen implementation work or create a new audit attempt.
-            # TERMINAL-AUDIT-ALLOW OOMPAH-725: serialized legacy reconciliation.
-            tracker.update_issue(identifier, status=DONE)
+            authority_ids = sorted(
+                [str(record.audit_id) for record in done_records]
+                + [str(record.override_id) for record in done_overrides]
+            )
+            self._recover_status(
+                tracker,
+                issue,
+                project_id,
+                DONE,
+                actor="terminal-audit-enforcement",
+                reason_code="audit.shared_epic_done_recovered",
+                idempotency_key=(
+                    f"audit-shared-epic-done:{project_id}:{identifier}:"
+                    f"{','.join(authority_ids)}"
+                ),
+            )
         except Exception:
             logger.warning(
                 "Could not restore incompatible Merged child %s/%s to Done",
@@ -2658,9 +2831,18 @@ class TerminalAuditEnforcement:
             and not (current_rank and target_rank and current_rank >= target_rank)
         ):
             try:
-                # TERMINAL-AUDIT-ALLOW OOMPAH-483: this status is authorized
-                # by the already persisted owner override evidence.
-                tracker.update_issue(identifier, status=target_status)
+                self._recover_status(
+                    tracker,
+                    issue,
+                    project_id,
+                    target_status,
+                    actor="project-owner-override",
+                    reason_code="audit.owner_override_recovered",
+                    idempotency_key=(
+                        f"audit-override:{project_id}:{identifier}:"
+                        f"{target_override.override_id}"
+                    ),
+                )
             except Exception:
                 logger.warning(
                     "terminal-audit override recovery status write failed for %s/%s",
@@ -2731,11 +2913,15 @@ class TerminalAuditEnforcement:
             live_ids = [
                 record.audit_id
                 for record in document.pending_chain
-                if record.request_state in PENDING_REQUEST_STATES
+                if record.project_id == project_id
+                and record.task_id == identifier
+                and record.request_state in PENDING_REQUEST_STATES
             ]
             chain = [
                 replace(record, request_state=RequestState.CANCELLED, updated_at=now)
-                if record.audit_id in live_ids
+                if record.project_id == project_id
+                and record.task_id == identifier
+                and record.audit_id in live_ids
                 else record
                 for record in document.pending_chain
             ]
@@ -2788,15 +2974,19 @@ class TerminalAuditEnforcement:
             # could replay an older PASS after the override wins.
             intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
             if isinstance(intents, list):
-                unknown[TERMINAL_RESULT_INTENTS_KEY] = [
-                    {
-                        **dict(raw),
-                        "applied": True,
-                        "retired_by_override": True,
-                    }
-                    for raw in intents
-                    if isinstance(raw, Mapping)
-                ]
+                updated_intents: list[dict[str, Any]] = []
+                for raw in intents:
+                    if not isinstance(raw, Mapping):
+                        continue
+                    item = dict(raw)
+                    if (
+                        item.get("project_id") == project_id
+                        and item.get("task_id") == identifier
+                    ):
+                        item["applied"] = True
+                        item["retired_by_override"] = True
+                    updated_intents.append(item)
+                unknown[TERMINAL_RESULT_INTENTS_KEY] = updated_intents
             unknown[TERMINAL_RETIREMENTS_KEY] = retirements
             return replace(document, pending_chain=chain, unknown_fields=unknown)
 
@@ -2915,9 +3105,17 @@ class TerminalAuditEnforcement:
                     continue
 
                 record = next(
-                    (item for item in document.pending_chain if item.audit_id == audit_id),
+                    (
+                        item
+                        for item in document.pending_chain
+                        if item.audit_id == audit_id
+                        and item.project_id == project_id
+                        and item.task_id == identifier
+                    ),
                     None,
                 )
+                intent_kind = str(raw_intent.get("kind") or "result")
+                rearm_intent = intent_kind == "audit_rearm"
                 stale_reason: str | None = None
                 target_state = _target_state_status(raw_intent.get("target_state"))
                 intent_fingerprint: EvidenceFingerprint | None = None
@@ -2930,8 +3128,6 @@ class TerminalAuditEnforcement:
 
                 if record is None:
                     stale_reason = stale_reason or "missing_audit_record"
-                elif record.project_id != project_id or record.task_id != identifier:
-                    stale_reason = stale_reason or "audit_identity_mismatch"
                 elif target_state is None or status_key(target_state) != status_key(
                     record.target_state.value
                 ):
@@ -2949,11 +3145,150 @@ class TerminalAuditEnforcement:
                     # The task was revised after the result was persisted.
                     # Never replay a terminal status for an obsolete revision.
                     stale_reason = "current_evidence_mismatch"
-                elif stale_reason is None and record.request_state in (
+                if stale_reason is None and rearm_intent:
+                    history = document.unknown_fields.get(
+                        TERMINAL_REARM_HISTORY_KEY, []
+                    )
+                    history_row = next(
+                        (
+                            raw
+                            for raw in reversed(history)
+                            if isinstance(raw, Mapping)
+                            and raw.get("audit_id") == record.audit_id
+                            and raw.get("project_id") == project_id
+                            and raw.get("task_id") == identifier
+                            and raw.get("target_state") == record.target_state.value
+                        ),
+                        None,
+                    ) if isinstance(history, list) else None
+                    mode = history_row.get("mode") if history_row is not None else None
+                    expected_action = {
+                        "infrastructure_recovery": "audit_retry",
+                        "evidence_addendum": "audit_retry_evidence_addendum",
+                    }.get(mode)
+                    actor = (
+                        history_row.get("actor")
+                        if history_row is not None
+                        else None
+                    )
+                    try:
+                        rearm_actor = ContributorIdentity.from_dict(actor)
+                    except (TypeError, ValueError):
+                        rearm_actor = None
+                    # The history actor is the durable owner authorization.
+                    # ``record.requested_by`` remains the original transition
+                    # provenance and can legitimately be auto_archive.
+                    history_generation = (
+                        history_row.get("source_generation")
+                        if history_row is not None
+                        else None
+                    )
+                    history_reason = (
+                        history_row.get("reason")
+                        if history_row is not None
+                        else None
+                    )
+                    authorized_at = (
+                        history_row.get("authorized_at")
+                        if history_row is not None
+                        else None
+                    )
+                    superseded_id = (
+                        history_row.get("superseded_audit_id")
+                        if history_row is not None
+                        else None
+                    )
+                    prior = next(
+                        (
+                            candidate
+                            for candidate in document.pending_chain
+                            if candidate.audit_id == superseded_id
+                        ),
+                        None,
+                    )
+                    if (
+                        history_row is None
+                        or history_row.get("version") != 1
+                        or expected_action is None
+                        or rearm_actor is None
+                        or not isinstance(history_reason, str)
+                        or not history_reason.strip()
+                        or not isinstance(authorized_at, str)
+                        or not authorized_at.strip()
+                        or history_row.get("evidence_fingerprint")
+                        != record.evidence_fingerprint.digest
+                        or isinstance(history_generation, bool)
+                        or history_generation != record.source_generation
+                        or prior is None
+                        or prior.project_id != project_id
+                        or prior.task_id != identifier
+                        or prior.target_state != record.target_state
+                        or prior.evidence_fingerprint != record.evidence_fingerprint
+                        or prior.request_state != RequestState.SUPERSEDED
+                    ):
+                        stale_reason = "invalid_audit_rearm_history"
+                    else:
+                        from oompah.terminal_transition_coordinator import (
+                            accepted_audit_recovery_action,
+                        )
+
+                        prior_action = accepted_audit_recovery_action(
+                            replace(prior, request_state=RequestState.COMPLETED)
+                        )
+                        if prior_action != expected_action:
+                            stale_reason = "invalid_audit_rearm_classification"
+                if stale_reason is None and record.request_state in (
                     RequestState.SUPERSEDED,
                     RequestState.CANCELLED,
                 ):
                     stale_reason = "audit_record_retired"
+                elif (
+                    stale_reason is None
+                    and rearm_intent
+                    and status_key(desired_status) != status_key(IN_VALIDATION)
+                ):
+                    stale_reason = "invalid_rearm_status"
+                elif (
+                    stale_reason is None
+                    and rearm_intent
+                    and record.request_state == RequestState.COMPLETED
+                ):
+                    # A concurrent verdict (especially PASS) has newer
+                    # authority than a retry's unacknowledged staging write.
+                    # Never regress its terminal status to In Validation.
+                    stale_reason = "audit_rearm_completed"
+                elif (
+                    stale_reason is None
+                    and rearm_intent
+                    and record.request_state
+                    not in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                ):
+                    stale_reason = "audit_rearm_not_pending"
+                elif stale_reason is None and rearm_intent:
+                    later_authority = next(
+                        (
+                            candidate
+                            for candidate in reversed(document.pending_chain)
+                            if candidate.audit_id != record.audit_id
+                            and candidate.project_id == project_id
+                            and candidate.task_id == identifier
+                            and candidate.target_state == record.target_state
+                            and candidate.request_state
+                            not in (
+                                RequestState.SUPERSEDED,
+                                RequestState.CANCELLED,
+                            )
+                        ),
+                        None,
+                    )
+                    if later_authority is not None:
+                        stale_reason = "audit_rearm_superseded"
+                    elif canonicalize_status(current_status) in {
+                        DONE,
+                        MERGED,
+                        ARCHIVED,
+                    }:
+                        stale_reason = "status_already_advanced"
                 elif stale_reason is None and record.request_state != RequestState.COMPLETED:
                     # The result intent may be ahead of the record write.  It
                     # is not stale, but it is not replayable until completion
@@ -3005,9 +3340,18 @@ class TerminalAuditEnforcement:
                         and current_rank >= desired_rank
                     ):
                         try:
-                            # TERMINAL-AUDIT-ALLOW OOMPAH-483: replay only a
-                            # current, completed terminal-audit decision.
-                            tracker.update_issue(identifier, status=desired_status)
+                            self._recover_status(
+                                tracker,
+                                issue,
+                                project_id,
+                                desired_status,
+                                actor="terminal-auditor",
+                                reason_code="audit.result_recovered",
+                                idempotency_key=(
+                                    f"audit-result:{project_id}:{identifier}:"
+                                    f"{selected_key[0]}:{selected_key[1]}"
+                                ),
+                            )
                         except Exception:
                             logger.warning(
                                 "terminal-audit result recovery status write failed for %s/%s",

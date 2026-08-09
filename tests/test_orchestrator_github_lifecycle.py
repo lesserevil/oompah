@@ -144,6 +144,10 @@ def _make_project(
     p.tracker_repo = tracker_repo
     p.repo_path = repo_path
     p.repo_url = "https://github.com/acme/tasks"
+    # Keep the mock faithful to the concrete Project model.  An unset
+    # MagicMock attribute is itself truthy, which otherwise makes _dispatch
+    # treat every fixture project as individually paused.
+    p.paused = False
     return p
 
 
@@ -154,9 +158,36 @@ def _make_tracker(issues: list[Issue] | None = None) -> MagicMock:
     t.fetch_issues_by_states.return_value = [
         i for i in _issues if "progress" in i.state.lower()
     ]
-    t.fetch_issue_detail.return_value = None
     t.fetch_issue_states_by_ids.return_value = []
-    t.update_issue = MagicMock()
+
+    def _fetch_issue_detail(identifier: str) -> Issue | None:
+        refreshed = t.fetch_issue_states_by_ids.return_value
+        candidates = [*_issues]
+        if isinstance(refreshed, list):
+            candidates.extend(refreshed)
+        return next(
+            (
+                issue
+                for issue in candidates
+                if issue.identifier == identifier or issue.id == identifier
+            ),
+            None,
+        )
+
+    t.fetch_issue_detail.side_effect = _fetch_issue_detail
+    def _update_issue(identifier: str, **fields) -> None:
+        issue = next(
+            (
+                candidate
+                for candidate in _issues
+                if identifier in {str(candidate.id), str(candidate.identifier)}
+            ),
+            None,
+        )
+        if issue is not None and fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    t.update_issue = MagicMock(side_effect=_update_issue)
     t.close_issue = MagicMock()
     t.reopen_issue = MagicMock()
     t.add_comment = MagicMock()
@@ -164,6 +195,32 @@ def _make_tracker(issues: list[Issue] | None = None) -> MagicMock:
     t.get_metadata = MagicMock(return_value={})
     t.create_issue = MagicMock()
     return t
+
+
+def _bind_dispatch_tracker(tracker: MagicMock) -> None:
+    """Make dispatch point reads and status writes share one mutable snapshot."""
+
+    def _issues() -> list[Issue]:
+        value = tracker.fetch_issue_states_by_ids.return_value
+        return list(value) if isinstance(value, list) else []
+
+    def _detail(identifier: str) -> Issue | None:
+        return next(
+            (
+                issue
+                for issue in _issues()
+                if identifier in {str(issue.id), str(issue.identifier)}
+            ),
+            None,
+        )
+
+    def _update(identifier: str, **fields) -> None:
+        issue = _detail(identifier)
+        if issue is not None and fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    tracker.fetch_issue_detail.side_effect = _detail
+    tracker.update_issue.side_effect = _update
 
 
 def _make_running_entry(
@@ -396,8 +453,21 @@ class TestMixedCandidateFetch:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.timeout(20)
 class TestGitHubClaimProtocol:
     """``_dispatch`` stamps a run-ID and verifies ownership for GitHub tasks."""
+
+    @pytest.fixture(autouse=True)
+    def _close_owned_orchestrators(self, event_loop):
+        """Keep per-test pools and durable stores from leaking across the worker."""
+        self._owned_orchestrators: list[Orchestrator] = []
+        yield
+        for orch in reversed(self._owned_orchestrators):
+            event_loop.run_until_complete(orch._drain_background_work())
+
+    def _own_orchestrator(self, orch: Orchestrator) -> Orchestrator:
+        self._owned_orchestrators.append(orch)
+        return orch
 
     def _make_dispatch_orch(self, tmp_path) -> tuple[Orchestrator, MagicMock]:
         """Return (orch, github_tracker) ready for _dispatch tests."""
@@ -406,11 +476,12 @@ class TestGitHubClaimProtocol:
 
         # Return the same issue on pre-dispatch state recheck
         tracker.fetch_issue_states_by_ids.return_value = [issue]
+        _bind_dispatch_tracker(tracker)
         # get_metadata returns our run ID (confirm claim)
         tracker.get_metadata.return_value = {}  # overridden per test
 
         proj = _make_project("proj-gh")
-        orch = _make_orch(tmp_path, projects=[proj])
+        orch = self._own_orchestrator(_make_orch(tmp_path, projects=[proj]))
         orch._project_trackers["proj-gh"] = tracker
 
         # Stub profile matching so _dispatch doesn't need full WORKFLOW.md
@@ -496,6 +567,7 @@ class TestGitHubClaimProtocol:
         issue = _native_issue("OVA-10", "OVA-10")
         tracker = _make_tracker([issue])
         tracker.fetch_issue_states_by_ids.return_value = [issue]
+        _bind_dispatch_tracker(tracker)
         written_ids: list[str] = []
 
         def _capture_set(identifier, key, value):
@@ -510,7 +582,7 @@ class TestGitHubClaimProtocol:
         tracker.get_metadata.side_effect = _echo_metadata
 
         proj = _make_project("proj-native", tracker_kind="oompah_md")
-        orch = _make_orch(tmp_path, projects=[proj])
+        orch = self._own_orchestrator(_make_orch(tmp_path, projects=[proj]))
         orch._project_trackers["proj-native"] = tracker
 
         mock_profile = AgentProfile(name="default", command="echo test")
@@ -535,7 +607,7 @@ class TestGitHubClaimProtocol:
         proj = _make_project(
             "proj-native", name="myproject", tracker_kind="oompah_md"
         )
-        orch = _make_orch(tmp_path, projects=[proj])
+        orch = self._own_orchestrator(_make_orch(tmp_path, projects=[proj]))
         orch._project_trackers["proj-native"] = tracker
 
         mock_profile = AgentProfile(name="default", command="echo test")
@@ -607,27 +679,28 @@ class TestGitHubClaimProtocol:
 class TestMarkNeedsHumanGitHub:
     """``_mark_needs_human`` routes to GitHub tracker correctly."""
 
-    def test_calls_mark_needs_human_when_available(self, tmp_path):
-        """If the tracker has mark_needs_human, it is called directly."""
+    def test_routes_available_protocol_through_transition_service(self, tmp_path):
         orch = _make_orch(tmp_path)
-        tracker = MagicMock()
+        issue = _github_issue("GH_5", "acme/tasks#5", "5")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         tracker.mark_needs_human = MagicMock()
 
         orch._mark_needs_human(tracker, "acme/tasks#5", "Please review manually.")
 
-        tracker.mark_needs_human.assert_called_once_with(
+        tracker.mark_needs_human.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "acme/tasks#5", status="Needs Human"
+        )
+        tracker.add_comment.assert_called_once_with(
             "acme/tasks#5", "Please review manually.", author="oompah"
         )
-        tracker.update_issue.assert_not_called()
-        tracker.add_comment.assert_not_called()
 
-    def test_falls_back_to_update_and_comment_when_mark_not_present(self, tmp_path):
-        """Trackers without mark_needs_human get update_issue + add_comment."""
+    def test_transition_service_updates_status_and_comment(self, tmp_path):
         orch = _make_orch(tmp_path)
-        tracker = MagicMock(spec=["update_issue", "add_comment"])
-        # No mark_needs_human attribute
-        assert not hasattr(tracker, "mark_needs_human")
-
+        issue = _native_tracker_issue("TASK-100")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         orch._mark_needs_human(tracker, "TASK-100", "Human needed.")
 
         tracker.update_issue.assert_called_once()
@@ -637,30 +710,35 @@ class TestMarkNeedsHumanGitHub:
         tracker.add_comment.assert_called_once()
 
     def test_custom_author_is_forwarded(self, tmp_path):
-        """The author kwarg is passed through to mark_needs_human."""
+        """The author kwarg is passed to the actionable handoff comment."""
         orch = _make_orch(tmp_path)
-        tracker = MagicMock()
+        issue = _github_issue("GH_6", "acme/tasks#6", "6")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         tracker.mark_needs_human = MagicMock()
 
         orch._mark_needs_human(
             tracker, "acme/tasks#6", "Review needed.", author="bot"
         )
 
-        tracker.mark_needs_human.assert_called_once_with(
+        tracker.add_comment.assert_called_once_with(
             "acme/tasks#6", "Review needed.", author="bot"
         )
+        tracker.mark_needs_human.assert_not_called()
 
-    def test_github_tracker_mark_needs_human_uses_tracker_method(self, tmp_path):
-        """Trackers with mark_needs_human receive that protocol method."""
+    def test_github_tracker_never_bypasses_transition_service(self, tmp_path):
         orch = _make_orch(tmp_path)
-        tracker = MagicMock()
+        issue = _github_issue("GH_7", "acme/tasks#7", "7")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         tracker.mark_needs_human = MagicMock()
 
         orch._mark_needs_human(tracker, "acme/tasks#7", "Need a human.")
 
-        tracker.mark_needs_human.assert_called_once()
-        # native tracker path logic must not be involved
-        # (we just verify the correct method was called, no file I/O)
+        tracker.mark_needs_human.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "acme/tasks#7", status="Needs Human"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -712,28 +790,31 @@ class TestRetrySchedulingGitHub:
     def test_retry_replaces_existing_timer(self, tmp_path, event_loop):
         """Calling _schedule_retry twice cancels the first timer."""
         orch = _make_orch(tmp_path)
-        event_loop.run_until_complete(asyncio.sleep(0))
 
-        orch._schedule_retry(
-            issue_id="GH_22",
-            attempt=1,
-            identifier="acme/tasks#22",
-            delay_ms=5000,
-            error="attempt1",
-            project_id="proj-gh",
-        )
-        first_handle = orch.state.retry_attempts["GH_22"].timer_handle
+        async def _schedule_both():
+            orch._schedule_retry(
+                issue_id="GH_22",
+                attempt=1,
+                identifier="acme/tasks#22",
+                delay_ms=5000,
+                error="attempt1",
+                project_id="proj-gh",
+            )
+            first = orch.state.retry_attempts["GH_22"].timer_handle
+            orch._schedule_retry(
+                issue_id="GH_22",
+                attempt=2,
+                identifier="acme/tasks#22",
+                delay_ms=5000,
+                error="attempt2",
+                project_id="proj-gh",
+            )
+            return first
 
-        orch._schedule_retry(
-            issue_id="GH_22",
-            attempt=2,
-            identifier="acme/tasks#22",
-            delay_ms=5000,
-            error="attempt2",
-            project_id="proj-gh",
-        )
+        first_handle = event_loop.run_until_complete(_schedule_both())
 
         # First timer should be cancelled
+        assert first_handle is not None
         assert first_handle.cancelled()
         # New entry is in place
         assert orch.state.retry_attempts["GH_22"].attempt == 2
@@ -769,6 +850,7 @@ class TestCloseReopenGitHub:
         issue = _github_issue("GH_30", "acme/tasks#30", "30")
         # fetch_issue_detail returns None → the agent closed the issue
         tracker = _make_tracker([issue])
+        tracker.fetch_issue_detail.side_effect = None
         tracker.fetch_issue_detail.return_value = None
 
         proj = _make_project("proj-gh")
@@ -866,6 +948,7 @@ class TestWorkerExitRetryGitHub:
         issue = _github_issue("GH_41", "acme/tasks#41", "41")
         tracker = _make_tracker()
         open_issue = _github_issue("GH_41", "acme/tasks#41", "41", state="open")
+        tracker.fetch_issue_detail.side_effect = None
         tracker.fetch_issue_detail.return_value = open_issue
         tracker.mark_needs_human = MagicMock()
 
@@ -1123,6 +1206,7 @@ class TestMixedProjectDispatch:
         gh = _github_issue("GH_10", "acme/tasks#10", "10", project_id="proj-gh")
         gh_tracker = _make_tracker([gh])
         gh_tracker.fetch_issue_states_by_ids.return_value = [gh]
+        _bind_dispatch_tracker(gh_tracker)
         native_tracker = _make_tracker()
 
         # Confirm GitHub claim

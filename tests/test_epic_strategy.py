@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
+import threading
+from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
@@ -21,6 +24,10 @@ from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError, ProjectStore
+from oompah.provenance_suppression import (
+    PROVENANCE_SUPPRESSION_KEY,
+    ProvenanceSuppression,
+)
 from oompah.scm import ReviewRequest
 from oompah.statuses import (
     ARCHIVED,
@@ -33,11 +40,188 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
-from oompah.terminal_audit import TargetState
+from oompah.terminal_audit import (
+    AuditAttempt,
+    ContributorIdentity,
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    Verdict,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
+from oompah.task_transition_service import (
+    TerminalStageResult,
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionIntent,
+    TransitionOutcome,
+    TransitionPhase,
+    issue_authority_version,
+)
 
 
 # --------------------------------------------------------------------- helpers
+
+
+_TEST_ORCHESTRATORS: list[Orchestrator] = []
+
+
+def _close_test_orchestrator(orch: Orchestrator) -> list[str]:
+    """Drain resources and return work that escaped the owning test."""
+    cleanup_errors: list[str] = []
+    for pool_name in ("_tick_pool", "_refresh_pool"):
+        pool = getattr(orch, pool_name, None)
+        if pool is None:
+            continue
+        try:
+            pool.shutdown(wait=True, cancel_futures=False)
+        except Exception as exc:  # noqa: BLE001 - report all teardown failures
+            cleanup_errors.append(f"{pool_name} shutdown failed: {exc!r}")
+        live_threads = [
+            thread.name
+            for thread in getattr(pool, "_threads", ())
+            if thread.is_alive()
+        ]
+        if live_threads:
+            cleanup_errors.append(
+                f"{pool_name} retained live threads: {', '.join(live_threads)}"
+            )
+
+    for future_name in (
+        "_maintenance_future",
+        "_epic_maintenance_future",
+        "_integration_future",
+        "_standalone_delivery_future",
+        "_terminal_lifecycle_future",
+        "_workflow_shadow_future",
+    ):
+        future = getattr(orch, future_name, None)
+        if future is None:
+            continue
+        if not future.done():
+            cleanup_errors.append(f"{future_name} remained pending after pool shutdown")
+            continue
+        if future.cancelled():
+            continue
+        try:
+            future.result()
+        except Exception as exc:  # noqa: BLE001 - background errors fail the test
+            cleanup_errors.append(f"{future_name} failed: {exc!r}")
+
+    for store_name in (
+        "coordination_store",
+        "integration_queue",
+        "review_capacity_store",
+        "workflow_job_store",
+        "task_transition_journal",
+    ):
+        store = getattr(orch, store_name, None)
+        if store is not None:
+            try:
+                store.close()
+            except Exception as exc:  # noqa: BLE001 - close every owned store
+                cleanup_errors.append(f"{store_name} close failed: {exc!r}")
+
+    return cleanup_errors
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_test_orchestrators():
+    """Keep helper-owned pools and stores from crossing test boundaries."""
+    first_owned = len(_TEST_ORCHESTRATORS)
+    try:
+        yield
+    finally:
+        orchestrators = _TEST_ORCHESTRATORS[first_owned:]
+        del _TEST_ORCHESTRATORS[first_owned:]
+        cleanup_errors: list[str] = []
+        for index, orch in enumerate(reversed(orchestrators), start=1):
+            cleanup_errors.extend(
+                f"orchestrator {index}: {error}"
+                for error in _close_test_orchestrator(orch)
+            )
+        if cleanup_errors:
+            pytest.fail(
+                "helper-owned resource leakage: " + "; ".join(cleanup_errors)
+            )
+
+
+@pytest.fixture(autouse=True)
+def _stateful_transition_tracker_harness(monkeypatch):
+    """Back legacy tracker mocks with fresh snapshots for transition CAS."""
+
+    original_sync = Orchestrator._transition_issue_status
+    original_async = Orchestrator._transition_issue_status_async
+    issues_by_tracker: dict[int, dict[str, Issue]] = {}
+
+    def prepare(
+        orch: Orchestrator,
+        issue: Issue,
+        tracker: MagicMock,
+        requested_status: str,
+    ) -> None:
+        snapshots = issues_by_tracker.setdefault(id(tracker), {})
+
+        def register(snapshot: Issue) -> None:
+            snapshots[str(snapshot.id)] = snapshot
+            snapshots[str(snapshot.identifier)] = snapshot
+
+        register(issue)
+        detail = tracker.fetch_issue_detail
+        if detail.side_effect is None:
+            configured = detail.return_value
+            if isinstance(configured, Issue):
+                register(configured)
+            detail.side_effect = lambda identifier: snapshots.get(str(identifier))
+        batch = tracker.fetch_issue_states_by_ids
+        if batch.side_effect is None:
+            configured_batch = batch.return_value
+            if isinstance(configured_batch, list):
+                for snapshot in configured_batch:
+                    if isinstance(snapshot, Issue):
+                        register(snapshot)
+            batch.side_effect = lambda identifiers: [
+                snapshots[str(identifier)]
+                for identifier in identifiers
+                if str(identifier) in snapshots
+            ]
+        if tracker.update_issue.side_effect is None:
+            def update(identifier, **fields):
+                snapshot = snapshots.get(str(identifier))
+                if snapshot is not None and fields.get("status") is not None:
+                    snapshot.state = str(fields["status"])
+
+            tracker.update_issue.side_effect = update
+        if requested_status in {DONE, MERGED, "Archived"}:
+            class _StagingAdapter:
+                async def stage(self, _intent, current):
+                    tracker.update_issue(current.identifier, status="In Validation")
+                    return TerminalStageResult(
+                        success=True,
+                        audit_id="audit-epic-strategy-harness",
+                    )
+
+            orch._task_transition_terminal_adapter = _StagingAdapter()
+
+    def sync(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(orch, issue, tracker, requested_status)
+        return original_sync(orch, issue, requested_status, **kwargs)
+
+    async def async_transition(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(orch, issue, tracker, requested_status)
+        return await original_async(orch, issue, requested_status, **kwargs)
+
+    monkeypatch.setattr(Orchestrator, "_transition_issue_status", sync)
+    monkeypatch.setattr(
+        Orchestrator,
+        "_transition_issue_status_async",
+        async_transition,
+    )
 
 
 def _make_issue(
@@ -123,6 +307,23 @@ def _make_orch(tmp_path, projects=None):
             reason=None,
         )
     )
+    # Epic-strategy tests call explicit lifecycle methods.  They never need the
+    # scheduler's unrelated fire-and-forget producers to run as a side effect
+    # of a helper-created orchestrator.
+    orch._run_step5b_maintenance = MagicMock()
+    orch._run_step5c_epic_maintenance = MagicMock()
+    orch._maybe_run_watchdog = MagicMock()
+    orch._recover_release_addendum_leases = MagicMock(return_value=0)
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch._run_workflow_shadow_sweep = MagicMock()
+    orch._reconcile_standalone_ready_to_integrate_tasks = MagicMock()
+    orch._process_integration_queues = AsyncMock()
+    # Nested-dispatch topology has its own production-shaped suite.  Keep it
+    # from turning every unrelated epic strategy unit fixture into a Git and
+    # tracker topology fixture merely because the synthetic child has a
+    # parent_id.
+    orch._preflight_nested_epic_dispatch = MagicMock(return_value=None)
+    _TEST_ORCHESTRATORS.append(orch)
     return orch
 
 
@@ -197,6 +398,125 @@ def _make_landing_evidence_repo(tmp_path, *, land_child: bool):
         )
 
     return managed
+
+
+def _make_oompah_779_landing_repo(tmp_path, *, landing: str):
+    """Build the nested OOMPAH-779/OOMPAH-765/OOMPAH-763 topology."""
+
+    remote = tmp_path / "oompah-779-remote.git"
+    source = tmp_path / "oompah-779-source"
+    managed = tmp_path / "oompah-779-managed"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    subprocess.run(
+        ["git", "init", "-q", "--initial-branch=main", str(source)],
+        check=True,
+    )
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=source,
+        check=True,
+    )
+    (source / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=source, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=source, check=True
+    )
+    subprocess.run(
+        ["git", "branch", "epic-OOMPAH-763", base_sha], cwd=source, check=True
+    )
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", "epic-OOMPAH-765", base_sha],
+        cwd=source,
+        check=True,
+    )
+    (source / "oompah-779.txt").write_text("audited child work\n")
+    subprocess.run(["git", "add", "oompah-779.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "OOMPAH-779 exact audited work"],
+        cwd=source,
+        check=True,
+    )
+    child_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        [
+            "git",
+            "push",
+            "-q",
+            "origin",
+            "main",
+            "epic-OOMPAH-765",
+            "epic-OOMPAH-763",
+        ],
+        cwd=source,
+        check=True,
+    )
+    if landing == "exact":
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                f"{child_sha}:refs/heads/epic-OOMPAH-763",
+            ],
+            cwd=source,
+            check=True,
+        )
+    elif landing == "patch-equivalent":
+        subprocess.run(
+            ["git", "checkout", "-q", "epic-OOMPAH-763"],
+            cwd=source,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "cherry-pick", child_sha], cwd=source, check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "--amend",
+                "-q",
+                "-m",
+                "OOMPAH-779 conflict-resolved equivalent",
+            ],
+            cwd=source,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "push", "-q", "origin", "epic-OOMPAH-763"],
+            cwd=source,
+            check=True,
+        )
+    elif landing != "unlanded":
+        raise ValueError(f"unknown landing mode: {landing}")
+
+    subprocess.run(
+        ["git", "clone", "-q", "--branch", "main", str(remote), str(managed)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "fetch", "-q", "origin", "epic-OOMPAH-765", "epic-OOMPAH-763"],
+        cwd=managed,
+        check=True,
+    )
+    return managed, source, base_sha, child_sha
 
 
 def _make_pruned_historical_landing_repo(tmp_path):
@@ -1162,7 +1482,14 @@ class TestSharedModeDispatchGating:
         orch._tracker_for_issue = MagicMock(return_value=parent_tracker)
         orch._reviews_cache = {}
 
-        assert orch._should_dispatch(child) is False
+        # O879 admission fences direct rebase work to one observed remote
+        # generation before the normal shared-epic in-flight gate runs.
+        with patch.object(
+            orch,
+            "_observe_epic_rebase_generation",
+            return_value=("generation-1", "epic-head", "main-head"),
+        ):
+            assert orch._should_dispatch(child) is False
         reason, _count = orch.state.reject_streak[child.id]
         assert "shared_epic_busy=TASK-462" in reason
 
@@ -1303,7 +1630,14 @@ class TestSharedModeDispatchGating:
         )
         orch._tracker_for_issue = MagicMock(return_value=parent_tracker)
 
-        ready = orch._select_dispatchable(children)
+        # Both helpers observe the same canonical generation. The first
+        # admission records its authority; the second must not replace it.
+        with patch.object(
+            orch,
+            "_observe_epic_rebase_generation",
+            return_value=("generation-1", "epic-head", "main-head"),
+        ):
+            ready = orch._select_dispatchable(children)
 
         assert [issue.identifier for issue in ready] == ["TASK-462.7"]
 
@@ -1387,7 +1721,14 @@ class TestWorkspaceAllocation:
             priority=0,
         )
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_observe_epic_rebase_generation",
+                return_value=("generation-1", "epic-head", "main-head"),
+            ),
+        ):
             wp, epic_ret = orch._create_workspace_for_issue(issue)
 
         assert wp == "/wt/epic-1"
@@ -1399,18 +1740,17 @@ class TestWorkspaceAllocation:
             "proj-1", "epic-1"
         )
         orch.project_store.create_worktree.assert_not_called()
-        # _prepare_epic_rebase_helper_target records the resolved target first
-        assert tracker.set_metadata_field.call_args_list[0].args == (
-            "TASK-REBASE",
-            "oompah.target_branch",
-            "main",
-        )
-        assert tracker.set_metadata_field.call_args_list[1].args == (
-            "TASK-REBASE",
-            "oompah.work_branch",
-            "epic-epic-1",
-        )
-        integration = tracker.set_metadata_field.call_args_list[2].args[2]
+        metadata = {
+            args.args[1]: args.args[2]
+            for args in tracker.set_metadata_field.call_args_list
+        }
+        assert metadata["oompah.target_branch"] == "main"
+        assert metadata["oompah.work_branch"] == "epic-epic-1"
+        authority = metadata["oompah.epic_rebase_authority"]
+        assert authority["generation"] == "generation-1"
+        assert authority["task_id"] == "TASK-REBASE"
+        assert authority["epic_identifier"] == "epic-1"
+        integration = metadata["oompah.integration"]
         assert integration["task_branch"] == "epic-epic-1"
         assert integration["base_branch"] == "epic-epic-1"
 
@@ -1700,6 +2040,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
         issue = _make_issue(identifier="task-1", parent_id=None, project_id="proj-1")
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -1713,8 +2054,8 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.mark_needs_human.assert_called_once()
-        args, kwargs = tracker.mark_needs_human.call_args
+        tracker.add_comment.assert_called_once()
+        args, kwargs = tracker.add_comment.call_args
         assert args[0] == "task-1"
         assert "requires implementation tasks" in args[1]
         assert kwargs == {"author": "oompah"}
@@ -1732,6 +2073,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             parent_id="task-parent",
             project_id="proj-1",
         )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -1746,8 +2088,8 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.mark_needs_human.assert_called_once()
-        args, kwargs = tracker.mark_needs_human.call_args
+        tracker.add_comment.assert_called_once()
+        args, kwargs = tracker.add_comment.call_args
         assert args[0] == "task-1"
         assert "requires implementation tasks" in args[1]
         assert kwargs == {"author": "oompah"}
@@ -1763,8 +2105,12 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         issue = _make_issue(
-            identifier="task-1", parent_id=None, project_id="proj-1"
+            identifier="task-1",
+            parent_id=None,
+            project_id="proj-1",
+            state=IN_PROGRESS,
         )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -1797,7 +2143,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 
-        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", project_id="proj-1", state=IN_PROGRESS
+        )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -1844,7 +2193,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 
-        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", project_id="proj-1", state=IN_PROGRESS
+        )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -1867,7 +2219,9 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
 
         assert result is True
         provider.create_review.assert_not_called()
-        tracker.update_issue.assert_called_once_with("task-1", status=DONE)
+        tracker.update_issue.assert_called_once_with(
+            "task-1", status="In Validation"
+        )
         orch._post_comment.assert_called_once()
         comment = orch._post_comment.call_args.args[1]
         assert "Review handoff deferred" in comment
@@ -1890,7 +2244,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         tracker = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
-        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", project_id="proj-1", state=IN_PROGRESS
+        )
+        tracker.fetch_issue_detail.return_value = issue
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -2019,6 +2376,111 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         )
         provider.create_review.assert_not_called()
         tracker.update_issue.assert_not_called()
+
+    def test_generic_create_waits_on_recent_committed_reservation(self, tmp_path):
+        """A propagation-lag listing cannot turn an old row into create authority."""
+
+        proj = _make_project_record(epic_strategy="flat")
+        proj.max_in_flight_prs = 2
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._review_quality_gate_passes = MagicMock(return_value=True)
+        orch.review_capacity_store.adopt(
+            project_id="proj-1",
+            task_id="task-1",
+            source_branch="task-1",
+            target_branch="main",
+            review_id="100",
+            reservation_id="recent-review-100",
+        )
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = []
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc work"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        provider.create_review.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        assert [
+            row.review_id
+            for row in orch.review_capacity_store.active("proj-1")
+        ] == ["100"]
+
+    def test_generic_close_during_create_cannot_publish_in_review(self, tmp_path):
+        """A close fence installed by create's webhook wins tracker publication."""
+
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._review_quality_gate_passes = MagicMock(return_value=True)
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = []
+        created_review = MagicMock(
+            id="101",
+            source_branch="task-1",
+            target_branch="main",
+            state="open",
+            draft=False,
+        )
+
+        def close_before_create_returns(*_args, **_kwargs):
+            orch.release_review_capacity(
+                "proj-1",
+                created_review.id,
+                source_branch=created_review.source_branch,
+            )
+            return created_review
+
+        provider.create_review.side_effect = close_before_create_returns
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc work"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        provider.create_review.assert_called_once()
+        tracker.update_issue.assert_not_called()
+        assert orch.review_capacity_store.active("proj-1") == []
 
     def test_shared_skips_per_child_pr(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -2476,6 +2938,96 @@ class TestOpenEpicMainPrs:
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {}
         return orch, proj
+
+    @staticmethod
+    def _oompah_764_suppression_metadata() -> dict[str, object]:
+        marker = ProvenanceSuppression(
+            suppressed=True,
+            authority_generation=1,
+            actor=ContributorIdentity("project-owner", "api"),
+            reason="Retain audited nested epic only as terminal provenance.",
+            marked_at="2026-08-07T14:00:00+00:00",
+            updated_at="2026-08-07T14:00:00+00:00",
+        )
+        return {
+            METADATA_KEY: TerminalAuditMetadata(
+                unknown_fields={PROVENANCE_SUPPRESSION_KEY: marker.to_dict()}
+            ).to_dict()
+        }
+
+    @pytest.mark.parametrize("stale_state", [DONE, IN_REVIEW])
+    def test_oompah_764_suppression_blocks_stale_epic_review_rollup(
+        self, tmp_path, stale_state
+    ):
+        orch, project = self._setup(tmp_path, strategy="shared")
+        epic = _make_issue(
+            identifier="OOMPAH-764",
+            issue_type="epic",
+            state=stale_state,
+            parent_id="OOMPAH-763",
+            project_id=project.id,
+            work_branch="epic-OOMPAH-764",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = (
+            self._oompah_764_suppression_metadata()
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children") as fetch_children,
+        ):
+            opened = orch._open_one_epic_main_pr(epic)
+
+        assert opened == 0
+        fetch_children.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+
+    def test_oompah_764_suppression_blocks_existing_review_republication(
+        self, tmp_path
+    ):
+        orch, project = self._setup(tmp_path, strategy="shared")
+        epic = _make_issue(
+            identifier="OOMPAH-764",
+            issue_type="epic",
+            state=DONE,
+            parent_id="OOMPAH-763",
+            project_id=project.id,
+            work_branch="epic-OOMPAH-764",
+        )
+        review = ReviewRequest(
+            id="748",
+            title="Historical nested epic review",
+            url="https://github.com/lesserevil/oompah/pull/748",
+            author="oompah",
+            state="open",
+            source_branch="epic-OOMPAH-764",
+            target_branch="epic-OOMPAH-763",
+            created_at="2026-08-07T13:00:00+00:00",
+            updated_at="2026-08-07T13:00:00+00:00",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = replace(epic)
+        tracker.get_metadata.return_value = (
+            self._oompah_764_suppression_metadata()
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_sync_epic_review_child_states") as sync_children,
+        ):
+            orch._ensure_epic_in_review_metadata(
+                project.id,
+                epic,
+                review,
+                "epic-OOMPAH-764",
+            )
+
+        tracker.invalidate_read_cache.assert_called_once_with()
+        tracker.update_issue.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        sync_children.assert_not_called()
 
     def test_has_epic_landing_ref_uses_shared_worktree(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
@@ -3305,6 +3857,204 @@ class TestOpenEpicMainPrs:
         assert published["proj-1"] == []
         assert orch._reviews_cache["proj-1"] == []
 
+    def test_epic_create_waits_on_recent_committed_reservation(self, tmp_path):
+        """A lagging empty listing cannot authorize a duplicate epic review."""
+
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        proj.max_in_flight_prs = 2
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+        )
+        child = _make_issue(state="closed")
+        orch.review_capacity_store.adopt(
+            project_id="proj-1",
+            task_id=epic.identifier,
+            source_branch="epic-epic-1",
+            target_branch="main",
+            review_id="254",
+            reservation_id="recent-epic-254",
+        )
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = []
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = None
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ),
+            patch.object(orch, "_review_quality_gate_passes", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        provider.create_review.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        assert [
+            row.review_id
+            for row in orch.review_capacity_store.active("proj-1")
+        ] == ["254"]
+
+    def test_epic_close_during_create_cannot_publish_in_review(self, tmp_path):
+        """An immediate close wins over epic review tracker publication."""
+
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+        )
+        child = _make_issue(state="closed")
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = []
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = None
+        created_review = MagicMock(
+            id="255",
+            url="https://github.com/org/repo/pull/255",
+            source_branch="epic-epic-1",
+            target_branch="main",
+            state="open",
+            draft=False,
+        )
+
+        def close_before_create_returns(*_args, **_kwargs):
+            orch.release_review_capacity(
+                "proj-1",
+                created_review.id,
+                source_branch=created_review.source_branch,
+            )
+            return created_review
+
+        provider.create_review.side_effect = close_before_create_returns
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ),
+            patch.object(orch, "_review_quality_gate_passes", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_sync_epic_review_child_states") as sync_children,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        provider.create_review.assert_called_once()
+        tracker.update_issue.assert_not_called()
+        sync_children.assert_not_called()
+        assert orch.review_capacity_store.active("proj-1") == []
+
+    def test_epic_close_waits_for_parent_and_child_publication(self, tmp_path):
+        """Close cannot split parent publication from its derived child states."""
+
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+        )
+        child = _make_issue(state="closed")
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = []
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = None
+        created_review = MagicMock(
+            id="256",
+            url="https://github.com/org/repo/pull/256",
+            source_branch="epic-epic-1",
+            target_branch="main",
+            state="open",
+            draft=False,
+        )
+        provider.create_review.return_value = created_review
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+        close_started = threading.Event()
+        close_finished = threading.Event()
+        close_threads: list[threading.Thread] = []
+
+        def close_review() -> None:
+            close_started.set()
+            orch.release_review_capacity(
+                "proj-1",
+                created_review.id,
+                source_branch=created_review.source_branch,
+            )
+            close_finished.set()
+
+        def parent_published(_identifier, **fields) -> None:
+            if fields.get("status") is not None:
+                epic.state = str(fields["status"])
+            worker = threading.Thread(target=close_review)
+            close_threads.append(worker)
+            worker.start()
+            assert close_started.wait(timeout=5)
+            assert not close_finished.is_set()
+
+        def publish_children(*_args, **_kwargs) -> int:
+            assert close_started.is_set()
+            assert not close_finished.is_set()
+            return 0
+
+        tracker.update_issue.side_effect = parent_published
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ),
+            patch.object(orch, "_review_quality_gate_passes", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(
+                orch,
+                "_sync_epic_review_child_states",
+                side_effect=publish_children,
+            ) as sync_children,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        for worker in close_threads:
+            worker.join(timeout=5)
+            assert not worker.is_alive()
+        assert opened == 1
+        sync_children.assert_called_once_with("proj-1", epic, "epic-epic-1")
+        assert close_finished.is_set()
+        assert orch.review_capacity_store.active("proj-1") == []
+
     def test_idempotent_when_existing_pr_is_missing_from_cache(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
@@ -3381,6 +4131,7 @@ class TestOpenEpicMainPrs:
             source_branch="epic-epic-1",
             target_branch="main",
             state="open",
+            draft=False,
         )
         provider = MagicMock()
         provider.last_open_reviews_fetch_ok = True
@@ -3397,6 +4148,7 @@ class TestOpenEpicMainPrs:
                 "_review_quality_gate_passes",
                 return_value=False,
             ) as quality_gate,
+            patch.object(orch, "_adopt_open_review_capacity") as adopt_capacity,
             patch.object(orch, "_ensure_epic_in_review_metadata") as sync_review,
         ):
             opened = orch._open_epic_main_prs([epic])
@@ -3408,6 +4160,7 @@ class TestOpenEpicMainPrs:
             "epic-epic-1",
             "main",
         )
+        adopt_capacity.assert_not_called()
         sync_review.assert_not_called()
         provider.create_review.assert_not_called()
 
@@ -3852,6 +4605,7 @@ class TestOpenEpicMainPrs:
         provider.find_pr_for_branch.return_value = merged_to_parent
         provider.create_review.return_value = MagicMock(id="201")
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
@@ -3951,6 +4705,7 @@ class TestOpenEpicMainPrs:
         provider.list_merged_branches.return_value = set()
         provider.create_review.return_value = MagicMock(id="301")
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
 
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
@@ -4346,7 +5101,7 @@ class TestEpicRollupStatusReconciliation:
             issue_type="epic",
             state="Backlog",
         )
-        tracker.fetch_children.return_value = [
+        children = [
             _make_issue(identifier="child-1", state=OPEN, parent_id=epic.identifier),
             _make_issue(
                 identifier="child-2",
@@ -4354,16 +5109,66 @@ class TestEpicRollupStatusReconciliation:
                 parent_id=epic.identifier,
             ),
         ]
+        tracker.fetch_children.return_value = children
+        backlog_generation = orch._epic_rollup_authority_generation(epic, children)
+        open_generation = orch._epic_rollup_authority_generation(
+            replace(epic, state=OPEN),
+            children,
+        )
+        transition = orch._transition_issue_status
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_transition_issue_status",
+                wraps=transition,
+            ) as transition_spy,
+        ):
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 1
-        tracker.update_issue.assert_called_once_with(
-            epic.identifier,
-            status=IN_PROGRESS,
+        assert tracker.update_issue.call_args_list == [
+            call(epic.identifier, status=OPEN),
+            call(epic.identifier, status=IN_PROGRESS),
+        ]
+        assert backlog_generation != open_generation
+        assert [
+            transition_call.kwargs["evidence_generation"]
+            for transition_call in transition_spy.call_args_list
+        ] == [backlog_generation, open_generation]
+        assert transition_spy.call_args_list[1].kwargs["idempotency_key"] == (
+            f"epic-rollup:{epic.identifier}:{open_generation}:{IN_PROGRESS}"
         )
         assert epic.state == IN_PROGRESS
+
+    def test_inferred_feature_parent_with_children_uses_system_rollup_authority(
+        self,
+        tmp_path,
+    ):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        parent = _make_issue(
+            identifier="feature-parent",
+            issue_type="feature",
+            state="Backlog",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(
+                identifier="child-1",
+                state=IN_PROGRESS,
+                parent_id=parent.identifier,
+            )
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([parent])
+
+        assert updated == 1
+        assert tracker.update_issue.call_args_list == [
+            call(parent.identifier, status=OPEN),
+            call(parent.identifier, status=IN_PROGRESS),
+        ]
+        assert parent.state == IN_PROGRESS
 
     def test_backlog_epic_with_all_done_children_is_persisted_done(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
@@ -4723,7 +5528,14 @@ class TestEpicReviewRepairCompletion:
             agent_profile_name="default",
         )
         children = [_make_issue(identifier="TASK-738.1", state=IN_REVIEW)]
-        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        def publish_review(_entry, _project_id, *, publication):
+            publication.after_publication()
+            publication.in_review_published = True
+            publication.review_id = "267"
+            return True
+
+        orch._ensure_review_exists = MagicMock(side_effect=publish_review)
 
         with patch.object(orch, "_fetch_epic_children", return_value=children):
             result = orch._finish_epic_review_repair(
@@ -4736,9 +5548,270 @@ class TestEpicReviewRepairCompletion:
         assert result is True
         assert tracker.update_issue.call_args_list == [
             call("TASK-738", **{"remove-label": "ci-fix"}),
-            call("TASK-738", status=IN_REVIEW),
         ]
         assert epic.state == IN_REVIEW
+
+    def test_close_fenced_handoff_does_not_finish_epic_repair(self, tmp_path):
+        """A compatibility True without fenced publication retains repair state."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        epic = _make_issue(
+            identifier="TASK-738-CLOSED",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-738-CLOSED",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with patch.object(
+            orch,
+            "_fetch_epic_children",
+            return_value=[
+                _make_issue(identifier="TASK-738-CLOSED.1", state=IN_REVIEW)
+            ],
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is False
+        tracker.update_issue.assert_not_called()
+        assert epic.state == IN_PROGRESS
+
+    def test_nested_epic_repair_adopts_its_rollup_review(self, tmp_path):
+        """A nested epic uses its own review into the parent epic branch."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        parent = _make_issue(
+            identifier="TASK-PARENT",
+            issue_type="epic",
+            work_branch="epic-TASK-PARENT",
+            project_id="proj-1",
+        )
+        epic = _make_issue(
+            identifier="TASK-CHILD-EPIC",
+            issue_type="epic",
+            parent_id=parent.identifier,
+            state=IN_PROGRESS,
+            labels=["merge-conflict"],
+            work_branch="epic-TASK-CHILD-EPIC",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        review = MagicMock(
+            id="268",
+            url="https://example.test/pr/268",
+            source_branch=epic.work_branch,
+            target_branch=parent.work_branch,
+            state="open",
+            draft=False,
+            has_conflicts=False,
+        )
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [review]
+        orch._reviews_cache = {"proj-1": [review]}
+        tracker.fetch_issue_detail.return_value = epic
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._review_quality_gate_passes = MagicMock(return_value=True)
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[
+                    _make_issue(identifier="TASK-CHILD-EPIC.1", state=IN_REVIEW)
+                ],
+            ),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc repaired"], ""),
+            ),
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is True
+        assert tracker.update_issue.call_args_list == [
+            call(epic.identifier, status=IN_REVIEW),
+            call(epic.identifier, **{"remove-label": "merge-conflict"}),
+            call(epic.identifier, **{"add-label": "epic:rebased"}),
+        ]
+        assert epic.state == IN_REVIEW
+
+    def test_nested_epic_repair_rejects_same_source_wrong_target(self, tmp_path):
+        """A same-source review into main is not the nested rollup review."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.max_in_flight_prs = 1
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        parent = _make_issue(
+            identifier="TASK-PARENT",
+            issue_type="epic",
+            work_branch="epic-TASK-PARENT",
+            project_id="proj-1",
+        )
+        epic = _make_issue(
+            identifier="TASK-CHILD-WRONG-TARGET",
+            issue_type="epic",
+            parent_id=parent.identifier,
+            state=IN_PROGRESS,
+            labels=["merge-conflict"],
+            work_branch="epic-TASK-CHILD-WRONG-TARGET",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        wrong_target = MagicMock(
+            id="269",
+            source_branch=epic.work_branch,
+            target_branch="main",
+            state="open",
+            draft=False,
+            has_conflicts=False,
+        )
+        provider = MagicMock()
+        provider.last_open_reviews_fetch_ok = True
+        provider.list_open_reviews.return_value = [wrong_target]
+        orch._reviews_cache = {"proj-1": [wrong_target]}
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[
+                    _make_issue(
+                        identifier="TASK-CHILD-WRONG-TARGET.1",
+                        state=IN_REVIEW,
+                    )
+                ],
+            ),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc repaired"], ""),
+            ),
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is False
+        tracker.update_issue.assert_not_called()
+        provider.create_review.assert_not_called()
+        assert epic.state == IN_PROGRESS
+
+    def test_nested_epic_repair_defers_when_parent_target_is_unresolved(
+        self,
+        tmp_path,
+    ):
+        """Unreadable parent authority cannot fall back to a synthesized base."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        epic = _make_issue(
+            identifier="TASK-CHILD-UNRESOLVED",
+            issue_type="epic",
+            parent_id="TASK-MISSING-PARENT",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-CHILD-UNRESOLVED",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        def resolve_parent(_issue, **kwargs):
+            if kwargs.get("fail_closed"):
+                raise EpicTargetResolutionError(
+                    epic.identifier,
+                    epic.parent_id or "",
+                    "is unreadable",
+                )
+            return None
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[
+                    _make_issue(
+                        identifier="TASK-CHILD-UNRESOLVED.1",
+                        state=IN_REVIEW,
+                    )
+                ],
+            ),
+            patch.object(
+                orch,
+                "_resolve_parent_epic",
+                side_effect=resolve_parent,
+            ),
+        ):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is False
+        tracker.update_issue.assert_not_called()
+        assert epic.state == IN_PROGRESS
 
     def test_conflicted_review_requeues_epic_repair(self, tmp_path):
         """A normal agent exit must not finish a repair while its PR conflicts."""
@@ -4788,12 +5861,14 @@ class TestEpicReviewRepairCompletion:
 
         assert result is False
         orch._ensure_review_exists.assert_not_called()
-        assert tracker.update_issue.call_args == call(
-            "TASK-739",
-            status=NEEDS_REBASE,
-            priority="0",
-            **{"add-label": "merge-conflict"},
-        )
+        assert tracker.update_issue.call_args_list == [
+            call("TASK-739", status=NEEDS_REBASE),
+            call(
+                "TASK-739",
+                priority="0",
+                **{"add-label": "merge-conflict"},
+            ),
+        ]
         tracker.add_comment.assert_called_once()
 
 
@@ -4963,7 +6038,7 @@ class TestResolveEpicTargetBranch:
             with pytest.raises(EpicTargetResolutionError, match="not a confirmed"):
                 orch._resolve_epic_target_branch(child_epic, proj)
         assert any(
-            alert["source"] == "epic_target_unresolved:epic-B"
+            alert["source"] == "epic_target_unresolved:proj-1:epic-B"
             for alert in orch._alerts
         )
 
@@ -4974,6 +6049,924 @@ class TestResolveEpicTargetBranch:
 class TestLabelMergedEpics:
     """When an epic→main PR merges, the epic and all its children become
     Merged."""
+
+    @staticmethod
+    def _oompah_779_scenario(tmp_path, *, landing: str):
+        managed, source, base_sha, child_sha = _make_oompah_779_landing_repo(
+            tmp_path, landing=landing
+        )
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(managed)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        epic = _make_issue(
+            identifier="OOMPAH-765",
+            issue_type="epic",
+            state=MERGED,
+            parent_id="OOMPAH-763",
+            project_id=project.id,
+            work_branch="epic-OOMPAH-765",
+        )
+        child = _make_issue(
+            identifier="OOMPAH-779",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=project.id,
+            work_branch="epic-OOMPAH-765",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": f"Audit passed for exact completion commit {child_sha}",
+            }
+        ]
+        return orch, project, epic, child, tracker, source, base_sha, child_sha
+
+    @pytest.mark.parametrize("landing", ["exact", "patch-equivalent"])
+    def test_oompah_779_shared_child_uses_nested_target_generation(
+        self, tmp_path, landing
+    ):
+        """The audited OOMPAH-779 range is contained in OOMPAH-763."""
+
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing=landing
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_exact_oompah_660_maintenance_child_stays_done_after_parent_rollup(
+        self, tmp_path
+    ):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="exact"
+        )
+        child.id = child.identifier = "OOMPAH-660"
+        child.title = "Rebase epic-OOMPAH-765 onto main"
+        child.parent_id = epic.identifier
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.add_comment.assert_not_called()
+        assert child.state == DONE
+        # The parent itself requests Merged; the Done-only helper does not.
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_concurrent_rollup_refresh_observes_repaired_maintenance_authority(
+        self, tmp_path
+    ):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="exact"
+        )
+        child.id = child.identifier = "OOMPAH-660"
+        child.title = "Ordinary stale rollup snapshot"
+        child.parent_id = epic.identifier
+        repaired = replace(
+            child,
+            title="Rebase epic-OOMPAH-765 onto main",
+            state=DONE,
+        )
+        tracker.fetch_issue_detail.return_value = child
+        real_current = orch._landing_evidence_generation_is_current
+        at_mutation_edge = threading.Event()
+        errors: list[BaseException] = []
+        current_checks = 0
+
+        def signal_mutation_edge(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                at_mutation_edge.set()
+            return real_current(*args, **kwargs)
+
+        def run_rollup() -> None:
+            try:
+                orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        lock = orch.issue_transition_lock(child.identifier)
+        worker = threading.Thread(target=run_rollup)
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=signal_mutation_edge,
+            ),
+        ):
+            with lock.sync():
+                worker.start()
+                assert at_mutation_edge.wait(timeout=2)
+                tracker.fetch_issue_detail.return_value = repaired
+            worker.join(timeout=2)
+        assert not worker.is_alive()
+        assert errors == []
+        tracker.add_comment.assert_not_called()
+        assert repaired.state == DONE
+        # The stale generic child decision cannot publish after the lifecycle
+        # repair changes its task authority under the shared task lock.
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_oompah_779_restart_discards_stale_local_target_snapshot(self, tmp_path):
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, project, epic, child, tracker, source, _base_sha, child_sha = scenario
+        stale, error = orch._refresh_landing_evidence_generation(
+            str(project.repo_path),
+            target_branches=("epic-OOMPAH-763",),
+            candidate_branches=("epic-OOMPAH-765", "OOMPAH-779"),
+        )
+        assert error is None and stale is not None
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "-q",
+                "--force",
+                "origin",
+                f"{child_sha}:refs/heads/epic-OOMPAH-763",
+            ],
+            cwd=source,
+            check=True,
+        )
+
+        restarted = _make_orch(tmp_path / "restarted", projects=[project])
+        with (
+            patch.object(restarted, "_tracker_for_issue", return_value=tracker),
+            patch.object(restarted, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                restarted,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            restarted._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.add_comment.assert_not_called()
+        assert restarted.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_target_movement_recomputes_stale_unlanded_escalation(self, tmp_path):
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, _project, epic, child, tracker, source, _base_sha, child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        moved = False
+
+        def advance_target(*args, **kwargs):
+            nonlocal moved
+            if not moved:
+                moved = True
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{child_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=advance_target,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert moved is True
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 2
+
+    def test_target_movement_recomputes_stale_contained_promotion(self, tmp_path):
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, _project, epic, child, tracker, source, base_sha, _child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        moved = False
+
+        def rewind_target(*args, **kwargs):
+            nonlocal moved
+            if not moved:
+                moved = True
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{base_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=rewind_target,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert moved is True
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        instruction = tracker.add_comment.call_args.args[1]
+        assert "Evidence generation:" in instruction
+        assert "target epic-OOMPAH-763@" in instruction
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_final_escalation_cas_defers_when_target_moves(self, tmp_path):
+        """Movement after disposition computation must block Needs Human."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, _project, epic, child, tracker, source, _base_sha, child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def advance_at_mutation_edge(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{child_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=advance_at_mutation_edge,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_final_promotion_cas_defers_when_target_moves(self, tmp_path):
+        """Movement after disposition computation must block Merged."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, _project, epic, child, tracker, source, base_sha, _child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def rewind_at_mutation_edge(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "-q",
+                        "--force",
+                        "origin",
+                        f"{base_sha}:refs/heads/epic-OOMPAH-763",
+                    ],
+                    cwd=source,
+                    check=True,
+                )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=rewind_at_mutation_edge,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_open_review_published_during_revalidation_blocks_promotion(
+        self, tmp_path
+    ):
+        """A webhook cache update need not move Git refs to revoke promotion."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, project, epic, child, tracker, *_ = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def publish_open_review(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 1:
+                orch._reviews_cache = {
+                    project.id: [
+                        ReviewRequest(
+                            id="779",
+                            title=child.identifier,
+                            url="https://example.test/pr/779",
+                            author="alice",
+                            state="open",
+                            source_branch=child.identifier,
+                            target_branch="epic-OOMPAH-763",
+                            created_at="",
+                            updated_at="",
+                        )
+                    ]
+                }
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=publish_open_review,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_open_review_published_during_final_cas_blocks_promotion(
+        self, tmp_path
+    ):
+        """The post-CAS cache fence closes the final remote-I/O window."""
+
+        scenario = self._oompah_779_scenario(tmp_path, landing="exact")
+        orch, project, epic, child, tracker, *_ = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def publish_open_review_at_final_cas(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            if current_checks == 2:
+                orch._reviews_cache = {
+                    project.id: [
+                        ReviewRequest(
+                            id="779",
+                            title=child.identifier,
+                            url="https://example.test/pr/779",
+                            author="alice",
+                            state="open",
+                            source_branch=child.identifier,
+                            target_branch="epic-OOMPAH-763",
+                            created_at="",
+                            updated_at="",
+                        )
+                    ]
+                }
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=publish_open_review_at_final_cas,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_generation_that_moves_twice_defers_without_terminal_mutation(
+        self, tmp_path
+    ):
+        scenario = self._oompah_779_scenario(tmp_path, landing="unlanded")
+        orch, _project, epic, child, tracker, source, base_sha, child_sha = scenario
+        real_current = orch._landing_evidence_generation_is_current
+        current_checks = 0
+
+        def move_each_generation(*args, **kwargs):
+            nonlocal current_checks
+            current_checks += 1
+            target_sha = child_sha if current_checks == 1 else base_sha
+            subprocess.run(
+                [
+                    "git",
+                    "push",
+                    "-q",
+                    "--force",
+                    "origin",
+                    f"{target_sha}:refs/heads/epic-OOMPAH-763",
+                ],
+                cwd=source,
+                check=True,
+            )
+            return real_current(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_generation_is_current",
+                side_effect=move_each_generation,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        assert current_checks == 2
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    def test_oompah_779_genuinely_unlanded_uses_current_generation(self, tmp_path):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="unlanded"
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        instruction = tracker.add_comment.call_args.args[1]
+        assert "unlanded commit" in instruction
+        assert "Evidence generation:" in instruction
+        assert "target epic-OOMPAH-763@" in instruction
+        assert "candidate epic-OOMPAH-765@" in instruction
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_oompah_779_generation_refresh_failure_defers_terminal_action(
+        self, tmp_path
+    ):
+        orch, _project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="unlanded"
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+            patch.object(
+                orch,
+                "_landing_evidence_remote_tips",
+                return_value=(None, "transport unavailable"),
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+
+    def test_missing_configured_checkout_defers_terminal_action(self, tmp_path):
+        orch, project, epic, child, tracker, *_ = self._oompah_779_scenario(
+            tmp_path, landing="exact"
+        )
+        project.repo_path = str(tmp_path / "configured-checkout-is-missing")
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-OOMPAH-763",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-765")
+
+        tracker.add_comment.assert_not_called()
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
+        assert child.state == DONE
+
+    @pytest.mark.parametrize("parent_state", [MERGED, ARCHIVED])
+    def test_ready_child_of_pruned_terminal_parent_uses_landed_head(
+        self,
+        tmp_path,
+        parent_state,
+    ):
+        repo_path, task_sha = _make_pruned_historical_landing_repo(tmp_path)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        project.default_branch = "main"
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="terminal-parent",
+            issue_type="epic",
+            state=parent_state,
+        )
+        parent.target_branch = "main"
+        parent.integration = IntegrationRecord(
+            state="integrated",
+            base_branch="epic-terminal-parent",
+            head_sha=task_sha,
+            integrated_sha=task_sha,
+        )
+        child = _make_issue(
+            identifier="late-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            work_branch="pruned-child-branch",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="pruned-child-branch",
+                head_sha=task_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        initial = orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="pruned-child-branch",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="old-worker",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="old-worker",
+            error="parent branch was pruned",
+        )
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch=initial.task_branch,
+            head_sha=initial.head_sha,
+            explicit_retry=True,
+        )
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            recovered = orch._reconcile_terminal_parent_integration_rows(
+                project,
+                [parent, child],
+            )
+
+        assert recovered == 1
+        row = orch.integration_queue.get(project.id, child.identifier)
+        assert row is not None
+        assert row.state == "cancelled"
+        # No quality-gate claim occurred, so the one-shot receipt remains
+        # visible in the retired durable row.
+        assert row.retry_forced is True
+        assert child.state == "In Validation"
+        assert child.integration is not None
+        assert child.integration.state == "integrated"
+        assert child.integration.integrated_sha == task_sha
+        assert orch.terminal_transition_coordinator.request_transition.call_args.kwargs[
+            "requested_target"
+        ] == TargetState.MERGED
+
+    def test_passing_merged_audit_recovers_when_git_objects_are_unavailable(
+        self,
+        tmp_path,
+    ):
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(tmp_path / "deleted-repo")
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="audited-parent",
+            issue_type="epic",
+            state=MERGED,
+        )
+        parent.target_branch = "main"
+        task_sha = "a" * 40
+        child = _make_issue(
+            identifier="audited-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="deleted-child",
+                head_sha=task_sha,
+            ),
+        )
+        candidate = IntegrationRecord(
+            state="integrated",
+            task_branch="deleted-child",
+            base_branch="main",
+            base_sha="c" * 40,
+            head_sha=task_sha,
+            integrated_sha=task_sha,
+        )
+        fingerprint = compute_issue_evidence_fingerprint(
+            replace(child, project_id=project.id, integration=candidate),
+            project.id,
+        )
+        attempt = AuditAttempt(
+            attempt_id="attempt-1",
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.PASS,
+            requested_by=ContributorIdentity("auditor", "service"),
+            created_at="2026-08-05T00:00:00Z",
+            completed_at="2026-08-05T00:01:00Z",
+        )
+        audit = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id=project.id,
+            task_id=child.identifier,
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            attempts=[attempt],
+            requested_by=ContributorIdentity("oompah", "service"),
+            previous_state="Ready to Integrate",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[audit]).to_dict()
+        }
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="deleted-child",
+            head_sha="b" * 40,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="canonical-audit",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=child.identifier,
+            lease_owner="canonical-audit",
+            expected_head_sha="b" * 40,
+            candidate_head_sha=task_sha,
+            candidate_base_sha="c" * 40,
+        ) is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="canonical-audit",
+            error="restart before terminal-parent recovery",
+            retryable=True,
+        )
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 1
+
+        assert child.state == "In Validation"
+        assert orch.integration_queue.get(project.id, child.identifier).state == "cancelled"
+
+    def test_blocked_row_restarts_idempotently_and_retires_warning(self, tmp_path):
+        repo_path, task_sha = _make_pruned_historical_landing_repo(tmp_path)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="merged-parent",
+            issue_type="epic",
+            state=MERGED,
+        )
+        parent.target_branch = "main"
+        child = _make_issue(
+            identifier="blocked-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            integration=IntegrationRecord(
+                state="blocked",
+                task_branch="deleted-child",
+                head_sha=task_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="deleted-child",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="old-worker",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="old-worker",
+            error="parent branch was pruned",
+        )
+        source = orch._terminal_parent_recovery_alert_source(
+            project.id,
+            child.identifier,
+        )
+        orch._alerts.append({"source": source, "level": "warning", "message": "old"})
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 1
+            orch.terminal_transition_coordinator.request_transition.reset_mock()
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 0
+
+        assert not any(alert.get("source") == source for alert in orch._alerts)
+        assert tracker.add_comment.call_count == 0
+
+    def test_unlanded_ready_child_gets_one_named_recovery_action(self, tmp_path):
+        repo_path, _landed_sha = _make_pruned_historical_landing_repo(tmp_path)
+        (repo_path / "unlanded.txt").write_text("not on main\n")
+        subprocess.run(["git", "add", "unlanded.txt"], cwd=repo_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "unlanded"],
+            cwd=repo_path,
+            check=True,
+        )
+        task_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(["git", "reset", "-q", "--hard", "HEAD~1"], cwd=repo_path, check=True)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue("pruned-parent", issue_type="epic", state=MERGED)
+        parent.target_branch = "main"
+        child = _make_issue(
+            "unlanded-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="missing-child",
+                head_sha=task_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        initial = orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="missing-child",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="old-worker",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="old-worker",
+            error="parent branch was pruned",
+        )
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch=initial.task_branch,
+            head_sha=initial.head_sha,
+            explicit_retry=True,
+        )
+        orch._request_task_status_transition_from_maintenance = MagicMock()
+        orch._task_status_transition_succeeded = MagicMock(return_value=True)
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 0
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 0
+
+        row = orch.integration_queue.get(project.id, child.identifier)
+        assert row is not None
+        assert row.state == "blocked"
+        assert row.retry_forced is True
+        assert tracker.add_comment.call_count == 1
+        comment = tracker.add_comment.call_args.args[1]
+        assert "recovery/pruned-parent/unlanded-child" in comment
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 0
 
     def test_refreshes_stale_target_before_judging_done_child(self, tmp_path):
         """A merge webhook may beat the local target remote-tracking ref."""
@@ -5032,11 +7025,313 @@ class TestLabelMergedEpics:
             check=False,
         )
         assert landed.returncode == 0
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 2
         )
+
+    def test_ref_move_after_final_unlanded_probe_self_heals_next_sweep(
+        self,
+        tmp_path,
+    ):
+        """The Git/tracker commit gap must converge without operator action."""
+
+        managed = _make_landing_evidence_repo(tmp_path, land_child=False)
+        source = tmp_path / "source"
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path / "orch", projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
+        real_mark_needs_human = orch._mark_needs_human
+
+        def land_after_final_probe(*args, **kwargs):
+            subprocess.run(
+                ["git", "checkout", "-q", "epic-parent"],
+                cwd=source,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "merge", "-q", "--ff-only", "child-work"],
+                cwd=source,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "push", "-q", "origin", "epic-parent"],
+                cwd=source,
+                check=True,
+            )
+            return real_mark_needs_human(*args, **kwargs)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+            patch.object(
+                orch,
+                "_mark_needs_human",
+                side_effect=land_after_final_probe,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert child.state == NEEDS_HUMAN
+        first_instruction = tracker.add_comment.call_args.args[1]
+        assert orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        tracker.fetch_comments.return_value = [
+            {"author": "oompah", "text": first_instruction}
+        ]
+        tracker.add_comment.reset_mock()
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert tracker.update_issue.call_args_list == [
+            call(child.identifier, status=NEEDS_HUMAN),
+            call(child.identifier, status=DONE),
+        ]
+        tracker.add_comment.assert_called_once()
+        assert "earlier unlanded-work instruction is superseded" in (
+            tracker.add_comment.call_args.args[1]
+        )
+        assert child.state == "In Validation"
+        assert not orch._unlanded_done_recovery_is_current(proj.id, child)
+
+    def test_later_needs_human_transition_consumes_done_recovery_authority(
+        self,
+        tmp_path,
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=NEEDS_HUMAN,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": "<!-- oompah:unlanded-done-child-recovery:v1 -->",
+            }
+        ]
+        tracker.fetch_issue_detail.return_value = child
+
+        def append_transition(intent, *, reason_code):
+            begun = orch.task_transition_journal.begin(intent)
+            assert begun.claim_token is not None
+            outcome = TransitionOutcome(
+                transition_id=begun.transition_id,
+                project_id=proj.id,
+                task_id=child.identifier,
+                disposition=TransitionDisposition.APPLIED,
+                reason_code="transition.applied",
+                observed_status=NEEDS_HUMAN,
+                observed_version=issue_authority_version(child),
+                requested_status=NEEDS_HUMAN,
+                applied_status=NEEDS_HUMAN,
+            )
+            orch.task_transition_journal.append(
+                begun.transition_id,
+                TransitionPhase.APPLIED,
+                reason_code,
+                outcome,
+            )
+            assert orch.task_transition_journal.release(
+                proj.id,
+                child.identifier,
+                begun.claim_token,
+            )
+
+        recovered_from = replace(child, state=DONE)
+        append_transition(
+            TransitionIntent(
+                project_id=proj.id,
+                task_id=child.identifier,
+                expected_status=DONE,
+                expected_version=issue_authority_version(recovered_from),
+                requested_status=NEEDS_HUMAN,
+                actor="oompah",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="maintenance.unlanded_done_child_recovered",
+                idempotency_key="initial-unlanded-done-recovery",
+                originating_job="merged-epic-reconciliation",
+            ),
+            reason_code="transition.applied",
+        )
+        assert orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        append_transition(
+            TransitionIntent(
+                project_id=proj.id,
+                task_id=child.identifier,
+                expected_status=DONE,
+                expected_version=issue_authority_version(recovered_from),
+                requested_status=NEEDS_HUMAN,
+                actor="oompah-watchdog",
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="watchdog.operator_action_required",
+                idempotency_key="later-unrelated-needs-human",
+                originating_job="stalled-task-watchdog",
+            ),
+            reason_code="transition.applied",
+        )
+        assert not orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_child_has_durable_landing_evidence",
+                return_value=True,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert child.state == NEEDS_HUMAN
+        assert not any(
+            call_args.kwargs.get("status") == DONE
+            for call_args in tracker.update_issue.call_args_list
+        )
+
+    def test_transient_restore_failure_retains_done_recovery_authority(
+        self,
+        tmp_path,
+    ):
+        managed = _make_landing_evidence_repo(tmp_path, land_child=True)
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path / "orch", projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=NEEDS_HUMAN,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        recovered_from = replace(child, state=DONE)
+        recovery_intent = TransitionIntent(
+            project_id=proj.id,
+            task_id=child.identifier,
+            expected_status=DONE,
+            expected_version=issue_authority_version(recovered_from),
+            requested_status=NEEDS_HUMAN,
+            actor="oompah",
+            authority=TransitionAuthority.SYSTEM,
+            reason_code="maintenance.unlanded_done_child_recovered",
+            idempotency_key="transient-original-recovery",
+            originating_job="merged-epic-reconciliation",
+        )
+        begun = orch.task_transition_journal.begin(recovery_intent)
+        assert begun.claim_token is not None
+        orch.task_transition_journal.append(
+            begun.transition_id,
+            TransitionPhase.APPLIED,
+            "transition.applied",
+            TransitionOutcome(
+                transition_id=begun.transition_id,
+                project_id=proj.id,
+                task_id=child.identifier,
+                disposition=TransitionDisposition.APPLIED,
+                reason_code="transition.applied",
+                observed_status=NEEDS_HUMAN,
+                observed_version=issue_authority_version(child),
+                requested_status=NEEDS_HUMAN,
+                applied_status=NEEDS_HUMAN,
+            ),
+        )
+        assert orch.task_transition_journal.release(
+            proj.id,
+            child.identifier,
+            begun.claim_token,
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
+        tracker.fetch_comments.return_value = []
+        restore_attempts = 0
+
+        def update_issue(_identifier, **fields):
+            nonlocal restore_attempts
+            if fields.get("status") != DONE:
+                return
+            restore_attempts += 1
+            if restore_attempts == 1:
+                raise RuntimeError("transient tracker transport failure")
+            child.state = DONE
+
+        tracker.update_issue.side_effect = update_issue
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert restore_attempts == 1
+        assert child.state == NEEDS_HUMAN
+        assert orch._unlanded_done_recovery_is_current(proj.id, child)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        assert restore_attempts == 2
+        assert child.state == "In Validation"
+        assert not orch._unlanded_done_recovery_is_current(proj.id, child)
 
     def test_refresh_failure_leaves_done_child_unchanged(self, tmp_path):
         """Unavailable authoritative refs must not trigger a stale demotion."""
@@ -5075,7 +7370,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 1
@@ -5106,7 +7401,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 1
@@ -5131,6 +7426,7 @@ class TestLabelMergedEpics:
             work_branch="child-work",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -5143,11 +7439,17 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_called_once()
-        assert "unlanded commit" in tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        assert "unlanded commit" in tracker.add_comment.call_args.args[1]
 
     def test_marks_epic_and_children_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(identifier="epic-1", issue_type="epic", state="Backlog")
         c1 = _make_issue(identifier="c1", state="Done")
@@ -5227,6 +7529,7 @@ class TestLabelMergedEpics:
             )
         ]
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         with (
             patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
@@ -5238,11 +7541,11 @@ class TestLabelMergedEpics:
 
         # Verify that the coordinator was called for the epic
         assert orch.terminal_transition_coordinator.request_transition.call_count >= 1
-        tracker.mark_needs_human.assert_called_once()
-        identifier, instruction = tracker.mark_needs_human.call_args.args
+        tracker.add_comment.assert_called_once()
+        identifier, instruction = tracker.add_comment.call_args.args
         assert identifier == "c1"
         assert "Inspect the task's agent history and remote branches" in instruction
-        assert tracker.mark_needs_human.call_args.kwargs["author"] == "oompah"
+        assert tracker.add_comment.call_args.kwargs["author"] == "oompah"
 
     def test_landed_epic_does_not_promote_open_child(self, tmp_path):
         """Late/incomplete work must remain visible after a parent lands."""
@@ -5262,6 +7565,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -5273,10 +7577,10 @@ class TestLabelMergedEpics:
         orch.terminal_transition_coordinator.request_transition.assert_called_once()
         call_args = orch.terminal_transition_coordinator.request_transition.call_args
         assert call_args[1]['requested_target'] == TargetState.MERGED
-        tracker.mark_needs_human.assert_called_once()
-        assert tracker.mark_needs_human.call_args.args[0] == "EXOCOMP-31"
+        tracker.add_comment.assert_called_once()
+        assert tracker.add_comment.call_args.args[0] == "EXOCOMP-31"
         assert "not proven to be in the merged epic" in (
-            tracker.mark_needs_human.call_args.args[1]
+            tracker.add_comment.call_args.args[1]
         )
 
     def test_landed_epic_deduplicates_unchanged_recovery_instruction(self, tmp_path):
@@ -5297,6 +7601,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         tracker.fetch_comments.return_value = []
 
         with (
@@ -5304,7 +7609,7 @@ class TestLabelMergedEpics:
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
-            instruction = tracker.mark_needs_human.call_args.args[1]
+            instruction = tracker.add_comment.call_args.args[1]
             tracker.fetch_comments.return_value = [
                 {
                     "text": instruction.replace(
@@ -5315,7 +7620,7 @@ class TestLabelMergedEpics:
             ]
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
 
-        tracker.mark_needs_human.assert_called_once()
+        tracker.add_comment.assert_called_once()
         assert tracker.fetch_comments.call_count == 2
 
     def test_landed_epic_posts_changed_recovery_instruction_once(self, tmp_path):
@@ -5336,6 +7641,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         tracker.fetch_comments.return_value = []
 
         with (
@@ -5343,20 +7649,21 @@ class TestLabelMergedEpics:
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
-            previous_instruction = tracker.mark_needs_human.call_args.args[1]
-            tracker.mark_needs_human.reset_mock()
+            previous_instruction = tracker.add_comment.call_args.args[1]
+            tracker.add_comment.reset_mock()
             tracker.fetch_comments.return_value = [{"text": previous_instruction}]
             child.work_branch = "EXOCOMP-31-recovery"
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
 
-        tracker.mark_needs_human.assert_called_once()
-        changed_instruction = tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        changed_instruction = tracker.add_comment.call_args.args[1]
         assert "EXOCOMP-31-recovery" in changed_instruction
         assert changed_instruction != previous_instruction
 
     def test_landed_epic_does_not_promote_stranded_done_child(self, tmp_path):
         """A Done child with unlanded commits remains recoverable."""
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(
             identifier="EXOCOMP-4",
@@ -5372,6 +7679,7 @@ class TestLabelMergedEpics:
             work_branch="epic-EXOCOMP-4",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
         evidence = (
             "EXOCOMP-33 branch EXOCOMP-33 has 1 unlanded commit, "
             "including abc123"
@@ -5392,10 +7700,108 @@ class TestLabelMergedEpics:
         orch.terminal_transition_coordinator.request_transition.assert_called_once()
         call_args = orch.terminal_transition_coordinator.request_transition.call_args
         assert call_args[1]['requested_target'] == TargetState.MERGED
-        tracker.mark_needs_human.assert_called_once()
-        instruction = tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        instruction = tracker.add_comment.call_args.args[1]
         assert evidence in instruction
         assert "recover any missing commits" in instruction
+
+    @pytest.mark.parametrize("fresh_state", [MERGED, ARCHIVED])
+    def test_stale_done_child_does_not_override_fresh_terminal_state(
+        self,
+        tmp_path,
+        fresh_state,
+    ):
+        """A stale landing scan cannot recover a newly terminal child."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        stale_child = _make_issue(
+            identifier="EXOCOMP-33",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        fresh_child = replace(stale_child, state=fresh_state)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = fresh_child
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[stale_child]),
+            patch.object(
+                orch,
+                "_child_landing_evidence_block_reason",
+                return_value="private child head is not contained",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        assert fresh_child.state == fresh_state
+        assert stale_child.state == DONE
+
+    def test_stale_done_child_does_not_override_fresh_done_generation(
+        self,
+        tmp_path,
+    ):
+        """Same-status lifecycle drift also supersedes a stale landing scan."""
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        stale_child = _make_issue(
+            identifier="EXOCOMP-33",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        stale_child.head_sha = "a" * 40
+        fresh_child = replace(
+            stale_child,
+            work_branch="EXOCOMP-33-recovery",
+            head_sha="b" * 40,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = fresh_child
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[stale_child]),
+            patch.object(
+                orch,
+                "_child_landing_evidence_block_reason",
+                return_value="private child head is not contained",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        assert fresh_child.state == DONE
+        assert fresh_child.work_branch == "EXOCOMP-33-recovery"
+        assert fresh_child.head_sha == "b" * 40
+        assert stale_child.state == DONE
 
     def test_noop_when_epic_branch_not_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -5414,6 +7820,7 @@ class TestLabelMergedEpics:
 
     def test_done_epic_is_marked_merged_after_rollup_pr_lands(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(identifier="epic-1", issue_type="epic", state="Done")
         c1 = _make_issue(identifier="c1", state="Done", parent_id="epic-1")
@@ -5898,7 +8305,7 @@ class TestLabelMergedEpics:
         assert calls[0].kwargs["current_issue"].identifier == child.identifier
         assert calls[0].kwargs["requested_target"] == TargetState.MERGED
         assert child.state == "In Validation"
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
 
     def test_historical_archived_parent_retires_superseded_helper(self, tmp_path):
         project = _make_project_record(epic_strategy="shared")
@@ -6071,6 +8478,7 @@ class TestLabelMergedEpics:
         tmp_path,
     ):
         proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = ""
         orch = _make_orch(tmp_path, projects=[proj])
         orch.project_store.epic_branch_name.side_effect = (
             lambda epic_id: f"epic-{epic_id.replace('/', '_').replace('#', '_')}"
@@ -6263,7 +8671,7 @@ class TestLabelMergedEpics:
             text=True,
         ).stdout.strip()
         assert refreshed_remote_sha == rewritten_sha
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 2
@@ -6308,7 +8716,7 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_not_called()
+        tracker.add_comment.assert_not_called()
         assert (
             orch.terminal_transition_coordinator.request_transition.call_count
             == 1
@@ -6352,6 +8760,7 @@ class TestLabelMergedEpics:
             work_branch="child-work",
         )
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = child
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -6364,8 +8773,13 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
 
-        tracker.mark_needs_human.assert_called_once()
-        assert "unlanded commit" in tracker.mark_needs_human.call_args.args[1]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
+        assert child.state == NEEDS_HUMAN
+        assert "unlanded commit" in tracker.add_comment.call_args.args[1]
 
 
 class TestNestedEpicMergeChain:
@@ -6750,7 +9164,10 @@ def _make_shared_epic_scenario(tmp_path):
         project_id="proj-1",
     )
     tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = epic
+    tracker.fetch_issue_detail.side_effect = lambda identifier: {
+        epic.identifier: epic,
+        child.identifier: child,
+    }.get(str(identifier))
     return orch, proj, epic, child, tracker
 
 
@@ -7020,6 +9437,58 @@ class TestSharedEpicTerminalCompatibility:
             is None
         )
 
+    def test_epic_merged_rejects_a_current_active_child(self, tmp_path):
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.state = IN_PROGRESS
+        tracker.fetch_children.return_value = [child]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        reason = orch._validate_terminal_transition(
+            epic, TargetState.MERGED, proj.id
+        )
+
+        assert reason is not None
+        assert "direct children remain active" in reason
+        assert child.identifier in reason
+
+    def test_epic_merged_rejects_terminal_child_without_fresh_landing_authority(
+        self, tmp_path
+    ):
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.state = DONE
+        tracker.fetch_children.return_value = [child]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        durable_controller = SimpleNamespace(
+            collector=MagicMock(),
+            store=MagicMock(),
+            scheduler=MagicMock(),
+            decision_limit=100,
+        )
+        orch.workflow_runtime = SimpleNamespace(
+            enforce=True,
+            project_bindings={
+                proj.id: SimpleNamespace(epic_controller=durable_controller)
+            },
+        )
+        stale_landing = SimpleNamespace(
+            decision=SimpleNamespace(durable_jobs=("rollup_review_creation",)),
+            facts=MagicMock(),
+        )
+
+        with patch("oompah.orchestrator.EpicWorkflowController") as controller:
+            controller.return_value.evaluate.return_value = SimpleNamespace(
+                tasks=(stale_landing,)
+            )
+            reason = orch._validate_terminal_transition(
+                epic, TargetState.MERGED, proj.id
+            )
+
+        assert reason is not None
+        assert "no longer authorizes auto-close" in reason
+        controller.return_value.evaluate.assert_called_once_with(
+            (epic,), persist_evidence=False
+        )
+
     def test_ordinary_child_is_rejected_until_parent_lands(self, tmp_path):
         orch, proj, parent, child, _tracker = _make_shared_epic_scenario(tmp_path)
         parent.state = DONE
@@ -7264,7 +9733,11 @@ class TestCloseInvalidEpicPolicyReview:
                 tick=1,
             )
         assert result is True
-        tracker.mark_needs_human.assert_called_once()
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with(
+            child.identifier,
+            status=NEEDS_HUMAN,
+        )
 
     def test_records_failure_when_provider_close_fails(self, tmp_path):
         """When ``provider.close_review`` fails, returns True and records the failure.

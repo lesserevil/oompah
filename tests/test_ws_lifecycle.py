@@ -1226,7 +1226,7 @@ class TestCrossLoopSafety:
 
             def _thread_target():
                 try:
-                    server_module._on_agent_activity("TASK-1", entry)
+                    server_module._on_agent_activity("project-a", "TASK-1", entry)
                 except Exception as exc:  # noqa: BLE001
                     errors.append(exc)
 

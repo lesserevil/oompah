@@ -50,15 +50,22 @@ class CycleRepairRow:
     epic_id: str
     task_branch: str
     head_sha: str
+    base_branch: str | None = None
+    submission_head_sha: str | None = None
 
-    def to_dict(self) -> dict[str, str]:
-        return {
+    def to_dict(self) -> dict[str, str | None]:
+        result: dict[str, str | None] = {
             "task_id": self.task_id,
             "container_id": self.container_id,
             "epic_id": self.epic_id,
             "task_branch": self.task_branch,
             "head_sha": self.head_sha,
         }
+        if self.base_branch:
+            result["base_branch"] = self.base_branch
+        if self.submission_head_sha:
+            result["submission_head_sha"] = self.submission_head_sha
+        return result
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,7 @@ class ContainerCycleRepairPlan:
     dependent_containers: tuple[str, ...]
     prerequisite_shas: tuple[tuple[str, str], ...]
     rows: tuple[CycleRepairRow, ...] = ()
+    container_branches: tuple[tuple[str, str], ...] = ()
     # A closure may contain intermediate commits that are intentionally part
     # of the selected prerequisite.  Supplying it is what lets the executor
     # reject a selected tip that smuggles in an unrelated sibling commit.
@@ -79,8 +87,12 @@ class ContainerCycleRepairPlan:
     def selected_shas(self) -> tuple[str, ...]:
         return tuple(sha for _task, sha in self.prerequisite_shas)
 
+    def branch_for_container(self, container_id: str) -> str:
+        branches = dict(self.container_branches)
+        return branches.get(container_id) or epic_branch(container_id)
+
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "key": self.key,
             "authoritative_container": self.authoritative_container,
             "dependent_containers": list(self.dependent_containers),
@@ -90,6 +102,9 @@ class ContainerCycleRepairPlan:
             "declared_closure": list(self.declared_closure),
             "rows": [row.to_dict() for row in self.rows],
         }
+        if self.container_branches:
+            result["container_branches"] = dict(self.container_branches)
+        return result
 
 
 @dataclass
@@ -415,7 +430,7 @@ class ContainerCycleRepairExecutor:
     ) -> ContainerCycleRepairResult:
         """Run or resume a repair plan and return scoped durable evidence."""
 
-        parent_branch = epic_branch(plan.authoritative_container)
+        parent_branch = plan.branch_for_container(plan.authoritative_container)
         prior = dict(prior_evidence or {})
         result = ContainerCycleRepairResult(
             status="blocked",
@@ -442,7 +457,7 @@ class ContainerCycleRepairExecutor:
 
             conflict_containers: set[str] = set()
             for container_id in plan.dependent_containers:
-                branch = epic_branch(container_id)
+                branch = plan.branch_for_container(container_id)
                 observed_child_sha = self._ref_sha(self._remote_ref(branch))
                 child = ChildRepairResult(
                     container_id=container_id,

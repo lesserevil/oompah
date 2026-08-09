@@ -21,13 +21,41 @@ from unittest.mock import MagicMock
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import AgentProfile, Issue, ModelProvider, RunningEntry
+from oompah.models import (
+    AgentProfile,
+    Issue,
+    ModelProvider,
+    OrchestratorState,
+    RunningEntry,
+)
 from oompah.orchestrator import Orchestrator
 
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
+
+_OWNED_ORCHESTRATORS: list[Orchestrator] = []
+
+
+@pytest.fixture(autouse=True)
+def _close_owned_orchestrators():
+    """Close every store and pool opened by the full-object test helper."""
+
+    first_owned = len(_OWNED_ORCHESTRATORS)
+    try:
+        yield
+    finally:
+        owned = _OWNED_ORCHESTRATORS[first_owned:]
+        del _OWNED_ORCHESTRATORS[first_owned:]
+        for orch in reversed(owned):
+            orch._tick_pool.shutdown(wait=True, cancel_futures=True)
+            orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
+            orch.coordination_store.close()
+            orch.integration_queue.close()
+            orch.review_capacity_store.close()
+            orch.workflow_job_store.close()
+            orch.task_transition_journal.close()
 
 def _make_free_provider(
     provider_id: str = "prov-free-01",
@@ -151,6 +179,21 @@ def _make_orchestrator(
         mock_ps.get_default.return_value = None
         orch.provider_store = mock_ps
 
+    _OWNED_ORCHESTRATORS.append(orch)
+    return orch
+
+
+def _make_budget_projection(
+    *, budget_limit: float = 10.0
+) -> Orchestrator:
+    """Build only the local state required by ``_budget_snapshot``."""
+
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.config = ServiceConfig(
+        budget_limit=budget_limit,
+        budget_timezone="UTC",
+    )
+    orch.state = OrchestratorState()
     return orch
 
 
@@ -517,68 +560,143 @@ class TestDefaultFirstDispatchWithBudgetExceeded:
 
 
 # ---------------------------------------------------------------------------
-# get_snapshot() — free_tier_active flag
+# _budget_snapshot() — free_tier_active flag
 # ---------------------------------------------------------------------------
 
 class TestGetSnapshotFreeTierActive:
-    """budget block must include free_tier_active flag."""
+    """The local budget projection must include free-tier state."""
 
-    def test_free_tier_active_false_when_not_exceeded(self, tmp_path):
-        orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is False
+    def test_free_tier_active_false_when_not_exceeded(self):
+        orch = _make_budget_projection()
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is False
 
-    def test_free_tier_active_false_when_exceeded_but_no_dispatches(self, tmp_path):
+    def test_free_tier_active_false_when_exceeded_but_no_dispatches(self):
         """Exceeded + no free-tier dispatches yet = free_tier_active is False."""
-        orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
+        orch = _make_budget_projection()
         _exceed_budget(orch)
         # No free-tier dispatches recorded
         assert orch.state.free_tier_dispatches_this_window == 0
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is False
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is False
 
-    def test_free_tier_active_true_when_exceeded_and_dispatches_happened(self, tmp_path):
+    def test_free_tier_active_true_when_exceeded_and_dispatches_happened(self):
         """Exceeded + free-tier dispatch counter > 0 = free_tier_active is True."""
-        orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
+        orch = _make_budget_projection()
         _exceed_budget(orch)
         orch.state.free_tier_dispatches_this_window = 3  # simulated dispatches
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is True
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is True
 
-    def test_free_tier_active_false_when_budget_limit_is_zero(self, tmp_path):
+    def test_free_tier_active_false_when_budget_limit_is_zero(self):
         """With budget_limit=0 (unlimited), budget_exceeded is never True → False."""
-        orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=0.0)
+        orch = _make_budget_projection(budget_limit=0.0)
         # budget_exceeded never gets set to True when budget_limit=0
         assert orch.state.budget_exceeded is False
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is False
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is False
 
-    def test_budget_block_has_free_tier_active_key(self, tmp_path):
+    def test_budget_block_has_free_tier_active_key(self):
         """budget block always has the free_tier_active key."""
-        orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
-        snapshot = orch.get_snapshot()
-        assert "free_tier_active" in snapshot["budget"]
+        orch = _make_budget_projection()
+        snapshot = orch._budget_snapshot()
+        assert "free_tier_active" in snapshot
 
-    def test_budget_block_has_free_tier_dispatches_count(self, tmp_path):
+    def test_budget_block_has_free_tier_dispatches_count(self):
         """budget block also exposes free_tier_dispatches_this_window count."""
-        orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
+        orch = _make_budget_projection()
         orch.state.free_tier_dispatches_this_window = 5
-        snapshot = orch.get_snapshot()
-        assert "free_tier_dispatches_this_window" in snapshot["budget"]
-        assert snapshot["budget"]["free_tier_dispatches_this_window"] == 5
+        snapshot = orch._budget_snapshot()
+        assert "free_tier_dispatches_this_window" in snapshot
+        assert snapshot["free_tier_dispatches_this_window"] == 5
 
+    @pytest.mark.timeout(20)
     def test_should_dispatch_increments_and_snapshot_reflects_it(self, tmp_path):
-        """End-to-end: _should_dispatch increments counter, snapshot reflects free_tier_active."""
+        """Dispatch increments once and the next budget projection reflects it."""
         provider = _make_free_provider()
         orch = _make_orchestrator(tmp_path, provider=provider, budget_limit=10.0)
         _exceed_budget(orch)
         issue = _make_issue()
-        # Before dispatch
-        assert orch.get_snapshot()["budget"]["free_tier_active"] is False
+        # The adjacent snapshot tests cover the pre-dispatch projection.  Keep
+        # this end-to-end assertion focused on the counter transition so it
+        # performs only the one full snapshot needed by the contract.
+        assert orch.state.free_tier_dispatches_this_window == 0
         # Dispatch on free model
-        orch._should_dispatch(issue)
+        assert orch._should_dispatch(issue) is True
         # After dispatch
-        assert orch.get_snapshot()["budget"]["free_tier_active"] is True
+        assert orch.state.free_tier_dispatches_this_window == 1
+        snapshot = orch.get_snapshot()
+        assert snapshot["budget"]["free_tier_active"] is True
+        assert snapshot["budget"]["free_tier_dispatches_this_window"] == 1
+
+    def test_budget_projection_does_not_require_unrelated_live_state(self):
+        """The projection works without stores, pools, trackers, or audit state."""
+        orch = _make_budget_projection()
+        assert not hasattr(orch, "project_store")
+        assert not hasattr(orch, "validation_resource_lease")
+        projection = orch._budget_snapshot()
+
+        assert projection["free_tier_active"] is False
+
+    def test_public_snapshot_routes_the_budget_projection(self, tmp_path, monkeypatch):
+        """The API snapshot must retain the public ``budget`` shape."""
+        orch = _make_orchestrator(
+            tmp_path, provider=_make_free_provider(), budget_limit=10.0
+        )
+        expected = {
+            "free_tier_active": True,
+            "free_tier_dispatches_this_window": 7,
+        }
+        budget_snapshot = MagicMock(return_value=expected)
+        monkeypatch.setattr(orch, "_budget_snapshot", budget_snapshot)
+        monkeypatch.setattr(
+            orch, "_running_values_snapshot", MagicMock(return_value=[])
+        )
+        monkeypatch.setattr(
+            orch, "_running_items_snapshot", MagicMock(return_value=[])
+        )
+        monkeypatch.setattr(
+            orch, "_sync_terminal_audit_observability_alerts", MagicMock()
+        )
+        monkeypatch.setattr(orch, "_reconcile_integration_retry_alerts", MagicMock())
+        monkeypatch.setattr(
+            orch._terminal_audit_metrics,
+            "discard_missing_running",
+            MagicMock(),
+        )
+        monkeypatch.setattr(
+            orch._terminal_audit_metrics,
+            "snapshot",
+            MagicMock(return_value={}),
+        )
+        monkeypatch.setattr(
+            orch, "_quality_gate_state_snapshot", MagicMock(return_value={})
+        )
+        monkeypatch.setattr(
+            orch, "_tracker_read_stats_snapshot", MagicMock(return_value={})
+        )
+        monkeypatch.setattr(orch, "_reviews_summary", MagicMock(return_value={}))
+        monkeypatch.setattr(orch, "_proposed_foci_count", MagicMock(return_value=0))
+        monkeypatch.setattr(
+            orch.integration_queue, "items", MagicMock(return_value=[])
+        )
+        monkeypatch.setattr(
+            orch.project_store, "list_all", MagicMock(return_value=[])
+        )
+        monkeypatch.setattr(
+            orch.validation_resource_lease,
+            "status",
+            MagicMock(return_value=MagicMock(to_dict=MagicMock(return_value={}))),
+        )
+        monkeypatch.setattr(
+            orch.workflow_job_store, "health_snapshot", MagicMock(return_value={})
+        )
+        monkeypatch.setattr(orch.workflow_shadow, "summary", MagicMock(return_value={}))
+
+        snapshot = orch.get_snapshot()
+
+        assert snapshot["budget"] is expected
+        budget_snapshot.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------

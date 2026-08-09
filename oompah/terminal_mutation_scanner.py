@@ -1,9 +1,9 @@
-"""Static detection of tracker calls that can write terminal task states.
+"""Static detection of tracker calls that can write task status.
 
-The runtime enforcement sweep repairs terminal writes that bypass the
-coordinator.  This scanner is the earlier, CI-time guard: it rejects new
-direct mutations unless the exact call site is part of the small documented
-coordinator/persistence compatibility allowlist.
+All managed-task lifecycle mutations must enter through
+``TaskTransitionService``.  This scanner is the CI-time architectural guard:
+it rejects direct tracker mutations unless the exact function is a documented
+persistence/protocol adapter or a proven status-free dynamic metadata writer.
 """
 
 from __future__ import annotations
@@ -13,120 +13,135 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-_TERMINAL_NAMES = frozenset({"DONE", "MERGED", "ARCHIVED"})
-_TERMINAL_VALUES = frozenset({"done", "merged", "archived"})
 _UNCONDITIONAL_METHODS = {
     "close_issue": "Done",
     "archive_issue": "Archived",
+    "reopen_issue": "active status",
+    "mark_needs_human": "Needs Human",
 }
 _STATUS_METHODS = frozenset({"update_issue", "set_status"})
 _STATUS_KEYWORDS = frozenset({"status", "state"})
 
 AllowlistKey = tuple[str, str, str]
 
-# Each entry identifies one existing compatibility or persistence boundary.
-# New entries require a concrete reason and a matching source comment.
+# Each entry identifies one reviewed persistence/protocol boundary or one
+# dynamic metadata call whose status value is removed before invocation.  A
+# key allows the exact method within the exact function; it does not allow a
+# whole module or class.  New entries require a concrete architectural reason.
 ALLOWLISTED_CALLS: dict[AllowlistKey, str] = {
     (
-        "oompah/error_watcher.py",
-        "ErrorWatcher.auto_close_for_issue",
-        "close_issue",
-    ): (
-        "Closes an oompah-generated transient diagnostic only after the "
-        "originating retry succeeds; this tracker-local recovery path may not "
-        "have managed-project coordinator context."
-    ),
+        "oompah/oompah_md_tracker.py",
+        "OompahMarkdownTracker.close_issue",
+        "update_issue",
+    ): "Low-level native Markdown tracker status persistence adapter.",
+    (
+        "oompah/oompah_md_tracker.py",
+        "OompahMarkdownTracker.reopen_issue",
+        "update_issue",
+    ): "Low-level native Markdown tracker status persistence adapter.",
     (
         "oompah/oompah_md_tracker.py",
         "OompahMarkdownTracker.archive_issue",
         "update_issue",
-    ): "Low-level tracker persistence implementation for Archived.",
+    ): "Low-level native Markdown tracker status persistence adapter.",
+    (
+        "oompah/oompah_md_tracker.py",
+        "OompahMarkdownTracker.mark_needs_human",
+        "update_issue",
+    ): "Low-level native Markdown tracker status persistence adapter.",
+    (
+        "oompah/github_tracker.py",
+        "GitHubIssueTracker.mark_needs_human",
+        "update_issue",
+    ): "Low-level GitHub tracker status persistence adapter.",
+    (
+        "oompah/provenance_suppression.py",
+        "ProvenanceGuardedTracker.update_issue",
+        "update_issue",
+    ): (
+        "Final managed-tracker authority facade: it checks durable provenance "
+        "suppression before delegating an already-authorized protocol operation."
+    ),
+    (
+        "oompah/provenance_suppression.py",
+        "ProvenanceGuardedTracker.reopen_issue",
+        "reopen_issue",
+    ): (
+        "Final managed-tracker authority facade: it checks durable provenance "
+        "suppression before delegating an already-authorized protocol operation."
+    ),
+    (
+        "oompah/provenance_suppression.py",
+        "ProvenanceGuardedTracker.mark_needs_human",
+        "mark_needs_human",
+    ): (
+        "Final managed-tracker authority facade: it checks durable provenance "
+        "suppression before delegating an already-authorized protocol operation."
+    ),
     (
         "oompah/provenance_suppression.py",
         "ProvenanceGuardedTracker.close_issue",
         "close_issue",
     ): (
-        "Final managed-tracker authority facade: it rejects every terminal or "
-        "nonterminal status write while durable provenance suppression is active, "
-        "then delegates the already-authorized protocol operation unchanged."
+        "Final managed-tracker authority facade: it checks durable provenance "
+        "suppression before delegating an already-authorized protocol operation."
     ),
     (
         "oompah/provenance_suppression.py",
         "ProvenanceGuardedTracker.archive_issue",
         "archive_issue",
     ): (
-        "Final managed-tracker authority facade: it rejects every terminal or "
-        "nonterminal status write while durable provenance suppression is active, "
-        "then delegates the already-authorized protocol operation unchanged."
+        "Final managed-tracker authority facade: it checks durable provenance "
+        "suppression before delegating an already-authorized protocol operation."
     ),
     (
-        "oompah/orchestrator.py",
-        "Orchestrator._reset_orphaned_in_progress",
+        "oompah/terminal_transition_coordinator.py",
+        "TerminalTransitionCoordinator.reconcile_completed_recurrence_sync._operation",
         "update_issue",
-    ): (
-        "Reasserts Done only for an issue already present in the durable "
-        "completed set; the enforcement sweep still verifies its audit metadata."
-    ),
+    ): "Low-level adapter that restores a previously authorized audit result.",
     (
-        "oompah/orchestrator.py",
-        "Orchestrator._defer_review_handoff",
+        "oompah/terminal_transition_coordinator.py",
+        "TerminalTransitionCoordinator.retry_failed_audit._operation",
         "update_issue",
-    ): (
-        "Compatibility write for a completed branch whose review is deferred "
-        "solely by the project review-capacity limit."
-    ),
+    ): "Low-level terminal-audit adapter that stages a persisted retry.",
     (
-        "oompah/orchestrator.py",
-        "Orchestrator._mark_stale_in_review_done",
+        "oompah/terminal_transition_coordinator.py",
+        "TerminalTransitionCoordinator._transition_locked",
         "update_issue",
-    ): (
-        "Reconciles a shared child only after Git containment proves its work "
-        "is present on the epic branch."
-    ),
-    (
-        "oompah/orchestrator.py",
-        "Orchestrator._on_worker_exit",
-        "close_issue",
-    ): (
-        "Compatibility close for a merge-conflict repair worker after the "
-        "repair gate succeeds; terminal enforcement supplies the audit backstop."
-    ),
+    ): "Low-level terminal-audit adapter that stages a persisted transition.",
     (
         "oompah/terminal_transition_coordinator.py",
         "TerminalTransitionCoordinator._apply_result_locked",
         "update_issue",
-    ): "Applies a validated, persisted terminal-audit verdict.",
+    ): "Low-level adapter that applies a validated terminal-audit verdict.",
     (
         "oompah/terminal_transition_coordinator.py",
         "TerminalTransitionCoordinator._override_transition_locked",
         "update_issue",
-    ): "Applies a validated, persisted project-owner override.",
+    ): "Low-level adapter that applies a validated project-owner override.",
     (
-        "oompah/terminal_audit_enforcement.py",
-        "TerminalAuditEnforcement._reconcile_incompatible_shared_epic_merged",
+        "oompah/github_intake_bridge.py",
+        "sync_github_issue_intake_statuses_for_project",
         "update_issue",
     ): (
-        "Restores a legacy incompatible Merged child to its already completed "
-        "Done audit during serialized startup recovery; it does not create an "
-        "audit."
+        "External customer-facing GitHub issue mirror; it does not mutate the "
+        "native managed task."
     ),
     (
-        "oompah/orchestrator.py",
-        "Orchestrator._supersede_wrong_epic_rebase_helper",
+        "oompah/server.py",
+        "api_update_issue._update_fields_under_project_lock",
         "update_issue",
     ): (
-        "Archives an auto-generated rebase helper task whose recorded target "
-        "branch no longer matches the authoritative parent; only transitions "
-        "unclaimed tasks in Open, In-Progress, or Needs-Rebase state after a "
-        "fresh re-read confirms no worker has claimed it; the terminal "
-        "enforcement sweep provides the audit backstop."
+        "Status is popped and routed through TaskTransitionService before this "
+        "bounded writer-thread call revalidates the committed status and applies "
+        "status-free metadata."
     ),
 }
 
 
 @dataclass(frozen=True)
 class TerminalMutation:
-    """One statically identifiable terminal tracker mutation."""
+    """One statically identifiable direct tracker status mutation."""
 
     path: str
     line: int
@@ -157,43 +172,32 @@ def _normalized_path(path: Path, root: Path | None) -> str:
     return path.as_posix()
 
 
-def _terminal_target(node: ast.AST) -> str | None:
-    value: str | None = None
+def _status_target(node: ast.AST) -> str:
+    """Return a concise source-level description of a status expression."""
+
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        value = node.value
-    elif isinstance(node, ast.Name):
-        value = node.id
-    elif isinstance(node, ast.Attribute):
-        value = node.attr
-    if value is None:
-        return None
-
-    normalized = value.strip().replace("-", "_").replace(" ", "_")
-    upper = normalized.upper()
-    if upper in _TERMINAL_NAMES:
-        return upper.title()
-    lower = normalized.lower()
-    if lower in _TERMINAL_VALUES:
-        return lower.title()
-    return None
+        return node.value
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return "dynamic status"
 
 
-def _dict_terminal_target(node: ast.AST) -> str | None:
+def _dict_status_target(node: ast.AST) -> str | None:
     if not isinstance(node, ast.Dict):
-        return None
+        return "dynamic **kwargs"
     for key, value in zip(node.keys, node.values, strict=True):
         if (
             isinstance(key, ast.Constant)
             and isinstance(key.value, str)
             and key.value.strip().lower() in _STATUS_KEYWORDS
         ):
-            target = _terminal_target(value)
-            if target is not None:
-                return target
+            return _status_target(value)
     return None
 
 
-def _call_terminal_target(call: ast.Call, method: str) -> str | None:
+def _call_status_target(call: ast.Call, method: str) -> str | None:
     if method in _UNCONDITIONAL_METHODS:
         return _UNCONDITIONAL_METHODS[method]
     if method not in _STATUS_METHODS:
@@ -201,18 +205,16 @@ def _call_terminal_target(call: ast.Call, method: str) -> str | None:
 
     for keyword in call.keywords:
         if keyword.arg is not None and keyword.arg.lower() in _STATUS_KEYWORDS:
-            target = _terminal_target(keyword.value)
-            if target is not None:
-                return target
+            return _status_target(keyword.value)
         elif keyword.arg is None:
-            target = _dict_terminal_target(keyword.value)
+            target = _dict_status_target(keyword.value)
             if target is not None:
                 return target
 
     # ``set_status(issue, DONE)`` is a common positional form.  ``update_issue``
     # has no stable positional status argument, so only inspect set_status.
     if method == "set_status" and len(call.args) >= 2:
-        return _terminal_target(call.args[1])
+        return _status_target(call.args[1])
     return None
 
 
@@ -227,7 +229,6 @@ class _MutationVisitor(ast.NodeVisitor):
         self.allowlist = allowlist
         self.scope: list[str] = []
         self.mutations: list[TerminalMutation] = []
-        self.allowlist_uses: dict[AllowlistKey, int] = {}
 
     def _visit_scope(self, node: ast.AST, name: str) -> None:
         self.scope.append(name)
@@ -246,21 +247,29 @@ class _MutationVisitor(ast.NodeVisitor):
         self._visit_scope(node, node.name)
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+        method: str | None = None
         if isinstance(node.func, ast.Attribute):
             method = node.func.attr
-            target = _call_terminal_target(node, method)
+        else:
+            # Async/thread helpers commonly receive a bound tracker writer as
+            # their first argument, for example
+            # ``run_io(tracker.update_issue, task, status=OPEN)``.  Treat that
+            # as the same mutation rather than allowing indirection to evade
+            # the architectural boundary.
+            for argument in node.args:
+                if (
+                    isinstance(argument, ast.Attribute)
+                    and argument.attr
+                    in (_STATUS_METHODS | _UNCONDITIONAL_METHODS.keys())
+                ):
+                    method = argument.attr
+                    break
+        if method is not None:
+            target = _call_status_target(node, method)
             if target is not None:
                 function = ".".join(self.scope) or "<module>"
                 key = (self.path, function, method)
                 reason = self.allowlist.get(key)
-                if reason is not None:
-                    use_count = self.allowlist_uses.get(key, 0)
-                    self.allowlist_uses[key] = use_count + 1
-                    # A key permits one existing call, not a whole function.
-                    # A second mutation of the same kind therefore remains a
-                    # violation until it receives separate review.
-                    if use_count:
-                        reason = None
                 self.mutations.append(
                     TerminalMutation(
                         path=self.path,
@@ -281,7 +290,7 @@ def scan_source(
     path: str,
     allowlist: Mapping[AllowlistKey, str] = ALLOWLISTED_CALLS,
 ) -> list[TerminalMutation]:
-    """Parse *source* and return its identifiable terminal mutations."""
+    """Parse *source* and return its identifiable direct status mutations."""
 
     tree = ast.parse(source, filename=path)
     visitor = _MutationVisitor(path=path, allowlist=allowlist)

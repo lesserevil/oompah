@@ -138,3 +138,19 @@ def test_new_dependency_is_rejected_when_it_closes_container_cycle():
 
     assert cycle is not None
     assert cycle.path == ("E-A", "E-B", "E-A")
+
+
+def test_nested_container_rollups_do_not_create_false_container_cycle():
+    root = _issue(
+        "E-ROOT",
+        issue_type="epic",
+        blocked_by=["E-A", "E-B"],
+    )
+    epic_a = _issue("E-A", issue_type="epic", parent_id="E-ROOT")
+    epic_b = _issue("E-B", issue_type="epic", parent_id="E-ROOT")
+    task_a = _issue("TASK-A", parent_id="E-A")
+    task_b = _issue("TASK-B", parent_id="E-B")
+    issues = [root, epic_a, epic_b, task_a, task_b]
+
+    assert build_container_dependency_graph(issues) == {}
+    assert find_container_dependency_cycles(issues) == ()

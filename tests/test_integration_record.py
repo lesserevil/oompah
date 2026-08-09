@@ -6,6 +6,8 @@ import pytest
 
 from oompah.integration import (
     IntegrationRecord,
+    accepted_submission_branch,
+    assigned_work_branch,
     expected_submission_branch,
     parse_integration_record,
     validate_submission_branch,
@@ -15,6 +17,7 @@ from oompah.integration import (
 def test_integration_record_round_trips_all_supported_evidence():
     record = IntegrationRecord(
         state="ready",
+        mode="queue",
         task_branch="oompah/task/ABC-2",
         base_branch="epic-ABC-1",
         base_sha="a" * 40,
@@ -23,9 +26,22 @@ def test_integration_record_round_trips_all_supported_evidence():
         submitted_at="2026-07-29T12:00:00Z",
         updated_at="2026-07-29T12:01:00Z",
         dependency_heads={"ABC-1": "c" * 40},
+        gate_outcome="cancelled_retryable",
+        gate_cancellation={
+            "cancelled_by": "operator:alice",
+            "reason": "critical-path preemption",
+        },
+        wait_reason="nested_epic_base_stale",
+        wait_generation="generation-1",
+        required_base_missing=("epic-ABC-0", "ABC-1"),
     )
 
     assert IntegrationRecord.from_dict(record.to_dict()) == record
+
+
+def test_integration_record_rejects_unknown_delivery_mode():
+    with pytest.raises(ValueError, match="unsupported integration mode"):
+        IntegrationRecord(state="ready", mode="caller-selected")
 
 
 @pytest.mark.parametrize(
@@ -36,12 +52,41 @@ def test_integration_record_round_trips_all_supported_evidence():
         {},
         {"version": 999, "state": "ready"},
         {"version": 1, "state": "unknown"},
+        {"version": 2, "state": "ready", "mode": "unknown"},
         {"version": 1, "state": "ready", "attempts": -1},
         {"version": "nope", "state": "ready"},
     ],
 )
 def test_parse_integration_record_rejects_malformed_or_unsupported_data(raw):
     assert parse_integration_record(raw) is None
+
+
+def test_direct_maintenance_publication_proof_round_trips_only_when_true():
+    proven = IntegrationRecord(
+        state="integrated",
+        task_branch="epic-parent",
+        base_branch="epic-parent",
+        head_sha="a" * 40,
+        integrated_sha="a" * 40,
+        maintenance_publication_proven=True,
+    )
+
+    assert IntegrationRecord.from_dict(proven.to_dict()) == proven
+    assert proven.to_dict()["maintenance_publication_proven"] is True
+    assert "maintenance_publication_proven" not in IntegrationRecord(
+        state="ready"
+    ).to_dict()
+
+
+def test_direct_maintenance_publication_proof_rejects_truthy_non_boolean():
+    record = IntegrationRecord.from_dict(
+        {
+            "state": "ready",
+            "maintenance_publication_proven": "false",
+        }
+    )
+
+    assert record.maintenance_publication_proven is False
 
 
 def test_integration_record_ignores_unknown_future_keys():
@@ -79,3 +124,52 @@ def test_submission_branch_validation_uses_native_task_branch_fallback():
     assert validate_submission_branch(issue, "owner_repo_1234") == "owner_repo_1234"
     with pytest.raises(ValueError, match="expected work branch"):
         validate_submission_branch(issue, "main")
+
+
+def test_accepted_generation_branch_overrides_stale_tracker_projection():
+    issue = SimpleNamespace(
+        identifier="OOMPAH-814",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+        branch_name="epic-OOMPAH-763--task-OOMPAH-814",
+        integration=IntegrationRecord(
+            state="blocked",
+            task_branch="OOMPAH-814",
+            head_sha="a" * 40,
+        ),
+    )
+
+    assert accepted_submission_branch(issue) == "OOMPAH-814"
+    assert assigned_work_branch(issue) == "OOMPAH-814"
+    assert validate_submission_branch(issue, "OOMPAH-814") == "OOMPAH-814"
+    with pytest.raises(ValueError, match="expected work branch"):
+        validate_submission_branch(
+            issue,
+            "epic-OOMPAH-763--task-OOMPAH-814",
+        )
+
+
+def test_working_or_partial_record_cannot_claim_accepted_branch_authority():
+    working = SimpleNamespace(
+        identifier="TASK-1",
+        work_branch="stale-projection",
+        branch_name=None,
+        integration=IntegrationRecord(
+            state="working",
+            task_branch="epic-EPIC-1--task-TASK-1",
+        ),
+    )
+    partial = SimpleNamespace(
+        identifier="TASK-2",
+        work_branch="TASK-2",
+        branch_name=None,
+        integration=IntegrationRecord(
+            state="blocked",
+            task_branch="stale-branch",
+        ),
+    )
+
+    assert accepted_submission_branch(working) is None
+    assert assigned_work_branch(working) == "epic-EPIC-1--task-TASK-1"
+    assert expected_submission_branch(working) == "epic-EPIC-1--task-TASK-1"
+    assert accepted_submission_branch(partial) is None
+    assert expected_submission_branch(partial) == "TASK-2"

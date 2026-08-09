@@ -6,11 +6,14 @@ import asyncio
 import copy
 import threading
 import time
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 from unittest import mock
 
 import pytest
+
+from tests.tick_test_support import tick_dispatch_mock
 
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
@@ -45,6 +48,8 @@ def _issue(
     issue_type: str = "task",
     priority: int | None = None,
     submitted_at: str | None = None,
+    head_sha: str = "a" * 40,
+    with_integration: bool = True,
 ) -> Issue:
     issue = Issue(
         id=f"id-{identifier}",
@@ -57,11 +62,13 @@ def _issue(
         priority=priority,
         work_branch=branch or identifier,
     )
-    if submitted_at is not None:
+    if with_integration:
         issue.integration = IntegrationRecord(
             state="ready",
+            mode="standalone",
             task_branch=branch or identifier,
-            submitted_at=submitted_at,
+            head_sha=head_sha,
+            submitted_at=submitted_at or "2026-08-01T00:00:00Z",
         )
     return issue
 
@@ -71,7 +78,7 @@ def _review(
     *,
     state: str = "open",
     review_id: str = "42",
-    head_sha: str = "abc123",
+    head_sha: str = "a" * 40,
     source_branch: str | None = None,
     target_branch: str = "trunk",
 ) -> ReviewRequest:
@@ -90,11 +97,10 @@ def _review(
 
 
 def _close_orchestrator(orch: Orchestrator) -> None:
-    orch.integration_queue.close()
-    orch.coordination_store.close()
-    orch.review_capacity_store.close()
-    orch._tick_pool.shutdown(wait=True, cancel_futures=True)
-    orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
+    for pool in (orch._tick_pool, orch._refresh_pool, orch._integration_pool):
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=False)
+    orch._close_owned_persistent_stores()
 
 
 class _MemoryTracker:
@@ -123,12 +129,17 @@ class _MemoryTracker:
         self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
         if key == "oompah.integration" and isinstance(value, dict):
             self.issue.integration = IntegrationRecord.from_dict(value)
-        elif key == "oompah.review_url":
-            self.issue.review_url = value or None
+            return
+        if key == "oompah.review_url":
+            self.issue.review_url = copy.deepcopy(value)
         elif key == "oompah.review_number":
-            self.issue.review_number = value or None
+            self.issue.review_number = copy.deepcopy(value)
+        elif key == "oompah.work_branch":
+            self.issue.work_branch = copy.deepcopy(value)
+        elif key == "oompah.target_branch":
+            self.issue.target_branch = copy.deepcopy(value)
         elif key == "oompah.review_head":
-            self.issue.review_head = value or None
+            self.issue.review_head = copy.deepcopy(value)
 
     def update_issue(self, identifier: str, **kwargs: Any) -> None:
         assert identifier == self.issue.identifier
@@ -155,10 +166,20 @@ def _make_orchestrator(
     provider_store: ProviderStore | None = None,
     state_name: str = "service-state.json",
 ) -> Orchestrator:
+    def _apply_update(identifier: str, **fields: Any) -> None:
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is not None and fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    if (
+        isinstance(tracker.update_issue, mock.Mock)
+        and tracker.update_issue.side_effect is None
+    ):
+        tracker.update_issue.side_effect = _apply_update
     project_store = mock.MagicMock()
     project_store.list_all.return_value = [project]
-    project_store.get.side_effect = (
-        lambda project_id: project if str(project_id) == project.id else None
+    project_store.get.side_effect = lambda project_id: (
+        project if str(project_id) == project.id else None
     )
     project_lock = threading.RLock()
     project_store.project_write_lock.return_value = project_lock
@@ -196,7 +217,7 @@ def harness(tmp_path, monkeypatch):
         None,
     )
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "abc123"
+    provider.get_branch_head_sha.return_value = "a" * 40
     provider.find_pr_for_branch.return_value = None
     provider.create_review.return_value = _review("TASK-1")
     provider_store = ProviderStore(str(tmp_path / "providers.json"))
@@ -246,12 +267,10 @@ def test_standalone_gate_does_not_hold_shared_queue_driver(harness):
         blocked_standalone_reconciliation
     )
     orch._sync_ready_integration_submissions = mock.MagicMock()
-    orch.project_store.list_all.side_effect = (
-        lambda: (shared_queue_started.set() or [])
-    )
+    orch.project_store.list_all.side_effect = lambda: shared_queue_started.set() or []
     orch._handle_reconcile = mock.AsyncMock()
     orch._handle_review_check = mock.AsyncMock()
-    orch._handle_dispatch_needed = mock.AsyncMock(return_value={})
+    orch._handle_dispatch_needed = tick_dispatch_mock()
     orch._handle_yolo_review = mock.AsyncMock(return_value=0.0)
     orch._notify_observers = mock.MagicMock()
     orch._maybe_run_watchdog = mock.MagicMock()
@@ -289,9 +308,7 @@ def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness)
     tracker.fetch_issues_by_states.return_value = [task]
 
     orch._reconcile_standalone_ready_to_integrate_tasks()
-    authority = orch._standalone_delivery_authorities[
-        (project.id, task.identifier)
-    ]
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     orch._alerts.append(
         {
             "level": "warning",
@@ -333,8 +350,8 @@ def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
     assert orch._set_standalone_delivery_head(
         authority,
         task.work_branch or "",
-        "abc123",
-        lambda: "abc123",
+        "a" * 40,
+        lambda: "a" * 40,
     )
 
     def concurrent_refresh() -> Issue:
@@ -361,15 +378,133 @@ def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
     )
 
 
+def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
+    """A late forge result is adoptable, but the expired job cannot publish it."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "a" * 40
+    task = _issue("TASK-WORKFLOW-TIMEOUT", branch="feature/timeout")
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T04:00:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = None
+    workflow_current = [True]
+
+    def create_after_timeout(*_args, **_kwargs):
+        workflow_current[0] = False
+        return _review(
+            task.work_branch or "",
+            review_id="720",
+            head_sha=accepted_head,
+        )
+
+    provider.create_review.side_effect = create_after_timeout
+
+    orch._reconcile_one_standalone_ready_to_integrate_task(
+        project.id,
+        task.identifier,
+        expected_task_branch=task.work_branch,
+        expected_head_sha=accepted_head,
+        workflow_generation="job-1:1:lease-1",
+        workflow_authority_check=lambda: workflow_current[0],
+    )
+
+    gate.assert_called_once()
+    provider.create_review.assert_called_once()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
+    assert authority.workflow_generation == "job-1:1:lease-1"
+    assert not orch._standalone_delivery_authorized(authority, tracker)
+
+
+def test_standalone_authority_generation_includes_delivery_mode(harness):
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "b" * 40
+    task = _issue("TASK-MODE-FENCE", branch="feature/mode-fence")
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._standalone_delivery_authorized(authority, tracker)
+
+    task.integration = replace(task.integration, mode="queue")
+
+    assert not orch._standalone_delivery_authorized(authority, tracker)
+
+
+def test_open_review_adoption_rechecks_workflow_lease_before_capacity(harness):
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "c" * 40
+    task = _issue("TASK-ADOPT-LEASE", branch="feature/adopt-lease")
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    workflow_current = [True]
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        task,
+        workflow_generation="job-1:generation-1:lease-1",
+        workflow_authority_check=lambda: workflow_current[0],
+    )
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    exact_open = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="721",
+        head_sha=accepted_head,
+    )
+
+    def return_after_lease_loss(*_args, **_kwargs):
+        workflow_current[0] = False
+        return exact_open
+
+    provider.find_pr_for_branch.side_effect = return_after_lease_loss
+    with mock.patch.object(orch, "_adopt_open_review_capacity") as adopt:
+        adopted, reason = orch._adopt_standalone_open_review_owned(
+            project,
+            tracker,
+            provider,
+            authority,
+            repo_slug="org/repo",
+            work_branch=task.work_branch or "",
+            target_branch=project.default_branch,
+            expected_review=exact_open,
+        )
+
+    assert not adopted
+    assert "during open-review lookup" in reason
+    adopt.assert_not_called()
+
+
 def test_legacy_quality_gate_facade_uses_generation_fallback(harness):
     """Older gate facades remain usable without broadening new gates."""
     orch, project, tracker, _provider, _detect, _gate = harness
     task = _issue("TASK-LEGACY", branch="feature/legacy")
     tracker.fetch_issues_by_states.return_value = [task]
     orch._reconcile_standalone_ready_to_integrate_tasks()
-    authority = orch._standalone_delivery_authorities[
-        (project.id, task.identifier)
-    ]
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
 
     class LegacyGate:
         def __init__(self):
@@ -392,9 +527,7 @@ def test_mocked_exact_quality_gate_facade_does_not_fall_back(harness):
     task = _issue("TASK-MOCKED-OWNER", branch="feature/mocked-owner")
     tracker.fetch_issues_by_states.return_value = [task]
     orch._reconcile_standalone_ready_to_integrate_tasks()
-    authority = orch._standalone_delivery_authorities[
-        (project.id, task.identifier)
-    ]
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     exact = mock.MagicMock(spec=BranchQualityGate)
     exact.cancel_owner.return_value = 1
     orch._branch_quality_gate = exact
@@ -443,6 +576,81 @@ def test_real_orchestrator_provider_store_and_project_create_review(harness):
     assert not _delivery_alerts(orch)
 
 
+def test_top_level_legacy_ready_task_adopts_remote_head_for_delivery(harness):
+    """A pre-receipt standalone task still gains exact delivery authority."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue(
+        "TASK-LEGACY-READY",
+        branch="feature/legacy-ready",
+        with_integration=False,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.set_metadata_field.side_effect = (
+        lambda _identifier, key, value: setattr(task, "review_head", value)
+        if key == "oompah.review_head"
+        else None
+    )
+    tracker.update_issue.side_effect = (
+        lambda _identifier, **fields: setattr(task, "state", fields["status"])
+    )
+    provider.create_review.return_value = _review(
+        "feature/legacy-ready",
+        review_id="102",
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
+    assert authority.head_sha == "a" * 40
+    gate.assert_called_once_with(
+        project,
+        task,
+        "feature/legacy-ready",
+        "trunk",
+    )
+    provider.create_review.assert_called_once()
+    tracker.update_issue.assert_called_once_with(
+        "TASK-LEGACY-READY", status=IN_REVIEW
+    )
+
+
+def test_standalone_delivery_preserves_explicit_target_branch(harness):
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-RELEASE", branch="feature/release-fix")
+    task.target_branch = "release/next"
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review(
+        "feature/release-fix",
+        review_id="release-101",
+        target_branch="release/next",
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(
+        project,
+        task,
+        "feature/release-fix",
+        "release/next",
+    )
+    provider.create_review.assert_called_once_with(
+        "org/repo",
+        "TASK-RELEASE: Title for TASK-RELEASE",
+        "feature/release-fix",
+        target_branch="release/next",
+        description="Description for TASK-RELEASE",
+    )
+    assert mock.call(
+        "TASK-RELEASE",
+        "oompah.target_branch",
+        "release/next",
+    ) in tracker.set_metadata_field.call_args_list
+    tracker.update_issue.assert_called_once_with("TASK-RELEASE", status=IN_REVIEW)
+    assert not _delivery_alerts(orch)
+
+
 def test_standalone_delivery_selects_priority_then_submitted_fifo(harness):
     """A newer Ready arrival cannot overtake an older equal-priority row."""
 
@@ -478,12 +686,8 @@ def test_standalone_delivery_selects_priority_then_submitted_fifo(harness):
         mock.call(project, high_old, "TASK-HIGH-OLD", "trunk"),
         mock.call(project, high_new, "TASK-HIGH-NEW", "trunk"),
     ]
-    assert provider.create_review.call_args_list[0].args[1].startswith(
-        "TASK-HIGH-OLD:"
-    )
-    assert provider.create_review.call_args_list[1].args[1].startswith(
-        "TASK-HIGH-NEW:"
-    )
+    assert provider.create_review.call_args_list[0].args[1].startswith("TASK-HIGH-OLD:")
+    assert provider.create_review.call_args_list[1].args[1].startswith("TASK-HIGH-NEW:")
 
 
 def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness):
@@ -503,10 +707,8 @@ def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness
         "TASK-UNSELECTED",
         submitted_at="2026-08-01T02:00:00Z",
     )
-    provider.get_branch_head_sha.side_effect = (
-        lambda _repo, branch: None
-        if branch == invalid.work_branch
-        else "abc123"
+    provider.get_branch_head_sha.side_effect = lambda _repo, branch: (
+        None if branch == invalid.work_branch else "a" * 40
     )
     provider.list_open_reviews.return_value = []
     provider.create_review.return_value = _review(
@@ -523,7 +725,10 @@ def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness
     assert provider.create_review.call_count == 1
     assert (project.id, invalid.identifier) in orch._standalone_delivery_authorities
     assert (project.id, valid.identifier) in orch._standalone_delivery_authorities
-    assert (project.id, unselected.identifier) not in orch._standalone_delivery_authorities
+    assert (
+        project.id,
+        unselected.identifier,
+    ) not in orch._standalone_delivery_authorities
     assert "not present on the remote" in next(
         alert["message"]
         for alert in _delivery_alerts(orch)
@@ -541,9 +746,7 @@ def test_dependency_blocked_candidate_does_not_claim_or_block_next(harness):
     )
     blocker = _issue("TASK-BLOCKER")
     blocker.state = OPEN
-    blocked.blocked_by = [
-        BlockerRef(id=blocker.id, identifier=blocker.identifier)
-    ]
+    blocked.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
     next_task = _issue(
         "TASK-NEXT",
         submitted_at="2026-08-01T01:00:00Z",
@@ -680,10 +883,13 @@ def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
 
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-INHERITED", parent_id="PARENT")
+    task.integration = None
     parent = _issue("PARENT", issue_type="task")
     parent.state = OPEN
+    parent.integration = None
     blocker = _issue("TASK-PARENT-UPSTREAM")
     blocker.state = OPEN
+    blocker.integration = None
     parent.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
     tracker.fetch_issues_by_states.return_value = [task]
     _set_all_issues(tracker, [task, parent, blocker])
@@ -699,6 +905,26 @@ def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     gate.assert_called_once_with(project, task, "TASK-INHERITED", "trunk")
+    provider.create_review.assert_called_once()
+
+
+def test_non_epic_parent_rollup_edge_does_not_self_block_child(harness):
+    """A lifecycle child rollup is not a standalone finish-order dependency."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-CHILD", parent_id="PARENT")
+    task.integration = None
+    parent = _issue("PARENT", issue_type="task")
+    parent.state = OPEN
+    parent.integration = None
+    parent.blocked_by = [BlockerRef(id=task.id, identifier=task.identifier)]
+    tracker.fetch_issues_by_states.return_value = [task]
+    _set_all_issues(tracker, [task, parent])
+    provider.create_review.return_value = _review("TASK-CHILD", review_id="908")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, "TASK-CHILD", "trunk")
     provider.create_review.assert_called_once()
 
 
@@ -771,13 +997,14 @@ def test_finish_dependency_resolution_is_isolated_per_project(harness):
         ),
         None,
     )
-    orch.project_store.list_all.return_value = [project_one, project_two]
-    orch.project_store.get.side_effect = (
-        lambda project_id: {
-            project_one.id: project_one,
-            project_two.id: project_two,
-        }.get(str(project_id))
+    tracker_two.update_issue.side_effect = lambda identifier, **fields: setattr(
+        tracker_two.fetch_issue_detail(identifier), "state", fields["status"]
     )
+    orch.project_store.list_all.return_value = [project_one, project_two]
+    orch.project_store.get.side_effect = lambda project_id: {
+        project_one.id: project_one,
+        project_two.id: project_two,
+    }.get(str(project_id))
     orch._project_trackers[project_two.id] = tracker_two
     provider.create_review.return_value = _review("TASK-PROJECT-TWO", review_id="908")
 
@@ -820,15 +1047,12 @@ def test_existing_open_review_is_reused_idempotently(harness):
     # the branch cannot bypass the configured branch gate.
     gate.assert_called_once_with(project, task, "TASK-3", "trunk")
     tracker.update_issue.assert_called_once_with("TASK-3", status=IN_REVIEW)
-    assert [
-        call.args[:3]
-        for call in tracker.set_metadata_field.call_args_list
-    ] == [
+    assert [call.args[:3] for call in tracker.set_metadata_field.call_args_list] == [
         ("TASK-3", "oompah.review_url", "https://github.com/org/repo/pull/99"),
         ("TASK-3", "oompah.review_number", "99"),
         ("TASK-3", "oompah.work_branch", "TASK-3"),
         ("TASK-3", "oompah.target_branch", "trunk"),
-        ("TASK-3", "oompah.review_head", "abc123"),
+        ("TASK-3", "oompah.review_head", "a" * 40),
     ]
 
 
@@ -1024,7 +1248,7 @@ def test_existing_integration_queue_row_prevents_competing_review(harness):
         epic_id="EPIC-1",
         task_id=task.identifier,
         task_branch=task.work_branch or task.identifier,
-        head_sha="abc123",
+        head_sha="a" * 40,
         priority=task.priority,
         submitted_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -1106,7 +1330,42 @@ def test_later_sweep_stale_cache_cannot_create_second_review(harness):
     assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
 
 
-def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
+def test_exact_durable_review_slot_is_not_reported_as_capacity_wait(harness):
+    """A lagging forge lookup cannot overwrite same-task delivery success."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 1
+    task = _issue("TASK-EXACT-CAPACITY")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or task.identifier,
+        "a" * 40,
+        lambda: "a" * 40,
+    )
+    orch.review_capacity_store.adopt(
+        project_id=project.id,
+        task_id=task.identifier,
+        source_branch=task.work_branch or task.identifier,
+        target_branch=project.default_branch,
+        review_id="exact-601",
+        reservation_id="reservation-exact-601",
+        authority_generation=authority.generation,
+        head_sha=authority.head_sha,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.create_review.assert_not_called()
+    assert not _delivery_alerts(orch)
+
+
+def test_concurrent_ready_sweeps_share_one_durable_slot(harness, tmp_path, monkeypatch):
     orch, project, tracker, provider, _detect, gate = harness
     project.max_in_flight_prs = 1
     tracker.fetch_issues_by_states.return_value = [
@@ -1119,20 +1378,236 @@ def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
         "TASK-CONCURRENT-1",
         review_id="602",
     )
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers-two.json")),
+        state_name="service-state-two.json",
+    )
+    gate_barrier = threading.Barrier(2)
+    gate_two = mock.MagicMock()
+
+    def synchronized_gate(*_args, **_kwargs):
+        gate_barrier.wait(timeout=5)
+        return True
+
+    gate.side_effect = synchronized_gate
+    gate_two.side_effect = synchronized_gate
+    monkeypatch.setattr(orch_two, "_review_quality_gate_passes", gate_two)
 
     workers = [
         threading.Thread(
-            target=orch._reconcile_standalone_ready_to_integrate_tasks,
+            target=reconciler._reconcile_standalone_ready_to_integrate_tasks,
         )
-        for _ in range(2)
+        for reconciler in (orch, orch_two)
     ]
-    for worker in workers:
-        worker.start()
-    for worker in workers:
-        worker.join()
+    try:
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
+
+        assert all(not worker.is_alive() for worker in workers)
+        assert provider.create_review.call_count == 1
+        assert not _delivery_alerts(orch)
+        assert not _delivery_alerts(orch_two)
+    finally:
+        _close_orchestrator(orch_two)
+
+
+def test_concurrent_loser_does_not_arm_after_winner_reserves_capacity(harness):
+    orch, project, tracker, provider, _detect, _gate = harness
+    project.max_in_flight_prs = 1
+    tracker.fetch_issues_by_states.return_value = [
+        _issue("TASK-CONCURRENT-RESERVATION"),
+    ]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    create_started = threading.Event()
+    release_create = threading.Event()
+
+    def blocked_create(*_args, **_kwargs):
+        create_started.set()
+        assert release_create.wait(timeout=5)
+        return _review("TASK-CONCURRENT-RESERVATION", review_id="603")
+
+    provider.create_review.side_effect = blocked_create
+    winner = threading.Thread(
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    loser = threading.Thread(
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    winner.start()
+    assert create_started.wait(timeout=5)
+    loser.start()
+    loser.join(timeout=5)
+    assert not loser.is_alive()
+    assert not _delivery_alerts(orch)
+    release_create.set()
+    winner.join(timeout=5)
+    assert not winner.is_alive()
 
     assert provider.create_review.call_count == 1
     assert not _delivery_alerts(orch)
+
+
+def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(
+    harness,
+    tmp_path,
+):
+    """A stale loser sees the winner's exact existing-review adoption."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    project.max_in_flight_prs = 1
+    task = _issue("TASK-CONCURRENT-ADOPTION")
+    tracker.fetch_issues_by_states.return_value = [task]
+    review = _review(task.identifier, review_id="604")
+    adopted = threading.Event()
+    stale_lookup = threading.Event()
+    loser_capacity_decided = threading.Event()
+    release_adoption = threading.Event()
+    original_adopt = orch._adopt_open_review_capacity
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers-two.json")),
+        state_name="service-state-two.json",
+    )
+    original_capacity_reservation = orch_two._standalone_review_capacity_reservation
+
+    def record_adoption(*args, **kwargs):
+        result = original_adopt(*args, **kwargs)
+        adopted.set()
+        assert release_adoption.wait(timeout=5)
+        return result
+
+    def record_capacity_reservation(authority):
+        assert threading.current_thread().name == "stale-lookup-loser"
+        assert stale_lookup.is_set()
+        reservation = original_capacity_reservation(authority)
+        loser_capacity_decided.set()
+        return reservation
+
+    def find_review_for_sweep(*_args, **_kwargs):
+        if threading.current_thread().name == "adoption-winner":
+            return review
+        assert threading.current_thread().name == "stale-lookup-loser"
+        assert adopted.wait(timeout=5)
+        stale_lookup.set()
+        return None
+
+    provider.find_pr_for_branch.side_effect = find_review_for_sweep
+    provider.list_open_reviews.return_value = []
+    orch._adopt_open_review_capacity = record_adoption
+    orch_two._standalone_review_capacity_reservation = record_capacity_reservation
+
+    winner = threading.Thread(
+        name="adoption-winner",
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    loser = threading.Thread(
+        name="stale-lookup-loser",
+        target=orch_two._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    winner.start()
+    try:
+        assert adopted.wait(timeout=5)
+        loser.start()
+        assert loser_capacity_decided.wait(timeout=5)
+    finally:
+        release_adoption.set()
+        winner.join(timeout=5)
+        loser.join(timeout=5)
+        _close_orchestrator(orch_two)
+
+    assert not winner.is_alive()
+    assert not loser.is_alive()
+    assert provider.create_review.call_count == 0
+    assert not _delivery_alerts(orch)
+    assert not _delivery_alerts(orch_two)
+    [reservation] = orch.review_capacity_store.active(project.id)
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
+    assert reservation.review_id == "604"
+    assert reservation.authority_generation == authority.generation
+    assert reservation.head_sha == "a" * 40
+
+
+def test_restart_recognizes_exact_uncommitted_reservation_without_false_wait(
+    tmp_path,
+    monkeypatch,
+):
+    project = Project(
+        id="proj-reservation-restart",
+        name="Reservation Restart",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+        max_in_flight_prs=1,
+    )
+    task = _issue("TASK-RESERVATION-RESTART")
+    tracker = mock.MagicMock()
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.fetch_all_issues.return_value = [task]
+    tracker.fetch_issue_detail.return_value = task
+    provider_store_path = tmp_path / "providers.json"
+    orch_one = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(provider_store_path)),
+    )
+    reservation = orch_one.review_capacity_store.acquire(
+        project_id=project.id,
+        task_id=task.identifier,
+        source_branch=task.work_branch or task.identifier,
+        target_branch=project.default_branch,
+        limit=1,
+        open_review_ids=[],
+        reservation_id="old-process-generation",
+        authority_generation="old-process-generation",
+        head_sha="a" * 40,
+    )
+    assert reservation is not None and reservation.acquired_new
+    _close_orchestrator(orch_one)
+
+    provider = mock.MagicMock(spec=SCMProvider)
+    provider.get_branch_head_sha.return_value = "a" * 40
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review(task.identifier, review_id="604")
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(provider_store_path)),
+    )
+    source = f"standalone_ready_delivery:{project.id}:{task.identifier}"
+    orch_two._alerts.append(
+        {
+            "level": "info",
+            "source": source,
+            "message": "stale capacity wait",
+        }
+    )
+    try:
+        with mock.patch.object(
+            orch_two,
+            "_review_quality_gate_passes",
+            return_value=True,
+        ) as gate:
+            orch_two._reconcile_standalone_ready_to_integrate_tasks()
+        gate.assert_not_called()
+        provider.create_review.assert_not_called()
+        assert not _delivery_alerts(orch_two)
+    finally:
+        _close_orchestrator(orch_two)
 
 
 def test_overlapping_ready_sweep_is_coalesced_without_capacity_alert(harness):
@@ -1189,17 +1664,19 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     )
     provider_store = ProviderStore(str(tmp_path / "providers.json"))
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "restart-sha"
+    provider.get_branch_head_sha.return_value = "b" * 40
     created = _review("TASK-7", review_id="77")
-    created.head_sha = "restart-sha"
+    created.head_sha = "b" * 40
     # The first process performs lookup + final pre-create CAS; the restarted
     # process performs lookup + final open-review adoption CAS.
     provider.find_pr_for_branch.side_effect = [None, None, created, created]
     provider.create_review.return_value = created
-    monkeypatch.setattr("oompah.orchestrator.detect_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider", lambda *_a, **_k: provider
+    )
 
     tracker_one = mock.MagicMock()
-    task_one = _issue("TASK-7")
+    task_one = _issue("TASK-7", head_sha="b" * 40)
     tracker_one.fetch_issues_by_states.return_value = [task_one]
     tracker_one.fetch_issue_detail.return_value = task_one
     orch_one = _make_orchestrator(
@@ -1217,7 +1694,7 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     _close_orchestrator(orch_one)
 
     tracker_two = mock.MagicMock()
-    task_two = _issue("TASK-7")
+    task_two = _issue("TASK-7", head_sha="b" * 40)
     tracker_two.fetch_issues_by_states.return_value = [task_two]
     tracker_two.fetch_issue_detail.return_value = task_two
     orch_two = _make_orchestrator(
@@ -1280,10 +1757,8 @@ def test_owner_override_during_failed_gate_cancels_stale_delivery(harness):
     project.status_label_authorized_logins = ["owner"]
     tracker.fetch_issue_detail.return_value = task
     tracker.get_metadata.return_value = {}
-    tracker.update_issue.side_effect = (
-        lambda _identifier, **fields: setattr(task, "state", fields["status"])
-        if "status" in fields
-        else None
+    tracker.update_issue.side_effect = lambda _identifier, **fields: (
+        setattr(task, "state", fields["status"]) if "status" in fields else None
     )
 
     def override_then_fail(*_args):
@@ -1310,9 +1785,9 @@ def test_owner_override_during_failed_gate_cancels_stale_delivery(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     assert task.state == MERGED
-    assert [call.kwargs.get("status") for call in tracker.update_issue.call_args_list] == [
-        MERGED
-    ]
+    assert [
+        call.kwargs.get("status") for call in tracker.update_issue.call_args_list
+    ] == [MERGED]
     provider.create_review.assert_not_called()
     assert not _delivery_alerts(orch)
 
@@ -1326,10 +1801,8 @@ def test_owner_override_during_passing_gate_cancels_review_creation(harness):
     project.status_label_authorized_logins = ["owner"]
     tracker.fetch_issue_detail.return_value = task
     tracker.get_metadata.return_value = {}
-    tracker.update_issue.side_effect = (
-        lambda _identifier, **fields: setattr(task, "state", fields["status"])
-        if "status" in fields
-        else None
+    tracker.update_issue.side_effect = lambda _identifier, **fields: (
+        setattr(task, "state", fields["status"]) if "status" in fields else None
     )
 
     def override_then_pass(*_args):
@@ -1357,9 +1830,9 @@ def test_owner_override_during_passing_gate_cancels_review_creation(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     assert task.state == MERGED
-    assert [call.kwargs.get("status") for call in tracker.update_issue.call_args_list] == [
-        MERGED
-    ]
+    assert [
+        call.kwargs.get("status") for call in tracker.update_issue.call_args_list
+    ] == [MERGED]
     provider.create_review.assert_not_called()
     assert not _delivery_alerts(orch)
 
@@ -1371,7 +1844,7 @@ def test_changed_remote_head_cancels_stale_gate_result(harness):
     task = _issue("TASK-HEAD-RACE", branch="feature/head-race")
     tracker.fetch_issues_by_states.return_value = [task]
     tracker.fetch_issue_detail.return_value = task
-    provider.get_branch_head_sha.side_effect = ["head-before", "head-after"]
+    provider.get_branch_head_sha.side_effect = ["a" * 40, "b" * 40]
     gate.return_value = True
 
     orch._reconcile_standalone_ready_to_integrate_tasks()
@@ -2282,7 +2755,7 @@ def test_open_review_metadata_failure_cannot_advance_status(harness):
         task.work_branch or "",
         state="open",
         review_id="713",
-        head_sha="abc123",
+        head_sha="a" * 40,
     )
     provider.find_pr_for_branch.return_value = exact_open
 
@@ -2309,7 +2782,7 @@ def test_created_review_metadata_failure_cannot_advance_status(harness):
         task.work_branch or "",
         state="open",
         review_id="714",
-        head_sha="abc123",
+        head_sha="a" * 40,
     )
 
     def fail_review_head(_identifier, key, _value) -> None:
@@ -2323,6 +2796,39 @@ def test_created_review_metadata_failure_cannot_advance_status(harness):
     gate.assert_called_once()
     provider.create_review.assert_called_once()
     tracker.update_issue.assert_not_called()
+
+
+def test_created_review_close_fence_wins_before_tracker_publication(harness):
+    """A close observed during forge create prevents stale In Review."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-CREATE-CLOSED", branch="feature/create-closed")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    created = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="715",
+        head_sha="a" * 40,
+    )
+
+    def close_before_create_returns(*_args, **_kwargs):
+        orch.release_review_capacity(
+            project.id,
+            created.id,
+            source_branch=created.source_branch,
+        )
+        return created
+
+    provider.create_review.side_effect = close_before_create_returns
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once()
+    provider.create_review.assert_called_once()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert orch.review_capacity_store.active(project.id) == []
 
 
 def test_final_review_revalidation_rejects_state_change_before_metadata(harness):
@@ -2609,15 +3115,15 @@ def test_merged_review_completes_real_done_and_merged_audits(
         repo_path=str(tmp_path / "repo"),
         default_branch="trunk",
     )
-    task = _issue("TASK-9")
+    task = _issue("TASK-9", head_sha="c" * 40)
     tracker = _MemoryTracker(task)
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "merged-sha"
+    provider.get_branch_head_sha.return_value = "c" * 40
     provider.find_pr_for_branch.return_value = _review(
         "TASK-9",
         state="merged",
         review_id="90",
-        head_sha="merged-sha",
+        head_sha="c" * 40,
     )
     monkeypatch.setattr(
         "oompah.orchestrator.detect_provider",

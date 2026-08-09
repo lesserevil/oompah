@@ -8,8 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oompah.container_dependency_graph import find_container_dependency_cycles
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
+from oompah.integration_projection import build_integration_dependency_projections
 from oompah.integration_queue import IntegrationQueueItem
 from oompah.auditor_dispatch import AuditDispatchPlan
 from oompah.models import (
@@ -20,9 +22,15 @@ from oompah.models import (
     RunningEntry,
 )
 from oompah.orchestrator import Orchestrator
-from oompah.projects import ProjectError, ProjectStore
+from oompah.projects import (
+    ProjectError,
+    ProjectStore,
+    RecoveryPublicationError,
+    _worktree_pending_recovery_ref,
+    _worktree_recovery_ref,
+)
 from oompah.roles import Candidate
-from oompah.server import _integration_queue_summary
+from oompah.server import _fetch_and_serialize_issues, _integration_queue_summary
 from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
@@ -36,6 +44,28 @@ from tests.test_epic_strategy import (
     _make_orch,
     _make_project_record,
 )
+
+
+def _dependency_projection(
+    item,
+    issues,
+    satisfied,
+    *,
+    container_cycles=(),
+    dependency_authoritative=True,
+):
+    dependency_map = Orchestrator.__new__(Orchestrator)._integration_dependency_map(
+        issues,
+        [item],
+    )
+    return build_integration_dependency_projections(
+        issues,
+        [item],
+        dependency_map,
+        set(satisfied),
+        container_cycles=container_cycles,
+        dependency_authoritative=dependency_authoritative,
+    )[0]
 
 
 def test_parallel_mode_bypasses_same_epic_start_gate(tmp_path):
@@ -105,6 +135,57 @@ def test_integrated_queue_item_waits_for_terminal_audit():
     assert satisfied == {"TASK-1", "native-task-uuid"}
 
 
+def test_integration_recovery_requests_the_exact_accepted_task_head(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.create_epic_worktree.return_value = "/wt/epic"
+    orchestrator.project_store.create_worktree.return_value = "/wt/task"
+    item = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id="OOMPAH-814",
+        task_branch="OOMPAH-814",
+        head_sha="a" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-08-05T00:00:00+00:00",
+        state="integrating",
+        attempts=1,
+        lease_owner="lease-1",
+        lease_expires_at=None,
+        updated_at="2026-08-05T00:01:00+00:00",
+    )
+
+    with patch(
+        "oompah.orchestrator.execute_integration",
+        return_value=IntegrationExecutionResult(
+            status="integrated",
+            message="integrated",
+            integrated_sha="c" * 40,
+        ),
+    ) as executor:
+        result = orchestrator._execute_integration_item(item)
+
+    assert result.integrated is True
+    orchestrator.project_store.create_worktree.assert_called_once_with(
+        project.id,
+        item.task_id,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        branch_name="OOMPAH-814",
+        prefer_remote_branch=True,
+        expected_head_sha="a" * 40,
+    )
+    orchestrator.project_store.create_epic_worktree.assert_called_once_with(
+        project.id,
+        "EPIC-1",
+        branch_name="epic-OOMPAH-768--task-OOMPAH-804",
+    )
+    assert executor.call_args.kwargs["epic_branch"] == (
+        "epic-OOMPAH-768--task-OOMPAH-804"
+    )
+
+
 def test_cross_epic_dependency_requires_reachable_integrated_head(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     project.repo_path = str(tmp_path)
@@ -155,6 +236,324 @@ def test_cross_epic_dependency_requires_reachable_integrated_head(tmp_path):
             )
             == {upstream.id, upstream.identifier}
         )
+
+
+def test_dashboard_and_executor_agree_on_reachable_unlanded_dependency(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    target_epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream_epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="In Progress",
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id=upstream_epic.identifier,
+        project_id=project.id,
+        state="Done",
+        integration=IntegrationRecord(
+            state="integrated",
+            integrated_sha="a" * 40,
+        ),
+    )
+    task = _make_issue(
+        identifier="TASK-2",
+        parent_id=target_epic.identifier,
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    task.blocked_by = [
+        BlockerRef(id=upstream.id, identifier=upstream.identifier)
+    ]
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=target_epic.identifier,
+        task_id=task.identifier,
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="b" * 40,
+        base_branch="epic-ROOT--task-EPIC-2",
+        base_sha="c" * 40,
+    )
+    issues = [target_epic, upstream_epic, upstream, task]
+
+    fetch = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    reachable = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        side_effect=[fetch, reachable],
+    ) as run:
+        satisfied = orchestrator._integration_satisfied_dependencies(
+            issues,
+            [item],
+            project_id=project.id,
+            epic_id=target_epic.identifier,
+        )
+
+    assert satisfied >= {upstream.id, upstream.identifier}
+    assert any(
+        "origin/epic-ROOT--task-EPIC-2" in call.args[0]
+        for call in run.call_args_list
+        if "merge-base" in call.args[0]
+    )
+    dependency_map = orchestrator._integration_dependency_map(issues, [item])
+    projection = build_integration_dependency_projections(
+        issues,
+        [item],
+        dependency_map,
+        satisfied,
+    )[0]
+    assert not projection.matches(replace(item, base_branch="epic-EPIC-2"))
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=target_epic.identifier,
+        lease_owner="reachable-unlanded",
+        dependency_map=dependency_map,
+        satisfied=satisfied,
+    )
+    summary = _integration_queue_summary(
+        item,
+        task,
+        issues,
+        dependency_projection=projection,
+    )
+
+    assert claimed is not None
+    assert claimed.task_id == task.identifier
+    assert summary["waiting_on"] == []
+    assert summary["wait_reason"] == "Waiting for the per-epic integration executor"
+
+
+def test_board_reads_raw_executor_projection_without_repository_io(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    target_epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+        state="Proposed",
+    )
+    upstream_epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="In Progress",
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id=upstream_epic.identifier,
+        project_id=project.id,
+        state="Done",
+    )
+    task = _make_issue(
+        identifier="TASK-2",
+        parent_id=target_epic.identifier,
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    task.blocked_by = [BlockerRef(identifier=upstream.identifier)]
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=target_epic.identifier,
+        task_id=task.identifier,
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="b" * 40,
+        base_branch="epic-ROOT--task-EPIC-2",
+        base_sha="c" * 40,
+    )
+    raw_issues = [target_epic, upstream_epic, upstream, task]
+    projection = _dependency_projection(
+        item,
+        raw_issues,
+        {upstream.id, upstream.identifier},
+    )
+    orchestrator._publish_integration_dependency_projections(
+        (projection,),
+    )
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = raw_issues
+    orchestrator._project_trackers[project.id] = tracker
+    orchestrator._integration_satisfied_dependencies = MagicMock(
+        side_effect=AssertionError("dashboard must not recompute reachability")
+    )
+    orchestrator._run_project_network_git = MagicMock(
+        side_effect=AssertionError("dashboard must not fetch repository state")
+    )
+    orchestrator.project_store.project_write_lock.reset_mock()
+
+    board = _fetch_and_serialize_issues(orchestrator)
+
+    row = next(
+        candidate
+        for candidate in board["Proposed"]
+        if candidate["identifier"] == task.identifier
+    )
+    assert row["tracker_state"] == "Proposed"
+    assert row["integration_queue"]["waiting_on"] == []
+    tracker.fetch_all_issues.assert_called_once_with()
+    orchestrator._integration_satisfied_dependencies.assert_not_called()
+    orchestrator._run_project_network_git.assert_not_called()
+    orchestrator.project_store.project_write_lock.assert_not_called()
+
+
+def test_dependency_reachability_uses_recorded_nested_target_not_stale_alias(
+    tmp_path,
+):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    nested = _make_issue(
+        identifier="OOMPAH-804",
+        issue_type="epic",
+        parent_id="OOMPAH-768",
+        project_id=project.id,
+    )
+    upstream = _make_issue(
+        identifier="UPSTREAM",
+        parent_id="OTHER-EPIC",
+        project_id=project.id,
+        state="Done",
+    )
+    upstream.integration = IntegrationRecord(
+        state="integrated",
+        integrated_sha="a" * 40,
+    )
+    item = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=nested.identifier,
+        task_id="OOMPAH-834",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="b" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="c" * 40,
+        priority=1,
+        submitted_at="2026-08-06T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-08-06T00:00:00+00:00",
+    )
+    orchestrator._run_project_network_git = MagicMock(
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    )
+
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 1, stdout="", stderr=""),
+    ) as run:
+        orchestrator._integration_satisfied_dependencies(
+            [nested, upstream],
+            [item],
+            project_id=project.id,
+            epic_id=nested.identifier,
+        )
+
+    ancestry_commands = [
+        call.args[0]
+        for call in run.call_args_list
+        if "merge-base" in call.args[0]
+    ]
+    assert any(
+        "origin/epic-OOMPAH-768--task-OOMPAH-804" in command
+        for command in ancestry_commands
+    )
+    assert all(
+        "origin/epic-OOMPAH-804" not in command
+        for command in ancestry_commands
+    )
+
+
+def test_durable_landing_evidence_prefers_canonical_candidate_head(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    child = _make_issue(
+        identifier="OOMPAH-834",
+        parent_id="OOMPAH-804",
+        project_id=project.id,
+    )
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="OOMPAH-804",
+        task_id=child.identifier,
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="OOMPAH-804",
+        lease_owner="candidate-evidence",
+        dependency_map={child.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.record_candidate(
+        project_id=project.id,
+        task_id=child.identifier,
+        lease_owner="candidate-evidence",
+        expected_head_sha="a" * 40,
+        candidate_head_sha="c" * 40,
+        candidate_base_sha="d" * 40,
+    ) is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        child.identifier,
+        lease_owner="candidate-evidence",
+    )
+
+    with (
+        patch.object(
+            orchestrator,
+            "_resolve_git_branch_refs",
+            return_value=("origin/main",),
+        ),
+        patch.object(
+            orchestrator,
+            "_reported_commit_landed_on_refs",
+            side_effect=lambda _repo, sha, _refs, *, base_sha=None: (
+                sha == "c" * 40 and base_sha == "d" * 40
+            ),
+        ) as landed,
+    ):
+        assert orchestrator._child_has_durable_landing_evidence(
+            child,
+            container_branches=("main",),
+            repo_path="/managed/repo",
+            project_id=project.id,
+        )
+
+    assert landed.call_args_list[0].args[1] == "c" * 40
+    assert landed.call_args_list[0].kwargs["base_sha"] == "d" * 40
+
+    with (
+        patch.object(
+            orchestrator,
+            "_resolve_git_branch_refs",
+            return_value=("origin/main",),
+        ),
+        patch.object(
+            orchestrator,
+            "_reported_commit_landed_on_refs",
+            side_effect=lambda _repo, sha, _refs, *, base_sha=None: (
+                sha == "a" * 40 and base_sha == "b" * 40
+            ),
+        ) as superseded,
+    ):
+        assert not orchestrator._child_has_durable_landing_evidence(
+            child,
+            container_branches=("main",),
+            repo_path="/managed/repo",
+            project_id=project.id,
+        )
+
+    assert [call.args[1] for call in superseded.call_args_list] == ["c" * 40]
 
 
 def test_cross_epic_done_dependency_uses_default_after_parent_lands(
@@ -359,6 +758,67 @@ def test_stale_queue_files_one_authorized_epic_rebase(
         project_id=project.id,
         reason="queue_staleness_block",
     )
+
+
+def test_stale_queue_repair_stops_when_workflow_authority_expires_after_fetch(
+    tmp_path,
+):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Merged",
+    )
+    queued = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        task_id="TASK-2",
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    tracker = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._resolve_epic_target_branch = MagicMock(return_value="main")
+    orchestrator._file_rebase_task = MagicMock()
+    orchestrator._set_epic_rebase_state = MagicMock()
+    authority = {"current": True}
+
+    def fetch_then_expire(*_args, **_kwargs):
+        authority["current"] = False
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    orchestrator._run_project_network_git = fetch_then_expire
+
+    repaired = orchestrator._detect_and_repair_integration_queue_staleness_block(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        issues=[epic, upstream],
+        queue_items=[queued],
+        dependency_map={"TASK-2": ("TASK-1",)},
+        satisfied=set(),
+        authority_check=lambda: authority["current"],
+    )
+
+    assert repaired is False
+    tracker.update_issue.assert_not_called()
+    orchestrator._file_rebase_task.assert_not_called()
+    orchestrator._set_epic_rebase_state.assert_not_called()
 
 
 def test_stale_queue_reuses_active_rebase_and_obeys_cooldown(tmp_path):
@@ -590,7 +1050,16 @@ def test_integration_queue_summary_explains_finish_dependency_wait():
         updated_at="2026-07-29T00:00:00+00:00",
     )
 
-    summary = _integration_queue_summary(item, task, [task, blocker])
+    summary = _integration_queue_summary(
+        item,
+        task,
+        [task, blocker],
+        dependency_projection=_dependency_projection(
+            item,
+            [task, blocker],
+            set(),
+        ),
+    )
 
     assert summary["waiting_on"] == ["TASK-1"]
     assert summary["wait_reason"] == (
@@ -629,6 +1098,107 @@ def test_integration_queue_summary_surfaces_failure_retry_and_repair_action():
     assert summary["failing_step"] == "generated-helper validation"
     assert "Next retry at" in summary["wait_reason"]
     assert "git rm" in summary["repair_action"]
+
+
+@pytest.mark.parametrize(
+    "stale_field, stale_value",
+    [
+        (None, None),
+        ("task_branch", "epic-EPIC-1--task-STALE"),
+        ("head_sha", "1" * 40),
+        ("base_branch", "epic-STALE"),
+        ("base_sha", "2" * 40),
+        ("candidate_head_sha", "3" * 40),
+        ("candidate_base_sha", "4" * 40),
+    ],
+)
+def test_missing_or_stale_dependency_projection_fails_closed(
+    stale_field,
+    stale_value,
+):
+    task = Issue(
+        id="task-uuid",
+        identifier="TASK-2",
+        title="Dependent",
+        state="Ready to Integrate",
+    )
+    current = IntegrationQueueItem(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        task_id=task.identifier,
+        task_branch="epic-EPIC-1--task-TASK-2",
+        head_sha="a" * 40,
+        base_branch="epic-ROOT--task-EPIC-1",
+        base_sha="b" * 40,
+        candidate_head_sha="c" * 40,
+        candidate_base_sha="d" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    projection = _dependency_projection(current, [task], set())
+    item = (
+        current
+        if stale_field is None
+        else replace(current, **{stale_field: stale_value})
+    )
+    supplied_projection = None if stale_field is None else projection
+
+    if supplied_projection is None:
+        restarted = Orchestrator.__new__(Orchestrator)
+        assert restarted.integration_dependency_projection(item) is None
+    summary = _integration_queue_summary(
+        item,
+        task,
+        [task],
+        dependency_projection=supplied_projection,
+    )
+
+    assert summary["dependency_projection_status"] == "unknown"
+    assert summary["waiting_on"] == [
+        f"executor-dependency-scan:{task.identifier}"
+    ]
+    assert "refresh authoritative dependency facts" in summary["wait_reason"]
+    assert "executor health" in summary["repair_action"]
+
+
+def test_dependency_projection_read_is_atomic_with_invalidation(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    task = _make_issue(
+        identifier="TASK-RACE",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=task.identifier,
+        task_branch="epic-EPIC-1--task-TASK-RACE",
+        head_sha="a" * 40,
+    )
+    projection = _dependency_projection(item, [task], set())
+    orchestrator._publish_integration_dependency_projections((projection,))
+
+    class InvalidateBeforeLockAcquisition:
+        def __enter__(self):
+            orchestrator._integration_dependency_projections = {}
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+    # Model an invalidator winning while a reader waits to acquire the lock.
+    # A mapping captured before __enter__ would return the detached projection.
+    orchestrator._integration_dependency_projections_lock = (
+        InvalidateBeforeLockAcquisition()
+    )
+
+    assert orchestrator.integration_dependency_projection(item) is None
 
 
 def test_integration_queue_summary_accepts_done_child_of_landed_parent():
@@ -681,6 +1251,11 @@ def test_integration_queue_summary_accepts_done_child_of_landed_parent():
         item,
         task,
         [task, target_parent, blocker, upstream_parent],
+        dependency_projection=_dependency_projection(
+            item,
+            [task, target_parent, blocker, upstream_parent],
+            {blocker.id, blocker.identifier},
+        ),
     )
 
     assert summary["waiting_on"] == []
@@ -730,6 +1305,11 @@ def test_integration_queue_summary_rejects_done_child_of_unlanded_parent():
         item,
         task,
         [task, blocker, upstream_parent],
+        dependency_projection=_dependency_projection(
+            item,
+            [task, blocker, upstream_parent],
+            set(),
+        ),
     )
 
     assert summary["waiting_on"] == ["TASK-1"]
@@ -790,7 +1370,7 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
     task_a.integration = IntegrationRecord(
         state="ready",
         task_branch="epic-EPIC-A--task-TASK-A",
-        head_sha="a" * 40,
+        head_sha="b" * 40,
     )
     independent.integration = IntegrationRecord(
         state="ready",
@@ -802,7 +1382,30 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
         epic_id=epic_a.identifier,
         task_id=task_a.identifier,
         task_branch=task_a.integration.task_branch,
-        head_sha=task_a.integration.head_sha,
+        head_sha="a" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=epic_a.identifier,
+        lease_owner="canonical-candidate",
+        dependency_map={task_a.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.record_candidate(
+        project_id=project.id,
+        task_id=task_a.identifier,
+        lease_owner="canonical-candidate",
+        expected_head_sha="a" * 40,
+        candidate_head_sha="b" * 40,
+        candidate_base_sha="d" * 40,
+    ) is not None
+    assert orchestrator.integration_queue.fail(
+        project.id,
+        task_a.identifier,
+        lease_owner="canonical-candidate",
+        error="retry before cycle audit",
+        retryable=True,
     )
     orchestrator.integration_queue.enqueue(
         project_id=project.id,
@@ -811,13 +1414,33 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
         task_branch=independent.integration.task_branch,
         head_sha=independent.integration.head_sha,
     )
-    cycle_summary = _integration_queue_summary(
-        orchestrator.integration_queue.items(
-            project_id=project.id,
-            epic_id=epic_a.identifier,
-        )[0],
+    cycle_item = orchestrator.integration_queue.items(
+        project_id=project.id,
+        epic_id=epic_a.identifier,
+    )[0]
+    cycle_issues = [
+        epic_a,
+        epic_b,
+        confined,
+        task_b,
         task_a,
-        [epic_a, epic_b, confined, task_b, task_a, independent_epic, independent],
+        independent_epic,
+        independent,
+    ]
+    detected_cycles = find_container_dependency_cycles(
+        cycle_issues,
+        ready_task_ids=[task_a.identifier, independent.identifier],
+    )
+    cycle_summary = _integration_queue_summary(
+        cycle_item,
+        task_a,
+        cycle_issues,
+        dependency_projection=_dependency_projection(
+            cycle_item,
+            cycle_issues,
+            set(),
+            container_cycles=detected_cycles,
+        ),
     )
     assert cycle_summary["container_cycle"]["path"] == [
         "EPIC-A",
@@ -845,6 +1468,7 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
     tracker.mark_needs_human.assert_called_once()
     assert tracker.mark_needs_human.call_args.args[0] == task_a.identifier
     assert "d" * 40 in tracker.mark_needs_human.call_args.args[1]
+    assert "b" * 40 in tracker.mark_needs_human.call_args.args[1]
     rows = {
         item.task_id: item
         for item in orchestrator.integration_queue.items(project_id=project.id)
@@ -855,20 +1479,6 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
         "EPIC-A -> EPIC-B -> EPIC-A" in alert["message"]
         for alert in orchestrator._alerts
     )
-
-
-def test_dashboard_shows_queue_wait_reason_and_dependency_semantics():
-    html = (
-        Path(__file__).resolve().parents[1]
-        / "oompah"
-        / "templates"
-        / "dashboard.html"
-    ).read_text(encoding="utf-8")
-
-    assert "renderIntegrationSummary(issue.integration, issue.integration_queue)" in html
-    assert "source.wait_reason" in html
-    assert "Must finish after:" in html
-    assert "Cannot start until:" in html
 
 
 def test_parallel_workspace_persists_private_branch_and_integration_record(
@@ -922,6 +1532,299 @@ def test_parallel_workspace_persists_private_branch_and_integration_record(
     assert record["base_sha"] == "a" * 40
 
 
+@pytest.mark.parametrize(
+    "projected_branch",
+    [None, "epic-OOMPAH-763--task-OOMPAH-814"],
+)
+def test_parallel_repair_reuses_accepted_plain_branch_and_repairs_projection(
+    tmp_path,
+    projected_branch,
+):
+    """OOMPAH-814: repair/restart cannot recompute a different child branch."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator.project_store.prepare_epic_branch_for_private_dispatch.return_value = (
+        "/wt/epic",
+        "1" * 40,
+    )
+    orchestrator.project_store.create_worktree.return_value = "/wt/OOMPAH-814"
+    epic = _make_issue(
+        identifier="OOMPAH-763",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    accepted = IntegrationRecord(
+        state="blocked",
+        task_branch="OOMPAH-814",
+        base_branch="epic-OOMPAH-763",
+        base_sha="1" * 40,
+        head_sha="2" * 40,
+        last_error="exact full gate failed",
+    )
+    child = _make_issue(
+        identifier="OOMPAH-814",
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="Needs CI Fix",
+        work_branch=projected_branch,
+    )
+    child.integration = accepted
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+
+    with patch.object(orchestrator, "_tracker_for_issue", return_value=tracker):
+        workspace, shared_epic = orchestrator._create_workspace_for_issue(child)
+
+    assert workspace == "/wt/OOMPAH-814"
+    assert shared_epic is None
+    assert child.work_branch == "OOMPAH-814"
+    assert child.branch_name == "OOMPAH-814"
+    assert child.integration is accepted
+    # Workspace, terminal-audit/review, and retry consumers all resolve the
+    # same accepted-generation authority rather than the stale projection.
+    assert orchestrator._branch_for_issue(child, project) == "OOMPAH-814"
+    assert orchestrator._retry_issue_branch(child) == "OOMPAH-814"
+    orchestrator.project_store.epic_child_branch_name.assert_not_called()
+    orchestrator.project_store.create_worktree.assert_called_once_with(
+        project.id,
+        "OOMPAH-814",
+        base_branch="epic-OOMPAH-763",
+        branch_name="OOMPAH-814",
+        prefer_remote_branch=True,
+        expected_head_sha="2" * 40,
+    )
+    assert len(tracker.set_metadata_field.call_args_list) == 1
+    assert tracker.set_metadata_field.call_args.args == (
+        "OOMPAH-814",
+        "oompah.work_branch",
+        "OOMPAH-814",
+    )
+
+
+def test_accepted_plain_branch_reconciles_pending_recovery_without_reset(
+    tmp_path,
+):
+    """Accepted OOMPAH-815 authority composes with OOMPAH-817 recovery."""
+
+    authority = tmp_path / "authority"
+    authority.mkdir()
+
+    def git(repo, *args, check=True):
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=check,
+            capture_output=True,
+            text=True,
+        )
+
+    git(authority, "init", "--initial-branch=main")
+    git(authority, "config", "user.name", "Test")
+    git(authority, "config", "user.email", "test@example.com")
+    (authority / "base.txt").write_text("base\n", encoding="utf-8")
+    git(authority, "add", "base.txt")
+    git(authority, "commit", "-m", "base")
+    base_head = git(authority, "rev-parse", "HEAD").stdout.strip()
+
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project = Project(
+        id="project-recovery-seam",
+        name="recovery-seam",
+        repo_url=str(authority),
+        repo_path=str(authority),
+        branch="main",
+        default_branch="main",
+        epic_strategy="shared",
+    )
+    store._projects[project.id] = project
+    task_id = "OOMPAH-814"
+    accepted_branch = task_id
+    checkout = Path(store.worktree_path_for(project.id, task_id))
+    checkout.parent.mkdir(parents=True)
+    git(tmp_path, "clone", str(authority), str(checkout))
+    git(checkout, "config", "user.name", "Test")
+    git(checkout, "config", "user.email", "test@example.com")
+    git(checkout, "switch", "-c", accepted_branch)
+    (checkout / "recovered.txt").write_text(
+        "accepted recovery\n",
+        encoding="utf-8",
+    )
+
+    with patch(
+        "oompah.projects._transfer_recovery_snapshot_objects",
+        side_effect=ProjectError("authority temporarily unavailable"),
+    ):
+        with pytest.raises(RecoveryPublicationError) as raised:
+            store.preserve_worktree_changes(
+                project.id,
+                task_id,
+                str(checkout),
+                accepted_branch,
+            )
+    accepted_head = str(raised.value.context["snapshot_head"])
+    pending_ref = _worktree_pending_recovery_ref(task_id)
+    recovery_ref = _worktree_recovery_ref(task_id)
+    assert git(checkout, "rev-parse", "HEAD").stdout.strip() == accepted_head
+    assert (
+        git(checkout, "rev-parse", f"{pending_ref}^{{commit}}").stdout.strip()
+        == accepted_head
+    )
+    assert git(
+        authority,
+        "rev-parse",
+        "--verify",
+        recovery_ref,
+        check=False,
+    ).returncode != 0
+    git(checkout, "push", "origin", f"HEAD:refs/heads/{accepted_branch}")
+
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store = store
+    orchestrator.config.parallel_epic_children_enabled = True
+    epic = _make_issue(
+        identifier="OOMPAH-763",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    accepted = IntegrationRecord(
+        state="blocked",
+        task_branch=accepted_branch,
+        base_branch="epic-OOMPAH-763",
+        base_sha=base_head,
+        head_sha=accepted_head,
+        last_error="retry after exact gate failure",
+    )
+    child = _make_issue(
+        identifier=task_id,
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="Needs CI Fix",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+    )
+    child.integration = accepted
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+    git_calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def record_git(args, *positional, **kwargs):
+        git_calls.append(list(args))
+        return real_run(args, *positional, **kwargs)
+
+    with (
+        patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
+        patch.object(
+            store,
+            "prepare_epic_branch_for_private_dispatch",
+            return_value=(str(tmp_path / "epic"), base_head),
+        ),
+        patch.object(
+            store,
+            "epic_child_branch_name",
+            wraps=store.epic_child_branch_name,
+        ) as hierarchy_branch,
+        patch.object(
+            store,
+            "create_worktree",
+            wraps=store.create_worktree,
+        ) as create_worktree,
+        patch("oompah.projects.subprocess.run", side_effect=record_git),
+    ):
+        workspace, shared_epic = orchestrator._create_workspace_for_issue(child)
+
+    assert Path(workspace).resolve() == checkout.resolve()
+    assert shared_epic is None
+    assert child.work_branch == accepted_branch
+    assert child.branch_name == accepted_branch
+    assert child.integration is accepted
+    hierarchy_branch.assert_not_called()
+    create_worktree.assert_called_once_with(
+        project.id,
+        task_id,
+        base_branch="epic-OOMPAH-763",
+        branch_name=accepted_branch,
+        prefer_remote_branch=True,
+        expected_head_sha=accepted_head,
+    )
+    tracker.set_metadata_field.assert_called_once_with(
+        task_id,
+        "oompah.work_branch",
+        accepted_branch,
+    )
+    assert not any(
+        command[:2] in (["git", "reset"], ["git", "clean"])
+        for command in git_calls
+    )
+    assert git(checkout, "rev-parse", "HEAD").stdout.strip() == accepted_head
+    assert git(
+        checkout,
+        "show-ref",
+        "--verify",
+        "--quiet",
+        pending_ref,
+        check=False,
+    ).returncode == 1
+    assert (
+        git(authority, "rev-parse", f"{recovery_ref}^{{commit}}").stdout.strip()
+        == accepted_head
+    )
+    assert child.worktree_recovery["publication_state"] == "published"
+    assert child.worktree_recovery["snapshot_head"] == accepted_head
+
+
+def test_parallel_restart_reuses_working_accepted_branch_projection(tmp_path):
+    """A restart after repair allocation keeps the same checkout branch."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator.project_store.prepare_epic_branch_for_private_dispatch.return_value = (
+        "/wt/epic",
+        "1" * 40,
+    )
+    orchestrator.project_store.create_worktree.return_value = "/wt/OOMPAH-813"
+    epic = _make_issue(
+        identifier="OOMPAH-763",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    child = _make_issue(
+        identifier="OOMPAH-813",
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="Needs CI Fix",
+        work_branch="OOMPAH-813",
+    )
+    child.integration = IntegrationRecord(
+        state="working",
+        task_branch="OOMPAH-813",
+        base_branch="epic-OOMPAH-763",
+        base_sha="1" * 40,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+
+    with patch.object(orchestrator, "_tracker_for_issue", return_value=tracker):
+        orchestrator._create_workspace_for_issue(child)
+
+    orchestrator.project_store.epic_child_branch_name.assert_not_called()
+    assert orchestrator.project_store.create_worktree.call_args.kwargs[
+        "branch_name"
+    ] == "OOMPAH-813"
+    assert orchestrator.project_store.create_worktree.call_args.kwargs[
+        "prefer_remote_branch"
+    ] is True
+    assert orchestrator.project_store.create_worktree.call_args.kwargs[
+        "expected_head_sha"
+    ] is None
+
+
 def test_parallel_auditor_workspace_preserves_integrated_metadata(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     orchestrator = _make_orch(tmp_path, projects=[project])
@@ -970,6 +1873,8 @@ def test_parallel_auditor_workspace_preserves_integrated_metadata(tmp_path):
         child.identifier,
         base_branch="epic-EPIC-1",
         branch_name="epic-EPIC-1--task-TASK-1",
+        prefer_remote_branch=True,
+        expected_head_sha="b" * 40,
     )
     tracker.set_metadata_field.assert_not_called()
     assert child.integration.state == "integrated"
@@ -985,6 +1890,8 @@ def _audit_plan(
 ) -> AuditDispatchPlan:
     return AuditDispatchPlan(
         audit_id="audit-1",
+        project_id="project-1",
+        task_id="TASK-1",
         attempt_id="attempt-1",
         target_state=target,
         evidence_fingerprint=EvidenceFingerprint("a" * 64),
@@ -1055,6 +1962,35 @@ def test_auditor_uses_detached_integrated_revision_not_epic_branch(tmp_path):
     )
     orchestrator.project_store.create_worktree.assert_not_called()
     orchestrator.project_store.prepare_epic_branch_for_private_dispatch.assert_not_called()
+
+
+def test_backlog_metadata_archive_uses_revisionless_attempt_workspace(tmp_path):
+    """OOMPAH-803 must not invent or resolve an implementation branch."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.create_metadata_audit_workspace.return_value = (
+        "/wt/metadata-audit"
+    )
+    issue = _make_issue(
+        identifier="OOMPAH-803",
+        project_id=project.id,
+        state="In Validation",
+    )
+    issue.branch_name = "OOMPAH-803"  # native tracker's historical fallback
+
+    workspace = orchestrator._create_workspace_for_auditor(
+        issue,
+        _audit_plan(previous_state="Backlog"),
+    )
+
+    assert workspace == "/wt/metadata-audit"
+    orchestrator.project_store.create_metadata_audit_workspace.assert_called_once_with(
+        project.id,
+        "OOMPAH-803--terminal-audit-attempt-1",
+    )
+    orchestrator.project_store.create_detached_audit_worktree.assert_not_called()
 
 
 def test_archived_auditor_falls_back_to_default_when_merged_branch_deleted(tmp_path):

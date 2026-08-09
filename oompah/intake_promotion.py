@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -196,6 +197,7 @@ def promote_proposed_issue_to_backlog(
     owner_override_actor: str | None = None,
     author: str = "oompah",
     post_audit_comment: bool = True,
+    status_transition: Callable[..., object] | None = None,
 ) -> IntakePromotionResult:
     """Promote an issue from Proposed to Backlog when intake gates allow it."""
     if canonicalize_status(current_status) != PROPOSED:
@@ -220,7 +222,24 @@ def promote_proposed_issue_to_backlog(
             reason=_blocked_reason(readiness),
         )
 
-    tracker.update_issue(identifier, status=BACKLOG)
+    transition = status_transition or getattr(
+        tracker, "transition_issue_status", None
+    )
+    if not callable(transition):
+        return IntakePromotionResult(
+            promoted=False,
+            reason="task transition service is unavailable",
+        )
+    issue = tracker.fetch_issue_detail(identifier)
+    if issue is None:
+        return IntakePromotionResult(promoted=False, reason="issue is unavailable")
+    transition(
+        issue,
+        BACKLOG,
+        actor=owner_override_actor or author,
+        reason_code="intake.readiness_promoted",
+        owner_override=owner_override_actor is not None,
+    )
     audit_comment = build_promotion_audit_comment(readiness, reason=reason)
     if post_audit_comment:
         tracker.add_comment(identifier, audit_comment, author=author)

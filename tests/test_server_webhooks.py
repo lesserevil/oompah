@@ -18,6 +18,7 @@ import hmac
 import json
 import threading
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,6 +31,34 @@ from oompah.terminal_transition_coordinator import TransitionResult
 
 
 _REAL_THREAD = threading.Thread
+
+
+def test_enforce_mode_suppresses_legacy_epic_webhook_writer():
+    from oompah.server import _label_task_merged_from_pr
+
+    project = SimpleNamespace(id="project-1", name="project")
+    issue = SimpleNamespace(
+        identifier="EPIC-1", issue_type="epic", state="In Review"
+    )
+    tracker = MagicMock()
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch._resolve_task_for_branch.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(
+        enforce=True,
+        project_bindings={
+            "project-1": SimpleNamespace(epic_controller=object())
+        },
+    )
+    event = SimpleNamespace(
+        source_branch="epic-EPIC-1", author="forge", review_id="7"
+    )
+
+    with patch("oompah.server._request_webhook_terminal_transition") as transition:
+        _label_task_merged_from_pr(orch, event, project)
+
+    transition.assert_not_called()
+    tracker.update_issue.assert_not_called()
 
 
 class _ObservableWebhookThread(_REAL_THREAD):
@@ -1658,6 +1687,11 @@ class TestWebhookInReviewReconciliation:
         mock_tracker.update_issue = MagicMock()
         mock_tracker.set_metadata_field = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        orch._transition_issue_status.side_effect = (
+            lambda current, status, **_fields: mock_tracker.update_issue(
+                current.identifier, status=status
+            )
+        )
         # _resolve_task_for_branch is used by the updated webhook handlers
         # to support both Backlog and GitHub-backed task lookup.
         orch._resolve_task_for_branch = MagicMock(return_value=mock_issue)
@@ -3045,13 +3079,28 @@ class TestGitLabWebhookStatusEndpoint:
 class TestAttachGitlabHookAlerts:
     """Tests for attach_gitlab_hook_alerts() in oompah.bootstrap."""
 
-    def test_callback_updates_orchestrator_alerts(self):
+    @staticmethod
+    def _orchestrator_alert_sink():
+        """Return a minimal locked-alert-helper stand-in for callbacks."""
         from unittest.mock import MagicMock
-        from oompah.bootstrap import attach_gitlab_hook_alerts
-        from oompah.webhooks import GitLabHookManager
 
         orch = MagicMock()
         orch._alerts = []
+
+        def replace_matching(predicate, replacements=()):
+            orch._alerts = [
+                alert for alert in orch._alerts if not predicate(alert)
+            ]
+            orch._alerts.extend(dict(alert) for alert in replacements)
+
+        orch._replace_alerts_matching.side_effect = replace_matching
+        return orch
+
+    def test_callback_updates_orchestrator_alerts(self):
+        from oompah.bootstrap import attach_gitlab_hook_alerts
+        from oompah.webhooks import GitLabHookManager
+
+        orch = self._orchestrator_alert_sink()
         manager = GitLabHookManager()
         attach_gitlab_hook_alerts(orch, manager)
 
@@ -3068,12 +3117,10 @@ class TestAttachGitlabHookAlerts:
         assert orch._alerts[0]["source"] == "gitlab_hook_manager:p1"
 
     def test_callback_clears_stale_alerts_on_recovery(self):
-        from unittest.mock import MagicMock
         from oompah.bootstrap import attach_gitlab_hook_alerts
         from oompah.webhooks import GitLabHookManager
 
-        orch = MagicMock()
-        orch._alerts = []
+        orch = self._orchestrator_alert_sink()
         manager = GitLabHookManager()
         attach_gitlab_hook_alerts(orch, manager)
 

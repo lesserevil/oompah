@@ -465,9 +465,11 @@ let wsReconciling = true;
 let wsFullSyncRetryAttempt = 0;
 let wsBufferedMessages = [];
 let currentProjects = [];
+let currentWorkDecisionProjection = null;
 function _numericRevision(value) {{
   return typeof value === 'number' ? value : null;
 }}
+function applyWorkDecisionProjectionToData() {{ return false; }}
 function _scheduleFullSyncRetry() {{}}
 function clearFullSyncRetryTimer() {{}}
 function setWebSocketStatus() {{}}

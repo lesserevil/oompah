@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -679,10 +680,10 @@ BUILTIN_FOCI: list[Focus] = [
             "the screening sandbox has no authenticated tracker transport and only "
             "the supplied evidence is available",
             "Compare the current task with peer descriptions, statuses, and "
-            "relevant comments from that corpus. If the corpus is unavailable "
-            "or insufficient, report inconclusive rather than guessing. If its "
-            "selection diagnostic names omitted structural peers, include those "
-            "identifiers and the requested budget/review action in the evidence",
+            "relevant comments from that corpus. Read compact structural peer "
+            "records alongside full task rows when they are present. If the "
+            "corpus is unavailable or corrupt, report inconclusive rather than "
+            "guessing; ordinary task/byte budget pressure is still authoritative",
             "Exclude every candidate in a terminal state (Done, Merged, or "
             "Archived). A completed task is historical context, not an active "
             "duplicate target",
@@ -1210,7 +1211,11 @@ def _triage_cache_key(issue: Issue, foci: list[Focus]) -> str:
 
 
 async def _select_focus_llm(
-    issue: Issue, foci: list[Focus], provider: Any,
+    issue: Issue,
+    foci: list[Focus],
+    provider: Any,
+    before_request: Callable[[str], Awaitable[str | None]] | None = None,
+    at_request_edge: Callable[[], str | None] | None = None,
 ) -> tuple[str | None, str]:
     """Call the provider's default_model to pick a focus.
 
@@ -1251,12 +1256,37 @@ async def _select_focus_llm(
         "User-Agent": "oompah/0.1",
     }
 
+    # This is deliberately inside the request helper rather than in the
+    # caller's selection policy.  It is the final await before opening the
+    # transport, so a provider/allowlist/contributor change during focus
+    # selection cannot leave an unfenced LLM triage request.
+    if before_request is not None:
+        try:
+            fence_error = await before_request(str(provider.default_model or ""))
+        except Exception as exc:  # noqa: BLE001 - no unfenced contact
+            logger.warning(
+                "LLM focus triage pre-contact fence failed for %s: %s",
+                issue.identifier,
+                type(exc).__name__,
+            )
+            return None, ""
+        if fence_error is not None:
+            logger.warning(
+                "Skipping LLM focus triage for %s: %s",
+                issue.identifier,
+                fence_error,
+            )
+            return None, ""
+
     try:
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 _http_post,
                 openai_chat_completions_url(provider.base_url),
-                headers, body, _build_ssl_context(),
+                headers,
+                body,
+                _build_ssl_context(),
+                before_transport_contact=at_request_edge,
             ),
             timeout=_TRIAGE_TIMEOUT_S,
         )
@@ -1282,6 +1312,8 @@ async def select_focus_async(
     issue: Issue,
     foci: list[Focus] | None = None,
     provider: Any = None,
+    before_llm: Callable[[str], Awaitable[str | None]] | None = None,
+    at_llm_transport: Callable[[], str | None] | None = None,
 ) -> Focus:
     """LLM-augmented focus selection. Falls back to deterministic
     :func:`select_focus` on any failure or when no provider is given.
@@ -1325,7 +1357,11 @@ async def select_focus_async(
             name, reasoning = cached
         else:
             name, reasoning = await _select_focus_llm(
-                issue, active_foci, provider,
+                issue,
+                active_foci,
+                provider,
+                before_request=before_llm,
+                at_request_edge=at_llm_transport,
             )
             if name is not None:
                 _triage_cache[cache_key] = (name, reasoning)

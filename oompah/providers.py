@@ -7,6 +7,7 @@ import logging
 import os
 import uuid
 
+from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 from oompah.models import ModelProvider
 from oompah.secrets import register_secret
 
@@ -129,37 +130,40 @@ class ProviderStore:
             acp_subscription_only=bool(acp_subscription_only),
             billing_model=billing_model,
         )
-        self._providers[provider_id] = provider
-        register_secret(provider.api_key)
-        self._save()
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            self._providers[provider_id] = provider
+            register_secret(provider.api_key)
+            self._save()
         return provider
 
     def update(self, provider_id: str, **fields) -> ModelProvider | None:
-        provider = self._providers.get(provider_id)
-        if not provider:
-            return None
-        for key, value in fields.items():
-            if hasattr(provider, key) and key != "id":
-                setattr(provider, key, value)
-        if "api_key" in fields:
-            register_secret(provider.api_key)
-        if "base_url" in fields:
-            provider.base_url = provider.base_url.rstrip("/")
-        # Normalize ``mode`` after assignment so a bad value can't
-        # silently slip into the JSON store. Mirrors create() and
-        # ModelProvider.from_dict.
-        if "mode" in fields:
-            m = (provider.mode or "api").lower()
-            provider.mode = m if m in ("api", "acp") else "api"
-        self._save()
-        # Reconcile model_roles whenever the models list changes.
-        if "models" in fields:
-            provider._reconcile_model_roles()
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            provider = self._providers.get(provider_id)
+            if not provider:
+                return None
+            for key, value in fields.items():
+                if hasattr(provider, key) and key != "id":
+                    setattr(provider, key, value)
+            if "api_key" in fields:
+                register_secret(provider.api_key)
+            if "base_url" in fields:
+                provider.base_url = provider.base_url.rstrip("/")
+            # Normalize ``mode`` after assignment so a bad value can't
+            # silently slip into the JSON store. Mirrors create() and
+            # ModelProvider.from_dict.
+            if "mode" in fields:
+                m = (provider.mode or "api").lower()
+                provider.mode = m if m in ("api", "acp") else "api"
+            self._save()
+            # Reconcile model_roles whenever the models list changes.
+            if "models" in fields:
+                provider._reconcile_model_roles()
         return provider
 
     def delete(self, provider_id: str) -> bool:
-        if provider_id in self._providers:
-            del self._providers[provider_id]
-            self._save()
-            return True
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            if provider_id in self._providers:
+                del self._providers[provider_id]
+                self._save()
+                return True
         return False

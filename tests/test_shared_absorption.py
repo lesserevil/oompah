@@ -449,6 +449,10 @@ class TestReconcileSharedAbsorptionReopens:
     def _make_tracker(self, issue: Issue) -> MagicMock:
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            issue, "state", fields["status"]
+        )
         return tracker
 
     def test_reopens_task_on_overlapping_commit(self, tmp_path, monkeypatch):
@@ -590,6 +594,10 @@ class TestReconcileSharedAbsorptionUnrelated:
         issue = _make_issue(state="Needs Human")
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            issue, "state", fields["status"]
+        )
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 
@@ -622,6 +630,10 @@ class TestReconcileSharedAbsorptionUnrelated:
         issue = _make_issue(state="Needs Human")
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            issue, "state", fields["status"]
+        )
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 
@@ -790,6 +802,10 @@ class TestReconcileSharedAbsorptionGitErrors:
         issue = _make_issue(state="Needs Human")
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            issue, "state", fields["status"]
+        )
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._post_comment = MagicMock()
 

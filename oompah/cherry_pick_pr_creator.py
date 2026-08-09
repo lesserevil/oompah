@@ -46,6 +46,7 @@ import logging
 import os
 import re
 import subprocess
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from oompah.git_credentials import git_credential_environment, redact_git_output
@@ -515,6 +516,7 @@ def cherry_pick_push_and_open_pr(
     project_id: str,
     scm: "SCMProvider",
     repo: str,
+    status_transition: Callable[..., object] | None = None,
 ) -> BackportEntry:
     """Apply cherry-pick commits, push the branch, and open a PR.
 
@@ -570,7 +572,17 @@ def cherry_pick_push_and_open_pr(
         # conflicts) so it is visible on the board and can be dispatched
         # to a rebase agent.
         try:
-            tracker.update_issue(child_issue.identifier, status=NEEDS_REBASE)
+            transition = status_transition or getattr(
+                tracker, "transition_issue_status", None
+            )
+            if not callable(transition):
+                raise RuntimeError("Task transition service is unavailable")
+            transition(
+                child_issue,
+                NEEDS_REBASE,
+                actor="oompah",
+                reason_code="release_pick.cherry_pick_conflicted",
+            )
             logger.info(
                 "cherry_pick_push_and_open_pr: marked %s Needs Rebase (conflict)",
                 child_issue.identifier,
@@ -648,7 +660,17 @@ def cherry_pick_push_and_open_pr(
     # Step 4: Mark child task In Review
     # ------------------------------------------------------------------
     try:
-        tracker.update_issue(child_issue.identifier, status=IN_REVIEW)
+        transition = status_transition or getattr(
+            tracker, "transition_issue_status", None
+        )
+        if not callable(transition):
+            raise RuntimeError("Task transition service is unavailable")
+        transition(
+            child_issue,
+            IN_REVIEW,
+            actor="oompah",
+            reason_code="release_pick.review_opened",
+        )
         logger.info(
             "cherry_pick_push_and_open_pr: marked %s In Review",
             child_issue.identifier,

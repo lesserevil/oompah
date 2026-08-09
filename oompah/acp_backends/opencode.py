@@ -34,6 +34,11 @@ from oompah.acp_backends.base import (
     AcpBackendOptions,
     AcpBackendSession,
     BackendEvent,
+    begin_transport_contact,
+    cancel_transport_contact,
+    mark_transport_contacted,
+    tool_deadline_extension_seconds,
+    turn_deadline_exceeded,
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
@@ -286,6 +291,10 @@ class OpencodeAcpBackendSession(AcpBackendSession):
 
         return build_tool_catalog(
             self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            epic_rebase_publish_enabled=(
+                self._options.epic_rebase_publish_enabled
+            ),
             tool_liveness=self._options.tool_liveness,
             project_store=self._options.project_store,
             project_id=self._options.project_id,
@@ -302,6 +311,10 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             auditor=self._options.auditor,
             audit_target=self._options.audit_target,
             audit_result_handler=self._options.audit_result_handler,
+            validation_reuse_policy=self._options.validation_reuse_policy,
+            validation_reuse_authority_check=(
+                self._options.validation_reuse_authority_check
+            ),
         )
 
     # ---- run_turn: drive the opencode serve subprocess ----
@@ -321,6 +334,19 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         """
         if self._stop_requested:
             self._status = "interrupted"
+            return
+
+        if self._options.isolate_remote_write:
+            # ``opencode serve`` retains a native execution surface in the
+            # provider-authenticated process.  Its catalog cannot yet prove
+            # exclusive server-mediated execution, so shared-epic rebase work
+            # must fail closed until an API/bridged implementation exists.
+            self._last_error = (
+                "OpenCode is unavailable for shared-epic rebase work; select "
+                "an API/bridged callback-only provider"
+            )
+            self._status = "errored"
+            yield self._emit("acp_session_error", payload={"error": self._last_error})
             return
 
         # Build the tool catalog before spawning so we can surface
@@ -346,11 +372,13 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
+            isolate_remote_write=self._options.isolate_remote_write,
+            provider_auth_kind=self._options.provider_auth_kind,
         )
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         
-        if self._options.task_handoff_token:
+        if self._options.task_handoff_token and not self._options.isolate_remote_write:
             agent_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
                 agent_env[TASK_HANDOFF_PROJECT_ENV] = self._options.project_id
@@ -359,7 +387,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         # Forward api_key into the process env if present.
         api_key = agent_env.get("OOMPAH_OPENCODE_API_KEY")
         if api_key:
-            os.environ.setdefault("OPENAI_API_KEY", api_key)
+            agent_env["OPENAI_API_KEY"] = api_key
 
         # Build the tool catalog names for the session_start event payload.
         tool_names = [
@@ -385,6 +413,12 @@ class OpencodeAcpBackendSession(AcpBackendSession):
 
         # Spawn the opencode serve subprocess.
         cmd = ["opencode", "serve"]
+        admission_error = begin_transport_contact(self._options)
+        if admission_error is not None:
+            self._last_error = admission_error
+            self._status = "interrupted"
+            return
+        transport_permit = True
         try:
             self._proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -394,7 +428,11 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 env=agent_env,
                 cwd=self._options.workspace_path,
             )
+            mark_transport_contacted(self._options)
+            transport_permit = False
         except FileNotFoundError as exc:
+            cancel_transport_contact(self._options)
+            transport_permit = False
             self._last_error = (
                 "opencode binary not found in PATH. Opencode ACP backend "
                 "requires the opencode CLI to be installed and in PATH. "
@@ -407,6 +445,8 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             )
             return
         except Exception as exc:
+            cancel_transport_contact(self._options)
+            transport_permit = False
             self._last_error = f"failed to spawn opencode serve: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"
@@ -436,6 +476,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             return
 
         deadline = time.monotonic() + self._options.turn_timeout_s
+        extension_baseline = tool_deadline_extension_seconds(
+            self._options.tool_liveness
+        )
 
         try:
             # Read JSON-lines from stdout.
@@ -444,7 +487,11 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 if self._stop_requested:
                     self._status = "interrupted"
                     return
-                if time.monotonic() > deadline:
+                if turn_deadline_exceeded(
+                    deadline,
+                    tool_liveness=self._options.tool_liveness,
+                    extension_baseline_seconds=extension_baseline,
+                ):
                     yield self._emit(
                         "acp_turn_timeout",
                         payload={"timeout_s": self._options.turn_timeout_s},

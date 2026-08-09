@@ -315,6 +315,180 @@ class TestAcpAgentSession:
         status = asyncio.run(runner())
         assert status == "interrupted"
 
+    def test_pre_stopped_session_never_admits_provider_contact(self):
+        """Local ACP interruption is not a transport/budget/health event."""
+
+        admission = MagicMock(return_value=None)
+        session = AcpAgentSession(
+            workspace_path="/tmp/ws",
+            prompt="x",
+            model="m",
+            before_transport_contact=admission,
+        )
+
+        async def runner():
+            await session.terminate()
+            return await session.run_task()
+
+        assert asyncio.run(runner()) == "interrupted"
+        admission.assert_not_called()
+        assert session.transport_contacted is False
+
+    def test_acp_backend_admits_at_its_actual_transport_edge(self):
+        """Local setup completes before the backend asks to cross Popen/network."""
+
+        events: list[str] = []
+
+        class FakeBackendSession:
+            status = "succeeded"
+            last_error = None
+            permission_denials: list = []
+            input_tokens = output_tokens = total_tokens = turn_count = 0
+            session_id = None
+            total_cost_usd = None
+
+            def __init__(self, options):
+                self.options = options
+
+            async def run_turn(self):
+                events.append("edge")
+                assert self.options.begin_transport_contact() is None
+                events.append("contact")
+                self.options.transport_contacted()
+                if False:  # pragma: no cover - marks this as an async generator
+                    yield None
+
+            async def close(self):
+                events.append("close")
+
+        class FakeBackend:
+            def start_session(self, _options):
+                events.append("setup")
+                return FakeBackendSession(_options)
+
+        session = AcpAgentSession(
+            workspace_path="/tmp/ws",
+            prompt="x",
+            model="m",
+            before_transport_contact=lambda: events.append("admit") or None,
+        )
+        session._backend = FakeBackend()
+
+        assert asyncio.run(session.run_task()) == "succeeded"
+        assert events == ["setup", "edge", "admit", "contact"]
+        assert session.transport_contacted is True
+
+    def test_terminal_zero_usage_envelope_is_explicitly_authoritative(self):
+        """A real all-zero result differs from counters that merely start at zero."""
+
+        class FakeBackendSession:
+            status = "succeeded"
+            last_error = None
+            permission_denials: list = []
+            input_tokens = output_tokens = total_tokens = turn_count = 0
+            session_id = None
+            total_cost_usd = 0.0
+
+            async def run_turn(self):
+                yield SimpleNamespace(
+                    kind="acp_result",
+                    payload={"total_cost_usd": 0.0},
+                )
+
+            async def close(self):
+                return None
+
+        class FakeBackend:
+            def start_session(self, _options):
+                return FakeBackendSession()
+
+        session = AcpAgentSession(workspace_path="/tmp/ws", prompt="x", model="m")
+        session._backend = FakeBackend()
+
+        assert asyncio.run(session.run_task()) == "succeeded"
+        assert session.final_usage_observed is True
+        assert session.final_cost_observed is True
+
+    def test_termination_during_local_setup_never_admits_contact(self):
+        """A lifecycle stop between construction and run_turn spends nothing."""
+
+        admission = MagicMock(return_value=None)
+
+        class FakeBackendSession:
+            status = "pending"
+            last_error = None
+            permission_denials: list = []
+            input_tokens = output_tokens = total_tokens = turn_count = 0
+            session_id = None
+            total_cost_usd = None
+
+            async def run_turn(self):
+                raise AssertionError("run_turn must not begin after local stop")
+                yield None  # pragma: no cover - async generator marker
+
+            async def close(self):
+                return None
+
+        class FakeBackend:
+            def start_session(self, _options):
+                session._stop_requested = True
+                return FakeBackendSession()
+
+        session = AcpAgentSession(
+            workspace_path="/tmp/ws",
+            prompt="x",
+            model="m",
+            before_transport_contact=admission,
+        )
+        session._backend = FakeBackend()
+
+        assert asyncio.run(session.run_task()) == "interrupted"
+        admission.assert_not_called()
+        assert session.transport_contacted is False
+
+    def test_lifecycle_stop_after_permit_rolls_back_precontact_admission(self):
+        """A stop winning just before run_turn returns the unused permit."""
+
+        cancelled = MagicMock()
+
+        class FakeBackendSession:
+            status = "pending"
+            last_error = None
+            permission_denials: list = []
+            input_tokens = output_tokens = total_tokens = turn_count = 0
+            session_id = None
+            total_cost_usd = None
+
+            def __init__(self, options):
+                self.options = options
+
+            async def run_turn(self):
+                assert self.options.begin_transport_contact() is not None
+                self.status = "interrupted"
+                yield None  # pragma: no cover - async generator marker
+
+            async def close(self):
+                return None
+
+        class FakeBackend:
+            def start_session(self, _options):
+                return FakeBackendSession(_options)
+
+        session = AcpAgentSession(
+            workspace_path="/tmp/ws",
+            prompt="x",
+            model="m",
+            before_transport_contact=lambda: setattr(
+                session, "_stop_requested", True
+            ),
+            on_precontact_admission_cancelled=cancelled,
+        )
+        session._backend = FakeBackend()
+
+        assert asyncio.run(session.run_task()) == "interrupted"
+        cancelled.assert_called_once_with()
+        assert session.transport_contacted is False
+
     def test_emits_session_start_with_bypass_permissions(self):
         pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import ResultMessage
@@ -636,6 +810,27 @@ class TestCanUseToolStrictAllowlist:
         assert denies[0].payload["tool"] == "Bash"
 
 
+def test_acp_agent_session_threads_reuse_policy_into_backend_options(tmp_path):
+    policy = {"decision": "reuse_authoritative_gate", "command": "make test"}
+
+    def authority_check():
+        return "reuse_authoritative_gate"
+
+    session = AcpAgentSession(
+        workspace_path=str(tmp_path),
+        prompt="audit",
+        validation_reuse_policy=policy,
+        validation_reuse_authority_check=authority_check,
+    )
+    session._backend = MagicMock()
+    session._backend.start_session.side_effect = RuntimeError("capture options")
+
+    assert asyncio.run(session.run_task()) == "errored"
+    options = session._backend.start_session.call_args.args[0]
+    assert options.validation_reuse_policy is policy
+    assert options.validation_reuse_authority_check is authority_check
+
+
 # ----------------------------------------------------------------------
 # Tool catalog bridging
 # ----------------------------------------------------------------------
@@ -772,6 +967,12 @@ class TestRunWorkerRouting:
         orch._run_acp_worker = AsyncMock()
         orch._run_api_worker = AsyncMock()
         orch._run_cli_worker = AsyncMock()
+
+        async def _allow_legacy_test_targets(_issue, targets):
+            return targets, None
+
+        orch._reserve_auditor_for_contributor = _allow_legacy_test_targets
+        orch._stage_work_contributor_launch = AsyncMock(return_value=None)
         return orch
 
     def test_mode_acp_routes_to_acp_worker(self, tmp_path):
@@ -810,6 +1011,7 @@ class TestAcpWorkerModelHandoff:
         backend: str,
         model: str,
         forced_auditor: bool = False,
+        contact_transport: bool = False,
     ):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import DispatchTarget, Orchestrator
@@ -823,9 +1025,12 @@ class TestAcpWorkerModelHandoff:
             total_tokens = 0
             total_cost_usd = None
             turn_count = 0
+            final_usage_observed = False
+            final_cost_observed = False
 
             def __init__(self, **kwargs):
                 captured.update(kwargs)
+                self.transport_contacted = contact_transport
 
             async def run_task(self):
                 return "succeeded"
@@ -834,7 +1039,7 @@ class TestAcpWorkerModelHandoff:
         project_store.get.return_value = None
         project_store.list_all.return_value = []
         orch = Orchestrator(
-            config=ServiceConfig(),
+            config=ServiceConfig(turn_timeout_ms=14_400_000),
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
@@ -844,7 +1049,22 @@ class TestAcpWorkerModelHandoff:
         orch._clear_handoff_labels = MagicMock()
         orch._reap_oversize_outputs = MagicMock()
         orch._record_generated_attachments = MagicMock()
+        orch._record_worker_provider_health = MagicMock()
         orch._on_worker_exit = AsyncMock()
+
+        # This unit exercises ACP model/health handoff without going through
+        # `_dispatch`, which owns the real RunningEntry/provider-start fence.
+        # Publish the fake backend task directly so the fixture reaches the
+        # transport result boundary it is asserting about.
+        orch._publish_provider_start = (
+            lambda _issue, _run_id, start: asyncio.create_task(start())
+        )
+
+        async def _allow_legacy_test_targets(_issue, targets):
+            return targets, None
+
+        orch._reserve_auditor_for_contributor = _allow_legacy_test_targets
+        orch._stage_work_contributor_launch = AsyncMock(return_value=None)
 
         tracker = MagicMock()
         tracker.fetch_comments.return_value = []
@@ -919,6 +1139,7 @@ class TestAcpWorkerModelHandoff:
         assert captured["backend_name"] == "codex"
         assert captured["billing_model"] == "subscription"
         assert captured["model"] is None
+        assert captured["turn_timeout_s"] == 14_400
         orch._on_worker_exit.assert_awaited_once_with("issue-1", "normal", None)
 
     @pytest.mark.parametrize(
@@ -943,6 +1164,26 @@ class TestAcpWorkerModelHandoff:
         assert captured["model"] == model
         assert captured["billing_model"] == "subscription"
         orch._on_worker_exit.assert_awaited_once()
+
+    def test_local_acp_interrupt_without_transport_does_not_record_health(self, tmp_path):
+        """A session that never invokes admission is not provider evidence."""
+
+        captured, orch = self._run_handoff(tmp_path, backend="codex", model="")
+
+        assert callable(captured["before_transport_contact"])
+        orch._record_worker_provider_health.assert_not_called()
+
+    def test_acp_worker_records_health_only_after_backend_reports_contact(self, tmp_path):
+        """A permit alone is not transport evidence; an actual edge is."""
+
+        _captured, orch = self._run_handoff(
+            tmp_path,
+            backend="codex",
+            model="",
+            contact_transport=True,
+        )
+
+        orch._record_worker_provider_health.assert_called_once()
 
     def test_forced_auditor_workspace_skips_implementation_metadata(
         self,

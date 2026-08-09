@@ -9,6 +9,7 @@ These tests verify:
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import sys
 from types import SimpleNamespace
@@ -158,6 +159,7 @@ class TestSetupServicesSuccess:
         "WebhookForwarder": "oompah.webhooks.WebhookForwarder",
         "GitLabHookManager": "oompah.webhooks.GitLabHookManager",
         "Orchestrator": "oompah.orchestrator.Orchestrator",
+        "build_workflow_runtime": "oompah.workflow_runtime.build_workflow_runtime",
     }
 
     @pytest.mark.asyncio
@@ -189,6 +191,10 @@ class TestSetupServicesSuccess:
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
             ),
+            patch(
+                self._PATCHES["build_workflow_runtime"],
+                return_value=MagicMock(name="workflow_runtime"),
+            ),
         ):
             from oompah.bootstrap import setup_services
 
@@ -208,6 +214,10 @@ class TestSetupServicesSuccess:
         assert (
             mocks["orchestrator"].terminal_transition_coordinator
             is services.terminal_transition_coordinator
+        )
+        assert (
+            services.terminal_transition_coordinator._revoke_auditor_authority
+            is mocks["orchestrator"]._revoke_auditor_authority
         )
         mock_forwarder_cls.assert_called_once_with(
             project_store=mocks["projects"],
@@ -245,6 +255,10 @@ class TestSetupServicesSuccess:
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
             ),
+            patch(
+                self._PATCHES["build_workflow_runtime"],
+                return_value=MagicMock(name="workflow_runtime"),
+            ),
         ):
             from oompah.bootstrap import setup_services
 
@@ -257,6 +271,20 @@ class TestSetupServicesSuccess:
     async def test_label_bootstrap_alerts_are_attached_to_orchestrator(self, tmp_path):
         """setup_services() runs GitHub label bootstrap and surfaces alerts."""
         mocks = self._make_mocks()
+
+        def replace_matching(predicate, replacements=()):
+            mocks["orchestrator"]._alerts = [
+                alert
+                for alert in mocks["orchestrator"]._alerts
+                if not predicate(alert)
+            ]
+            mocks["orchestrator"]._alerts.extend(
+                dict(alert) for alert in replacements
+            )
+
+        mocks["orchestrator"]._replace_alerts_matching.side_effect = (
+            replace_matching
+        )
         project = MagicMock(name="project")
         project.id = "proj-gh"
         project.name = "trickle"
@@ -295,6 +323,10 @@ class TestSetupServicesSuccess:
             patch(
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
+            ),
+            patch(
+                self._PATCHES["build_workflow_runtime"],
+                return_value=MagicMock(name="workflow_runtime"),
             ),
             patch(
                 "oompah.label_bootstrap.ensure_github_labels",
@@ -353,6 +385,36 @@ class TestMainServerArgument:
             "--port",
             "8090",
         ]
+
+    def test_restart_server_process_reloads_env_before_exec(self, monkeypatch):
+        """The shared Uvicorn/Granian boundary reconciles dotenv first."""
+        from oompah import __main__ as main_mod
+
+        calls: list[tuple[str, object]] = []
+
+        def _reload(path):
+            calls.append(("reload", path))
+            return 1
+
+        def _execv(executable, argv):
+            calls.append(("execv", (executable, argv)))
+
+        monkeypatch.setattr(main_mod, "_load_startup_env", _reload)
+        monkeypatch.setattr(main_mod.os, "execv", _execv)
+
+        main_mod._restart_server_process(
+            "/service/config.env",
+            ["server", "--paused", "--port", "8090"],
+        )
+
+        assert calls[0] == ("reload", "/service/config.env")
+        assert calls[1] == (
+            "execv",
+            (
+                sys.executable,
+                [sys.executable, "-m", "oompah", "server", "--port", "8090"],
+            ),
+        )
 
     def test_bare_oompah_prints_help_without_starting_server(
         self, monkeypatch, capsys
@@ -464,8 +526,10 @@ class TestMainServerArgument:
 
         called: list[tuple] = []
 
-        def _fake_run_granian(workflow_path, cli_port, start_paused=False):
-            called.append((workflow_path, cli_port, start_paused))
+        def _fake_run_granian(
+            workflow_path, cli_port, start_paused=False, env_file=".env"
+        ):
+            called.append((workflow_path, cli_port, start_paused, env_file))
 
         with (
             patch("oompah.__main__._load_startup_env", return_value=0),
@@ -479,6 +543,7 @@ class TestMainServerArgument:
         assert len(called) == 1
         assert called[0][0] == str(wf)
         assert called[0][1] is None  # no --port given
+        assert called[0][3] == main_mod.os.path.abspath(".env")
 
     def test_server_invalid_choice_exits(self, tmp_path, monkeypatch):
         """An unrecognised --server value causes argparse to exit."""
@@ -503,11 +568,17 @@ class TestUvicornHttpAuthWiring:
         class _Orchestrator:
             wants_restart = True
 
+            def __init__(self):
+                self.stopped_safely = False
+
             async def run(self):
                 return None
 
             async def stop(self):
-                return None
+                raise AssertionError("entry point bypassed fail-closed stop")
+
+            async def stop_until_safe(self):
+                self.stopped_safely = True
 
             def stop_threadsafe(self):
                 return None
@@ -538,7 +609,34 @@ class TestUvicornHttpAuthWiring:
             result = await main_mod._run("WORKFLOW.md", None)
 
         assert result is True
+        assert services.orchestrator.stopped_safely is True
         set_credentials.assert_called_once_with(credentials)
+
+    @pytest.mark.asyncio
+    async def test_process_boundary_defers_cancellation_until_safe_stop(self):
+        from oompah.server import _await_fail_closed_orchestrator_stop
+
+        stop_started = asyncio.Event()
+        allow_stop = asyncio.Event()
+
+        class _Orchestrator:
+            def stop_threadsafe(self):
+                return None
+
+            async def stop_until_safe(self):
+                stop_started.set()
+                await allow_stop.wait()
+
+        boundary = asyncio.create_task(
+            _await_fail_closed_orchestrator_stop(_Orchestrator())
+        )
+        await asyncio.wait_for(stop_started.wait(), timeout=3)
+        boundary.cancel()
+        await asyncio.sleep(0)
+
+        assert boundary.done() is False
+        allow_stop.set()
+        await boundary
 
 
 # ---------------------------------------------------------------------------

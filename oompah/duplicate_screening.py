@@ -532,6 +532,7 @@ def new_claim_record(
     issue: Issue,
     *,
     owner: str,
+    claim_id: str | None = None,
     detector_version: str = DETECTOR_VERSION,
     now: datetime | None = None,
     ttl_seconds: int = DEFAULT_CLAIM_TTL_SECONDS,
@@ -544,7 +545,7 @@ def new_claim_record(
     return DuplicateScreeningRecord(
         task_fingerprint=compute_task_fingerprint(issue),
         detector_version=detector_version,
-        claim_id=str(uuid.uuid4()),
+        claim_id=str(claim_id or uuid.uuid4()),
         claim_owner=owner,
         claimed_at=now,
         claim_expires_at=now + timedelta(seconds=ttl),

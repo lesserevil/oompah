@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from oompah.terminal_audit_observability import (
     AuditAlertCondition,
@@ -28,9 +31,14 @@ from oompah.terminal_audit_metadata import (
     MetadataQuarantine,
     TerminalAuditMetadata,
 )
+from oompah.terminal_audit_health import (
+    AuditHealthObservation,
+    HEALTH_ALERT_PREFIX,
+)
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, _AuditCandidateScan
+from oompah.roles import Candidate
 
 
 class _Clock:
@@ -83,6 +91,28 @@ def _no_auditor_record(
         attempts=[attempt],
         created_at=completed_at,
         updated_at=completed_at,
+    )
+
+
+def _aged_pending_observation(
+    task_id: str = "TASK-STALE",
+    audit_id: str = "audit-stale",
+) -> AuditHealthObservation:
+    old_timestamp = "2000-01-01T00:00:00+00:00"
+    pending = TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id="project-a",
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("d" * 64),
+        request_state=RequestState.PENDING,
+        created_at=old_timestamp,
+    )
+    return AuditHealthObservation(
+        project_id="project-a",
+        issue_identifier=task_id,
+        issue_created_at=old_timestamp,
+        record=pending,
     )
 
 
@@ -147,6 +177,333 @@ def test_queue_age_and_project_isolation_survive_restart() -> None:
     assert snapshot["projects"]["project-b"]["queued"] == 1
     assert snapshot["projects"]["project-b"]["retried"] == 0
     assert snapshot["retried"] == 1
+
+
+def test_quality_gate_decision_and_validation_lane_telemetry_survive_restart() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    first.record_quality_gate_decision(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        decision="reuse_authoritative_gate",
+        result="passed",
+        head_sha="a" * 40,
+        command="make test",
+        duration_seconds=42.0,
+    )
+    first.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="pytest tests/test_warning.py -q",
+        configured_command="make test",
+        duration_seconds=1.5,
+    )
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    snapshot = restarted.snapshot()
+
+    assert snapshot["authoritative_gate_reused"] == 1
+    assert snapshot["focused_supplemental_commands"] == 1
+    assert snapshot["validation"]["last_decision"]["decision"] == (
+        "reuse_authoritative_gate"
+    )
+    assert snapshot["validation"]["last_command"]["category"] == (
+        "focused_supplemental_commands"
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "make test",
+        "make test-serial",
+        "make test-unit",
+        "./ci/test.sh",
+        "env CI=1 make test-serial",
+        "env -S 'make test'",
+        "echo ready && make test",
+        "bash -lc 'make test-serial'",
+        "timeout 30 make -C . test",
+        "pytest",
+        "pytest -q",
+        "pytest -p no:foo",
+        "python -m pytest -n auto",
+        "bash -lc 'python -m pytest -q -W error'",
+        "pytest tests/",
+        "npm test",
+        "pnpm run test",
+        "yarn test",
+        "cargo test",
+        "tox",
+        "nox -s tests",
+        "python -m unittest",
+        "python -m unittest discover -s tests",
+    ],
+)
+def test_validation_telemetry_semantically_classifies_full_suite_commands(
+    command,
+) -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command=command,
+        configured_command="make test",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["focused_supplemental_commands"] == 0
+
+
+def test_validation_telemetry_keeps_targeted_pytest_focused() -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="python -m pytest tests/test_warning.py -q",
+        configured_command="make test",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["focused_supplemental_commands"] == 1
+    assert snapshot["auditor_full_suite_runs"] == 0
+
+
+def test_validation_telemetry_never_reclassifies_opaque_pytest_as_focused() -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="pytest tests/test_warning.py -q",
+        configured_command="make test",
+        validation_scope="opaque",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["focused_supplemental_commands"] == 0
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["validation"]["last_command"]["category"] == (
+        "auditor_full_suite_runs"
+    )
+    assert snapshot["validation"]["last_command"]["validation_scope"] == "opaque"
+
+
+def test_orchestrator_forwards_trusted_validation_scope() -> None:
+    recorded: dict[str, object] = {}
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._terminal_audit_metrics = SimpleNamespace(
+        record_auditor_validation_command=lambda *args, **kwargs: recorded.update(
+            {"args": args, "kwargs": kwargs}
+        )
+    )
+    orchestrator.project_store = SimpleNamespace(get=lambda _project_id: None)
+
+    orchestrator.record_auditor_validation_command(
+        audit_target=SimpleNamespace(
+            project_id="project-a",
+            task_id="TASK-1",
+            audit_id="audit-1",
+        ),
+        command="pytest tests/test_warning.py -q",
+        validation_scope="opaque",
+    )
+
+    assert recorded["args"] == ("project-a", "TASK-1", "audit-1")
+    assert recorded["kwargs"]["validation_scope"] == "opaque"
+
+
+def test_validation_command_lifecycle_records_timeout_once_across_restart() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    first.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="make test-serial",
+        configured_command="make test",
+        succeeded=False,
+        phase="started",
+        outcome="running",
+        invocation_id="run-1",
+    )
+
+    running = first.snapshot()
+    assert running["auditor_full_suite_runs"] == 1
+    assert running["validation_commands_started"] == 1
+    assert running["validation_commands_completed"] == 0
+    assert "run-1" in running["validation"]["in_flight"]
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    restarted.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="make test-serial",
+        configured_command="make test",
+        duration_seconds=15.0,
+        succeeded=False,
+        phase="completed",
+        outcome="timed_out",
+        invocation_id="run-1",
+    )
+    # A repeated provider callback is idempotent for the same invocation.
+    restarted.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="make test-serial",
+        configured_command="make test",
+        duration_seconds=15.0,
+        succeeded=False,
+        phase="completed",
+        outcome="timed_out",
+        invocation_id="run-1",
+    )
+
+    snapshot = restarted.snapshot()
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["validation_commands_started"] == 1
+    assert snapshot["validation_commands_completed"] == 1
+    assert snapshot["validation_commands_timed_out"] == 1
+    assert snapshot["validation_commands_failed"] == 0
+    assert snapshot["validation"]["in_flight"] == {}
+    assert snapshot["validation"]["last_command"]["outcome"] == "timed_out"
+
+
+def test_validation_command_lifecycle_records_failed_focused_completion() -> None:
+    metrics = TerminalAuditMetrics()
+    for phase, outcome in (("started", "running"), ("completed", "failed")):
+        metrics.record_auditor_validation_command(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            command="pytest tests/test_warning.py -q",
+            configured_command="make test",
+            succeeded=False,
+            phase=phase,
+            outcome=outcome,
+            invocation_id="run-focused",
+        )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["focused_supplemental_commands"] == 1
+    assert snapshot["validation_commands_started"] == 1
+    assert snapshot["validation_commands_completed"] == 1
+    assert snapshot["validation_commands_failed"] == 1
+
+
+def test_validation_command_lifecycle_records_passed_full_completion() -> None:
+    metrics = TerminalAuditMetrics()
+    for phase, outcome, succeeded in (
+        ("started", "running", False),
+        ("completed", "passed", True),
+    ):
+        metrics.record_auditor_validation_command(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            command="make test",
+            configured_command="make test",
+            succeeded=succeeded,
+            phase=phase,
+            outcome=outcome,
+            invocation_id="run-full",
+        )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["auditor_full_suite_runs"] == 1
+    assert snapshot["validation_commands_started"] == 1
+    assert snapshot["validation_commands_completed"] == 1
+    assert snapshot["validation_commands_failed"] == 0
+    assert snapshot["validation_commands_timed_out"] == 0
+    assert snapshot["validation"]["last_command"]["outcome"] == "passed"
+
+
+def test_validation_reuse_policy_is_idempotent_and_survives_restart() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    kwargs = {
+        "attempt_id": "attempt-1",
+        "invocation_id": "invocation-1",
+        "command": "make test-serial",
+        "decision": "allowed_distinct_mode",
+        "justification": "required race-only mode",
+    }
+    first.record_validation_reuse_policy(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        **kwargs,
+    )
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    restarted.record_validation_reuse_policy(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        **kwargs,
+    )
+
+    snapshot = restarted.snapshot()
+    assert snapshot["reused_gate_distinct_mode_allowed"] == 1
+    assert snapshot["validation"]["last_reuse_policy"] == {
+        "project_id": "project-a",
+        "task_id": "TASK-1",
+        "audit_id": "audit-1",
+        **kwargs,
+        "recorded_at": snapshot["validation"]["last_reuse_policy"][
+            "recorded_at"
+        ],
+    }
+    with pytest.raises(ValueError, match="identity collision"):
+        restarted.record_validation_reuse_policy(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            **{**kwargs, "decision": "denied_reused_gate"},
+        )
+
+
+def test_validation_reuse_policy_requires_attempt_identity() -> None:
+    metrics = TerminalAuditMetrics()
+
+    with pytest.raises(ValueError, match="attempt_id"):
+        metrics.record_validation_reuse_policy(
+            "project-a",
+            "TASK-1",
+            "audit-1",
+            attempt_id="",
+            invocation_id="invocation-1",
+            command="make test",
+            decision="denied_reused_gate",
+        )
 
 
 def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() -> None:
@@ -275,24 +632,14 @@ def test_sync_pending_does_not_resurrect_a_worker_discard_after_restart() -> Non
     assert restarted.snapshot()["stale_discarded"] == 1
 
 
-def test_threshold_alerts_deduplicate_and_clear_on_recovery() -> None:
+def test_queue_age_threshold_is_informational_not_actionable() -> None:
     now = datetime(2026, 7, 29, 12, tzinfo=timezone.utc)
     clock = _Clock(now)
     metrics = TerminalAuditMetrics(clock=clock)
     metrics.record_queued("project-a", "TASK-1", "audit-1", queued_at=now - timedelta(seconds=61), attempts=1)
-    registry = TerminalAuditAlertRegistry()
-
-    conditions = threshold_conditions(metrics, max_attempts=3, max_age_seconds=60)
-    assert [condition.key for condition in conditions] == [
-        ("age_threshold", "project-a", "TASK-1", "audit-1")
-    ]
-    assert len(registry.sync(conditions)) == 1
-    assert len(registry.sync(conditions)) == 1
-    assert len(registry.conditions) == 1
-
-    metrics.record_passed("project-a", "TASK-1", "audit-1", completed_at=now)
-    assert registry.sync(threshold_conditions(metrics, max_attempts=3, max_age_seconds=60)) == []
-    assert registry.conditions == ()
+    snapshot = metrics.snapshot(now=now)
+    assert snapshot["oldest_queue_age_seconds"] == 61
+    assert threshold_conditions(metrics, max_attempts=3, max_age_seconds=60) == []
 
 
 def test_normal_queue_running_and_passed_states_have_no_alerts() -> None:
@@ -320,6 +667,7 @@ def test_no_candidate_alert_has_actionable_instructions_and_is_deduplicated() ->
     registry.add(condition)
     assert len(registry.conditions) == 1
     assert "Configure" in alert["action"]
+    assert alert["action_required"] is True
     assert "project-a:TASK-1:audit-1" in alert["source"]
 
     registry.clear("project-a", "TASK-1", "audit-1")
@@ -417,6 +765,432 @@ def test_snapshot_exposes_finalization_failure_separately(tmp_path: Path) -> Non
             str(alert["source"]).endswith("finalization_failures")
             for alert in snapshot["alerts"]
         )
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_partial_health_scan_keeps_one_generation_of_facts_and_alerts(
+    tmp_path: Path,
+) -> None:
+    """A partial scan cannot pair empty current counts with an older alert."""
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    observation = _aged_pending_observation()
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [observation], scan_complete=True, scan_error_count=0
+        )
+        orchestrator._refresh_terminal_audit_health(
+            [], scan_complete=False, scan_error_count=1
+        )
+
+        incomplete = orchestrator.get_snapshot()
+        health = incomplete["terminal_audit_health"]
+        assert health == incomplete["health"]["terminal_audit"]
+        assert health["pending_count"] == 1
+        assert health["stale_pending_count"] == 1
+        assert health["oldest_pending_age_seconds"] is not None
+        assert health["scan_complete"] is False
+        assert health["scan_error_count"] == 1
+        health_alerts = {
+            alert["source"]: alert
+            for alert in incomplete["alerts"]
+            if str(alert.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
+        }
+        backlog = health_alerts[HEALTH_ALERT_PREFIX + "backlog_age"]
+        assert "across 1 pending audit(s)" in backlog["detail"]
+        assert HEALTH_ALERT_PREFIX + "scan" in health_alerts
+
+        orchestrator._refresh_terminal_audit_health(
+            [], scan_complete=True, scan_error_count=0
+        )
+        recovered = orchestrator.get_snapshot()
+        assert recovered["terminal_audit_health"]["pending_count"] == 0
+        assert recovered["terminal_audit_health"]["stale_pending_count"] == 0
+        assert recovered["terminal_audit_health"]["oldest_pending_at"] is None
+        assert (
+            recovered["terminal_audit_health"]["oldest_pending_age_seconds"]
+            is None
+        )
+        assert not [
+            alert
+            for alert in recovered["alerts"]
+            if alert.get("source") == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_launch_publishes_in_progress_health_observation(
+    tmp_path: Path,
+) -> None:
+    """The launch fence replaces the pre-launch pending health snapshot."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    created_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    fingerprint = EvidenceFingerprint("c" * 64)
+    issue = Issue(
+        id="issue-launch",
+        identifier="TASK-LAUNCH",
+        title="Launch an independent terminal auditor",
+        description="Verify health observes the durable launch fence.",
+        state="In Validation",
+        project_id="project-a",
+        branch_name="task-launch",
+        created_at=created_at,
+    )
+    pending = TerminalAuditRecord(
+        audit_id="audit-launch",
+        project_id="project-a",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        created_at=created_at.isoformat(),
+    )
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[pending],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    selector = MagicMock()
+    selector.select_candidates.return_value = (
+        [Candidate(provider_id="provider-a", model="model-a")],
+        None,
+    )
+    tracker = MagicMock()
+    tracker.get_metadata.return_value = {}
+    update_record = MagicMock(return_value=True)
+    launch_state = {"completed": False}
+
+    async def _mark_launched(*_args, **_kwargs) -> bool:
+        launch_state["completed"] = True
+        return True
+
+    try:
+        with (
+            patch.object(
+                orchestrator,
+                "_available_slots",
+                side_effect=lambda: 0 if launch_state["completed"] else 1,
+            ),
+            patch.object(
+                orchestrator,
+                "_dispatch_is_blocked",
+                return_value=False,
+            ),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan((issue,)),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_bind_audit_record_revision",
+                return_value=pending,
+            ),
+            patch.object(
+                orchestrator,
+                "_prepare_audit_selector",
+                new=AsyncMock(return_value=(selector, None)),
+            ),
+            patch.object(
+                orchestrator,
+                "_terminal_audit_validation_configuration_error",
+                return_value=None,
+            ),
+            patch.object(orchestrator, "_audit_branch_busy", return_value=False),
+            patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orchestrator, "_audit_update_record", new=update_record
+            ),
+            patch.object(
+                orchestrator,
+                "_dispatch",
+                new=AsyncMock(side_effect=_mark_launched),
+            ),
+        ):
+            result = await orchestrator._dispatch_audit_lane()
+
+        assert result["audit_dispatch"] >= 0
+        assert launch_state["completed"] is True
+        assert orchestrator._audit_metrics["last_dispatched_count"] == 1
+        assert update_record.call_count == 1
+        persisted = update_record.call_args.args[2]
+        assert persisted.request_state == RequestState.IN_PROGRESS
+        assert orchestrator._audit_health.pending_count == 0
+        assert orchestrator._audit_health.in_progress_count == 1
+        assert orchestrator._audit_health.oldest_pending_at is None
+        assert orchestrator._audit_health.oldest_pending_age_seconds is None
+        assert orchestrator._audit_health.stale_pending_count == 0
+        assert not [
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_scan_limit_cannot_publish_complete_partial_facts(
+    tmp_path: Path,
+) -> None:
+    """Candidates beyond the lane limit keep last-complete health authoritative."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=1,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index}",
+            title=f"Audit candidate {index}",
+            state="In Validation",
+            project_id="project-a",
+            created_at=datetime.now(timezone.utc),
+        )
+        for index in range(2)
+    )
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [_aged_pending_observation()],
+            scan_complete=True,
+            scan_error_count=0,
+        )
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(
+                orchestrator,
+                "_dispatch_is_blocked",
+                return_value=False,
+            ),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan(candidates),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        health = orchestrator._audit_health
+        assert orchestrator._audit_metrics["discovered_candidate_count"] == 2
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 1
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is False
+        assert orchestrator._audit_metrics["pending_count"] == 1
+        assert health.pending_count == 1
+        assert health.stale_pending_count == 1
+        assert health.oldest_pending_age_seconds is not None
+        assert health.scan_complete is False
+        assert health.scan_error_count == 0
+        sources = {str(alert.get("source", "")) for alert in orchestrator._alerts}
+        assert HEALTH_ALERT_PREFIX + "backlog_age" in sources
+        assert HEALTH_ALERT_PREFIX + "scan" in sources
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_audit_scan_cursor_rotates_durably_across_restart(tmp_path: Path) -> None:
+    """A bounded audit window cannot pin candidates behind its first page."""
+
+    state_path = tmp_path / "service_state.json"
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    config = ServiceConfig(
+        workspace_root=str(tmp_path / "workspace"),
+        audit_lane_scan_limit=2,
+        duplicate_preflight_max_agents=0,
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index}",
+            title=f"Audit candidate {index}",
+            state="In Validation",
+            project_id="project-a",
+            created_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
+        )
+        for index in range(5)
+    )
+    first = Orchestrator(
+        config,
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(state_path),
+    )
+    try:
+        first_window, truncated = first._audit_candidate_window(candidates)
+        assert truncated
+        assert [issue.identifier for issue in first_window] == ["TASK-0", "TASK-1"]
+        first._set_maintenance_cursor(
+            "audit_lane",
+            first._audit_candidate_cursor_key(first_window[-1]),
+        )
+    finally:
+        first._tick_pool.shutdown(wait=True, cancel_futures=True)
+        first._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    restarted = Orchestrator(
+        config,
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(state_path),
+    )
+    try:
+        second_window, truncated = restarted._audit_candidate_window(candidates)
+        assert truncated
+        assert [issue.identifier for issue in second_window] == [
+            "TASK-2",
+            "TASK-3",
+        ]
+    finally:
+        restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
+        restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_audit_capacity_reserves_repair_slot_and_alternates_at_one(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            max_concurrent_agents=4,
+            audit_non_audit_reserved_slots=1,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._available_slots = MagicMock(return_value=4)
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=True) == 1
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=False) == 0
+
+        orchestrator.state.max_concurrent_agents = 1
+        orchestrator._available_slots.return_value = 1
+        orchestrator._maintenance_cursors.pop("single_slot_dispatch_lane", None)
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=True) == 1
+        orchestrator._maintenance_cursors["single_slot_dispatch_lane"] = "audit"
+        assert orchestrator._audit_lane_reserved_slots(non_audit_ready=True) == 0
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_project_fetch_failure_cannot_clear_last_complete_audit_health(
+    tmp_path: Path,
+) -> None:
+    """One unreadable project makes the aggregate audit scan incomplete."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    project_store.list_all.return_value = [
+        SimpleNamespace(id="project-a"),
+        SimpleNamespace(id="project-b"),
+    ]
+    visible = Issue(
+        id="issue-visible",
+        identifier="TASK-VISIBLE",
+        title="Visible audit candidate",
+        state="In Validation",
+        created_at=datetime.now(timezone.utc),
+    )
+    healthy_tracker = MagicMock()
+    healthy_tracker.fetch_issues_by_states.return_value = [visible]
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+
+    def _tracker_for_project(project_id: str):
+        if project_id == "project-b":
+            raise RuntimeError("tracker unavailable")
+        return healthy_tracker
+
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [_aged_pending_observation()],
+            scan_complete=True,
+            scan_error_count=0,
+        )
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(
+                orchestrator,
+                "_dispatch_is_blocked",
+                return_value=False,
+            ),
+            patch.object(
+                orchestrator,
+                "_tracker_for_project",
+                side_effect=_tracker_for_project,
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        health = orchestrator._audit_health
+        assert visible.project_id == "project-a"
+        assert orchestrator._audit_metrics["discovered_candidate_count"] == 1
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 1
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is False
+        assert orchestrator._audit_metrics["pending_count"] == 1
+        assert health.pending_count == 1
+        assert health.stale_pending_count == 1
+        assert health.oldest_pending_age_seconds is not None
+        assert health.scan_complete is False
+        assert health.scan_error_count == 1
+        sources = {str(alert.get("source", "")) for alert in orchestrator._alerts}
+        assert HEALTH_ALERT_PREFIX + "backlog_age" in sources
+        assert HEALTH_ALERT_PREFIX + "scan" in sources
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
@@ -856,7 +1630,7 @@ def test_running_audits_do_not_emit_queue_age_alerts(tmp_path: Path) -> None:
     )
     try:
         now = datetime.now(timezone.utc)
-        orchestrator.config.audit_attempt_ttl_seconds = 60
+        orchestrator.config.audit_attempt_ttl = 60
         issue = Issue(
             id="TASK-1",
             identifier="TASK-1",

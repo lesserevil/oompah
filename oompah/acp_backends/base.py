@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import time
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -42,6 +43,39 @@ if TYPE_CHECKING:
 # Kept here so backends share the same default rather than each picking
 # their own.
 DEFAULT_TURN_TIMEOUT_S = 3600.0
+
+
+def tool_deadline_extension_seconds(tool_liveness: Any) -> float:
+    """Read a session monitor's cumulative bounded-tool duration safely."""
+
+    getter = getattr(tool_liveness, "outer_deadline_extension_seconds", None)
+    if not callable(getter):
+        return 0.0
+    try:
+        return max(float(getter()), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def turn_deadline_exceeded(
+    deadline_monotonic: float,
+    *,
+    tool_liveness: Any,
+    extension_baseline_seconds: float,
+    now_monotonic: float | None = None,
+) -> bool:
+    """Return whether provider/model time exceeded its turn budget.
+
+    The backend creates ``deadline_monotonic`` from the ordinary wall clock,
+    but capacity wait and bounded tool phases have their own deadlines. Their
+    elapsed time extends this outer deadline instead of being charged twice.
+    ``extension_baseline_seconds`` scopes cumulative monitor time to this turn.
+    """
+
+    current_extension = tool_deadline_extension_seconds(tool_liveness)
+    turn_extension = max(current_extension - extension_baseline_seconds, 0.0)
+    now = time.monotonic() if now_monotonic is None else float(now_monotonic)
+    return now > float(deadline_monotonic) + turn_extension
 
 
 @dataclass
@@ -83,6 +117,18 @@ class AcpBackendOptions:
     fallback_model: str | None = None
     max_turns: int | None = None
     env: dict[str, str] | None = None
+    # Direct epic-rebase helpers receive a credential-free worker environment.
+    # The server is the sole holder of project remote-write authority.
+    isolate_remote_write: bool = False
+    # Server-issued, exact-task publication authority.  Rebuilding backends
+    # must receive this separately from ``tool_catalog`` because Codex and
+    # OpenCode construct SDK-native catalogs at their execution boundary.
+    # Default deny keeps the server-owned publish capability hidden unless the
+    # orchestrator admitted this precise helper generation.
+    epic_rebase_publish_enabled: bool = False
+    # Explicit backend-specific model authentication bootstrap used only for
+    # isolated rebase workers. Unknown backend layouts fail closed.
+    provider_auth_kind: str | None = None
     tool_catalog: list[Any] | None = None
     # Qualification-only runs expose read/search tools but no shell, file
     # mutation, tracker mutation, network access, or writable sandbox.
@@ -141,6 +187,8 @@ class AcpBackendOptions:
     auditor: bool = False
     audit_target: Any = None
     audit_result_handler: Any = None
+    validation_reuse_policy: dict[str, Any] | None = None
+    validation_reuse_authority_check: Callable[[], object] | None = None
     # Server-owned terminal transition coordinator. ACP task mutation tools
     # use this instead of writing Done/Merged/Archived directly.
     terminal_transition_coordinator: Any = None
@@ -157,6 +205,43 @@ class AcpBackendOptions:
     # Exact server-generated identity for this run's native validation lane.
     # It lets stall supervision reject an older generation of the same task.
     validation_authority_generation: str | None = None
+    # Provider-contact authority is deliberately owned by the orchestrator,
+    # but must be invoked by the concrete backend at its *actual* network or
+    # subprocess edge.  Calling it in the facade merely before ``run_turn``
+    # can book spend/health for a backend whose local setup then fails.
+    #
+    # ``begin_transport_contact`` returns an actionable denial string, or
+    # ``None`` when the backend may touch its provider.  A backend calls
+    # ``transport_contacted`` immediately after that edge succeeds, and
+    # ``cancel_transport_contact`` if the edge fails or is cancelled before
+    # contact.  They are sync callbacks so they can surround both Popen and
+    # synchronous SDK entrypoints without introducing a scheduling gap.
+    begin_transport_contact: Callable[[], str | None] | None = None
+    transport_contacted: Callable[[], None] | None = None
+    cancel_transport_contact: Callable[[], None] | None = None
+
+
+def begin_transport_contact(options: AcpBackendOptions) -> str | None:
+    """Ask the orchestrator for permission at a backend transport edge."""
+
+    callback = options.begin_transport_contact
+    return callback() if callback is not None else None
+
+
+def mark_transport_contacted(options: AcpBackendOptions) -> None:
+    """Publish that a backend actually crossed its transport edge."""
+
+    callback = options.transport_contacted
+    if callback is not None:
+        callback()
+
+
+def cancel_transport_contact(options: AcpBackendOptions) -> None:
+    """Return an unused provider-contact permit after a local failure."""
+
+    callback = options.cancel_transport_contact
+    if callback is not None:
+        callback()
 
 
 @runtime_checkable

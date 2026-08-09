@@ -1,4 +1,4 @@
-"""Regression coverage for the terminal-mutation CI source guard."""
+"""Regression coverage for the task-status mutation CI source guard."""
 
 from __future__ import annotations
 
@@ -20,17 +20,35 @@ from scripts.find_terminal_mutations import main
     [
         ("tracker.close_issue(issue)", "close_issue", "Done"),
         ("tracker.archive_issue(issue)", "archive_issue", "Archived"),
-        ("tracker.update_issue(issue, status=DONE)", "update_issue", "Done"),
+        ("tracker.reopen_issue(issue)", "reopen_issue", "active status"),
+        (
+            "tracker.mark_needs_human(issue, 'blocked')",
+            "mark_needs_human",
+            "Needs Human",
+        ),
+        ("tracker.update_issue(issue, status=DONE)", "update_issue", "DONE"),
+        ("tracker.update_issue(issue, status=OPEN)", "update_issue", "OPEN"),
         ("tracker.update_issue(issue, status='Merged')", "update_issue", "Merged"),
+        ("tracker.update_issue(issue, status=status)", "update_issue", "status"),
         (
             "tracker.update_issue(issue, **{'status': ARCHIVED})",
             "update_issue",
-            "Archived",
+            "ARCHIVED",
         ),
-        ("tracker.set_status(issue, TargetState.DONE)", "set_status", "Done"),
+        (
+            "tracker.update_issue(issue, **fields)",
+            "update_issue",
+            "dynamic **kwargs",
+        ),
+        (
+            "run_io(tracker.update_issue, issue, status=status)",
+            "update_issue",
+            "status",
+        ),
+        ("tracker.set_status(issue, TargetState.DONE)", "set_status", "DONE"),
     ],
 )
-def test_scanner_detects_terminal_mutation_forms(
+def test_scanner_detects_task_status_mutation_forms(
     statement: str,
     method: str,
     target: str,
@@ -51,12 +69,14 @@ def test_scanner_detects_terminal_mutation_forms(
     "source",
     [
         "def compare(issue):\n    return issue.state == DONE\n",
-        "def update(tracker, issue):\n    tracker.update_issue(issue, status=OPEN)\n",
-        "def update(tracker, issue, status):\n    tracker.update_issue(issue, status=status)\n",
+        (
+            "def update(tracker, issue):\n"
+            "    tracker.update_issue(issue, **{'add-label': 'ci-fix'})\n"
+        ),
         "class Tracker:\n    def close_issue(self, issue):\n        return issue\n",
     ],
 )
-def test_scanner_ignores_comparisons_nonterminal_and_definitions(source: str) -> None:
+def test_scanner_ignores_comparisons_metadata_and_definitions(source: str) -> None:
     assert scan_source(source, path="oompah/example.py", allowlist={}) == []
 
 
@@ -64,7 +84,7 @@ def test_allowlist_requires_exact_path_function_and_method() -> None:
     source = """
 class TerminalTransitionCoordinator:
     def _apply_result_locked(self, tracker, issue):
-        tracker.update_issue(issue, status=DONE)
+        tracker.update_issue(issue, status=target_status)
 """
     allowed = scan_source(
         source,
@@ -81,7 +101,7 @@ class TerminalTransitionCoordinator:
     assert len(violations(wrong_function)) == 1
 
 
-def test_allowlist_key_permits_only_one_existing_call() -> None:
+def test_allowlist_key_is_an_exact_reviewed_function_boundary() -> None:
     source = """
 class TerminalTransitionCoordinator:
     def _apply_result_locked(self, tracker, first, second):
@@ -95,20 +115,43 @@ class TerminalTransitionCoordinator:
 
     assert len(found) == 2
     assert found[0].allowed
-    assert not found[1].allowed
-    assert violations(found) == [found[1]]
+    assert found[1].allowed
+    assert violations(found) == []
+
+
+def test_allowlist_does_not_grandfather_other_methods_in_boundary() -> None:
+    source = """
+class TerminalTransitionCoordinator:
+    def _apply_result_locked(self, tracker, issue):
+        tracker.reopen_issue(issue)
+"""
+    found = scan_source(
+        source,
+        path="oompah/terminal_transition_coordinator.py",
+    )
+
+    assert len(found) == 1
+    assert violations(found) == found
 
 
 def test_allowlist_entries_have_actionable_reasons() -> None:
     assert ALLOWLISTED_CALLS
     for (path, function, method), reason in ALLOWLISTED_CALLS.items():
         assert path.startswith("oompah/")
-        assert function and "." in function
-        assert method in {"close_issue", "archive_issue", "update_issue", "set_status"}
+        assert function
+        assert method in {
+            "close_issue",
+            "archive_issue",
+            "reopen_issue",
+            "mark_needs_human",
+            "update_issue",
+            "set_status",
+        }
         assert len(reason.strip()) >= 20
 
 
-def test_repository_has_no_unauthorized_terminal_mutations() -> None:
+@pytest.mark.timeout(15)
+def test_repository_has_no_unauthorized_task_status_mutations() -> None:
     root = Path(__file__).resolve().parents[1]
     found = scan_paths([root / "oompah"], root=root)
 
@@ -119,6 +162,7 @@ def test_repository_has_no_unauthorized_terminal_mutations() -> None:
         for item in found
         if item.allowed
     }.issubset(ALLOWLISTED_CALLS)
+    assert not any(item.path == "oompah/orchestrator.py" for item in found)
 
 
 def test_cli_fails_for_violation_and_passes_for_safe_file(
@@ -141,8 +185,8 @@ def test_cli_fails_for_violation_and_passes_for_safe_file(
     assert main([str(unsafe)]) == 1
     error = capsys.readouterr().err
     assert "close_issue()" in error
-    assert "Found 1 unauthorized terminal mutation" in error
+    assert "Found 1 unauthorized task-status mutation" in error
 
     assert main([str(safe)]) == 0
     output = capsys.readouterr().out
-    assert "Terminal mutation scan passed" in output
+    assert "Task-status mutation scan passed" in output

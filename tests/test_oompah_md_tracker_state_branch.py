@@ -221,6 +221,56 @@ class TestStateBranchTrackerIntegration:
             f"Found: {[f for f in main_files if task_id in f]}"
         )
 
+    def test_create_once_recovers_state_branch_checkpoint_failure_after_restart(
+        self,
+        state_branch_repo: tuple[Path, str],
+        monkeypatch,
+    ) -> None:
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=False,
+        )
+        kwargs = {
+            "title": "Rebase stale epic",
+            "description": "Repair the exact generation.",
+            "project_id": "proj-test",
+            "operation_kind": "epic_rebase_helper",
+            "creation_marker": "generation-1",
+        }
+        created = tracker.create_issue_once(**kwargs)
+        monkeypatch.setattr(
+            tracker,
+            "_commit_and_push_state_branch",
+            MagicMock(side_effect=TrackerError("checkpoint response lost")),
+        )
+
+        with pytest.raises(TrackerError, match="checkpoint response lost"):
+            tracker.flush_checkpoint(reason="ambiguous-create")
+
+        restarted = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=False,
+        )
+        recovered = restarted.create_issue_once(**kwargs)
+        restarted.flush_checkpoint(reason="recover-create-once")
+
+        assert recovered.identifier == created.identifier
+        task_paths = [
+            path
+            for path in _git(
+                repo, "ls-tree", "-r", "--name-only", state_branch
+            ).stdout.splitlines()
+            if path.endswith(".md")
+        ]
+        assert task_paths == [
+            f".oompah/tasks/backlog/{created.identifier}.md"
+        ]
+
     def test_status_update_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:

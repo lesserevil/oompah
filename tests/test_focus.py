@@ -1268,8 +1268,17 @@ class TestDuplicateDetectorFocus:
             verdict=ScreeningVerdict.NO_DUPLICATE,
         ).to_dict()
 
-        async def _triage(_issue, active_foci, _provider):
+        async def _triage(
+            _issue,
+            active_foci,
+            _provider,
+            *,
+            before_request=None,
+            at_request_edge=None,
+        ):
             assert [focus.name for focus in active_foci] == ["chore"]
+            assert before_request is None
+            assert at_request_edge is None
             return "chore", "only remaining applicable focus"
 
         monkeypatch.setattr("oompah.focus._triage_cache", {})

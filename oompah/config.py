@@ -20,6 +20,7 @@ from oompah.statuses import (
     OPEN,
 )
 from oompah.temp_root import default_temp_root, default_workspace_root, resolve_temp_root
+from oompah.workflow_reasons import LIVENESS_SLOS, build_liveness_slos
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,12 @@ class WorkflowError(Exception):
         self.error_class = error_class
 
 
-def load_dotenv(path: str = ".env", override: bool = False) -> int:
+def load_dotenv(
+    path: str = ".env",
+    override: bool = False,
+    *,
+    managed_keys: set[str] | None = None,
+) -> int:
     """Load environment variables from a .env file.
 
     Parses a .env file and sets variables in os.environ. This is a
@@ -51,6 +57,13 @@ def load_dotenv(path: str = ".env", override: bool = False) -> int:
         path: Path to the .env file. Defaults to ".env" in the current dir.
         override: If True, override existing environment variables.
                   If False (default), skip variables already set.
+        managed_keys: Optional mutable set of keys managed by the previous
+                      successful load.  When supplied, keys removed from a
+                      successfully read file are also removed from
+                      ``os.environ``, and the set is updated to the keys in
+                      the current file.  A missing or unreadable file leaves
+                      both the environment and the set unchanged, preserving
+                      the last known-good configuration.
 
     Returns:
         Number of variables loaded.
@@ -58,7 +71,8 @@ def load_dotenv(path: str = ".env", override: bool = False) -> int:
     if not os.path.exists(path):
         return 0
 
-    count = 0
+    entries: list[tuple[str, str]] = []
+    current_keys: set[str] = set()
     try:
         with open(path, "r", encoding="utf-8") as f:
             for lineno, line in enumerate(f, start=1):
@@ -85,13 +99,24 @@ def load_dotenv(path: str = ".env", override: bool = False) -> int:
                     continue
 
                 value = _parse_env_value(raw_value)
-
-                if override or key not in os.environ:
-                    os.environ[key] = value
-                    count += 1
+                entries.append((key, value))
+                current_keys.add(key)
 
     except OSError as exc:
         logger.warning("Failed to read .env file %s: %s", path, exc)
+        return 0
+
+    if managed_keys is not None:
+        for key in managed_keys - current_keys:
+            os.environ.pop(key, None)
+        managed_keys.clear()
+        managed_keys.update(current_keys)
+
+    count = 0
+    for key, value in entries:
+        if override or key not in os.environ:
+            os.environ[key] = value
+            count += 1
 
     return count
 
@@ -452,10 +477,6 @@ class ServiceConfig:
     # Independent completion-auditor dispatch controls.  These are
     # environment-only because they tune scheduler behaviour rather than
     # workflow structure.
-    audit_max_attempts: int = 3
-    audit_attempt_ttl_seconds: int = 3600
-    audit_priority: int = 100
-    audit_lane_scan_limit: int = 32
     # Seconds after which a pending or In Validation audit record is considered
     # stale and surfaces a dashboard alert.  Defaults to one hour.
     audit_stale_pending_seconds: int = 3600
@@ -506,12 +527,22 @@ class ServiceConfig:
     # routing to Needs Human when all independent candidates are exhausted.
     # Configurable via OOMPAH_AUDIT_MAX_ATTEMPTS. Default: 3.
     audit_max_attempts: int = 3
-    # Time-to-live (seconds) for a running auditor attempt.  An attempt with
-    # a live worker older than this threshold is considered abandoned and
-    # eligible for reclaim and rotation.  An attempt whose worker is not
-    # live is reclaimed immediately regardless of TTL.
+    # Bounded retry budget for auditor transport/finalization failures.
+    # These retries do not consume an independent-candidate slot because no
+    # verdict was submitted; they exist so a transient transport outage or
+    # forced provider shutdown cannot strand a valid merged task in Needs
+    # Human/no_auditor while a bounded retry remains.
+    # Configurable via OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES. Default: 3.
+    audit_max_transport_retries: int = 3
+    # Recovery grace (seconds) when a caller cannot supply a live-worker
+    # registry. The service itself reclaims missing workers immediately and
+    # lets phase-specific liveness deadlines supervise live workers.
     # Configurable via OOMPAH_AUDIT_ATTEMPT_TTL. Default: 3600 (1 hour).
     audit_attempt_ttl: int = 3600
+    # Freshness and financial-capacity authority for terminal auditors.
+    provider_health_ttl_seconds: int = 300
+    audit_projected_input_tokens: int = 65536
+    audit_projected_output_tokens: int = 32768
     # Relative dispatch priority for In Validation audits that do not carry
     # an explicit task priority.  The audit lane still runs before ordinary
     # Open work when a slot is available.
@@ -521,6 +552,16 @@ class ServiceConfig:
     # dispatch lane.  Set to 0 for no per-tick cap (scan all pending audits).
     # Configurable via OOMPAH_AUDIT_LANE_SCAN_LIMIT. Default: 32.
     audit_lane_scan_limit: int = 32
+    # Maximum auditor launches attempted per scheduler tick.  Candidate
+    # inspection can include bounded provider probes, so keep this separate
+    # from the larger health-scan window.
+    # Configurable via OOMPAH_AUDIT_LANE_DISPATCH_LIMIT. Default: 2.
+    audit_lane_dispatch_limit: int = 2
+    # Capacity kept available for runnable implementation/control-plane work
+    # while the audit lane drains.  The scheduler alternates lanes when total
+    # concurrency is one, because a literal reservation is impossible there.
+    # Configurable via OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS. Default: 1.
+    audit_non_audit_reserved_slots: int = 1
 
     # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
     # exits with reason="normal" AND has moved the issue to a terminal
@@ -662,6 +703,39 @@ class ServiceConfig:
     # environment-only operational setting so a forgotten lease cannot strand
     # work indefinitely.
     owner_claim_ttl_hours: int = 48
+    # Aggregate compatibility projection for callers which have not yet moved
+    # to the per-domain rollout map.  Mixed domain modes project to ``shadow``;
+    # mutation is enabled only when every domain is ``enforce``.
+    workflow_engine_mode: str = "off"
+    workflow_domain_modes: dict[str, str] = field(default_factory=dict)
+    # The persisted canary gate is automatically required when any per-domain
+    # environment control is present.  Direct ServiceConfig construction and
+    # the retired aggregate environment input retain restart compatibility.
+    workflow_rollout_require_qualification: bool = False
+    workflow_rollout_min_shadow_sweeps: int = 3
+    workflow_rollout_min_shadow_seconds: int = 300
+    workflow_shadow_scan_limit: int = 100
+    workflow_diagnostic_max_bytes: int = 64 * 1024
+    # Bounded authoritative liveness projections. These limits cap persisted
+    # task/project attribution; the stale threshold fails health closed when
+    # no fresh controller coverage has completed.
+    workflow_liveness_max_task_records: int = 256
+    workflow_liveness_max_project_records: int = 64
+    workflow_liveness_snapshot_stale_seconds: int = 900
+    # Environment-only reassessment ceilings. Keeping this policy on each
+    # ServiceConfig avoids mutable process globals when multiple orchestrators
+    # or tests use different operating objectives.
+    workflow_liveness_slo_seconds: dict[str, int] = field(
+        default_factory=lambda: {
+            key: value.max_reassessment_seconds
+            for key, value in LIVENESS_SLOS.items()
+        }
+    )
+    # Durable runtime bounds.  These values apply to the shared workflow
+    # scheduler/worker and are environment-only so rollout tuning does not
+    # become candidate-controlled workflow input.
+    workflow_runtime_decision_limit: int = 100
+    workflow_runtime_batch_size: int = 32
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -795,6 +869,49 @@ class ServiceConfig:
             int(self.worktree_cleanup_interval_seconds), 1
         )
         self.owner_claim_ttl_hours = max(int(self.owner_claim_ttl_hours), 1)
+        from oompah.workflow_shadow import (
+            aggregate_workflow_domain_mode,
+            normalize_workflow_domain_modes,
+            normalize_workflow_engine_mode,
+        )
+
+        self.workflow_engine_mode = normalize_workflow_engine_mode(
+            self.workflow_engine_mode
+        )
+        self.workflow_domain_modes = normalize_workflow_domain_modes(
+            self.workflow_domain_modes,
+            fallback=self.workflow_engine_mode,
+        )
+        self.workflow_engine_mode = aggregate_workflow_domain_mode(
+            self.workflow_domain_modes
+        )
+        self.workflow_rollout_min_shadow_sweeps = max(
+            int(self.workflow_rollout_min_shadow_sweeps), 1
+        )
+        self.workflow_rollout_min_shadow_seconds = max(
+            int(self.workflow_rollout_min_shadow_seconds), 0
+        )
+        self.workflow_shadow_scan_limit = min(
+            max(int(self.workflow_shadow_scan_limit), 1), 1000
+        )
+        self.workflow_diagnostic_max_bytes = max(
+            int(self.workflow_diagnostic_max_bytes), 1024
+        )
+        self.workflow_liveness_max_task_records = min(
+            max(int(self.workflow_liveness_max_task_records), 1), 1000
+        )
+        self.workflow_liveness_max_project_records = min(
+            max(int(self.workflow_liveness_max_project_records), 1), 1000
+        )
+        self.workflow_liveness_snapshot_stale_seconds = max(
+            int(self.workflow_liveness_snapshot_stale_seconds), 1
+        )
+        self.workflow_liveness_slo_seconds = {
+            key: slo.max_reassessment_seconds
+            for key, slo in build_liveness_slos(
+                self.workflow_liveness_slo_seconds
+            ).items()
+        }
         self.storage_cleanup_interval_seconds = max(
             int(self.storage_cleanup_interval_seconds), 60
         )
@@ -892,9 +1009,24 @@ class ServiceConfig:
             int(self.stalled_task_watchdog_interval_seconds), 60
         )
         self.audit_max_attempts = max(int(self.audit_max_attempts), 1)
+        self.audit_max_transport_retries = max(
+            int(self.audit_max_transport_retries), 0
+        )
         self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
         self.audit_priority = max(int(self.audit_priority), 1)
         self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
+        self.audit_lane_dispatch_limit = max(
+            int(self.audit_lane_dispatch_limit), 1
+        )
+        self.audit_non_audit_reserved_slots = max(
+            int(self.audit_non_audit_reserved_slots), 0
+        )
+        self.workflow_runtime_decision_limit = min(
+            max(int(self.workflow_runtime_decision_limit), 1), 1000
+        )
+        self.workflow_runtime_batch_size = min(
+            max(int(self.workflow_runtime_batch_size), 1), 1000
+        )
         self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
             self.workspace_root = default_workspace_root()
@@ -1090,6 +1222,41 @@ class ServiceConfig:
         # deprecation notices without drowning in repeated warnings.
         warn_deprecated_verify_completion_vars()
 
+        workflow_liveness_slo_seconds = {
+            key: _env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_SLO_"
+                f"{key.upper()}_SECONDS",
+                None,
+                slo.max_reassessment_seconds,
+            )
+            for key, slo in LIVENESS_SLOS.items()
+        }
+
+        legacy_workflow_mode = _env_str(
+            "OOMPAH_WORKFLOW_ENGINE_MODE", None, "off"
+        )
+        workflow_domain_env = {
+            "implementation": "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE",
+            "review": "OOMPAH_WORKFLOW_REVIEW_MODE",
+            "integration": "OOMPAH_WORKFLOW_INTEGRATION_MODE",
+            "epic": "OOMPAH_WORKFLOW_EPIC_MODE",
+        }
+        workflow_domain_modes = {
+            domain: _env_str(env_key, None, legacy_workflow_mode)
+            for domain, env_key in workflow_domain_env.items()
+        }
+        workflow_domain_controls_explicit = any(
+            env_key in os.environ for env_key in workflow_domain_env.values()
+        )
+        if (
+            "OOMPAH_WORKFLOW_ENGINE_MODE" in os.environ
+            and not workflow_domain_controls_explicit
+        ):
+            logger.warning(
+                "OOMPAH_WORKFLOW_ENGINE_MODE is a compatibility input; migrate "
+                "to the four OOMPAH_WORKFLOW_<DOMAIN>_MODE controls"
+            )
+
         return cls(
             tracker_kind=tracker_kind,
             tracker_active_states=_parse_state_list(
@@ -1113,12 +1280,30 @@ class ServiceConfig:
             audit_max_attempts=_parse_positive_env_int(
                 "OOMPAH_AUDIT_MAX_ATTEMPTS", 3
             ),
+            audit_max_transport_retries=_env_int(
+                "OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", None, 3
+            ),
             audit_attempt_ttl=_parse_positive_env_int(
                 "OOMPAH_AUDIT_ATTEMPT_TTL", 3600
+            ),
+            provider_health_ttl_seconds=_parse_positive_env_int(
+                "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS", 300
+            ),
+            audit_projected_input_tokens=_parse_positive_env_int(
+                "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS", 65536
+            ),
+            audit_projected_output_tokens=_parse_positive_env_int(
+                "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS", 32768
             ),
             audit_priority=_env_int("OOMPAH_AUDIT_PRIORITY", None, 100),
             audit_lane_scan_limit=_env_int(
                 "OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32
+            ),
+            audit_lane_dispatch_limit=_env_int(
+                "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT", None, 2
+            ),
+            audit_non_audit_reserved_slots=_env_int(
+                "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS", None, 1
             ),
             audit_stale_pending_seconds=_parse_positive_env_int(
                 "OOMPAH_AUDIT_STALE_PENDING_SECONDS", 3600
@@ -1324,6 +1509,39 @@ class ServiceConfig:
             owner_claim_ttl_hours=_parse_positive_env_int(
                 "OOMPAH_OWNER_CLAIM_TTL_HOURS", 48
             ),
+            workflow_engine_mode=legacy_workflow_mode,
+            workflow_domain_modes=workflow_domain_modes,
+            workflow_rollout_require_qualification=(
+                workflow_domain_controls_explicit
+            ),
+            workflow_rollout_min_shadow_sweeps=_env_int(
+                "OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SWEEPS", None, 3
+            ),
+            workflow_rollout_min_shadow_seconds=_env_int(
+                "OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SECONDS", None, 300
+            ),
+            workflow_shadow_scan_limit=_env_int(
+                "OOMPAH_WORKFLOW_SHADOW_SCAN_LIMIT", None, 100
+            ),
+            workflow_diagnostic_max_bytes=_env_int(
+                "OOMPAH_WORKFLOW_DIAGNOSTIC_MAX_BYTES", None, 64 * 1024
+            ),
+            workflow_liveness_max_task_records=_env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_MAX_TASK_RECORDS", None, 256
+            ),
+            workflow_liveness_max_project_records=_env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_MAX_PROJECT_RECORDS", None, 64
+            ),
+            workflow_liveness_snapshot_stale_seconds=_env_int(
+                "OOMPAH_WORKFLOW_LIVENESS_SNAPSHOT_STALE_SECONDS", None, 900
+            ),
+            workflow_liveness_slo_seconds=workflow_liveness_slo_seconds,
+            workflow_runtime_decision_limit=_env_int(
+                "OOMPAH_WORKFLOW_RUNTIME_DECISION_LIMIT", None, 100
+            ),
+            workflow_runtime_batch_size=_env_int(
+                "OOMPAH_WORKFLOW_RUNTIME_BATCH_SIZE", None, 32
+            ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(
                 "OOMPAH_PROJECT_REFRESH_TIMEOUT_MS",
@@ -1409,10 +1627,16 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
 
     if config.audit_max_attempts <= 0:
         errors.append("audit_max_attempts must be positive")
+    if config.audit_max_transport_retries < 0:
+        errors.append("audit_max_transport_retries must be non-negative")
     if config.audit_attempt_ttl <= 0:
         errors.append("audit_attempt_ttl must be positive")
     if config.audit_lane_scan_limit < 0:
         errors.append("audit_lane_scan_limit must be non-negative")
+    if config.audit_lane_dispatch_limit <= 0:
+        errors.append("audit_lane_dispatch_limit must be positive")
+    if config.audit_non_audit_reserved_slots < 0:
+        errors.append("audit_non_audit_reserved_slots must be non-negative")
     if config.audit_stale_pending_seconds <= 0:
         errors.append("audit_stale_pending_seconds must be positive")
 

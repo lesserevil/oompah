@@ -13,11 +13,12 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
@@ -35,6 +36,39 @@ DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
 
 class ProjectError(Exception):
     """Raised when project registration or worktree management fails."""
+
+
+class RecoveryPublicationError(ProjectError):
+    """A checkpoint exists locally but its durable recovery ref is pending.
+
+    ``context`` identifies the exact checkpoint and task checkout that must be
+    retried.  Callers may safely release the stopped worker and hand ownership
+    to a scheduler or direct owner; they must not treat this as an
+    un-snapshotable workspace or mutate the checkout to roll the checkpoint
+    back.
+    """
+
+    def __init__(self, message: str, *, context: dict[str, object]) -> None:
+        super().__init__(message)
+        self.context = dict(context)
+
+
+@dataclass(frozen=True)
+class NestedDispatchTopology:
+    """Exact local/remote refs used to admit one nested-epic worker.
+
+    The remote heads are the publication authority.  Local heads are retained
+    independently so recovery never chooses a remote ref by silently
+    overwriting a divergent local-only checkpoint.
+    """
+
+    target_branch: str
+    target_head: str
+    nested_branch: str
+    nested_head: str
+    private_branch: str | None = None
+    private_remote_head: str | None = None
+    private_local_head: str | None = None
 
 
 @dataclass(frozen=True)
@@ -247,9 +281,20 @@ class EpicWorktreeReconciliation:
         return self.status in {"reconciled", "already_published"}
 
 
+@dataclass(frozen=True)
+class SubmissionGitAuthority:
+    """Remote Git facts proven before a submission mutates task state."""
+
+    task_branch: str
+    head_sha: str
+    base_branch: str | None = None
+    base_sha: str | None = None
+
+
 _WORKTREE_RECOVERY_VERSION = 1
 _WORKTREE_RECOVERY_MARKER = "oompah-recovery-json:"
 _RECOVERY_METADATA_LIMIT = 64 * 1024
+_METADATA_AUDIT_MARKER = ".oompah-metadata-audit.json"
 
 
 def _is_generated_worktree_helper(path: str) -> bool:
@@ -395,6 +440,183 @@ def _recovery_git_env() -> dict[str, str]:
     env = dict(os.environ)
     env.update(NONINTERACTIVE_GIT_ENV)
     return env
+
+
+def _recovery_marker_context(
+    repo_path: str,
+    snapshot_head: str,
+) -> dict[str, object] | None:
+    """Read one structured recovery marker without trusting its identity.
+
+    Discovery after a service restart does not yet know which task owns a
+    checkpoint.  This bounded parser returns the marker payload so the caller
+    can validate the project, task identifier, checkout path, and exact ref
+    before acting on it.
+    """
+
+    try:
+        message = subprocess.run(
+            ["git", "show", "-s", "--format=%B", snapshot_head],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProjectError(
+            f"git recovery evidence lookup failed for {snapshot_head}: {exc}"
+        ) from exc
+    if message.returncode != 0:
+        raise ProjectError(
+            "git recovery evidence commit cannot be read for "
+            f"{snapshot_head}: {message.stderr.strip()[:500]}"
+        )
+
+    for line in message.stdout.splitlines():
+        if not line.startswith(_WORKTREE_RECOVERY_MARKER):
+            continue
+        try:
+            context = json.loads(line[len(_WORKTREE_RECOVERY_MARKER) :].strip())
+        except (TypeError, ValueError) as exc:
+            raise ProjectError(
+                f"invalid recovery evidence in {snapshot_head}"
+            ) from exc
+        if not isinstance(context, dict):
+            raise ProjectError(f"invalid recovery evidence in {snapshot_head}")
+        result = dict(context)
+        result["snapshot_head"] = snapshot_head
+        return result
+    return None
+
+
+def _transfer_recovery_snapshot_objects(
+    snapshot_sha: str,
+    worktree_path: str,
+    authoritative_repo_path: str,
+) -> bool:
+    """Copy one exact commit graph into the authoritative object database.
+
+    The source commit is exposed through a unique, short-lived local ref so a
+    normal local ``git fetch`` can transfer an otherwise-unadvertised
+    ``commit-tree`` checkpoint.  No checkout, branch, index, or working-tree
+    state is changed.  Success requires the destination to resolve the exact
+    full commit ID, not merely an object with the supplied prefix.
+    """
+
+    snapshot_sha = str(snapshot_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", snapshot_sha):
+        raise ProjectError("recovery snapshot must be a full hexadecimal object id")
+    if not os.path.isdir(worktree_path) or not os.path.isdir(
+        authoritative_repo_path
+    ):
+        raise ProjectError("recovery snapshot source or authority is unavailable")
+
+    def _resolve(repo_path: str) -> str | None:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{snapshot_sha}^{{commit}}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"could not resolve recovery snapshot {snapshot_sha}: {exc}"
+            ) from exc
+        resolved = result.stdout.strip().lower()
+        return resolved if result.returncode == 0 and resolved == snapshot_sha else None
+
+    if _resolve(worktree_path) is None:
+        raise ProjectError(
+            f"recovery snapshot {snapshot_sha} is not an exact commit in its source"
+        )
+    if _resolve(authoritative_repo_path) == snapshot_sha:
+        return False
+
+    transfer_ref = f"refs/oompah/recovery-transfer/{uuid.uuid4().hex}"
+    try:
+        created = subprocess.run(
+            ["git", "update-ref", transfer_ref, snapshot_sha, ""],
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProjectError(
+            f"could not expose recovery snapshot {snapshot_sha} for transfer: {exc}"
+        ) from exc
+    if created.returncode != 0:
+        raise ProjectError(
+            f"could not expose recovery snapshot {snapshot_sha} for transfer: "
+            f"{created.stderr.strip()[:500]}"
+        )
+
+    try:
+        try:
+            fetched = subprocess.run(
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--no-write-fetch-head",
+                    worktree_path,
+                    transfer_ref,
+                ],
+                cwd=authoritative_repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=60,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"could not transfer recovery snapshot {snapshot_sha}: {exc}"
+            ) from exc
+        if fetched.returncode != 0:
+            raise ProjectError(
+                f"could not transfer recovery snapshot {snapshot_sha}: "
+                f"{fetched.stderr.strip()[:500]}"
+            )
+    finally:
+        try:
+            removed = subprocess.run(
+                ["git", "update-ref", "-d", transfer_ref, snapshot_sha],
+                cwd=worktree_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            logger.warning(
+                "Could not remove temporary recovery transfer ref %s: %s",
+                transfer_ref,
+                exc,
+            )
+        else:
+            if removed.returncode != 0:
+                logger.warning(
+                    "Could not remove temporary recovery transfer ref %s: %s",
+                    transfer_ref,
+                    removed.stderr.strip()[:500],
+                )
+
+    if _resolve(authoritative_repo_path) != snapshot_sha:
+        raise ProjectError(
+            f"recovery snapshot {snapshot_sha} was transferred but its exact commit "
+            "is not readable in the authoritative repository"
+        )
+    return True
 
 
 def _worktree_git_dir(wt_path: str) -> str | None:
@@ -558,6 +780,35 @@ def _worktree_recovery_ref(issue_identifier: str) -> str:
         "refs/oompah/recovery/"
         f"{_sanitize_identifier(identifier)}-{digest}"
     )
+
+
+def _worktree_pending_recovery_ref(issue_identifier: str) -> str:
+    """Return the source-local ref retaining an unpublished checkpoint."""
+
+    return _worktree_recovery_ref(issue_identifier).replace(
+        "refs/oompah/recovery/",
+        "refs/oompah/recovery-pending/",
+        1,
+    )
+
+
+def _worktree_consumed_recovery_ref(
+    issue_identifier: str,
+    snapshot_head: str,
+) -> str:
+    """Return the immutable authoritative tombstone for one generation."""
+
+    snapshot = str(snapshot_head or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", snapshot):
+        raise ProjectError("consumed recovery snapshot must be a full object id")
+    return f"{_worktree_consumed_recovery_prefix(issue_identifier)}{snapshot}"
+
+
+def _worktree_consumed_recovery_prefix(issue_identifier: str) -> str:
+    """Return the namespace holding immutable task generation tombstones."""
+
+    task_component = _worktree_recovery_ref(issue_identifier).rsplit("/", 1)[-1]
+    return f"refs/oompah/recovery-consumed/{task_component}/"
 
 
 def _validate_supported_release_branches(
@@ -734,10 +985,25 @@ def gitlab_owner_repo_from_url(repo_url: str, gitlab_base_url: str | None = None
     return project_path, project_name
 
 
-def _sanitize_identifier(value: str) -> str:
-    """Make a project or task identifier safe for local branch/path names."""
+def sanitize_branch_identifier(value: str) -> str:
+    """Make an identifier safe for a single Git branch component.
+
+    The character allow-list alone is insufficient for Git refs: components
+    may not contain ``..`` or end in ``.lock``.  Keep this deterministic so
+    fact collectors and ProjectStore always address the same service-owned
+    branch.
+    """
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "").strip())
-    return cleaned.strip("._-") or "unnamed"
+    cleaned = re.sub(r"\.{2,}", "_", cleaned).strip("._-") or "unnamed"
+    if cleaned.casefold().endswith(".lock"):
+        cleaned += "_"
+    return cleaned
+
+
+def _sanitize_identifier(value: str) -> str:
+    """Backward-compatible alias for branch/path identifier sanitization."""
+
+    return sanitize_branch_identifier(value)
 
 
 # ---------------------------------------------------------------------------
@@ -1522,6 +1788,19 @@ class ProjectStore:
             for entry in data:
                 p = Project.from_dict(entry)
                 if p.id:
+                    from oompah.auditor import build_auditor_validation_contract
+
+                    contract = build_auditor_validation_contract(p)
+                    p.auditor_validation_contract_error = (
+                        contract.configuration_error
+                    )
+                    if contract.configuration_error:
+                        logger.error(
+                            "Project %s has incompatible auditor validation "
+                            "configuration: %s",
+                            p.id,
+                            contract.configuration_error,
+                        )
                     self._projects[p.id] = p
                     register_secret_values((p.access_token, p.webhook_secret))
         except (json.JSONDecodeError, OSError) as exc:
@@ -1573,6 +1852,26 @@ class ProjectStore:
             if project_id not in self._project_locks:
                 self._project_locks[project_id] = threading.RLock()
             return self._project_locks[project_id]
+
+    def canonical_remote_name(self, project_id: str) -> str:
+        """Return the server-owned Git remote for a managed project.
+
+        Managed worktrees are created and maintained against ``origin``.  Keep
+        that invariant behind the project abstraction so privileged callers
+        never accept a remote name from a worker payload and future project
+        layouts can change it in one place.
+        """
+        if project_id not in self._projects:
+            raise ProjectError(f"Unknown project: {project_id}")
+        return "origin"
+
+    def canonical_remote_url(self, project_id: str) -> str:
+        """Return the server-owned URL behind the canonical Git remote."""
+        project = self.get(project_id)
+        remote_url = getattr(project, "repo_url", None)
+        if not isinstance(remote_url, str) or not remote_url.strip():
+            raise ProjectError(f"Canonical remote URL is unavailable: {project_id}")
+        return remote_url.strip()
 
     @staticmethod
     def _run_network_git(
@@ -1861,6 +2160,11 @@ class ProjectStore:
             supported_release_branches=supported_release_branches,
             paused=bool(paused),
         )
+        from oompah.auditor import build_auditor_validation_contract
+
+        project.auditor_validation_contract_error = (
+            build_auditor_validation_contract(project).configuration_error
+        )
         self._projects[project_id] = project
         register_secret_values((project.access_token, project.webhook_secret))
         self._save()
@@ -1895,6 +2199,9 @@ class ProjectStore:
             "test_command",
             "test_command_full",
             "test_skip_paths",
+            "auditor_validation_targets",
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
             "epic_strategy",
             "require_epic_for_tasks",
             "intake_auto_promote",
@@ -1986,6 +2293,68 @@ class ProjectStore:
                 fields["test_skip_paths"] = cleaned
             else:
                 raise ProjectError("'test_skip_paths' must be a list of strings")
+
+        if "auditor_validation_targets" in fields:
+            val = fields["auditor_validation_targets"]
+            if val is None:
+                fields["auditor_validation_targets"] = []
+            elif not isinstance(val, list):
+                raise ProjectError(
+                    "'auditor_validation_targets' must be a list of strings"
+                )
+            else:
+                cleaned_targets: list[str] = []
+                seen_targets: set[str] = set()
+                for item in val:
+                    if not isinstance(item, str):
+                        raise ProjectError(
+                            "'auditor_validation_targets' entries must be strings"
+                        )
+                    target = item.strip()
+                    if (
+                        not target
+                        or not target.isascii()
+                        or not target[0].isalnum()
+                        or not all(
+                            char.isalnum() or char in "_.-" for char in target
+                        )
+                    ):
+                        raise ProjectError(
+                            f"unsafe auditor validation target {target!r}"
+                        )
+                    if target in seen_targets:
+                        raise ProjectError(
+                            f"duplicate auditor validation target {target!r}"
+                        )
+                    seen_targets.add(target)
+                    cleaned_targets.append(target)
+                fields["auditor_validation_targets"] = cleaned_targets
+
+        for field_name in (
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
+        ):
+            if field_name not in fields:
+                continue
+            val = fields[field_name]
+            if val is None:
+                fields[field_name] = {}
+                continue
+            if not isinstance(val, dict):
+                raise ProjectError(f"'{field_name}' must be an object")
+            normalized_mapping: dict[str, int] = {}
+            for raw_target, raw_seconds in val.items():
+                target = str(raw_target).strip()
+                if (
+                    isinstance(raw_seconds, bool)
+                    or not isinstance(raw_seconds, int)
+                    or raw_seconds <= 0
+                ):
+                    raise ProjectError(
+                        f"'{field_name}[{target!r}]' must be a positive integer"
+                    )
+                normalized_mapping[target] = raw_seconds
+            fields[field_name] = normalized_mapping
 
         # Validate epic_strategy: only "shared" is supported.
         # "flat" and "stacked" were removed; callers that still send them
@@ -2294,22 +2663,88 @@ class ProjectStore:
                         "'state_branch_checkpoint_debounce_ms' + 1000 ms"
                     )
 
-        for key, value in fields.items():
-            setattr(project, key, value)
+        validation_policy_inputs = {
+            "auditor_validation_targets",
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
+        }
+        validation_contract_inputs = validation_policy_inputs | {
+            "test_command",
+            "test_command_full",
+            "repo_url",
+        }
+        validation_policy_changed = bool(validation_policy_inputs & fields.keys())
+        validation_contract_changed = bool(
+            validation_contract_inputs & fields.keys()
+        )
+        candidate_validation_observations: dict[str, int] | None = None
+        candidate_validation_error: str | None = None
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            if validation_contract_changed:
+                from oompah.auditor import build_auditor_validation_contract
 
-        # Dynamic project updates can introduce a new opaque token/secret;
-        # retain both the new and old value in the process-local registry so
-        # delayed workers cannot expose either during rotation.
-        register_secret_values((project.access_token, project.webhook_secret))
+                candidate = replace(project, **fields)
+                approved_targets = set(
+                    candidate.auditor_validation_targets
+                    or ("test", "test-serial", "check-secrets")
+                )
+                previous_gate_command = (
+                    project.test_command_full or project.test_command or ""
+                ).strip()
+                candidate_gate_command = (
+                    candidate.test_command_full or candidate.test_command or ""
+                ).strip()
+                previous_repository_identity = str(
+                    project.repo_url or project.repo_path or project.id
+                )
+                candidate_repository_identity = str(
+                    candidate.repo_url or candidate.repo_path or candidate.id
+                )
+                retain_observations = (
+                    previous_gate_command == candidate_gate_command
+                    and previous_repository_identity == candidate_repository_identity
+                )
+                candidate.auditor_validation_target_observed_seconds = {
+                    target: seconds
+                    for target, seconds in (
+                        project.auditor_validation_target_observed_seconds.items()
+                    )
+                    if retain_observations and target in approved_targets
+                }
+                candidate_validation_observations = dict(
+                    candidate.auditor_validation_target_observed_seconds
+                )
+                contract = build_auditor_validation_contract(candidate)
+                candidate_validation_error = contract.configuration_error
+                if validation_policy_changed and contract.configuration_error:
+                    raise ProjectError(
+                        "auditor validation configuration is incompatible: "
+                        f"{contract.configuration_error}"
+                    )
 
-        self._save()
+            for key, value in fields.items():
+                setattr(project, key, value)
+
+            if validation_contract_changed:
+                project.auditor_validation_target_observed_seconds = (
+                    candidate_validation_observations or {}
+                )
+                project.auditor_validation_contract_error = candidate_validation_error
+
+            # Dynamic project updates can introduce a new opaque token/secret;
+            # retain both the new and old value in the process-local registry so
+            # delayed workers cannot expose either during rotation.
+            register_secret_values((project.access_token, project.webhook_secret))
+
+            self._save()
         return project
 
     def delete(self, project_id: str) -> bool:
-        if project_id in self._projects:
-            del self._projects[project_id]
-            self._save()
-            return True
+        with AUDITOR_POLICY_AUTHORITY.mutation():
+            if project_id in self._projects:
+                del self._projects[project_id]
+                self._save()
+                return True
         return False
 
     # -- Startup sync --
@@ -2555,6 +2990,63 @@ class ProjectStore:
                 f"terminal audit revision is unavailable: {requested}"
             )
         return resolved_sha
+
+    def create_metadata_audit_workspace(
+        self,
+        project_id: str,
+        workspace_identifier: str,
+    ) -> str:
+        """Create an attempt-scoped non-Git workspace for metadata auditing.
+
+        Revisionless workspaces are intentionally separate from detached Git
+        worktrees. They are valid only after the orchestrator's Archived
+        evidence preflight classifies the task as metadata-only; this storage
+        helper merely creates the owned, read-only inspection boundary. It
+        never resolves, creates, or names a branch or commit.
+        """
+
+        with self.project_write_lock(project_id):
+            project = self._projects.get(project_id)
+            if not project:
+                raise ProjectError(f"Unknown project: {project_id}")
+            wt_path = self.worktree_path_for(project_id, workspace_identifier)
+            marker_path = os.path.join(wt_path, _METADATA_AUDIT_MARKER)
+            expected = {
+                "version": 1,
+                "project_id": project_id,
+                "workspace_identifier": workspace_identifier,
+                "kind": "metadata_terminal_audit",
+            }
+
+            if os.path.isdir(wt_path):
+                try:
+                    with open(marker_path, encoding="utf-8") as marker_file:
+                        existing = json.load(marker_file)
+                except (OSError, ValueError, TypeError):
+                    existing = None
+                if existing == expected:
+                    return wt_path
+                raise ProjectError(
+                    "existing terminal audit workspace is not the requested "
+                    "metadata-only attempt; refusing to reuse it"
+                )
+
+            os.makedirs(wt_path, exist_ok=False)
+            try:
+                with open(marker_path, "x", encoding="utf-8") as marker_file:
+                    json.dump(expected, marker_file, sort_keys=True)
+                    marker_file.write("\n")
+            except Exception:
+                _safe_remove_managed_dir(
+                    wt_path,
+                    self._project_worktree_root(project),
+                )
+                raise
+            logger.info(
+                "Metadata-only terminal audit workspace created path=%s",
+                wt_path,
+            )
+            return wt_path
 
     def epic_worktree_path_for(self, project_id: str, epic_identifier: str) -> str:
         """Path used for the shared epic worktree under epic_strategy='shared'.
@@ -2857,6 +3349,9 @@ class ProjectStore:
         project_id: str,
         epic_identifier: str,
         child_identifier: str,
+        *,
+        expected_head_sha: str | None = None,
+        require_target_branch: bool = True,
     ) -> bool:
         """Delete one landed private child branch and its managed worktree.
 
@@ -2866,6 +3361,9 @@ class ProjectStore:
         the remote branch existed.
         """
 
+        expected = str(expected_head_sha or "").strip().lower()
+        if expected and not re.fullmatch(r"[0-9a-f]{40,64}", expected):
+            raise ProjectError("expected epic child branch head is not an exact SHA")
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
@@ -2874,7 +3372,55 @@ class ProjectStore:
             child_identifier,
         )
         with self.project_write_lock(project_id):
-            self._remove_worktree_locked(project_id, child_identifier)
+            worktree = self.worktree_path_for(project_id, child_identifier)
+
+            def assert_no_alternate_checkout() -> None:
+                self._prune_git_worktrees(project.repo_path)
+                registered = self._registered_worktree_branch_paths(
+                    project.repo_path
+                ).get(branch, set())
+                canonical = os.path.realpath(worktree)
+                alternate = sorted(path for path in registered if path != canonical)
+                if alternate:
+                    raise ProjectError(
+                        "epic child branch is checked out in an alternate worktree: "
+                        + ", ".join(alternate)
+                    )
+
+            # The canonical managed path is not the complete Git authority:
+            # an operator or surviving agent may have the branch checked out
+            # elsewhere.  Reject that state before observing/deleting remote
+            # refs, and re-check at the actual remote deletion boundary.
+            assert_no_alternate_checkout()
+            if expected and os.path.isdir(worktree):
+                self._assert_exact_worktree_generation_locked(
+                    project,
+                    child_identifier,
+                    worktree,
+                    branch_name=branch,
+                    expected_head_sha=expected,
+                )
+            local_ref = f"refs/heads/{branch}"
+            local_exists = self._ref_exists(project.repo_path, local_ref)
+            if expected and local_exists:
+                local_head = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                    cwd=project.repo_path,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                observed_local = local_head.stdout.strip().lower()
+                if local_head.returncode != 0 or not observed_local:
+                    raise ProjectError(
+                        "cannot prove local epic child branch head before cleanup"
+                    )
+                if observed_local != expected:
+                    raise ProjectError(
+                        "epic child branch changed before cleanup: "
+                        f"expected {expected}, found {observed_local}"
+                    )
             remote = self._run_network_git(
                 project,
                 [
@@ -2893,10 +3439,25 @@ class ProjectStore:
                     f"{remote.stderr.strip()[:500]}"
                 )
             existed = remote.returncode == 0
+            remote_head = ""
             if existed:
+                remote_head = str(remote.stdout or "").split(maxsplit=1)[0].lower()
+                if expected and remote_head != expected:
+                    raise ProjectError(
+                        "epic child branch changed before cleanup: "
+                        f"expected {expected}, found {remote_head or 'unknown'}"
+                    )
+            if existed:
+                assert_no_alternate_checkout()
+                delete_args = ["git", "push"]
+                if expected:
+                    delete_args.append(
+                        f"--force-with-lease=refs/heads/{branch}:{expected}"
+                    )
+                delete_args.extend(["origin", f":refs/heads/{branch}"])
                 deleted = self._run_network_git(
                     project,
-                    ["git", "push", "origin", "--delete", branch],
+                    delete_args,
                     timeout=60,
                 )
                 if deleted.returncode != 0:
@@ -2904,6 +3465,30 @@ class ProjectStore:
                         "git remote branch delete failed: "
                         f"{deleted.stderr.strip()[:500]}"
                     )
+            if expected and os.path.isdir(worktree):
+                # The remote compare-and-delete can block long enough for an
+                # agent or operator to change the checkout after the first
+                # safety probe.  Re-check at the removal boundary, then use a
+                # non-forced Git removal so a change racing the probe is also
+                # preserved rather than erased.
+                self._assert_terminal_worktree_safe_locked(
+                    project,
+                    child_identifier,
+                    worktree,
+                    branch_name=branch,
+                    target_branch=(
+                        self.epic_branch_name(epic_identifier)
+                        if require_target_branch
+                        else None
+                    ),
+                    review_head=expected if require_target_branch else None,
+                    require_target_branch=require_target_branch,
+                )
+            self._remove_worktree_locked(
+                project_id,
+                child_identifier,
+                force=not bool(expected),
+            )
             local = subprocess.run(
                 ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
                 cwd=project.repo_path,
@@ -2913,8 +3498,13 @@ class ProjectStore:
                 timeout=10,
             )
             if local.returncode == 0:
+                remove_args = (
+                    ["git", "update-ref", "-d", local_ref, expected]
+                    if expected
+                    else ["git", "branch", "-D", branch]
+                )
                 removed = subprocess.run(
-                    ["git", "branch", "-D", branch],
+                    remove_args,
                     cwd=project.repo_path,
                     check=False,
                     capture_output=True,
@@ -2923,7 +3513,7 @@ class ProjectStore:
                 )
                 if removed.returncode != 0:
                     raise ProjectError(
-                        "git local branch delete failed: "
+                        "git local epic child branch compare-and-delete failed: "
                         f"{removed.stderr.strip()[:500]}"
                     )
         if existed:
@@ -2989,6 +3579,83 @@ class ProjectStore:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProjectError(f"git status failed for worktree {wt_path}: {exc}") from exc
 
+    @staticmethod
+    def _recovery_consumption_state(
+        project: Project,
+        issue_identifier: str,
+        snapshot_head: str,
+    ) -> str:
+        """Return consumed/available/unknown for one immutable generation."""
+
+        consumed_ref = _worktree_consumed_recovery_ref(
+            issue_identifier,
+            snapshot_head,
+        )
+        try:
+            probe = subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", consumed_ref],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "unknown"
+        if probe.returncode == 1:
+            return "available"
+        if probe.returncode != 0:
+            return "unknown"
+        try:
+            resolved = subprocess.run(
+                ["git", "show-ref", "--verify", "--hash", consumed_ref],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "unknown"
+        expected = str(snapshot_head or "").strip().lower()
+        if resolved.returncode != 0 or resolved.stdout.strip().lower() != expected:
+            return "unknown"
+        return "consumed"
+
+    @staticmethod
+    def _discard_consumed_pending_ref(
+        issue_identifier: str,
+        wt_path: str,
+        snapshot_head: str,
+    ) -> None:
+        """Best-effort cleanup; the authoritative tombstone is the fence."""
+
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "update-ref",
+                    "-d",
+                    _worktree_pending_recovery_ref(issue_identifier),
+                    snapshot_head,
+                ],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            logger.debug(
+                "Could not discard tombstoned pending recovery issue=%s head=%s",
+                issue_identifier,
+                snapshot_head,
+                exc_info=True,
+            )
+
     def _recovery_context_from_ref(
         self,
         project: Project,
@@ -2999,7 +3666,7 @@ class ProjectStore:
         recovery_ref = _worktree_recovery_ref(issue_identifier)
         try:
             resolved = subprocess.run(
-                ["git", "rev-parse", "--verify", recovery_ref],
+                ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -3014,10 +3681,148 @@ class ProjectStore:
         if resolved.returncode != 0 or not resolved.stdout.strip():
             return None
 
-        snapshot_head = resolved.stdout.strip()
-        try:
-            message = subprocess.run(
-                ["git", "show", "-s", "--format=%B", snapshot_head],
+        snapshot_head = resolved.stdout.strip().lower()
+        consumption = self._recovery_consumption_state(
+            project,
+            issue_identifier,
+            snapshot_head,
+        )
+        if consumption == "unknown":
+            raise ProjectError(
+                f"could not verify recovery consumption fence for {issue_identifier}"
+            )
+        if consumption == "consumed":
+            try:
+                subprocess.run(
+                    ["git", "update-ref", "-d", recovery_ref, snapshot_head],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                logger.debug(
+                    "Could not discard tombstoned authoritative recovery "
+                    "issue=%s head=%s",
+                    issue_identifier,
+                    snapshot_head,
+                    exc_info=True,
+                )
+            return None
+        context = self._recovery_context_from_commit(
+            project,
+            issue_identifier,
+            project.repo_path,
+            snapshot_head,
+            recovery_ref=recovery_ref,
+            require_marker=False,
+        )
+        if context is not None:
+            context["publication_state"] = "published"
+        return context
+
+    @staticmethod
+    def _recovery_ancestry(
+        repo_path: str,
+        snapshot_head: str,
+        accepted_head: str,
+    ) -> str | None:
+        """Classify two exact recovery commits in one object database.
+
+        ``incorporated`` means the accepted submission contains the recovery
+        checkpoint. ``current`` means the checkpoint is newer than, or
+        divergent from, the accepted submission. ``None`` means this object
+        database cannot prove the relationship.
+        """
+
+        snapshot = str(snapshot_head or "").strip().lower()
+        accepted = str(accepted_head or "").strip().lower()
+        full_oid = r"[0-9a-f]{40}|[0-9a-f]{64}"
+        if not re.fullmatch(full_oid, snapshot) or not re.fullmatch(
+            full_oid, accepted
+        ):
+            return None
+        for value in (snapshot, accepted):
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{value}^{{commit}}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if resolved.returncode != 0 or resolved.stdout.strip().lower() != value:
+                return None
+        incorporated = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", snapshot, accepted],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if incorporated.returncode == 0:
+            return "incorporated"
+        if incorporated.returncode == 1:
+            return "current"
+        return None
+
+    def _consume_worktree_recovery_if_incorporated_locked(
+        self,
+        project: Project,
+        issue_identifier: str,
+        accepted_head: str,
+        *,
+        accepted_branch: str | None = None,
+        wt_path: str | None = None,
+        expected_snapshot: str | None = None,
+    ) -> str:
+        """Consume one exact published checkpoint only after ancestry proof.
+
+        The authoritative ref is the durable current/consumed generation
+        boundary. Deleting it with an exact old-value CAS records consumption;
+        a concurrent replacement can never be deleted accidentally.
+        """
+
+        context = self._recovery_context_from_ref(project, issue_identifier)
+        if context is None:
+            return "absent"
+        snapshot = str(context.get("snapshot_head") or "").strip().lower()
+        expected = str(expected_snapshot or "").strip().lower()
+        if expected and snapshot != expected:
+            return "changed"
+
+        candidates: list[str] = []
+        if wt_path and os.path.isdir(wt_path):
+            candidates.append(wt_path)
+        if project.repo_path not in candidates:
+            candidates.append(project.repo_path)
+        relationship = next(
+            (
+                result
+                for candidate in candidates
+                if (
+                    result := self._recovery_ancestry(
+                        candidate,
+                        snapshot,
+                        accepted_head,
+                    )
+                )
+            ),
+            None,
+        )
+
+        # A restarted service may have the durable checkpoint but not yet the
+        # later accepted branch tip. Fetch that branch into a temporary ref,
+        # never into a task/epic branch, and retry the exact ancestry proof.
+        branch = str(accepted_branch or "").strip()
+        if relationship is None and branch:
+            valid_branch = subprocess.run(
+                ["git", "check-ref-format", f"refs/heads/{branch}"],
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -3025,34 +3830,244 @@ class ProjectStore:
                 timeout=10,
                 env=_recovery_git_env(),
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ProjectError(
-                f"git recovery evidence lookup failed for {issue_identifier}: {exc}"
-            ) from exc
-        if message.returncode != 0:
-            raise ProjectError(
-                "git recovery evidence commit cannot be read for "
-                f"{issue_identifier}: {message.stderr.strip()[:500]}"
+            if valid_branch.returncode == 0:
+                temporary_ref = (
+                    "refs/oompah/recovery-accepted/" + uuid.uuid4().hex
+                )
+                try:
+                    fetched = self._run_network_git(
+                        project,
+                        [
+                            "git",
+                            "fetch",
+                            "--no-tags",
+                            "origin",
+                            f"refs/heads/{branch}:{temporary_ref}",
+                        ],
+                        timeout=30,
+                    )
+                    if fetched.returncode == 0:
+                        relationship = self._recovery_ancestry(
+                            project.repo_path,
+                            snapshot,
+                            accepted_head,
+                        )
+                except (OSError, subprocess.TimeoutExpired):
+                    logger.warning(
+                        "Could not fetch accepted recovery generation project=%s "
+                        "issue=%s branch=%s",
+                        project.id,
+                        issue_identifier,
+                        branch,
+                        exc_info=True,
+                    )
+                finally:
+                    try:
+                        subprocess.run(
+                            ["git", "update-ref", "-d", temporary_ref],
+                            cwd=project.repo_path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                            env=_recovery_git_env(),
+                        )
+                    except (OSError, subprocess.TimeoutExpired):
+                        logger.warning(
+                            "Could not remove temporary accepted-recovery ref "
+                            "project=%s issue=%s ref=%s",
+                            project.id,
+                            issue_identifier,
+                            temporary_ref,
+                            exc_info=True,
+                        )
+
+        if relationship != "incorporated":
+            return relationship or "unknown"
+
+        recovery_ref = _worktree_recovery_ref(issue_identifier)
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
+        if wt_path and os.path.isdir(wt_path):
+            try:
+                pending = subprocess.run(
+                    ["git", "show-ref", "--verify", "--quiet", pending_ref],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return "unknown"
+            # show-ref --quiet has an explicit tri-state contract: 0 exists,
+            # 1 is proven absent, and every other result is an inspection
+            # failure.
+            # Only proven absence may authorize deleting the durable copy.
+            if pending.returncode not in {0, 1}:
+                return "unknown"
+            pending_head = ""
+            if pending.returncode == 0:
+                try:
+                    pending_value = subprocess.run(
+                        ["git", "show-ref", "--verify", "--hash", pending_ref],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    return "unknown"
+                if pending_value.returncode != 0 or not pending_value.stdout.strip():
+                    return "unknown"
+                pending_head = pending_value.stdout.strip().lower()
+            if pending_head and pending_head != snapshot:
+                return "changed"
+            if pending_head:
+                try:
+                    removed_pending = subprocess.run(
+                        ["git", "update-ref", "-d", pending_ref, snapshot],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    return "unknown"
+                if removed_pending.returncode != 0:
+                    return "unknown"
+                try:
+                    pending_after = subprocess.run(
+                        ["git", "show-ref", "--verify", "--quiet", pending_ref],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    return "unknown"
+                if pending_after.returncode == 0:
+                    return "changed"
+                if pending_after.returncode != 1:
+                    return "unknown"
+
+        consumed_ref = _worktree_consumed_recovery_ref(
+            issue_identifier,
+            snapshot,
+        )
+        consumption = self._recovery_consumption_state(
+            project,
+            issue_identifier,
+            snapshot,
+        )
+        if consumption == "unknown":
+            return "unknown"
+        if consumption == "available":
+            try:
+                recorded = subprocess.run(
+                    ["git", "update-ref", consumed_ref, snapshot, ""],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return "unknown"
+            if recorded.returncode != 0:
+                return "unknown"
+            if self._recovery_consumption_state(
+                project,
+                issue_identifier,
+                snapshot,
+            ) != "consumed":
+                return "unknown"
+
+        # Delete the authoritative generation last. If pending cleanup fails,
+        # the authoritative ref remains discoverable and the retry is safely
+        # idempotent. The immutable consumed-generation ref is published before
+        # this CAS, so even a source clone recreating its pending ref after the
+        # final absence probe can never resurrect this generation.
+        consumed = subprocess.run(
+            ["git", "update-ref", "-d", recovery_ref, snapshot],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if consumed.returncode != 0:
+            current = self._recovery_context_from_ref(project, issue_identifier)
+            return "consumed" if current is None else "changed"
+        logger.info(
+            "Consumed incorporated worktree recovery project=%s issue=%s "
+            "snapshot=%s accepted=%s",
+            project.id,
+            issue_identifier,
+            snapshot,
+            accepted_head,
+        )
+        return "consumed"
+
+    def consume_worktree_recovery_if_incorporated(
+        self,
+        project_id: str,
+        issue_identifier: str,
+        accepted_head: str,
+        *,
+        accepted_branch: str | None = None,
+        wt_path: str | None = None,
+        expected_snapshot: str | None = None,
+    ) -> str:
+        """Classify and durably consume an incorporated recovery generation."""
+
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        with self.project_write_lock(project_id):
+            return self._consume_worktree_recovery_if_incorporated_locked(
+                project,
+                issue_identifier,
+                accepted_head,
+                accepted_branch=accepted_branch,
+                wt_path=wt_path,
+                expected_snapshot=expected_snapshot,
             )
 
-        for line in message.stdout.splitlines():
-            if not line.startswith(_WORKTREE_RECOVERY_MARKER):
-                continue
-            try:
-                context = json.loads(
-                    line[len(_WORKTREE_RECOVERY_MARKER) :].strip()
-                )
-            except (TypeError, ValueError) as exc:
+    def _recovery_context_from_commit(
+        self,
+        project: Project,
+        issue_identifier: str,
+        repo_path: str,
+        snapshot_head: str,
+        *,
+        recovery_ref: str,
+        require_marker: bool,
+    ) -> dict[str, object] | None:
+        """Parse and identity-check one exact recovery checkpoint commit."""
+
+        context = _recovery_marker_context(repo_path, snapshot_head)
+        if context is not None:
+            if str(context.get("project_id") or "") != project.id or str(
+                context.get("issue_identifier") or ""
+            ) != issue_identifier:
                 raise ProjectError(
-                    f"invalid recovery evidence for {issue_identifier}"
-                ) from exc
-            if not isinstance(context, dict):
-                raise ProjectError(f"invalid recovery evidence for {issue_identifier}")
-            context = dict(context)
+                    f"recovery evidence identity mismatch for {issue_identifier}"
+                )
             context.setdefault("recovery_ref", recovery_ref)
-            context.setdefault("snapshot_head", snapshot_head)
+            context["snapshot_head"] = snapshot_head
             return context
 
+        if require_marker:
+            return None
         # A ref without the structured marker is still evidence that must not
         # be discarded.  Return a minimal context so a retry can show the
         # operator/agent exactly which commit to inspect.
@@ -3065,6 +4080,224 @@ class ProjectStore:
             "evidence": "recovery ref exists but its commit metadata is unavailable",
         }
 
+    def _pending_recovery_context(
+        self,
+        project: Project,
+        issue_identifier: str,
+        wt_path: str,
+    ) -> dict[str, object] | None:
+        """Find a source-local unpublished checkpoint after a failed publish."""
+
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
+        candidates = [pending_ref, "HEAD"]
+        for revision in candidates:
+            try:
+                resolved = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{revision}^{{commit}}"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ProjectError(
+                    f"git pending recovery lookup failed for {issue_identifier}: {exc}"
+                ) from exc
+            if resolved.returncode != 0 or not resolved.stdout.strip():
+                continue
+            snapshot_head = resolved.stdout.strip().lower()
+            consumption = self._recovery_consumption_state(
+                project,
+                issue_identifier,
+                snapshot_head,
+            )
+            if consumption == "unknown":
+                raise ProjectError(
+                    f"could not verify pending recovery consumption fence for "
+                    f"{issue_identifier}"
+                )
+            if consumption == "consumed":
+                self._discard_consumed_pending_ref(
+                    issue_identifier,
+                    wt_path,
+                    snapshot_head,
+                )
+                continue
+            context = self._recovery_context_from_commit(
+                project,
+                issue_identifier,
+                wt_path,
+                snapshot_head,
+                recovery_ref=_worktree_recovery_ref(issue_identifier),
+                require_marker=True,
+            )
+            if context is None:
+                continue
+            context["pending_ref"] = pending_ref
+            return context
+        return None
+
+    def _publish_recovery_snapshot(
+        self,
+        project: Project,
+        issue_identifier: str,
+        wt_path: str,
+        context: dict[str, object],
+    ) -> dict[str, object]:
+        """Publish an exact checkpoint after proving its objects are durable."""
+
+        context = dict(context)
+        snapshot_head = str(context.get("snapshot_head") or "").strip().lower()
+        recovery_ref = _worktree_recovery_ref(issue_identifier)
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
+        context.update(
+            {
+                "snapshot_head": snapshot_head,
+                "recovery_ref": recovery_ref,
+                "pending_ref": pending_ref,
+            }
+        )
+        consumption = self._recovery_consumption_state(
+            project,
+            issue_identifier,
+            snapshot_head,
+        )
+        if consumption == "unknown":
+            raise RecoveryPublicationError(
+                f"could not verify recovery consumption fence for "
+                f"{issue_identifier}",
+                context=context,
+            )
+        if consumption == "consumed":
+            self._discard_consumed_pending_ref(
+                issue_identifier,
+                wt_path,
+                snapshot_head,
+            )
+            context["publication_state"] = "consumed"
+            context["consumed"] = True
+            return context
+
+        def _publication_git(
+            args: list[str],
+            *,
+            cwd: str,
+        ) -> subprocess.CompletedProcess:
+            try:
+                return subprocess.run(
+                    args,
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise RecoveryPublicationError(
+                    f"recovery publication command failed for "
+                    f"{issue_identifier}: {exc}",
+                    context=context,
+                ) from exc
+
+        try:
+            _transfer_recovery_snapshot_objects(
+                snapshot_head,
+                wt_path,
+                project.repo_path,
+            )
+        except ProjectError as exc:
+            raise RecoveryPublicationError(
+                f"could not make recovery checkpoint durable for "
+                f"{issue_identifier}: {exc}",
+                context=context,
+            ) from exc
+
+        exact_commit = _publication_git(
+            ["git", "rev-parse", "--verify", f"{snapshot_head}^{{commit}}"],
+            cwd=project.repo_path,
+        )
+        if (
+            exact_commit.returncode != 0
+            or exact_commit.stdout.strip().lower() != snapshot_head
+        ):
+            raise RecoveryPublicationError(
+                f"authoritative repository cannot resolve exact recovery commit "
+                f"{snapshot_head} for {issue_identifier}",
+                context=context,
+            )
+
+        current = _publication_git(
+            ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
+            cwd=project.repo_path,
+        )
+        current_head = current.stdout.strip().lower() if current.returncode == 0 else ""
+        if current_head and current_head != snapshot_head:
+            raise RecoveryPublicationError(
+                f"recovery ref {recovery_ref} already names a different checkpoint "
+                f"for {issue_identifier}",
+                context=context,
+            )
+        if not current_head:
+            updated_ref = _publication_git(
+                ["git", "update-ref", recovery_ref, snapshot_head, ""],
+                cwd=project.repo_path,
+            )
+            if updated_ref.returncode != 0:
+                # A concurrent idempotent publisher may have won after the
+                # empty-old-value guard.  Accept only the identical exact head.
+                raced = _publication_git(
+                    ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
+                    cwd=project.repo_path,
+                )
+                if (
+                    raced.returncode != 0
+                    or raced.stdout.strip().lower() != snapshot_head
+                ):
+                    raise RecoveryPublicationError(
+                        f"could not persist recovery ref for {issue_identifier}: "
+                        f"{updated_ref.stderr.strip()[:500]}",
+                        context=context,
+                    )
+
+        proven_ref = _publication_git(
+            ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
+            cwd=project.repo_path,
+        )
+        if proven_ref.returncode != 0 or proven_ref.stdout.strip().lower() != snapshot_head:
+            raise RecoveryPublicationError(
+                f"recovery ref {recovery_ref} does not resolve exact checkpoint "
+                f"{snapshot_head} for {issue_identifier}",
+                context=context,
+            )
+
+        try:
+            removed_pending = _publication_git(
+                ["git", "update-ref", "-d", pending_ref, snapshot_head],
+                cwd=wt_path,
+            )
+        except RecoveryPublicationError as exc:
+            logger.warning(
+                "Could not remove published recovery pending ref issue=%s "
+                "ref=%s: %s",
+                issue_identifier,
+                pending_ref,
+                exc,
+            )
+        else:
+            if removed_pending.returncode != 0:
+                logger.warning(
+                    "Could not remove published recovery pending ref issue=%s "
+                    "ref=%s: %s",
+                    issue_identifier,
+                    pending_ref,
+                    removed_pending.stderr.strip()[:500],
+                )
+        context["publication_state"] = "published"
+        return context
+
     def worktree_recovery_context(
         self,
         project_id: str,
@@ -3076,7 +4309,326 @@ class ProjectStore:
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
         with self.project_write_lock(project_id):
-            return self._recovery_context_from_ref(project, issue_identifier)
+            published = self._recovery_context_from_ref(project, issue_identifier)
+            if published is not None:
+                return published
+            path = self.worktree_path_for(project_id, issue_identifier)
+            if not os.path.isdir(path):
+                return None
+            pending = self._pending_recovery_context(
+                project,
+                issue_identifier,
+                path,
+            )
+            if pending is not None:
+                pending["publication_state"] = "pending"
+            return pending
+
+    def pending_worktree_recoveries(self) -> list[dict[str, object]]:
+        """Discover task checkpoints needing lifecycle reconciliation.
+
+        A pending ref is the durable transaction journal for publication.  An
+        ordinary recovery commit also advances the task checkout's ``HEAD``,
+        so it remains discoverable if creating the pending ref itself was
+        interrupted.  Active-operation checkpoints never advance ``HEAD`` and
+        therefore are reported as non-retryable if their pending-ref write
+        fails rather than pretending that an unreachable object is durable.
+        Published authoritative refs are also returned because a process can
+        die after publication but before the tracker is durably reopened.
+        """
+
+        discovered: dict[tuple[str, str], dict[str, object]] = {}
+        for project in self.list_all():
+            project_root = self._project_worktree_root(project)
+            with self.project_write_lock(project.id):
+                # A publication may have reached the authoritative recovery
+                # ref immediately before the process died or the tracker Open
+                # write failed.  The published ref therefore remains part of
+                # lifecycle recovery, even after the source-local pending ref
+                # was successfully removed.
+                try:
+                    published_refs = subprocess.run(
+                        [
+                            "git",
+                            "for-each-ref",
+                            "--format=%(refname)%09%(objectname)",
+                            "refs/oompah/recovery/",
+                        ],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    logger.warning(
+                        "Could not scan published recovery refs project=%s: %s",
+                        project.id,
+                        exc,
+                    )
+                    published_refs = None
+                if published_refs is not None and published_refs.returncode == 0:
+                    for line in published_refs.stdout.splitlines():
+                        ref_name, separator, snapshot_head = line.partition("\t")
+                        if not separator or not snapshot_head:
+                            continue
+                        try:
+                            context = _recovery_marker_context(
+                                project.repo_path,
+                                snapshot_head.lower(),
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Could not parse published recovery project=%s "
+                                "ref=%s: %s",
+                                project.id,
+                                ref_name,
+                                exc,
+                            )
+                            continue
+                        if context is None:
+                            continue
+                        project_id = str(context.get("project_id") or "").strip()
+                        identifier = str(
+                            context.get("issue_identifier") or ""
+                        ).strip()
+                        if (
+                            project_id != project.id
+                            or not identifier
+                            or ref_name != _worktree_recovery_ref(identifier)
+                        ):
+                            logger.error(
+                                "Ignoring published recovery identity mismatch "
+                                "project=%s ref=%s marker_project=%s issue=%s",
+                                project.id,
+                                ref_name,
+                                project_id,
+                                identifier or "unknown",
+                            )
+                            continue
+                        consumption = self._recovery_consumption_state(
+                            project,
+                            identifier,
+                            snapshot_head.lower(),
+                        )
+                        if consumption != "available":
+                            if consumption == "unknown":
+                                logger.warning(
+                                    "Skipping recovery with unavailable consumed "
+                                    "generation proof project=%s issue=%s head=%s",
+                                    project.id,
+                                    identifier,
+                                    snapshot_head,
+                                )
+                            continue
+                        context.update(
+                            {
+                                "project_id": project.id,
+                                "issue_identifier": identifier,
+                                "snapshot_head": snapshot_head.lower(),
+                                "recovery_ref": ref_name,
+                                "worktree_path": self.worktree_path_for(
+                                    project.id,
+                                    identifier,
+                                ),
+                                "publication_state": "published",
+                            }
+                        )
+                        discovered[(project.id, identifier)] = context
+
+                if not os.path.isdir(project_root):
+                    continue
+                try:
+                    worktrees = list(os.scandir(project_root))
+                except OSError as exc:
+                    logger.warning(
+                        "Could not scan recovery worktrees project=%s: %s",
+                        project.id,
+                        exc,
+                    )
+                    continue
+                for entry in worktrees:
+                    if (
+                        not entry.is_dir(follow_symlinks=False)
+                        or entry.is_symlink()
+                        or not os.path.exists(os.path.join(entry.path, ".git"))
+                    ):
+                        continue
+                    try:
+                        refs = subprocess.run(
+                            [
+                                "git",
+                                "for-each-ref",
+                                "--format=%(refname)%09%(objectname)",
+                                "refs/oompah/recovery-pending/",
+                            ],
+                            cwd=entry.path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                            env=_recovery_git_env(),
+                        )
+                        head = subprocess.run(
+                            ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+                            cwd=entry.path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                            env=_recovery_git_env(),
+                        )
+                    except (OSError, subprocess.TimeoutExpired) as exc:
+                        logger.warning(
+                            "Could not inspect pending recovery checkout path=%s: %s",
+                            entry.path,
+                            exc,
+                        )
+                        continue
+                    candidates: list[tuple[str | None, str]] = []
+                    if refs.returncode == 0:
+                        for line in refs.stdout.splitlines():
+                            ref_name, separator, snapshot_head = line.partition("\t")
+                            if separator and snapshot_head:
+                                candidates.append((ref_name, snapshot_head.lower()))
+                    if head.returncode == 0 and head.stdout.strip():
+                        candidates.append((None, head.stdout.strip().lower()))
+
+                    seen_candidates: set[tuple[str | None, str]] = set()
+                    for source_ref, snapshot_head in candidates:
+                        candidate = (source_ref, snapshot_head)
+                        if candidate in seen_candidates:
+                            continue
+                        seen_candidates.add(candidate)
+                        try:
+                            context = _recovery_marker_context(
+                                entry.path,
+                                snapshot_head,
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Could not parse pending recovery path=%s ref=%s: %s",
+                                entry.path,
+                                source_ref or "HEAD",
+                                exc,
+                            )
+                            continue
+                        if context is None:
+                            continue
+                        project_id = str(context.get("project_id") or "").strip()
+                        identifier = str(
+                            context.get("issue_identifier") or ""
+                        ).strip()
+                        if project_id != project.id or not identifier:
+                            logger.error(
+                                "Ignoring recovery marker identity mismatch path=%s "
+                                "expected_project=%s marker_project=%s issue=%s",
+                                entry.path,
+                                project.id,
+                                project_id,
+                                identifier or "unknown",
+                            )
+                            continue
+                        expected_path = self.worktree_path_for(project.id, identifier)
+                        if os.path.realpath(expected_path) != os.path.realpath(entry.path):
+                            # Linked worktrees share refs. Seeing another task's
+                            # pending ref while scanning this checkout is normal;
+                            # only its exact managed path may claim the marker.
+                            logger.debug(
+                                "Skipping recovery marker from another checkout "
+                                "issue=%s expected=%s actual=%s",
+                                identifier,
+                                expected_path,
+                                entry.path,
+                            )
+                            continue
+                        consumption = self._recovery_consumption_state(
+                            project,
+                            identifier,
+                            snapshot_head,
+                        )
+                        if consumption != "available":
+                            if consumption == "consumed":
+                                self._discard_consumed_pending_ref(
+                                    identifier,
+                                    entry.path,
+                                    snapshot_head,
+                                )
+                            else:
+                                logger.warning(
+                                    "Skipping pending recovery with unavailable "
+                                    "consumed-generation proof project=%s issue=%s "
+                                    "head=%s",
+                                    project.id,
+                                    identifier,
+                                    snapshot_head,
+                                )
+                            continue
+                        pending_ref = _worktree_pending_recovery_ref(identifier)
+                        if source_ref is not None and source_ref != pending_ref:
+                            logger.error(
+                                "Ignoring recovery marker ref mismatch issue=%s "
+                                "expected=%s actual=%s",
+                                identifier,
+                                pending_ref,
+                                source_ref,
+                            )
+                            continue
+                        try:
+                            published = self._recovery_context_from_ref(
+                                project,
+                                identifier,
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Could not inspect published recovery issue=%s: %s",
+                                identifier,
+                                exc,
+                            )
+                            published = None
+                        if published is not None:
+                            if source_ref is not None:
+                                try:
+                                    subprocess.run(
+                                        [
+                                            "git",
+                                            "update-ref",
+                                            "-d",
+                                            pending_ref,
+                                            snapshot_head,
+                                        ],
+                                        cwd=entry.path,
+                                        capture_output=True,
+                                        text=True,
+                                        check=False,
+                                        timeout=10,
+                                        env=_recovery_git_env(),
+                                    )
+                                except (OSError, subprocess.TimeoutExpired):
+                                    logger.warning(
+                                        "Could not clear already-published pending "
+                                        "recovery issue=%s ref=%s",
+                                        identifier,
+                                        pending_ref,
+                                        exc_info=True,
+                                    )
+                            continue
+                        context.update(
+                            {
+                                "project_id": project.id,
+                                "issue_identifier": identifier,
+                                "snapshot_head": snapshot_head,
+                                "pending_ref": pending_ref,
+                                "recovery_ref": _worktree_recovery_ref(identifier),
+                                "worktree_path": entry.path,
+                                "publication_state": "pending",
+                            }
+                        )
+                        key = (project.id, identifier)
+                        if key not in discovered or source_ref is not None:
+                            discovered[key] = context
+        return list(discovered.values())
 
     def _preserve_dirty_worktree_locked(
         self,
@@ -3085,6 +4637,7 @@ class ProjectStore:
         wt_path: str,
         *,
         branch_name: str | None = None,
+        consume_incorporated_recovery: bool = False,
     ) -> dict[str, object] | None:
         """Snapshot task-owned state before any reuse, sync, or cleanup.
 
@@ -3174,11 +4727,62 @@ class ProjectStore:
                 f"{expected_branch!r} to {current_branch!r}"
             )
 
+        # A prior publish may have completed, or a transient publication
+        # failure may have left a source-local pending ref (or an ordinary
+        # checkpoint at HEAD).  Reconcile that exact checkpoint before making
+        # another commit.  Consumption requires an independently accepted
+        # submission head; ordinary worktree reuse has no such authority and
+        # must preserve the current checkpoint generation.
+        published = self._recovery_context_from_ref(project, issue_identifier)
+        if published is not None:
+            if consume_incorporated_recovery:
+                current_head = subprocess.run(
+                    ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if current_head.returncode == 0 and current_head.stdout.strip():
+                    relationship = (
+                        self._consume_worktree_recovery_if_incorporated_locked(
+                            project,
+                            issue_identifier,
+                            current_head.stdout.strip(),
+                            accepted_branch=branch_name,
+                            wt_path=wt_path,
+                            expected_snapshot=str(
+                                published.get("snapshot_head") or ""
+                            ),
+                        )
+                    )
+                    if relationship in {"consumed", "absent"}:
+                        published = self._recovery_context_from_ref(
+                            project,
+                            issue_identifier,
+                        )
+            if published is not None:
+                return published
+        pending = self._pending_recovery_context(
+            project,
+            issue_identifier,
+            wt_path,
+        )
+        if pending is not None:
+            return self._publish_recovery_snapshot(
+                project,
+                issue_identifier,
+                wt_path,
+                pending,
+            )
+
         # A helper-only change is not a task change.  Do not manufacture a
         # recovery commit for it, but still checkpoint an active operation so
         # its detached state and todo metadata are durable.
         if not dirty_paths and not operation:
-            return self._recovery_context_from_ref(project, issue_identifier)
+            return None
 
         before = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -3225,6 +4829,7 @@ class ProjectStore:
             "changed_paths": dirty_paths,
             "excluded_generated_helpers": generated_paths,
             "recovery_ref": recovery_ref,
+            "pending_ref": _worktree_pending_recovery_ref(issue_identifier),
             "preserved_at": time.time(),
         }
         if operation:
@@ -3382,10 +4987,15 @@ class ProjectStore:
             )
         context["snapshot_head"] = snapshot_head
 
+        # Retain the exact checkpoint in the object database that created it
+        # before attempting any cross-repository publication.  If publication
+        # is interrupted this ref, or HEAD for an ordinary commit, makes the
+        # same transaction discoverable after process restart.
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
         try:
-            updated_ref = subprocess.run(
-                ["git", "update-ref", recovery_ref, snapshot_head],
-                cwd=project.repo_path,
+            retained = subprocess.run(
+                ["git", "update-ref", pending_ref, snapshot_head],
+                cwd=wt_path,
                 capture_output=True,
                 text=True,
                 check=False,
@@ -3393,14 +5003,36 @@ class ProjectStore:
                 env=_recovery_git_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ProjectError(
-                f"could not persist recovery ref for {issue_identifier}: {exc}"
+            if operation:
+                raise ProjectError(
+                    f"could not retain active-operation recovery checkpoint for "
+                    f"{issue_identifier}; the commit-tree object is not durably "
+                    f"discoverable: {exc}"
+                ) from exc
+            raise RecoveryPublicationError(
+                f"could not retain pending recovery checkpoint for "
+                f"{issue_identifier}: {exc}",
+                context=context,
             ) from exc
-        if updated_ref.returncode != 0:
-            raise ProjectError(
-                f"could not persist recovery ref for {issue_identifier}: "
-                f"{updated_ref.stderr.strip()[:500]}"
+        if retained.returncode != 0:
+            if operation:
+                raise ProjectError(
+                    f"could not retain active-operation recovery checkpoint for "
+                    f"{issue_identifier}; the commit-tree object is not durably "
+                    f"discoverable: {retained.stderr.strip()[:500]}"
+                )
+            raise RecoveryPublicationError(
+                f"could not retain pending recovery checkpoint for "
+                f"{issue_identifier}: {retained.stderr.strip()[:500]}",
+                context=context,
             )
+
+        context = self._publish_recovery_snapshot(
+            project,
+            issue_identifier,
+            wt_path,
+            context,
+        )
 
         # The helper is disposable only after the task snapshot/ref is durable.
         # A subsequent dispatch reinstalls the hook before the worker starts.
@@ -3497,27 +5129,7 @@ class ProjectStore:
     def _registered_worktree_branches(self, repo_path: str) -> set[str]:
         """Return local branch names currently checked out in any worktree."""
 
-        try:
-            result = subprocess.run(
-                ["git", "worktree", "list", "--porcelain"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=30,
-            )
-        except subprocess.CalledProcessError as exc:
-            stderr = exc.stderr.strip()[:500] if exc.stderr else ""
-            raise ProjectError(f"git worktree list failed: {stderr}")
-        except subprocess.TimeoutExpired:
-            raise ProjectError("git worktree list timed out")
-
-        prefix = "branch refs/heads/"
-        return {
-            line[len(prefix) :]
-            for line in result.stdout.splitlines()
-            if line.startswith(prefix)
-        }
+        return set(self._registered_worktree_branch_paths(repo_path))
 
     def _registered_worktree_branch_paths(
         self, repo_path: str
@@ -3630,6 +5242,60 @@ class ProjectStore:
             )
         return result.returncode == 0
 
+    def _assert_owned_branch_generation_locked(
+        self,
+        project: Project,
+        branch_name: str,
+        expected_head_sha: str,
+    ) -> bool:
+        """Validate an exact generation and report whether it still exists."""
+
+        expected = str(expected_head_sha or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", expected):
+            raise ProjectError("expected owned branch head is not an exact SHA")
+        local_ref = f"refs/heads/{branch_name}"
+        local_exists = self._ref_exists(project.repo_path, local_ref)
+        if local_exists:
+            local = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            observed = str(local.stdout or "").strip().lower()
+            if local.returncode != 0 or observed != expected:
+                raise ProjectError(
+                    "owned branch changed before cleanup: "
+                    f"expected {expected}, found {observed or 'unknown'}"
+                )
+        remote = self._run_network_git(
+            project,
+            [
+                "git",
+                "ls-remote",
+                "--exit-code",
+                "--heads",
+                "origin",
+                branch_name,
+            ],
+            timeout=30,
+        )
+        if remote.returncode not in {0, 2}:
+            raise ProjectError(
+                "git remote branch check failed: "
+                f"{remote.stderr.strip()[:500]}"
+            )
+        if remote.returncode == 0:
+            observed = str(remote.stdout or "").split(maxsplit=1)[0].lower()
+            if observed != expected:
+                raise ProjectError(
+                    "owned remote branch changed before cleanup: "
+                    f"expected {expected}, found {observed or 'unknown'}"
+                )
+        return local_exists or remote.returncode == 0
+
     def _delete_owned_issue_branch_locked(
         self,
         project: Project,
@@ -3638,6 +5304,7 @@ class ProjectStore:
         *,
         is_epic: bool,
         issue_number: str | None = None,
+        expected_head_sha: str | None = None,
     ) -> tuple[bool, str | None]:
         """Delete one terminal Oompah-owned branch locally and remotely.
         
@@ -3648,6 +5315,9 @@ class ProjectStore:
         """
 
         branch_name = str(branch_name or "").strip()
+        expected = str(expected_head_sha or "").strip().lower()
+        if expected and not re.fullmatch(r"[0-9a-f]{40,64}", expected):
+            raise ProjectError("expected owned branch head is not an exact SHA")
         if not branch_name:
             return False, None
         if not self._is_owned_issue_branch(
@@ -3680,8 +5350,13 @@ class ProjectStore:
             )
             return False, "protected_branch"
 
-        self._prune_git_worktrees(project.repo_path)
-        if branch_name in self._registered_worktree_branches(project.repo_path):
+        def branch_is_checked_out() -> bool:
+            self._prune_git_worktrees(project.repo_path)
+            return branch_name in self._registered_worktree_branches(
+                project.repo_path
+            )
+
+        if branch_is_checked_out():
             logger.warning(
                 "Skipping terminal branch still checked out in a worktree "
                 "project=%s issue=%s branch=%s",
@@ -3695,15 +5370,75 @@ class ProjectStore:
         remote_ref = f"refs/remotes/origin/{branch_name}"
         local_exists = self._ref_exists(project.repo_path, local_ref)
         remote_exists = self._ref_exists(project.repo_path, remote_ref)
+        if expected and local_exists:
+            local_head = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            observed_local = str(local_head.stdout or "").strip().lower()
+            if local_head.returncode != 0 or observed_local != expected:
+                raise ProjectError(
+                    "owned branch changed before cleanup: "
+                    f"expected {expected}, found {observed_local or 'unknown'}"
+                )
+        if expected:
+            remote = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "ls-remote",
+                    "--exit-code",
+                    "--heads",
+                    "origin",
+                    branch_name,
+                ],
+                timeout=30,
+            )
+            if remote.returncode not in {0, 2}:
+                raise ProjectError(
+                    "git remote branch check failed: "
+                    f"{remote.stderr.strip()[:500]}"
+                )
+            remote_exists = remote.returncode == 0
+            if remote_exists:
+                remote_head = str(remote.stdout or "").split(maxsplit=1)[0].lower()
+                if remote_head != expected:
+                    raise ProjectError(
+                        "owned remote branch changed before cleanup: "
+                        f"expected {expected}, found {remote_head or 'unknown'}"
+                    )
         changed = False
 
         # Preserve the local ref until the remote deletion succeeds. If the
         # push fails, a later pass can retry without losing the submitted head.
         if remote_exists:
+            # The network observation above can block long enough for an
+            # operator or surviving agent to register another checkout.  Fence
+            # the destructive remote operation to a second complete worktree
+            # observation at its actual mutation boundary.
+            if branch_is_checked_out():
+                logger.warning(
+                    "Skipping terminal branch newly checked out in a worktree "
+                    "project=%s issue=%s branch=%s",
+                    project.id,
+                    issue_identifier,
+                    branch_name,
+                )
+                return False, "checked_out_in_worktree"
             try:
+                delete_args = ["git", "push"]
+                if expected:
+                    delete_args.append(
+                        f"--force-with-lease=refs/heads/{branch_name}:{expected}"
+                    )
+                delete_args.extend(["origin", f":refs/heads/{branch_name}"])
                 deleted = self._run_network_git(
                     project,
-                    ["git", "push", "origin", "--delete", branch_name],
+                    delete_args,
                     timeout=60,
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
@@ -3719,8 +5454,13 @@ class ProjectStore:
 
         if local_exists:
             try:
+                remove_args = (
+                    ["git", "update-ref", "-d", local_ref, expected]
+                    if expected
+                    else ["git", "branch", "-D", "--", branch_name]
+                )
                 removed = subprocess.run(
-                    ["git", "branch", "-D", "--", branch_name],
+                    remove_args,
                     cwd=project.repo_path,
                     check=False,
                     capture_output=True,
@@ -3733,7 +5473,7 @@ class ProjectStore:
                 ) from exc
             if removed.returncode != 0:
                 raise ProjectError(
-                    "git local branch delete failed: "
+                    "git local branch compare-and-delete failed: "
                     f"{removed.stderr.strip()[:500]}"
                 )
             changed = True
@@ -3747,7 +5487,13 @@ class ProjectStore:
             )
         return changed, None
 
-    def create_epic_worktree(self, project_id: str, epic_identifier: str) -> str:
+    def create_epic_worktree(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        *,
+        branch_name: str | None = None,
+    ) -> str:
         """Create or reuse a shared epic worktree (for ``epic_strategy='shared'``
         and the long-lived epic branch under ``epic_strategy='stacked'``).
 
@@ -3760,7 +5506,419 @@ class ProjectStore:
         # Acquire per-project lock to serialize concurrent epic worktree
         # create/remove operations for the same project.
         with self.project_write_lock(project_id):
-            return self._create_epic_worktree_locked(project_id, epic_identifier)
+            return self._create_epic_worktree_locked(
+                project_id,
+                epic_identifier,
+                branch_name=branch_name,
+            )
+
+    def observe_nested_dispatch_topology(
+        self,
+        project_id: str,
+        *,
+        target_branch: str,
+        nested_branch: str,
+        private_branch: str | None = None,
+    ) -> NestedDispatchTopology:
+        """Refresh and return every ref that can determine a nested dispatch.
+
+        The two epic branches must be published.  A private task branch is
+        optional, but when it exists both its local and remote tips are kept in
+        the observation.  Callers can therefore reject divergence instead of
+        selecting whichever copy happened to be fetched last.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        target = str(target_branch or "").strip()
+        nested = str(nested_branch or "").strip()
+        private = str(private_branch or "").strip() or None
+        names = tuple(dict.fromkeys((target, nested, *([private] if private else []))))
+        if not target or not nested:
+            raise ProjectError("nested dispatch requires target and nested branches")
+
+        with self.project_write_lock(project_id):
+            for name in names:
+                checked = subprocess.run(
+                    ["git", "check-ref-format", f"refs/heads/{name}"],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if checked.returncode != 0:
+                    raise ProjectError(f"invalid nested dispatch branch {name!r}")
+
+            refs = tuple(f"refs/heads/{name}" for name in names)
+            advertised = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", *refs],
+                timeout=30,
+            )
+            if advertised.returncode != 0:
+                raise ProjectError(
+                    "could not observe nested dispatch refs: "
+                    f"{advertised.stderr.strip()[:500]}"
+                )
+            remote_heads: dict[str, str] = {}
+            for line in advertised.stdout.splitlines():
+                fields = line.split()
+                if len(fields) >= 2 and fields[1] in refs:
+                    remote_heads[fields[1].removeprefix("refs/heads/")] = (
+                        fields[0].strip().lower()
+                    )
+            for required in (target, nested):
+                if required not in remote_heads:
+                    raise ProjectError(f"origin/{required} is not published")
+
+            for name, head in remote_heads.items():
+                fetched = self._run_network_git(
+                    project,
+                    [
+                        "git",
+                        "fetch",
+                        "--no-tags",
+                        "--quiet",
+                        "origin",
+                        f"+refs/heads/{name}:refs/remotes/origin/{name}",
+                    ],
+                    timeout=60,
+                )
+                if fetched.returncode != 0:
+                    raise ProjectError(
+                        f"could not refresh origin/{name}: "
+                        f"{fetched.stderr.strip()[:500]}"
+                    )
+                resolved = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        f"refs/remotes/origin/{name}^{{commit}}",
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if (
+                    resolved.returncode != 0
+                    or resolved.stdout.strip().lower() != head
+                ):
+                    raise ProjectError(f"origin/{name} moved while it was fetched")
+
+            local_private: str | None = None
+            if private:
+                local = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        f"refs/heads/{private}^{{commit}}",
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if local.returncode == 0 and local.stdout.strip():
+                    local_private = local.stdout.strip().lower()
+
+            return NestedDispatchTopology(
+                target_branch=target,
+                target_head=remote_heads[target],
+                nested_branch=nested,
+                nested_head=remote_heads[nested],
+                private_branch=private,
+                private_remote_head=remote_heads.get(private) if private else None,
+                private_local_head=local_private,
+            )
+
+    def nested_dispatch_head_reachable(
+        self,
+        project_id: str,
+        *,
+        ancestor: str,
+        descendant: str,
+    ) -> bool:
+        """Return strict Git ancestry for an exact nested-dispatch pair."""
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        older = str(ancestor or "").strip().lower()
+        newer = str(descendant or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", older) or not re.fullmatch(
+            r"[0-9a-f]{40,64}", newer
+        ):
+            raise ProjectError("nested dispatch ancestry requires full object ids")
+        with self.project_write_lock(project_id):
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", older, newer],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        if result.returncode not in {0, 1}:
+            raise ProjectError(
+                "nested dispatch ancestry is unavailable: "
+                f"{result.stderr.strip()[:500]}"
+            )
+        return result.returncode == 0
+
+    def advance_nested_dispatch_topology(
+        self,
+        project_id: str,
+        *,
+        expected: NestedDispatchTopology,
+    ) -> NestedDispatchTopology:
+        """CAS-advance stale empty nested/private branches to their parent.
+
+        No branch with a unique commit is rewritten.  The nested epic is
+        published first; only after that exact remote publication is verified
+        may an existing private task ref advance.  Local and remote private
+        tips are validated independently so a local-only recovery checkpoint
+        can never be discarded by a remote-preference shortcut.
+        """
+
+        if not isinstance(expected, NestedDispatchTopology):
+            raise TypeError("expected must be NestedDispatchTopology")
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+
+        def _is_ancestor(older: str, newer: str) -> bool:
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", older, newer],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if result.returncode not in {0, 1}:
+                raise ProjectError(
+                    "nested dispatch ancestry is unavailable: "
+                    f"{result.stderr.strip()[:500]}"
+                )
+            return result.returncode == 0
+
+        def _checked_out_path(branch: str) -> str | None:
+            listing = subprocess.run(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if listing.returncode != 0:
+                raise ProjectError("could not inspect nested dispatch worktrees")
+            path: str | None = None
+            for line in listing.stdout.splitlines():
+                if line.startswith("worktree "):
+                    path = line.removeprefix("worktree ").strip()
+                elif line == f"branch refs/heads/{branch}":
+                    return path
+                elif not line.strip():
+                    path = None
+            return None
+
+        def _advance_local(branch: str, old_head: str | None, new_head: str) -> None:
+            if old_head is None or old_head == new_head:
+                return
+            checked_out = _checked_out_path(branch)
+            if checked_out:
+                status = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=checked_out,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                dirty = [
+                    line
+                    for line in status.stdout.splitlines()
+                    if not _is_generated_worktree_helper(
+                        line[3:].strip() if len(line) >= 3 else ""
+                    )
+                ]
+                if status.returncode != 0 or dirty:
+                    raise ProjectError(
+                        f"local branch {branch} has a dirty recovery worktree"
+                    )
+                reset = subprocess.run(
+                    ["git", "reset", "--hard", new_head],
+                    cwd=checked_out,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=30,
+                    env=_recovery_git_env(),
+                )
+                if reset.returncode != 0:
+                    raise ProjectError(
+                        f"could not advance checked-out branch {branch}: "
+                        f"{reset.stderr.strip()[:500]}"
+                    )
+                return
+            update = subprocess.run(
+                [
+                    "git",
+                    "update-ref",
+                    f"refs/heads/{branch}",
+                    new_head,
+                    old_head,
+                ],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if update.returncode != 0:
+                raise ProjectError(
+                    f"local branch {branch} changed during topology repair"
+                )
+
+        def _push(branch: str, old_head: str | None, new_head: str) -> None:
+            lease = f"--force-with-lease=refs/heads/{branch}:{old_head or ''}"
+            pushed = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "push",
+                    lease,
+                    "origin",
+                    f"{new_head}:refs/heads/{branch}",
+                ],
+                timeout=60,
+            )
+            if pushed.returncode != 0:
+                raise ProjectError(
+                    f"nested dispatch CAS push failed for {branch}: "
+                    f"{pushed.stderr.strip()[:500]}"
+                )
+
+        with self.project_write_lock(project_id):
+            current = self.observe_nested_dispatch_topology(
+                project_id,
+                target_branch=expected.target_branch,
+                nested_branch=expected.nested_branch,
+                private_branch=expected.private_branch,
+            )
+            if current != expected:
+                raise ProjectError("nested dispatch generation changed before repair")
+
+            target_head = current.target_head
+            if _is_ancestor(target_head, current.nested_head):
+                desired_nested_head = current.nested_head
+            elif _is_ancestor(current.nested_head, target_head):
+                desired_nested_head = target_head
+            else:
+                raise ProjectError(
+                    f"nested branch {current.nested_branch} has unique commits; "
+                    "automatic fast-forward is not authorized"
+                )
+            if current.nested_head != desired_nested_head:
+                _push(
+                    current.nested_branch,
+                    current.nested_head,
+                    desired_nested_head,
+                )
+                local_nested = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        f"refs/heads/{current.nested_branch}^{{commit}}",
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                local_nested_head = (
+                    local_nested.stdout.strip().lower()
+                    if local_nested.returncode == 0
+                    else None
+                )
+                if local_nested_head is not None:
+                    if not _is_ancestor(local_nested_head, desired_nested_head):
+                        raise ProjectError(
+                            f"local nested branch {current.nested_branch} diverged"
+                        )
+                    _advance_local(
+                        current.nested_branch,
+                        local_nested_head,
+                        desired_nested_head,
+                    )
+
+            private = current.private_branch
+            if private and (
+                current.private_remote_head is not None
+                or current.private_local_head is not None
+            ):
+                for label, head in (
+                    ("remote", current.private_remote_head),
+                    ("local", current.private_local_head),
+                ):
+                    if head is not None and not _is_ancestor(
+                        head, desired_nested_head
+                    ):
+                        raise ProjectError(
+                            f"{label} private branch {private} has unique commits; "
+                            "automatic advance is not authorized"
+                        )
+                if current.private_remote_head != desired_nested_head:
+                    _push(
+                        private,
+                        current.private_remote_head,
+                        desired_nested_head,
+                    )
+                _advance_local(
+                    private,
+                    current.private_local_head,
+                    desired_nested_head,
+                )
+
+            repaired = self.observe_nested_dispatch_topology(
+                project_id,
+                target_branch=current.target_branch,
+                nested_branch=current.nested_branch,
+                private_branch=private,
+            )
+            if repaired.nested_head != desired_nested_head:
+                raise ProjectError("nested epic publication was not durable")
+            if private and (
+                current.private_remote_head is not None
+                or current.private_local_head is not None
+            ) and (
+                repaired.private_remote_head != desired_nested_head
+                or (
+                    repaired.private_local_head is not None
+                    and repaired.private_local_head != desired_nested_head
+                )
+            ):
+                raise ProjectError("private branch publication was not durable")
+            return repaired
 
     def prepare_epic_branch_for_private_dispatch(
         self,
@@ -3888,13 +6046,49 @@ class ProjectStore:
                 )
             return wt_path, head.stdout.strip()
 
-    def _create_epic_worktree_locked(self, project_id: str, epic_identifier: str) -> str:
+    def _create_epic_worktree_locked(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        *,
+        branch_name: str | None = None,
+    ) -> str:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
 
+        requested_branch = str(branch_name or "").strip()
         wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
-        branch_name = self.epic_branch_name(epic_identifier)
+        branch_name = requested_branch or self.epic_branch_name(
+            epic_identifier
+        )
+
+        # A nested epic's authoritative source can be its persisted private
+        # work branch rather than the legacy ``epic-<id>`` alias.  Reuse that
+        # exact managed checkout when it is already registered; creating or
+        # consulting the stale alias would integrate a different history.
+        if requested_branch:
+            registered = self._registered_worktree_branch_paths(project.repo_path)
+            managed_root = os.path.realpath(self._project_worktree_root(project))
+            candidates = []
+            for candidate in registered.get(branch_name, set()):
+                real_candidate = os.path.realpath(candidate)
+                try:
+                    inside_managed_root = (
+                        os.path.commonpath([managed_root, real_candidate])
+                        == managed_root
+                    )
+                except ValueError:
+                    inside_managed_root = False
+                if inside_managed_root and real_candidate != managed_root:
+                    candidates.append(real_candidate)
+            if len(candidates) == 1:
+                self._prepare_existing_epic_worktree(
+                    candidates[0],
+                    branch_name,
+                    project,
+                )
+                return candidates[0]
 
         if os.path.isdir(wt_path):
             logger.info("Epic worktree already exists path=%s", wt_path)
@@ -4133,7 +6327,7 @@ class ProjectStore:
             if operation:
                 recovery = self._preserve_dirty_worktree_locked(
                     project,
-                    issue_identifier,
+                    epic_identifier,
                     wt_path,
                     branch_name=str(operation.get("branch") or "") or None,
                 )
@@ -4146,7 +6340,7 @@ class ProjectStore:
             if self._worktree_dirty_paths(status.stdout):
                 recovery = self._preserve_dirty_worktree_locked(
                     project,
-                    issue_identifier,
+                    epic_identifier,
                     wt_path,
                     branch_name=branch_probe.stdout.strip() or None,
                 )
@@ -4156,9 +6350,19 @@ class ProjectStore:
                     "was preserved"
                 )
 
+        # The generated hook directory is Oompah-owned and intentionally
+        # excluded from deliverable-dirty checks.  Remove only that exact
+        # helper so the final non-forced Git operation remains a fail-closed
+        # boundary for any user or agent change racing the probe above.
+        hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
+        if os.path.isdir(hooks_dir):
+            shutil.rmtree(hooks_dir)
+        elif os.path.lexists(hooks_dir):
+            os.remove(hooks_dir)
+
         try:
             subprocess.run(
-                ["git", "worktree", "remove", wt_path, "--force"],
+                ["git", "worktree", "remove", wt_path],
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -4187,6 +6391,9 @@ class ProjectStore:
         issue_identifier: str,
         base_branch: str | None = None,
         branch_name: str | None = None,
+        *,
+        prefer_remote_branch: bool = False,
+        expected_head_sha: str | None = None,
     ) -> str:
         """Create (or reuse) a git worktree for ``issue_identifier``.
 
@@ -4204,6 +6411,13 @@ class ProjectStore:
             a GitHub-safe name like ``oompah/myproject/gh-1234``), it is used
             verbatim instead of the sanitized ``issue_identifier``.  Defaults
             to ``_sanitize_identifier(issue_identifier)`` when ``None``.
+        prefer_remote_branch:
+            Restore a previously assigned branch from ``origin`` when no local
+            checkout exists. Fresh dispatch leaves this false so a stale
+            same-named remote ref cannot replace its hierarchy base.
+        expected_head_sha:
+            Exact accepted-generation head. Existing local work is never reset
+            to satisfy this value; divergence is rejected for repair.
         """
         # Acquire the per-project lock so concurrent dispatch and maintenance
         # operations for the same project are serialized through git.  The lock
@@ -4211,8 +6425,224 @@ class ProjectStore:
         # the lock across a tracker write + worktree create) do not deadlock.
         with self.project_write_lock(project_id):
             return self._create_worktree_locked(
-                project_id, issue_identifier, base_branch, branch_name
+                project_id,
+                issue_identifier,
+                base_branch,
+                branch_name,
+                prefer_remote_branch=prefer_remote_branch,
+                expected_head_sha=expected_head_sha,
             )
+
+    def verify_submission_git_authority(
+        self,
+        project_id: str,
+        *,
+        task_branch: str,
+        head_sha: str,
+        base_branch: str | None = None,
+        base_sha: str | None = None,
+    ) -> SubmissionGitAuthority:
+        """Prove exact remote publication and base ancestry for a submission.
+
+        This method intentionally performs no tracker, queue, or worktree
+        mutation.  It refreshes only remote-tracking refs in the managed clone
+        while holding the project Git lock, then fails closed unless
+        ``origin/<task_branch>`` still names ``head_sha``.  When a parent/base
+        branch is supplied, the recorded base must be contained in both the
+        submitted head and the refreshed parent branch.  Legacy direct-owner
+        submissions without a base SHA are upgraded to their exact merge base.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        branch = str(task_branch or "").strip()
+        head = str(head_sha or "").strip().lower()
+        parent_branch = str(base_branch or "").strip() or None
+        recorded_base = str(base_sha or "").strip().lower() or None
+        if not branch:
+            raise ProjectError("task_branch is required")
+        if not re.fullmatch(r"[0-9a-f]{40,64}", head):
+            raise ProjectError("head_sha must be a full hexadecimal git object id")
+        if recorded_base and not re.fullmatch(r"[0-9a-f]{40,64}", recorded_base):
+            raise ProjectError("base_sha must be a full hexadecimal git object id")
+
+        def _valid_branch(name: str) -> None:
+            checked = subprocess.run(
+                ["git", "check-ref-format", f"refs/heads/{name}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if checked.returncode != 0:
+                raise ProjectError(f"invalid submission branch {name!r}")
+
+        def _remote_heads(names: tuple[str, ...]) -> dict[str, str]:
+            refs = [f"refs/heads/{name}" for name in names]
+            result = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", *refs],
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise ProjectError(
+                    "could not verify origin submission refs: "
+                    f"{result.stderr.strip()[:500]}"
+                )
+            advertised: dict[str, str] = {}
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if len(fields) < 2 or fields[1] not in refs:
+                    continue
+                advertised[fields[1].removeprefix("refs/heads/")] = (
+                    fields[0].strip().lower()
+                )
+            for name in names:
+                if name not in advertised:
+                    raise ProjectError(f"origin/{name} is not published")
+            return advertised
+
+        def _remote_head(name: str) -> str:
+            return _remote_heads((name,))[name]
+
+        def _fetch(name: str) -> str:
+            remote_ref = f"refs/remotes/origin/{name}"
+            result = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--quiet",
+                    "origin",
+                    f"+refs/heads/{name}:{remote_ref}",
+                ],
+                timeout=60,
+            )
+            if result.returncode != 0:
+                raise ProjectError(
+                    f"could not fetch origin/{name}: {result.stderr.strip()[:500]}"
+                )
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{remote_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if resolved.returncode != 0 or not resolved.stdout.strip():
+                raise ProjectError(f"origin/{name} does not resolve to a commit")
+            return resolved.stdout.strip().lower()
+
+        def _is_ancestor(ancestor: str, descendant: str) -> bool:
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            return result.returncode == 0
+
+        with self.project_write_lock(project_id):
+            _valid_branch(branch)
+            advertised_head = _remote_head(branch)
+            if advertised_head != head:
+                raise ProjectError(
+                    f"origin/{branch} is {advertised_head}, not submitted head {head}"
+                )
+            fetched_head = _fetch(branch)
+            # Re-read the remote after fetching.  A concurrent force-push must
+            # not leave the tracker accepting the now-stale fetched generation.
+            if fetched_head != head or _remote_head(branch) != head:
+                raise ProjectError(
+                    f"origin/{branch} moved while submission was being verified"
+                )
+
+            resolved_base = recorded_base
+            if parent_branch and parent_branch != branch:
+                _valid_branch(parent_branch)
+                parent_advertised = _remote_head(parent_branch)
+                parent_head = _fetch(parent_branch)
+                if (
+                    parent_head != parent_advertised
+                    or _remote_head(parent_branch) != parent_head
+                ):
+                    raise ProjectError(
+                        f"origin/{parent_branch} moved while submission was being verified"
+                    )
+                if resolved_base is None:
+                    merged = subprocess.run(
+                        ["git", "merge-base", head, parent_head],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                    resolved_base = (
+                        merged.stdout.strip().lower()
+                        if merged.returncode == 0
+                        else None
+                    )
+                    if not resolved_base:
+                        raise ProjectError(
+                            f"submitted head {head} has no common base with "
+                            f"origin/{parent_branch}"
+                        )
+                if not _is_ancestor(resolved_base, head):
+                    raise ProjectError(
+                        f"recorded base {resolved_base} is not an ancestor of "
+                        f"submitted head {head}"
+                    )
+                if not _is_ancestor(resolved_base, parent_head):
+                    raise ProjectError(
+                        f"recorded base {resolved_base} is not contained in "
+                        f"origin/{parent_branch}"
+                    )
+            elif resolved_base and not _is_ancestor(resolved_base, head):
+                raise ProjectError(
+                    f"recorded base {resolved_base} is not an ancestor of "
+                    f"submitted head {head}"
+                )
+
+            # Parent fetches and ancestry proof can take long enough for the
+            # already-checked task ref to be force-pushed.  Re-read every
+            # authoritative remote ref together after all proof and before
+            # the caller is allowed to mutate tracker lifecycle state.
+            final_names = (
+                (branch, parent_branch)
+                if parent_branch and parent_branch != branch
+                else (branch,)
+            )
+            final_heads = _remote_heads(final_names)
+            if final_heads[branch] != head:
+                raise ProjectError(
+                    f"origin/{branch} moved while submission was being verified"
+                )
+            if (
+                parent_branch
+                and parent_branch != branch
+                and final_heads[parent_branch] != parent_head
+            ):
+                raise ProjectError(
+                    f"origin/{parent_branch} moved while submission was being verified"
+                )
+
+        return SubmissionGitAuthority(
+            task_branch=branch,
+            head_sha=head,
+            base_branch=parent_branch,
+            base_sha=resolved_base,
+        )
 
     def _create_worktree_locked(
         self,
@@ -4220,6 +6650,9 @@ class ProjectStore:
         issue_identifier: str,
         base_branch: str | None = None,
         branch_name: str | None = None,
+        *,
+        prefer_remote_branch: bool = False,
+        expected_head_sha: str | None = None,
     ) -> str:
         project = self._projects.get(project_id)
         if not project:
@@ -4238,6 +6671,7 @@ class ProjectStore:
                 branch_name,
                 project,
                 issue_identifier=issue_identifier,
+                expected_head_sha=expected_head_sha,
             )
             return wt_path
 
@@ -4259,7 +6693,62 @@ class ProjectStore:
         # contention (oompah-zlz_2-7iq) by either accepting partial success
         # (worktree dir created, only upstream-config write failed) or
         # retrying with exponential backoff.
-        base = f"origin/{base_branch or project.default_branch}"
+        # Recovery of an accepted submission may have only a published remote
+        # branch after restart/cleanup.  When explicitly requested and that
+        # exact remote-tracking ref is available, branch the replacement
+        # worktree from it rather than from the (possibly advanced) epic/default
+        # base. Fresh dispatches still derive from ``base_branch`` even if an
+        # obsolete same-named remote ref exists.
+        remote_task_ref = f"refs/remotes/origin/{branch_name}"
+        remote_task = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{remote_task_ref}^{{commit}}"],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        remote_task_sha = (
+            remote_task.stdout.strip().lower()
+            if remote_task.returncode == 0
+            else None
+        )
+        expected_head = str(expected_head_sha or "").strip().lower() or None
+        if expected_head and remote_task_sha != expected_head:
+            raise ProjectError(
+                f"origin/{branch_name} does not match accepted head "
+                f"{expected_head}"
+            )
+        local_task = subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                f"refs/heads/{branch_name}^{{commit}}",
+            ],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        local_task_sha = (
+            local_task.stdout.strip().lower()
+            if local_task.returncode == 0
+            else None
+        )
+        if expected_head and local_task_sha and local_task_sha != expected_head:
+            raise ProjectError(
+                f"local branch {branch_name} is {local_task_sha}, not accepted "
+                f"head {expected_head}; refusing to reset it"
+            )
+        base = (
+            f"origin/{branch_name}"
+            if prefer_remote_branch and remote_task_sha
+            else f"origin/{base_branch or project.default_branch}"
+        )
         try:
             _git_worktree_add_with_recovery(
                 ["git", "worktree", "add", "-b", branch_name, wt_path, base],
@@ -4332,6 +6821,7 @@ class ProjectStore:
         project: Project,
         *,
         issue_identifier: str | None = None,
+        expected_head_sha: str | None = None,
     ) -> None:
         """Reuse an existing task worktree without discarding task-owned work."""
 
@@ -4389,6 +6879,20 @@ class ProjectStore:
                 f"{current_branch or ('active ' + str(operation.get('kind')) if operation else 'a detached HEAD')}, not expected branch "
                 f"{branch_name}; refusing to reset it"
             )
+
+        expected_head = str(expected_head_sha or "").strip().lower() or None
+        if expected_head:
+            current_head = _run(["git", "rev-parse", "HEAD"], timeout=10)
+            actual_head = (
+                current_head.stdout.strip().lower()
+                if current_head.returncode == 0
+                else ""
+            )
+            if actual_head != expected_head:
+                raise ProjectError(
+                    f"existing worktree {wt_path} is at {actual_head or 'unknown'}, "
+                    f"not accepted head {expected_head}; refusing to reset it"
+                )
 
         recovery_identifier = issue_identifier or branch_name
         # This check must happen before fetch/reset/clean.  A terminated worker
@@ -4640,6 +7144,76 @@ class ProjectStore:
                 f"{wt_path}; head {head_sha} has no pushed or merged evidence"
             )
 
+    def _assert_exact_worktree_generation_locked(
+        self,
+        project: Project,
+        issue_identifier: str,
+        wt_path: str,
+        *,
+        branch_name: str,
+        expected_head_sha: str,
+    ) -> None:
+        """Re-check an exact checkout immediately before non-forced removal."""
+
+        if not _is_git_working_tree(wt_path):
+            raise ProjectError(
+                f"Refusing exact cleanup of non-git worktree {wt_path}"
+            )
+        status = self._git_status_for_worktree(wt_path)
+        if status.returncode != 0:
+            raise ProjectError(
+                f"cannot inspect exact terminal worktree {wt_path}: "
+                f"{status.stderr.strip()[:500]}"
+            )
+        branch_probe = subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        operation = _git_operation_state(
+            wt_path,
+            current_branch=branch_probe.stdout.strip(),
+            branch_result_code=branch_probe.returncode,
+        )
+        if operation or self._worktree_dirty_paths(status.stdout):
+            # Reuse the established recovery-snapshot path.  It raises after
+            # preserving the dirty or active-operation state, before reaching
+            # its publication checks.
+            self._assert_terminal_worktree_safe_locked(
+                project,
+                issue_identifier,
+                wt_path,
+                branch_name=branch_name,
+            )
+            raise ProjectError(  # pragma: no cover - defensive contract guard
+                f"Refusing exact cleanup of changed worktree {wt_path}"
+            )
+        observed_branch = branch_probe.stdout.strip()
+        if branch_probe.returncode != 0 or observed_branch != branch_name:
+            raise ProjectError(
+                f"Refusing exact cleanup of {wt_path}: expected branch "
+                f"{branch_name!r}, found {observed_branch!r}"
+            )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        observed_head = str(head.stdout or "").strip().lower()
+        if head.returncode != 0 or observed_head != expected_head_sha:
+            raise ProjectError(
+                "epic child worktree changed before cleanup: "
+                f"expected {expected_head_sha}, found {observed_head or 'unknown'}"
+            )
+
     def _assert_terminal_target_landing_locked(
         self,
         project: Project,
@@ -4794,7 +7368,11 @@ class ProjectStore:
             )
 
     def _remove_worktree_locked(
-        self, project_id: str, issue_identifier: str
+        self,
+        project_id: str,
+        issue_identifier: str,
+        *,
+        force: bool = True,
     ) -> bool:
         project = self._projects.get(project_id)
         if not project:
@@ -4805,9 +7383,45 @@ class ProjectStore:
             self._prune_git_worktrees(project.repo_path)
             return False
 
+        marker_path = os.path.join(wt_path, _METADATA_AUDIT_MARKER)
+        try:
+            with open(marker_path, encoding="utf-8") as marker_file:
+                marker = json.load(marker_file)
+        except (OSError, ValueError, TypeError):
+            marker = None
+        if (
+            isinstance(marker, dict)
+            and marker.get("version") == 1
+            and marker.get("kind") == "metadata_terminal_audit"
+            and marker.get("project_id") == project_id
+            and marker.get("workspace_identifier") == issue_identifier
+        ):
+            _safe_remove_managed_dir(
+                wt_path,
+                self._project_worktree_root(project),
+            )
+            self._prune_git_worktrees(project.repo_path)
+            logger.info("Metadata audit workspace removed path=%s", wt_path)
+            return True
+
+        if not force:
+            # This generated hook directory is intentionally ignored by the
+            # deliverable-dirty check, but Git correctly treats it as an
+            # untracked path for non-forced worktree removal.  Retire only this
+            # exact Oompah-owned helper; any other concurrent untracked path
+            # remains a reason for Git to refuse removal.
+            hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
+            if os.path.isdir(hooks_dir):
+                shutil.rmtree(hooks_dir)
+            elif os.path.lexists(hooks_dir):
+                os.remove(hooks_dir)
+
+        remove_args = ["git", "worktree", "remove", wt_path]
+        if force:
+            remove_args.append("--force")
         try:
             subprocess.run(
-                ["git", "worktree", "remove", wt_path, "--force"],
+                remove_args,
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -5298,6 +7912,7 @@ class ProjectStore:
         review_head: str | None = None,
         merge_commit_sha: str | None = None,
         require_target_branch: bool = False,
+        expected_head_sha: str | None = None,
     ) -> tuple[bool, str | None]:
         """Remove one terminal issue's worktree and Oompah-owned branch.
 
@@ -5341,6 +7956,13 @@ class ProjectStore:
         )
 
         with self.project_write_lock(project_id):
+            exact_generation_present = False
+            if expected_head_sha:
+                exact_generation_present = self._assert_owned_branch_generation_locked(
+                    project,
+                    candidate,
+                    expected_head_sha,
+                )
             if not is_epic:
                 auxiliary_result = (
                     self._cleanup_direct_epic_auxiliary_workspace_locked(
@@ -5366,7 +7988,8 @@ class ProjectStore:
                         require_target_branch=require_target_branch,
                     )
                 elif require_target_branch and (
-                    self._ref_exists(project.repo_path, f"refs/heads/{candidate}")
+                    exact_generation_present
+                    or self._ref_exists(project.repo_path, f"refs/heads/{candidate}")
                     or self._ref_exists(
                         project.repo_path,
                         f"refs/remotes/origin/{candidate}",
@@ -5377,28 +8000,34 @@ class ProjectStore:
                             f"Refusing terminal cleanup of {issue_identifier}: "
                             "recorded target branch evidence is unavailable"
                         )
-                    source_sha = subprocess.run(
-                        [
-                            "git",
-                            "rev-parse",
-                            "--verify",
-                            f"refs/heads/{candidate}^{{commit}}",
-                        ],
-                        cwd=project.repo_path,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                        timeout=10,
-                    )
-                    if source_sha.returncode != 0 or not source_sha.stdout.strip():
-                        raise ProjectError(
-                            f"cannot prove terminal branch head for {issue_identifier}"
+                    exact_head = str(expected_head_sha or "").strip().lower()
+                    if exact_head:
+                        source_head = exact_head
+                    else:
+                        source_sha = subprocess.run(
+                            [
+                                "git",
+                                "rev-parse",
+                                "--verify",
+                                f"refs/heads/{candidate}^{{commit}}",
+                            ],
+                            cwd=project.repo_path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
                         )
+                        if source_sha.returncode != 0 or not source_sha.stdout.strip():
+                            raise ProjectError(
+                                "cannot prove terminal branch head for "
+                                f"{issue_identifier}"
+                            )
+                        source_head = source_sha.stdout.strip()
                     self._assert_terminal_target_landing_locked(
                         project,
                         issue_identifier,
                         branch_name=candidate,
-                        head_sha=source_sha.stdout.strip(),
+                        head_sha=source_head,
                         target_branch=target_branch,
                         review_head=review_head,
                         merge_commit_sha=merge_commit_sha,
@@ -5426,6 +8055,7 @@ class ProjectStore:
                 candidate,
                 is_epic=is_epic,
                 issue_number=issue_number,
+                expected_head_sha=expected_head_sha,
             )
             # For terminal epics, also clean up any auxiliary task-style repair
             # workspace left by an epic repair/planner run (e.g. the OOMPAH-459
@@ -5436,7 +8066,12 @@ class ProjectStore:
                     project_id,
                     issue_identifier,
                 )
-            if branch_removed:
+            # Recovery refs are task lifecycle evidence, not branch-liveness
+            # evidence.  A previous cleanup pass or forge-side pruning may
+            # already have removed the owned branch, so retire these refs on
+            # every eligible terminal cleanup.  Ownership/protection/shared-
+            # branch skips remain fail-closed and leave the evidence intact.
+            if skip_reason is None:
                 recovery_ref = _worktree_recovery_ref(issue_identifier)
                 removed_ref = subprocess.run(
                     ["git", "update-ref", "-d", recovery_ref],
@@ -5451,6 +8086,41 @@ class ProjectStore:
                         "could not remove terminal recovery ref: "
                         f"{removed_ref.stderr.strip()[:500]}"
                     )
+                consumed_refs = subprocess.run(
+                    [
+                        "git",
+                        "for-each-ref",
+                        "--format=%(refname)",
+                        _worktree_consumed_recovery_prefix(issue_identifier),
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if consumed_refs.returncode != 0:
+                    raise ProjectError(
+                        "could not list terminal consumed recovery refs: "
+                        f"{consumed_refs.stderr.strip()[:500]}"
+                    )
+                for consumed_ref in consumed_refs.stdout.splitlines():
+                    removed_consumed = subprocess.run(
+                        ["git", "update-ref", "-d", consumed_ref],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                    if removed_consumed.returncode != 0:
+                        raise ProjectError(
+                            "could not remove terminal consumed recovery ref "
+                            f"{consumed_ref}: "
+                            f"{removed_consumed.stderr.strip()[:500]}"
+                        )
         return worktree_removed or branch_removed or repair_removed, skip_reason
 
     def cleanup_stale_worktree_dirs(

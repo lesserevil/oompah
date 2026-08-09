@@ -20,15 +20,23 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
+import shutil
+import stat
+import subprocess
 import sys
+import tempfile
+import threading
+import time
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from oompah import native_validation_guard as guard_module
 from oompah.acp_backends import (
     BACKENDS,
     AcpBackendOptions,
@@ -44,6 +52,10 @@ from oompah.acp_backends.codex import (
     _get_worktree_git_meta_dir,
 )
 from oompah.models import ModelProvider
+from oompah.native_validation_guard import (
+    install_native_validation_guard,
+    retire_native_validation_guard,
+)
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
@@ -93,6 +105,47 @@ class TestCodexRegistration:
         assert provider.validate_for_mode("acp") == []
 
 
+@pytest.mark.parametrize(
+    ("status", "stop_requested", "expected_outcome"),
+    [
+        ("succeeded", False, "stream_error"),
+        ("stalled", False, "timed_out"),
+        ("failed", False, "session_error"),
+        ("errored", False, "transport_error"),
+        ("pending", False, "transport_error"),
+        ("interrupted", False, "authority_withdrawn"),
+        ("pending", True, "authority_withdrawn"),
+    ],
+)
+def test_cleanup_threads_exact_session_terminal_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    stop_requested: bool,
+    expected_outcome: str,
+) -> None:
+    retire = MagicMock(return_value=True)
+    monkeypatch.setattr(
+        "oompah.acp_backends.codex.retire_native_validation_guard",
+        retire,
+    )
+    session = CodexAcpBackendSession(
+        AcpBackendOptions(
+            workspace_path=str(tmp_path),
+            prompt="observe terminal cleanup",
+            billing_model="subscription",
+        )
+    )
+    session._validation_guard_dir = str(tmp_path / "guard")
+    session._status = status
+    session._stop_requested = stop_requested
+
+    session._cleanup_worker_runtime_dir()
+
+    assert retire.call_count == 1
+    assert retire.call_args.kwargs["terminal_outcome"] == expected_outcome
+
+
 def test_codex_completed_message_extracts_verdict_before_display_truncation():
     text = (
         ("analysis\n" * 300)
@@ -130,6 +183,34 @@ def test_codex_native_validation_uses_server_authority_generation():
     )
 
     assert session._native_cli_validation_generation == "server-generation"
+
+
+def test_codex_catalog_builder_threads_validation_reuse_policy(
+    tmp_path,
+    monkeypatch,
+):
+    policy = {"decision": "reuse_authoritative_gate", "command": "make test"}
+
+    def authority_check():
+        return "reuse_authoritative_gate"
+
+    captured = {}
+    monkeypatch.setattr(
+        "oompah.acp_tools.build_codex_tool_catalog",
+        lambda *args, **kwargs: captured.update(kwargs) or [],
+    )
+    session = CodexAcpBackendSession(
+        AcpBackendOptions(
+            workspace_path=str(tmp_path),
+            prompt="audit",
+            validation_reuse_policy=policy,
+            validation_reuse_authority_check=authority_check,
+        )
+    )
+
+    assert session._build_tool_catalog() == []
+    assert captured["validation_reuse_policy"] is policy
+    assert captured["validation_reuse_authority_check"] is authority_check
 
 
 def test_native_validation_untrusted_roots_include_implicit_temp_dirs(
@@ -174,6 +255,119 @@ def test_native_validation_runtime_root_rejects_task_writable_parent(
         codex_module._create_native_validation_runtime_root(
             untrusted_roots=(operator_home.resolve(),),
         )
+
+
+def test_native_validation_deep_root_uses_random_protected_socket(tmp_path):
+    from oompah.acp_backends import codex as codex_module
+
+    runtime_root = tmp_path / ("deep-" * 24)
+    runtime_root.mkdir()
+
+    first_socket, first_dir = codex_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+    second_socket, second_dir = codex_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+
+    assert first_socket is not None and first_dir is not None
+    assert second_socket is not None and second_dir is not None
+    assert first_socket.parent == first_dir
+    assert second_socket.parent == second_dir
+    assert first_dir != second_dir
+    assert first_dir.parent == guard_module._operator_broker_socket_parent()
+    assert stat.S_IMODE(first_dir.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(first_dir.stat().st_mode) == 0o700
+    assert len(os.fsencode(str(first_socket))) < 100
+    shutil.rmtree(first_dir)
+    shutil.rmtree(second_dir)
+
+
+def test_native_validation_short_root_keeps_local_socket(tmp_path):
+    from oompah.acp_backends import codex as codex_module
+
+    runtime_root = guard_module._operator_broker_socket_parent().parent / "guard"
+    socket_path, cleanup_dir = codex_module.create_native_validation_broker_socket(
+        runtime_root=runtime_root,
+        untrusted_roots=(),
+    )
+
+    assert socket_path is None
+    assert cleanup_dir is None
+
+
+def test_native_validation_broker_socket_rejects_task_writable_parent(
+    tmp_path,
+):
+    from oompah.acp_backends import codex as codex_module
+
+    runtime_root = tmp_path / ("deep-" * 24)
+    runtime_root.mkdir()
+    socket_parent = guard_module._operator_broker_socket_parent()
+
+    with pytest.raises(RuntimeError, match="broker socket parent is task-writable"):
+        codex_module.create_native_validation_broker_socket(
+            runtime_root=runtime_root,
+            untrusted_roots=(socket_parent,),
+        )
+
+
+def test_native_validation_install_failure_removes_unpublished_socket_child(
+    tmp_path,
+    monkeypatch,
+):
+    from oompah.acp_backends import codex as codex_module
+
+    capture: dict[str, Path] = {}
+    _install_fake_cli(monkeypatch, events=[])
+    lease = ValidationResourceLease(tmp_path / "validation.sqlite3", poll_seconds=0.01)
+    runtime_root = tmp_path / ("deep-" * 24)
+    monkeypatch.setattr(
+        codex_module,
+        "_create_native_validation_runtime_root",
+        lambda **_kwargs: str(runtime_root),
+    )
+    real_create = codex_module.create_native_validation_broker_socket
+
+    def capture_socket(**kwargs):
+        socket_path, cleanup_dir = real_create(**kwargs)
+        assert socket_path is not None and cleanup_dir is not None
+        capture["cleanup_dir"] = cleanup_dir
+        return socket_path, cleanup_dir
+
+    monkeypatch.setattr(
+        codex_module,
+        "create_native_validation_broker_socket",
+        capture_socket,
+    )
+    monkeypatch.setattr(
+        codex_module,
+        "install_native_validation_guard",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("injected")),
+    )
+    service = types.SimpleNamespace(validation_resource_lease=lease)
+
+    async def run() -> CodexAcpBackendSession:
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="install guard",
+                billing_model="subscription",
+                coordination_service=service,
+                project_id="worker-project",
+                task_identifier="WORK-1",
+            )
+        )
+        async for _event in session.run_turn():
+            pass
+        return session
+
+    session = asyncio.run(run())
+
+    assert session.status == "errored"
+    assert not capture["cleanup_dir"].exists()
 
 
 def test_native_validation_uses_effective_child_temp_environment(tmp_path):
@@ -478,6 +672,9 @@ def _install_fake_cli(monkeypatch, *, events, capture=None):
                 cap["validation_guard_config"] = json.loads(
                     config_path.read_text(encoding="utf-8")
                 )
+                bash_env = Path(str(environment["BASH_ENV"]))
+                cap["validation_guard_bash_env"] = str(bash_env)
+                cap["validation_guard_bash_env_installed"] = bash_env.is_file()
 
         def start_thread(self, options=None):
             cap["thread_options"] = options
@@ -890,6 +1087,595 @@ class TestCodexCliPath:
         assert "tool_result" in kinds
         assert sess.status == "succeeded"
 
+    def test_managed_command_event_fails_closed_without_runner_boundary(
+        self,
+        tmp_path,
+    ):
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="observe native command",
+                billing_model="subscription",
+            )
+        )
+        session._validation_guard_dir = str(tmp_path / "missing-guard")
+        session._cli_abort = asyncio.Event()
+
+        async def translate():
+            return [
+                event
+                async for event in session._translate_cli_item(
+                    "item.started",
+                    _cli_item("command_execution", id="c1", command="opaque"),
+                )
+            ]
+
+        with pytest.raises(RuntimeError, match="bypassed.*guard boundary"):
+            asyncio.run(translate())
+        assert session._cli_abort.is_set()
+
+    def test_managed_command_event_accepts_recent_real_bash_boundary(
+        self,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        )
+        guarded, root = install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+        )
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "printf ok"],
+            env={**os.environ, **guarded},
+            pass_fds=(
+                int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+            ),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert completed.returncode == 0
+        assert completed.stdout == "ok"
+
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="observe native command",
+                billing_model="subscription",
+            )
+        )
+        session._validation_guard_dir = str(root)
+        session._cli_abort = asyncio.Event()
+
+        async def translate():
+            return [
+                event
+                async for event in session._translate_cli_item(
+                    "item.started",
+                    _cli_item("command_execution", id="c1", command="printf ok"),
+                )
+            ]
+
+        events = asyncio.run(translate())
+        assert [event.kind for event in events] == ["tool_use"]
+        assert session._cli_abort.is_set() is False
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+    @pytest.mark.parametrize(
+        ("exit_code", "expected_outcome"),
+        [(0, "passed"), (7, "failed"), (124, "failed")],
+    )
+    def test_managed_native_focused_validation_records_real_lifecycle(
+        self,
+        tmp_path,
+        exit_code,
+        expected_outcome,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id=f"AUDIT-{exit_code}",
+            authority_generation="attempt-1",
+        )
+        real_bin = tmp_path / "real-bin"
+        real_bin.mkdir()
+        fake_pytest = real_bin / "pytest"
+        fake_pytest.write_text(
+            f"#!/bin/sh\nexit {exit_code}\n",
+            encoding="utf-8",
+        )
+        fake_pytest.chmod(0o700)
+        lifecycle: list[dict[str, object]] = []
+        guarded, root = install_native_validation_guard(
+            {
+                "PATH": (
+                    f"{real_bin}{os.pathsep}"
+                    f"{os.environ.get('PATH', os.defpath)}"
+                )
+            },
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+            validation_command_handler=lambda **values: lifecycle.append(values),
+        )
+        command = "pytest tests/test_one.py::test_case -q"
+        try:
+            completed = subprocess.run(
+                ["/bin/bash", "-c", command],
+                env={**os.environ, **guarded},
+                pass_fds=(
+                    int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+                ),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            assert completed.returncode == exit_code
+
+            session = CodexAcpBackendSession(
+                AcpBackendOptions(
+                    workspace_path=str(tmp_path),
+                    prompt="observe native validation",
+                    billing_model="subscription",
+                )
+            )
+            session._validation_guard_dir = str(root)
+            session._cli_abort = asyncio.Event()
+
+            async def translate_lifecycle():
+                item = _cli_item(
+                    "command_execution",
+                    id="validation-1",
+                    command=command,
+                    exit_code=exit_code,
+                    aggregated_output="",
+                )
+                started = [
+                    event
+                    async for event in session._translate_cli_item(
+                        "item.started",
+                        item,
+                    )
+                ]
+                completed_events = [
+                    event
+                    async for event in session._translate_cli_item(
+                        "item.completed",
+                        item,
+                    )
+                ]
+                return started + completed_events
+
+            translated = asyncio.run(translate_lifecycle())
+
+            assert [event.kind for event in translated] == [
+                "tool_use",
+                "tool_result",
+            ]
+            assert [entry["phase"] for entry in lifecycle] == [
+                "started",
+                "completed",
+            ]
+            assert lifecycle[0]["outcome"] == "running"
+            assert lifecycle[1]["outcome"] == expected_outcome
+            assert lifecycle[1]["succeeded"] is (exit_code == 0)
+            assert [entry["validation_scope"] for entry in lifecycle] == [
+                "focused",
+                "focused",
+            ]
+            assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+        finally:
+            assert retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            ) is True
+
+    @pytest.mark.parametrize(
+        ("expected_outcome", "timeout_seconds", "withdraw_authority"),
+        [
+            ("timed_out", 1, False),
+            ("authority_withdrawn", 10, True),
+        ],
+    )
+    def test_managed_native_supervisor_cause_precedes_codex_item_completion(
+        self,
+        tmp_path,
+        monkeypatch,
+        expected_outcome,
+        timeout_seconds,
+        withdraw_authority,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id=f"AUDIT-{expected_outcome}",
+            authority_generation="attempt-1",
+        )
+        real_bin = tmp_path / "real-bin"
+        real_bin.mkdir()
+        fake_make = real_bin / "make"
+        fake_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+        fake_make.chmod(0o700)
+        lifecycle: list[dict[str, object]] = []
+        lifecycle_started = threading.Event()
+        terminal_callback_started = threading.Event()
+        release_terminal_callback = threading.Event()
+        terminal_published = threading.Event()
+        terminal_callback_attempts = 0
+
+        def record_lifecycle(**values):
+            nonlocal terminal_callback_attempts
+            if values["phase"] == "completed":
+                terminal_callback_attempts += 1
+                terminal_callback_started.set()
+                assert release_terminal_callback.wait(timeout=5)
+            lifecycle.append(values)
+            if values["phase"] == "started":
+                lifecycle_started.set()
+            else:
+                terminal_published.set()
+                if expected_outcome == "timed_out":
+                    raise RuntimeError("injected terminal telemetry failure")
+
+        guarded, root = install_native_validation_guard(
+            {
+                "PATH": (
+                    f"{real_bin}{os.pathsep}"
+                    f"{os.environ.get('PATH', os.defpath)}"
+                )
+            },
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=timeout_seconds,
+            validation_command_handler=record_lifecycle,
+        )
+        with guard_module._BROKER_REGISTRY_LOCK:
+            broker = guard_module._BROKER_REGISTRY[root.resolve()]
+        terminal_observed = threading.Event()
+        release_terminal = threading.Event()
+        terminal_committed = threading.Event()
+        real_claim_terminal = broker._claim_supervisor_terminal
+
+        def block_terminal_claim(boundary_group, outcome):
+            if outcome == expected_outcome:
+                terminal_observed.set()
+                assert release_terminal.wait(timeout=5)
+            publication = real_claim_terminal(boundary_group, outcome)
+            if outcome == expected_outcome:
+                terminal_committed.set()
+            return publication
+
+        monkeypatch.setattr(
+            broker,
+            "_claim_supervisor_terminal",
+            block_terminal_claim,
+        )
+        descriptor_baseline = set(os.listdir("/proc/self/fd"))
+        command = "make test-serial"
+        process = subprocess.Popen(
+            ["/bin/bash", "-c", command],
+            env={**os.environ, **guarded},
+            pass_fds=(
+                int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+            ),
+        )
+        retired = False
+
+        def wait_until(predicate, *, timeout=5.0):
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if predicate():
+                    return
+                time.sleep(0.01)
+            raise AssertionError("condition did not become true")
+
+        def descriptor_transferred():
+            with broker._boundary_lock:
+                runs = tuple(broker._validation_runs.values())
+            for run in runs:
+                with run.state_lock:
+                    if run.launch_state == "transferred":
+                        return True
+            return False
+
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="observe terminal lifecycle",
+                billing_model="subscription",
+            )
+        )
+        session._validation_guard_dir = str(root)
+        session._cli_abort = asyncio.Event()
+        item = _cli_item(
+            "command_execution",
+            id=f"validation-{expected_outcome}",
+            command=command,
+            exit_code=1,
+            aggregated_output="",
+        )
+
+        async def translate(event_type):
+            return [
+                event
+                async for event in session._translate_cli_item(event_type, item)
+            ]
+
+        try:
+            assert lifecycle_started.wait(timeout=5)
+            assert [event.kind for event in asyncio.run(translate("item.started"))] == [
+                "tool_use"
+            ]
+            wait_until(descriptor_transferred)
+            if withdraw_authority:
+                (root / guard_module._CANCELLATION_NAME).touch(mode=0o600)
+            assert terminal_observed.wait(timeout=5)
+
+            # The observer has the exact cause but is deliberately barred from
+            # claiming it. The supervisor must retain the live process until
+            # that atomic claim prevents generic item completion from winning.
+            with pytest.raises(subprocess.TimeoutExpired):
+                process.wait(timeout=1)
+            assert [entry["phase"] for entry in lifecycle] == ["started"]
+
+            release_terminal.set()
+            assert terminal_committed.wait(timeout=5)
+            assert terminal_callback_started.wait(timeout=5)
+
+            # The exact cause is now atomically owned and removed from item
+            # contention, but its user callback remains blocked. ACK must
+            # already have released mandatory termination and lease cleanup.
+            item.exit_code = process.wait(timeout=5)
+            assert item.exit_code != 0
+            assert [
+                event.kind
+                for event in asyncio.run(translate("item.completed"))
+            ] == ["tool_result"]
+            assert [entry["phase"] for entry in lifecycle] == ["started"]
+            wait_until(lambda: lease.status().owner_count == 0)
+            wait_until(
+                lambda: set(os.listdir("/proc/self/fd")) == descriptor_baseline
+            )
+
+            retirement_started = time.monotonic()
+            assert retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            ) is True
+            assert time.monotonic() - retirement_started < 2
+            retired = True
+
+            release_terminal_callback.set()
+            assert terminal_published.wait(timeout=5)
+            assert [entry["phase"] for entry in lifecycle] == [
+                "started",
+                "completed",
+            ]
+            assert lifecycle[1]["outcome"] == expected_outcome
+            assert lifecycle[1]["succeeded"] is False
+            assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+            assert terminal_callback_attempts == 1
+            assert [
+                event.kind
+                for event in asyncio.run(translate("item.completed"))
+            ] == ["tool_result"]
+            assert terminal_callback_attempts == 1
+        finally:
+            release_terminal.set()
+            release_terminal_callback.set()
+            with contextlib.suppress(ProcessLookupError):
+                process.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=1)
+            if not retired:
+                retire_native_validation_guard(
+                    root,
+                    validation_lease=lease,
+                    owner=owner,
+                )
+
+    def test_managed_native_distinct_full_lifecycle_reuses_invocation_id(
+        self,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id="AUDIT-FULL",
+            authority_generation="attempt-1",
+        )
+        real_bin = tmp_path / "real-bin"
+        real_bin.mkdir()
+        fake_make = real_bin / "make"
+        fake_make.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_make.chmod(0o700)
+        lifecycle: list[dict[str, object]] = []
+        reuse: list[dict[str, object]] = []
+        guarded, root = install_native_validation_guard(
+            {
+                "PATH": (
+                    f"{real_bin}{os.pathsep}"
+                    f"{os.environ.get('PATH', os.defpath)}"
+                )
+            },
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+            validation_reuse_policy={
+                "decision": "reuse_authoritative_gate",
+                "command": "make test",
+                "attempt_id": "attempt-1",
+            },
+            validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+            validation_reuse_policy_handler=lambda **values: reuse.append(values),
+            validation_command_handler=lambda **values: lifecycle.append(values),
+        )
+        command = (
+            "OOMPAH_VALIDATION_MODE=task_required_distinct "
+            "OOMPAH_VALIDATION_JUSTIFICATION='serial race coverage' "
+            "make test-serial"
+        )
+        try:
+            completed = subprocess.run(
+                ["/bin/bash", "-c", command],
+                env={**os.environ, **guarded},
+                pass_fds=(
+                    int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+                ),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            assert completed.returncode == 0
+
+            session = CodexAcpBackendSession(
+                AcpBackendOptions(
+                    workspace_path=str(tmp_path),
+                    prompt="observe native validation",
+                    billing_model="subscription",
+                )
+            )
+            session._validation_guard_dir = str(root)
+            session._cli_abort = asyncio.Event()
+
+            async def translate_lifecycle():
+                item = _cli_item(
+                    "command_execution",
+                    id="validation-full",
+                    command=command,
+                    exit_code=0,
+                    aggregated_output="",
+                )
+                async for _event in session._translate_cli_item(
+                    "item.started",
+                    item,
+                ):
+                    pass
+                async for _event in session._translate_cli_item(
+                    "item.completed",
+                    item,
+                ):
+                    pass
+
+            asyncio.run(translate_lifecycle())
+
+            assert [entry["decision"] for entry in reuse] == [
+                "allowed_distinct_mode"
+            ]
+            assert [entry["phase"] for entry in lifecycle] == [
+                "started",
+                "completed",
+            ]
+            assert [entry["validation_scope"] for entry in lifecycle] == [
+                "full",
+                "full",
+            ]
+            invocation_ids = {
+                str(entry["invocation_id"])
+                for entry in [*reuse, *lifecycle]
+            }
+            assert len(invocation_ids) == 1
+        finally:
+            assert retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            ) is True
+
+    def test_managed_command_event_rejects_other_command_boundary(
+        self,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        )
+        guarded, root = install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+        )
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "printf first"],
+            env={**os.environ, **guarded},
+            pass_fds=(
+                int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+            ),
+            check=False,
+            timeout=5,
+        )
+        assert completed.returncode == 0
+
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="observe native command",
+                billing_model="subscription",
+            )
+        )
+        session._validation_guard_dir = str(root)
+        session._cli_abort = asyncio.Event()
+
+        async def translate():
+            return [
+                event
+                async for event in session._translate_cli_item(
+                    "item.started",
+                    _cli_item(
+                        "command_execution",
+                        id="c1",
+                        command="printf second",
+                    ),
+                )
+            ]
+
+        with pytest.raises(RuntimeError, match="bypassed.*guard boundary"):
+            asyncio.run(translate())
+        assert session._cli_abort.is_set()
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
     def test_managed_native_cli_does_not_lease_an_entire_light_turn(
         self,
         monkeypatch,
@@ -933,6 +1719,9 @@ class TestCodexCliPath:
         assert lease.status().owner_count == 1
         guarded_env = capture["codex_kwargs"]["env"]
         assert "validation-guard-bin" in guarded_env["PATH"]
+        assert guarded_env["BASH_ENV"].endswith("validation-guard-bash-env")
+        assert capture["validation_guard_bash_env_installed"] is True
+        assert not Path(capture["validation_guard_bash_env"]).exists()
         gate.release()
 
     def test_managed_native_cli_fences_exact_provider_bootstrap(
@@ -1123,16 +1912,20 @@ class TestCodexCliPath:
         events = asyncio.run(run())
 
         assert events[0].kind == "session_start"
-        assert capture["codex_kwargs"]["codex_path_override"].startswith(
-            f"/proc/{os.getpid()}/fd/"
+        assert capture["codex_kwargs"]["codex_path_override"].endswith(
+            "/validation-guard-bin/oompah-validation-provider"
         )
-        assert capture["codex_path_identity"] == (
+        bootstrap = capture["validation_guard_config"]["provider_bootstrap"]
+        assert (
+            bootstrap["entrypoint_device"],
+            bootstrap["entrypoint_inode"],
+        ) == (
             int(original_direct_stat.st_dev),
             int(original_direct_stat.st_ino),
         )
+        assert bootstrap["source_fd"] >= 0
         replacement_stat = direct_binary.stat()
         assert int(replacement_stat.st_ino) != int(original_direct_stat.st_ino)
-        assert "provider_bootstrap" not in capture["validation_guard_config"]
 
     def test_managed_native_cli_rejects_task_writable_direct_codex(
         self,
@@ -1238,6 +2031,105 @@ class TestCodexCliPath:
         assert owner["project_id"] == "worker-project"
         assert owner["task_id"] == "WORK-1"
         assert owner["authority_generation"] == "audit-attempt"
+
+    def test_managed_native_cli_threads_reuse_policy_and_telemetry(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from oompah.acp_backends import codex as codex_module
+
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        recorder = MagicMock()
+        service = types.SimpleNamespace(
+            validation_resource_lease=lease,
+            record_auditor_validation_reuse_policy=recorder,
+        )
+        audit_target = types.SimpleNamespace(
+            project_id="worker-project",
+            task_id="WORK-1",
+            audit_id="audit-1",
+            attempt_id="audit-attempt",
+        )
+        action_policy = types.SimpleNamespace(
+            auditor_session=True,
+            project_id="worker-project",
+            task_identifier="WORK-1",
+        )
+        policy = {
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "attempt_id": "audit-attempt",
+        }
+
+        def authority_check():
+            return "reuse_authoritative_gate"
+
+        real_install = codex_module.install_native_validation_guard
+
+        def capture_install(*args, **kwargs):
+            capture["install_kwargs"] = kwargs
+            return real_install(*args, **kwargs)
+
+        monkeypatch.setattr(
+            codex_module,
+            "install_native_validation_guard",
+            capture_install,
+        )
+
+        async def run() -> CodexAcpBackendSession:
+            session = CodexAcpBackendSession(
+                AcpBackendOptions(
+                    workspace_path=str(tmp_path),
+                    prompt="audit the task",
+                    billing_model="subscription",
+                    coordination_service=service,
+                    project_id="worker-project",
+                    task_identifier="WORK-1",
+                    action_policy=action_policy,
+                    audit_target=audit_target,
+                    validation_reuse_policy=policy,
+                    validation_reuse_authority_check=authority_check,
+                )
+            )
+            async for _event in session.run_turn():
+                pass
+            return session
+
+        session = asyncio.run(run())
+
+        assert session.status == "succeeded"
+        install_kwargs = capture["install_kwargs"]
+        assert install_kwargs["validation_reuse_policy"] is policy
+        assert install_kwargs["validation_reuse_authority_check"] is authority_check
+        handler = install_kwargs["validation_reuse_policy_handler"]
+        assert callable(handler)
+        handler(
+            command="make test",
+            decision="denied_reused_gate",
+            justification="",
+            invocation_id="invocation-1",
+        )
+        recorder.assert_called_once_with(
+            audit_target=audit_target,
+            command="make test",
+            decision="denied_reused_gate",
+            justification="",
+            invocation_id="invocation-1",
+        )
+        assert "OOMPAH_VALIDATION_MODE=task_required_distinct" in capture[
+            "prompt"
+        ]
+        assert "OOMPAH_VALIDATION_JUSTIFICATION" in capture["prompt"]
 
     def test_missing_extension_returns_errored(self, monkeypatch):
         def _boom():
@@ -1540,7 +2432,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = str(tmp_path / "workspace")
         import os
         os.makedirs(workspace)
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(workspace) is None
 
     def test_returns_none_when_git_is_directory(self, tmp_path):
@@ -1550,7 +2441,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = tmp_path / "main-repo"
         workspace.mkdir()
         (workspace / ".git").mkdir()
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(str(workspace)) is None
 
     def test_returns_meta_dir_for_worktree_with_absolute_gitdir(self, tmp_path):
@@ -1565,7 +2455,6 @@ class TestGetWorktreeGitMetaDir:
         workspace.mkdir(parents=True)
         (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
 
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         result = _get_worktree_git_meta_dir(str(workspace))
         assert result == str(meta_dir)
 
@@ -1583,7 +2472,6 @@ class TestGetWorktreeGitMetaDir:
         rel = os.path.relpath(str(meta_dir), str(workspace))
         (workspace / ".git").write_text(f"gitdir: {rel}\n")
 
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         result = _get_worktree_git_meta_dir(str(workspace))
         assert os.path.normpath(result) == os.path.normpath(str(meta_dir))
 
@@ -1595,7 +2483,6 @@ class TestGetWorktreeGitMetaDir:
         (workspace / ".git").write_text(
             "gitdir: /nonexistent/path/.git/worktrees/STALE\n"
         )
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(str(workspace)) is None
 
     def test_returns_none_when_git_file_has_no_gitdir_prefix(self, tmp_path):
@@ -1604,7 +2491,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = tmp_path / "ws"
         workspace.mkdir()
         (workspace / ".git").write_text("not a gitdir file\n")
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(str(workspace)) is None
 
     def test_returns_none_when_git_file_is_unreadable(self, tmp_path):
@@ -1616,7 +2502,6 @@ class TestGetWorktreeGitMetaDir:
         git_file.write_text("gitdir: /some/path\n")
         git_file.chmod(0o000)
         try:
-            from oompah.acp_backends.codex import _get_worktree_git_meta_dir
             result = _get_worktree_git_meta_dir(str(workspace))
             # Either None (no permission) or the path — depends on
             # whether tests run as root. Either way, no exception.
@@ -1632,7 +2517,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = tmp_path / "ws"
         workspace.mkdir()
         (workspace / ".git").write_text(f"gitdir: {meta_dir}  \n")
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         result = _get_worktree_git_meta_dir(str(workspace))
         assert result is not None
         import os

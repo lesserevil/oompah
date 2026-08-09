@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import sqlite3
 import subprocess
 import sys
@@ -10,12 +11,19 @@ import threading
 import time
 import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from oompah import validation_resource_lease as validation_lease_module
-from oompah.api_agent import _exec_run_command
+from oompah.acp_tools import _auditor_validation_success_handler
+from oompah.api_agent import (
+    _exec_run_command,
+    _execute_tool,
+    _validation_reuse_policy_decision,
+)
 from oompah.auditor import check_auditor_command
+from oompah.terminal_audit_observability import TerminalAuditMetrics
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.validation_resource_lease import (
     AUDITOR_PRIORITY,
@@ -26,6 +34,10 @@ from oompah.validation_resource_lease import (
     ValidationLeaseCancelled,
     ValidationLeaseOwner,
     ValidationResourceLease,
+    classify_validation_command,
+    contains_configured_validation_command,
+    is_focused_validation_command,
+    is_full_suite_validation_command,
     is_heavyweight_validation_command,
     managed_agent_validation_owner,
 )
@@ -38,6 +50,17 @@ def _wait_for(predicate, timeout: float = 3.0) -> None:
             return
         time.sleep(0.01)
     raise AssertionError("condition did not become true")
+
+
+def _age_waiter(state_path: Path, task_id: str, *, seconds: float) -> None:
+    """Move one durable waiter into a deterministic aging band."""
+
+    with sqlite3.connect(state_path) as connection:
+        updated = connection.execute(
+            "UPDATE waiters SET queued_at = ? WHERE task_id = ?",
+            (time.time() - seconds, task_id),
+        ).rowcount
+    assert updated == 1
 
 
 def _gate_owner(project: str, task: str) -> ValidationLeaseOwner:
@@ -64,6 +87,14 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
     )
 
 
+def _reusable_gate_policy() -> dict[str, str]:
+    return {
+        "decision": "reuse_authoritative_gate",
+        "command": "make test",
+        "attempt_id": "attempt-1",
+    }
+
+
 @pytest.mark.parametrize(
     ("command", "expected"),
     [
@@ -71,8 +102,21 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("make", True),
         ("make -C . test-serial", True),
         ("make test-unit", True),
-        ("make check-secrets", False),
+        ("make check-secrets", True),
+        ("make help", True),
         ("make --help", False),
+        ("pytest --help", False),
+        ("pytest --version", False),
+        ("python -m pytest --help", False),
+        ("python -m unittest --help", False),
+        ("make --eval='$(shell make test)' help", True),
+        ("make --ev='$(shell make test)' help", True),
+        ("make -E'$(shell make test)' help", True),
+        ("make --eval=all: help", True),
+        ("make -E all: help", True),
+        ("make -f task.mk help", True),
+        ("make --directory=/task help", True),
+        ("make -j help", True),
         ("echo ready; make test", True),
         ("echo ready\nmake test", True),
         ("./ci/test.sh", True),
@@ -91,6 +135,7 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("bash -ce 'pytest'", True),
         ("sh -ec 'pytest tests/'", True),
         ("bash --noprofile -O extglob -c 'make test'", True),
+        ("bash -O extglob -c 'npm @(test)'", True),
         ("bash -o errexit -ce 'cargo test'", True),
         ("uv --directory . run pytest -q", True),
         ("uv --allow-insecure-host example.com run --group test pytest", True),
@@ -105,41 +150,83 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
             True,
         ),
         ("tox -q", True),
-        ("pytest tests/test_one.py", False),
+        ("pytest tests/test_one.py", True),
         ("pytest tests/test_*.py", True),
         ("pytest 'tests/test_{one,two}.py'", True),
         ("pytest 'tests/test_[ab].py'", True),
         ("pytest tests/test_one.py tests/test_two.py", True),
-        ("pytest tests/test_one.py::test_case", False),
+        ("pytest tests/test_one.py::test_case", True),
         ("pytest -k exact_case", True),
-        ("pytest tests/test_one.py -k exact_case", False),
+        ("pytest tests/test_one.py -k exact_case", True),
         ("pytest tests/test_one.py -n auto", True),
         ("pytest tests/test_one.py --numprocesses=4", True),
+        ("pytest -p=task_plugin tests/test_one.py", True),
+        ("pytest -ptask_plugin tests/test_one.py", True),
+        ("pytest --override-ini=addopts=-n4 tests/test_one.py", True),
+        ("pytest -oaddopts=-n4 tests/test_one.py", True),
+        ("pytest --config-file=task.ini tests/test_one.py", True),
+        ("pytest -ctask.ini tests/test_one.py", True),
+        ("pytest --rootdir=/task tests/test_one.py", True),
+        ("pytest --pdbcls=task:Debugger tests/test_one.py", True),
         ("pytest --collect-only", True),
-        ("pytest --collect-only tests/test_one.py", False),
+        ("pytest --collect-only tests/test_one.py", True),
         (
             "pytest --collect-only tests/test_one.py tests/test_two.py",
             True,
         ),
         ("npm test", True),
+        ("npm te*", True),
+        ("npm $CMD", True),
+        ('npm "$CMD"', True),
+        ("npm $'test'", True),
+        ("printf %s $'a\\'b'; npm $'test'", True),
+        ("echo $'a\\'b'; npm test; echo \\'", True),
+        ("npm te{st,}", True),
         ("npm --prefix web test -- --runInBand", True),
         ("npm --workspace web t", True),
         ("npm run test:unit", True),
-        ("npm run build", False),
+        ("npm run build", True),
+        ("npm run --silent test", True),
+        ("npm exec -- make test", True),
         ("pnpm test", True),
         ("pnpm --filter web test", True),
         ("pnpm run test:unit", True),
+        ("pnpm exec make test", True),
+        ("pnpm arbitrary-script", True),
         ("yarn test", True),
         ("yarn run test", True),
+        ("yarn dlx tool", True),
+        ("yarn arbitrary-script", True),
+        ("npm --script-shell=/task/sh run build", True),
         ("python -m unittest discover", True),
         ("python -I -m unittest discover -s tests", True),
-        ("python -m unittest tests.test_one.TestCase.test_case", False),
+        ("python -m unittest tests.test_one.TestCase.test_case", True),
         ("cargo test", True),
+        ("cargo te*", True),
+        ('cargo $"test"', True),
         ("cargo +nightly --color always test --workspace", True),
         ("cargo --config net.retry=2 test", True),
+        ("cargo --config build.rustc-wrapper=/task/wrapper build", True),
+        ("cargo build --config build.rustc-wrapper=/task/wrapper", True),
+        ("cargo -C /task/worktree build", True),
         ("cargo nextest run", True),
+        ("cargo task-alias", True),
         ("cargo build", False),
+        ("npm 'te*'", True),
+        ("printf %s \"a'b\"; npm 'build'", True),
+        ("echo \"$'literal'\"; npm 'build'", True),
+        ("echo \\$'literal'; npm 'build'", True),
+        ("npm '$CMD'", True),
+        ("npm \\$'test'", True),
+        ("npm 'te{st,}'", True),
+        ("cargo 'te*'", True),
+        ('cargo \\$"test"', True),
         ("rg pytest tests", False),
+        ("rg --hostname-bin=/task/hostname pytest tests", True),
+        ("rg --hostname-bin /task/hostname pytest tests", True),
+        ("rg --search-zip pytest tests", True),
+        ("rg -z pytest tests", True),
+        ("rg -nUz pytest tests", True),
         ("/usr/bin/rg pytest tests", False),
         ("./rg pytest tests", True),
         ("/workspace/bin/rg pytest tests", True),
@@ -153,6 +240,9 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("node --input-type=module -", True),
         ("perl -", True),
         ("ruby -", True),
+        ("ruby -v", False),
+        ("ruby -v -e 'system %q(make test)'", True),
+        ("ruby -v script.rb", True),
         ("python --version", False),
         ("bash --version", False),
         ("node --version", False),
@@ -167,12 +257,1279 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("exec rg pytest tests", False),
         ("time git status --short", False),
         ("bash -ce 'echo pytest'", False),
+        # Script-looking npm arguments remain capacity-bearing even when
+        # quoting prevents this shell layer from expanding extglob syntax.
+        ("bash -O extglob -c \"npm '@(test)'\"", True),
+        ("npm '@(test)'", True),
+        ("eval \"$VALIDATION_COMMAND\"", True),
+        ("$VALIDATION_COMMAND", True),
+        ("source ./validation-command.sh", True),
+        ("if true; then rg pytest tests; fi", True),
+        ("echo $(printf make); test", True),
+        ("echo `make test`", True),
+        ("echo '`make test`'", False),
+        ("unset BASH_ENV; rg pytest tests", True),
+        ("PATH+=:/workspace/bin; rg pytest tests", True),
+        ("unset OOMPAH_NATIVE_VALIDATION_BOUNDARY_GROUP", True),
+        ("env -uBASH_ENV rg pytest tests", True),
+        ("env --unset=BASH_ENV rg pytest tests", True),
+        ("env -i rg pytest tests", True),
+        ("env -iS 'rg pytest tests'", True),
+        ("env -a -bash bash -c 'printf trusted'", True),
+        ("env --argv0=-bash bash -c 'printf trusted'", True),
+        ("exec -a -bash bash -c 'printf trusted'", True),
+        ("exec -c rg pytest tests", True),
+        ("exec -cl rg pytest tests", True),
+        ("command -p rg pytest tests", True),
+        ("command -pv rg pytest tests", True),
+        ("typeset +x BASH_ENV; rg pytest tests", True),
+        ("HOME=/task/worktree bash -lc 'printf trusted'", True),
+        ("ZDOTDIR=/task/worktree zsh -c 'printf trusted'", True),
+        ("ENV=/task/worktree/profile sh -c 'printf trusted'", True),
+        ("LD_PRELOAD=/task/hook.so /usr/bin/printf trusted", True),
+        ("LD_AUDIT=/task/audit.so /usr/bin/printf trusted", True),
+        ("LD_LIBRARY_PATH=/task/lib /usr/bin/printf trusted", True),
+        ("DYLD_INSERT_LIBRARIES=/task/hook.dylib printf trusted", True),
+        ("LIBPATH=/task/lib printf trusted", True),
+        ("bash -lc 'printf trusted'", True),
+        ("bash -ic 'printf trusted'", True),
+        ("bash --noprofile -lc 'printf trusted'", False),
+        ("bash --norc -ic 'printf trusted'", False),
+        ("bash -lc 'printf trusted' --noprofile", True),
+        ("bash -ic 'printf trusted' --norc", True),
+        ("zsh -c 'printf trusted'", True),
+        ("zsh -fc 'printf trusted'", False),
+        ("zsh +fc 'printf trusted'", True),
+        (
+            "PYTEST_ADDOPTS='-n auto' "
+            "pytest tests/test_one.py::test_case",
+            True,
+        ),
+        ("GNUMAKEFLAGS='--eval=all:;make test' make help", True),
+        ("RUSTC=/task/rustc cargo build", True),
+        ("CARGO_BUILD_RUSTC=/task/rustc cargo build", True),
+        ("CARGO_HOME=/task/cargo cargo build", True),
+        ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=/task/cc cargo build", True),
+        (
+            "env 'BASH_FUNC_printf%%=() { make test; }' "
+            "bash -c 'printf trusted'",
+            True,
+        ),
+        ("printf -v PATH /workspace/bin; rg pytest tests", True),
+        ("printf -v HOME %s /malicious-home; git status --short", True),
+        ("printf -v LOCAL_VALUE %s harmless; git status --short", True),
+        ('printf -v "$GUARD_NAME" value; rg pytest tests', True),
+        # HOME-like argv following printf is intentionally ambiguous with the
+        # shell builtin's assignment form, so the following Git inspection
+        # cannot safely bypass capacity.
+        ("printf '%s' HOME; git status --short", True),
+        ("printf -- '-v %s' HOME; git status --short", True),
+        ('unset "$GUARD_NAME"; rg pytest tests', True),
+        ("PATH=/workspace/bin rg pytest tests", True),
+        ("env -u OOMPAH_NATIVE_VALIDATION_GUARD rg pytest tests", True),
+        ("ci-check", True),
+        ("find . -exec make test {} +", True),
+        ("git -c alias.verify='!make test' verify", True),
+        ("git -c credential.helper=/workspace/helper credential fill", True),
+        ("git --config-env=credential.helper=HELPER credential fill", True),
+        ("git credential fill", True),
+        ("git custom-inspector", True),
+        ("git diff --ext-diff", True),
+        ("git cat-file --filters HEAD:file", True),
+        ("git log --format=%G? -1", True),
+        ("git remote show origin", True),
+        ("git branch --edit-description", True),
+        ("git tag --list -v", True),
+        ("git -c core.askPass=/workspace/helper status", True),
+        ("git -c log.showSignature=true log -1", True),
+        ("git -c format.pretty=%G? log -1", True),
+        ("GIT_EXTERNAL_DIFF=/workspace/helper git diff", True),
+        ("GIT_CONFIG_PARAMETERS=opaque git status", True),
+        (
+            "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor "
+            "GIT_CONFIG_VALUE_0=/workspace/helper git status",
+            True,
+        ),
+        ("git branch --show-current", False),
+        ("git tag --list 'v*'", False),
+        ("git grep validation", False),
+        ("git rev-list -1 HEAD", False),
+        ("git remote -v", False),
+        ("git remote get-url origin", False),
+        ("git reflog show -1", False),
+        ("git worktree list --porcelain", False),
+        ("git diff $OPTION", True),
+        ("git diff '$OPTION'", False),
+        ("git -c core.alternateRefsCommand=/workspace/helper rev-list --alternate-refs", True),
+        ("sed -e '1e make test' file", True),
+        ("sed -ne'1e make test' file", True),
+        ("sed 'e;' file", True),
+        ("sed '\\%foo%e make test' file", True),
+        ("sed '/foo/Ie touch marker' file", True),
+        ("sed '/foo/I!e touch marker' file", True),
+        ("sed '\\%foo%Me touch marker' file", True),
+        ("sed '\\%foo%iM ! e touch marker' file", True),
+        ("sed '\\|foo|e make test' file", True),
+        ("sed '\\xfooxe make test' file", True),
+        ("sed '1,\\#foo#!e make test' file", True),
+        ("sed '\\%foo%p' file", False),
+        ("sed '/foo/Ip' file", False),
+        ("sed '/foo/I!p' file", False),
+        ("sed '\\%foo%Mp' file", False),
+        ("sed 's/x/y/e' file", True),
+        ("sed -f script.sed file", True),
+        ("sed <commands.txt e", True),
+        ('sed "$SCRIPT" file', True),
+        ('sed -e "$SCRIPT" file', True),
+        ('sed --expression="$SCRIPT" file', True),
+        ("sed 'e'* file", True),
+        ("sed * file", True),
+        ("sed p *", True),
+        ("sed p -- *", False),
+        ("sed {e,} file", True),
+        ("sed 1{e,} file", True),
+        ("sed --e={e,} file", True),
+        ("sed --e='e make test' file", True),
+        ("sed --expr='e make test' file", True),
+        ("sed --fi=commands.sed file", True),
+        ("sed --fil=commands.sed file", True),
+        ('sed -ne"$SCRIPT" file', True),
+        ("sed 's/before/after/' file", False),
+        ("sed 's/>/after/' file", False),
+        ("sed 's/$/after/' file", False),
+        ("sed 's/.*/after/' *.txt", True),
+        ("sed 's/.*/after/' -- *.txt", False),
+        ("sed 's/{before,after}/value/' file{1,2}", True),
+        ("sed 's/{before,after}/value/' -- file{1,2}", False),
+        ("sed --e='s/before/after/' file", False),
+        ("sed --expr='s/before/after/' file", False),
+        ("sed -e 's/before/after/' file", False),
+        ("sed -n 's/before/after/p' file", False),
+        ("awk 'BEGIN { system(\"make test\") }'", True),
+        ("rg --pre 'make test' pattern .", True),
         ("echo make test", False),
         ("git status --short", False),
+        # The first form contains shell redirection.  In the second, ``>`` is
+        # an npm argv token instead, but that ambiguous script invocation must
+        # remain conservatively capacity-bearing too.
+        ("npm >out test", True),
+        ("npm '>' test", True),
+        ("cargo test>out", True),
+        ("cargo 'test>out'", True),
+        ("pytest tests/test_one.py -$OPT", True),
+        # A focused pytest selector is capacity-bearing independent of whether
+        # this shell expands the option-looking argument.
+        ("pytest tests/test_one.py '-$OPT'", True),
+        ("npm 'unterminated", True),
     ],
 )
-def test_classifier_is_heavy_first_and_focused_checks_bypass(command, expected):
-    assert is_heavyweight_validation_command(command) is expected
+def test_classifier_is_heavy_first_and_inspection_only_checks_bypass(
+    command,
+    expected,
+    tmp_path,
+):
+    workspace = tmp_path / "workspace"
+    git_dir = workspace / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=workspace,
+    ) is expected
+
+
+def test_shell_line_continuation_is_removed_before_classification():
+    assert is_heavyweight_validation_command(
+        "cargo te\\" + "\n" + "st"
+    ) is True
+    assert is_heavyweight_validation_command(
+        'cargo "te\\' + "\n" + 'st"'
+    ) is True
+    assert is_heavyweight_validation_command(
+        "cargo 'te\\" + "\n" + "st'"
+    ) is True
+
+
+def test_sed_input_glob_cannot_inject_permuted_program_file(tmp_path):
+    (tmp_path / "-fcommands.sed").write_text(
+        "e touch marker\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "sed p *",
+        working_directory=tmp_path,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "sed p -- *",
+        working_directory=tmp_path,
+    ) is False
+
+
+def test_persisted_git_config_environment_fails_closed():
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment={
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+            "GIT_CONFIG_VALUE_0": "/workspace/helper",
+        },
+    ) is True
+
+
+def test_safe_complete_git_config_environment_preserves_inspection(tmp_path):
+    workspace = tmp_path / "workspace"
+    git_dir = workspace / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "url.file:///blocked/.insteadOf",
+        "GIT_CONFIG_VALUE_0": "https://",
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=workspace,
+    ) is False
+
+
+def test_inherited_bash_function_state_fails_closed_before_command_resolution():
+    assert is_heavyweight_validation_command(
+        "printf trusted",
+        command_environment={
+            "BASH_FUNC_printf%%": "() { make test; }",
+        },
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "_RLD_LIST",
+        "LDR_CNTRL",
+        "LDR_PRELOAD",
+        "LIBPATH",
+        "SHLIB_PATH",
+    ],
+)
+def test_inherited_dynamic_loader_environment_fails_closed(name):
+    assert is_heavyweight_validation_command(
+        "printf trusted",
+        command_environment={name: "/task/loader-hook"},
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("config_name", "config_contents"),
+    [
+        (
+            "config.toml",
+            '[build]\nrustc-wrapper = "/task/wrapper"\n',
+        ),
+        (
+            "config",
+            '[alias]\nproject-check = "run --bin task-helper"\n',
+        ),
+    ],
+)
+def test_effective_workspace_cargo_configuration_fails_closed(
+    tmp_path,
+    config_name,
+    config_contents,
+):
+    workspace = tmp_path / "workspace"
+    invocation_directory = workspace / "crate"
+    cargo_config = workspace / ".cargo"
+    invocation_directory.mkdir(parents=True)
+    cargo_config.mkdir()
+    (cargo_config / config_name).write_text(config_contents, encoding="utf-8")
+
+    assert is_heavyweight_validation_command(
+        "cargo build",
+        command_environment={"HOME": str(tmp_path / "isolated-home")},
+        working_directory=invocation_directory,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("config_name", "config_contents"),
+    [
+        ("pyproject.toml", "[tool.pytest.ini_options]\naddopts = '-p task_plugin'\n"),
+        ("pytest.ini", "[pytest]\naddopts = -p task_plugin\n"),
+        (".pytest.ini", "[pytest]\naddopts = -p task_plugin\n"),
+        ("tox.ini", "[pytest]\naddopts = -p task_plugin\n"),
+        ("setup.cfg", "[tool:pytest]\naddopts = -p task_plugin\n"),
+        ("conftest.py", "pytest_plugins = ['task_plugin']\n"),
+    ],
+)
+def test_effective_pytest_configuration_fails_closed(
+    tmp_path,
+    config_name,
+    config_contents,
+):
+    workspace = tmp_path / "workspace"
+    invocation_directory = workspace / "tests" / "unit"
+    invocation_directory.mkdir(parents=True)
+    (workspace / config_name).write_text(config_contents, encoding="utf-8")
+
+    assert is_heavyweight_validation_command(
+        "pytest test_one.py::test_case",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_focused_pytest_without_persisted_configuration_remains_capacity_bearing(
+    tmp_path,
+):
+    invocation_directory = tmp_path / "isolated" / "tests"
+    invocation_directory.mkdir(parents=True)
+
+    assert is_heavyweight_validation_command(
+        "pytest test_one.py::test_case",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "pytest @payload.py",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "python -m pytest @payload.py",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_explicit_pytest_selector_ancestor_configuration_fails_closed(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    selector_directory = tmp_path / "project" / "tests"
+    invocation_directory.mkdir()
+    selector_directory.mkdir(parents=True)
+    (tmp_path / "project" / "conftest.py").write_text(
+        "pytest_plugins = ['task_plugin']\n",
+        encoding="utf-8",
+    )
+    selector = selector_directory / "test_one.py"
+
+    assert is_heavyweight_validation_command(
+        f"pytest {selector}::test_case",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "environment"),
+    [
+        (
+            "pytest tests/test_one.py::test_case",
+            {"PYTEST_ADDOPTS": "-n auto"},
+        ),
+        (
+            "python -m pytest tests/test_one.py::test_case",
+            {"PYTEST_PLUGINS": "task_plugin"},
+        ),
+        (
+            "pytest tests/test_one.py::test_case",
+            {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
+        ),
+        ("make help", {"MAKEFLAGS": "--eval=$(shell make test)"}),
+        ("make help", {"GNUMAKEFLAGS": "--eval=$(shell make test)"}),
+        ("npm run build", {"NODE_OPTIONS": "--require=/task/hook.js"}),
+        ("npm run build", {"npm_config_script_shell": "/task/sh"}),
+        ("npm run build", {"NPM_CONFIG_SCRIPT_SHELL": "/task/sh"}),
+        ("pnpm run build", {"PNPM_SCRIPT_SHELL": "/task/sh"}),
+        ("yarn run build", {"YARN_SCRIPT_SHELL": "/task/sh"}),
+        ("rg pytest tests", {"RIPGREP_CONFIG_PATH": "/task/ripgreprc"}),
+        ("ruby --version", {"RUBYOPT": "-r/task/hook.rb"}),
+        ("ruby --version", {"RUBYLIB": "/task/lib"}),
+        ("cargo build", {"RUSTC_WRAPPER": "/task/wrapper"}),
+        ("cargo build", {"RUSTC": "/task/rustc"}),
+        ("cargo build", {"CARGO_BUILD_RUSTC": "/task/rustc"}),
+        ("cargo build", {"CARGO_HOME": "/task/cargo"}),
+        (
+            "cargo build",
+            {"CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER": "/task/wrapper"},
+        ),
+        (
+            "cargo build",
+            {"CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER": "/task/cc"},
+        ),
+    ],
+)
+def test_inherited_runner_environment_fails_closed(command, environment):
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "environment_update"),
+    [
+        ("git diff --stat", {"GIT_EXTERNAL_DIFF": "/workspace/diff-helper"}),
+        ("git status --short", {"GIT_CONFIG_PARAMETERS": "'alias.x'='!true'"}),
+        ("git log -1", {"GIT_PAGER": "/workspace/pager-helper"}),
+        ("git log -1", {"PAGER": "/workspace/pager-helper"}),
+        ("git status --short", {"GIT_TRACE2_EVENT": "|/workspace/helper"}),
+    ],
+)
+def test_git_executable_environment_surfaces_fail_closed(
+    tmp_path,
+    command,
+    environment_update,
+):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        **environment_update,
+    }
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_non_executable_git_trace_environment_preserves_safe_inspection(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_TRACE2_EVENT": str(tmp_path / "trace.json"),
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+
+@pytest.mark.parametrize(
+    "command_environment",
+    [
+        {"GIT_CONFIG_COUNT": "invalid"},
+        {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.fsmonitor"},
+        {
+            "GIT_CONFIG_COUNT": "0",
+            "GIT_CONFIG_KEY_0": "safe.key",
+            "GIT_CONFIG_VALUE_0": "safe-value",
+        },
+        {"GIT_CONFIG_KEY_0": "safe.key", "GIT_CONFIG_VALUE_0": "safe-value"},
+    ],
+)
+def test_malformed_git_config_environment_fails_closed(command_environment):
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=command_environment,
+    ) is True
+
+
+def test_persisted_repo_helper_config_fails_closed_but_safe_config_does_not(
+    tmp_path,
+):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=tmp_path,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=tmp_path,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "executable_config",
+    [
+        "[log]\n\tshowSignature = true\n",
+        "[format]\n\tpretty = %G?\n",
+        "[pretty \"verified\"]\n\tformat = %G?\n",
+    ],
+)
+def test_git_signature_config_surfaces_fail_closed(tmp_path, executable_config):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(executable_config, encoding="utf-8")
+
+    assert is_heavyweight_validation_command(
+        "git log -1",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=tmp_path,
+    ) is True
+
+
+def test_git_alternate_refs_command_config_fences_rev_list(tmp_path):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=tmp_path,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "\talternateRefsCommand = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=tmp_path,
+    ) is True
+
+
+def _isolated_git_config_environment(tmp_path):
+    home = tmp_path / "home"
+    xdg_config = tmp_path / "xdg-config"
+    home.mkdir()
+    xdg_config.mkdir()
+    return {
+        "HOME": str(home),
+        "XDG_CONFIG_HOME": str(xdg_config),
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
+
+def test_git_c_inspects_the_selected_repository_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git -C ../alternate status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git -C ../alternate status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_env_chdir_inspects_the_selected_repository_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "env --chdir=../alternate git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "env -C ../alternate git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_env_unset_of_git_execution_and_config_scope_fails_closed(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    inherited_home = tmp_path / "inherited-home"
+    invocation_directory.mkdir()
+    inherited_home.mkdir()
+    (inherited_home / ".gitconfig").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "HOME": str(inherited_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_EXTERNAL_DIFF": "/workspace/diff-helper",
+    }
+
+    # Mutating HOME changes the startup/configuration scope.  Even when this
+    # particular mutation removes known helpers, it must remain fail-closed.
+    assert is_heavyweight_validation_command(
+        "env -u HOME --unset=GIT_EXTERNAL_DIFF git diff --stat",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_prior_cd_segment_updates_git_repository_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "cd ../alternate; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "cd ../alternate && git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_skipped_conditional_cd_does_not_change_later_git_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "false && cd ../alternate; git status --short",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is False
+
+
+def test_conditional_chain_preserves_unknown_status_before_scope_mutation(
+    tmp_path,
+):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "test -e missing && true && cd ../alternate; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "test -e missing && false && cd ../alternate; git status --short",
+        "test -e missing || true || cd ../alternate; git status --short",
+    ],
+)
+def test_conditional_chain_truth_table_proves_scope_mutation_is_skipped(
+    tmp_path,
+    command,
+):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is False
+
+
+def test_assignment_only_segment_updates_exported_git_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    safe_home = tmp_path / "safe-home"
+    helper_home = tmp_path / "helper-home"
+    invocation_directory.mkdir()
+    safe_home.mkdir()
+    helper_home.mkdir()
+    (safe_home / ".gitconfig").write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    (helper_home / ".gitconfig").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "HOME": str(safe_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
+    assert is_heavyweight_validation_command(
+        f"HOME={helper_home}; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_prior_export_and_unset_segments_update_git_environment_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    safe_home = tmp_path / "safe-home"
+    helper_home = tmp_path / "helper-home"
+    invocation_directory.mkdir()
+    safe_home.mkdir()
+    helper_home.mkdir()
+    (safe_home / ".gitconfig").write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    (helper_home / ".gitconfig").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "HOME": str(safe_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_DIR": str(tmp_path / "missing-inherited-git-dir"),
+    }
+
+    # Exporting HOME is itself a configuration-scope mutation, even when the
+    # selected home currently contains only safe configuration.
+    assert is_heavyweight_validation_command(
+        "unset GIT_DIR; export HOME=" + str(safe_home) + "; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "unset GIT_DIR; export HOME=" + str(helper_home) + "; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "unset GIT_DIR; export GIT_EXTERNAL_DIFF=/workspace/helper; git diff",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_ambiguous_shell_scope_control_flow_fails_closed(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    alternate_repository.mkdir()
+
+    assert is_heavyweight_validation_command(
+        "cd ../alternate || git status --short",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_explicit_git_dir_and_work_tree_inspect_diff_helper_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "alternate.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+    command = (
+        "git --git-dir=../alternate.git --work-tree=../work-tree diff --stat"
+    )
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "[diff \"external\"]\n\tcommand = /workspace/diff-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_explicit_work_tree_inspects_its_repository_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    invocation_directory.mkdir()
+    git_dir = work_tree / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[filter \"generated\"]\n\tprocess = /workspace/filter-helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "git --work-tree=../work-tree status --short",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_linked_worktree_common_and_worktree_configs_are_inspected(tmp_path):
+    work_tree = tmp_path / "work-tree"
+    common_git_dir = tmp_path / "common.git"
+    worktree_git_dir = common_git_dir / "worktrees" / "feature"
+    work_tree.mkdir()
+    worktree_git_dir.mkdir(parents=True)
+    (work_tree / ".git").write_text(
+        f"gitdir: {worktree_git_dir}\n",
+        encoding="utf-8",
+    )
+    (worktree_git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+    (common_git_dir / "config").write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    worktree_config = worktree_git_dir / "config.worktree"
+    worktree_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=work_tree,
+    ) is False
+
+    worktree_config.write_text(
+        "[core]\n\tfsmonitor = /workspace/worktree-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=work_tree,
+    ) is True
+
+
+def test_git_dir_environment_inspects_filter_helper_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "alternate.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_DIR": "../alternate.git",
+        "GIT_WORK_TREE": "../work-tree",
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "[filter \"generated\"]\n\tprocess = /workspace/filter-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_git_common_dir_environment_inspects_selected_common_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "worktree.git"
+    common_dir = tmp_path / "common.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    common_dir.mkdir()
+    config = common_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_DIR": "../worktree.git",
+        "GIT_COMMON_DIR": "../common.git",
+        "GIT_WORK_TREE": "../work-tree",
+    }
+
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "\talternateRefsCommand = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_inline_git_scope_environment_selects_alternate_repository(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "alternate.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "GIT_DIR=../alternate.git GIT_WORK_TREE=../work-tree git status",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_normal_home_and_xdg_git_configs_are_inspected(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = _isolated_git_config_environment(tmp_path)
+    home_config = Path(environment["HOME"]) / ".gitconfig"
+    xdg_config = Path(environment["XDG_CONFIG_HOME"]) / "git" / "config"
+    xdg_config.parent.mkdir()
+    home_config.write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    xdg_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    xdg_config.write_text(
+        "[core]\n\tfsmonitor = /workspace/global-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_normal_system_git_config_is_inspected_without_invoking_git(
+    tmp_path,
+    monkeypatch,
+):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = _isolated_git_config_environment(tmp_path)
+    environment.pop("GIT_CONFIG_NOSYSTEM")
+    system_config = tmp_path / "system-gitconfig"
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_GIT_SYSTEM_CONFIG_PATHS",
+        (system_config,),
+    )
+    system_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    system_config.write_text(
+        "[diff \"external\"]\n\tcommand = /workspace/system-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_selected_global_and_system_git_config_paths_are_inspected(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    global_config = tmp_path / "selected-global-config"
+    system_config = tmp_path / "selected-system-config"
+    global_config.write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    system_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "GIT_CONFIG_GLOBAL": str(global_config),
+        "GIT_CONFIG_SYSTEM": str(system_config),
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    global_config.write_text(
+        "[core]\n\tfsmonitor = /workspace/global-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_non_regular_or_oversized_git_config_fails_closed_without_reading(
+    tmp_path,
+):
+    repository = tmp_path / "repository"
+    git_dir = repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    os.mkfifo(config)
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=repository,
+    ) is True
+
+    config.unlink()
+    config.write_bytes(
+        b"[core]\n" + (b"x" * (validation_lease_module._GIT_CONFIG_MAX_BYTES + 1))
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=repository,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "environment_update"),
+    [
+        ("git -C ../missing status", {}),
+        ("git --git-dir=$UNKNOWN_REPOSITORY status", {}),
+        ("git --work-tree=../missing status", {}),
+        ("git status", {"GIT_DIR": "../missing"}),
+        ("git status", {"HOME": "relative-home"}),
+    ],
+)
+def test_unresolvable_git_configuration_scope_fails_closed(
+    tmp_path,
+    command,
+    environment_update,
+):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        **environment_update,
+    }
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_task_controlled_path_lookalike_is_heavy(tmp_path):
+    task_bin = tmp_path / "bin"
+    task_bin.mkdir()
+    fake_git = task_bin / "git"
+    fake_git.write_text("#!/bin/sh\nexec make test\n", encoding="utf-8")
+    fake_git.chmod(0o700)
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        executable_search_path=str(task_bin),
+        untrusted_executable_roots=(tmp_path,),
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("pytest", True),
+        ("pytest -q", True),
+        ("pytest -p no:foo", True),
+        ("python -m pytest -n auto", True),
+        ("bash -lc 'python -m pytest -q -W error'", True),
+        ("pytest tests/", True),
+        ("python -m unittest", True),
+        ("python -m unittest discover", True),
+        ("python -m unittest discover -s tests -p 'test_*.py'", True),
+        ("env -S 'make test'", True),
+        ("echo ready && pytest", True),
+        ("pytest $OOMPAH_TEST_SCOPE", True),
+        ("npm test", True),
+        ("cargo nextest run", True),
+        ("npm run build", False),
+        ("cargo build", False),
+        ("pytest tests/test_one.py", False),
+        ("pytest tests/test_one.py::test_case", False),
+        ("python -m pytest -q tests/test_one.py", False),
+        ("python -m unittest tests.test_one", False),
+    ],
+)
+def test_full_suite_classifier_distinguishes_pytest_scope(command, expected):
+    assert (
+        is_full_suite_validation_command(
+            command,
+            configured_command="make test",
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("pytest tests/test_one.py -q", True),
+        ("bash -lc 'pytest tests/test_one.py -q'", True),
+        ("echo ready && pytest tests/test_one.py -q", True),
+        ("env -S 'pytest tests/test_one.py -q'", True),
+        ("pytest $OOMPAH_TEST_SCOPE", False),
+        ("pytest tests/test_one.py; npm test", False),
+    ],
+)
+def test_focused_classifier_preserves_wrappers_and_syntax_provenance(
+    command,
+    expected,
+):
+    assert is_focused_validation_command(command) is expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("make test", True),
+        ("timeout 30 bash -lc 'make test'", True),
+        ("env -S 'make test'", True),
+        ("echo ready && make test", True),
+        ("$OOMPAH_RUNNER test", False),
+        ("make $OOMPAH_TARGET", False),
+    ],
+)
+def test_configured_command_match_preserves_wrappers_and_syntax_provenance(
+    command,
+    expected,
+):
+    assert (
+        contains_configured_validation_command(
+            command,
+            configured_command="make test",
+        )
+        is expected
+    )
 
 
 @pytest.mark.parametrize(
@@ -181,9 +1538,13 @@ def test_classifier_is_heavy_first_and_focused_checks_bypass(command, expected):
         "make test",
         "make test-serial",
         "pytest",
+        "pytest tests/test_one.py",
+        "pytest tests/test_one.py::test_case",
         "py.test tests/test_*.py",
         "python -m pytest",
+        "python -m pytest tests/test_one.py::test_case",
         "python -m unittest discover",
+        "python -m unittest tests.test_one.TestCase.test_case",
         "npm test",
         "pnpm test",
         "yarn test",
@@ -388,6 +1749,30 @@ def test_release_metadata_failure_does_not_leak_flock_or_mask_result(
         assert lease.status().owner_count == 1
 
 
+def test_connection_context_closes_sqlite_descriptor_deterministically(tmp_path):
+    state_path = (tmp_path / "lease.sqlite3").resolve()
+    lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+
+    def state_descriptors() -> set[int]:
+        matches: set[int] = set()
+        for raw_descriptor in os.listdir("/proc/self/fd"):
+            try:
+                target = Path(
+                    os.readlink(f"/proc/self/fd/{raw_descriptor}")
+                ).resolve()
+            except OSError:
+                continue
+            if target == state_path:
+                matches.add(int(raw_descriptor))
+        return matches
+
+    baseline = state_descriptors()
+    for _ in range(20):
+        lease.status()
+
+    assert state_descriptors() == baseline
+
+
 def test_release_preserves_owner_while_background_descendant_holds_flock(tmp_path):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     handle = lease.acquire(_gate_owner("p1", "shell"))
@@ -452,7 +1837,10 @@ def test_expired_detached_descendant_is_not_killed_via_stale_group_id(tmp_path):
         assert lease.status().owner_count == 1
 
 
-def test_expired_stale_child_identity_never_calls_killpg(tmp_path, monkeypatch):
+def test_expired_stale_child_identity_never_signals_reused_pid(
+    tmp_path,
+    monkeypatch,
+):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     handle = lease.acquire(_gate_owner("p1", "stale-child"))
     child = subprocess.Popen(["true"], start_new_session=True)
@@ -461,11 +1849,152 @@ def test_expired_stale_child_identity_never_calls_killpg(tmp_path, monkeypatch):
     time.sleep(0.06)
 
     monkeypatch.setattr(
-        "oompah.validation_resource_lease.os.killpg",
-        lambda *_args: pytest.fail("stale process group was signaled"),
+        validation_lease_module,
+        "_pidfd_send_signal",
+        lambda *_args: pytest.fail("stale process identity was signaled"),
     )
     assert lease.status().owner_count == 1
     handle.release()
+
+
+def test_group_empty_proof_rejects_member_forked_after_proc_snapshot(
+    monkeypatch,
+):
+    observations: list[str] = []
+
+    def empty_proc_snapshot(_pid):
+        observations.append("proc-scan-complete")
+        return ()
+
+    def group_exists_after_fork(_pid):
+        observations.append("kernel-group-probe")
+        assert observations == ["proc-scan-complete", "kernel-group-probe"]
+        return True
+
+    monkeypatch.setattr(validation_lease_module, "_process_stat", lambda _pid: None)
+    real_exists = Path.exists
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda path: False if path == Path("/proc/123") else real_exists(path),
+    )
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_process_group_members",
+        empty_proc_snapshot,
+    )
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_process_group_exists",
+        group_exists_after_fork,
+    )
+
+    gone, members = validation_lease_module._original_process_group_snapshot(
+        123,
+        456,
+    )
+
+    assert gone is False
+    assert members == ()
+    assert observations == ["proc-scan-complete", "kernel-group-probe"]
+
+
+def test_live_numeric_pid_with_stale_start_ticks_is_never_signaled(monkeypatch):
+    previous = subprocess.Popen(["true"], start_new_session=True)
+    previous_ticks = validation_lease_module._process_start_ticks(previous.pid)
+    assert previous_ticks is not None
+    assert previous.wait(timeout=2) == 0
+    time.sleep(0.05)
+    replacement = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    replacement_ticks = validation_lease_module._process_start_ticks(replacement.pid)
+    assert replacement_ticks is not None
+    assert replacement_ticks != previous_ticks
+    assert os.getpgid(replacement.pid) == replacement.pid
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_pidfd_send_signal",
+        lambda descriptor, signum: signals.append((descriptor, signum)),
+    )
+    try:
+        assert validation_lease_module._terminate_exact_process_group(
+            replacement.pid,
+            previous_ticks,
+        ) is True
+        assert replacement.poll() is None
+        assert signals == []
+    finally:
+        replacement.terminate()
+        replacement.wait(timeout=2)
+
+
+def test_process_group_termination_bounds_full_proc_scan_cadence(monkeypatch):
+    """Large hosts are not rescanned at 100 Hz during bounded cancellation."""
+
+    clock = 0.0
+    snapshots = 0
+    sleeps: list[float] = []
+
+    def monotonic() -> float:
+        return clock
+
+    def sleep(seconds: float) -> None:
+        nonlocal clock
+        sleeps.append(seconds)
+        clock += seconds
+
+    def persistent_group(_pid: int, _ticks: int):
+        nonlocal snapshots
+        snapshots += 1
+        return False, ((123, 456),)
+
+    monkeypatch.setattr(validation_lease_module.time, "monotonic", monotonic)
+    monkeypatch.setattr(validation_lease_module.time, "sleep", sleep)
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_original_process_group_snapshot",
+        persistent_group,
+    )
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_signal_exact_process_group_member",
+        lambda *_args, **_kwargs: True,
+    )
+
+    assert validation_lease_module._terminate_exact_process_group(
+        123,
+        456,
+        grace_seconds=0,
+    ) is False
+    assert snapshots <= 13
+    assert sleeps
+    assert min(sleeps) >= 0.05
+
+
+def test_zombie_group_leader_is_quiescent_before_parent_waits() -> None:
+    """Retirement does not deadlock on a child waiting to be reaped."""
+
+    process = subprocess.Popen(["true"], start_new_session=True)
+    start_ticks = validation_lease_module._process_start_ticks(process.pid)
+    assert start_ticks is not None
+    try:
+        _wait_for(
+            lambda: (
+                (current := validation_lease_module._process_stat(process.pid))
+                is not None
+                and current[0] == "Z"
+            )
+        )
+
+        gone, members = validation_lease_module._original_process_group_snapshot(
+            process.pid,
+            start_ticks,
+        )
+
+        assert gone is True
+        assert members == ()
+    finally:
+        process.wait(timeout=2)
 
 
 def test_cancel_owner_terminates_only_matching_attached_process_group(tmp_path):
@@ -479,10 +2008,68 @@ def test_cancel_owner_terminates_only_matching_attached_process_group(tmp_path):
     )
     handle.attach_process(process, timeout_seconds=60)
 
-    assert lease.cancel_owner(owner) == 1
+    assert lease.cancel_owner(
+        owner,
+        cancelled_by="operator:alice",
+        reason="critical-path preemption",
+    ) == 1
     assert process.wait(timeout=3) != 0
+    assert lease.cancellation_for(owner) == {
+        "kind": owner.kind,
+        "project_id": owner.project_id,
+        "task_id": owner.task_id,
+        "authority_generation": owner.authority_generation,
+        "cancelled_at": lease.cancellation_for(owner)["cancelled_at"],
+        "cancelled_by": "operator:alice",
+        "reason": "critical-path preemption",
+    }
+    assert lease.status().to_dict()["cancelled_owners"][0]["reason"] == (
+        "critical-path preemption"
+    )
     handle.release()
     assert lease.status().owner_count == 0
+
+
+def test_existing_cancelled_owner_rows_gain_safe_provenance_defaults(tmp_path):
+    """A service restart upgrades prior lease tombstones without losing them."""
+
+    state_path = tmp_path / "lease.sqlite3"
+    owner = _gate_owner("project", "TASK-1")
+    with sqlite3.connect(state_path) as connection:
+        connection.execute(
+            """CREATE TABLE cancelled_owners (
+                   kind TEXT NOT NULL,
+                   project_id TEXT NOT NULL,
+                   task_id TEXT NOT NULL,
+                   authority_generation TEXT NOT NULL,
+                   cancelled_at REAL NOT NULL,
+                   PRIMARY KEY (kind, project_id, task_id, authority_generation)
+               )"""
+        )
+        connection.execute(
+            """INSERT INTO cancelled_owners(
+                   kind, project_id, task_id, authority_generation, cancelled_at
+               ) VALUES (?, ?, ?, ?, ?)""",
+            (
+                owner.kind,
+                owner.project_id,
+                owner.task_id,
+                owner.authority_generation,
+                123.0,
+            ),
+        )
+
+    lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+
+    assert lease.cancellation_for(owner) == {
+        "kind": owner.kind,
+        "project_id": owner.project_id,
+        "task_id": owner.task_id,
+        "authority_generation": owner.authority_generation,
+        "cancelled_at": "123.0",
+        "cancelled_by": "unknown",
+        "reason": "authority withdrawn",
+    }
 
 
 def test_cancel_owner_withdraws_matching_waiter_without_callback(tmp_path):
@@ -576,9 +2163,24 @@ def test_slot_probe_descriptors_are_not_ambiently_inheritable(tmp_path):
         lease._close_slot_locks(available.values())
 
 
-def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(
+@pytest.mark.parametrize(
+    "command",
+    [
+        (
+            "python -m pytest -q tests/test_acp_backends.py tests/test_providers.py "
+            "tests/test_providers_ui.py tests/test_acp_agent.py "
+            "tests/test_orchestrator_handlers.py"
+        ),
+        "pytest tests/test_one.py::test_case",
+        "python -m pytest tests/test_one.py",
+        "/usr/bin/python -m pytest tests/test_one.py::test_case",
+        "python -m unittest tests.test_one.TestCase.test_case",
+    ],
+)
+def test_worker_validation_queues_behind_gate_at_worker_priority(
     tmp_path,
     monkeypatch,
+    command,
 ):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     gate = lease.acquire(_gate_owner("p1", "gate"))
@@ -595,11 +2197,6 @@ def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(
             return "", ""
 
     monkeypatch.setattr("oompah.api_agent.subprocess.Popen", FakeProcess)
-    command = (
-        "python -m pytest -q tests/test_acp_backends.py tests/test_providers.py "
-        "tests/test_providers_ui.py tests/test_acp_agent.py "
-        "tests/test_orchestrator_handlers.py"
-    )
     results: list[str] = []
     worker = threading.Thread(
         target=lambda: results.append(
@@ -627,6 +2224,70 @@ def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(
     assert worker.is_alive() is False
     assert process_started.is_set() is True
     assert results == ["exit_code: 0"]
+
+
+def test_focused_pytest_waits_for_exact_gate_before_real_process_start(tmp_path):
+    marker = tmp_path / "focused-test-started"
+    target = tmp_path / "target_test.py"
+    target.write_text(
+        "import os\n"
+        "from pathlib import Path\n\n"
+        "def test_runs_once():\n"
+        "    marker_path = Path(os.environ['OOMPAH_FOCUSED_MARKER'])\n"
+        "    with marker_path.open('x', encoding='utf-8') as marker:\n"
+        "        marker.write(str(os.getpid()))\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(_gate_owner("p1", "exact-gate"))
+    command = (
+        f"{shlex.quote(sys.executable)} -m pytest {shlex.quote(target.name)} -q"
+    )
+    result: list[str] = []
+    worker = threading.Thread(
+        target=lambda: result.append(
+            _exec_run_command(
+                tmp_path,
+                {"command": command},
+                timeout=10,
+                env_overrides={"OOMPAH_FOCUSED_MARKER": str(marker)},
+                validation_lease=lease,
+                validation_owner=_worker_owner("p2", "focused"),
+            )
+        )
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+
+    assert marker.exists() is False
+    assert worker.is_alive() is True
+
+    gate.release()
+    worker.join(timeout=10)
+
+    assert worker.is_alive() is False
+    assert result and "exit_code: 0" in result[0]
+    assert marker.read_text(encoding="utf-8").isdigit()
+    assert lease.status().owner_count == 0
+
+
+def test_non_test_inspection_runs_without_validation_capacity(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(_gate_owner("p1", "exact-gate"))
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "printf inspection"},
+        timeout=2,
+        validation_lease=lease,
+        validation_owner=_worker_owner("p2", "inspection"),
+    )
+
+    assert "stdout:\ninspection" in result
+    assert "exit_code: 0" in result
+    assert lease.status().owner_count == 1
+    assert lease.status().waiter_count == 0
+    gate.release()
 
 
 def test_capacity_is_process_safe_across_independent_instances(tmp_path):
@@ -953,6 +2614,247 @@ def test_exact_gate_has_priority_but_aging_prevents_auditor_starvation(tmp_path)
     assert order == ["audit", "gate"]
 
 
+@pytest.mark.timeout(20)
+def test_continuous_later_exact_arrivals_cannot_starve_aged_worker_multiprocess(
+    tmp_path,
+):
+    state_path = tmp_path / "lease.sqlite3"
+    lease = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = lease.acquire(_gate_owner("blocker", "held"))
+    script = """
+import sys, time
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+lease = ValidationResourceLease(sys.argv[1], aging_seconds=0.01, poll_seconds=0.005)
+factory = ValidationLeaseOwner.worker if sys.argv[2] == 'worker' else ValidationLeaseOwner.exact_gate
+owner = factory(project_id=sys.argv[2], task_id=sys.argv[3], authority_generation=sys.argv[3])
+with lease.acquire(owner, wait_timeout_seconds=10):
+    started = time.time()
+    time.sleep(0.02)
+    ended = time.time()
+print(f'{sys.argv[3]},{started},{ended}', flush=True)
+"""
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])}
+
+    def spawn(kind: str, task: str) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [sys.executable, "-c", script, str(state_path), kind, task],
+            cwd=Path(__file__).parents[1],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    processes = [spawn("worker", "worker-old")]
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    _age_waiter(state_path, "worker-old", seconds=0.22)
+    processes.extend(spawn("exact", f"exact-{index}") for index in range(2))
+    _wait_for(lambda: lease.status().waiter_count == len(processes))
+
+    status = lease.status()
+    worker_status = next(
+        item for item in status.waiters if item["task_id"] == "worker-old"
+    )
+    assert worker_status["starvation_protected"] is True
+    assert worker_status["starvation_protection_in_seconds"] == 0.0
+    assert worker_status["effective_priority"] >= 21
+    held.release()
+
+    intervals: list[tuple[str, float, float]] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == 0, stderr
+        label, start, end = stdout.strip().split(",")
+        intervals.append((label, float(start), float(end)))
+    ordered = sorted(intervals, key=lambda item: item[1])
+    assert ordered[0][0] == "worker-old"
+    assert all(
+        current[2] <= following[1]
+        for current, following in zip(ordered, ordered[1:])
+    )
+
+
+def test_aging_survives_manager_restart_and_fresh_exact_retains_urgency(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    original = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = original.acquire(_gate_owner("blocker", "held"))
+    order: list[str] = []
+
+    worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            original,
+            _worker_owner("repair", "old-worker"),
+            "worker",
+            order,
+        )
+    )
+    worker.start()
+    _wait_for(lambda: original.status().waiter_count == 1)
+    _age_waiter(state_path, "old-worker", seconds=0.22)
+
+    restarted = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+
+    def exact_run() -> None:
+        with restarted.acquire(_gate_owner("urgent", "fresh-exact")):
+            order.append("exact")
+
+    exact = threading.Thread(target=exact_run)
+    exact.start()
+    _wait_for(lambda: restarted.status().waiter_count == 2)
+    held.release()
+    worker.join(timeout=3)
+    exact.join(timeout=3)
+    assert order == ["worker", "exact"]
+
+    # Without the bounded-aging threshold, a fresh exact remains urgent.
+    held = restarted.acquire(_gate_owner("blocker", "held-again"))
+    order.clear()
+    fresh_worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            restarted,
+            _worker_owner("repair", "fresh-worker"),
+            "worker",
+            order,
+        )
+    )
+    fresh_exact = threading.Thread(
+        target=lambda: _acquire_and_record(
+            restarted,
+            _gate_owner("urgent", "fresh-exact-2"),
+            "exact",
+            order,
+        )
+    )
+    fresh_worker.start()
+    _wait_for(lambda: restarted.status().waiter_count == 1)
+    fresh_exact.start()
+    _wait_for(lambda: restarted.status().waiter_count == 2)
+    held.release()
+    fresh_worker.join(timeout=3)
+    fresh_exact.join(timeout=3)
+    assert order == ["exact", "worker"]
+
+
+def _acquire_and_record(lease, owner, label: str, order: list[str]) -> None:
+    with lease.acquire(owner):
+        order.append(label)
+
+
+def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    lease = ValidationResourceLease(
+        state_path, aging_seconds=0.01, poll_seconds=0.005
+    )
+    held = lease.acquire(_gate_owner("blocker", "held"))
+    cancelled = threading.Event()
+    errors: list[BaseException] = []
+
+    def wait() -> None:
+        try:
+            lease.acquire(
+                _worker_owner("repair", "cancelled-worker"),
+                is_cancelled=cancelled.is_set,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=wait)
+    thread.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    _age_waiter(state_path, "cancelled-worker", seconds=0.22)
+    cancelled.set()
+    thread.join(timeout=3)
+    assert isinstance(errors[0], ValidationLeaseCancelled)
+    assert lease.status().waiter_count == 0
+
+    order: list[str] = []
+    worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _worker_owner("repair", "fresh-worker"),
+            "worker",
+            order,
+        )
+    )
+    exact = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _gate_owner("urgent", "fresh-exact"),
+            "exact",
+            order,
+        )
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    exact.start()
+    _wait_for(lambda: lease.status().waiter_count == 2)
+    held.release()
+    worker.join(timeout=3)
+    exact.join(timeout=3)
+    assert order == ["exact", "worker"]
+
+
+def test_dead_aged_waiter_is_pruned_before_fresh_priority_selection(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    lease = ValidationResourceLease(
+        # Keep the later requests provably fresh even on a saturated xdist
+        # host. The old 10 ms band let a 210 ms scheduling delay correctly
+        # make the worker starvation-protected before the held slot released.
+        state_path,
+        aging_seconds=1.0,
+        poll_seconds=0.005,
+    )
+    held = lease.acquire(_gate_owner("blocker", "held"))
+    script = """
+import sys
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+lease = ValidationResourceLease(sys.argv[1], aging_seconds=1.0, poll_seconds=0.005)
+lease.acquire(ValidationLeaseOwner.worker(project_id='repair', task_id='dead-worker', authority_generation='dead'))
+"""
+    dead = subprocess.Popen(
+        [sys.executable, "-c", script, str(state_path)],
+        cwd=Path(__file__).parents[1],
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])},
+    )
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    _age_waiter(state_path, "dead-worker", seconds=22.0)
+    dead.terminate()
+    dead.wait(timeout=3)
+    _wait_for(lambda: lease.status().waiter_count == 0)
+
+    order: list[str] = []
+    worker = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _worker_owner("repair", "fresh-worker-after-death"),
+            "worker",
+            order,
+        )
+    )
+    exact = threading.Thread(
+        target=lambda: _acquire_and_record(
+            lease,
+            _gate_owner("urgent", "fresh-exact-after-death"),
+            "exact",
+            order,
+        )
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    exact.start()
+    _wait_for(lambda: lease.status().waiter_count == 2)
+    held.release()
+    worker.join(timeout=3)
+    exact.join(timeout=3)
+    assert order == ["exact", "worker"]
+
+
 def test_wait_cancellation_removes_durable_waiter(tmp_path):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     held = lease.acquire(_gate_owner("p1", "held"))
@@ -977,6 +2879,7 @@ def test_wait_cancellation_removes_durable_waiter(tmp_path):
     held.release()
 
 
+@pytest.mark.timeout(10)
 def test_requester_crash_is_recovered_without_manual_state_edit(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     script = """
@@ -1005,32 +2908,61 @@ os._exit(0)
 
 def test_restart_observes_child_that_inherited_kernel_fence(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
+    ready_marker = tmp_path / "child_ready.txt"
+    child_info_file = tmp_path / "child_info.txt"
     script = """
-import os, subprocess, sys
-from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+import os, subprocess, sys, pathlib
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease, _process_start_ticks
 lease = ValidationResourceLease(sys.argv[1], poll_seconds=0.01)
 handle = lease.acquire(ValidationLeaseOwner.exact_gate(project_id='p', task_id='old', authority_generation='g'))
-child = subprocess.Popen(['sleep', '0.5'], pass_fds=handle.pass_fds, start_new_session=True)
+child = subprocess.Popen(['sleep', '30'], pass_fds=handle.pass_fds, start_new_session=True)
 handle.attach_process(child, timeout_seconds=5)
+pathlib.Path(sys.argv[3]).write_text(f'{child.pid}:{_process_start_ticks(child.pid)}', encoding='utf-8')
+pathlib.Path(sys.argv[2]).write_text('ready', encoding='utf-8')
 os._exit(0)
 """
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])}
     subprocess.run(
-        [sys.executable, "-c", script, str(state_path)],
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(state_path),
+            str(ready_marker),
+            str(child_info_file),
+        ],
         cwd=Path(__file__).parents[1],
         env=env,
         check=True,
         timeout=5,
     )
-    restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
 
-    assert restarted.status().owner_count == 1
-    with pytest.raises(ValidationLeaseCancelled, match="timed out"):
-        restarted.acquire(
-            _gate_owner("p", "new"),
-            wait_timeout_seconds=0.1,
-        )
-    time.sleep(0.5)
+    _wait_for(ready_marker.exists, timeout=2)
+    restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
+    raw_pid, raw_start_ticks = child_info_file.read_text(encoding="utf-8").split(":")
+    child_pid = int(raw_pid)
+    child_start_ticks = int(raw_start_ticks)
+    try:
+        status = restarted.status()
+        assert status.owner_count == 1
+        assert status.owners[0]["child_pid"] == child_pid
+        assert status.owners[0]["child_start_ticks"] == child_start_ticks
+        with pytest.raises(ValidationLeaseCancelled, match="timed out"):
+            restarted.acquire(
+                _gate_owner("p", "new"),
+                wait_timeout_seconds=0.1,
+            )
+    finally:
+        if validation_lease_module._process_identity_alive(
+            child_pid,
+            child_start_ticks,
+        ):
+            assert validation_lease_module._terminate_exact_process_group(
+                child_pid,
+                child_start_ticks,
+            )
+        _wait_for(lambda: restarted.status().owner_count == 0, timeout=5)
+
     with restarted.acquire(
         _gate_owner("p", "new"),
         wait_timeout_seconds=1,
@@ -1099,6 +3031,7 @@ def test_expired_attached_process_group_is_terminated(tmp_path):
     handle.release()
 
 
+@pytest.mark.timeout(15)
 def test_simultaneous_multiprocess_acquisition_has_no_lost_owner_update(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     script = """
@@ -1139,6 +3072,7 @@ print(f'{started},{ended}', flush=True)
     assert ValidationResourceLease(state_path).status().owner_count == 0
 
 
+@pytest.mark.timeout(20)
 def test_restart_observes_waiter_and_allows_it_to_continue(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     held = ValidationResourceLease(state_path, poll_seconds=0.01).acquire(
@@ -1161,7 +3095,13 @@ with lease.acquire(owner, wait_timeout_seconds=5):
         stderr=subprocess.PIPE,
         text=True,
     )
-    _wait_for(lambda: ValidationResourceLease(state_path).status().waiter_count == 1)
+    # Importing a fresh interpreter can take several seconds on a constrained
+    # runner.  Wait for the durable waiter record rather than treating process
+    # startup latency as a lease failure.
+    _wait_for(
+        lambda: ValidationResourceLease(state_path).status().waiter_count == 1,
+        timeout=10,
+    )
 
     restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
     assert restarted.status().owner_count == 1
@@ -1204,3 +3144,470 @@ def test_successful_heavy_command_reports_auditor_evidence(tmp_path):
     assert "exit_code: 0" in success
     assert "exit_code: 2" in failure
     assert observed == [("make test", tmp_path)]
+
+
+def test_successful_heavy_command_reports_duration_to_auditor_observer(tmp_path):
+    (tmp_path / "Makefile").write_text("test:\n\t@sleep 0.01\n", encoding="utf-8")
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    observed: list[tuple[str, Path, float]] = []
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "make test"},
+        timeout=5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", "duration"),
+        successful_validation_handler=lambda command, workspace, *, duration_seconds: observed.append(
+            (command, workspace, duration_seconds)
+        ),
+    )
+
+    assert "exit_code: 0" in result
+    assert observed[0][:2] == ("make test", tmp_path)
+    assert observed[0][2] > 0
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_outcome", "expected_success", "expected_scope"),
+    [
+        ("test", "passed", True, "full"),
+        ("fail", "failed", False, "opaque"),
+        ("slow", "timed_out", False, "opaque"),
+    ],
+)
+def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
+    tmp_path,
+    target,
+    expected_outcome,
+    expected_success,
+    expected_scope,
+):
+    (tmp_path / "Makefile").write_text(
+        "test:\n\t@true\nfail:\n\t@false\nslow:\n\t@sleep 1\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    coordination = MagicMock()
+    coordination.record_auditor_quality_evidence.return_value = True
+    audit_target = types.SimpleNamespace(
+        project_id="p",
+        task_id="TASK-1",
+        audit_id="audit-1",
+    )
+    observer = _auditor_validation_success_handler(
+        coordination,
+        auditor_mode=True,
+        audit_target=audit_target,
+    )
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": f"make {target}"},
+        timeout=0.05 if target == "slow" else 5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", f"lifecycle-{target}"),
+        successful_validation_handler=observer,
+    )
+
+    telemetry_calls = coordination.record_auditor_validation_command.call_args_list
+    assert [call.kwargs["phase"] for call in telemetry_calls] == [
+        "started",
+        "completed",
+    ]
+    assert telemetry_calls[0].kwargs["outcome"] == "running"
+    assert telemetry_calls[1].kwargs["outcome"] == expected_outcome
+    assert telemetry_calls[1].kwargs["succeeded"] is expected_success
+    assert telemetry_calls[0].kwargs["duration_seconds"] == 0
+    assert telemetry_calls[1].kwargs["duration_seconds"] > 0
+    assert classify_validation_command(f"make {target}").scope == expected_scope
+    assert all(
+        call.kwargs["validation_scope"] == expected_scope
+        for call in telemetry_calls
+    )
+    assert all(
+        call.kwargs["audit_target"] is audit_target for call in telemetry_calls
+    )
+    assert (
+        telemetry_calls[0].kwargs["invocation_id"]
+        == telemetry_calls[1].kwargs["invocation_id"]
+    )
+    if expected_success:
+        assert "exit_code: 0" in result
+        evidence_call = coordination.record_auditor_quality_evidence.call_args
+        assert evidence_call.kwargs["audit_target"] is audit_target
+        assert evidence_call.kwargs["workspace_path"] == tmp_path
+        assert evidence_call.kwargs["command"] == "make test"
+        assert evidence_call.kwargs["duration_seconds"] > 0
+    else:
+        coordination.record_auditor_quality_evidence.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("args", "authority", "expected_decision", "denied"),
+    [
+        (
+            {
+                "command": "make test",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "still exact",
+            },
+            "reuse_authoritative_gate",
+            "denied_reused_gate",
+            True,
+        ),
+        (
+            {
+                "command": "bash -lc 'make test'",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "wrapped spelling",
+            },
+            "reuse_authoritative_gate",
+            "denied_reused_gate",
+            True,
+        ),
+        (
+            {"command": "make test-serial"},
+            "reuse_authoritative_gate",
+            "denied_distinct_mode_required",
+            True,
+        ),
+        (
+            {
+                "command": "env -S 'make test'",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "opaque spelling",
+            },
+            "reuse_authoritative_gate",
+            "denied_reused_gate",
+            True,
+        ),
+        (
+            {"command": "./ci/test.sh"},
+            "reuse_authoritative_gate",
+            "denied_distinct_mode_required",
+            True,
+        ),
+        (
+            {
+                "command": "./ci/test.sh",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "task-specific opaque suite",
+            },
+            "reuse_authoritative_gate",
+            "allowed_distinct_mode",
+            False,
+        ),
+        (
+            {
+                "command": "make test-serial",
+                "validation_mode": "task_required_distinct",
+                "validation_justification": "task requires serial race coverage",
+            },
+            "reuse_authoritative_gate",
+            "allowed_distinct_mode",
+            False,
+        ),
+        (
+            {"command": "pytest tests/test_one.py -q"},
+            "reuse_authoritative_gate",
+            "",
+            False,
+        ),
+        (
+            {"command": "make test"},
+            "stale_authority",
+            "denied_stale_authority",
+            True,
+        ),
+        (
+            {"command": "make test"},
+            "full_gate_required",
+            "allowed_gate_now_required",
+            False,
+        ),
+    ],
+)
+def test_validation_reuse_policy_decision_matrix(
+    args,
+    authority,
+    expected_decision,
+    denied,
+):
+    decision, denial, justification = _validation_reuse_policy_decision(
+        args,
+        _reusable_gate_policy(),
+        lambda: authority,
+        classification=classify_validation_command(
+            args["command"],
+            configured_command="make test",
+        ),
+    )
+
+    assert decision == expected_decision
+    assert (denial is not None) is denied
+    if decision == "allowed_distinct_mode":
+        assert justification == args["validation_justification"]
+    else:
+        assert justification == ""
+
+
+@pytest.mark.parametrize("authority_surface", ["missing", "raises"])
+def test_validation_reuse_policy_fails_closed_without_fresh_authority(
+    authority_surface,
+):
+    def raise_authority_error():
+        raise RuntimeError("authority unavailable")
+
+    authority_check = (
+        raise_authority_error if authority_surface == "raises" else None
+    )
+
+    decision, denial, _ = _validation_reuse_policy_decision(
+        {"command": "pytest tests/test_one.py"},
+        _reusable_gate_policy(),
+        authority_check,
+        classification=classify_validation_command(
+            "pytest tests/test_one.py",
+            configured_command="make test",
+        ),
+    )
+
+    assert decision == "denied_stale_authority"
+    assert denial is not None
+
+
+def test_context_aware_classification_never_labels_runner_env_focused() -> None:
+    classification = classify_validation_command(
+        "pytest tests/test_one.py::test_case",
+        command_environment={"PYTEST_ADDOPTS": "tests"},
+    )
+
+    assert classification.heavyweight is True
+    assert classification.scope == "opaque"
+    assert classification.focused is False
+
+
+def test_context_aware_classification_never_labels_task_path_runner_focused(
+    tmp_path: Path,
+) -> None:
+    task_bin = tmp_path / "bin"
+    task_bin.mkdir()
+    fake_pytest = task_bin / "pytest"
+    fake_pytest.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_pytest.chmod(0o700)
+
+    classification = classify_validation_command(
+        "pytest tests/test_one.py::test_case",
+        executable_search_path=f"{task_bin}{os.pathsep}/usr/bin:/bin",
+        untrusted_executable_roots=(tmp_path,),
+        working_directory=tmp_path,
+    )
+
+    assert classification.heavyweight is True
+    assert classification.scope == "opaque"
+    assert classification.focused is False
+
+
+def test_exec_denies_reused_exact_gate_before_process_launch(tmp_path, monkeypatch):
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    telemetry = MagicMock()
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+
+    result = _exec_run_command(
+        tmp_path,
+        {
+            "command": "env -S 'make test'",
+            "validation_mode": "task_required_distinct",
+            "validation_justification": "wrapper must not bypass the exact denial",
+        },
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "already passed" in result
+    popen.assert_not_called()
+    telemetry.assert_called_once()
+    assert telemetry.call_args.kwargs["decision"] == "denied_reused_gate"
+    assert telemetry.call_args.kwargs["invocation_id"]
+
+
+def test_exec_reuse_policy_uses_context_aware_path_classification(
+    tmp_path,
+    monkeypatch,
+):
+    task_bin = tmp_path / "bin"
+    task_bin.mkdir()
+    fake_git = task_bin / "git"
+    fake_git.write_text("#!/bin/sh\nexec make test\n", encoding="utf-8")
+    fake_git.chmod(0o700)
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    telemetry = MagicMock()
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git status --short"},
+        env_overrides={"PATH": f"{task_bin}{os.pathsep}/usr/bin:/bin"},
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "requires validation_mode" in result
+    popen.assert_not_called()
+    assert telemetry.call_args.kwargs["decision"] == (
+        "denied_distinct_mode_required"
+    )
+
+
+def test_exec_rechecks_reuse_authority_after_capacity_queue(tmp_path: Path) -> None:
+    marker = tmp_path / "ran"
+    (tmp_path / "Makefile").write_text(
+        f"test-serial:\n\t@touch {shlex.quote(str(marker))}\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        capacity=1,
+        poll_seconds=0.01,
+    )
+    exact_gate = lease.acquire(_gate_owner("p", "gate"))
+    authority = {"state": "reuse_authoritative_gate"}
+    authority_calls = 0
+    final_sample_started = threading.Event()
+    release_final_sample = threading.Event()
+    metrics = TerminalAuditMetrics()
+    result: list[str] = []
+
+    def read_authority() -> str:
+        nonlocal authority_calls
+        authority_calls += 1
+        if authority_calls == 3:
+            final_sample_started.set()
+            assert release_final_sample.wait(timeout=5)
+        return authority["state"]
+
+    def record_policy(**values) -> None:
+        metrics.record_validation_reuse_policy(
+            "p",
+            "queued-auditor",
+            "audit-1",
+            attempt_id="attempt-1",
+            **values,
+        )
+
+    worker = threading.Thread(
+        target=lambda: result.append(
+            _exec_run_command(
+                tmp_path,
+                {
+                    "command": "make test-serial",
+                    "validation_mode": "task_required_distinct",
+                    "validation_justification": "serial race coverage",
+                },
+                timeout=5,
+                validation_lease=lease,
+                validation_owner=_audit_owner("p", "queued-auditor"),
+                validation_reuse_policy=_reusable_gate_policy(),
+                validation_reuse_authority_check=read_authority,
+                validation_reuse_policy_handler=record_policy,
+            )
+        ),
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    exact_gate.release()
+    assert final_sample_started.wait(timeout=5)
+    authority["state"] = "stale_authority"
+    release_final_sample.set()
+    worker.join(timeout=5)
+
+    assert worker.is_alive() is False
+    assert result and "authority is stale" in result[0]
+    assert marker.exists() is False
+    assert lease.status().owner_count == 0
+    snapshot = metrics.snapshot()
+    invocations = snapshot["validation"]["reuse_policy_invocations"]
+    assert len(invocations) == 1
+    assert next(iter(invocations.values()))["decision"] == (
+        "denied_stale_authority"
+    )
+    assert snapshot["validation"]["last_reuse_policy"]["decision"] == (
+        "denied_stale_authority"
+    )
+    assert snapshot["reused_gate_validation_denied"] == 1
+    assert snapshot["reused_gate_distinct_mode_allowed"] == 0
+
+
+def test_exec_allows_exact_gate_when_reusable_proof_disappears(tmp_path):
+    (tmp_path / "Makefile").write_text("test:\n\t@true\n", encoding="utf-8")
+    telemetry = MagicMock()
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "make test"},
+        timeout=5,
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "full_gate_required",
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "exit_code: 0" in result
+    assert telemetry.call_args.kwargs["decision"] == "allowed_gate_now_required"
+
+
+def test_api_tool_dispatch_threads_validation_reuse_policy(tmp_path, monkeypatch):
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+
+    result = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "make test"},
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+    )
+
+    assert "already passed" in result
+    popen.assert_not_called()
+
+
+def test_acp_tool_dispatch_threads_validation_reuse_policy(
+    tmp_path,
+    monkeypatch,
+):
+    import asyncio
+
+    class FakeTool:
+        def __init__(self, name, handler, input_schema):
+            self.name = name
+            self.handler = handler
+            self.input_schema = input_schema
+
+    def tool(name, _description, input_schema):
+        def decorate(handler):
+            return FakeTool(name, handler, input_schema)
+
+        return decorate
+
+    monkeypatch.setitem(
+        sys.modules,
+        "claude_agent_sdk",
+        types.SimpleNamespace(tool=tool),
+    )
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+    from oompah.acp_tools import build_tool_catalog
+
+    catalog = build_tool_catalog(
+        str(tmp_path),
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+    )
+    run_command = next(item for item in catalog if item.name == "run_command")
+
+    result = asyncio.run(run_command.handler({"command": "make test"}))
+
+    assert "already passed" in result["content"][0]["text"]
+    popen.assert_not_called()

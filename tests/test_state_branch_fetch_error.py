@@ -22,7 +22,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
+from oompah.orchestrator import TaskTransitionNotApplied
 from oompah.server import app
+from oompah.task_transition_service import (
+    TransitionDisposition,
+    TransitionOutcome,
+)
 from oompah.tracker import StateBranchFetchError, TrackerError
 
 
@@ -60,6 +65,24 @@ def _make_mock_orchestrator(
 
     mock_orch = MagicMock()
     mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+    if raise_on_update is not None:
+        failed_outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id=project_id,
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.RETRYABLE,
+            reason_code="transition.tracker_write_failed",
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+            details={"error_type": type(raise_on_update).__name__},
+        )
+        mock_orch._transition_issue_status = MagicMock(
+            side_effect=TaskTransitionNotApplied(failed_outcome)
+        )
+    else:
+        mock_orch._transition_issue_status = MagicMock()
     mock_orch.config = MagicMock()
     mock_orch.config.tracker_terminal_states = []
     mock_orch.state = MagicMock()
@@ -152,6 +175,139 @@ class TestErrorClassForStateBranchFetchError:
         assert _error_class_for_tracker_exc(exc) != "tracker_failed"
 
 
+class TestDurableTransitionErrorClassification:
+    @pytest.mark.parametrize(
+        "reason_code",
+        [
+            "transition.tracker_read_failed",
+            "transition.tracker_write_failed",
+        ],
+    )
+    def test_recovers_redacted_tracker_type_for_transport_failures(
+        self,
+        reason_code: str,
+    ) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.RETRYABLE,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+            details={"error_type": StateBranchFetchError.__name__},
+        )
+
+        assert server_module._transition_tracker_error_type(
+            TaskTransitionNotApplied(outcome)
+        ) == StateBranchFetchError.__name__
+
+    def test_does_not_reclassify_nontransport_transition_rejection(self) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code="transition.head_mismatch",
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            details={"error_type": StateBranchFetchError.__name__},
+        )
+
+        assert (
+            server_module._transition_tracker_error_type(
+                TaskTransitionNotApplied(outcome)
+            )
+            is None
+        )
+
+    @pytest.mark.parametrize(
+        "reason_code",
+        ["transition.owner_active", "transition.recovery_required"],
+    )
+    def test_classifies_expected_transition_waiting(
+        self,
+        reason_code: str,
+    ) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.WAITING,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+        )
+
+        assert (
+            server_module._transition_waiting_reason(
+                TaskTransitionNotApplied(outcome)
+            )
+            == reason_code
+        )
+
+    @pytest.mark.parametrize(
+        "reason_code",
+        [
+            "transition.illegal_edge",
+            "transition.generation_required",
+            "transition.head_mismatch",
+        ],
+    )
+    def test_classifies_expected_transition_rejection(
+        self,
+        reason_code: str,
+    ) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+        )
+
+        assert (
+            server_module._transition_rejected_reason(
+                TaskTransitionNotApplied(outcome)
+            )
+            == reason_code
+        )
+
+    @pytest.mark.parametrize(
+        "reason_code",
+        ["transition.terminal_rejected", "transition.future_operational_failure"],
+    )
+    def test_does_not_classify_operational_rejection_as_expected_policy(
+        self,
+        reason_code: str,
+    ) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="Done",
+        )
+
+        assert (
+            server_module._transition_rejected_reason(
+                TaskTransitionNotApplied(outcome)
+            )
+            is None
+        )
+
+
 # ---------------------------------------------------------------------------
 # Server-side: api_update_issue must log WARNING not ERROR for fetch failures
 # ---------------------------------------------------------------------------
@@ -159,6 +315,146 @@ class TestErrorClassForStateBranchFetchError:
 
 class TestUpdateIssueApiStateBranchFetchError:
     """PATCH /api/v1/issues/{identifier} must not trigger error_watcher on fetch failure."""
+
+    @pytest.mark.parametrize(
+        "reason_code",
+        ["transition.owner_active", "transition.recovery_required"],
+    )
+    def test_transition_waiting_returns_conflict_without_error_log(
+        self,
+        client,
+        caplog,
+        reason_code: str,
+    ) -> None:
+        orch, _tracker = _make_mock_orchestrator()
+        outcome = TransitionOutcome(
+            transition_id="transition-waiting",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.WAITING,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+            retryable=True,
+        )
+        orch._transition_issue_status.side_effect = TaskTransitionNotApplied(outcome)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING, logger="oompah.server"),
+        ):
+            response = client.patch(
+                "/api/v1/issues/OOMPAH-1",
+                json={"status": "In Progress", "project_id": "proj-test"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["error"]["reason"] == reason_code
+        assert not [
+            record
+            for record in caplog.records
+            if record.name == "oompah.server" and record.levelno >= logging.ERROR
+        ]
+
+    @pytest.mark.parametrize(
+        "reason_code",
+        [
+            "transition.illegal_edge",
+            "transition.generation_required",
+            "transition.head_mismatch",
+        ],
+    )
+    def test_transition_rejection_returns_conflict_without_warning_or_error(
+        self,
+        client,
+        caplog,
+        reason_code: str,
+    ) -> None:
+        orch, _tracker = _make_mock_orchestrator()
+        outcome = TransitionOutcome(
+            transition_id="transition-rejected",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code=reason_code,
+            observed_status="Open",
+            observed_version=None,
+            requested_status="In Progress",
+        )
+        orch._transition_issue_status.side_effect = TaskTransitionNotApplied(outcome)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            caplog.at_level(logging.INFO, logger="oompah.server"),
+        ):
+            response = client.patch(
+                "/api/v1/issues/OOMPAH-1",
+                json={"status": "In Progress", "project_id": "proj-test"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["error"] == {
+            "code": "transition_rejected",
+            "message": (
+                f"OOMPAH-1: In Progress was not applied "
+                f"(rejected: {reason_code})"
+            ),
+            "reason": reason_code,
+        }
+        assert [
+            record
+            for record in caplog.records
+            if record.name == "oompah.server"
+            and record.levelno == logging.INFO
+            and "rejected by durable transition" in record.message
+        ]
+        assert not [
+            record
+            for record in caplog.records
+            if record.name == "oompah.server" and record.levelno >= logging.WARNING
+        ]
+
+    def test_operational_terminal_rejection_remains_server_error(
+        self,
+        client,
+        caplog,
+    ) -> None:
+        orch, _tracker = _make_mock_orchestrator()
+        outcome = TransitionOutcome(
+            transition_id="transition-terminal-failed",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code="transition.terminal_rejected",
+            observed_status="Open",
+            observed_version=None,
+            requested_status="Done",
+            details={"detail": "terminal evidence was unavailable"},
+        )
+        orch._transition_issue_status.side_effect = TaskTransitionNotApplied(outcome)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            caplog.at_level(logging.ERROR, logger="oompah.server"),
+        ):
+            response = client.patch(
+                "/api/v1/issues/OOMPAH-1",
+                json={"status": "In Progress", "project_id": "proj-test"},
+            )
+
+        assert response.status_code == 500
+        assert response.json()["error"]["code"] == "update_failed"
+        assert [
+            record
+            for record in caplog.records
+            if record.name == "oompah.server"
+            and record.levelno >= logging.ERROR
+            and "update issue api error" in record.message.lower()
+        ]
 
     def test_state_branch_fetch_error_returns_503(self, client, caplog):
         """A StateBranchFetchError during update returns 503, not 500."""

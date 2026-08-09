@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import html as html_lib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -182,6 +183,15 @@ def _run_dashboard(
     scenario_path = tmp_path / "dashboard-alert-scenario.html"
     scenario_path.write_text(html, encoding="utf-8")
 
+    chrome_env = os.environ.copy()
+    runtime_dir = chrome_env.get("XDG_RUNTIME_DIR")
+    # Chrome creates a Unix-domain socket below TMPDIR.  The validation broker's
+    # private temp path can exceed sockaddr_un's path limit before Chrome starts.
+    if runtime_dir and Path(runtime_dir).is_dir():
+        chrome_env["TMPDIR"] = runtime_dir
+    else:
+        chrome_env.pop("TMPDIR", None)
+
     profile_dir = tmp_path / "chrome-profile"
     proc = subprocess.run(
         [
@@ -199,6 +209,7 @@ def _run_dashboard(
         text=True,
         timeout=60,
         check=False,
+        env=chrome_env,
     )
     assert proc.returncode == 0, proc.stderr
     match = re.search(rf'{_RESULT_ATTRIBUTE}="([^"]+)"', proc.stdout)
@@ -333,9 +344,12 @@ finish({{
         # The terminal-audit panel is hidden when an actionable terminal_audit: alert
         # is already shown once in the alert center, avoiding duplication.
         assert result["terminalAuditVisible"] is False
-        assert result["qualityGateVisible"] is True
-        assert result["repoHygieneVisible"] is True
-        assert result["authPolicyVisible"] is True
+        # Quality-gate execution and bounded recovery are task-local status,
+        # not operator action.  Actionable gate failures are rendered through
+        # the alert contract instead of duplicating this dedicated panel.
+        assert result["qualityGateVisible"] is False
+        assert result["repoHygieneVisible"] is False
+        assert result["authPolicyVisible"] is False
 
     def test_many_alerts_scroll_inside_the_center_at_a_phone_viewport(
         self, tmp_path: Path
@@ -462,16 +476,17 @@ finish({{
         )
 
         assert result["fullSyncRequested"] is True
-        assert result["runningQualityText"].startswith("running")
-        assert result["failedQualityText"].startswith("failed")
+        assert result["runningQualityText"] == ""
+        assert result["failedQualityText"] == ""
         assert result["alertCount"] == 0
         assert result["expanded"] == "false"
         assert result["alertItems"] == 0
         assert result["terminalAuditHidden"] is True
         assert result["qualityGateHidden"] is True
-        # Auth health banner remains visible as status information even when
-        # all planes are healthy; it is only hidden when hiddenByAlert is true.
-        assert result["authHealthHidden"] is False
+        # Healthy authentication and intentional policy denials are normal
+        # operating facts, so they do not retain dashboard-height after the
+        # authoritative replacement.
+        assert result["authHealthHidden"] is True
         assert result["staleTitleVisible"] is False
         assert result["recoveredTaskVisible"] is True
         assert result["status"] == "Connected"

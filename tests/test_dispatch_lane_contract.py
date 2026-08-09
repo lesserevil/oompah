@@ -18,6 +18,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import DispatchLane, DispatchEvent, DispatchEventType, Orchestrator
@@ -26,6 +28,89 @@ from oompah.orchestrator import DispatchLane, DispatchEvent, DispatchEventType, 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+_TEST_ORCHESTRATORS: list[Orchestrator] = []
+
+
+def _close_test_orchestrator(orch: Orchestrator) -> list[str]:
+    """Drain resources and return work that escaped the owning test."""
+    cleanup_errors: list[str] = []
+    for pool_name in ("_tick_pool", "_refresh_pool"):
+        pool = getattr(orch, pool_name, None)
+        if pool is None:
+            continue
+        try:
+            pool.shutdown(wait=True, cancel_futures=False)
+        except Exception as exc:  # noqa: BLE001 - report all teardown failures
+            cleanup_errors.append(f"{pool_name} shutdown failed: {exc!r}")
+        live_threads = [
+            thread.name
+            for thread in getattr(pool, "_threads", ())
+            if thread.is_alive()
+        ]
+        if live_threads:
+            cleanup_errors.append(
+                f"{pool_name} retained live threads: {', '.join(live_threads)}"
+            )
+
+    for future_name in (
+        "_maintenance_future",
+        "_epic_maintenance_future",
+        "_integration_future",
+        "_standalone_delivery_future",
+        "_terminal_lifecycle_future",
+        "_workflow_shadow_future",
+    ):
+        future = getattr(orch, future_name, None)
+        if future is None:
+            continue
+        if not future.done():
+            cleanup_errors.append(f"{future_name} remained pending after pool shutdown")
+            continue
+        if future.cancelled():
+            continue
+        try:
+            future.result()
+        except Exception as exc:  # noqa: BLE001 - background errors fail the test
+            cleanup_errors.append(f"{future_name} failed: {exc!r}")
+
+    for store_name in (
+        "coordination_store",
+        "integration_queue",
+        "review_capacity_store",
+        "workflow_job_store",
+        "task_transition_journal",
+    ):
+        store = getattr(orch, store_name, None)
+        if store is not None:
+            try:
+                store.close()
+            except Exception as exc:  # noqa: BLE001 - close every owned store
+                cleanup_errors.append(f"{store_name} close failed: {exc!r}")
+
+    return cleanup_errors
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_test_orchestrators():
+    """Keep helper-owned pools and stores from crossing test boundaries."""
+    first_owned = len(_TEST_ORCHESTRATORS)
+    try:
+        yield
+    finally:
+        orchestrators = _TEST_ORCHESTRATORS[first_owned:]
+        del _TEST_ORCHESTRATORS[first_owned:]
+        cleanup_errors: list[str] = []
+        for index, orch in enumerate(reversed(orchestrators), start=1):
+            cleanup_errors.extend(
+                f"orchestrator {index}: {error}"
+                for error in _close_test_orchestrator(orch)
+            )
+        if cleanup_errors:
+            pytest.fail(
+                "helper-owned resource leakage: " + "; ".join(cleanup_errors)
+            )
 
 
 def _make_config() -> ServiceConfig:
@@ -68,12 +153,45 @@ def _make_orchestrator(tmp_path):
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
-    # _tick() submits epic maintenance as fire-and-forget executor work. These
-    # lane-contract tests only exercise dispatch serialization, so keep real
-    # tracker/git maintenance out of the background between tests.
+    # These tests exercise dispatch-lane ownership, not the scheduler's
+    # independent maintenance and workflow producers.  Keep every unrelated
+    # producer inert so a short-lived asyncio.run() cannot leave its executor
+    # Future attached to an event loop that has already closed.
+    orch._run_step5b_maintenance = MagicMock()
     orch._run_step5c_epic_maintenance = MagicMock()
+    orch._maybe_run_watchdog = MagicMock()
+    orch._recover_release_addendum_leases = MagicMock(return_value=0)
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch._run_workflow_shadow_sweep = MagicMock()
+    orch._reconcile_standalone_ready_to_integrate_tasks = MagicMock()
+    orch._process_integration_queues = AsyncMock()
     orch._process_epic_proposals = MagicMock(return_value=[])
+    _TEST_ORCHESTRATORS.append(orch)
     return orch
+
+
+async def _run_tick_and_drain(orch: Orchestrator) -> None:
+    """Run one tick and settle its loop-owned background wrappers."""
+    try:
+        await orch._tick()
+    finally:
+        futures = [
+            future
+            for future in (
+                orch._maintenance_future,
+                orch._epic_maintenance_future,
+                orch._integration_future,
+                orch._standalone_delivery_future,
+                orch._terminal_lifecycle_future,
+                orch._workflow_shadow_future,
+            )
+            if future is not None
+        ]
+        if futures:
+            results = await asyncio.gather(*futures, return_exceptions=True)
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +323,7 @@ class TestDispatchLaneLockAcquisition:
         orch = _make_orchestrator(tmp_path)
 
         def raise_error():
+            assert orch._dispatch_lane_lock.locked()
             raise RuntimeError("Simulated fetch failure")
 
         orch._fetch_all_candidates = raise_error
@@ -370,7 +489,7 @@ class TestTickEventCoalescing:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -380,7 +499,7 @@ class TestTickEventCoalescing:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         snapshot = orch.get_snapshot()
         assert "tick_timings" in snapshot
@@ -395,7 +514,7 @@ class TestTickEventCoalescing:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -405,7 +524,7 @@ class TestTickEventCoalescing:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         snapshot = orch.get_snapshot()
         assert snapshot["tick_timings"]["coalesced_events"] == 0
@@ -438,7 +557,7 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._notify_observers = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -446,7 +565,7 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         # Watchdog ran once.
         assert len(lock_state_during_watchdog) == 1
@@ -466,11 +585,19 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
 
         orch._maybe_heal_repos = spy_heal
         orch._maybe_cleanup_worktrees = MagicMock()
+        orch._maybe_cleanup_storage = MagicMock()
+        orch._update_repo_hygiene_health = MagicMock()
         orch._auto_archive = MagicMock()
+        orch._maybe_open_deferred_done_reviews = MagicMock()
         orch._maybe_run_merged_labels = MagicMock()
         orch._maybe_run_release_pick_reconciliation = MagicMock()
+        orch._maybe_sync_github_issue_intake = MagicMock()
+        orch._maybe_run_stalled_task_watchdog = MagicMock()
 
-        orch._run_step5b_maintenance()
+        # The common helper disables unrelated step-5b work. This one contract
+        # intentionally exercises the real coordinator with every sub-operation
+        # replaced by a local spy or no-op.
+        Orchestrator._run_step5b_maintenance(orch)
 
         assert len(lock_state_during_heal) == 1
         assert lock_state_during_heal[0] is False, (
@@ -498,7 +625,7 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(side_effect=spy_after_dispatch)
         orch._notify_observers = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -506,7 +633,7 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         # _handle_yolo_review runs after _handle_dispatch_needed.
         assert lock_free_before_maintenance == [True], (
@@ -543,7 +670,7 @@ class TestDispatchLockOwnershipRules:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -553,7 +680,7 @@ class TestDispatchLockOwnershipRules:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         # The lock should NOT have been acquired via our spy (because
         # _handle_dispatch_needed was fully mocked and bypassed the lock).
@@ -603,7 +730,7 @@ class TestLaneContractSnapshot:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -613,7 +740,7 @@ class TestLaneContractSnapshot:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         snapshot = orch.get_snapshot()
         assert "coalesced_events" in snapshot["tick_timings"]
@@ -627,7 +754,7 @@ class TestLaneContractSnapshot:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -637,7 +764,7 @@ class TestLaneContractSnapshot:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         snapshot = orch.get_snapshot()
         assert isinstance(snapshot["tick_timings"]["coalesced_events"], int)
@@ -657,7 +784,7 @@ class TestLaneContractSnapshot:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -667,7 +794,7 @@ class TestLaneContractSnapshot:
         with patch(
             "oompah.orchestrator.validate_dispatch_config", return_value=[]
         ):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_drain(orch))
 
         snapshot = orch.get_snapshot()
         assert snapshot["tick_timings"]["coalesced_events"] == 0
@@ -686,6 +813,7 @@ class TestDispatchLockExceptionSafety:
         orch = _make_orchestrator(tmp_path)
 
         def bad_fetch():
+            assert orch._dispatch_lane_lock.locked()
             raise ValueError("boom")
 
         orch._fetch_all_candidates = bad_fetch
@@ -701,6 +829,7 @@ class TestDispatchLockExceptionSafety:
         orch._fetch_all_candidates = MagicMock(return_value=[])
 
         def bad_resolve(_):
+            assert orch._dispatch_lane_lock.locked()
             raise RuntimeError("resolver broke")
 
         orch._pre_resolve_blockers = bad_resolve
@@ -714,27 +843,46 @@ class TestDispatchLockExceptionSafety:
         """If the first dispatch call raises, the second call can still acquire the lock."""
         orch = _make_orchestrator(tmp_path)
 
-        call_count = [0]
+        # This contract belongs to the outer lock wrapper.  Keep the inner
+        # dispatch traversal out of the test so auditor, tracker, duplicate
+        # preflight, and executor work cannot affect lock-safety timing.
+        lock_states: list[bool] = []
 
-        def maybe_raise():
-            call_count[0] += 1
-            if call_count[0] == 1:
+        async def locked_dispatch_side_effect():
+            lock_states.append(orch._dispatch_lane_lock.locked())
+            assert orch._dispatch_lane_lock.locked()
+            if len(lock_states) == 1:
                 raise RuntimeError("first call fails")
-            return []
+            return {"dispatch_ms": 0.0}
 
-        orch._fetch_all_candidates = maybe_raise
-        orch._pre_resolve_blockers = MagicMock()
-        orch._reset_orphaned_in_progress = MagicMock()
-        orch._plan_open_epics = MagicMock(return_value=[])
+        locked_dispatch = AsyncMock(side_effect=locked_dispatch_side_effect)
+        orch._handle_dispatch_needed_locked = locked_dispatch  # type: ignore[method-assign]
 
         async def run_both():
             # First call raises.
             with pytest.raises(RuntimeError):
                 await orch._handle_dispatch_needed()
+            assert not orch._dispatch_lane_lock.locked()
             # Lock must be free so the second call succeeds.
-            result = await orch._handle_dispatch_needed()
+            result = await asyncio.wait_for(
+                orch._handle_dispatch_needed(),
+                timeout=1.0,
+            )
             return result
 
         result = asyncio.run(run_both())
         assert isinstance(result, dict)
+        assert locked_dispatch.await_count == 2
+        assert lock_states == [True, True]
         assert not orch._dispatch_lane_lock.locked()
+        assert all(
+            getattr(orch, future_name, None) is None
+            for future_name in (
+                "_maintenance_future",
+                "_epic_maintenance_future",
+                "_integration_future",
+                "_standalone_delivery_future",
+                "_terminal_lifecycle_future",
+                "_workflow_shadow_future",
+            )
+        )

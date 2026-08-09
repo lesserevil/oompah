@@ -101,6 +101,95 @@ def combined_dependency_adjacency(
     return adjacency, aliases
 
 
+def integration_dependencies(
+    issue: Issue,
+    issues_by_id: Mapping[str, Issue],
+) -> tuple[str, ...]:
+    """Return the canonical finish-order projection used for integration.
+
+    A container's dependencies on its descendants are lifecycle rollup edges,
+    not delivery ordering. Dependencies are retained only when they point
+    outside the source task/container that declared them; a leaf's explicit
+    sibling prerequisite is therefore preserved while a container's direct
+    child rollup is removed.
+    """
+
+    aliases: dict[str, str] = {}
+    unique_issues: dict[str, Issue] = {}
+    for candidate in issues_by_id.values():
+        canonical = str(candidate.identifier or candidate.id or "").strip()
+        if not canonical:
+            continue
+        unique_issues[canonical] = candidate
+        for alias in issue_aliases(candidate):
+            aliases[alias] = canonical
+
+    issue_id = str(issue.identifier or issue.id or "").strip()
+    if not issue_id:
+        return ()
+
+    def _canonical_ref(ref: BlockerRef) -> str:
+        value = _ref_identifier(ref)
+        return aliases.get(value, value)
+
+    def _is_descendant(candidate: Issue, ancestor_id: str) -> bool:
+        ancestor = unique_issues.get(ancestor_id)
+        candidate_project = str(candidate.project_id or "").strip()
+        ancestor_project = str(getattr(ancestor, "project_id", "") or "").strip()
+        if (
+            candidate_project
+            and ancestor_project
+            and candidate_project != ancestor_project
+        ):
+            return False
+        current: Issue | None = candidate
+        visited: set[str] = set()
+        while current is not None:
+            parent_alias = str(current.parent_id or "").strip()
+            if not parent_alias:
+                return False
+            parent_id = aliases.get(parent_alias, parent_alias)
+            if parent_id in visited:
+                return False
+            visited.add(parent_id)
+            if parent_id == ancestor_id:
+                return True
+            current = issues_by_id.get(parent_alias) or unique_issues.get(parent_id)
+        return False
+
+    result: list[str] = []
+    seen_dependencies: set[str] = set()
+    seen_ancestors: set[str] = set()
+    current: Issue | None = issue
+    while current is not None:
+        current_id = str(current.identifier or current.id or "").strip()
+        for ref in current.blocked_by or []:
+            dependency = _canonical_ref(ref)
+            if not dependency or dependency == issue_id:
+                continue
+            dependency_issue = unique_issues.get(dependency)
+            container_rollup = bool(
+                dependency_issue is not None
+                and (
+                    dependency == current_id
+                    or _is_descendant(dependency_issue, current_id)
+                )
+            )
+            if container_rollup or dependency in seen_dependencies:
+                continue
+            seen_dependencies.add(dependency)
+            result.append(dependency)
+        parent_alias = str(current.parent_id or "").strip()
+        if not parent_alias:
+            break
+        parent_id = aliases.get(parent_alias, parent_alias)
+        if parent_id in seen_ancestors:
+            break
+        seen_ancestors.add(parent_id)
+        current = issues_by_id.get(parent_alias) or unique_issues.get(parent_id)
+    return tuple(result)
+
+
 def dependency_cycle_for_new_edge(
     issues: Sequence[Issue],
     blocked_identifier: str,

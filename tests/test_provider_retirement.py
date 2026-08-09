@@ -344,6 +344,46 @@ def test_lifecycle_gate_prevents_launch_and_persists_exactly_one_recovery(
     ]
 
 
+def test_restart_journal_failure_installs_durable_retry_and_fails_closed(
+    tmp_path,
+) -> None:
+    """Setup retirement cannot become process-only when state save fails."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch._quiesced = True
+
+        with patch.object(orch, "_save_state", return_value=False):
+            blocked = orch._provider_launch_blocked(entry.issue, entry.run_id)
+
+        assert blocked is True
+        assert orch._restart_persistence_failed is True
+        assert orch._quiesced is True
+        assert entry.authority_revoked is True
+        retry = orch.state.retry_attempts[entry.issue.id]
+        assert retry.pre_admission_recovery is True
+        assert retry.dispatch_status == IN_PROGRESS
+        assert retry.timer_handle is None
+
+        replacement = _orchestrator(tmp_path)
+        restored = next(
+            persisted
+            for persisted in replacement._persisted_retry_entries
+            if persisted.issue_id == entry.issue.id
+        )
+        assert restored.authority_generation == retry.authority_generation
+        assert restored.pre_admission_recovery is True
+        assert restored.dispatch_status == IN_PROGRESS
+        orch._cancel_retry_for_issue(
+            issue_id=entry.issue.id,
+            reason="test cleanup",
+        )
+
+    asyncio.run(scenario())
+
+
 def test_lifecycle_gate_does_not_persist_a_superseded_generation(tmp_path) -> None:
     orch = _orchestrator(tmp_path)
     replacement = _entry()
@@ -412,6 +452,7 @@ def test_repeated_auditor_shell_denials_force_bounded_independent_retry(
         entry.issue.id,
         cleanup_workspace=False,
         task_name_prefix="retire-policy-loop",
+        expected_entry=entry,
     )
 
 
@@ -462,6 +503,10 @@ def test_forced_auditor_retirement_records_retry_before_releasing_claim(
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         entry = _entry(state=IN_VALIDATION, auditor=True)
+        # A policy denial is emitted by a provider that was already admitted;
+        # it must follow the forced-attempt finalization path, not the
+        # pre-provider rollback path.
+        entry.provider_started = True
         entry.forced_exit_reason = "auditor_policy_denial_exhausted"
         entry.forced_exit_error = "bounded denial failure"
         orch.state.running[entry.issue.id] = entry

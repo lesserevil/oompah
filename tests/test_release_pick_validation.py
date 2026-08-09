@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -35,6 +36,7 @@ def _project(
     name: str = "myrepo",
     branches: list[str] | None = None,
     default_branch: str = "main",
+    repo_path: str | Path = "",
 ) -> Project:
     """Build a minimal Project for testing."""
     b = branches if branches is not None else ["main", "release/*"]
@@ -42,7 +44,7 @@ def _project(
         id="proj-1",
         name=name,
         repo_url="https://github.com/org/repo.git",
-        repo_path="/tmp/repo",
+        repo_path=str(repo_path),
         branches=b,
         default_branch=default_branch,
     )
@@ -588,11 +590,22 @@ def test_should_dispatch_allows_valid_release_branch():
     ("Needs CI Fix", "ci-fix"),
     ("Needs Rebase", "merge-conflict"),
 ])
-def test_should_dispatch_allows_repair_task_on_generated_epic_branch(state, label):
+def test_should_dispatch_allows_repair_task_on_generated_epic_branch(
+    state,
+    label,
+    tmp_path,
+):
     """P0 repair tasks can run on oompah-generated stacked epic branches."""
-    proj = _project(branches=["main"], default_branch="main")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    proj = _project(
+        branches=["main"],
+        default_branch="main",
+        repo_path=repo,
+    )
     proj.epic_strategy = "stacked"
     orch = _make_orchestrator_with_project(proj)
+    orch._preflight_nested_epic_dispatch = MagicMock(return_value=None)
     issue = _issue(
         identifier="COROOT-21",
         target_branch="epic-COROOT-5",

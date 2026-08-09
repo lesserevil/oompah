@@ -589,6 +589,82 @@ class TestFullSyncRaceSafety:
         assert payload["issue_revision"] == assembled_issue_revision, \
             "Response must not claim the revision advanced by the racing mutation"
 
+    @pytest.mark.asyncio
+    async def test_decision_update_during_full_sync_is_sequenced_after_snapshot(self):
+        """A racing WorkDecision state update cannot hide below the sync watermark."""
+
+        ws = _make_ws_mock()
+        orch = _mock_orchestrator()
+        assembly_started = asyncio.Event()
+        release_assembly = asyncio.Event()
+
+        async def _blocked_refresh(*_args, **_kwargs):
+            assembly_started.set()
+            await release_assembly.wait()
+
+        with _reset_protocol_state(), _isolated_ws_clients(ws), _reset_fullsync_state():
+            server_module._register_ws(ws)
+            with (
+                patch.object(
+                    server_module,
+                    "_read_state_snapshot_with_revision",
+                    return_value=(
+                        {"work_decision_projection": {"items": []}},
+                        1,
+                    ),
+                ),
+                patch.object(
+                    server_module,
+                    "_ensure_issues_snapshot_refresh",
+                    side_effect=_blocked_refresh,
+                ),
+                patch.object(
+                    server_module,
+                    "_wait_for_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                    return_value=True,
+                ),
+                patch.object(
+                    server_module,
+                    "_issues_snapshot_payload_with_revision",
+                    return_value=({"Done": [{"identifier": "TASK-1"}]}, 1),
+                ),
+            ):
+                full_sync = asyncio.create_task(
+                    server_module._handle_full_sync(ws, orch)
+                )
+                await assembly_started.wait()
+                decision_update = asyncio.create_task(
+                    server_module._send_ws(
+                        ws,
+                        {
+                            "type": "state",
+                            "data": {
+                                "work_decision_projection": {
+                                    "items": [
+                                        {
+                                            "project_id": "project-a",
+                                            "task_id": "TASK-1",
+                                            "decision_revision": "new",
+                                        }
+                                    ]
+                                }
+                            },
+                        },
+                    )
+                )
+                await asyncio.sleep(0)
+                assert not decision_update.done()
+                release_assembly.set()
+                await asyncio.gather(full_sync, decision_update)
+
+        payloads = _all_sent_payloads(ws)
+        assert [payload["type"] for payload in payloads] == ["full_sync", "state"]
+        assert payloads[0]["delivery_seq"] < payloads[1]["delivery_seq"]
+        assert payloads[1]["data"]["work_decision_projection"]["items"][0][
+            "decision_revision"
+        ] == "new"
+
 
 # ---------------------------------------------------------------------------
 # TestFullSyncErrors: retryable errors without disconnecting

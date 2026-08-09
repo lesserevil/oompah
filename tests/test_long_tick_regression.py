@@ -31,6 +31,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.models import BlockerRef, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
@@ -166,12 +168,15 @@ class TestLongTickRegressionScenario:
         # Patch _handle_dispatch_needed to record when dispatch was attempted
         orig_dispatch_needed = orch._handle_dispatch_needed
 
-        async def _spy_dispatch_needed():
+        async def _spy_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed_start")
             # The real implementation uses _timed/_fetch_all_candidates via executor
             # so we patch the inner methods instead
-            await orig_dispatch_needed()
+            timings = await orig_dispatch_needed()
             call_order.append("dispatch_needed_end")
+            return dict(timings)
+
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=_spy_dispatch_needed)
 
         # Mock _fetch_all_candidates to return Project B's eligible task
         orch._fetch_all_candidates = MagicMock(return_value=[eligible])
@@ -541,8 +546,9 @@ class TestLongTickRegressionScenario:
         async def _fake_review_check():
             call_order.append("review_check")
 
-        async def _fake_dispatch_needed():
+        async def _fake_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed")
+            return {}
 
         async def _fake_yolo_review():
             call_order.append("yolo_review")
@@ -553,7 +559,7 @@ class TestLongTickRegressionScenario:
 
         orch._handle_reconcile = _fake_reconcile
         orch._handle_review_check = _fake_review_check
-        orch._handle_dispatch_needed = _fake_dispatch_needed
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=_fake_dispatch_needed)
         orch._handle_yolo_review = _fake_yolo_review
         orch._handle_auto_update = _fake_auto_update
         orch._notify_observers = MagicMock()
@@ -731,6 +737,10 @@ class TestOperatorDiagnostics:
         assert "last_duration_ms" in m, "last_duration_ms missing from project_refresh metrics."
         assert isinstance(m["last_duration_ms"], float)
 
+    # This exercises a complete scheduler tick plus deterministic shutdown.
+    # Keep bounded headroom for a saturated xdist gate while the assertions
+    # below remain independent of host timing.
+    @pytest.mark.timeout(20)
     def test_snapshot_tick_metrics_include_dispatch_timing(self, tmp_path):
         """_last_tick_metrics must be present so operators can see total tick time
         and per-phase breakdowns, helping attribute long ticks to specific phases.
@@ -738,28 +748,38 @@ class TestOperatorDiagnostics:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._notify_observers = MagicMock()
-        # Stub maintenance methods to prevent background work from spawning
+        # Stub unrelated durable/full-corpus lanes so this diagnostics test
+        # cannot leak executor work into (or inherit load from) another test.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch._reconcile_standalone_ready_to_integrate_tasks = MagicMock()
+        orch._process_integration_queues = AsyncMock()
+        # Stub maintenance methods to prevent background work from spawning.
         orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
 
-        async def _run_tick_and_drain():
-            """Run a tick and drain all background work to prevent test leakage."""
-            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-                await orch._tick()
-            # Drain any background futures spawned during the tick to prevent leakage
-            # across test boundaries.
-            await orch._drain_background_work()
+        async def _run_tick_snapshot_and_drain():
+            """Capture diagnostics before shutdown closes their durable stores."""
+            try:
+                with patch(
+                    "oompah.orchestrator.validate_dispatch_config", return_value=[]
+                ):
+                    await orch._tick()
+                return orch.get_snapshot()
+            finally:
+                # Drain background work only after the assertion snapshot exists;
+                # draining owns and closes the workflow/review stores.
+                await orch._drain_background_work()
 
-        asyncio.run(_run_tick_and_drain())
-
-        snapshot = orch.get_snapshot()
+        snapshot = asyncio.run(_run_tick_snapshot_and_drain())
         tick_metrics = snapshot["orchestrator_metrics"]["last_tick"]
         assert "total_ms" in tick_metrics, "total_ms missing from last_tick metrics."
         assert "dispatch_ms" in tick_metrics, "dispatch_ms missing from last_tick metrics."
@@ -783,6 +803,7 @@ class TestSyntheticSlowJobs:
         does not hold up candidates from others.
     """
 
+    @pytest.mark.timeout(30)
     def test_heal_repos_always_runs_after_dispatch_needed(self, tmp_path):
         """Invariant: _maybe_heal_repos is always called after _handle_dispatch_needed
         completes within the same tick cycle.
@@ -797,9 +818,12 @@ class TestSyntheticSlowJobs:
         orch._handle_review_check = AsyncMock(
             side_effect=lambda: call_order.append("review_check")
         )
-        orch._handle_dispatch_needed = AsyncMock(
-            side_effect=lambda: call_order.append("dispatch_needed")
-        )
+
+        async def dispatch_needed() -> dict[str, float]:
+            call_order.append("dispatch_needed")
+            return {}
+
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=dispatch_needed)
         orch._handle_yolo_review = AsyncMock(
             side_effect=lambda: (call_order.append("yolo_review") or (0.0, 0.0, 0.0))
         )
@@ -816,11 +840,24 @@ class TestSyntheticSlowJobs:
         orch._run_step5b_maintenance = MagicMock(
             side_effect=lambda: orch._maybe_heal_repos()
         )
+        # This test exercises only the dispatch -> step-5b ordering contract.
+        # Do not launch unrelated durable lanes whose stores and executors would
+        # otherwise outlive the assertion under a loaded parallel suite.
+        orch.config.parallel_epic_children_enabled = False
+        orch.workflow_shadow.set_mode("off")
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         async def _run_tick_and_wait_for_maintenance() -> None:
-            await orch._tick()
-            if orch._maintenance_future is not None:
-                await orch._maintenance_future
+            try:
+                await orch._tick()
+                if orch._maintenance_future is not None:
+                    await orch._maintenance_future
+            finally:
+                # _drain_background_work owns every future, executor, and
+                # durable store created by this short-lived orchestrator.
+                await orch._drain_background_work()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(_run_tick_and_wait_for_maintenance())

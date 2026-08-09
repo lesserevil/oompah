@@ -25,6 +25,7 @@ from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
     EvidenceFingerprint,
+    FailureClassification,
     OverrideRecord,
     RequestState,
     TargetState,
@@ -38,6 +39,7 @@ from oompah.terminal_audit_enforcement import (
     LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY,
     LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION,
     LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+    LIFECYCLE_RECONCILIATION_REPAIR_VERSION,
     LIFECYCLE_RECONCILIATION_VERSION,
     PendingAudit,
     SERVICE_STATE_KEY,
@@ -53,6 +55,57 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
     TerminalAuditMetadataStore,
 )
+from oompah.terminal_transition_coordinator import (
+    AuditResult,
+    TerminalTransitionCoordinator,
+)
+from oompah.task_transition_service import TransitionJournal
+
+
+def test_duplicate_recovery_projection_prefers_active_attempt_identity() -> None:
+    fingerprint = compute_evidence_fingerprint(
+        requirements_text="same generation",
+        project_id="project-a",
+        task_id="TASK-1",
+    )
+    pending = TerminalAuditRecord(
+        audit_id="audit-pending",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        created_at="2026-08-05T12:00:00+00:00",
+    )
+    running = TerminalAuditRecord(
+        audit_id="audit-running",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-running",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.IN_PROGRESS,
+                created_at="2026-08-05T12:04:00+00:00",
+                started_at="2026-08-05T12:04:00+00:00",
+            )
+        ],
+        created_at="2026-08-05T12:01:00+00:00",
+        updated_at="2026-08-05T12:04:00+00:00",
+    )
+
+    recovered = TerminalAuditEnforcement._dedupe_pending(
+        [PendingAudit.from_record(pending), PendingAudit.from_record(running)]
+    )
+
+    assert len(recovered) == 1
+    assert recovered[0].audit_id == running.audit_id
+    assert recovered[0].record == running
+    assert recovered[0].attempt_ids == ["attempt-running"]
 
 
 class _LockStore:
@@ -79,6 +132,12 @@ class _Tracker:
     def fetch_all_issues_enriched(self):
         return list(self.issues)
 
+    def fetch_issue_detail(self, identifier: str):
+        return next(
+            (issue for issue in self.issues if issue.identifier == identifier),
+            None,
+        )
+
     def get_metadata(self, identifier: str):
         return dict(self.metadata.get(identifier, {}))
 
@@ -95,6 +154,14 @@ class _Tracker:
             if issue.identifier == identifier and "status" in kwargs:
                 self.status_updates.append((identifier, kwargs["status"]))
                 issue.state = kwargs["status"]
+
+    def recover_task_status(
+        self,
+        issue: Issue,
+        requested_status: str,
+        **_fields: object,
+    ) -> None:
+        self.update_issue(issue.identifier, status=requested_status)
 
 
 class _OverrideRaceTracker(_Tracker):
@@ -154,11 +221,12 @@ def _issue(identifier: str, state: str, evidence: str, project: str | None = Non
     return issue
 
 
-def _enforcer(tmp_path, *, terminal_states=("Done",)):
+def _enforcer(tmp_path, *, terminal_states=("Done",), recover_status=None):
     return TerminalAuditEnforcement(
         str(tmp_path / "service_state.json"),
         terminal_states=terminal_states,
         project_store=_LockStore(),
+        recover_status=recover_status,
     )
 
 
@@ -171,6 +239,17 @@ def _native_tracker(root) -> OompahMarkdownTracker:
         default_branch="main",
         git_sync=False,
     )
+
+
+def _native_recovery_owner(tmp_path) -> Orchestrator:
+    """Provide the real durable recovery callback without a full scheduler."""
+
+    owner = Orchestrator.__new__(Orchestrator)
+    owner.project_store = _LockStore()
+    owner.task_transition_journal = TransitionJournal(
+        str(tmp_path / "task_transition_journal.sqlite3")
+    )
+    return owner
 
 
 def _native_integration(*, head_sha: str) -> IntegrationRecord:
@@ -203,6 +282,22 @@ def _pending_record(
         evidence_fingerprint=fingerprint,
         request_state=request_state,
     )
+
+
+def test_pending_dedupe_scopes_same_audit_id_to_project_and_task() -> None:
+    first = PendingAudit.from_record(
+        _pending_record("project-a", "TASK-1", "audit-shared")
+    )
+    second = PendingAudit.from_record(
+        _pending_record("project-b", "TASK-1", "audit-shared")
+    )
+
+    recovered = TerminalAuditEnforcement._dedupe_pending([first, second])
+
+    assert [(item.project_id, item.task_id, item.audit_id) for item in recovered] == [
+        ("project-a", "TASK-1", "audit-shared"),
+        ("project-b", "TASK-1", "audit-shared"),
+    ]
 
 
 def test_first_startup_snapshots_existing_terminal_tasks_and_second_reuses_it(tmp_path):
@@ -1152,6 +1247,229 @@ def test_lifecycle_legacy_equivalence_repairs_exact_production_oompah_660_once(
     assert tracker.status_updates == [(issue.identifier, "Done")]
 
 
+def test_deployed_repair_rearms_exhausted_oompah_660_under_issue_lock(tmp_path):
+    project_id = "proj-14849f1b"
+    issue = _oompah_660_lifecycle_issue(project_id)
+    state_path = tmp_path / "service_state.json"
+
+    class IssueLock:
+        held = False
+        enters = 0
+
+        def __enter__(self):
+            assert self.held is False
+            self.held = True
+            self.enters += 1
+            return self
+
+        def __exit__(self, *_args):
+            self.held = False
+
+    issue_lock = IssueLock()
+
+    class LockAssertingTracker(_Tracker):
+        def update_issue(self, identifier: str, **kwargs):
+            assert issue_lock.held is True
+            return super().update_issue(identifier, **kwargs)
+
+        def set_metadata_field(self, identifier: str, key: str, value: object):
+            assert issue_lock.held is True
+            return super().set_metadata_field(identifier, key, value)
+
+    tracker = LockAssertingTracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _legacy_done_override(issue, project_id)
+                ]
+            }
+        ).to_dict()
+    }
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+        lifecycle_issue_lock=lambda task_id: (
+            issue_lock if task_id == issue.identifier else None
+        ),
+    )
+    failure_fingerprint = enforcer._lifecycle_source_fingerprint(
+        tracker,
+        issue,
+        project_id=project_id,
+        snapshot={issue.identifier: issue},
+    )
+    assert failure_fingerprint is not None
+    started = datetime(2026, 8, 7, tzinfo=timezone.utc)
+    state_path.write_text(
+        json.dumps(
+            {
+                SERVICE_STATE_KEY: TerminalAuditEnforcementState(
+                    lifecycle_reconciliation={
+                        "version": LIFECYCLE_RECONCILIATION_VERSION,
+                        "status": "degraded",
+                        "records": [
+                            {
+                                "project_id": project_id,
+                                "task_id": issue.identifier,
+                                "repair_version": 0,
+                                "classifier_version": (
+                                    LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION
+                                ),
+                                "status": "exhausted",
+                                "attempts": 5,
+                                "last_error": "lifecycle_repair_not_applied",
+                                "conflict": "shared epic parent has not landed",
+                                "failure_fingerprint": failure_fingerprint,
+                                "exhausted_at": started.isoformat(),
+                                "updated_at": started.isoformat(),
+                            }
+                        ],
+                        "cursor": 0,
+                        "updated_at": started.isoformat(),
+                        "errors": [],
+                    }
+                ).to_dict()
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=started + timedelta(days=1),
+    )
+
+    assert result["status"] == "complete"
+    assert result["reconciled"] == 1
+    assert result["exhausted"] == 0
+    assert result["action_required"] is False
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+    assert issue_lock.enters == 1
+    assert issue_lock.held is False
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row["repair_version"] == LIFECYCLE_RECONCILIATION_REPAIR_VERSION
+    assert row["retry_epochs"] == 1
+    assert row["status"] == "completed"
+    assert row["outcome"] == "reconciled"
+
+
+def test_native_oompah_660_repair_survives_refresh_and_restart(
+    tmp_path, monkeypatch
+):
+    project_id = "proj-14849f1b"
+    repo = tmp_path / "oompah"
+    tracker = _native_tracker(repo)
+    allocated_ids = iter(("OOMPAH-619", "OOMPAH-660"))
+    monkeypatch.setattr(tracker, "_next_identifier", lambda: next(allocated_ids))
+    parent = tracker.create_issue(
+        "Systemic workflow parent",
+        issue_type="epic",
+        description="Parent terminal authority.",
+        initial_status="Done",
+    )
+    assert parent.identifier == "OOMPAH-619"
+    child = tracker.create_issue(
+        "Rebase epic-OOMPAH-619 onto main",
+        description=(
+            "The epic branch `epic-OOMPAH-619` is stale: it has fallen behind "
+            "`main`. Rebase the branch onto `origin/main`, resolve any conflicts, "
+            "and force-push with `git push --force-with-lease`.\n\n"
+            "This task was auto-filed because epic OOMPAH-619 was detected as "
+            "stale. Do NOT create a new branch or PR — work directly on "
+            "`epic-OOMPAH-619`."
+        ),
+        parent=parent.identifier,
+        initial_status="Merged",
+    )
+    assert child.identifier == "OOMPAH-660"
+    tracker.set_metadata_field(
+        child.identifier,
+        "oompah.work_branch",
+        "epic-OOMPAH-619--task-OOMPAH-660",
+    )
+    tracker.set_metadata_field(
+        child.identifier,
+        "oompah.integration",
+        IntegrationRecord(
+            state="integrated",
+            attempts=2,
+            task_branch="epic-OOMPAH-619--task-OOMPAH-660",
+            base_branch="epic-OOMPAH-619",
+            base_sha="17658b95e32641e8cf2dbfff06f780c0f6b57916",
+            head_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+            integrated_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+        ).to_dict(),
+    )
+    current = tracker.fetch_issue_detail(child.identifier)
+    assert current is not None
+    variants = compute_integrated_evidence_fingerprint_variants(
+        current, project_id
+    )
+    assert variants is not None
+    assert variants.integrated.digest.startswith("ab40139d2035")
+    assert variants.legacy_work_branch.digest.startswith("62954f9b5fdc")
+    TerminalAuditMetadataStore(tracker, _LockStore(), project_id).write(
+        child.identifier,
+        TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _legacy_done_override(current, project_id)
+                ]
+            }
+        ),
+    )
+    state_path = tmp_path / "service_state.json"
+    recovery_owner = _native_recovery_owner(tmp_path)
+    first = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+        recover_status=recovery_owner._recover_terminal_audit_status,
+    ).reconcile_lifecycle_batch([(project_id, tracker)], max_attempts=1)
+
+    assert first["status"] == "complete"
+    assert first["reconciled"] == 1
+    for _ in range(3):
+        tracker.invalidate_read_cache()
+        refreshed = tracker.fetch_issue_detail(child.identifier)
+        assert refreshed is not None
+        assert refreshed.state == "Done"
+
+    restarted_tracker = _native_tracker(repo)
+    restarted_issue = restarted_tracker.fetch_issue_detail(child.identifier)
+    assert restarted_issue is not None
+    assert restarted_issue.state == "Done"
+    repeated = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+        recover_status=recovery_owner._recover_terminal_audit_status,
+    ).reconcile_lifecycle_batch(
+        [(project_id, restarted_tracker)], max_attempts=1
+    )
+    assert repeated == first
+    final = restarted_tracker.fetch_issue_detail(child.identifier)
+    assert final is not None
+    assert final.state == "Done"
+    stored = TerminalAuditMetadata.from_dict(
+        restarted_tracker.get_metadata(child.identifier)[METADATA_KEY]
+    )
+    reconciliation = stored.unknown_fields["oompah.lifecycle_reconciliations"][0]
+    assert reconciliation["from"] == "Merged"
+    assert reconciliation["to"] == "Done"
+    assert reconciliation[LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY][
+        "current_evidence_fingerprint"
+    ] == variants.integrated.digest
+
+
 def test_lifecycle_current_match_oompah_662_control_needs_no_equivalence(tmp_path):
     project_id = "proj-14849f1b"
     issue = _issue("OOMPAH-662", "Merged", "evidence", project_id)
@@ -1822,9 +2140,11 @@ def test_lifecycle_actual_orchestrator_propagates_scm_outage_without_status_writ
 
     project_store = ProjectStore()
     orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.config = ServiceConfig()
     orchestrator.project_store = project_store
     orchestrator.workflow_job_store = SimpleNamespace()
     orchestrator._alerts = []
+    orchestrator._alerts_lock = threading.RLock()
     validator = lambda issue, target, project_id: (
         Orchestrator._validate_terminal_transition(
             orchestrator,
@@ -1987,9 +2307,11 @@ def test_lifecycle_v1_live_shaped_46_row_migration_converges_44_plus_2(
     )
     project_store = ProjectStore()
     orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.config = ServiceConfig()
     orchestrator.project_store = project_store
     orchestrator.workflow_job_store = SimpleNamespace()
     orchestrator._alerts = []
+    orchestrator._alerts_lock = threading.RLock()
 
     def validate(issue, target, project_id):
         return Orchestrator._validate_terminal_transition(
@@ -3144,6 +3466,204 @@ def test_restart_replays_unacknowledged_result_status_and_is_idempotent(tmp_path
     assert tracker.set_calls == updates_before_replay
 
 
+def test_retry_status_failure_restarts_into_exact_validation_and_accepts_verdict(
+    tmp_path,
+):
+    """Real coordinator metadata is repaired by the restart enforcer."""
+
+    issue = _issue("TASK-1", "Needs Human", "evidence-a", project="project-a")
+    tracker = _Tracker([issue])
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project-a")
+    failed_attempt = AuditAttempt(
+        attempt_id="attempt-no-auditor",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.FAIL,
+        failure_classification=FailureClassification.NO_AUDITOR,
+    )
+    exhausted = TerminalAuditRecord(
+        audit_id="audit-exhausted",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[failed_attempt],
+        requested_by=ContributorIdentity("integration", "service"),
+        previous_state="Ready to Integrate",
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[exhausted]).to_dict()
+    }
+    lock_store = _LockStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker,
+        lock_store,
+        post_comments=False,
+    )
+    project = SimpleNamespace(
+        tracker_owner="project-owner",
+        status_actor_login=None,
+        status_label_authorized_logins=["project-owner"],
+    )
+
+    tracker.fail_status_updates = True
+    retry = asyncio.run(
+        coordinator.retry_failed_audit(
+            issue,
+            TargetState.DONE,
+            ContributorIdentity("project-owner", "api"),
+            "project-a",
+            "Independent auditor capacity restored.",
+            project,
+            evidence_fingerprint=fingerprint,
+        )
+    )
+    assert retry.success is False
+    assert retry.reason == "status_stage_failed"
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata["TASK-1"][METADATA_KEY]
+    )
+    pending = document.pending_chain[-1]
+    intent = document.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][-1]
+    assert pending.request_state == RequestState.PENDING
+    assert intent["kind"] == "audit_rearm"
+    assert intent["status"] == "In Validation"
+    assert intent["applied"] is False
+
+    blocked_restart = TerminalAuditEnforcement(
+        str(tmp_path / "restart-state.json"),
+        terminal_states=("Done",),
+        project_store=lock_store,
+    )
+    assert blocked_restart.recover_pending_audits([("project-a", tracker)]) == []
+    assert issue.state == "Needs Human"
+    assert blocked_restart.finalization_failure_counts == {"project-a": 1}
+
+    tracker.fail_status_updates = False
+    restarted = TerminalAuditEnforcement(
+        str(tmp_path / "restart-state.json"),
+        terminal_states=("Done",),
+        project_store=lock_store,
+    )
+    recovered = restarted.recover_pending_audits([("project-a", tracker)])
+    assert issue.state == "In Validation"
+    assert [item.audit_id for item in recovered] == [pending.audit_id]
+
+    outcome = asyncio.run(
+        coordinator.apply_audit_result(
+            issue,
+            AuditResult(
+                audit_id=pending.audit_id,
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                verdict=Verdict.PASS,
+                message="Independent verification passed.",
+                attempt_id="attempt-pass-after-restart",
+            ),
+            "project-a",
+        )
+    )
+    assert outcome.success is True
+    assert issue.state == "Done"
+
+    restarted.recover_pending_audits([("project-a", tracker)])
+    assert issue.state == "Done"
+    assert not any(
+        item.get("kind") == "audit_rearm" and item.get("applied") is False
+        for item in TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        ).unknown_fields[TERMINAL_RESULT_INTENTS_KEY]
+    )
+
+
+def test_auto_archive_rearm_restart_uses_owner_history_not_request_provenance(
+    tmp_path,
+):
+    """Restart accepts owner proof while preserving late-binding authority."""
+
+    issue = _issue("TASK-1", "Needs Human", "evidence-a", project="project-a")
+    tracker = _Tracker([issue])
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project-a")
+    failed_attempt = AuditAttempt(
+        attempt_id="attempt-no-auditor",
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.FAIL,
+        failure_classification=FailureClassification.NO_AUDITOR,
+    )
+    exhausted = TerminalAuditRecord(
+        audit_id="audit-exhausted-auto-archive",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[failed_attempt],
+        requested_by=ContributorIdentity("oompah", "auto_archive"),
+        previous_state="Done",
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[exhausted]).to_dict()
+    }
+    lock_store = _LockStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker,
+        lock_store,
+        post_comments=False,
+    )
+    owner = ContributorIdentity("project-owner", "api")
+    project = SimpleNamespace(
+        tracker_owner=owner.identity,
+        status_actor_login=None,
+        status_label_authorized_logins=[owner.identity],
+    )
+
+    tracker.fail_status_updates = True
+    retry = asyncio.run(
+        coordinator.retry_failed_audit(
+            issue,
+            TargetState.ARCHIVED,
+            owner,
+            "project-a",
+            "Independent auditor capacity restored.",
+            project,
+            evidence_fingerprint=fingerprint,
+        )
+    )
+    assert retry.success is False
+    assert retry.reason == "status_stage_failed"
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata["TASK-1"][METADATA_KEY]
+    )
+    pending = document.pending_chain[-1]
+    authorization = document.unknown_fields[
+        "oompah.terminal_audit_rearm_history"
+    ][-1]
+    assert pending.requested_by == ContributorIdentity("oompah", "auto_archive")
+    assert authorization["actor"] == owner.to_dict()
+    assert document.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][-1]["applied"] is False
+
+    tracker.fail_status_updates = False
+    restarted = _enforcer(
+        tmp_path,
+        terminal_states=("Done", "Archived"),
+    )
+    recovered = restarted.recover_pending_audits([("project-a", tracker)])
+
+    assert issue.state == "In Validation"
+    assert [item.audit_id for item in recovered] == [pending.audit_id]
+    repaired = TerminalAuditMetadata.from_dict(
+        tracker.metadata["TASK-1"][METADATA_KEY]
+    )
+    assert repaired.pending_chain[-1].requested_by == ContributorIdentity(
+        "oompah", "auto_archive"
+    )
+    assert repaired.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][-1]["applied"] is True
+
+
 def test_recovery_retires_result_intent_after_task_evidence_changes(tmp_path):
     """A completed result for an obsolete task revision must never be replayed."""
     tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
@@ -3229,7 +3749,11 @@ def test_native_markdown_restart_replays_current_result_intent(tmp_path):
     )
 
     restarted = _native_tracker(repo)
-    assert _enforcer(tmp_path / "restart").recover_pending_audits(
+    recovery_owner = _native_recovery_owner(tmp_path / "restart")
+    assert _enforcer(
+        tmp_path / "restart",
+        recover_status=recovery_owner._recover_terminal_audit_status,
+    ).recover_pending_audits(
         [("project-a", restarted)]
     ) == []
     refreshed = restarted.fetch_issue_detail(issue.identifier)
@@ -3413,6 +3937,41 @@ def test_dispatch_cas_does_not_resurrect_completed_audit(tmp_path):
         assert orchestrator._audit_update_record(store, tracker.issues[0], stale) is False
         stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
         assert stored.pending_chain[0].request_state == RequestState.COMPLETED
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_dispatch_cas_updates_only_exact_project_task_audit_identity(tmp_path):
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
+    local = _pending_record("project-a", "TASK-1", "audit-shared")
+    foreign = _pending_record("project-b", "TASK-1", "audit-shared")
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[foreign, local]
+        ).to_dict()
+    }
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        store = TerminalAuditMetadataStore(
+            tracker, orchestrator.project_store, "project-a"
+        )
+        updated = replace(local, request_state=RequestState.IN_PROGRESS)
+
+        assert orchestrator._audit_update_record(
+            store, tracker.issues[0], updated
+        ) is True
+
+        stored = TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        )
+        by_project = {record.project_id: record for record in stored.pending_chain}
+        assert by_project["project-a"].request_state is RequestState.IN_PROGRESS
+        assert by_project["project-b"].request_state is RequestState.PENDING
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)

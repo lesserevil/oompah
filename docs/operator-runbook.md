@@ -86,6 +86,11 @@ GitLab calls; it is not the GitLab forge/API URL and is independent of
 | `OOMPAH_STALL_TURNS` | `10` | Consecutive unproductive agent turns before marking the agent stalled. |
 | `OOMPAH_ESCALATE_AFTER_ATTEMPTS` | `1` | Failed attempts before escalating to a deeper agent profile. |
 
+Durable workflow cutover uses the four
+`OOMPAH_WORKFLOW_<DOMAIN>_MODE` values and restart-persistent canary gates. See
+[Durable Workflow Rollout and Recovery](workflow-rollout.md) before changing
+them; do not put rollout settings in `WORKFLOW.md`.
+
 Provider configuration (API keys, base URLs, model selection) is stored in
 `.oompah/providers.json` and is managed via the dashboard or the API — not via
 the `.env` file.
@@ -910,6 +915,7 @@ flowchart LR
     S --> M["orchestrator_metrics: {last_tick, maintenance, project_refresh}"]
     S --> I["integration_queue: [durable per-task rows]"]
     S --> F["config.parallel_epic_children_enabled"]
+    S --> W["workflow_runtime: {domain_modes, rollout, jobs}"]
 ```
 
 | Key | Description |
@@ -922,6 +928,9 @@ flowchart LR
 | `orchestrator_metrics.last_tick` | Timing breakdown for the most recent tick |
 | `orchestrator_metrics.maintenance` | Last run times for `repo_heal`, `worktree_cleanup`, `auto_archive` |
 | `orchestrator_metrics.project_refresh` | Per-project tracker fetch latency and error counts |
+| `workflow_runtime.domain_modes` | Exact per-domain rollout controls and aggregate ownership mode |
+| `workflow_runtime.rollout` | Restart-persistent shadow samples and latest outcome per domain |
+| `workflow_liveness` | Why-not-progressing coverage, reassessment SLOs, and recovery health |
 
 For detailed tick latency diagnostics, see `docs/tick-latency-diagnostics.md`.
 
@@ -929,7 +938,16 @@ For detailed tick latency diagnostics, see `docs/tick-latency-diagnostics.md`.
 
 ## 10. Migration Notes
 
-### 10.1 Independent Auditor Dispatch (OOMPAH-460)
+### 10.1 Durable workflow runtime
+
+Existing workflow SQLite state is upgraded automatically and idempotently on
+startup. Use the staged shadow, canary, final cutover, and rollback procedure in
+[Durable Workflow Rollout and Recovery](workflow-rollout.md). The dashboard's
+task decision is the recovery authority: routine queues, retry backoff, and
+active repair do not require manual state changes; only `action_required`
+names an operator remedy.
+
+### 10.2 Independent Auditor Dispatch (OOMPAH-460)
 
 The `OOMPAH_VERIFY_COMPLETION` and `OOMPAH_VERIFY_COMPLETION_LLM` environment
 variables are **deprecated**. Oompah emits a startup warning when either is

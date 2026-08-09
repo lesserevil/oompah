@@ -24,6 +24,20 @@ from oompah.terminal_audit import (
 DEFAULT_STALE_AFTER_SECONDS: int = 3600
 HEALTH_ALERT_PREFIX: str = "terminal_audit_health:"
 
+# Classifications that describe a retryable transport/finalization outage.
+# Kept aligned with :mod:`oompah.auditor_dispatch` so a scheduler that
+# retries these attempts does not appear to exhaust independent-candidate
+# capacity in dashboards.
+_TRANSPORT_FAILURE_CLASSIFICATIONS: frozenset[FailureClassification] = frozenset(
+    {
+        FailureClassification.INFRASTRUCTURE_ERROR,
+        FailureClassification.FINALIZATION_FAILURE,
+    }
+)
+_NON_CONSUMING_LIFECYCLE_CLASSIFICATIONS: frozenset[FailureClassification] = (
+    frozenset({FailureClassification.SCHEDULER_PAUSE})
+)
+
 
 def _parse_timestamp(value: Any) -> datetime | None:
     """Parse an ISO-8601 timestamp string into an aware UTC datetime."""
@@ -81,6 +95,9 @@ class AuditHealthObservation:
     # verdict was produced (or the finalization boundary was exhausted) but
     # the authoritative terminal status has not been acknowledged yet.
     finalization_failure_count: int = 0
+    # A pre-launch validation-contract error is configuration health, not a
+    # transport, policy-attempt, or stale-backlog failure.
+    configuration_error: bool = False
 
 
 @dataclass
@@ -96,8 +113,14 @@ class TerminalAuditHealth:
     launch_failure_count: int = 0
     transport_failure_count: int = 0
     policy_incompatibility_count: int = 0
+    configuration_error_count: int = 0
     finalization_failure_count: int = 0
     retry_exhausted_count: int = 0
+    # Records whose latest attempt failed on transport/finalization and
+    # still have a bounded infrastructure retry remaining.  These are
+    # actionable operator signals about transport health but they must not
+    # be reported as substantive candidate exhaustion.
+    transport_retry_pending_count: int = 0
     quarantined_count: int = 0
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS
     scan_complete: bool = True
@@ -119,10 +142,12 @@ class TerminalAuditHealth:
             self.launch_failure_count
             or self.transport_failure_count
             or self.policy_incompatibility_count
+            or self.configuration_error_count
             or self.finalization_failure_count
             or self.stale_pending_count
             or self.stale_in_validation_count
             or self.retry_exhausted_count
+            or self.transport_retry_pending_count
             or self.quarantined_count
             or not self.scan_complete
         )
@@ -138,9 +163,11 @@ class TerminalAuditHealth:
             "launch_failure_count": self.launch_failure_count,
             "transport_failure_count": self.transport_failure_count,
             "policy_incompatibility_count": self.policy_incompatibility_count,
+            "configuration_error_count": self.configuration_error_count,
             "finalization_failure_count": self.finalization_failure_count,
             "failure_count": self.failure_count,
             "retry_exhausted_count": self.retry_exhausted_count,
+            "transport_retry_pending_count": self.transport_retry_pending_count,
             "quarantined_count": self.quarantined_count,
             "stale_after_seconds": self.stale_after_seconds,
             "scan_complete": self.scan_complete,
@@ -166,8 +193,10 @@ class TerminalAuditHealth:
             "launch_failure_count",
             "transport_failure_count",
             "policy_incompatibility_count",
+            "configuration_error_count",
             "finalization_failure_count",
             "retry_exhausted_count",
+            "transport_retry_pending_count",
             "quarantined_count",
             "stale_after_seconds",
             "scan_error_count",
@@ -257,15 +286,28 @@ def build_terminal_audit_health(
     now: datetime | None = None,
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS,
     max_attempts: int = 3,
+    max_transport_retries: int = 3,
     scan_complete: bool = True,
     scan_error_count: int = 0,
 ) -> TerminalAuditHealth:
-    """Build current health from a successful or partially successful scan."""
+    """Build current health from a successful or partially successful scan.
+
+    ``max_attempts`` bounds substantive candidate rotations (any verdict or
+    policy denial).  ``max_transport_retries`` bounds retryable transport
+    or finalization failures.  Substantive exhaustion (Needs Human without
+    a healthy independent candidate) is reported as ``retry_exhausted_count``
+    while a pending record still working through the infrastructure retry
+    budget is reported as ``transport_retry_pending_count`` so operator
+    dashboards can distinguish a transient transport outage from candidate
+    exhaustion.
+    """
 
     if stale_after_seconds <= 0:
         raise ValueError("stale_after_seconds must be positive")
     if max_attempts <= 0:
         raise ValueError("max_attempts must be positive")
+    if max_transport_retries < 0:
+        raise ValueError("max_transport_retries must be non-negative")
 
     current_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
 
@@ -276,8 +318,10 @@ def build_terminal_audit_health(
     launch_failures = 0
     transport_failures = 0
     policy_incompatibilities = 0
+    configuration_errors = 0
     finalization_failures = 0
     exhausted = 0
+    transport_retry_pending = 0
     quarantined = 0
     oldest: datetime | None = None
     projects: dict[str, dict[str, int]] = {}
@@ -314,6 +358,20 @@ def build_terminal_audit_health(
             increment(observation.project_id, "quarantined_count")
             continue
 
+        if observation.configuration_error:
+            configuration_errors += 1
+            increment(observation.project_id, "configuration_error_count")
+            if record is not None:
+                if record.request_state == RequestState.IN_PROGRESS:
+                    in_progress += 1
+                    increment(observation.project_id, "in_progress_count")
+                elif record.request_state == RequestState.PENDING:
+                    pending += 1
+                    increment(observation.project_id, "pending_count")
+            # The exact actionable condition is surfaced by the scheduler's
+            # project-scoped alert. Do not also classify it as stale/transport.
+            continue
+
         if record is None:
             # In Validation task with no usable metadata — stale validation signal
             if observation.finalization_failure_count:
@@ -339,16 +397,20 @@ def build_terminal_audit_health(
             pending += 1
             increment(observation.project_id, "pending_count")
 
-        # Age tracking — use the record's own timestamp if available
-        record_ts = _record_created_at(record)
-        issue_ts = _parse_timestamp(observation.issue_created_at)
-        ts = record_ts or issue_ts
-        if ts is not None:
-            age_s = (current_time - ts).total_seconds()
-            if age_s >= stale_after_seconds:
-                stale_pending += 1
-                increment(observation.project_id, "stale_pending_count")
-            oldest = min(oldest, ts) if oldest is not None else ts
+        # Pending age is actionable only while no live auditor owns the
+        # request. Running attempts are supervised by their phase-specific
+        # liveness deadlines and must not inherit the record's historical age
+        # as a false stale-pending warning.
+        if record.request_state == RequestState.PENDING:
+            record_ts = _record_created_at(record)
+            issue_ts = _parse_timestamp(observation.issue_created_at)
+            ts = record_ts or issue_ts
+            if ts is not None:
+                age_s = (current_time - ts).total_seconds()
+                if age_s >= stale_after_seconds:
+                    stale_pending += 1
+                    increment(observation.project_id, "stale_pending_count")
+                oldest = min(oldest, ts) if oldest is not None else ts
 
         # Failure classification — only count unresolved failures.
         #
@@ -365,10 +427,48 @@ def build_terminal_audit_health(
         # IN_PROGRESS it has not yet failed, so the retry budget is not yet
         # consumed from an operator perspective.
         if record.request_state == RequestState.PENDING:
-            attempts_used = len(record.attempts)
-            if attempts_used >= max_attempts:
+            # Distinguish substantive candidate exhaustion from an active
+            # infrastructure retry.  A transport/finalization failure did not
+            # produce a verdict and does not consume a candidate slot, so we
+            # count only the substantive attempts against ``max_attempts``.
+            substantive_used = sum(
+                1
+                for attempt in record.attempts
+                if attempt.verdict is not None
+                or (
+                    attempt.failure_classification
+                    not in _NON_CONSUMING_LIFECYCLE_CLASSIFICATIONS
+                    and attempt.failure_classification
+                    not in _TRANSPORT_FAILURE_CLASSIFICATIONS
+                )
+            )
+            transport_used = sum(
+                1
+                for attempt in record.attempts
+                if attempt.verdict is None
+                and attempt.failure_classification
+                in _TRANSPORT_FAILURE_CLASSIFICATIONS
+            )
+            substantive_exhausted = substantive_used >= max_attempts
+            # A zero retry budget still permits the initial audit launch.  It
+            # becomes exhausted only after a transport attempt actually
+            # fails, matching AuditorDispatchLane.plan().
+            transport_exhausted = (
+                transport_used > 0
+                and transport_used >= max_transport_retries
+            )
+            if substantive_exhausted or transport_exhausted:
                 exhausted += 1
                 increment(observation.project_id, "retry_exhausted_count")
+            elif transport_used > 0:
+                # The audit still has a bounded transport-retry budget
+                # remaining; do not report substantive exhaustion, but keep
+                # a distinct signal so operator dashboards can tell a
+                # transient outage apart from a healthy backlog.
+                transport_retry_pending += 1
+                increment(
+                    observation.project_id, "transport_retry_pending_count"
+                )
 
             for attempt in record.attempts:
                 if attempt.request_state != RequestState.PENDING:
@@ -404,8 +504,10 @@ def build_terminal_audit_health(
         launch_failure_count=launch_failures,
         transport_failure_count=transport_failures,
         policy_incompatibility_count=policy_incompatibilities,
+        configuration_error_count=configuration_errors,
         finalization_failure_count=finalization_failures,
         retry_exhausted_count=exhausted,
+        transport_retry_pending_count=transport_retry_pending,
         quarantined_count=quarantined,
         stale_after_seconds=stale_after_seconds,
         scan_complete=scan_complete,
@@ -427,6 +529,8 @@ def terminal_audit_health_alerts(
         title: str,
         detail: str,
         action: str,
+        *,
+        action_required: bool,
     ) -> None:
         alerts.append(
             {
@@ -434,8 +538,6 @@ def terminal_audit_health_alerts(
                 "severity": level,
                 "source": HEALTH_ALERT_PREFIX + source,
                 "stable_id": HEALTH_ALERT_PREFIX + source,
-                "action_required": True,
-                "recovery_state": "active",
                 "lifecycle_state": "active",
                 "status": "active",
                 "active": True,
@@ -446,13 +548,19 @@ def terminal_audit_health_alerts(
                 "detail": detail,
                 "remediation": action,
                 "action": action,
+                "action_required": action_required,
+                "recovery_state": (
+                    "operator_action_required"
+                    if action_required
+                    else "automatic_recovery"
+                ),
             }
         )
 
     if health.launch_failure_count or health.transport_failure_count:
         add(
             "launch_failures",
-            "error",
+            "info",
             "Terminal-audit auditor launches are failing",
             (
                 f"{health.launch_failure_count} launch failure(s) and "
@@ -460,6 +568,7 @@ def terminal_audit_health_alerts(
                 "recorded for pending audits."
             ),
             "Restore an available auditor transport; retries will continue automatically.",
+            action_required=False,
         )
 
     if health.policy_incompatibility_count:
@@ -472,6 +581,7 @@ def terminal_audit_health_alerts(
                 "stopped by the local read-only tool policy."
             ),
             "Update the auditor tool catalog or prompt contract; this is not a provider transport outage.",
+            action_required=True,
         )
 
     if health.finalization_failure_count:
@@ -487,6 +597,7 @@ def terminal_audit_health_alerts(
                 "Restore tracker writes or restart audit enforcement; do not "
                 "infer an outcome from a comment alone."
             ),
+            action_required=True,
         )
 
     if health.retry_exhausted_count:
@@ -499,41 +610,78 @@ def terminal_audit_health_alerts(
                 "configured auditor attempts."
             ),
             "Add a healthy independent auditor or route the affected records to operator review.",
+            action_required=True,
+        )
+
+    if health.transport_retry_pending_count:
+        add(
+            "transport_retry_pending",
+            "warning",
+            "Terminal-audit transport recovery is in progress",
+            (
+                f"{health.transport_retry_pending_count} pending audit(s) are "
+                "retrying after a transport or finalization failure without "
+                "consuming an independent-candidate slot."
+            ),
+            (
+                "Restore the auditor transport; the scheduler will resume "
+                "automatically without a substantive verdict penalty."
+            ),
+            action_required=False,
         )
 
     age = health.oldest_pending_age_seconds
-    if age is not None and age > 0 and health.stale_pending_count > 0:
+    if (
+        health.pending_count > 0
+        and age is not None
+        and age > 0
+        and health.stale_pending_count > 0
+    ):
         add(
             "backlog_age",
-            "warning",
+            "info",
             "Terminal-audit backlog is stale",
             (
                 f"The oldest pending audit is {age}s old across "
                 f"{health.pending_count} pending audit(s)."
             ),
             "Increase auditor capacity or investigate the pending audit queue.",
+            action_required=False,
         )
 
     if health.stale_in_validation_count:
         add(
             "stale_validation",
-            "warning",
+            "info",
             "In Validation records are stale",
             (
                 f"{health.stale_in_validation_count} record(s) have remained "
                 "In Validation beyond the health threshold."
             ),
             "Check the audit queue and recover or requeue the affected records.",
+            action_required=False,
         )
 
     if not health.scan_complete:
-        add(
-            "scan",
-            "warning",
-            "Terminal-audit health scan is incomplete",
-            "Current audit health could not be fully confirmed.",
-            "Restore tracker access before treating the queue as healthy.",
-        )
+        if health.scan_error_count:
+            add(
+                "scan",
+                "warning",
+                "Terminal-audit health scan is incomplete",
+                "Current audit health could not be fully confirmed.",
+                "Restore tracker access before treating the queue as healthy.",
+                action_required=True,
+            )
+        else:
+            add(
+                "scan",
+                "info",
+                "Terminal-audit health scan is continuing",
+                "The configured bounded scan deferred part of the audit queue.",
+                "No operator action is required; the durable cursor will "
+                "continue next tick.",
+                action_required=False,
+            )
 
     if health.quarantined_count:
         add(
@@ -542,6 +690,7 @@ def terminal_audit_health_alerts(
             "Terminal-audit metadata is quarantined",
             f"{health.quarantined_count} audit record(s) require operator attention.",
             "Repair the quarantined metadata before resuming terminal transitions.",
+            action_required=True,
         )
 
     return alerts

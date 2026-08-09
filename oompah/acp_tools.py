@@ -47,9 +47,11 @@ raising.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
 import json
 import logging
-import os
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -61,8 +63,20 @@ from oompah.authority_boundary import (
     check_read_only_mutation,
     check_shell_command,
 )
-from oompah.auditor import is_recoverable_auditor_command_denial
-from oompah.statuses import canonicalize_status
+from oompah.auditor import (
+    auditor_validation_timeout_message,
+    is_recoverable_auditor_command_denial,
+    resolve_auditor_validation_budget,
+)
+from oompah.integration import task_submit_required_message
+from oompah.label_auth import label_name_to_status
+from oompah.secrets import redact_sensitive_data
+from oompah.statuses import (
+    CANONICAL_STATUSES,
+    OPEN,
+    READY_TO_INTEGRATE,
+    canonicalize_status,
+)
 from oompah.terminal_audit import (
     ContributorIdentity,
     TargetState,
@@ -71,6 +85,169 @@ from oompah.terminal_audit import (
 from oompah.validation_resource_lease import managed_agent_validation_owner
 
 logger = logging.getLogger(__name__)
+_PROJECT_SNAPSHOT_UNSET = object()
+
+
+def _exec_publish_epic_rebase_candidate(
+    candidate: str,
+    project_id: str | None,
+    task_identifier: str | None,
+    coordination_service: Any = None,
+    *,
+    publish_handler: Any = None,
+) -> str:
+    """Publish one candidate through the session-scoped server capability.
+
+    The tool deliberately accepts only the full candidate commit.  Project and
+    task identity are bound when the server constructs the agent session, and
+    every remote/push input is resolved again by the orchestrator.
+    """
+    if not isinstance(candidate, str) or re.fullmatch(
+        r"(?:[0-9a-f]{40}|[0-9a-f]{64})",
+        candidate,
+    ) is None:
+        return "Error: candidate must be a full lowercase commit SHA"
+    if not project_id or not task_identifier:
+        return "Error: epic rebase publication requires an assigned managed task"
+    handler = (
+        publish_handler
+        if publish_handler is not None
+        else getattr(
+            coordination_service,
+            "publish_worker_epic_rebase_candidate",
+            None,
+        )
+    )
+    if not callable(handler):
+        return "Error: authoritative epic rebase publication service is unavailable"
+    try:
+        result = handler(project_id, task_identifier, candidate)
+        if inspect.isawaitable(result):
+            close = getattr(result, "close", None)
+            if callable(close):
+                close()
+            return "Error: epic rebase publication service must be synchronous"
+        return json.dumps(redact_sensitive_data(result), sort_keys=True)
+    except Exception as exc:  # noqa: BLE001 - tool failures are model-visible
+        return f"Error: {redact_sensitive_data(str(exc))}"
+
+
+def _exact_implementation_running_entry(
+    coordination_service: Any,
+    issue: Any,
+    project_id: str,
+) -> Any | None:
+    """Return only the runtime owned by this managed project/task."""
+
+    entry = getattr(
+        coordination_service, "_current_running_entry", lambda _id: None
+    )(issue.id)
+    if entry is None or getattr(entry, "is_auditor", False):
+        return None
+    entry_issue = getattr(entry, "issue", None)
+    if str(getattr(entry_issue, "project_id", None) or "") != str(project_id):
+        return None
+    if str(getattr(entry_issue, "identifier", None) or "") != str(
+        issue.identifier
+    ):
+        return None
+    return entry
+
+
+def _schedule_durable_task_status(
+    coordination_service: Any,
+    task_tracker: Any,
+    *,
+    project_id: str | None,
+    identifier: str,
+    requested_status: str,
+    reason: str,
+) -> bool:
+    """Route an in-process worker status handoff through durable ownership."""
+
+    if (
+        getattr(
+            getattr(coordination_service, "workflow_runtime", None),
+            "enforce",
+            False,
+        )
+        is not True
+    ):
+        return False
+    if not project_id:
+        raise ValueError("durable task status handoff requires a managed project")
+    requested_status = canonicalize_status(requested_status)
+    if requested_status not in CANONICAL_STATUSES:
+        raise ValueError(f"unknown task status {requested_status!r}")
+    issue = task_tracker.fetch_issue_detail(identifier)
+    if issue is None:
+        raise ValueError(f"Issue {identifier!r} not found")
+    if issue.project_id and str(issue.project_id) != str(project_id):
+        raise ValueError("task status handoff crossed its managed project")
+    issue.project_id = issue.project_id or project_id
+
+    observer = getattr(
+        coordination_service, "_observe_task_handoff_mutation", None
+    )
+    if canonicalize_status(requested_status) == OPEN and callable(observer):
+        if observer(
+            identifier=identifier,
+            action="set-status",
+            project_id=project_id,
+            status=requested_status,
+            tracker=task_tracker,
+        ):
+            return True
+    if canonicalize_status(issue.state) == canonicalize_status(requested_status):
+        return True
+
+    from oompah.task_transition_service import (
+        issue_authority_version,
+        issue_exact_head,
+    )
+
+    entry = _exact_implementation_running_entry(
+        coordination_service, issue, project_id
+    )
+    head = issue_exact_head(issue)
+    job = coordination_service._schedule_implementation_workflow_event(
+        project_id=project_id,
+        identifier=identifier,
+        action="worker_exit",
+        payload={
+            "owner_id": str(getattr(entry, "run_id", None) or ""),
+            "run_id": str(getattr(entry, "run_id", None) or ""),
+            "prior_generation": str(
+                getattr(entry, "authority_generation", None) or ""
+            ),
+            "assignment_id": str(
+                getattr(entry, "assignment_id", None) or ""
+            ),
+            "focus": str(
+                getattr(entry, "focus_name", None) or "implementation"
+            ),
+            "work_branch": str(issue.work_branch or issue.branch_name or ""),
+            "head_sha": str(head or ""),
+            "requested_status": requested_status,
+            "expected_status": issue.state,
+            "reason": reason,
+        },
+        expected_evidence_revision=issue_authority_version(issue),
+        expected_head_sha=head,
+        priority=0,
+    )
+    if job is None:
+        raise RuntimeError("durable task status handoff was not scheduled")
+    return True
+
+
+def _project_mutation_lock(project_store: Any, project_id: str | None):
+    """Return the managed project's cross-path tracker mutation fence."""
+
+    operation = getattr(project_store, "project_write_lock", None)
+    if not project_id or not callable(operation):
+        return contextlib.nullcontext()
+    return operation(project_id)
 
 
 def _auditor_validation_success_handler(
@@ -86,17 +263,179 @@ def _auditor_validation_success_handler(
         "record_auditor_quality_evidence",
         None,
     )
+    command_recorder = getattr(
+        coordination_service,
+        "record_auditor_validation_command",
+        None,
+    )
+    if (
+        not auditor_mode
+        or audit_target is None
+        or (not callable(recorder) and not callable(command_recorder))
+    ):
+        return None
+
+    def record(
+        command: str,
+        workspace: Path,
+        *,
+        duration_seconds: float = 0.0,
+        succeeded: bool = True,
+        phase: str = "completed",
+        outcome: str = "",
+        invocation_id: str = "",
+        validation_scope: str = "",
+    ) -> object:
+        if callable(command_recorder):
+            try:
+                command_recorder(
+                    audit_target=audit_target,
+                    command=command,
+                    duration_seconds=duration_seconds,
+                    succeeded=succeeded,
+                    phase=phase,
+                    outcome=outcome,
+                    invocation_id=invocation_id,
+                    validation_scope=validation_scope,
+                )
+            except Exception:  # telemetry must not block evidence recording
+                logger.debug("Auditor validation telemetry failed", exc_info=True)
+        if phase != "completed" or not succeeded:
+            return False
+        if callable(recorder):
+            return recorder(
+                audit_target=audit_target,
+                workspace_path=workspace,
+                command=command,
+                duration_seconds=duration_seconds,
+            )
+        return None
+
+    return record
+
+
+def _auditor_validation_reuse_policy_handler(
+    coordination_service: Any,
+    *,
+    auditor_mode: bool,
+    audit_target: Any,
+):
+    """Return a best-effort bridge for durable gate-reuse policy telemetry."""
+
+    recorder = getattr(
+        coordination_service,
+        "record_auditor_validation_reuse_policy",
+        None,
+    )
     if not auditor_mode or audit_target is None or not callable(recorder):
         return None
 
-    def record(command: str, workspace: Path) -> object:
-        return recorder(
-            audit_target=audit_target,
-            workspace_path=workspace,
-            command=command,
-        )
+    def record(
+        *,
+        command: str,
+        decision: str,
+        justification: str,
+        invocation_id: str,
+    ) -> None:
+        try:
+            recorder(
+                audit_target=audit_target,
+                command=command,
+                decision=decision,
+                justification=justification,
+                invocation_id=invocation_id,
+            )
+        except Exception:  # telemetry must not alter the policy decision
+            logger.debug("Auditor validation reuse telemetry failed", exc_info=True)
 
     return record
+
+
+def _agent_submission_body(
+    args: Any,
+    workspace_path: str | Path | None,
+    *,
+    access_token: str | None,
+    forge_kind: str,
+) -> dict[str, Any] | str:
+    """Collect immutable workspace evidence for authoritative acceptance."""
+
+    from oompah.task_cli import _git_submission_evidence
+
+    if workspace_path is None:
+        return "Error: task submission requires the assigned git workspace"
+    evidence = _git_submission_evidence(
+        cwd=workspace_path,
+        access_token=access_token,
+        forge_kind=forge_kind,
+    )
+    body = dict(evidence)
+    body["summary"] = str(getattr(args, "summary", None) or "").strip()
+    return body
+
+
+def _agent_submission_result(identifier: str, accepted: Any) -> str:
+    """Render the common lifecycle-service result for an agent tool call."""
+
+    failure = str(
+        getattr(accepted, "direct_failure_message", None) or ""
+    ).strip()
+    if failure:
+        return f"Error: {failure}"
+    return f"Submitted for integration: {identifier}"
+
+
+def _auditor_project_snapshot(
+    project_store: Any,
+    project_id: str | None,
+    *,
+    auditor_mode: bool,
+) -> tuple[Any, str | None]:
+    if not auditor_mode:
+        return None, None
+    # Standalone catalog consumers historically use the default auditor
+    # contract without a ProjectStore. Production sessions inject the store;
+    # once one is supplied, missing identity/configuration must fail closed.
+    if project_store is None:
+        return None, None
+    if not project_id:
+        return None, "auditor project identity is unavailable"
+    try:
+        project = project_store.get(project_id)
+    except Exception as exc:
+        return None, (
+            "auditor project configuration could not be read "
+            f"({type(exc).__name__})"
+        )
+    if project is None:
+        return None, f"auditor project {project_id!r} is not configured"
+    return project, None
+
+
+def _auditor_run_command_options(
+    command: str,
+    project: Any,
+    *,
+    auditor_mode: bool,
+    fallback_timeout: int | None,
+) -> tuple[int | None, str | None, str | None, bool]:
+    if not auditor_mode:
+        return fallback_timeout, None, None, False
+    budget, configuration_error = resolve_auditor_validation_budget(
+        command,
+        project,
+        global_timeout_seconds=fallback_timeout,
+    )
+    if configuration_error:
+        return fallback_timeout, None, configuration_error, False
+    if budget is None:
+        return fallback_timeout, None, None, False
+    return (
+        budget.deadline_seconds,
+        auditor_validation_timeout_message(budget),
+        None,
+        True,
+    )
 
 
 def _read_file_input_schema() -> dict[str, Any]:
@@ -147,6 +486,24 @@ def _search_files_input_schema() -> dict[str, Any]:
     }
 
 
+def _run_command_input_schema() -> dict[str, Any]:
+    """Return the provider-neutral structured validation escape schema."""
+
+    return {
+        "type": "object",
+        "properties": {
+            "command": {"type": "string"},
+            "validation_mode": {
+                "type": "string",
+                "enum": ["task_required_distinct"],
+            },
+            "validation_justification": {"type": "string"},
+        },
+        "required": ["command"],
+        "additionalProperties": False,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Shared project-management helpers (TASK-464.8)
 # ---------------------------------------------------------------------------
@@ -173,6 +530,9 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "status_label_authorized_logins",
         "intake_auto_promote",
         "paused",
+        "auditor_validation_targets",
+        "auditor_validation_target_deadlines",
+        "auditor_validation_target_expected_seconds",
     }
 )
 
@@ -191,6 +551,9 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
         "status_label_authorized_logins",
         "intake_auto_promote",
         "paused",
+        "auditor_validation_targets",
+        "auditor_validation_target_deadlines",
+        "auditor_validation_target_expected_seconds",
     }
 )
 
@@ -228,6 +591,20 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         ),
         "intake_auto_promote": bool_attr("intake_auto_promote", True),
         "paused": bool_attr("paused", False),
+        "auditor_validation_targets": list(
+            getattr(project, "auditor_validation_targets", []) or []
+        ),
+        "auditor_validation_target_deadlines": dict(
+            getattr(project, "auditor_validation_target_deadlines", {}) or {}
+        ),
+        "auditor_validation_target_expected_seconds": dict(
+            getattr(
+                project,
+                "auditor_validation_target_expected_seconds",
+                {},
+            )
+            or {}
+        ),
     }
 
 
@@ -585,6 +962,8 @@ def _exec_oompah_task_command(
     workspace_path: str | Path | None = None,
     project_store: Any = None,
     terminal_transition_coordinator: Any = None,
+    submission_handler: Any = None,
+    project_snapshot: Any = _PROJECT_SNAPSHOT_UNSET,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
@@ -625,8 +1004,14 @@ def _exec_oompah_task_command(
             f"but this ACP session is scoped to {project_id!r}"
         )
 
-    managed_project = None
-    if project_store is not None and project_id:
+    managed_project = project_snapshot
+    if managed_project is _PROJECT_SNAPSHOT_UNSET:
+        managed_project = None
+    if (
+        project_snapshot is _PROJECT_SNAPSHOT_UNSET
+        and project_store is not None
+        and project_id
+    ):
         try:
             managed_project = project_store.get(project_id)
         except Exception:  # noqa: BLE001 - task routing remains usable
@@ -732,6 +1117,7 @@ def _exec_oompah_task_command(
                 observer(
                     identifier=args.identifier,
                     action="comment",
+                    project_id=project_id,
                     message=args.message,
                     tracker=task_tracker,
                 )
@@ -745,6 +1131,14 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
+            if (
+                task_identifier
+                and canonicalize_status(args.status) == READY_TO_INTEGRATE
+            ):
+                return (
+                    "Error: "
+                    + task_submit_required_message(args.identifier)
+                )
             target = _target_for_task_status(args.status)
             if target is not None and terminal_transition_coordinator is not None:
                 try:
@@ -764,20 +1158,49 @@ def _exec_oompah_task_command(
                     "ACP tool runner"
                 )
             if task_identifier and target is not None:
-                return (
-                    "Error: spawned workers must use `oompah task submit "
-                    f"{args.identifier} --summary \"...\"` so committed and "
-                    "pushed git evidence is validated before completion"
-                )
-            task_tracker.update_issue(args.identifier, status=args.status)
-            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
-            if task_identifier and callable(observer):
-                observer(
+                return "Error: " + task_submit_required_message(args.identifier)
+            durable = bool(
+                task_identifier
+                and _schedule_durable_task_status(
+                    coordination_service,
+                    task_tracker,
+                    project_id=project_id,
                     identifier=args.identifier,
-                    action="set-status",
-                    status=args.status,
-                    tracker=task_tracker,
+                    requested_status=args.status,
+                    reason="accepted in-process task status handoff",
                 )
+            )
+            if not durable:
+                transition = getattr(
+                    coordination_service,
+                    "_transition_identifier_status",
+                    None,
+                )
+                if not callable(transition):
+                    return "Error: task transition service is unavailable"
+                from oompah.task_transition_service import TransitionAuthority
+
+                with _project_mutation_lock(project_store, project_id):
+                    transition(
+                        args.identifier,
+                        args.status,
+                        project_id=project_id,
+                        tracker=task_tracker,
+                        actor=str(getattr(args, "actor", None) or "oompah-worker"),
+                        authority=TransitionAuthority.WORKER,
+                        reason_code="handoff.acp_status_requested",
+                    )
+                observer = getattr(
+                    coordination_service, "_observe_task_handoff_mutation", None
+                )
+                if task_identifier and callable(observer):
+                    observer(
+                        identifier=args.identifier,
+                        action="set-status",
+                        project_id=project_id,
+                        status=args.status,
+                        tracker=task_tracker,
+                    )
             if getattr(args, "summary", None):
                 task_tracker.add_comment(
                     args.identifier,
@@ -787,116 +1210,34 @@ def _exec_oompah_task_command(
             return f"Status set to: {args.status}"
 
         if args.subcommand == "submit":
-            from datetime import datetime, timezone
-
-            from oompah.integration import (
-                IntegrationRecord,
-                validate_submission_branch,
-            )
-            from oompah.statuses import READY_TO_INTEGRATE
-            from oompah.task_cli import _git_submission_evidence
-
-            if workspace_path is None:
-                return (
-                    "Error: task submission requires the assigned git "
-                    "workspace"
-                )
-            evidence = _git_submission_evidence(
-                cwd=workspace_path,
+            body = _agent_submission_body(
+                args,
+                workspace_path,
                 access_token=project_access_token,
                 forge_kind=project_forge_kind,
             )
-            issue = task_tracker.fetch_issue_detail(args.identifier)
-            if issue is None:
-                return f"Error: Issue {args.identifier!r} not found"
-            existing = getattr(issue, "integration", None)
-            try:
-                branch = validate_submission_branch(
-                    issue,
-                    evidence.get("task_branch"),
-                )
-            except ValueError as exc:
-                return f"Error: {exc}"
-            head_sha = str(evidence.get("head_sha") or "").strip().lower()
-            remote_head_sha = str(
-                evidence.get("remote_head_sha") or ""
-            ).strip().lower()
-            if not branch or not head_sha:
+            if isinstance(body, str):
+                return body
+            if not callable(submission_handler):
                 return (
-                    "Error: task submission requires a checked-out branch "
-                    "with a committed HEAD"
+                    "Error: authoritative task submission service is unavailable"
                 )
-            if not remote_head_sha:
-                return (
-                    "Error: push the task branch to origin before submission"
-                )
-            if remote_head_sha != head_sha:
-                return (
-                    "Error: the pushed remote task branch does not match "
-                    "the local HEAD"
-                )
-            if evidence.get("worktree_clean") is not True:
-                return (
-                    "Error: the worktree must be clean before task submission"
-                )
-            now = datetime.now(timezone.utc).isoformat()
-            record = IntegrationRecord(
-                state="ready",
-                task_branch=branch,
-                base_sha=(
-                    str(evidence.get("base_sha") or "").strip()
-                    or (
-                        str(getattr(existing, "base_sha", "") or "").strip()
-                        if existing is not None
-                        else ""
-                    )
-                    or None
-                ),
-                base_branch=(
-                    str(evidence.get("base_branch") or "").strip()
-                    or (
-                        str(getattr(existing, "base_branch", "") or "").strip()
-                        if existing is not None
-                        else ""
-                    )
-                    or getattr(issue, "target_branch", None)
-                ),
-                head_sha=head_sha,
-                submitted_at=now,
-                updated_at=now,
+            if not project_id:
+                return "Error: task submission requires a managed project"
+            accepted = submission_handler(
+                tracker=task_tracker,
+                identifier=args.identifier,
+                project_id=project_id,
+                body=body,
             )
-
-            task_tracker.set_metadata_field(
-                args.identifier,
-                "oompah.integration",
-                record.to_dict(),
-            )
-            task_tracker.update_issue(
-                args.identifier,
-                status=READY_TO_INTEGRATE,
-            )
-            if args.summary:
-                task_tracker.add_comment(
-                    args.identifier,
-                    args.summary,
-                    author="oompah",
+            if inspect.isawaitable(accepted):
+                if inspect.iscoroutine(accepted):
+                    accepted.close()
+                return (
+                    "Error: asynchronous task submission must be awaited through "
+                    "the ACP tool runner"
                 )
-            if coordination_service is not None and project_id:
-                try:
-                    coordination_service.coordination_checkpoint(
-                        project_id=project_id,
-                        identifier=args.identifier,
-                        changed_paths=evidence.get("changed_paths"),
-                        commit_sha=head_sha,
-                        summary=args.summary,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "Submission coordination publication failed for %s: %s",
-                        args.identifier,
-                        exc,
-                    )
-            return f"Submitted for integration: {args.identifier}"
+            return _agent_submission_result(args.identifier, accepted)
 
         if args.subcommand == "add-label":
             denial = check_action(
@@ -906,12 +1247,36 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            task_tracker.add_label(args.identifier, args.label)
-            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
-            if task_identifier and callable(observer):
+            if (
+                task_identifier
+                and canonicalize_status(label_name_to_status(args.label))
+                == READY_TO_INTEGRATE
+            ):
+                return "Error: " + task_submit_required_message(args.identifier)
+            status_from_label = label_name_to_status(args.label)
+            durable = bool(
+                task_identifier
+                and status_from_label is not None
+                and _schedule_durable_task_status(
+                    coordination_service,
+                    task_tracker,
+                    project_id=project_id,
+                    identifier=args.identifier,
+                    requested_status=status_from_label,
+                    reason="accepted in-process task status label",
+                )
+            )
+            if not durable:
+                with _project_mutation_lock(project_store, project_id):
+                    task_tracker.add_label(args.identifier, args.label)
+            observer = getattr(
+                coordination_service, "_observe_task_handoff_mutation", None
+            )
+            if task_identifier and callable(observer) and status_from_label is None:
                 observer(
                     identifier=args.identifier,
                     action="add-label",
+                    project_id=project_id,
                     label=args.label,
                     tracker=task_tracker,
                 )
@@ -925,7 +1290,28 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            task_tracker.remove_label(args.identifier, args.label)
+            if (
+                task_identifier
+                and canonicalize_status(label_name_to_status(args.label))
+                == READY_TO_INTEGRATE
+            ):
+                return "Error: " + task_submit_required_message(args.identifier)
+            if (
+                task_identifier
+                and label_name_to_status(args.label) is not None
+                and getattr(
+                    getattr(coordination_service, "workflow_runtime", None),
+                    "enforce",
+                    False,
+                )
+                is True
+            ):
+                return (
+                    "Error: status labels cannot be removed directly; set the "
+                    "intended destination status instead"
+                )
+            with _project_mutation_lock(project_store, project_id):
+                task_tracker.remove_label(args.identifier, args.label)
             return f"Label removed: {args.label}"
 
         if args.subcommand == "set-dependency":
@@ -935,21 +1321,25 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            if getattr(args, "hard_start", False) is True:
-                task_tracker.add_start_dependency(args.identifier, args.depends_on)
-                kind = "Hard-start dependency"
-            else:
-                task_tracker.add_dependency(args.identifier, args.depends_on)
-                kind = "Dependency"
+            with _project_mutation_lock(project_store, project_id):
+                if getattr(args, "hard_start", False) is True:
+                    task_tracker.add_start_dependency(args.identifier, args.depends_on)
+                    kind = "Hard-start dependency"
+                else:
+                    task_tracker.add_dependency(args.identifier, args.depends_on)
+                    kind = "Dependency"
             return f"{kind} set: {args.identifier} depends on {args.depends_on}"
 
         if args.subcommand == "remove-dependency":
-            if getattr(args, "hard_start", False) is True:
-                task_tracker.remove_start_dependency(args.identifier, args.depends_on)
-                kind = "Hard-start dependency"
-            else:
-                task_tracker.remove_dependency(args.identifier, args.depends_on)
-                kind = "Dependency"
+            with _project_mutation_lock(project_store, project_id):
+                if getattr(args, "hard_start", False) is True:
+                    task_tracker.remove_start_dependency(
+                        args.identifier, args.depends_on
+                    )
+                    kind = "Hard-start dependency"
+                else:
+                    task_tracker.remove_dependency(args.identifier, args.depends_on)
+                    kind = "Dependency"
             return (
                 f"{kind} removed: {args.identifier} no longer depends on "
                 f"{args.depends_on}"
@@ -963,13 +1353,14 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            issue = task_tracker.create_issue(
-                title=args.title,
-                issue_type=args.issue_type,
-                description=getattr(args, "description", None),
-                priority=_priority_int(getattr(args, "priority", None)),
-                labels=getattr(args, "labels", None),
-            )
+            with _project_mutation_lock(project_store, project_id):
+                issue = task_tracker.create_issue(
+                    title=args.title,
+                    issue_type=args.issue_type,
+                    description=getattr(args, "description", None),
+                    priority=_priority_int(getattr(args, "priority", None)),
+                    labels=getattr(args, "labels", None),
+                )
             url = getattr(issue, "url", None) or getattr(issue, "provider_url", None)
             output = f"Created: {issue.identifier} - {issue.title}"
             return f"{output}\nURL: {url}" if url else output
@@ -982,14 +1373,15 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            issue = task_tracker.create_issue(
-                title=args.title,
-                issue_type=args.issue_type,
-                description=getattr(args, "description", None),
-                priority=_priority_int(getattr(args, "priority", None)),
-                labels=None,
-                parent=args.parent_id,
-            )
+            with _project_mutation_lock(project_store, project_id):
+                issue = task_tracker.create_issue(
+                    title=args.title,
+                    issue_type=args.issue_type,
+                    description=getattr(args, "description", None),
+                    priority=_priority_int(getattr(args, "priority", None)),
+                    labels=None,
+                    parent=args.parent_id,
+                )
             url = getattr(issue, "url", None) or getattr(issue, "provider_url", None)
             output = f"Created: {issue.identifier} - {issue.title}"
             return f"{output}\nURL: {url}" if url else output
@@ -1009,6 +1401,8 @@ async def _exec_oompah_task_command_async(
     workspace_path: str | Path | None = None,
     project_store: Any = None,
     terminal_transition_coordinator: Any = None,
+    submission_handler: Any = None,
+    project_snapshot: Any = _PROJECT_SNAPSHOT_UNSET,
 ) -> str | None:
     """Async direct-task router used by ACP tool handlers.
 
@@ -1063,6 +1457,57 @@ async def _exec_oompah_task_command_async(
         if args.subcommand == "comment" and args.author != "oompah":
             return "Error: task handoff comments must use author='oompah'"
 
+    if args.subcommand == "submit":
+        managed_project = project_snapshot
+        if managed_project is _PROJECT_SNAPSHOT_UNSET:
+            managed_project = None
+        if (
+            project_snapshot is _PROJECT_SNAPSHOT_UNSET
+            and project_store is not None
+            and project_id
+        ):
+            try:
+                managed_project = project_store.get(project_id)
+            except Exception:  # noqa: BLE001 - lifecycle service fails closed
+                managed_project = None
+        access_token = getattr(managed_project, "access_token", None)
+        if not isinstance(access_token, str):
+            access_token = None
+        forge_kind = getattr(managed_project, "forge_kind", "github")
+        if not isinstance(forge_kind, str):
+            forge_kind = "github"
+        try:
+            body = _agent_submission_body(
+                args,
+                workspace_path,
+                access_token=access_token,
+                forge_kind=forge_kind,
+            )
+            if isinstance(body, str):
+                return body
+            handler = submission_handler or getattr(
+                coordination_service,
+                "accept_worker_submission",
+                None,
+            )
+            if not callable(handler):
+                return (
+                    "Error: authoritative task submission service is unavailable"
+                )
+            if not project_id:
+                return "Error: task submission requires a managed project"
+            accepted = handler(
+                tracker=task_tracker,
+                identifier=args.identifier,
+                project_id=project_id,
+                body=body,
+            )
+            if inspect.isawaitable(accepted):
+                accepted = await accepted
+            return _agent_submission_result(args.identifier, accepted)
+        except Exception as exc:  # noqa: BLE001 - fail closed to worker
+            return f"Error: {exc}"
+
     if (
         args.subcommand == "set-status"
         and _target_for_task_status(args.status) is not None
@@ -1098,6 +1543,8 @@ async def _exec_oompah_task_command_async(
         workspace_path,
         project_store,
         terminal_transition_coordinator,
+        submission_handler,
+        project_snapshot,
     )
 
 
@@ -1124,6 +1571,10 @@ def build_tool_catalog(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     policy_denial_handler: Any = None,
+    validation_reuse_policy: dict[str, Any] | None = None,
+    validation_reuse_authority_check: Any = None,
+    isolate_remote_write: bool = False,
+    epic_rebase_publish_enabled: bool = False,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -1200,6 +1651,11 @@ def build_tool_catalog(
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
     validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
+    validation_reuse_policy_handler = _auditor_validation_reuse_policy_handler(
         coordination_service,
         auditor_mode=auditor_mode,
         audit_target=audit_target,
@@ -1306,15 +1762,26 @@ def build_tool_catalog(
         "workspace — `cd` to absolute paths outside is refused. "
         "Project-specific tracker environment overrides are applied "
         "when configured. Returns stdout, stderr, and exit code.",
-        {"command": str},
+        _run_command_input_schema(),
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
         cmd = str(args.get("command", ""))
+        project, project_error = _auditor_project_snapshot(
+            project_store,
+            current_project_id,
+            auditor_mode=auditor_mode,
+        )
         # Authority check for shell commands (git push, gh CLI, credentials, …)
-        shell_denial = check_shell_command(action_policy, cmd)
+        shell_denial = check_shell_command(action_policy, cmd, project=project)
         if shell_denial is not None:
             _record_policy_denial(shell_denial)
             return _wrap_text(shell_denial)
+        if project_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is unavailable; "
+                f"the command was not executed: {project_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         direct = await _exec_oompah_task_command_async(
             cmd,
             task_tracker,
@@ -1328,12 +1795,26 @@ def build_tool_catalog(
         )
         if direct is not None:
             return _wrap_text(direct)
+        command_timeout, timeout_error, configuration_error, configured_target = (
+            _auditor_run_command_options(
+                cmd,
+                project,
+                auditor_mode=auditor_mode,
+                fallback_timeout=run_command_timeout_s,
+            )
+        )
+        if configuration_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is incompatible; "
+                f"the command was not executed: {configuration_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         return _wrap_text(
             await asyncio.to_thread(
                 _exec_run_command,
                 workspace,
                 args,
-                timeout=run_command_timeout_s,
+                timeout=command_timeout,
                 tool_liveness=tool_liveness,
                 output_store=command_output_store,
                 validation_lease=validation_lease,
@@ -1341,7 +1822,15 @@ def build_tool_catalog(
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
                 successful_validation_handler=validation_success_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    validation_reuse_authority_check
+                ),
+                validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
+                isolate_remote_write=isolate_remote_write,
+                timeout_error=timeout_error,
+                configured_validation_target=configured_target,
             )
         )
 
@@ -1398,7 +1887,8 @@ def build_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Example: '{\"forge_kind\": \"gitlab\", \"forge_base_url\": "
         "\"https://gitlab.com\", \"tracker_kind\": \"gitlab_issues\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -1423,7 +1913,8 @@ def build_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},
@@ -1463,6 +1954,31 @@ def build_tool_catalog(
         )
         return _wrap_text(response)
 
+    @tool(
+        "publish_epic_rebase",
+        "Publish the current epic-rebase worktree HEAD through the server-owned "
+        "compare-and-swap capability. Pass only the full lowercase candidate "
+        "commit SHA; project, task, remote, refs, lease, credentials, argv, cwd, "
+        "and environment are fixed by the server.",
+        {
+            "type": "object",
+            "properties": {"candidate": {"type": "string"}},
+            "required": ["candidate"],
+            "additionalProperties": False,
+        },
+    )
+    async def publish_epic_rebase(args: dict[str, Any]) -> dict[str, Any]:
+        if set(args) != {"candidate"}:
+            return _wrap_text("Error: publish_epic_rebase accepts only candidate")
+        response = await asyncio.to_thread(
+            _exec_publish_epic_rebase_candidate,
+            args.get("candidate", ""),
+            current_project_id,
+            task_identifier,
+            coordination_service,
+        )
+        return _wrap_text(response)
+
     if auditor_mode:
         return [
             read_file,
@@ -1489,7 +2005,7 @@ def build_tool_catalog(
     ]
     if read_only:
         return readable
-    return [
+    writable = [
         *readable[:1],
         write_file,
         edit_file,
@@ -1499,6 +2015,21 @@ def build_tool_catalog(
         update_project,
         update_project_by_id,
     ]
+    if (
+        isolate_remote_write
+        and epic_rebase_publish_enabled
+        and current_project_id
+        and task_identifier
+        and callable(
+            getattr(
+                coordination_service,
+                "publish_worker_epic_rebase_candidate",
+                None,
+            )
+        )
+    ):
+        writable.append(publish_epic_rebase)
+    return writable
 
 
 # ----------------------------------------------------------------------
@@ -1524,6 +2055,10 @@ def build_codex_tool_catalog(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     policy_denial_handler: Any = None,
+    validation_reuse_policy: dict[str, Any] | None = None,
+    validation_reuse_authority_check: Any = None,
+    isolate_remote_write: bool = False,
+    epic_rebase_publish_enabled: bool = False,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -1611,6 +2146,11 @@ def build_codex_tool_catalog(
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
     validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
+    validation_reuse_policy_handler = _auditor_validation_reuse_policy_handler(
         coordination_service,
         auditor_mode=auditor_mode,
         audit_target=audit_target,
@@ -1709,16 +2249,35 @@ def build_codex_tool_catalog(
         )
 
     @function_tool
-    async def run_command(command: str) -> str:
+    async def run_command(
+        command: str,
+        validation_mode: str = "",
+        validation_justification: str = "",
+    ) -> str:
         """Run a shell command inside the workspace. Stays inside the
         workspace — ``cd`` to absolute paths outside is refused.
         Project-specific tracker environment overrides are applied when
         configured. Returns stdout, stderr, and exit code."""
+        project, project_error = _auditor_project_snapshot(
+            project_store,
+            current_project_id,
+            auditor_mode=auditor_mode,
+        )
         # Authority check for shell commands (git push, gh CLI, credentials, …)
-        shell_denial = check_shell_command(action_policy, command)
+        shell_denial = check_shell_command(
+            action_policy,
+            command,
+            project=project,
+        )
         if shell_denial is not None:
             _record_policy_denial(shell_denial)
             return shell_denial
+        if project_error:
+            return (
+                "Error: auditor validation configuration is unavailable; "
+                f"the command was not executed: {project_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         direct = await _exec_oompah_task_command_async(
             command,
             task_tracker,
@@ -1732,11 +2291,29 @@ def build_codex_tool_catalog(
         )
         if direct is not None:
             return direct
+        command_timeout, timeout_error, configuration_error, configured_target = (
+            _auditor_run_command_options(
+                command,
+                project,
+                auditor_mode=auditor_mode,
+                fallback_timeout=run_command_timeout_s,
+            )
+        )
+        if configuration_error:
+            return (
+                "Error: auditor validation configuration is incompatible; "
+                f"the command was not executed: {configuration_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         return await asyncio.to_thread(
             _exec_run_command,
             workspace,
-            {"command": command},
-            timeout=run_command_timeout_s,
+            {
+                "command": command,
+                "validation_mode": validation_mode,
+                "validation_justification": validation_justification,
+            },
+            timeout=command_timeout,
             tool_liveness=tool_liveness,
             output_store=command_output_store,
             validation_lease=validation_lease,
@@ -1744,7 +2321,13 @@ def build_codex_tool_catalog(
             lease_cancelled=lease_cancelled,
             require_validation_lease=(validation_lease is not None or auditor_mode),
             successful_validation_handler=validation_success_handler,
+            validation_reuse_policy=validation_reuse_policy,
+            validation_reuse_authority_check=validation_reuse_authority_check,
+            validation_reuse_policy_handler=validation_reuse_policy_handler,
             result_delivery_required=tool_liveness is not None,
+            isolate_remote_write=isolate_remote_write,
+            timeout_error=timeout_error,
+            configured_validation_target=configured_target,
         )
 
     @function_tool
@@ -1776,7 +2359,8 @@ def build_codex_tool_catalog(
         """Update tracker configuration fields for the managed project.
         ``fields_json`` must be a JSON-encoded object whose keys are a
         subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner,
-        tracker_repo, github_issue_intake_enabled, github_project_node_id, paused.
+        tracker_repo, github_issue_intake_enabled, github_project_node_id, paused,
+        and the auditor_validation_* contract fields.
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
         corrupt the running service."""
@@ -1847,6 +2431,21 @@ def build_codex_tool_catalog(
             audit_result_handler,
         )
 
+    @function_tool
+    async def publish_epic_rebase(candidate: str) -> str:
+        """Publish this epic-rebase worktree's exact candidate commit.
+
+        Project, task, remote, refs, lease, credentials, argv, cwd, and
+        environment are bound and verified by the server.
+        """
+        return await asyncio.to_thread(
+            _exec_publish_epic_rebase_candidate,
+            candidate,
+            current_project_id,
+            task_identifier,
+            coordination_service,
+        )
+
     if auditor_mode:
         return [
             read_file,
@@ -1870,7 +2469,7 @@ def build_codex_tool_catalog(
     ]
     if read_only:
         return readable
-    return [
+    writable = [
         *readable[:1],
         write_file,
         edit_file,
@@ -1880,6 +2479,21 @@ def build_codex_tool_catalog(
         update_project,
         update_project_by_id,
     ]
+    if (
+        isolate_remote_write
+        and epic_rebase_publish_enabled
+        and current_project_id
+        and task_identifier
+        and callable(
+            getattr(
+                coordination_service,
+                "publish_worker_epic_rebase_candidate",
+                None,
+            )
+        )
+    ):
+        writable.append(publish_epic_rebase)
+    return writable
 
 
 # ----------------------------------------------------------------------
@@ -1905,6 +2519,10 @@ def build_opencode_tool_catalog(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     policy_denial_handler: Any = None,
+    validation_reuse_policy: dict[str, Any] | None = None,
+    validation_reuse_authority_check: Any = None,
+    isolate_remote_write: bool = False,
+    epic_rebase_publish_enabled: bool = False,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -1984,6 +2602,11 @@ def build_opencode_tool_catalog(
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
     validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
+    validation_reuse_policy_handler = _auditor_validation_reuse_policy_handler(
         coordination_service,
         auditor_mode=auditor_mode,
         audit_target=audit_target,
@@ -2090,15 +2713,26 @@ def build_opencode_tool_catalog(
         "workspace — `cd` to absolute paths outside is refused. "
         "Project-specific tracker environment overrides are applied "
         "when configured. Returns stdout, stderr, and exit code.",
-        {"command": str},
+        _run_command_input_schema(),
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
         cmd = str(args.get("command", ""))
+        project, project_error = _auditor_project_snapshot(
+            project_store,
+            project_id,
+            auditor_mode=auditor_mode,
+        )
         # Authority check for shell commands (git push, gh CLI, credentials, …)
-        shell_denial = check_shell_command(action_policy, cmd)
+        shell_denial = check_shell_command(action_policy, cmd, project=project)
         if shell_denial is not None:
             _record_policy_denial(shell_denial)
             return _wrap_text(shell_denial)
+        if project_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is unavailable; "
+                f"the command was not executed: {project_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         direct = await _exec_oompah_task_command_async(
             cmd,
             task_tracker,
@@ -2112,12 +2746,26 @@ def build_opencode_tool_catalog(
         )
         if direct is not None:
             return _wrap_text(direct)
+        command_timeout, timeout_error, configuration_error, configured_target = (
+            _auditor_run_command_options(
+                cmd,
+                project,
+                auditor_mode=auditor_mode,
+                fallback_timeout=run_command_timeout_s,
+            )
+        )
+        if configuration_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is incompatible; "
+                f"the command was not executed: {configuration_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         return _wrap_text(
             await asyncio.to_thread(
                 _exec_run_command,
                 workspace,
                 args,
-                timeout=run_command_timeout_s,
+                timeout=command_timeout,
                 tool_liveness=tool_liveness,
                 output_store=command_output_store,
                 validation_lease=validation_lease,
@@ -2125,7 +2773,15 @@ def build_opencode_tool_catalog(
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
                 successful_validation_handler=validation_success_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    validation_reuse_authority_check
+                ),
+                validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
+                isolate_remote_write=isolate_remote_write,
+                timeout_error=timeout_error,
+                configured_validation_target=configured_target,
             )
         )
 
@@ -2182,7 +2838,8 @@ def build_opencode_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Example: '{\"forge_kind\": \"gitlab\", \"forge_base_url\": "
         "\"https://gitlab.com\", \"tracker_kind\": \"gitlab_issues\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -2207,7 +2864,8 @@ def build_opencode_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},
@@ -2244,6 +2902,31 @@ def build_opencode_tool_catalog(
         )
         return _wrap_text(response)
 
+    @tool(
+        "publish_epic_rebase",
+        "Publish the current epic-rebase worktree HEAD through the server-owned "
+        "compare-and-swap capability. Pass only the full lowercase candidate "
+        "commit SHA; project, task, remote, refs, lease, credentials, argv, cwd, "
+        "and environment are fixed by the server.",
+        {
+            "type": "object",
+            "properties": {"candidate": {"type": "string"}},
+            "required": ["candidate"],
+            "additionalProperties": False,
+        },
+    )
+    async def publish_epic_rebase(args: dict[str, Any]) -> dict[str, Any]:
+        if set(args) != {"candidate"}:
+            return _wrap_text("Error: publish_epic_rebase accepts only candidate")
+        response = await asyncio.to_thread(
+            _exec_publish_epic_rebase_candidate,
+            args.get("candidate", ""),
+            project_id,
+            task_identifier,
+            coordination_service,
+        )
+        return _wrap_text(response)
+
     if auditor_mode:
         return [
             read_file,
@@ -2267,7 +2950,7 @@ def build_opencode_tool_catalog(
     ]
     if read_only:
         return readable
-    return [
+    writable = [
         *readable[:1],
         write_file,
         edit_file,
@@ -2277,3 +2960,18 @@ def build_opencode_tool_catalog(
         update_project,
         update_project_by_id,
     ]
+    if (
+        isolate_remote_write
+        and epic_rebase_publish_enabled
+        and project_id
+        and task_identifier
+        and callable(
+            getattr(
+                coordination_service,
+                "publish_worker_epic_rebase_candidate",
+                None,
+            )
+        )
+    ):
+        writable.append(publish_epic_rebase)
+    return writable

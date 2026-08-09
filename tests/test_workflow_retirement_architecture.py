@@ -1,0 +1,260 @@
+"""Architectural fences for the retired process-local workflow owners."""
+
+from __future__ import annotations
+
+import ast
+import asyncio
+import inspect
+import textwrap
+from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from oompah.orchestrator import Orchestrator
+
+
+_RETIRED_LIFECYCLE_CALLS = {
+    "_ensure_integration_lane",
+    "_ensure_integration_audit_lane",
+    "_reconcile_pending_recovery_publications",
+    "_reconcile_standalone_ready_to_integrate_tasks",
+    "_schedule_terminal_lifecycle_reconciliation",
+    "_recover_release_addendum_leases",
+    "_handle_reconcile",
+    "_handle_review_check",
+    "_handle_dispatch_needed",
+    "_handle_yolo_review",
+    "_maybe_run_watchdog",
+    "_run_workflow_shadow_sweep",
+    "_run_workflow_controller_sweep",
+    "_run_step5b_maintenance",
+    "_run_step5c_epic_maintenance",
+}
+
+
+def _method_tree(method) -> ast.AsyncFunctionDef | ast.FunctionDef:
+    tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
+    node = tree.body[0]
+    assert isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
+    return node
+
+
+def _self_calls(method) -> set[str]:
+    return {
+        node.func.attr
+        for node in ast.walk(_method_tree(method))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+    }
+
+
+def _self_attributes(method) -> set[str]:
+    return {
+        node.attr
+        for node in ast.walk(_method_tree(method))
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    }
+
+
+def test_durable_tick_cannot_call_retired_lifecycle_owners() -> None:
+    calls = _self_calls(Orchestrator._run_durable_workflow_tick)
+
+    assert calls.isdisjoint(_RETIRED_LIFECYCLE_CALLS)
+    assert "_dispatch_audit_lane" in calls
+    assert "_run_non_lifecycle_housekeeping" in _self_attributes(
+        Orchestrator._run_durable_workflow_tick
+    )
+
+
+def test_rollout_mode_is_not_a_legacy_authority_switch() -> None:
+    assert "workflow_runtime.enforce" not in inspect.getsource(Orchestrator)
+
+
+def test_durable_tick_has_bounded_branch_and_line_complexity() -> None:
+    method = _method_tree(Orchestrator._run_durable_workflow_tick)
+    branches = sum(
+        isinstance(node, (ast.If, ast.IfExp, ast.For, ast.While, ast.Try))
+        for node in ast.walk(method)
+    )
+
+    assert method.end_lineno is not None
+    assert method.end_lineno - method.lineno + 1 <= 80
+    assert branches <= 8
+
+
+def test_production_ownership_boundary_precedes_legacy_fixture_harness() -> None:
+    method = _method_tree(Orchestrator._tick)
+    boundary = next(
+        statement
+        for statement in method.body
+        if isinstance(statement, ast.If)
+        and "self.workflow_runtime is not None" in ast.unparse(statement.test)
+    )
+    calls = {
+        node.func.attr
+        for node in ast.walk(boundary)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+    }
+
+    assert calls == {"_run_durable_workflow_tick"}
+    assert any(isinstance(statement, ast.Return) for statement in boundary.body)
+
+
+def test_runtime_bound_startup_cannot_arm_process_local_lifecycle_owners() -> None:
+    method = _method_tree(Orchestrator._run_event_loop)
+    retired_startup_calls = {
+        "_wake_integration_lane",
+        "_reconcile_owner_duplicate_resolution_boundaries",
+        "_ensure_integration_audit_lane",
+        "_schedule_terminal_lifecycle_reconciliation",
+        "_reconcile_pending_recovery_publications",
+        "_schedule_restart_issue_recovery_for_resume",
+    }
+
+    unguarded: set[str] = set()
+
+    def visit(statement: ast.AST, *, legacy_guarded: bool = False) -> None:
+        guarded = legacy_guarded or (
+            isinstance(statement, ast.If)
+            and "not runtime_bound" in ast.unparse(statement.test)
+        )
+        if isinstance(statement, ast.Call):
+            function = statement.func
+            if (
+                isinstance(function, ast.Attribute)
+                and isinstance(function.value, ast.Name)
+                and function.value.id == "self"
+                and function.attr in retired_startup_calls
+                and not guarded
+            ):
+                unguarded.add(function.attr)
+        for child in ast.iter_child_nodes(statement):
+            visit(child, legacy_guarded=guarded)
+
+    visit(method)
+    assert unguarded == set()
+    calls = _self_calls(Orchestrator._run_event_loop)
+    assert "_recover_restart_issues" in calls
+    assert "_restore_persisted_retries" in calls
+
+
+def test_housekeeping_bundle_contains_only_non_lifecycle_operations() -> None:
+    assert _self_calls(Orchestrator._run_non_lifecycle_housekeeping) == {
+        "_maybe_heal_repos",
+        "_maybe_cleanup_worktrees",
+        "_maybe_cleanup_storage",
+        "_run_maintenance_job",
+        "_update_repo_hygiene_health",
+    }
+
+
+def test_runtime_housekeeping_schedules_owner_claim_retirement() -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._maybe_heal_repos = Mock()
+    orchestrator._maybe_cleanup_worktrees = Mock()
+    orchestrator._maybe_cleanup_storage = Mock()
+    orchestrator._reconcile_inactive_owner_claims = Mock()
+    orchestrator._run_maintenance_job = Mock()
+    orchestrator._update_repo_hygiene_health = Mock()
+
+    orchestrator._run_non_lifecycle_housekeeping()
+
+    orchestrator._run_maintenance_job.assert_called_once_with(
+        "owner_claim_retirements",
+        orchestrator._reconcile_inactive_owner_claims,
+        min_interval_s=60.0,
+    )
+
+
+@pytest.mark.parametrize("mode", ["off", "shadow", "enforce"])
+def test_legacy_event_conversion_always_targets_durable_ledger(mode: str) -> None:
+    scheduled = SimpleNamespace(job_id="job-1")
+    controller = SimpleNamespace(schedule_event=Mock(return_value=scheduled))
+    runtime = SimpleNamespace(
+        mode=mode,
+        project_bindings={
+            "project-1": SimpleNamespace(implementation_controller=controller)
+        },
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator.request_refresh = Mock()
+
+    result = orchestrator._schedule_implementation_workflow_event(
+        project_id="project-1",
+        identifier="TASK-1",
+        action="implementation_retry",
+        payload={"attempt": 2},
+        expected_evidence_revision="revision-1",
+        priority=20,
+    )
+
+    assert result is scheduled
+    controller.schedule_event.assert_called_once_with(
+        project_id="project-1",
+        task_id="TASK-1",
+        action="implementation_retry",
+        payload={"attempt": 2},
+        expected_evidence_revision="revision-1",
+        expected_head_sha=None,
+        priority=20,
+    )
+    orchestrator.request_refresh.assert_called_once_with()
+
+
+@pytest.mark.parametrize("mode", ["off", "shadow", "enforce"])
+def test_runtime_refresh_does_not_wake_legacy_integration_future(mode: str) -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = SimpleNamespace(mode=mode)
+    orchestrator._post_dispatch_refresh = Mock()
+    orchestrator._wake_integration_lane = Mock()
+
+    orchestrator.request_refresh()
+
+    orchestrator._post_dispatch_refresh.assert_called_once_with()
+    orchestrator._wake_integration_lane.assert_not_called()
+
+
+@pytest.mark.parametrize("mode", ["off", "shadow", "enforce"])
+def test_installed_runtime_never_transfers_authority_to_legacy_modes(mode: str) -> None:
+    runtime = SimpleNamespace(
+        mode=mode,
+        started=True,
+        start=AsyncMock(),
+        reconcile_async=AsyncMock(return_value={"mode": mode}),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator.config = SimpleNamespace(full_sync_interval_ms=30_000)
+    orchestrator._terminal_audit_started = False
+    orchestrator._terminal_audit_last_scan = 0.0
+    orchestrator._monotonic_clock = Mock(side_effect=[10.0, 10.01])
+    orchestrator._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+    orchestrator._maintenance_future = None
+    orchestrator._run_non_lifecycle_housekeeping = Mock()
+    orchestrator._notify_observers = Mock()
+    orchestrator._handle_auto_update = AsyncMock()
+    orchestrator._tick_pool = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        with patch(
+            "oompah.orchestrator.validate_dispatch_config", return_value=[]
+        ):
+            asyncio.run(orchestrator._run_durable_workflow_tick(started_at=10.0))
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True)
+
+    runtime.start.assert_not_awaited()
+    runtime.reconcile_async.assert_awaited_once_with()
+    orchestrator._dispatch_audit_lane.assert_awaited_once_with()
+    orchestrator._run_non_lifecycle_housekeeping.assert_called_once_with()
+    orchestrator._handle_auto_update.assert_awaited_once_with()

@@ -8,9 +8,10 @@ import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
+from oompah import tool_liveness as tool_liveness_module
+from oompah.api_agent import _exec_run_command
 from oompah.config import ServiceConfig
 from oompah.models import Issue, LiveSession, RunningEntry
-from oompah.api_agent import _exec_run_command
 from oompah.orchestrator import Orchestrator
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.validation_resource_lease import ValidationLeaseOwner
@@ -83,6 +84,53 @@ def test_capacity_wait_protects_stall_without_consuming_command_deadline():
 
     assert protected is False
     assert reason == "run_command command timed out after 0s"
+
+
+def test_result_delivery_retires_full_bounded_phase_from_outer_clock(monkeypatch):
+    now = [10.0]
+    monkeypatch.setattr(
+        tool_liveness_module.time,
+        "monotonic",
+        lambda: now[0],
+    )
+    monitor = ToolLivenessMonitor(result_delivery_timeout_s=30)
+    invocation_id = monitor.start_waiting(
+        tool_name="run_command",
+        result_delivery_required=True,
+    )
+    now[0] += 5
+    monitor.start_runtime(
+        invocation_id,
+        timeout_s=1200,
+        result_delivery_required=True,
+    )
+    now[0] += 100
+    monitor.result_pending(invocation_id)
+    now[0] += 7
+
+    assert monitor.result_delivered(invocation_id) == invocation_id
+    assert monitor.outer_deadline_extension_seconds() == 112
+
+
+def test_overlapping_tools_extend_outer_clock_by_union_not_sum(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(
+        tool_liveness_module.time,
+        "monotonic",
+        lambda: now[0],
+    )
+    monitor = ToolLivenessMonitor()
+    first = monitor.start(tool_name="read", timeout_s=30)
+    now[0] = 5
+    second = monitor.start(tool_name="search", timeout_s=30)
+    now[0] = 10
+
+    monitor.complete(first)
+    assert monitor.outer_deadline_extension_seconds() == 10
+    now[0] = 15
+    monitor.complete(second)
+
+    assert monitor.outer_deadline_extension_seconds() == 15
 
 
 def test_exited_child_does_not_protect_silent_session():
@@ -419,6 +467,7 @@ def test_reconcile_recovers_exited_silent_child(tmp_path):
     orch._terminate_running.assert_awaited_once_with(
         entry.issue.id,
         cleanup_workspace=False,
+        post_retirement_retry=True,
     )
 
 
@@ -437,6 +486,7 @@ def test_reconcile_uses_command_timeout_even_when_generic_stall_disabled(tmp_pat
     orch._terminate_running.assert_awaited_once_with(
         entry.issue.id,
         cleanup_workspace=False,
+        post_retirement_retry=True,
     )
 
 

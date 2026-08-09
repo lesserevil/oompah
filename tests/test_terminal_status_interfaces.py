@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from oompah import server as server_module
 from oompah.models import Issue, Project
+from oompah.orchestrator import RuntimeTerminationPublicationTimeout
 from oompah.server import app
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -767,6 +768,7 @@ class _Tracker:
     def update_issue(self, identifier: str, **fields: str) -> None:
         if "status" in fields:
             self.status_updates.append((identifier, fields["status"]))
+            self.issue.state = fields["status"]
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> None:
         self.comments.append((identifier, text))
@@ -836,6 +838,11 @@ def _orchestrator(issue: Issue):
     orch.state.claimed = set()
     orch.state.completed = set()
     orch.request_refresh = MagicMock()
+
+    def transition_issue_status(current, requested_status, **_kwargs):
+        tracker.update_issue(current.identifier, status=requested_status)
+
+    orch._transition_issue_status.side_effect = transition_issue_status
     return orch, tracker, coordinator
 
 
@@ -888,6 +895,106 @@ async def test_terminal_stage_refreshes_issue_inside_task_ownership_lock():
         authoritative, "proj-1"
     )
     assert coordinator.overrides[0]["evidence_fingerprint"] == expected_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_retires_only_captured_claim_after_commit():
+    issue = Issue(
+        "task-owner-claim",
+        "task-owner-claim",
+        "Task",
+        description="work",
+        state="In Progress",
+        project_id="proj-1",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    claim = SimpleNamespace(claim_id="claim-before-commit", owner_login="owner")
+    orch._owner_claim_for_issue.return_value = claim
+    orch._retire_owner_claim_after_status_commit = AsyncMock(return_value=True)
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+
+    async def commit_override(**kwargs):
+        coordinator.overrides.append(kwargs)
+        issue.state = "Done"
+        return OverrideResult(
+            success=True,
+            override_id="audit-override-owner-claim",
+            applied_status="Done",
+        )
+
+    coordinator.override_transition = commit_override
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=issue,
+        target=TargetState.DONE,
+        body={
+            "audit_override": True,
+            "override_reason": "Complete directly owned work",
+            "actor_login": "owner",
+        },
+    )
+
+    assert error is None
+    assert payload is not None
+    orch._retire_owner_claim_after_status_commit.assert_awaited_once()
+    retirement = orch._retire_owner_claim_after_status_commit.call_args.kwargs
+    assert retirement["issue"] is issue
+    assert retirement["project_id"] == "proj-1"
+    assert retirement["claim"] is claim
+    assert retirement["observed_status"] == "Done"
+    assert retirement["observed_version"]
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_keeps_committed_result_when_claim_refresh_fails():
+    issue = Issue(
+        "task-owner-refresh",
+        "task-owner-refresh",
+        "Task",
+        description="work",
+        state="In Progress",
+        project_id="proj-1",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    claim = SimpleNamespace(claim_id="claim-before-refresh", owner_login="owner")
+    orch._owner_claim_for_issue.return_value = claim
+    orch._retire_owner_claim_after_status_commit = AsyncMock(return_value=True)
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+    tracker.fetch_issue_detail = MagicMock(
+        side_effect=(issue, RuntimeError("postcommit refresh unavailable"))
+    )
+
+    async def commit_override(**kwargs):
+        coordinator.overrides.append(kwargs)
+        issue.state = "Done"
+        return OverrideResult(
+            success=True,
+            override_id="audit-override-refresh-failure",
+            applied_status="Done",
+        )
+
+    coordinator.override_transition = commit_override
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=issue,
+        target=TargetState.DONE,
+        body={
+            "audit_override": True,
+            "override_reason": "Commit despite refresh outage",
+            "actor_login": "owner",
+        },
+    )
+
+    assert error is None
+    assert payload is not None
+    assert payload["status"] == "Done"
+    orch._retire_owner_claim_after_status_commit.assert_not_awaited()
 
 
 @pytest.fixture
@@ -1057,6 +1164,134 @@ def test_patch_owner_override_returns_committed_result_when_worker_cleanup_fails
     ]
 
 
+def test_patch_owner_override_retries_runtime_publication_timeout(client, caplog):
+    """A lost owner-loop acknowledgement is retried without a false error alert."""
+
+    issue = Issue("task-cleanup-retry", "task-cleanup-retry", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    entry = SimpleNamespace(identifier=issue.identifier)
+    orch.state.running = {"run-retry": entry}
+    orch._terminate_running = AsyncMock(
+        side_effect=RuntimeTerminationPublicationTimeout(
+            "runtime owner loop did not acknowledge retirement child publication"
+        )
+    )
+    orch._schedule_running_termination = MagicMock(return_value=True)
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        caplog.at_level("WARNING", logger="oompah.server"),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-cleanup-retry",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Done"
+    assert response.json()["cleanup_diagnostics"] == [
+        {
+            "operation": "retire_running_worker",
+            "issue_id": "run-retry",
+            "message": (
+                "runtime-owner publication timed out; "
+                "exact-runtime retirement retry admitted"
+            ),
+        }
+    ]
+    orch._schedule_running_termination.assert_called_once_with(
+        "run-retry",
+        cleanup_workspace=True,
+        task_name_prefix="retry-post-commit-cleanup",
+        expected_entry=entry,
+    )
+    assert "exact-runtime retry admitted" in caplog.text
+    assert "Post-commit worker cleanup failed" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("schedule_result", "schedule_error", "expected_message", "expected_log"),
+    (
+        (
+            False,
+            None,
+            "exact-runtime retirement retry was not admitted",
+            "exact-runtime retry was not admitted",
+        ),
+        (
+            None,
+            RuntimeError("dispatch loop callback rejected"),
+            "exact-runtime retirement retry scheduling failed",
+            "cleanup retry scheduling failed",
+        ),
+    ),
+)
+def test_patch_owner_override_reports_cleanup_retry_admission_failure(
+    client,
+    caplog,
+    schedule_result,
+    schedule_error,
+    expected_message,
+    expected_log,
+):
+    """A retry that was not admitted remains an actionable cleanup error."""
+
+    issue = Issue(
+        "task-cleanup-unowned",
+        "task-cleanup-unowned",
+        "Task",
+        state="Open",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    entry = SimpleNamespace(identifier=issue.identifier)
+    orch.state.running = {"run-unowned": entry}
+    orch._terminate_running = AsyncMock(
+        side_effect=RuntimeTerminationPublicationTimeout(
+            "runtime owner loop did not acknowledge retirement child publication"
+        )
+    )
+    orch._schedule_running_termination = MagicMock(
+        return_value=schedule_result,
+        side_effect=schedule_error,
+    )
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        caplog.at_level("ERROR", logger="oompah.server"),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-cleanup-unowned",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Done"
+    assert response.json()["cleanup_diagnostics"] == [
+        {
+            "operation": "retire_running_worker",
+            "issue_id": "run-unowned",
+            "message": (
+                "runtime-owner publication timed out; " + expected_message
+            ),
+        }
+    ]
+    assert expected_log in caplog.text
+
+
 def test_patch_owner_override_rolls_back_fence_when_commit_fails(client):
     """Pre-commit coordinator failure remains fail-closed and retryable."""
 
@@ -1117,6 +1352,84 @@ def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
     assert response.json()["audit_id"] == "audit-retry-1"
     assert coordinator.retries[0]["requested_target"] is TargetState.ARCHIVED
     assert coordinator.retries[0]["reason"] == "Detached audit checkout is deployed"
+    assert coordinator.retries[0]["evidence_fingerprint"] == (
+        server_module._terminal_evidence_fingerprint(issue, "proj-1")
+    )
+    assert tracker.status_updates == []
+
+
+def test_patch_owner_audit_retry_reports_committed_status_divergence(client):
+    issue = Issue(
+        "task-retry-diverged",
+        "task-retry-diverged",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.retry_result = TransitionResult(
+        success=False,
+        audit_id="audit-retry-committed",
+        queued_targets=[TargetState.DONE],
+        status_staged=False,
+        reason="status_stage_failed",
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry-diverged",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_retry": True,
+                "audit_retry_reason": "Auditor capacity restored",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 503
+    assert "durable recovery" in response.json()["error"]["message"]
+    # The retry metadata is already authoritative, so its dispatch fence must
+    # survive the non-200 response until In Validation is repaired.
+    assert issue.id in orch.state.completed
+    orch.request_refresh.assert_not_called()
+    assert tracker.status_updates == []
+
+
+def test_patch_owner_audit_retry_reports_unavailable_current_evidence(client):
+    issue = Issue(
+        "task-retry-unverified",
+        "task-retry-unverified",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.retry_result = TransitionResult(
+        success=False,
+        reason="evidence_unavailable",
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry-unverified",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_retry": True,
+                "audit_retry_reason": "Auditor capacity restored",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 503
+    assert "could not be verified" in response.json()["error"]["message"]
+    assert issue.id not in orch.state.completed
+    orch.request_refresh.assert_called_once_with()
     assert tracker.status_updates == []
 
 

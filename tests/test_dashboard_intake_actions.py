@@ -146,7 +146,7 @@ class TestDashboardIntakeActions:
 
         assert "confirm('Archive this task as will not do / cancelled?')" in body
         assert "updateIssue(identifier, {status: 'Archived', project_id: projectId})" in body
-        assert "await openDetailPanel(identifier)" in body
+        assert "await openDetailPanel(identifier, projectId)" in body
         assert "if (data) renderBoard(data)" in body
 
     def test_perform_intake_action_posts_to_intake_endpoint(self):

@@ -18,6 +18,8 @@ from functools import wraps
 from threading import RLock
 from typing import Any
 
+from oompah.validation_resource_lease import is_focused_validation_command
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,20 @@ COUNTER_NAMES = (
     "overridden",
     "grandfathered",
     "no_independent_candidate",
+)
+
+VALIDATION_COUNTER_NAMES = (
+    "authoritative_gate_reused",
+    "full_gate_required",
+    "focused_supplemental_commands",
+    "auditor_full_suite_runs",
+    "validation_commands_started",
+    "validation_commands_completed",
+    "validation_commands_failed",
+    "validation_commands_timed_out",
+    "reused_gate_validation_denied",
+    "reused_gate_distinct_mode_allowed",
+    "reused_gate_became_required",
 )
 
 
@@ -106,13 +122,18 @@ class AuditAlertCondition:
         kind, project_id, task_id, audit_id = self.key
         return f"terminal_audit:{kind}:{project_id}:{task_id}:{audit_id}"
 
-    def to_alert(self) -> dict[str, str]:
+    def to_alert(self) -> dict[str, Any]:
         return {
             "level": self.level,
             "source": self.source,
             "title": "Terminal audit requires attention",
             "message": self.message,
             "action": self.action,
+            # AuditAlertCondition represents only exhausted/corrupt/manual
+            # recovery states. Routine queued, running, retrying, and healthy
+            # observations never become conditions, so every emitted row is a
+            # truthful operator handoff at the global-alert boundary.
+            "action_required": True,
         }
 
 
@@ -126,12 +147,12 @@ class TerminalAuditAlertRegistry:
     def conditions(self) -> tuple[AuditAlertCondition, ...]:
         return tuple(self._conditions.values())
 
-    def sync(self, conditions: Iterable[AuditAlertCondition]) -> list[dict[str, str]]:
+    def sync(self, conditions: Iterable[AuditAlertCondition]) -> list[dict[str, Any]]:
         desired = {condition.key: condition for condition in conditions}
         self._conditions = desired
         return [condition.to_alert() for condition in desired.values()]
 
-    def add(self, condition: AuditAlertCondition) -> dict[str, str]:
+    def add(self, condition: AuditAlertCondition) -> dict[str, Any]:
         self._conditions[condition.key] = condition
         return condition.to_alert()
 
@@ -177,6 +198,9 @@ class TerminalAuditMetrics:
         self._load_state = load_state
         self._save_state = save_state
         self._counters = {name: 0 for name in COUNTER_NAMES}
+        self._validation_counters = {
+            name: 0 for name in VALIDATION_COUNTER_NAMES
+        }
         self._queued_total = 0
         self._project_counters: dict[str, dict[str, int]] = {}
         self._queued: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -197,6 +221,12 @@ class TerminalAuditMetrics:
         self._stale_blocked: set[tuple[str, str, str]] = set()
         self._no_candidate: dict[tuple[str, str, str], str] = {}
         self._last_successful_audit_at: str | None = None
+        self._last_validation_decision: dict[str, Any] | None = None
+        self._last_validation_command: dict[str, Any] | None = None
+        self._last_validation_reuse_policy: dict[str, Any] | None = None
+        self._validation_reuse_policy_invocations: dict[str, dict[str, str]] = {}
+        self._validation_commands_in_flight: dict[str, dict[str, Any]] = {}
+        self._completed_validation_invocations: set[str] = set()
         self.persistence_corrupt = False
         self.persistence_error: str | None = None
         self._restore()
@@ -234,7 +264,14 @@ class TerminalAuditMetrics:
             for project_id, values in raw_projects.items():
                 if not isinstance(project_id, str) or not isinstance(values, Mapping):
                     raise ValueError("invalid terminal-audit project counter")
-                project = {name: 0 for name in (*COUNTER_NAMES, "queued_total")}
+                project = {
+                    name: 0
+                    for name in (
+                        *COUNTER_NAMES,
+                        *VALIDATION_COUNTER_NAMES,
+                        "queued_total",
+                    )
+                }
                 for name, value in values.items():
                     if (
                         name not in project
@@ -279,6 +316,99 @@ class TerminalAuditMetrics:
                 if not isinstance(last_success, str) or _parse_timestamp(last_success) is None:
                     raise ValueError("invalid terminal-audit last successful timestamp")
                 self._last_successful_audit_at = last_success
+            validation = raw.get("validation", {})
+            if validation is not None:
+                if not isinstance(validation, Mapping):
+                    raise ValueError("invalid terminal-audit validation metrics")
+                validation_counters = validation.get("counters", {})
+                if not isinstance(validation_counters, Mapping):
+                    raise ValueError("invalid terminal-audit validation counters")
+                for name in VALIDATION_COUNTER_NAMES:
+                    value = validation_counters.get(name, 0)
+                    if (
+                        isinstance(value, bool)
+                        or not isinstance(value, int)
+                        or value < 0
+                    ):
+                        raise ValueError(
+                            f"invalid terminal-audit validation counter: {name}"
+                        )
+                    self._validation_counters[name] = value
+                for field_name, destination in (
+                    ("last_decision", "_last_validation_decision"),
+                    ("last_command", "_last_validation_command"),
+                    ("last_reuse_policy", "_last_validation_reuse_policy"),
+                ):
+                    value = validation.get(field_name)
+                    if value is not None and not isinstance(value, Mapping):
+                        raise ValueError(
+                            f"invalid terminal-audit validation {field_name}"
+                        )
+                    setattr(self, destination, dict(value) if value is not None else None)
+                policy_invocations = validation.get("reuse_policy_invocations", {})
+                if not isinstance(policy_invocations, Mapping):
+                    raise ValueError(
+                        "invalid terminal-audit validation reuse-policy invocations"
+                    )
+                for invocation_id, value in policy_invocations.items():
+                    if (
+                        not isinstance(invocation_id, str)
+                        or not invocation_id.strip()
+                        or not isinstance(value, Mapping)
+                    ):
+                        raise ValueError(
+                            "invalid terminal-audit validation reuse-policy invocation"
+                        )
+                    row = {str(name): str(item) for name, item in value.items()}
+                    _identity(
+                        row.get("project_id"),
+                        row.get("task_id"),
+                        row.get("audit_id"),
+                    )
+                    if not row.get("attempt_id") or not row.get("decision"):
+                        raise ValueError(
+                            "incomplete terminal-audit validation reuse-policy invocation"
+                        )
+                    self._validation_reuse_policy_invocations[invocation_id] = row
+                in_flight = validation.get("in_flight", {})
+                if not isinstance(in_flight, Mapping):
+                    raise ValueError("invalid terminal-audit validation in-flight map")
+                for invocation_id, value in in_flight.items():
+                    if (
+                        not isinstance(invocation_id, str)
+                        or not invocation_id.strip()
+                        or not isinstance(value, Mapping)
+                    ):
+                        raise ValueError(
+                            "invalid terminal-audit validation in-flight entry"
+                        )
+                    row = dict(value)
+                    _identity(
+                        row.get("project_id"),
+                        row.get("task_id"),
+                        row.get("audit_id"),
+                    )
+                    category = row.get("category")
+                    if category not in {
+                        "auditor_full_suite_runs",
+                        "focused_supplemental_commands",
+                    }:
+                        raise ValueError(
+                            "invalid terminal-audit validation in-flight category"
+                        )
+                    self._validation_commands_in_flight[invocation_id] = row
+                completed = validation.get("completed_invocations", [])
+                if (
+                    not isinstance(completed, list)
+                    or not all(
+                        isinstance(value, str) and value.strip()
+                        for value in completed
+                    )
+                ):
+                    raise ValueError(
+                        "invalid terminal-audit completed validation invocations"
+                    )
+                self._completed_validation_invocations = set(completed)
         except Exception as exc:  # fail closed; never overwrite an unknown state document
             self.persistence_corrupt = True
             self.persistence_error = f"{type(exc).__name__}: {exc}"
@@ -324,6 +454,21 @@ class TerminalAuditMetrics:
                 for key, reason in self._no_candidate.items()
             ],
             "last_successful_audit_at": self._last_successful_audit_at,
+            "validation": {
+                "counters": dict(self._validation_counters),
+                "last_decision": copy.deepcopy(self._last_validation_decision),
+                "last_command": copy.deepcopy(self._last_validation_command),
+                "last_reuse_policy": copy.deepcopy(
+                    self._last_validation_reuse_policy
+                ),
+                "reuse_policy_invocations": copy.deepcopy(
+                    self._validation_reuse_policy_invocations
+                ),
+                "in_flight": copy.deepcopy(self._validation_commands_in_flight),
+                "completed_invocations": sorted(
+                    self._completed_validation_invocations
+                ),
+            },
         }
         try:
             self._save_state({METRICS_STATE_KEY: payload})
@@ -344,12 +489,234 @@ class TerminalAuditMetrics:
 
     def _project(self, project_id: str) -> dict[str, int]:
         return self._project_counters.setdefault(
-            project_id, {name: 0 for name in (*COUNTER_NAMES, "queued_total")}
+            project_id,
+            {
+                name: 0
+                for name in (
+                    *COUNTER_NAMES,
+                    *VALIDATION_COUNTER_NAMES,
+                    "queued_total",
+                )
+            },
         )
 
     def _increment(self, name: str, key: tuple[str, str, str]) -> None:
         self._counters[name] += 1
         self._project(key[0])[name] += 1
+
+    def _increment_validation(self, name: str, project_id: str) -> None:
+        self._validation_counters[name] += 1
+        project = self._project(project_id)
+        project[name] = project.get(name, 0) + 1
+
+    @_synchronized
+    def record_quality_gate_decision(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        decision: str,
+        result: str,
+        head_sha: str = "",
+        command: str = "",
+        duration_seconds: float | None = None,
+    ) -> None:
+        """Persist the dispatch decision made from exact-head gate evidence."""
+
+        key = _identity(project_id, task_id, audit_id)
+        decision = str(decision or "").strip()
+        if decision == "reuse_authoritative_gate":
+            self._increment_validation("authoritative_gate_reused", key[0])
+        elif decision == "full_gate_required":
+            self._increment_validation("full_gate_required", key[0])
+        self._last_validation_decision = {
+            **_identity_dict(key),
+            "decision": decision,
+            "result": str(result or "").strip(),
+            "head_sha": str(head_sha or "").strip().lower(),
+            "command": str(command or "").strip(),
+            "duration_seconds": duration_seconds,
+            "recorded_at": _timestamp(self.clock()),
+        }
+        self._persist()
+
+    @_synchronized
+    def record_auditor_validation_command(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        command: str,
+        configured_command: str,
+        duration_seconds: float = 0.0,
+        succeeded: bool = True,
+        phase: str = "completed",
+        outcome: str = "",
+        invocation_id: str = "",
+        validation_scope: str = "",
+    ) -> None:
+        """Persist one auditor validation lifecycle observation.
+
+        New callers report ``started`` and ``completed`` with a stable
+        invocation id.  The default completed-only form remains compatible
+        with older callers and is counted as one complete invocation.
+        """
+
+        key = _identity(project_id, task_id, audit_id)
+        command = str(command or "").strip()
+        phase = str(phase or "").strip().casefold()
+        if phase not in {"started", "completed"}:
+            raise ValueError("validation command phase must be started or completed")
+        invocation_id = str(invocation_id or "").strip()
+        normalized_scope = str(validation_scope or "").strip().casefold()
+        category = (
+            "focused_supplemental_commands"
+            if (
+                normalized_scope == "focused"
+                or (
+                    not normalized_scope
+                    and is_focused_validation_command(command)
+                )
+            )
+            else "auditor_full_suite_runs"
+        )
+        effective_scope = normalized_scope or (
+            "focused"
+            if category == "focused_supplemental_commands"
+            else "full"
+        )
+        prior = self._validation_commands_in_flight.get(invocation_id)
+        if invocation_id and invocation_id in self._completed_validation_invocations:
+            return
+        if prior is not None and (
+            tuple(prior.get(name) for name in ("project_id", "task_id", "audit_id"))
+            != key
+            or prior.get("command") != command
+            or (
+                normalized_scope
+                and prior.get("validation_scope")
+                and prior.get("validation_scope") != normalized_scope
+            )
+        ):
+            raise ValueError("validation invocation identity changed in flight")
+        if phase == "started":
+            if not invocation_id:
+                raise ValueError("started validation command requires invocation_id")
+            if prior is None:
+                self._increment_validation(category, key[0])
+                self._increment_validation("validation_commands_started", key[0])
+                self._validation_commands_in_flight[invocation_id] = {
+                    **_identity_dict(key),
+                    "category": category,
+                    "validation_scope": effective_scope,
+                    "command": command,
+                    "started_at": _timestamp(self.clock()),
+                }
+            elif prior.get("category") != category:
+                raise ValueError("validation invocation identity changed in flight")
+            normalized_outcome = "running"
+        else:
+            if prior is None:
+                # Completed-only callers predate lifecycle observations. Count
+                # their one report as both initiation and completion.
+                self._increment_validation(category, key[0])
+                self._increment_validation("validation_commands_started", key[0])
+            else:
+                category = str(prior["category"])
+                effective_scope = str(
+                    prior.get("validation_scope") or effective_scope
+                )
+                self._validation_commands_in_flight.pop(invocation_id, None)
+            self._increment_validation("validation_commands_completed", key[0])
+            normalized_outcome = str(outcome or "").strip().casefold()
+            if not normalized_outcome:
+                normalized_outcome = "passed" if succeeded else "failed"
+            if normalized_outcome == "timed_out":
+                self._increment_validation("validation_commands_timed_out", key[0])
+            elif not succeeded:
+                self._increment_validation("validation_commands_failed", key[0])
+            if invocation_id:
+                self._completed_validation_invocations.add(invocation_id)
+                if len(self._completed_validation_invocations) > 512:
+                    self._completed_validation_invocations = set(
+                        sorted(self._completed_validation_invocations)[-512:]
+                    )
+        self._last_validation_command = {
+            **_identity_dict(key),
+            "category": category,
+            "validation_scope": effective_scope,
+            "command": command,
+            "phase": phase,
+            "outcome": normalized_outcome,
+            "invocation_id": invocation_id,
+            "succeeded": bool(succeeded),
+            "duration_seconds": max(float(duration_seconds or 0), 0.0),
+            "recorded_at": _timestamp(self.clock()),
+        }
+        self._persist()
+
+    @_synchronized
+    def record_validation_reuse_policy(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        attempt_id: str,
+        invocation_id: str,
+        command: str,
+        decision: str,
+        justification: str = "",
+    ) -> None:
+        """Persist one tool-layer decision for previously reusable gate proof."""
+
+        key = _identity(project_id, task_id, audit_id)
+        invocation_id = str(invocation_id or "").strip()
+        if not invocation_id:
+            raise ValueError("validation reuse policy requires invocation_id")
+        attempt_id = str(attempt_id or "").strip()
+        if not attempt_id:
+            raise ValueError("validation reuse policy requires attempt_id")
+        decision = str(decision or "").strip().casefold()
+        if decision == "allowed_distinct_mode":
+            counter = "reused_gate_distinct_mode_allowed"
+        elif decision == "allowed_gate_now_required":
+            counter = "reused_gate_became_required"
+        elif decision.startswith("denied_"):
+            counter = "reused_gate_validation_denied"
+        else:
+            raise ValueError("unsupported validation reuse policy decision")
+        invocation = {
+            **_identity_dict(key),
+            "attempt_id": attempt_id,
+            "command": str(command or "").strip(),
+            "decision": decision,
+            "justification": str(justification or ""),
+        }
+        prior = self._validation_reuse_policy_invocations.get(invocation_id)
+        if prior is not None:
+            if prior != invocation:
+                raise ValueError(
+                    "validation reuse policy invocation identity collision"
+                )
+            return
+        self._increment_validation(counter, key[0])
+        self._last_validation_reuse_policy = {
+            **_identity_dict(key),
+            "attempt_id": attempt_id,
+            "invocation_id": invocation_id,
+            "command": invocation["command"],
+            "decision": decision,
+            "justification": invocation["justification"],
+            "recorded_at": _timestamp(self.clock()),
+        }
+        self._validation_reuse_policy_invocations[invocation_id] = invocation
+        if len(self._validation_reuse_policy_invocations) > 512:
+            oldest = next(iter(self._validation_reuse_policy_invocations))
+            self._validation_reuse_policy_invocations.pop(oldest, None)
+        self._persist()
 
     @_synchronized
     def record_queued(
@@ -374,6 +741,28 @@ class TerminalAuditMetrics:
             entry = self._entry(key, queued_at, attempts)
         self._queued[key] = entry
         self._queued[key]["attempts"] = max(entry["attempts"], attempts)
+        self._persist()
+
+    @_synchronized
+    def record_unadmitted_rollback(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        attempts: int = 0,
+    ) -> None:
+        """Move a never-started launch back to queued without spending a try."""
+
+        key = _identity(project_id, task_id, audit_id)
+        self._no_candidate.pop(key, None)
+        entry = self._running.pop(key, None) or self._queued.get(key)
+        if entry is None:
+            self._queued_total += 1
+            self._project(key[0])["queued_total"] += 1
+            entry = self._entry(key, None, attempts)
+        entry["attempts"] = max(0, int(attempts))
+        self._queued[key] = entry
         self._persist()
 
     @_synchronized
@@ -550,7 +939,14 @@ class TerminalAuditMetrics:
         for project_id, task_id, audit_id in set(self._queued) | set(self._running):
             project = projects.setdefault(
                 project_id,
-                {name: 0 for name in (*COUNTER_NAMES, "queued_total")},
+                {
+                    name: 0
+                    for name in (
+                        *COUNTER_NAMES,
+                        *VALIDATION_COUNTER_NAMES,
+                        "queued_total",
+                    )
+                },
             )
             project.setdefault("queued", 0)
             project.setdefault("running", 0)
@@ -572,12 +968,33 @@ class TerminalAuditMetrics:
             "last_successful_audit_at": self._last_successful_audit_at,
             "last_successful_audit_time": self._last_successful_audit_at,
             "last_successful_audit": self._last_successful_audit_at,
+            **self._validation_counters,
+            "validation": {
+                "counters": dict(self._validation_counters),
+                "last_decision": copy.deepcopy(self._last_validation_decision),
+                "last_command": copy.deepcopy(self._last_validation_command),
+                "last_reuse_policy": copy.deepcopy(
+                    self._last_validation_reuse_policy
+                ),
+                "reuse_policy_invocations": copy.deepcopy(
+                    self._validation_reuse_policy_invocations
+                ),
+                "in_flight": copy.deepcopy(self._validation_commands_in_flight),
+                "completed_invocations": sorted(
+                    self._completed_validation_invocations
+                ),
+            },
             "persistence_corrupt": self.persistence_corrupt,
             "persistence_error": self.persistence_error,
             "projects": projects,
             "by_project": projects,
         }
-        for name in ("queued", "running", *COUNTER_NAMES):
+        for name in (
+            "queued",
+            "running",
+            *COUNTER_NAMES,
+            *VALIDATION_COUNTER_NAMES,
+        ):
             result[f"{name}_count"] = result[name]
         return copy.deepcopy(result)
 
@@ -606,12 +1023,17 @@ def threshold_conditions(
     max_attempts: int,
     max_age_seconds: float,
 ) -> list[AuditAlertCondition]:
-    """Build only actionable threshold/corruption conditions."""
+    """Build only conditions that have a concrete operator remedy.
 
+    Queue age is intentionally absent.  Age and backlog depth remain useful
+    health metrics, but the passage of time does not prove that automatic
+    scheduling has stopped or identify an action only an operator can take.
+    Attempt exhaustion, by contrast, is a completed recovery path and is
+    therefore actionable.
+    """
+
+    del max_age_seconds  # retained for configuration/API compatibility
     conditions: list[AuditAlertCondition] = []
-    now = metrics.clock()
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
     if metrics.persistence_corrupt:
         conditions.append(
             AuditAlertCondition(
@@ -632,8 +1054,6 @@ def threshold_conditions(
             )
         )
     for entry in metrics.pending_entries():
-        queued_at = _parse_timestamp(entry.get("queued_at"))
-        age = (now - queued_at).total_seconds() if queued_at else 0.0
         attempts = int(entry.get("attempts", 0))
         if attempts >= max_attempts:
             conditions.append(
@@ -643,14 +1063,6 @@ def threshold_conditions(
                     "Review the audit record and add or repair an independent auditor before retrying.",
                 )
             )
-        elif age >= max_age_seconds:
-            conditions.append(
-                AuditAlertCondition(
-                    "age_threshold", entry["project_id"], entry["task_id"], entry["audit_id"],
-                    f"Audit has been queued for {age:.0f}s, beyond the configured {max_age_seconds:.0f}s age threshold.",
-                    "Check auditor health and queue capacity, then retry the audit.",
-                )
-            )
     return conditions
 
 
@@ -658,6 +1070,7 @@ __all__ = [
     "AuditAlertCondition",
     "AuditMetrics",
     "COUNTER_NAMES",
+    "VALIDATION_COUNTER_NAMES",
     "METRICS_STATE_KEY",
     "METRICS_STATE_VERSION",
     "TerminalAuditAlertRegistry",

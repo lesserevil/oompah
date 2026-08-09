@@ -51,6 +51,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
 import stat
 import tempfile
 import urllib.parse
@@ -97,6 +98,169 @@ _WORKER_RUNTIME_SELECTOR_ENV_VARS = frozenset(
         "PIP_PREFIX",
     }
 )
+
+# A direct epic-rebase helper works in the shared epic checkout.  It must not
+# inherit the service/operator's general shell environment: that environment
+# can carry forge credentials through arbitrary names, Git's credential
+# configuration, or an SSH agent.  This is deliberately an allow-list rather
+# than a list of token names.  Task handoff is server-mediated through the
+# in-process tool callback and is never an environment capability.
+_REMOTE_WRITE_ISOLATION_SAFE_ENV_VARS = frozenset(
+    {
+        "PATH",
+        "LANG",
+        "LANGUAGE",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TERM",
+        "COLORTERM",
+        "NO_COLOR",
+        "TZ",
+    }
+)
+
+
+def _isolated_remote_write_environment(
+    environment: Mapping[str, str],
+) -> dict[str, str]:
+    """Return a credential-free environment for an epic-rebase worker.
+
+    The caller must remove all ambient authority, not merely known forge
+    variable names: a token can use an arbitrary name and Git can obtain one
+    through inherited home/config/SSH state.  A fresh 0700 runtime directory
+    supplies an empty home and XDG roots.  Its parent is tracked through
+    ``OOMPAH_WORKER_RUNTIME_DIR`` and cleaned by worker launchers.
+    """
+    isolated = {
+        key: value
+        for key, value in environment.items()
+        if key in _REMOTE_WRITE_ISOLATION_SAFE_ENV_VARS
+    }
+    runtime_dir = _create_worker_runtime_directory()
+    if runtime_dir is None:
+        raise OSError("could not create isolated runtime directory for worker")
+
+    home_dir = os.path.join(runtime_dir, "home")
+    for directory in (
+        home_dir,
+        os.path.join(runtime_dir, "config"),
+        os.path.join(runtime_dir, "cache"),
+        os.path.join(runtime_dir, "data"),
+    ):
+        os.mkdir(directory, mode=0o700)
+
+    # These controls are defence in depth.  The capability boundary is the
+    # clean environment and empty home; no agent-supplied command needs to be
+    # classified for that boundary to hold.
+    isolated.update(
+        {
+            "HOME": home_dir,
+            "XDG_CONFIG_HOME": os.path.join(runtime_dir, "config"),
+            "XDG_CACHE_HOME": os.path.join(runtime_dir, "cache"),
+            "XDG_DATA_HOME": os.path.join(runtime_dir, "data"),
+            "XDG_RUNTIME_DIR": runtime_dir,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_ASKPASS": "/bin/false",
+            "SSH_ASKPASS": "/bin/false",
+            "GIT_SSH_COMMAND": "/bin/false",
+            "OOMPAH_WORKER_RUNTIME_DIR": runtime_dir,
+        }
+    )
+    return isolated
+
+
+def _copy_private_provider_auth(
+    source: Path,
+    destination: Path,
+) -> None:
+    """Copy one explicit provider artifact without following a symlink."""
+    try:
+        source_stat = source.lstat()
+    except OSError as exc:
+        raise OSError("configured provider authentication artifact is unavailable") from exc
+    if not stat.S_ISREG(source_stat.st_mode) or source.is_symlink():
+        raise OSError("configured provider authentication artifact is unsafe")
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    os.chmod(destination, 0o600)
+
+
+def _bootstrap_isolated_provider_auth(
+    environment: dict[str, str],
+    source_environment: Mapping[str, str],
+    provider_auth_kind: str | None,
+) -> None:
+    """Install the minimum explicit model credential for an isolated worker.
+
+    Provider access is independent of project Git access.  Unknown layouts are
+    refused instead of copying an operator home or configuration tree into the
+    worker.  The copied artifact remains inside the worker runtime directory
+    and is removed with it when the worker exits.
+    """
+    if provider_auth_kind is None:
+        return
+    home = Path(environment["HOME"])
+    source_home_raw = str(source_environment.get("HOME") or "").strip()
+    source_home = Path(source_home_raw).expanduser() if source_home_raw else None
+
+    if provider_auth_kind == "codex_subscription":
+        configured_root = str(source_environment.get("CODEX_HOME") or "").strip()
+        if not configured_root and source_home is None:
+            raise OSError("configured provider authentication artifact is unavailable")
+        source_root = Path(configured_root).expanduser() if configured_root else source_home / ".codex"
+        destination_root = home / ".codex"
+        _copy_private_provider_auth(source_root / "auth.json", destination_root / "auth.json")
+        environment["CODEX_HOME"] = str(destination_root)
+        return
+
+    if provider_auth_kind == "claude_subscription":
+        configured_root = str(source_environment.get("CLAUDE_CONFIG_DIR") or "").strip()
+        if not configured_root and source_home is None:
+            raise OSError("configured provider authentication artifact is unavailable")
+        source_root = Path(configured_root).expanduser() if configured_root else source_home / ".claude"
+        destination_root = home / ".claude"
+        _copy_private_provider_auth(
+            source_root / ".credentials.json",
+            destination_root / ".credentials.json",
+        )
+        environment["CLAUDE_CONFIG_DIR"] = str(destination_root)
+        return
+
+    if provider_auth_kind == "opencode_subscription":
+        configured_root = str(source_environment.get("OPENCODE_AUTH_DIR") or "").strip()
+        source_xdg_data = str(source_environment.get("XDG_DATA_HOME") or "").strip()
+        if configured_root:
+            source_root = Path(configured_root).expanduser()
+        elif source_xdg_data:
+            source_root = Path(source_xdg_data).expanduser() / "opencode"
+        elif source_home is not None:
+            source_root = source_home / ".local" / "share" / "opencode"
+        else:
+            raise OSError("configured provider authentication artifact is unavailable")
+        destination_root = Path(environment["XDG_DATA_HOME"]) / "opencode"
+        _copy_private_provider_auth(source_root / "auth.json", destination_root / "auth.json")
+        return
+
+    key_sources = {
+        "codex_api": ("OOMPAH_CODEX_API_KEY", "OPENAI_API_KEY"),
+        "opencode_api": ("OOMPAH_OPENCODE_API_KEY", "OPENAI_API_KEY"),
+    }
+    candidates = key_sources.get(provider_auth_kind)
+    if candidates is None:
+        raise OSError("unknown isolated worker provider authentication layout")
+    api_key = next(
+        (
+            str(source_environment[key]).strip()
+            for key in candidates
+            if str(source_environment.get(key) or "").strip()
+        ),
+        "",
+    )
+    if not api_key:
+        raise OSError("configured provider API credential is unavailable")
+    environment["OPENAI_API_KEY"] = api_key
 
 
 def task_venv_path(workspace_path: str | os.PathLike[str]) -> str:
@@ -893,6 +1057,8 @@ def agent_environment(
     base_env: Mapping[str, str] | None = None,
     *,
     workspace_path: str | os.PathLike[str] | None = None,
+    isolate_remote_write: bool = False,
+    provider_auth_kind: str | None = None,
 ) -> dict[str, str]:
     """Return an environment safe to pass to an agent subprocess.
 
@@ -905,6 +1071,11 @@ def agent_environment(
     removed and replaced with a worktree-private venv path so dependency
     setup cannot rewrite the service environment.
 
+    Direct epic-rebase workers additionally receive a clean, per-worker home
+    and a strict environment allow-list.  This prevents inherited Git/SSH or
+    forge credentials from becoming a remote-write route; it is not based on
+    shell-command matching.
+
     Also handles read-only XDG_RUNTIME_DIR: if the inherited runtime directory
     is read-only or missing, creates a private temporary directory for the
     worker (OOMPAH-686). The caller is responsible for cleanup.
@@ -912,7 +1083,19 @@ def agent_environment(
     Returns:
         Dictionary of environment variables safe to pass to subprocess.
     """
-    environment = dict(os.environ if base_env is None else base_env)
+    source_environment = dict(os.environ if base_env is None else base_env)
+    environment = dict(source_environment)
+    if isolate_remote_write:
+        environment = _isolated_remote_write_environment(source_environment)
+        try:
+            _bootstrap_isolated_provider_auth(
+                environment,
+                source_environment,
+                provider_auth_kind,
+            )
+        except Exception:
+            shutil.rmtree(environment.get("OOMPAH_WORKER_RUNTIME_DIR", ""), ignore_errors=True)
+            raise
     for key in CLIENT_AUTH_ENV_VARS:
         environment.pop(key, None)
     for key in _WORKER_RUNTIME_SELECTOR_ENV_VARS:

@@ -9,21 +9,26 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
+import inspect
 import json
 import logging
 import math
 import os
 import re
+import shutil
 import signal
 import secrets
 import ssl
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
 import urllib.error
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,21 +39,29 @@ from oompah.client_auth import agent_environment
 from oompah.authority_boundary import AgentActionPolicy, check_shell_command
 from oompah.git_command_validation import validate_git_command_is_noninteractive
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
+from oompah.rebase_worker_sandbox import (
+    RebaseWorkerSandboxUnavailable,
+    restricted_rebase_command,
+)
 from oompah.secrets import redact_sensitive_data, register_secret
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_RESULT_TOOL_NAME,
     AUDITOR_RESULT_TOOL_SCHEMA,
+    auditor_validation_timeout_message,
     check_auditor_session_target,
+    resolve_auditor_validation_budget,
     submit_auditor_result,
 )
 from oompah.provider_health import openai_chat_completions_url
 from oompah.validation_resource_lease import (
+    ValidationCommandClassification,
     ValidationLeaseCancelled,
     ValidationLeaseError,
     ValidationLeaseOwner,
     ValidationResourceLease,
-    is_heavyweight_validation_command,
+    _is_dynamic_loader_environment_name,
+    classify_validation_command,
     managed_agent_validation_owner,
 )
 
@@ -138,6 +151,18 @@ _PRODUCTIVE_TOOLS = {"write_file", "edit_file", "run_command"}
 
 _DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS = 720
 _RUN_COMMAND_TIMEOUT_ENV = "OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS"
+_UNTRUSTED_SHELL_STARTUP_ENV_NAMES = frozenset(
+    {
+        "BASHOPTS",
+        "BASH_ENV",
+        "BASH_XTRACEFD",
+        "ENV",
+        "PROMPT_COMMAND",
+        "PS4",
+        "SHELLOPTS",
+        "ZDOTDIR",
+    }
+)
 
 # Keep tool results below provider-side spill thresholds.  In particular, the
 # Claude transport persists oversized MCP results under its own private state
@@ -148,6 +173,75 @@ _READ_FILE_DEFAULT_CHARS = 32_000
 _TOOL_RESULT_MAX_CHARS = 64_000
 _COMMAND_OUTPUT_PAGE_CHARS = 32_000
 _COMMAND_OUTPUT_MAX_RECORDS = 32
+_DISTINCT_VALIDATION_MODE = "task_required_distinct"
+
+
+def _validation_reuse_policy_decision(
+    args: Mapping[str, Any],
+    policy: Mapping[str, Any] | None,
+    authority_check: Callable[[], object] | None,
+    *,
+    classification: ValidationCommandClassification | None,
+) -> tuple[str, str | None, str]:
+    """Return a durable decision, optional denial, and bounded-mode reason.
+
+    A policy is present only when prompt construction observed reusable exact
+    gate evidence.  Heavy commands revalidate that authority at invocation
+    time.  If the proof has disappeared while task authority remains current,
+    the configured gate is required again and execution is allowed.
+    """
+
+    if not isinstance(policy, Mapping) or (
+        str(policy.get("decision") or "") != "reuse_authoritative_gate"
+    ):
+        return "", None, ""
+    if classification is None:
+        return (
+            "denied_unclassified_command",
+            "Error: validation command classification is unavailable; this "
+            "command was denied.",
+            "",
+        )
+    if not classification.heavyweight:
+        return "", None, ""
+    try:
+        authority = authority_check() if callable(authority_check) else "stale_authority"
+    except Exception:  # the distinct-mode escape must fail closed
+        authority = "stale_authority"
+    if authority is True:
+        authority = "reuse_authoritative_gate"
+    elif authority is False:
+        authority = "stale_authority"
+    if authority == "full_gate_required":
+        return "allowed_gate_now_required", None, ""
+    if authority != "reuse_authoritative_gate":
+        return (
+            "denied_stale_authority",
+            "Error: validation authority is stale; this heavyweight command was denied.",
+            "",
+        )
+
+    if classification.contains_configured:
+        return (
+            "denied_reused_gate",
+            "Error: the authoritative exact-head quality gate already passed; "
+            "rerunning that configured gate is denied.",
+            "",
+        )
+    if classification.focused:
+        return "", None, ""
+
+    mode = str(args.get("validation_mode") or "").strip()
+    justification = str(args.get("validation_justification") or "").strip()
+    if mode != _DISTINCT_VALIDATION_MODE or not justification:
+        return (
+            "denied_distinct_mode_required",
+            "Error: authoritative full-gate evidence is reusable. A different "
+            "full-suite mode requires validation_mode='task_required_distinct' "
+            "and a non-empty validation_justification. Focused checks remain allowed.",
+            "",
+        )
+    return "allowed_distinct_mode", None, justification
 
 _AUDITOR_FINALIZATION_PROMPT = (
     "This is the reserved audit-finalization turn. Do not continue inspecting "
@@ -271,6 +365,33 @@ def _resolve_run_command_timeout(raw: str | None = None) -> int:
     return max(1, int(math.ceil(parsed)))
 
 
+def _resolve_run_command_timeout_with_target(
+    command: str,
+    project_id: str | None = None,
+    raw_global: str | None = None,
+    project_store: Any = None,
+) -> int:
+    """Resolve a target deadline from the caller's project-store snapshot."""
+
+    global_timeout = _resolve_run_command_timeout(raw_global)
+    project = (
+        project_store.get(project_id)
+        if project_store is not None and project_id
+        else None
+    )
+    budget, configuration_error = resolve_auditor_validation_budget(
+        command,
+        project,
+        global_timeout_seconds=global_timeout,
+    )
+    if configuration_error:
+        raise ValueError(
+            "auditor validation configuration is incompatible: "
+            f"{configuration_error}"
+        )
+    return budget.deadline_seconds if budget is not None else global_timeout
+
+
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI function-calling schema)
 # ---------------------------------------------------------------------------
@@ -345,7 +466,22 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "command": {
                         "type": "string",
                         "description": "The shell command to execute.",
-                    }
+                    },
+                    "validation_mode": {
+                        "type": "string",
+                        "enum": [_DISTINCT_VALIDATION_MODE],
+                        "description": (
+                            "Use task_required_distinct only when the task requires "
+                            "a full-suite mode distinct from a reusable exact gate."
+                        ),
+                    },
+                    "validation_justification": {
+                        "type": "string",
+                        "description": (
+                            "Required non-empty reason when validation_mode is "
+                            "task_required_distinct."
+                        ),
+                    },
                 },
                 "required": ["command"],
             },
@@ -550,6 +686,25 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     },
                 },
                 "required": ["issue_identifier", "filename", "content_base64"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "publish_epic_rebase",
+            "description": (
+                "Publish the current epic-rebase worktree HEAD through the "
+                "server-owned compare-and-swap capability. Pass only the full "
+                "lowercase candidate commit SHA; project, task, remote, refs, "
+                "lease, credentials, argv, cwd, and environment are fixed by "
+                "the server."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"candidate": {"type": "string"}},
+                "required": ["candidate"],
+                "additionalProperties": False,
             },
         },
     },
@@ -772,8 +927,14 @@ def _exec_run_command(
     validation_owner: ValidationLeaseOwner | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
     require_validation_lease: bool = False,
-    successful_validation_handler: Callable[[str, Path], object] | None = None,
+    successful_validation_handler: Callable[..., object] | None = None,
+    validation_reuse_policy: Mapping[str, Any] | None = None,
+    validation_reuse_authority_check: Callable[[], object] | None = None,
+    validation_reuse_policy_handler: Callable[..., object] | None = None,
     result_delivery_required: bool = False,
+    isolate_remote_write: bool = False,
+    timeout_error: str | None = None,
+    configured_validation_target: bool = False,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -789,12 +950,79 @@ def _exec_run_command(
     # command.  This applies even when no explicit overrides are supplied,
     # because ``env=None`` would otherwise inherit the server's full env.
     inherited_env = {**os.environ, **(env_overrides or {})}
+    # The Bubblewrap executor owns the direct-rebase command boundary.  Do
+    # not create/copy a provider-auth runtime for a shell command: provider
+    # credentials belong only to the server control plane.
     env = agent_environment(inherited_env, workspace_path=workspace)
-    
+    env = {
+        name: value
+        for name, value in env.items()
+        if name not in _UNTRUSTED_SHELL_STARTUP_ENV_NAMES
+        and not name.startswith("BASH_FUNC_")
+        and not _is_dynamic_loader_environment_name(name)
+    }
+
     # Apply noninteractive git environment to all commands as defense-in-depth (OOMPAH-681).
     # This prevents git from spawning editors even if the command bypasses our validation.
     if "git" in command:
         env.update(NONINTERACTIVE_GIT_ENV)
+
+    # Classify exactly once against the normalized environment and actual
+    # execution scope. Reuse authority and capacity ownership must agree even
+    # when PATH resolves an innocuous-looking name to task-controlled code.
+    untrusted_executable_roots = (
+        str(workspace.resolve()),
+        "/tmp",
+        "/var/tmp",
+        tempfile.gettempdir(),
+        *(str(env[name]) for name in ("TMPDIR", "TMP", "TEMP") if env.get(name)),
+    )
+    validation_classification = classify_validation_command(
+        command,
+        configured_command=str(
+            (validation_reuse_policy or {}).get("command") or ""
+        ),
+        executable_search_path=str(env.get("PATH") or os.defpath),
+        untrusted_executable_roots=untrusted_executable_roots,
+        command_environment=env,
+        working_directory=workspace,
+    )
+    heavyweight_validation = bool(
+        configured_validation_target or validation_classification.heavyweight
+    )
+    validation_invocation_id = secrets.token_hex(16)
+
+    def _validation_reuse_policy_snapshot() -> tuple[str, str | None, str]:
+        return _validation_reuse_policy_decision(
+            args,
+            validation_reuse_policy,
+            validation_reuse_authority_check,
+            classification=validation_classification,
+        )
+
+    def _record_validation_reuse_policy(
+        snapshot: tuple[str, str | None, str],
+    ) -> None:
+        policy_decision, _policy_denial, policy_justification = snapshot
+        if policy_decision and callable(validation_reuse_policy_handler):
+            try:
+                validation_reuse_policy_handler(
+                    command=command,
+                    decision=policy_decision,
+                    justification=policy_justification,
+                    invocation_id=validation_invocation_id,
+                )
+            except Exception:  # policy enforcement must not depend on telemetry
+                logger.debug(
+                    "Unable to record validation reuse policy",
+                    exc_info=True,
+                )
+
+    initial_policy = _validation_reuse_policy_snapshot()
+    policy_denial = initial_policy[1]
+    if policy_denial is not None:
+        _record_validation_reuse_policy(initial_policy)
+        return policy_denial
 
     def _terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
         if os.name == "posix":
@@ -835,6 +1063,61 @@ def _exec_run_command(
     validation_handle = None
     invocation_id: str | None = None
     result_pending = False
+    validation_process_started = False
+    validation_observation_completed = False
+    validation_command_started_at: float | None = None
+
+    handler_parameters: dict[str, inspect.Parameter] = {}
+    handler_accepts_kwargs = False
+    if callable(successful_validation_handler):
+        try:
+            handler_parameters = dict(
+                inspect.signature(successful_validation_handler).parameters
+            )
+            handler_accepts_kwargs = any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in handler_parameters.values()
+            )
+        except (TypeError, ValueError):
+            handler_parameters = {}
+
+    def _notify_validation_observer(
+        *,
+        phase: str,
+        succeeded: bool,
+        outcome: str,
+        duration_seconds: float,
+    ) -> None:
+        """Bridge lifecycle-aware handlers without changing legacy callbacks."""
+
+        nonlocal validation_observation_completed
+        handler = successful_validation_handler
+        if not heavyweight_validation or not callable(handler):
+            return
+        lifecycle_aware = "phase" in handler_parameters
+        if phase == "started" and not lifecycle_aware:
+            return
+        if phase == "completed" and not lifecycle_aware and not succeeded:
+            return
+        values: dict[str, object] = {
+            "duration_seconds": max(float(duration_seconds), 0.0),
+            "succeeded": bool(succeeded),
+            "phase": phase,
+            "outcome": outcome,
+            "invocation_id": validation_invocation_id,
+            "validation_scope": validation_classification.scope,
+        }
+        kwargs = {
+            name: value
+            for name, value in values.items()
+            if handler_accepts_kwargs or name in handler_parameters
+        }
+        try:
+            handler(command, workspace, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - evidence is an optimization
+            logger.warning("Unable to record auditor validation evidence: %s", exc)
+        if phase == "completed":
+            validation_observation_completed = True
 
     def _mark_result_pending() -> None:
         """Keep liveness ownership until the provider sees this result."""
@@ -856,7 +1139,6 @@ def _exec_run_command(
             # suppress the bounded command result.
             logger.debug("Unable to mark command result pending", exc_info=True)
 
-    heavyweight_validation = is_heavyweight_validation_command(command)
     if require_validation_lease and heavyweight_validation and validation_owner is None:
         return (
             "Error: heavyweight validation is unavailable because trusted "
@@ -919,6 +1201,7 @@ def _exec_run_command(
                     tool_liveness.complete(invocation_id)
             invocation_id = None
 
+    sandbox_command = None
     try:
         def _authority_cancelled() -> bool:
             if lease_cancelled is None:
@@ -944,7 +1227,47 @@ def _exec_run_command(
             popen_kwargs["pass_fds"] = validation_handle.pass_fds
         if _authority_cancelled():
             return "Error: validation authority withdrawn before command launch"
-        process = subprocess.Popen(["bash", "-lc", command], **popen_kwargs)
+        # Validate after the capacity queue, then sample once more immediately
+        # before launch. Only the denial is definitive at this point; an
+        # allowed decision is recorded after Popen succeeds below.
+        prelaunch_policy = _validation_reuse_policy_snapshot()
+        policy_denial = prelaunch_policy[1]
+        if policy_denial is not None:
+            _record_validation_reuse_policy(prelaunch_policy)
+            return policy_denial
+        if _authority_cancelled():
+            return "Error: validation authority withdrawn before command launch"
+        launch_policy = _validation_reuse_policy_snapshot()
+        policy_denial = launch_policy[1]
+        if policy_denial is not None:
+            _record_validation_reuse_policy(launch_policy)
+            return policy_denial
+        command_started = time.monotonic()
+        validation_command_started_at = command_started
+        # The bridge has already classified the command against ``env`` above.
+        # A login shell would evaluate HOME/.bash_profile after that decision,
+        # allowing task-controlled startup code to replace PATH or start heavy
+        # validation before the lease boundary.  This shell is only a command
+        # parser; never admit interactive or login startup files here.
+        process_args = ["bash", "--noprofile", "--norc", "-c", command]
+        if isolate_remote_write:
+            try:
+                sandbox_command = restricted_rebase_command(command, workspace, env)
+                process_args = sandbox_command
+            except RebaseWorkerSandboxUnavailable as exc:
+                return f"Error: {exc}"
+        process = subprocess.Popen(process_args, **popen_kwargs)
+        validation_process_started = True
+        # Allowed is definitive only after the process boundary accepted the
+        # launch. Denials are recorded before returning above, so every
+        # invocation publishes at most one immutable policy decision.
+        _record_validation_reuse_policy(launch_policy)
+        _notify_validation_observer(
+            phase="started",
+            succeeded=False,
+            outcome="running",
+            duration_seconds=0.0,
+        )
         if validation_handle is not None:
             try:
                 validation_handle.attach_process(
@@ -953,6 +1276,12 @@ def _exec_run_command(
                 )
             except ValidationLeaseError:
                 _terminate_process_tree(process)
+                _notify_validation_observer(
+                    phase="completed",
+                    succeeded=False,
+                    outcome="error",
+                    duration_seconds=time.monotonic() - command_started,
+                )
                 raise
         if invocation_id is not None:
             try:
@@ -962,13 +1291,25 @@ def _exec_run_command(
         while True:
             if _authority_cancelled():
                 _terminate_process_tree(process)
+                _notify_validation_observer(
+                    phase="completed",
+                    succeeded=False,
+                    outcome="authority_withdrawn",
+                    duration_seconds=time.monotonic() - command_started,
+                )
                 _mark_result_pending()
                 return "Error: validation authority withdrawn while command was running"
             remaining = runtime_deadline - time.monotonic()
             if remaining <= 0:
                 _terminate_process_tree(process)
+                _notify_validation_observer(
+                    phase="completed",
+                    succeeded=False,
+                    outcome="timed_out",
+                    duration_seconds=time.monotonic() - command_started,
+                )
                 _mark_result_pending()
-                return f"Error: command timed out after {timeout}s"
+                return timeout_error or f"Error: command timed out after {timeout}s"
             try:
                 stdout, stderr = process.communicate(timeout=min(remaining, 0.25))
                 break
@@ -983,19 +1324,20 @@ def _exec_run_command(
         # provider while this bounded result is being prepared.
         _mark_result_pending()
 
-        if (
-            heavyweight_validation
-            and process.returncode == 0
-            and callable(successful_validation_handler)
-            and not _authority_cancelled()
-        ):
-            try:
-                successful_validation_handler(command, workspace)
-            except Exception as exc:  # noqa: BLE001 - evidence is an optimization
-                logger.warning(
-                    "Unable to record auditor validation evidence: %s",
-                    exc,
-                )
+        authority_withdrawn = _authority_cancelled()
+        command_succeeded = process.returncode == 0 and not authority_withdrawn
+        _notify_validation_observer(
+            phase="completed",
+            succeeded=command_succeeded,
+            outcome=(
+                "passed"
+                if command_succeeded
+                else "authority_withdrawn"
+                if authority_withdrawn
+                else "failed"
+            ),
+            duration_seconds=time.monotonic() - command_started,
+        )
 
         parts: list[str] = []
         if stdout:
@@ -1028,8 +1370,21 @@ def _exec_run_command(
             f"{_COMMAND_OUTPUT_PAGE_CHARS}, limit={_COMMAND_OUTPUT_PAGE_CHARS})]"
         )
     except Exception as exc:
+        if validation_process_started and not validation_observation_completed:
+            _notify_validation_observer(
+                phase="completed",
+                succeeded=False,
+                outcome="error",
+                duration_seconds=(
+                    time.monotonic() - validation_command_started_at
+                    if validation_command_started_at is not None
+                    else 0.0
+                ),
+            )
         return f"Error running command: {exc}"
     finally:
+        if sandbox_command is not None:
+            sandbox_command.cleanup()
         if invocation_id is not None:
             try:
                 if result_delivery_required and not result_pending:
@@ -1040,6 +1395,9 @@ def _exec_run_command(
                 pass
         if validation_handle is not None:
             validation_handle.release()
+        runtime_dir = env.get("OOMPAH_WORKER_RUNTIME_DIR")
+        if runtime_dir:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
 
 
 def _exec_read_command_output(
@@ -1177,6 +1535,7 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "list_files": [],
     "ask_question": ["question"],
     "attach_image": ["issue_identifier", "filename", "content_base64"],
+    "publish_epic_rebase": ["candidate"],
     AUDITOR_RESULT_TOOL_NAME: ["audit_id", "target_state", "evidence_fingerprint", "verdict", "message"],
 }
 
@@ -1203,7 +1562,15 @@ def _execute_tool(
     command_output_store: CommandOutputStore | None = None,
     validation_lease: ValidationResourceLease | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
-    successful_validation_handler: Callable[[str, Path], object] | None = None,
+    successful_validation_handler: Callable[..., object] | None = None,
+    validation_reuse_policy: Mapping[str, Any] | None = None,
+    validation_reuse_authority_check: Callable[[], object] | None = None,
+    validation_reuse_policy_handler: Callable[..., object] | None = None,
+    project_store: Any = None,
+    submission_handler: Any = None,
+    publish_rebase_handler: Any = None,
+    isolate_remote_write: bool = False,
+    coordination_service: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1224,6 +1591,20 @@ def _execute_tool(
         if session_denial is not None:
             return session_denial
         return submit_auditor_result(args, audit_target, audit_result_handler)
+
+    if name == "publish_epic_rebase":
+        if not isolate_remote_write or not callable(publish_rebase_handler):
+            return "Error: epic rebase publication capability is unavailable"
+        if set(args) != {"candidate"}:
+            return "Error: publish_epic_rebase accepts only candidate"
+        from oompah.acp_tools import _exec_publish_epic_rebase_candidate
+
+        return _exec_publish_epic_rebase_candidate(
+            args.get("candidate", ""),
+            project_id,
+            task_identifier,
+            publish_handler=publish_rebase_handler,
+        )
 
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
@@ -1258,8 +1639,46 @@ def _execute_tool(
         if name == "read_command_output":
             return _exec_read_command_output(command_output_store, args)
         if name == "run_command":
+            try:
+                project = (
+                    project_store.get(project_id)
+                    if project_store is not None and project_id
+                    else None
+                )
+                # ProjectStore returns its mutable in-memory Project instance
+                # and updates that object in place.  Freeze the first read so
+                # policy evaluation and direct task submission cannot observe
+                # different credential/forge generations during a concurrent
+                # project update.
+                if project is not None:
+                    project = copy.copy(project)
+            except Exception as exc:
+                if getattr(action_policy, "auditor_session", False) is True:
+                    return (
+                        "Error: auditor validation configuration could not be "
+                        f"read ({type(exc).__name__}); the command was not "
+                        "executed. [reason=auditor_validation_configuration]"
+                    )
+                project = None
+            if (
+                getattr(action_policy, "auditor_session", False) is True
+                and project_store is not None
+                and project is None
+            ):
+                project_detail = (
+                    f"project {project_id!r} could not be resolved"
+                    if project_id
+                    else "auditor project identity is unavailable"
+                )
+                return (
+                    "Error: auditor validation configuration is unavailable; "
+                    f"{project_detail} and the command was not executed. "
+                    "[reason=auditor_validation_configuration]"
+                )
             shell_denial = check_shell_command(
-                action_policy, str(args.get("command") or "")
+                action_policy,
+                str(args.get("command") or ""),
+                project=project,
             )
             if shell_denial is not None:
                 # Unsupported read-only shell syntax is a tool-validation
@@ -1288,14 +1707,43 @@ def _execute_tool(
                 project_id,
                 action_policy,
                 task_identifier,
+                coordination_service=coordination_service,
                 workspace_path=workspace,
+                project_store=project_store,
+                submission_handler=submission_handler,
+                project_snapshot=project,
             )
             if direct is not None:
                 return direct
+            command_str = str(args.get("command", ""))
+            resolved_timeout = cmd_timeout
+            timeout_error = None
+            configured_validation_target = False
+            if getattr(action_policy, "auditor_session", False) is True:
+                budget, configuration_error = resolve_auditor_validation_budget(
+                    command_str,
+                    project,
+                    global_timeout_seconds=cmd_timeout,
+                )
+                if configuration_error:
+                    return (
+                        "Error: auditor validation configuration is incompatible; "
+                        f"the command was not executed: {configuration_error} "
+                        "[reason=auditor_validation_configuration]"
+                    )
+                if budget is not None:
+                    resolved_timeout = budget.deadline_seconds
+                    timeout_error = auditor_validation_timeout_message(budget)
+                    configured_validation_target = True
             command_kwargs = {
-                "timeout": cmd_timeout,
+                "timeout": resolved_timeout,
                 "env_overrides": env_overrides,
+                "isolate_remote_write": isolate_remote_write,
             }
+            if timeout_error is not None:
+                command_kwargs["timeout_error"] = timeout_error
+            if configured_validation_target:
+                command_kwargs["configured_validation_target"] = True
             if tool_liveness is not None:
                 command_kwargs["tool_liveness"] = tool_liveness
             if command_output_store is not None:
@@ -1318,6 +1766,14 @@ def _execute_tool(
             if successful_validation_handler is not None:
                 command_kwargs["successful_validation_handler"] = (
                     successful_validation_handler
+                )
+            if validation_reuse_policy is not None:
+                command_kwargs["validation_reuse_policy"] = validation_reuse_policy
+                command_kwargs["validation_reuse_authority_check"] = (
+                    validation_reuse_authority_check
+                )
+                command_kwargs["validation_reuse_policy_handler"] = (
+                    validation_reuse_policy_handler
                 )
             if tool_liveness is not None:
                 command_kwargs["result_delivery_required"] = True
@@ -1346,7 +1802,12 @@ _HTTP_TIMEOUT = 600
 
 
 def _http_post(
-    url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLContext
+    url: str,
+    headers: dict[str, str],
+    body: bytes,
+    ssl_ctx: ssl.SSLContext,
+    *,
+    before_transport_contact: Callable[[], str | None] | None = None,
 ) -> dict[str, Any]:
     """Blocking HTTP POST that returns parsed JSON.
 
@@ -1358,6 +1819,17 @@ def _http_post(
     """
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
+        # Keep authority admission at the actual blocking transport edge.  In
+        # particular, callers must not run this callback on the async loop
+        # before handing work to ``to_thread``: lifecycle revocation could win
+        # during that scheduling gap and the stale thread would still open a
+        # socket.  The callback is synchronous so its CAS and ``urlopen`` are
+        # adjacent in this worker thread with no await or other user hook
+        # between them.
+        if before_transport_contact is not None:
+            denial = before_transport_contact()
+            if denial is not None:
+                raise RuntimeError(denial)
         with urllib.request.urlopen(
             req, context=ssl_ctx, timeout=_HTTP_TIMEOUT
         ) as resp:
@@ -1633,7 +2105,16 @@ class ApiAgentSession:
         tool_liveness: Any = None,
         policy_denial_handler: Any = None,
         validation_lease: ValidationResourceLease | None = None,
-        successful_validation_handler: Callable[[str, Path], object] | None = None,
+        successful_validation_handler: Callable[..., object] | None = None,
+        validation_reuse_policy: Mapping[str, Any] | None = None,
+        validation_reuse_authority_check: Callable[[], object] | None = None,
+        validation_reuse_policy_handler: Callable[..., object] | None = None,
+        project_store: Any = None,
+        submission_handler: Any = None,
+        publish_rebase_handler: Any = None,
+        before_transport_contact: Callable[[], str | None] | None = None,
+        isolate_remote_write: bool = False,
+        coordination_service: Any = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1695,6 +2176,24 @@ class ApiAgentSession:
         self.policy_denial_handler = policy_denial_handler
         self.validation_lease = validation_lease
         self.successful_validation_handler = successful_validation_handler
+        self.validation_reuse_policy = validation_reuse_policy
+        self.validation_reuse_authority_check = validation_reuse_authority_check
+        self.validation_reuse_policy_handler = validation_reuse_policy_handler
+        self.project_store = project_store
+        self.submission_handler = submission_handler
+        self.publish_rebase_handler = publish_rebase_handler
+        self.isolate_remote_write = bool(isolate_remote_write)
+        # The orchestrator owns provider-contact authority, but the decisive
+        # check must run in the blocking HTTP thread immediately before
+        # ``urlopen``.  Keep it one-shot across in-session HTTP retries and
+        # later turns: once the first request has consumed the permit, that
+        # admitted run owns its already-frozen transport configuration until
+        # normal lifecycle cancellation retires it.
+        self.before_transport_contact = before_transport_contact
+        self._transport_contact_lock = threading.Lock()
+        self._transport_contacted = False
+        self._transport_admission_denial: str | None = None
+        self.coordination_service = coordination_service
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -1705,6 +2204,36 @@ class ApiAgentSession:
             else None
         )
         self._ssl_ctx = _build_ssl_context()
+
+    @property
+    def transport_contacted(self) -> bool:
+        """Whether the first API request consumed its transport permit."""
+
+        with self._transport_contact_lock:
+            return self._transport_contacted
+
+    def _admit_transport_once(self) -> str | None:
+        """Consume the orchestrator permit at the first real HTTP edge.
+
+        ``_call_api`` may retry a request or make later model turns. Those
+        requests belong to the already-admitted run and must not invoke a
+        mutable authority callback again. A denial is sticky so no later
+        retry can turn a rejected generation into an allowed request.
+        """
+
+        with self._transport_contact_lock:
+            if self._transport_contacted:
+                return None
+            if self._transport_admission_denial is not None:
+                return self._transport_admission_denial
+            callback = self.before_transport_contact
+            if callback is not None:
+                denial = callback()
+                if denial is not None:
+                    self._transport_admission_denial = str(denial)
+                    return self._transport_admission_denial
+            self._transport_contacted = True
+            return None
 
     def _log_event(self, kind: str, **fields: Any) -> None:
         """Append one JSONL record to ``self.log_path`` (best-effort).
@@ -1748,7 +2277,16 @@ class ApiAgentSession:
     def _tool_definitions(self) -> list[dict[str, Any]]:
         """Tool schemas to send to the API for this session."""
         def available(name: str) -> bool:
-            return name != "read_command_output" or self.command_output_store is not None
+            if name == "read_command_output":
+                return self.command_output_store is not None
+            if name == "publish_epic_rebase":
+                return bool(
+                    self.isolate_remote_write
+                    and callable(self.publish_rebase_handler)
+                    and self.project_id
+                    and self.task_identifier
+                )
+            return True
 
         if self.enabled_tools is None:
             return [
@@ -2105,21 +2643,35 @@ class ApiAgentSession:
                             self.workspace,
                             tool_name,
                             tool_args,
-                            self.command_timeout,
-                            env_overrides,
-                            self.read_only,
-                            self.task_tracker,
-                            self.project_id,
-                            self.task_identifier,
-                            self.action_policy,
-                            self.audit_target,
-                            self.audit_result_handler,
-                            self.tool_liveness,
-                            self.policy_denial_handler,
-                            self.command_output_store,
-                            self.validation_lease,
-                            is_cancelled,
-                            self.successful_validation_handler,
+                            cmd_timeout=self.command_timeout,
+                            env_overrides=env_overrides,
+                            read_only=self.read_only,
+                            task_tracker=self.task_tracker,
+                            project_id=self.project_id,
+                            task_identifier=self.task_identifier,
+                            action_policy=self.action_policy,
+                            audit_target=self.audit_target,
+                            audit_result_handler=self.audit_result_handler,
+                            tool_liveness=self.tool_liveness,
+                            policy_denial_handler=self.policy_denial_handler,
+                            command_output_store=self.command_output_store,
+                            validation_lease=self.validation_lease,
+                            lease_cancelled=is_cancelled,
+                            successful_validation_handler=(
+                                self.successful_validation_handler
+                            ),
+                            validation_reuse_policy=self.validation_reuse_policy,
+                            validation_reuse_authority_check=(
+                                self.validation_reuse_authority_check
+                            ),
+                            validation_reuse_policy_handler=(
+                                self.validation_reuse_policy_handler
+                            ),
+                            project_store=self.project_store,
+                            submission_handler=self.submission_handler,
+                            publish_rebase_handler=self.publish_rebase_handler,
+                            isolate_remote_write=self.isolate_remote_write,
+                            coordination_service=self.coordination_service,
                         )
 
                     tool_failed = result_str.startswith("Error")
@@ -2412,9 +2964,21 @@ class ApiAgentSession:
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                response = await asyncio.to_thread(
-                    _http_post, self._url, headers, body, self._ssl_ctx
-                )
+                if self.before_transport_contact is None:
+                    # Preserve the four-argument integration API for callers
+                    # and tests that do not install an authority callback.
+                    response = await asyncio.to_thread(
+                        _http_post, self._url, headers, body, self._ssl_ctx
+                    )
+                else:
+                    response = await asyncio.to_thread(
+                        _http_post,
+                        self._url,
+                        headers,
+                        body,
+                        self._ssl_ctx,
+                        before_transport_contact=self._admit_transport_once,
+                    )
                 # Mirror of the "request" log above so each turn has a
                 # complete sent/received pair on disk.
                 self._log_event(

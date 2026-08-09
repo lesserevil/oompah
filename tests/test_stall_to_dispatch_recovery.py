@@ -97,6 +97,55 @@ def _make_issue(identifier: str = "TASK-1", state: str = "Open") -> Issue:
     )
 
 
+@pytest.fixture(autouse=True)
+def _stateful_transition_tracker_harness(monkeypatch):
+    """Back legacy recovery mocks with the fresh snapshot used by CAS."""
+
+    original = Orchestrator._transition_issue_status
+    original_reset = Orchestrator._reset_orphaned_in_progress
+    bound: dict[int, dict[str, Issue]] = {}
+
+    def prepare(tracker: MagicMock, issues_to_bind: list[Issue]) -> None:
+        issues = bound.setdefault(id(tracker), {})
+        for current in issues_to_bind:
+            issues[str(current.id)] = current
+            issues[str(current.identifier)] = current
+        tracker.fetch_issue_detail.side_effect = lambda identifier: issues.get(
+            str(identifier)
+        )
+        tracker.fetch_issue_states_by_ids.side_effect = lambda identifiers: [
+            issues[str(identifier)]
+            for identifier in identifiers
+            if str(identifier) in issues
+        ]
+        if tracker.update_issue.side_effect is None:
+            tracker.update_issue.side_effect = lambda identifier, **fields: setattr(
+                issues[str(identifier)], "state", fields["status"]
+            ) if fields.get("status") is not None else None
+
+    def transition(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(tracker, [issue])
+        return original(orch, issue, requested_status, **kwargs)
+
+    def reset(orch, candidates):
+        by_tracker: dict[int, tuple[MagicMock, list[Issue]]] = {}
+        for issue in candidates:
+            tracker = (
+                orch._tracker_for_project(issue.project_id)
+                if issue.project_id
+                else orch.tracker
+            )
+            grouped = by_tracker.setdefault(id(tracker), (tracker, []))[1]
+            grouped.append(issue)
+        for tracker, grouped in by_tracker.values():
+            prepare(tracker, grouped)
+        return original_reset(orch, candidates)
+
+    monkeypatch.setattr(Orchestrator, "_transition_issue_status", transition)
+    monkeypatch.setattr(Orchestrator, "_reset_orphaned_in_progress", reset)
+
+
 # ---------------------------------------------------------------------------
 # (1-3) Combined stale-loop + orphan reset scenario
 # ---------------------------------------------------------------------------
@@ -612,7 +661,12 @@ class TestEdgeCasesAndMutations:
         orphan2.project_id = "proj-1"
 
         # First reset succeeds, second fails
-        tracker.update_issue.side_effect = [None, RuntimeError("fail on second")]
+        def _update(identifier, **fields):
+            if identifier == "TASK-partial-2":
+                raise RuntimeError("fail on second")
+            orphan1.state = fields.get("status", orphan1.state)
+
+        tracker.update_issue.side_effect = _update
 
         posted_events: list[DispatchEvent] = []
 

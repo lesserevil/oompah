@@ -160,7 +160,13 @@ class TestConcurrentWorktreeOperationsAreSerialized:
         barrier = threading.Barrier(2)
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             """Simulate slow git work inside the locked region."""
             call_order.append(f"start:{issue_id}")
@@ -232,7 +238,13 @@ class TestConcurrentWorktreeOperationsAreSerialized:
         call_order: list[str] = []
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_order.append("start:create")
             time.sleep(0.05)
@@ -273,12 +285,24 @@ class TestDifferentProjectsAreIndependent:
 
         started_at: dict[str, float] = {}
         finished_at: dict[str, float] = {}
+        both_projects_entered = threading.Barrier(2, timeout=5)
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             started_at[project_id] = time.monotonic()
-            time.sleep(0.1)  # simulate slow git I/O
+            # Prove both project-specific lock regions are entered at once.
+            # Timing-only sleeps become flaky on a loaded validation host: a
+            # scheduler may not start the second thread before the first
+            # sleep expires even though the locks are genuinely independent.
+            both_projects_entered.wait()
+            time.sleep(0.01)  # retain an observable overlap interval
             finished_at[project_id] = time.monotonic()
             return f"/wt/{issue_id}"
 
@@ -404,7 +428,7 @@ class TestEpicWorktreeLocking:
 
         call_order: list[str] = []
 
-        def mock_create_epic_locked(project_id, epic_id):
+        def mock_create_epic_locked(project_id, epic_id, *, branch_name=None):
             call_order.append(f"start:{epic_id}")
             time.sleep(0.05)
             call_order.append(f"end:{epic_id}")
@@ -460,14 +484,20 @@ class TestEpicWorktreeLocking:
         call_order: list[str] = []
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_order.append("start:regular")
             time.sleep(0.05)
             call_order.append("end:regular")
             return "/wt/regular"
 
-        def mock_create_epic_locked(project_id, epic_id):
+        def mock_create_epic_locked(project_id, epic_id, *, branch_name=None):
             call_order.append("start:epic")
             time.sleep(0.05)
             call_order.append("end:epic")
@@ -563,6 +593,7 @@ class TestResetOrphanedInProgressUsesProjectLock:
         issue = _make_issue("ISSUE-1")
         tracker_mock = MagicMock()
         tracker_mock.update_issue = tracking_update
+        tracker_mock.fetch_issue_detail.return_value = issue
 
         with (
             patch.object(orchestrator, "_tracker_for_project", return_value=tracker_mock),
@@ -605,6 +636,8 @@ class TestResetOrphanedInProgressUsesProjectLock:
 
         issue_a = _make_issue("ISSUE-A")
         issue_b = _make_issue("ISSUE-B")
+        issues = {issue.identifier: issue for issue in (issue_a, issue_b)}
+        tracker_mock.fetch_issue_detail.side_effect = issues.get
 
         with patch.object(orch, "_tracker_for_project", return_value=tracker_mock):
             t1 = threading.Thread(
@@ -669,6 +702,8 @@ class TestResetOrphanedInProgressUsesProjectLock:
 
         issue_a = _make_issue("ISSUE-A", project_id="proj-a")
         issue_b = _make_issue("ISSUE-B", project_id="proj-b")
+        tracker_a.fetch_issue_detail.return_value = issue_a
+        tracker_b.fetch_issue_detail.return_value = issue_b
 
         def tracker_for(project_id):
             return tracker_a if project_id == "proj-a" else tracker_b
@@ -723,7 +758,13 @@ class TestConcurrentMaintenanceAndDispatch:
         call_order: list[str] = []
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_order.append("create:start")
             time.sleep(0.08)
@@ -773,7 +814,13 @@ class TestConcurrentMaintenanceAndDispatch:
             finished_at["remove"] = time.monotonic()
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             started_at["create"] = time.monotonic()
             time.sleep(0.1)
@@ -817,7 +864,13 @@ class TestConcurrentMaintenanceAndDispatch:
         counter_lock = threading.Lock()
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             with counter_lock:
                 current_concurrent[0] += 1
@@ -860,7 +913,13 @@ class TestLockReleasedOnError:
         call_count = [0]
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_count[0] += 1
             if call_count[0] == 1:

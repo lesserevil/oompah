@@ -43,20 +43,49 @@ def _make_issue(**kwargs):
     return Issue(**defaults)
 
 
+def _bind_status_tracker(tracker, issue: Issue) -> None:
+    """Make a mock tracker expose and verify a mutable lifecycle snapshot."""
+
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [issue]
+
+    def update(_identifier, **fields):
+        if fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    tracker.update_issue.side_effect = update
+
+
 class TestFindSimilarIssuesInOrchestratorFlow:
     """Tests that verify find_similar_issues integration into the orchestrator."""
 
     def test_find_similar_issues_returns_rogers_prefix_matches(self):
         """Pattern-based duplicate: rogers-how and rogers-5hd should be found."""
-        base = _make_issue(identifier="new-rogers", title="rogers-how to connect",
-                           project_id="p", issue_type="bug")
+        base = _make_issue(
+            identifier="new-rogers",
+            title="rogers-how to connect",
+            project_id="p",
+            issue_type="bug",
+        )
         candidates = [
-            _make_issue(identifier="old-1", title="rogers-5hd setup",
-                        project_id="p", issue_type="bug"),
-            _make_issue(identifier="old-2", title="rogers-zdn error",
-                        project_id="p", issue_type="bug"),
-            _make_issue(identifier="unrelated", title="database-migration",
-                        project_id="p", issue_type="bug"),
+            _make_issue(
+                identifier="old-1",
+                title="rogers-5hd setup",
+                project_id="p",
+                issue_type="bug",
+            ),
+            _make_issue(
+                identifier="old-2",
+                title="rogers-zdn error",
+                project_id="p",
+                issue_type="bug",
+            ),
+            _make_issue(
+                identifier="unrelated",
+                title="database-migration",
+                project_id="p",
+                issue_type="bug",
+            ),
         ]
         similar = find_similar_issues(base, candidates)
         # Both rogers-* issues should be found
@@ -68,11 +97,21 @@ class TestFindSimilarIssuesInOrchestratorFlow:
 
     def test_find_similar_issues_respects_min_score(self):
         """Raising min_score should exclude borderline matches."""
-        base = _make_issue(identifier="x", title="rogers-alpha",
-                           project_id="p", issue_type="bug", labels=[])
+        base = _make_issue(
+            identifier="x",
+            title="rogers-alpha",
+            project_id="p",
+            issue_type="bug",
+            labels=[],
+        )
         candidates = [
-            _make_issue(identifier="y", title="rogers-beta",
-                        project_id="p", issue_type="bug", labels=[]),
+            _make_issue(
+                identifier="y",
+                title="rogers-beta",
+                project_id="p",
+                issue_type="bug",
+                labels=[],
+            ),
         ]
         # Default threshold (0.5) should include it
         similar = find_similar_issues(base, candidates, min_score=_MIN_SCORE_TO_FLAG)
@@ -175,7 +214,6 @@ class TestApplyDuplicateDetection:
             state="Proposed",
             labels=[],
         )
-
         result = orch._apply_duplicate_detection([candidate])
 
         assert result == [candidate]
@@ -215,6 +253,7 @@ class TestFocusHandoff:
 
         orch = Orchestrator.__new__(Orchestrator)
         orch.config = ServiceConfig()
+        orch.workflow_runtime = None
         orch.tracker = MagicMock()
         orch._tracker_for_issue = MagicMock(return_value=orch.tracker)
         orch.state = MagicMock()
@@ -238,7 +277,6 @@ class TestFocusHandoff:
             state="In Progress",
             labels=[],
         )
-
         assert not orch._handoff_completed_focus(entry, current, None)
         orch.tracker.update_issue.assert_not_called()
         orch.tracker.add_label.assert_not_called()
@@ -258,6 +296,11 @@ class TestFocusHandoff:
         orch = self._make_orchestrator()
         orch._retry_authority_lock = threading.RLock()
         orch._retry_dispatching = {}
+        orch._retry_schedule_builders = {}
+        orch._retry_schedule_epochs = {}
+        orch._retry_timer_arming_tokens = {}
+        orch._retry_timer_generations = {}
+        orch._post_retirement_retry_tokens = {}
         orch._revoked_authority_generations = {}
         orch._persist_retry_entries = MagicMock()
         orch.state.retry_attempts = {}
@@ -270,8 +313,7 @@ class TestFocusHandoff:
             {
                 "author": "oompah",
                 "text": (
-                    "Focus handoff: duplicate_detector\n"
-                    "Recommended next focus: feature"
+                    "Focus handoff: duplicate_detector\nRecommended next focus: feature"
                 ),
             }
         ]
@@ -280,8 +322,7 @@ class TestFocusHandoff:
             identifier=entry.identifier,
             action="comment",
             message=(
-                "Focus handoff: duplicate_detector\n"
-                "Recommended next focus: feature"
+                "Focus handoff: duplicate_detector\nRecommended next focus: feature"
             ),
             tracker=orch.tracker,
         )
@@ -300,8 +341,7 @@ class TestFocusHandoff:
             identifier=entry.identifier,
             action="comment",
             message=(
-                "Focus handoff: duplicate_detector\n"
-                "Recommended next focus: feature"
+                "Focus handoff: duplicate_detector\nRecommended next focus: feature"
             ),
             tracker=orch.tracker,
         )
@@ -320,9 +360,35 @@ class TestFocusHandoff:
             status="Open",
             tracker=orch.tracker,
         )
+        _bind_status_tracker(orch.tracker, entry.issue)
         assert orch._handoff_completed_focus(entry, entry.issue, None)
         assert entry.handoff_finalized
         assert entry.issue.state == "Open"
+
+    def test_worker_handoff_observation_is_scoped_to_exact_project(self):
+        orch = self._make_orchestrator()
+        orch._retry_authority_lock = threading.RLock()
+        first = self._make_entry()
+        first.issue.id = "project-a:screened-task"
+        first.issue.project_id = "project-a"
+        second = self._make_entry()
+        second.issue.id = "project-b:screened-task"
+        second.issue.project_id = "project-b"
+        orch.state.running = {
+            first.issue.id: first,
+            second.issue.id: second,
+        }
+
+        assert orch._observe_task_handoff_mutation(
+            identifier="screened-task",
+            project_id="project-b",
+            action="comment",
+            message="Focus handoff: duplicate_detector\nNo duplicate found.",
+            tracker=orch.tracker,
+        )
+
+        assert first.handoff_pending is False
+        assert second.handoff_pending is True
 
     def test_reconcile_open_snapshot_finishes_handoff_before_retirement(self):
         from oompah.config import ServiceConfig
@@ -396,11 +462,14 @@ class TestFocusHandoff:
             state="In Progress",
             labels=["focus-complete:duplicate_detector"],
         )
+        _bind_status_tracker(orch.tracker, current)
 
         assert orch._handoff_completed_focus(entry, current, None)
 
         orch.tracker.add_label.assert_not_called()
-        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        orch.tracker.update_issue.assert_called_once_with(
+            entry.identifier, status="Open"
+        )
         assert current.state == "Open"
         assert "focus-complete:duplicate_detector" in current.labels
         assert entry.identifier not in orch.state.reopen_counts
@@ -423,13 +492,16 @@ class TestFocusHandoff:
             state="In Progress",
             labels=[],
         )
+        _bind_status_tracker(orch.tracker, current)
 
         assert orch._handoff_completed_focus(entry, current, None)
 
         orch.tracker.add_label.assert_called_once_with(
             entry.identifier, "focus-complete:duplicate_detector"
         )
-        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        orch.tracker.update_issue.assert_called_once_with(
+            entry.identifier, status="Open"
+        )
         assert "focus-complete:duplicate_detector" in current.labels
         assert entry.identifier not in orch.state.reopen_counts
 
@@ -452,10 +524,13 @@ class TestFocusHandoff:
             state="In Progress",
             labels=["needs:bugfix"],
         )
+        _bind_status_tracker(orch.tracker, current)
 
         assert orch._handoff_completed_focus(entry, current, None)
 
-        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        orch.tracker.update_issue.assert_called_once_with(
+            entry.identifier, status="Open"
+        )
 
     def test_missing_handoff_comment_reopens_same_focus(self):
         orch = self._make_orchestrator()
@@ -466,6 +541,7 @@ class TestFocusHandoff:
             state="In Progress",
             labels=["focus-complete:duplicate_detector", "needs:bugfix"],
         )
+        _bind_status_tracker(orch.tracker, current)
 
         assert orch._handoff_completed_focus(entry, current, None)
 
@@ -516,9 +592,7 @@ class TestFocusHandoff:
         parsed = Orchestrator._trusted_focus_handoff_comment(
             {
                 "user": {"login": "oompah"},
-                "text": (
-                    "Focus handoff: docs\nRecommended next focus: feature"
-                ),
+                "text": ("Focus handoff: docs\nRecommended next focus: feature"),
             }
         )
         assert parsed == ("docs", "feature")
@@ -533,10 +607,7 @@ class TestFocusHandoff:
         entry.issue.labels = []
         orch.state.running = {entry.issue.id: entry}
 
-        message = (
-            "Focus handoff: duplicate_detector\n"
-            "Recommended next focus: feature"
-        )
+        message = "Focus handoff: duplicate_detector\nRecommended next focus: feature"
         # First delivery starts the generation and adds the completion label.
         assert orch._observe_task_handoff_mutation(
             identifier=entry.identifier,
@@ -741,9 +812,7 @@ class TestFocusHandoff:
         try:
             project_id = entry.issue.project_id if entry.issue else None
             tracker_for_project = (
-                orch._tracker_for_project(project_id)
-                if project_id
-                else orch.tracker
+                orch._tracker_for_project(project_id) if project_id else orch.tracker
             )
             current = tracker_for_project.fetch_issue_detail(entry.identifier)
             if current is not None:
@@ -848,9 +917,11 @@ class TestFocusScopedIncompleteSessionLimit:
         orch = Orchestrator.__new__(Orchestrator)
         orch.state = OrchestratorState()
 
-        assert [
-            orch._increment_reopen_count("task-1", "docs") for _ in range(3)
-        ] == [1, 2, 3]
+        assert [orch._increment_reopen_count("task-1", "docs") for _ in range(3)] == [
+            1,
+            2,
+            3,
+        ]
 
     def test_detects_open_duplicate_and_labels_candidate(self, tmp_path, monkeypatch):
         """When candidate matches open issue by prefix, add duplicate-candidate label."""
@@ -858,8 +929,9 @@ class TestFocusScopedIncompleteSessionLimit:
         from oompah.config import ServiceConfig
         from oompah.projects import ProjectStore
 
-        monkeypatch.setattr("oompah.projects.DEFAULT_PROJECTS_PATH",
-                            str(tmp_path / "projects.json"))
+        monkeypatch.setattr(
+            "oompah.projects.DEFAULT_PROJECTS_PATH", str(tmp_path / "projects.json")
+        )
 
         config = ServiceConfig()
         projects_path = tmp_path / "projects.json"
@@ -892,6 +964,7 @@ class TestFocusScopedIncompleteSessionLimit:
             state="open",
             labels=[],
         )
+        _bind_status_tracker(mock_tracker, candidate)
 
         orch._tracker_for_project = lambda pid: mock_tracker
         orch._post_comment = MagicMock()
@@ -913,8 +986,9 @@ class TestFocusScopedIncompleteSessionLimit:
         from oompah.config import ServiceConfig
         from oompah.projects import ProjectStore
 
-        monkeypatch.setattr("oompah.projects.DEFAULT_PROJECTS_PATH",
-                            str(tmp_path / "projects.json"))
+        monkeypatch.setattr(
+            "oompah.projects.DEFAULT_PROJECTS_PATH", str(tmp_path / "projects.json")
+        )
 
         config = ServiceConfig()
         projects_path = tmp_path / "projects.json"
@@ -966,8 +1040,9 @@ class TestFocusScopedIncompleteSessionLimit:
         from oompah.config import ServiceConfig
         from oompah.projects import ProjectStore
 
-        monkeypatch.setattr("oompah.projects.DEFAULT_PROJECTS_PATH",
-                            str(tmp_path / "projects.json"))
+        monkeypatch.setattr(
+            "oompah.projects.DEFAULT_PROJECTS_PATH", str(tmp_path / "projects.json")
+        )
 
         config = ServiceConfig()
         projects_path = tmp_path / "projects.json"
@@ -1160,6 +1235,7 @@ class TestEndToEndDispatchFlow:
             state="open",
             labels=[],
         )
+        _bind_status_tracker(mock_tracker, candidate)
 
         # Step 1: Apply duplicate detection (simulates _handle_dispatch_needed)
         detected_candidates = orch._apply_duplicate_detection([candidate])
@@ -1283,6 +1359,7 @@ class TestNoCommitFocusCompletionAdvancesToFeature:
             issue_type="task",
             labels=["focus-complete:duplicate_detector"],
         )
+        _bind_status_tracker(orch.tracker, issue)
         entry = self._make_entry(issue)
 
         # Simulate the orchestrator processing _on_worker_exit for a normal exit.
@@ -1293,7 +1370,9 @@ class TestNoCommitFocusCompletionAdvancesToFeature:
         assert result is True
 
         # The issue must be opened for the next applicable focus.
-        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        orch.tracker.update_issue.assert_called_once_with(
+            entry.identifier, status="Open"
+        )
         assert issue.state == "Open"
 
         # The completion label must be preserved so select_focus can skip it
@@ -1308,8 +1387,7 @@ class TestNoCommitFocusCompletionAdvancesToFeature:
         # duplicate_detector — that would repeat the completed phase.
         focus = select_focus(issue)
         assert focus.name != "duplicate_detector", (
-            f"Expected a non-duplicate_detector focus after handoff, "
-            f"got {focus.name!r}"
+            f"Expected a non-duplicate_detector focus after handoff, got {focus.name!r}"
         )
 
     def test_no_commit_handoff_with_needs_feature_routes_to_feature(self):
@@ -1340,6 +1418,7 @@ class TestNoCommitFocusCompletionAdvancesToFeature:
             issue_type="task",
             labels=["focus-complete:duplicate_detector", "needs:feature"],
         )
+        _bind_status_tracker(orch.tracker, issue)
         entry = self._make_entry(issue)
 
         result = orch._handoff_completed_focus(entry, issue, None)
@@ -1400,7 +1479,9 @@ class TestDispatchResponsivenessLimits:
         orch.tracker.fetch_issues_by_states.return_value = []
 
         candidates = [
-            _make_issue(identifier=f"TASK-{i}", title=f"unique task {i}", project_id=None)
+            _make_issue(
+                identifier=f"TASK-{i}", title=f"unique task {i}", project_id=None
+            )
             for i in range(5)
         ]
 

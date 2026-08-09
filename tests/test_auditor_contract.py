@@ -21,6 +21,7 @@ from oompah.authority_boundary import auditor_policy
 from oompah.models import Issue
 from oompah.prompt import render_auditor_prompt, render_prompt
 from oompah.provenance import DELIMITER
+from oompah.validation_resource_lease import ValidationResourceLease
 
 
 def _issue(**overrides):
@@ -51,6 +52,18 @@ def _target():
         attempt_id="attempt-7",
         previous_state="In Validation",
     )
+
+
+@pytest.fixture
+def auditor_validation_context(tmp_path: Path):
+    """Provide the trusted ownership required for capacity-bearing Git probes.
+
+    O892 treats Git as heavyweight when its effective configuration can invoke
+    helpers.  A completion auditor must then have both its target contract and
+    a validation-resource lease before the command can execute.
+    """
+
+    return _target(), ValidationResourceLease(tmp_path / "validation.sqlite3")
 
 
 def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
@@ -91,7 +104,6 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
         "Do not approve code",
     ):
         assert required in prompt
-
     assert "absolute/provider-private path" in prompt
     assert "Python-regex repository searches" in prompt
     assert "bounded context option" in prompt
@@ -101,6 +113,79 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
     assert "approve and edit" in prompt
     assert "reference data" in prompt
     assert json.dumps(AUDITOR_RESULT_TOOL_SCHEMA, indent=2) in prompt
+
+
+def test_auditor_prompt_reuses_current_full_gate_but_allows_focused_checks():
+    prompt = render_auditor_prompt(
+        _issue(),
+        target=_target(),
+        evidence_summary={
+            "authoritative_quality_gate": {
+                "decision": "reuse_authoritative_gate",
+                "command": "make test",
+                "result": "passed",
+                "head_sha": "a" * 40,
+                "duration_seconds": 321.4,
+                "focused_evidence": {
+                    "supplemental_checks_allowed": True,
+                    "supplemental_scope": ["warning checks", "race checks"],
+                },
+            }
+        },
+    )
+
+    assert "current and passing for the exact accepted head" in prompt
+    assert "do not rerun the configured full gate" in prompt
+    assert "`make test-serial`" in prompt
+    assert "allowlist, not a request to run every listed target" in prompt
+    assert "focused warning or race checks" in prompt
+
+
+def test_auditor_prompt_requires_full_gate_when_exact_evidence_is_missing():
+    prompt = render_auditor_prompt(
+        _issue(),
+        target=_target(),
+        evidence_summary={
+            "authoritative_quality_gate": {
+                "decision": "full_gate_required",
+                "command": "make test",
+                "result": "missing",
+                "head_sha": "b" * 40,
+            }
+        },
+    )
+
+    assert "current passing exact-head full-gate result was not found" in prompt
+    assert "configured full gate is required" in prompt
+
+
+def test_metadata_archive_prompt_does_not_require_fake_code_revision():
+    target = AuditorTargetContract(
+        audit_id="audit-803",
+        task_id="OOMPAH-803",
+        project_id="project-1",
+        target_state="Archived",
+        evidence_fingerprint="c" * 64,
+        previous_state="Backlog",
+    )
+
+    prompt = render_auditor_prompt(
+        _issue(id="OOMPAH-803", identifier="OOMPAH-803"),
+        target=target,
+        evidence_summary={
+            "metadata_archive": {
+                "mode": "revisionless_metadata_archive",
+                "passed_preflight": True,
+                "disposition_type": "duplicate",
+                "disposition_source": "OOMPAH-775",
+            }
+        },
+    )
+
+    assert "Metadata-only Archived target" in prompt
+    assert "No implementation revision" in prompt
+    assert "absence is not missing evidence" in prompt
+    assert "must not be reported as a transport failure" in prompt
 
 
 def test_render_prompt_appends_target_contract_and_keeps_injection_delimited():
@@ -422,8 +507,14 @@ def test_repeated_arbitrary_code_mutation_and_redirects_remain_fatal(tmp_path: P
     assert len(denials) == 3
 
 
-def test_git_merge_base_inspection_does_not_consume_policy_budget():
-    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+def test_git_merge_base_inspection_does_not_consume_policy_budget(
+    auditor_validation_context,
+):
+    target, validation_lease = auditor_validation_context
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
     denials: list[str] = []
 
     result = _execute_tool(
@@ -432,6 +523,8 @@ def test_git_merge_base_inspection_does_not_consume_policy_budget():
         {"command": "git merge-base --is-ancestor HEAD HEAD"},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     assert not result.startswith("Error:")
@@ -636,9 +729,14 @@ def test_acp_agent_passes_auditor_policy_to_backend(monkeypatch):
 )
 def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
     command: str,
+    auditor_validation_context,
 ):
     """Verify EXOCOMP-241 rev-list forms are allowed and don't consume policy budget."""
-    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    target, validation_lease = auditor_validation_context
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
     denials: list[str] = []
 
     result = _execute_tool(
@@ -647,6 +745,8 @@ def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
         {"command": command},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     # Command should execute (not denied)
@@ -665,9 +765,14 @@ def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
 )
 def test_git_rev_list_unsupported_read_only_variants_are_recoverable(
     command: str,
+    auditor_validation_context,
 ):
     """Verify unsupported but safe rev-list variants return recoverable errors."""
-    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    target, validation_lease = auditor_validation_context
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
     denials: list[str] = []
 
     result = _execute_tool(
@@ -676,6 +781,8 @@ def test_git_rev_list_unsupported_read_only_variants_are_recoverable(
         {"command": command},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     # May be denied as unsupported read-only syntax, but must be recoverable
@@ -725,6 +832,7 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
         project_id=target.project_id,
     )
     denials: list[str] = []
+    validation_lease = ValidationResourceLease(tmp_path / "validation.sqlite3")
 
     # Use a rev-list variant that might not be explicitly supported yet
     # but is still read-only
@@ -734,6 +842,8 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
         {"command": "git rev-list --abbrev-commit HEAD~5..HEAD"},
         action_policy=policy,
         policy_denial_handler=denials.append,
+        audit_target=target,
+        validation_lease=validation_lease,
     )
 
     # May be rejected as unsupported read-only syntax, but recoverable
@@ -771,22 +881,10 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
     assert received[0].audit_id == target.audit_id
 
 
-def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recoverable(
+def test_unapproved_make_targets_are_fatal_policy_denials(
     tmp_path: Path,
 ):
-    """Regression test for OOMPAH-753: non-mutating validator requests outside the
-    project's validation contract should be recoverable and not consume the fatal
-    policy budget.
-    
-    This test simulates the OOMPAH-731 audit scenario where an auditor requests
-    focused pytest commands (e.g., with output truncation) that are syntactically
-    valid but outside the structured validation contract (which only allows
-    "make test", "make test-serial", "make check-secrets").
-    
-    Previously, these denials consumed the fatal policy budget and terminated the
-    auditor after 3 denials. Now they should be recoverable and allow the auditor
-    to continue and run approved commands.
-    """
+    """An innocuous target name cannot expand server-issued authority."""
     target = _target()
     policy = auditor_policy(
         task_identifier=target.task_id,
@@ -805,8 +903,7 @@ def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recover
     )
     assert result1.startswith("Error:")
     assert "not executed" in result1
-    # This denial should NOT be passed to the handler (recoverable)
-    assert denials == []
+    assert len(denials) == 1
 
     # Second denial: make fmt-check command (outside contract's default targets)
     result2 = _execute_tool(
@@ -818,8 +915,7 @@ def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recover
     )
     assert result2.startswith("Error:")
     assert "not executed" in result2
-    # This denial should also NOT be passed to the handler (recoverable)
-    assert denials == []
+    assert len(denials) == 2
 
     # Auditor can still use search_files and read_file
     search = _execute_tool(

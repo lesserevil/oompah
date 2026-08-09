@@ -9,6 +9,8 @@ write-capable tool merely because task text asks for one.
 from __future__ import annotations
 
 import json
+import math
+import os
 import re
 import shlex
 from collections.abc import Mapping
@@ -33,6 +35,296 @@ AUDITOR_RESULT_TOOL_NAME = "submit_audit_result"
 # every backend can preserve the distinction when it forwards the response as
 # plain text.
 AUDITOR_READ_ONLY_SYNTAX_REASON = "auditor_read_only_shell_syntax"
+AUDITOR_VALIDATION_CONFIGURATION_REASON = "auditor_validation_configuration"
+AUDITOR_VALIDATION_DEADLINE_REASON = "auditor_validation_deadline_exceeded"
+AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON = "auditor_unapproved_validation_target"
+AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV = (
+    "OOMPAH_AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS"
+)
+DEFAULT_AUDITOR_VALIDATION_TARGETS = (
+    "test",
+    "test-serial",
+    "check-secrets",
+)
+DEFAULT_AUDITOR_COMMAND_TIMEOUT_SECONDS = 720
+_AUDITOR_VALIDATION_TARGET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+@dataclass(frozen=True)
+class AuditorValidationTargetBudget:
+    """One exact approved Make target and its execution budget."""
+
+    target: str
+    deadline_seconds: int
+    expected_seconds: int
+    deadline_source: str
+    expected_source: str
+
+
+@dataclass(frozen=True)
+class AuditorValidationContract:
+    """Validated, project-scoped auditor validation policy snapshot."""
+
+    project_id: str
+    targets: tuple[AuditorValidationTargetBudget, ...]
+    configuration_error: str | None = None
+
+    @property
+    def feasible(self) -> bool:
+        return self.configuration_error is None
+
+    def budget_for_target(self, target: str) -> AuditorValidationTargetBudget | None:
+        return next((item for item in self.targets if item.target == target), None)
+
+
+def _positive_seconds(value: Any, *, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return value
+
+
+def _global_auditor_command_timeout(raw: str | None = None) -> int:
+    value = os.environ.get("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS") if raw is None else raw
+    if value is None or not str(value).strip():
+        return DEFAULT_AUDITOR_COMMAND_TIMEOUT_SECONDS
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_AUDITOR_COMMAND_TIMEOUT_SECONDS
+    if not math.isfinite(parsed) or parsed <= 0:
+        return DEFAULT_AUDITOR_COMMAND_TIMEOUT_SECONDS
+    return max(1, int(math.ceil(parsed)))
+
+
+def _expected_seconds_from_environment(
+    raw: str | None = None,
+) -> tuple[dict[str, int], str | None]:
+    value = (
+        os.environ.get(AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV)
+        if raw is None
+        else raw
+    )
+    if value is None or not str(value).strip():
+        return {}, None
+    try:
+        decoded = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as exc:
+        return {}, (
+            f"{AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV} must be a JSON object: {exc}"
+        )
+    if not isinstance(decoded, dict):
+        return {}, f"{AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV} must be a JSON object"
+    normalized: dict[str, int] = {}
+    for raw_target, raw_seconds in decoded.items():
+        target = str(raw_target).strip()
+        if not _AUDITOR_VALIDATION_TARGET_RE.fullmatch(target):
+            return {}, (
+                f"{AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV} contains unsafe "
+                f"target {target!r}"
+            )
+        try:
+            normalized[target] = _positive_seconds(
+                raw_seconds,
+                field_name=(
+                    f"{AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV}[{target!r}]"
+                ),
+            )
+        except ValueError as exc:
+            return {}, str(exc)
+    return normalized, None
+
+
+def build_auditor_validation_contract(
+    project: Any = None,
+    *,
+    global_timeout_seconds: int | None = None,
+    raw_environment_expected_seconds: str | None = None,
+) -> AuditorValidationContract:
+    """Build the immutable effective validation contract for one project.
+
+    Explicit targets without expected-duration evidence fail closed. Legacy
+    implicit defaults remain compatible by being omitted until observed or
+    configured evidence makes them safe to advertise. A shorter deadline is
+    always an impossible configuration and blocks launch before persistence.
+    """
+
+    project_id = str(getattr(project, "id", "") or "")
+    raw_configured_targets = getattr(project, "auditor_validation_targets", None)
+    explicitly_configured = bool(raw_configured_targets)
+    configured_targets = list(
+        raw_configured_targets or DEFAULT_AUDITOR_VALIDATION_TARGETS
+    )
+    targets: list[str] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for raw_target in configured_targets:
+        if not isinstance(raw_target, str):
+            errors.append("auditor_validation_targets entries must be strings")
+            continue
+        target = raw_target.strip()
+        if not _AUDITOR_VALIDATION_TARGET_RE.fullmatch(target):
+            errors.append(f"unsafe auditor validation target {target!r}")
+            continue
+        if target in seen:
+            errors.append(f"duplicate auditor validation target {target!r}")
+            continue
+        targets.append(target)
+        seen.add(target)
+
+    raw_deadlines = getattr(project, "auditor_validation_target_deadlines", {}) or {}
+    raw_expected = (
+        getattr(project, "auditor_validation_target_expected_seconds", {}) or {}
+    )
+    raw_observed = (
+        getattr(project, "auditor_validation_target_observed_seconds", {}) or {}
+    )
+    if not isinstance(raw_deadlines, dict):
+        errors.append("auditor_validation_target_deadlines must be an object")
+        raw_deadlines = {}
+    if not isinstance(raw_expected, dict):
+        errors.append("auditor_validation_target_expected_seconds must be an object")
+        raw_expected = {}
+    if not isinstance(raw_observed, dict):
+        errors.append("observed auditor validation durations must be an object")
+        raw_observed = {}
+
+    deadlines: dict[str, int] = {}
+    expected: dict[str, int] = {}
+    observed: dict[str, int] = {}
+    for field_name, raw_mapping, destination in (
+        ("auditor_validation_target_deadlines", raw_deadlines, deadlines),
+        ("auditor_validation_target_expected_seconds", raw_expected, expected),
+        ("observed auditor validation durations", raw_observed, observed),
+    ):
+        for raw_target, raw_seconds in raw_mapping.items():
+            target = str(raw_target).strip()
+            if target not in seen:
+                errors.append(f"{field_name} contains unapproved target {target!r}")
+                continue
+            try:
+                destination[target] = _positive_seconds(
+                    raw_seconds,
+                    field_name=f"{field_name}[{target!r}]",
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
+
+    environment_expected, environment_error = _expected_seconds_from_environment(
+        raw_environment_expected_seconds
+    )
+    if environment_error:
+        errors.append(environment_error)
+
+    if global_timeout_seconds is None:
+        global_timeout = _global_auditor_command_timeout()
+    else:
+        try:
+            global_timeout = _positive_seconds(
+                global_timeout_seconds,
+                field_name="global auditor command timeout",
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
+            global_timeout = DEFAULT_AUDITOR_COMMAND_TIMEOUT_SECONDS
+
+    budgets: list[AuditorValidationTargetBudget] = []
+    for target in targets:
+        deadline = deadlines.get(target, global_timeout)
+        candidates = [
+            ("project", expected.get(target)),
+            ("observed", observed.get(target)),
+            ("environment", environment_expected.get(target)),
+        ]
+        expected_source, expected_seconds = max(
+            (
+                (source, seconds)
+                for source, seconds in candidates
+                if seconds is not None
+            ),
+            key=lambda item: item[1],
+            default=(None, None),
+        )
+        if expected_seconds is None:
+            if explicitly_configured or target in deadlines or target in expected:
+                errors.append(
+                    f"project {project_id or '(default)'} target {target!r} has no "
+                    "configured or observed expected duration"
+                )
+            # Legacy default targets are not advertised or executable until
+            # duration evidence makes their deadline feasibility knowable.
+            continue
+        assert expected_source is not None
+        budget = AuditorValidationTargetBudget(
+            target=target,
+            deadline_seconds=deadline,
+            expected_seconds=expected_seconds,
+            deadline_source="project" if target in deadlines else "global",
+            expected_source=expected_source,
+        )
+        budgets.append(budget)
+        if expected_seconds is not None and expected_seconds > deadline:
+            errors.append(
+                f"project {project_id or '(default)'} target {target!r} "
+                f"expected_seconds={expected_seconds} exceeds "
+                f"deadline_seconds={deadline} "
+                f"(deadline_source={budget.deadline_source}, "
+                f"expected_source={budget.expected_source})"
+            )
+
+    if project is not None and not budgets and not errors:
+        errors.append(
+            f"project {project_id or '(unknown)'} has no feasible auditor "
+            "validation targets; configure an approved target with a positive "
+            "expected duration or provide compatible completed gate evidence"
+        )
+
+    return AuditorValidationContract(
+        project_id=project_id,
+        targets=tuple(budgets),
+        configuration_error="; ".join(errors) if errors else None,
+    )
+
+
+def resolve_auditor_validation_budget(
+    command: str,
+    project: Any = None,
+    *,
+    global_timeout_seconds: int | None = None,
+) -> tuple[AuditorValidationTargetBudget | None, str | None]:
+    """Resolve an exact ``make TARGET`` after command policy authorization.
+
+    This function never grants command authority. Callers must first run
+    :func:`check_auditor_command` through the ordinary shell policy.
+    """
+
+    contract = build_auditor_validation_contract(
+        project,
+        global_timeout_seconds=global_timeout_seconds,
+    )
+    if contract.configuration_error:
+        return None, contract.configuration_error
+    try:
+        tokens = shlex.split(str(command or ""), posix=True)
+    except ValueError:
+        return None, None
+    if len(tokens) != 2 or tokens[0] != "make":
+        return None, None
+    return contract.budget_for_target(tokens[1]), None
+
+
+def auditor_validation_timeout_message(
+    budget: AuditorValidationTargetBudget,
+) -> str:
+    expected = str(budget.expected_seconds)
+    return (
+        "Error: auditor validation target "
+        f"{budget.target!r} exceeded deadline_seconds={budget.deadline_seconds} "
+        f"(expected_seconds={expected}). Do not fall back to a broader or "
+        "predictably slower target; submit a configuration/code failure with "
+        "this evidence. "
+        f"[reason={AUDITOR_VALIDATION_DEADLINE_REASON} target={budget.target} "
+        f"deadline_seconds={budget.deadline_seconds} expected_seconds={expected}]"
+    )
 
 
 class AuditorCommandDenial(str):
@@ -1281,7 +1573,11 @@ def _recoverable_read_only_denial() -> AuditorCommandDenial:
     )
 
 
-def _get_auditor_validation_targets(project_id: str | None = None) -> list[str]:
+def _get_auditor_validation_targets(
+    project_id: str | None = None,
+    *,
+    project: Any = None,
+) -> list[str]:
     """Return the list of approved validation targets for an auditor.
     
     When project_id is provided, looks up the project's auditor_validation_targets
@@ -1292,8 +1588,19 @@ def _get_auditor_validation_targets(project_id: str | None = None) -> list[str]:
     
     Default targets are: ['test', 'test-serial', 'check-secrets']
     """
-    default_targets = ["test", "test-serial", "check-secrets"]
-    
+    default_targets = list(DEFAULT_AUDITOR_VALIDATION_TARGETS)
+
+    if project is not None:
+        raw_targets = list(
+            getattr(project, "auditor_validation_targets", None) or default_targets
+        )
+        contract = build_auditor_validation_contract(project)
+        if contract.configuration_error:
+            # Let the execution layer return the truthful configuration
+            # failure for an otherwise authorized exact target.
+            return raw_targets
+        return [budget.target for budget in contract.targets]
+
     if not project_id:
         return default_targets
     
@@ -1302,7 +1609,7 @@ def _get_auditor_validation_targets(project_id: str | None = None) -> list[str]:
         store = ProjectStore()
         project = store.get(project_id)
         if project and project.auditor_validation_targets:
-            return project.auditor_validation_targets
+            return list(project.auditor_validation_targets)
     except Exception:
         # If we can't load the project, fall back to defaults
         pass
@@ -1345,7 +1652,12 @@ def _build_auditor_command_regex(validation_targets: list[str] | None = None) ->
     return re.compile(pattern_str, re.IGNORECASE)
 
 
-def check_auditor_command(command: str, project_id: str | None = None) -> str | None:
+def check_auditor_command(
+    command: str,
+    project_id: str | None = None,
+    *,
+    project: Any = None,
+) -> str | None:
     """Return a denial for commands outside the read/test allowlist.
     
     Denials are classified as recoverable (contract mismatch) or fatal (security
@@ -1358,8 +1670,8 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
     - File redirection to write/append files (>, >>)
     - Process control (eval, xargs, etc.)
     
-    Contract mismatches checked after security (recoverable if read-only):
-    - Commands outside the project's validation contract
+    Contract mismatches checked after security:
+    - Unapproved Make targets are fatal authority violations
     - Compound read-only syntax (pipes, semicolons) without mutations
     
     Parameters
@@ -1417,9 +1729,11 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
             )
     
     # Build the contract regex based on project configuration
-    command_regex = _build_auditor_command_regex(
-        _get_auditor_validation_targets(project_id)
+    validation_targets = _get_auditor_validation_targets(
+        project_id,
+        project=project,
     )
+    command_regex = _build_auditor_command_regex(validation_targets)
     
     # Special validation for git rev-list: ensure only safe flags are used.
     # This must happen regardless of contract matching because the contract
@@ -1429,6 +1743,21 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
     # (compound commands, redirection, command substitution) is caught earlier
     # in the mutation and security checks.
     tokens = _auditor_shell_tokens(normalized)
+    if tokens and tokens[0].lower() == "make":
+        if (
+            tokens[0] != "make"
+            or len(tokens) != 2
+            or tokens[1] not in validation_targets
+        ):
+            make_targets_str = ", ".join(f"make {t}" for t in validation_targets)
+            return AuditorCommandDenial(
+                "Error: auditor capability policy permits only exact configured "
+                "Make targets; command denied. "
+                f"Allowed validation targets: {make_targets_str}. "
+                "The command was not executed. "
+                f"[reason={AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON}]",
+                reason=AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON,
+            )
     if tokens and len(tokens) >= 2 and tokens[0].lower() == "git" and tokens[1].lower() == "rev-list":
         if not _is_safe_git_rev_list_command(normalized):
             # git rev-list with unsupported flags: recoverable (still read-only)
@@ -1445,20 +1774,18 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
         if tokens:
             first_token = tokens[0].lower()
             
-            # make <target> commands are recoverable outside contract (typically non-mutating by convention)
+            # A Makefile target is executable project code. A target outside
+            # the server-issued allowlist is an authority violation, even when
+            # its name sounds read-only.
             if first_token == "make" and len(tokens) >= 2:
-                # make target command outside contract: recoverable
-                validation_targets = _get_auditor_validation_targets(project_id)
                 make_targets_str = ", ".join(f"make {t}" for t in validation_targets)
                 return AuditorCommandDenial(
-                    "Error: auditor capability policy permits only read-only repository "
-                    "inspection and configured test commands; command denied. "
+                    "Error: auditor capability policy permits only exact configured "
+                    "Make targets; command denied. "
                     f"Allowed validation targets: {make_targets_str}. "
-                    "Alternatively, use search_files and bounded read_file for inspection. "
                     "The command was not executed. "
-                    f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
-                    recoverable=True,
-                    reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+                    f"[reason={AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON}]",
+                    reason=AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON,
                 )
             
             # Compound read-only pipeline outside contract: recoverable, suggest splitting
@@ -1499,17 +1826,50 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
     return None
 
 
+def validate_auditor_target_deadlines(
+    validation_targets: list[str],
+    target_deadlines: dict[str, int],
+    target_expected_seconds: dict[str, int] | None = None,
+    global_timeout_seconds: int = 720,
+) -> str | None:
+    """Compatibility wrapper returning the centralized contract error."""
+
+    project = type(
+        "AuditorValidationProject",
+        (),
+        {
+            "id": "(validation)",
+            "auditor_validation_targets": validation_targets,
+            "auditor_validation_target_deadlines": target_deadlines,
+            "auditor_validation_target_expected_seconds": (
+                target_expected_seconds or {}
+            ),
+        },
+    )()
+    return build_auditor_validation_contract(
+        project,
+        global_timeout_seconds=global_timeout_seconds,
+        raw_environment_expected_seconds="{}",
+    ).configuration_error
+
+
 __all__ = [
     "AUDITOR_ALLOWED_TOOLS",
     "AUDITOR_CAPABILITY_POLICY",
     "AUDITOR_FOCUS_NAME",
     "AUDITOR_MUTATING_TOOLS",
     "AUDITOR_READ_ONLY_SYNTAX_REASON",
+    "AUDITOR_VALIDATION_CONFIGURATION_REASON",
+    "AUDITOR_VALIDATION_DEADLINE_REASON",
+    "AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS_ENV",
+    "AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON",
     "AUDITOR_RESULT_TOOL_NAME",
     "AUDITOR_RESULT_TOOL_SCHEMA",
     "AuditorCommandDenial",
     "AuditorCapabilityPolicy",
     "AuditorTargetContract",
+    "AuditorValidationContract",
+    "AuditorValidationTargetBudget",
     "_MAX_RESULT_MESSAGE_LENGTH",
     "_MAX_SAFE_EVIDENCE_ENTRIES",
     "_MAX_SAFE_EVIDENCE_KEY_LENGTH",
@@ -1519,10 +1879,14 @@ __all__ = [
     "_RESULT_SECRET_RE",
     "_SECRET_KEY_RE",
     "auditor_target_contract",
+    "auditor_validation_timeout_message",
+    "build_auditor_validation_contract",
     "check_auditor_session_target",
     "check_auditor_command",
     "is_recoverable_auditor_command_denial",
     "pending_auditor_target",
     "parse_auditor_result",
     "submit_auditor_result",
+    "resolve_auditor_validation_budget",
+    "validate_auditor_target_deadlines",
 ]

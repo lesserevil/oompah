@@ -76,6 +76,10 @@ class Services:
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
     terminal_transition_coordinator: object | None = None
+    # Shared durable workflow composition root.  Kept as an object rather
+    # than a collection of ad-hoc globals so ASGI and scheduler startup use
+    # the same project-scoped stores and transition services.
+    workflow_runtime: object | None = None
     # Keep direct construction compatible with callers that do not need the
     # optional auth bundle. Real bootstrap always supplies the resolved value.
     http_credentials: "oompah.http_auth.HtpasswdCredentials | None" = None
@@ -92,15 +96,13 @@ def attach_webhook_forwarder_alerts(
     from oompah.webhooks import build_webhook_forwarder_alerts
 
     def _on_forwarder_status(status: dict[str, Any]) -> None:
-        orchestrator._alerts = [
-            alert
-            for alert in orchestrator._alerts
-            if not (
+        orchestrator._replace_alerts_matching(
+            lambda alert: (
                 str(alert.get("source", "")) == "webhook_forwarder"
                 or str(alert.get("source", "")).startswith("webhook_forwarder:")
-            )
-        ]
-        orchestrator._alerts.extend(build_webhook_forwarder_alerts(status))
+            ),
+            build_webhook_forwarder_alerts(status),
+        )
 
     webhook_forwarder._status_callback = _on_forwarder_status
 
@@ -124,15 +126,13 @@ def attach_gitlab_hook_alerts(
     from oompah.webhooks import build_gitlab_hook_alerts
 
     def _on_hook_status(status: dict[str, Any]) -> None:
-        orchestrator._alerts = [
-            alert
-            for alert in orchestrator._alerts
-            if not (
+        orchestrator._replace_alerts_matching(
+            lambda alert: (
                 str(alert.get("source", "")) == "gitlab_hook_manager"
                 or str(alert.get("source", "")).startswith("gitlab_hook_manager:")
-            )
-        ]
-        orchestrator._alerts.extend(build_gitlab_hook_alerts(status))
+            ),
+            build_gitlab_hook_alerts(status),
+        )
 
     gitlab_hook_manager._status_callback = _on_hook_status
 
@@ -201,6 +201,7 @@ async def setup_services(
     )
     from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
     from oompah.webhooks import GitLabHookManager, WebhookForwarder
+    from oompah.workflow_runtime import build_workflow_runtime
 
     # Granian workers import the ASGI app directly and do not execute the
     # normal CLI logging setup.  Initialise the same process-local registry
@@ -403,6 +404,10 @@ async def setup_services(
         tracker=orchestrator._tracker_for_project,
         project_store=project_store,
         revoke_delivery_authority=orchestrator._revoke_standalone_delivery_authority,
+        clear_integrated_audit_recovery_alert=(
+            orchestrator._clear_integrated_audit_recovery_alert
+        ),
+        revoke_auditor_authority=orchestrator._revoke_auditor_authority,
         clear_audit_alert=orchestrator.clear_terminal_audit_alert,
         validate_terminal_transition=orchestrator._validate_terminal_transition,
     )
@@ -410,19 +415,25 @@ async def setup_services(
         orchestrator._terminal_audit_metrics
     )
     orchestrator.terminal_transition_coordinator = terminal_transition_coordinator
+    workflow_runtime = build_workflow_runtime(
+        orchestrator,
+        terminal_transition_coordinator=terminal_transition_coordinator,
+    )
+    orchestrator.workflow_runtime = workflow_runtime
+    from oompah.epic_workflow_adapter import attach_epic_workflow_events
+
+    attach_epic_workflow_events(orchestrator, workflow_runtime)
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
     attach_gitlab_hook_alerts(orchestrator, gitlab_hook_manager)
     if label_bootstrap_results:
         from oompah.label_bootstrap import build_label_bootstrap_alerts
 
-        orchestrator._alerts = [
-            alert
-            for alert in orchestrator._alerts
-            if not str(alert.get("source", "")).startswith("label_bootstrap:")
-        ]
-        orchestrator._alerts.extend(
-            build_label_bootstrap_alerts(label_bootstrap_results)
+        orchestrator._replace_alerts_matching(
+            lambda alert: str(alert.get("source", "")).startswith(
+                "label_bootstrap:"
+            ),
+            build_label_bootstrap_alerts(label_bootstrap_results),
         )
 
     # Apply --paused flag
@@ -448,4 +459,5 @@ async def setup_services(
         workflow_path=workflow_path,
         workflow=workflow,
         terminal_transition_coordinator=terminal_transition_coordinator,
+        workflow_runtime=workflow_runtime,
     )

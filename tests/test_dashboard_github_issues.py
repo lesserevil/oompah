@@ -123,7 +123,7 @@ class TestCreateCardTrackerLink:
         script = _extract_script(_load_dashboard())
         body = _extract_func_body(script, "createCard")
         assert "if (identifierEl && !issue.url)" in body
-        assert "openDetailPanel(issue.identifier);" in body
+        assert "openDetailPanel(issue.identifier, issue.project_id || '');" in body
 
 
 # ---------------------------------------------------------------------------

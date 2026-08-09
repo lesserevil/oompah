@@ -19,7 +19,7 @@ import time
 from typing import Iterable
 
 
-REVIEW_CAPACITY_SCHEMA_VERSION = 1
+REVIEW_CAPACITY_SCHEMA_VERSION = 2
 DEFAULT_REVIEW_RESERVATION_TTL_SECONDS = 15 * 60
 _INITIALIZE_LOCK = threading.Lock()
 
@@ -34,6 +34,8 @@ class ReviewCapacityReservation:
     review_id: str | None
     acquired_at: float
     lease_expires_at: float | None
+    authority_generation: str | None = None
+    head_sha: str | None = None
     # True only for the caller that inserted the reservation.  A competing
     # sweep may observe the existing row; it must defer instead of treating
     # that observation as permission to call the forge create API again.
@@ -52,6 +54,8 @@ CREATE TABLE IF NOT EXISTS review_capacity_reservations (
     source_branch TEXT NOT NULL,
     target_branch TEXT NOT NULL,
     review_id TEXT,
+    authority_generation TEXT,
+    head_sha TEXT,
     acquired_at REAL NOT NULL,
     lease_expires_at REAL,
     released_at REAL
@@ -84,11 +88,43 @@ class ReviewCapacityStore:
             self._conn.execute("PRAGMA busy_timeout=10000")
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(_SCHEMA)
+            self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """Upgrade the reservation schema under a cross-process write lock."""
+
+        # The process-local lock prevents duplicate initialization by this
+        # store instance, but deployments can briefly have two service
+        # processes during a graceful restart.  Serialize the column recheck
+        # and ALTER statements through SQLite as one write transaction so both
+        # processes cannot observe the v1 schema and then race the same ADD
+        # COLUMN.
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            columns = {
+                str(row[1])
+                for row in self._conn.execute(
+                    "PRAGMA table_info(review_capacity_reservations)"
+                ).fetchall()
+            }
+            if "authority_generation" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE review_capacity_reservations "
+                    "ADD COLUMN authority_generation TEXT"
+                )
+            if "head_sha" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE review_capacity_reservations "
+                    "ADD COLUMN head_sha TEXT"
+                )
             self._conn.execute(
                 "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", str(REVIEW_CAPACITY_SCHEMA_VERSION)),
             )
             self._conn.commit()
+        except BaseException:
+            self._conn.rollback()
+            raise
 
     def close(self) -> None:
         with self._lock:
@@ -109,6 +145,12 @@ class ReviewCapacityStore:
                 if row["lease_expires_at"] is not None
                 else None
             ),
+            authority_generation=(
+                str(row["authority_generation"])
+                if row["authority_generation"]
+                else None
+            ),
+            head_sha=(str(row["head_sha"]) if row["head_sha"] else None),
         )
 
     @staticmethod
@@ -193,6 +235,8 @@ class ReviewCapacityStore:
         open_review_ids: Iterable[str] | None = None,
         reservation_id: str,
         lease_ttl_seconds: float = DEFAULT_REVIEW_RESERVATION_TTL_SECONDS,
+        authority_generation: str | None = None,
+        head_sha: str | None = None,
     ) -> ReviewCapacityReservation | None:
         """CAS-acquire one project slot, or return ``None`` at capacity.
 
@@ -238,13 +282,17 @@ class ReviewCapacityStore:
                     """
                     INSERT INTO review_capacity_reservations(
                         reservation_id, project_id, task_id, source_branch,
-                        target_branch, review_id, acquired_at,
+                        target_branch, review_id, authority_generation,
+                        head_sha, acquired_at,
                         lease_expires_at, released_at
-                    ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)
+                    ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
                     """,
                     (
                         str(reservation_id), project_id, task_id,
-                        source_branch, target_branch, now, expires_at,
+                        source_branch, target_branch,
+                        str(authority_generation or "").strip() or None,
+                        str(head_sha or "").strip().lower() or None,
+                        now, expires_at,
                     ),
                 )
                 self._conn.commit()
@@ -257,6 +305,10 @@ class ReviewCapacityStore:
                     review_id=None,
                     acquired_at=now,
                     lease_expires_at=expires_at,
+                    authority_generation=(
+                        str(authority_generation or "").strip() or None
+                    ),
+                    head_sha=str(head_sha or "").strip().lower() or None,
                     acquired_new=True,
                 )
             except Exception:
@@ -290,6 +342,8 @@ class ReviewCapacityStore:
         target_branch: str,
         review_id: str,
         reservation_id: str,
+        authority_generation: str | None = None,
+        head_sha: str | None = None,
     ) -> ReviewCapacityReservation:
         """Record an already-open forge review for future close/merge release."""
         project_id = str(project_id)
@@ -297,6 +351,8 @@ class ReviewCapacityStore:
         source_branch = str(source_branch)
         target_branch = str(target_branch)
         review_id = str(review_id).strip()
+        authority_generation = str(authority_generation or "").strip() or None
+        head_sha = str(head_sha or "").strip().lower() or None
         now = time.time()
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -315,12 +371,24 @@ class ReviewCapacityStore:
                     (project_id, review_id, task_id, source_branch, target_branch),
                 ).fetchone()
                 if existing is not None:
-                    if not existing["review_id"]:
+                    if (
+                        not existing["review_id"]
+                        or authority_generation is not None
+                        or head_sha is not None
+                    ):
                         self._conn.execute(
                             "UPDATE review_capacity_reservations "
-                            "SET review_id = ?, lease_expires_at = NULL "
+                            "SET review_id = COALESCE(review_id, ?), "
+                            "authority_generation = COALESCE(?, authority_generation), "
+                            "head_sha = COALESCE(?, head_sha), "
+                            "lease_expires_at = NULL "
                             "WHERE reservation_id = ?",
-                            (review_id, existing["reservation_id"]),
+                            (
+                                review_id,
+                                authority_generation,
+                                head_sha,
+                                existing["reservation_id"],
+                            ),
                         )
                         existing = self._conn.execute(
                             "SELECT * FROM review_capacity_reservations "
@@ -334,13 +402,15 @@ class ReviewCapacityStore:
                     """
                     INSERT INTO review_capacity_reservations(
                         reservation_id, project_id, task_id, source_branch,
-                        target_branch, review_id, acquired_at,
+                        target_branch, review_id, authority_generation,
+                        head_sha, acquired_at,
                         lease_expires_at, released_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
                     """,
                     (
                         str(reservation_id), project_id, task_id,
-                        source_branch, target_branch, review_id, now,
+                        source_branch, target_branch, review_id,
+                        authority_generation, head_sha, now,
                     ),
                 )
                 self._conn.commit()
@@ -353,6 +423,8 @@ class ReviewCapacityStore:
                     review_id=review_id,
                     acquired_at=now,
                     lease_expires_at=None,
+                    authority_generation=authority_generation,
+                    head_sha=head_sha,
                 )
             except Exception:
                 self._conn.rollback()
@@ -399,10 +471,18 @@ class ReviewCapacityStore:
         self,
         project_id: str,
         open_review_ids: Iterable[str],
+        *,
+        minimum_committed_age_seconds: float = 0.0,
     ) -> int:
-        """Release committed reservations absent from a successful live listing."""
+        """Release sufficiently old committed rows absent from a live listing.
+
+        Forge list endpoints may briefly lag a successful create response. The
+        optional age fence prevents that stale-empty window from releasing a
+        just-committed reservation and admitting a duplicate review.
+        """
         ids = self._review_keys(open_review_ids)
         now = time.time()
+        minimum_age = max(0.0, float(minimum_committed_age_seconds))
         released = 0
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -410,7 +490,7 @@ class ReviewCapacityStore:
                 self._drop_expired_uncommitted(now)
                 rows = self._conn.execute(
                     """
-                    SELECT reservation_id, review_id
+                    SELECT reservation_id, review_id, acquired_at
                       FROM review_capacity_reservations
                      WHERE project_id = ?
                        AND released_at IS NULL
@@ -419,7 +499,10 @@ class ReviewCapacityStore:
                     (str(project_id),),
                 ).fetchall()
                 for row in rows:
-                    if str(row["review_id"]) not in ids:
+                    if (
+                        str(row["review_id"]) not in ids
+                        and now - float(row["acquired_at"]) >= minimum_age
+                    ):
                         self._conn.execute(
                             "UPDATE review_capacity_reservations "
                             "SET released_at = ? WHERE reservation_id = ?",

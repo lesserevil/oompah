@@ -265,6 +265,10 @@ class TestShouldDispatchProjectPauseGate:
         reason, _ = orch.state.reject_streak.get("issue-legacy", ("", 0))
         assert reason != "project_paused"
 
+    # Constructing a real Orchestrator initializes its durable SQLite stores.
+    # Preserve that integration coverage while allowing bounded I/O headroom
+    # under the saturated parallel gate.
+    @pytest.mark.timeout(20)
     def test_global_pause_takes_precedence(self, tmp_path):
         """When both global and project paused, reason is global 'paused'
         (reflects the order: global pause checked first, since it is the
@@ -369,10 +373,10 @@ class TestProjectPauseAPI:
         assert self.store.get("proj-api").paused is False
         self.orch.request_refresh.assert_called_once_with()
 
-    def test_pause_endpoint_does_not_request_refresh(self):
+    def test_pause_endpoint_requests_refresh_to_withdraw_durable_work(self):
         res = self.client.post("/api/v1/projects/proj-api/pause")
         assert res.status_code == 200
-        self.orch.request_refresh.assert_not_called()
+        self.orch.request_refresh.assert_called_once_with()
 
     def test_pause_unknown_project_returns_404(self):
         res = self.client.post("/api/v1/projects/proj-nope/pause")

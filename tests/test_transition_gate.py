@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -55,7 +57,12 @@ def _make_orchestrator(issue: Issue, project=None):
     tracker.repo = "repo"
     tracker.fetch_issue_detail.return_value = issue
     tracker.fetch_comments.return_value = []
-    tracker.update_issue = MagicMock()
+
+    def update_issue(_identifier, **fields):
+        if "status" in fields:
+            issue.state = fields["status"]
+
+    tracker.update_issue = MagicMock(side_effect=update_issue)
     tracker.add_label = MagicMock()
     tracker.remove_label = MagicMock()
     tracker.add_comment = MagicMock(return_value={"ok": True})
@@ -73,6 +80,11 @@ def _make_orchestrator(issue: Issue, project=None):
     orch.state.retry_attempts = {}
     orch.state.claimed = set()
     orch.state.completed = set()
+
+    def transition_issue_status(current, requested_status, **_kwargs):
+        tracker.update_issue(current.identifier, status=requested_status)
+
+    orch._transition_issue_status.side_effect = transition_issue_status
     return orch, tracker
 
 
@@ -177,6 +189,53 @@ class TestApiTransitionGates:
 
         assert resp.status_code == 200
         tracker.update_issue.assert_called_once_with("owner/repo#42", status="Open")
+
+    def test_owner_patch_releases_project_lock_for_async_status_writer(self, client):
+        issue = _issue(state="Backlog")
+        orch, tracker = _make_orchestrator(issue)
+        project_lock = threading.RLock()
+        acquired_from_writer: list[bool] = []
+        event_loop_progress: list[str] = []
+        orch.project_store.project_write_lock.side_effect = (
+            lambda _project_id: project_lock
+        )
+
+        async def transition(current, requested_status, **_fields):
+            event_loop_progress.append("started")
+            await asyncio.sleep(0)
+
+            def mutate() -> None:
+                acquired = project_lock.acquire(timeout=0.5)
+                acquired_from_writer.append(acquired)
+                if acquired:
+                    try:
+                        current.state = requested_status
+                    finally:
+                        project_lock.release()
+
+            await asyncio.to_thread(mutate)
+            event_loop_progress.append("finished")
+
+        orch._transition_issue_status_async = transition
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            response = client.patch(
+                "/api/v1/issues/placeholder",
+                json={
+                    "issue_key": "owner/repo#42",
+                    "project_id": "proj-1",
+                    "status": "Open",
+                    "actor_login": "owner",
+                },
+            )
+
+        assert response.status_code == 200
+        assert acquired_from_writer == [True]
+        assert event_loop_progress == ["started", "finished"]
+        orch._transition_issue_status.assert_not_called()
 
     def test_owner_patch_can_promote_project_scoped_display_id(self, client):
         issue = _issue(state="Backlog")

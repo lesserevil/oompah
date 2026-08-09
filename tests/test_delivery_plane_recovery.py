@@ -2,32 +2,220 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import replace
 import asyncio
+import copy
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import shlex
 import subprocess
+import threading
 import time
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.container_cycle_repair import (
+    ChildRepairResult,
+    ContainerCycleRepairPlan,
+    ContainerCycleRepairResult,
+    CycleRepairRow,
+)
+from oompah.dependency_graph import issue_index
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
-from oompah.models import Issue, Project, RunningEntry
+from oompah.integration_projection import build_integration_dependency_projections
+from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate, QualityGateOwner
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateOwner,
+    QualityGateResult,
+)
 from oompah.statuses import (
+    ARCHIVED,
     DONE,
+    MERGED,
     NEEDS_CI_FIX,
     NEEDS_REBASE,
     OPEN,
     READY_TO_INTEGRATE,
 )
-from oompah.terminal_audit import compute_issue_evidence_fingerprint
+from oompah.terminal_audit import (
+    AuditAttempt,
+    ContributorIdentity,
+    FailureClassification,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
+
+
+class _IntegratedAuditTracker:
+    """Stateful tracker used across the real coordinator/orchestrator boundary."""
+
+    def __init__(self, issue: Issue) -> None:
+        self.issue = issue
+        self.metadata: dict[str, dict[str, object]] = {}
+        self._lock = threading.RLock()
+        self.fetch_count = 0
+        self.block_initial_fetch = False
+        self.initial_fetch_entered = threading.Event()
+        self.release_initial_fetch = threading.Event()
+        self.fail_status_updates = False
+
+    def fetch_issue_detail(self, identifier: str):
+        with self._lock:
+            self.fetch_count += 1
+            should_block = self.block_initial_fetch and self.fetch_count == 1
+            snapshot = copy.deepcopy(self.issue) if should_block else self.issue
+        if should_block:
+            self.initial_fetch_entered.set()
+            if not self.release_initial_fetch.wait(timeout=5):
+                raise TimeoutError("initial integrated-audit fetch was not released")
+        return snapshot if identifier == self.issue.identifier else None
+
+    def fetch_issues_by_states(self, _states):
+        return [self.issue]
+
+    def fetch_all_issues(self):
+        return [self.issue]
+
+    def get_metadata(self, identifier: str):
+        with self._lock:
+            return copy.deepcopy(self.metadata.get(identifier, {}))
+
+    def set_metadata_field(self, identifier: str, key: str, value: object):
+        with self._lock:
+            self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
+
+    def update_issue(self, identifier: str, **kwargs):
+        assert identifier == self.issue.identifier
+        if "status" in kwargs:
+            if self.fail_status_updates:
+                raise RuntimeError("tracker status writes unavailable")
+            self.issue.state = kwargs["status"]
+
+    def add_comment(self, _identifier: str, _text: str, author: str = "oompah"):
+        return {"author": author}
+
+
+class _BlockingAlertList(list[dict[str, object]]):
+    """Pause one named writer while it iterates a stale alert snapshot."""
+
+    def __init__(
+        self,
+        rows: list[dict[str, object]],
+        entered: threading.Event,
+        release: threading.Event,
+        *,
+        writer_name: str = "health-alert-writer",
+    ) -> None:
+        super().__init__(rows)
+        self.entered = entered
+        self.release = release
+        self.writer_name = writer_name
+        self.blocked = False
+
+    def __iter__(self):
+        if (
+            threading.current_thread().name == self.writer_name
+            and not self.blocked
+        ):
+            self.blocked = True
+            self.entered.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("health alert writer was not released")
+        return super().__iter__()
+
+
+class _ObservedAlertLock:
+    """Expose when the clear thread starts waiting on the alert mutex."""
+
+    def __init__(self, clear_attempted: threading.Event) -> None:
+        self._lock = threading.RLock()
+        self.clear_attempted = clear_attempted
+
+    def __enter__(self):
+        if threading.current_thread().name == "integrated-alert-clear":
+            self.clear_attempted.set()
+        self._lock.acquire()
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback) -> None:
+        self._lock.release()
+
+
+def test_legacy_alert_registry_installs_one_lock_during_concurrent_first_use():
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator._alerts = []
+    worker_count = 8
+    start = threading.Barrier(worker_count + 1)
+    snapshots: list[list[dict[str, object]]] = []
+    errors: list[BaseException] = []
+    created_locks: list[object] = []
+    real_rlock = threading.RLock
+
+    def delayed_rlock():
+        # Release the GIL inside lock construction so every unguarded caller
+        # observes the missing instance attribute before any can install it.
+        time.sleep(0.02)
+        lock = real_rlock()
+        created_locks.append(lock)
+        return lock
+
+    def snapshot() -> None:
+        try:
+            start.wait(timeout=5)
+            snapshots.append(orchestrator._alerts_snapshot())
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=snapshot) for _ in range(worker_count)]
+    with mock.patch("oompah.orchestrator.threading.RLock", new=delayed_rlock):
+        for thread in threads:
+            thread.start()
+        start.wait(timeout=5)
+        for thread in threads:
+            thread.join(timeout=5)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    assert snapshots == [[] for _ in range(worker_count)]
+    assert created_locks == [orchestrator._alerts_lock]
+
+
+def _make_real_audit_harness(tmp_path, issue: Issue, tracker: _IntegratedAuditTracker):
+    project = Project(
+        id="proj-1",
+        name="Recovery project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="main",
+        tracker_owner="project-owner",
+        status_label_authorized_logins=["project-owner"],
+    )
+    project_store = mock.MagicMock()
+    project_store.list_all.return_value = [project]
+    project_store.get.side_effect = lambda project_id: (
+        project if project_id == project.id else None
+    )
+    project_lock = threading.RLock()
+    project_store.project_write_lock.side_effect = lambda _project_id: project_lock
+    orchestrator = Orchestrator(
+        config=ServiceConfig(),
+        workflow_path=str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "real-service-state.json"),
+    )
+    orchestrator._project_trackers[project.id] = tracker
+    return orchestrator, project
 
 
 def _issue(
@@ -104,9 +292,41 @@ def _blocked_row(orchestrator: Orchestrator, project: Project, issue: Issue):
     return row
 
 
+def _completed_integrated_audit_metadata(
+    issue: Issue,
+    project_id: str,
+    classification: FailureClassification,
+) -> dict[str, object]:
+    fingerprint = compute_issue_evidence_fingerprint(issue, project_id)
+    attempt = AuditAttempt(
+        attempt_id="attempt-integrated-recovery",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict="fail",
+        failure_classification=classification,
+        requested_by=ContributorIdentity("auditor", "service"),
+        completed_at="2026-08-06T00:01:00Z",
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-integrated-completed",
+        project_id=project_id,
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[attempt],
+        requested_by=ContributorIdentity("integration", "service"),
+        previous_state="Ready to Integrate",
+        created_at="2026-08-06T00:00:00Z",
+    )
+    return {METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()}
+
+
 def _close(orchestrator: Orchestrator) -> None:
     orchestrator.integration_queue.close()
     orchestrator.coordination_store.close()
+    orchestrator.task_transition_journal.close()
     orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
     orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
@@ -151,7 +371,9 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
         ]
         assert len(alerts) == 1
         assert "c" * 40 in alerts[0]["message"]
-        assert "audit_retry_evidence_addendum" in alerts[0]["message"]
+        assert alerts[0]["recovery_action"] == "audit_override"
+        assert "audit_override=true" in alerts[0]["message"]
+        assert "audit_retry_evidence_addendum" not in alerts[0]["message"]
         assert (
             orchestrator.request_terminal_transition.call_args.kwargs[
                 "evidence_fingerprint"
@@ -165,6 +387,698 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
             alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
             for alert in orchestrator._alerts
         )
+    finally:
+        _close(orchestrator)
+
+
+@pytest.mark.parametrize(
+    ("classification", "expected_action"),
+    [
+        (FailureClassification.NO_AUDITOR, "audit_retry"),
+        (
+            FailureClassification.MISSING_EVIDENCE,
+            "audit_retry_evidence_addendum",
+        ),
+    ],
+)
+def test_integrated_recovery_alert_matches_completed_failure_action(
+    tmp_path,
+    classification: FailureClassification,
+    expected_action: str,
+):
+    """An integrated replay never advertises an ineligible retry contract."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="d" * 40)
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    tracker.get_metadata.return_value = _completed_integrated_audit_metadata(
+        issue, project.id, classification
+    )
+    try:
+        _row = orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            lease_owner="worker-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project.id, issue.identifier, lease_owner="worker-1"
+        )
+
+        orchestrator.request_terminal_transition = mock.AsyncMock(
+            return_value=TransitionResult(success=False, reason="already completed")
+        )
+        asyncio.run(orchestrator._stage_integrated_task_audit(claimed))
+
+        alert = next(
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+        )
+        assert alert["recovery_action"] == expected_action
+        if expected_action == "audit_retry":
+            assert "audit_retry=true" in alert["message"]
+            assert "audit_retry_evidence_addendum" not in alert["message"]
+        else:
+            fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+            assert "audit_retry_evidence_addendum" in alert["message"]
+            assert fingerprint.digest in alert["message"]
+    finally:
+        _close(orchestrator)
+
+
+def test_concurrent_owner_terminal_commit_cannot_be_followed_by_stale_alert(
+    tmp_path,
+):
+    """The real coordinator and staging path share one project CAS lock."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="e" * 40)
+    tracker = _IntegratedAuditTracker(issue)
+    tracker.metadata[issue.identifier] = _completed_integrated_audit_metadata(
+        issue,
+        "proj-1",
+        FailureClassification.NO_AUDITOR,
+    )
+    orchestrator, project = _make_real_audit_harness(tmp_path, issue, tracker)
+    tracker.block_initial_fetch = True
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="worker-1",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        issue.identifier,
+        lease_owner="worker-1",
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        staging = pool.submit(
+            asyncio.run,
+            orchestrator._stage_integrated_task_audit(claimed),
+        )
+        assert tracker.initial_fetch_entered.wait(timeout=5)
+
+        def apply_override():
+            return asyncio.run(
+                orchestrator.terminal_transition_coordinator.override_transition(
+                    current_issue=issue,
+                    requested_target=TargetState.DONE,
+                    authorized_actor=ContributorIdentity("project-owner", "api"),
+                    project_id=project.id,
+                    evidence_fingerprint=fingerprint,
+                    reason="Owner verified the integrated revision.",
+                    project=project,
+                )
+            )
+
+        overriding = pool.submit(apply_override)
+        override = overriding.result(timeout=5)
+        assert issue.state == DONE
+        tracker.release_initial_fetch.set()
+        staging.result(timeout=5)
+
+    try:
+        assert override.success is True
+        assert issue.state == DONE
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts
+        )
+    finally:
+        _close(orchestrator)
+
+    # Restart replay observes the real terminal tracker state before touching
+    # metadata and therefore cannot recreate the warning.
+    tracker.block_initial_fetch = False
+    restarted, _project = _make_real_audit_harness(tmp_path, issue, tracker)
+    try:
+        asyncio.run(restarted._stage_integrated_task_audit(item))
+        assert issue.state == DONE
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in restarted._alerts
+        )
+    finally:
+        _close(restarted)
+
+
+def test_unknown_tracker_state_does_not_rearm_alert_after_terminal_commit(tmp_path):
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="f" * 40)
+    tracker = _IntegratedAuditTracker(issue)
+    tracker.metadata[issue.identifier] = _completed_integrated_audit_metadata(
+        issue,
+        "proj-1",
+        FailureClassification.NO_AUDITOR,
+    )
+    orchestrator, project = _make_real_audit_harness(tmp_path, issue, tracker)
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    orchestrator._arm_integrated_audit_recovery_alert(
+        project.id,
+        issue.identifier,
+        DONE,
+        "auditor capacity exhausted",
+        issue.integration.integrated_sha,
+        recovery_action="audit_retry",
+        evidence_fingerprint=fingerprint,
+    )
+
+    try:
+        override = asyncio.run(
+            orchestrator.terminal_transition_coordinator.override_transition(
+                current_issue=issue,
+                requested_target=TargetState.DONE,
+                authorized_actor=ContributorIdentity("project-owner", "api"),
+                project_id=project.id,
+                evidence_fingerprint=fingerprint,
+                reason="Owner verified the integrated revision.",
+                project=project,
+            )
+        )
+        assert override.success is True
+        assert issue.state == DONE
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts_snapshot()
+        )
+
+        with mock.patch.object(
+            tracker,
+            "fetch_issue_detail",
+            side_effect=RuntimeError("tracker read unavailable"),
+        ):
+            changed = orchestrator._reconcile_integrated_audit_recovery_alert(
+                project.id,
+                issue.identifier,
+                DONE,
+                "stale staging failure",
+                issue.integration.integrated_sha,
+                fingerprint,
+            )
+
+        assert changed is False
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts_snapshot()
+        )
+    finally:
+        _close(orchestrator)
+
+
+@pytest.mark.parametrize(
+    "detail_mutation",
+    ("missing", "malformed", "identifier", "project"),
+)
+def test_untrusted_tracker_detail_cannot_clear_integrated_recovery_alert(
+    tmp_path,
+    detail_mutation: str,
+):
+    """Only the exact requested task scope can retire its recovery warning."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="1" * 40)
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    orchestrator._arm_integrated_audit_recovery_alert(
+        project.id,
+        issue.identifier,
+        DONE,
+        "auditor capacity exhausted",
+        issue.integration.integrated_sha,
+        recovery_action="audit_retry",
+        evidence_fingerprint=fingerprint,
+    )
+    before = orchestrator._alerts_snapshot()
+    if detail_mutation == "missing":
+        untrusted = None
+    elif detail_mutation == "malformed":
+        untrusted = object()
+    else:
+        mismatched = copy.deepcopy(issue)
+        mismatched.state = DONE
+        if detail_mutation == "identifier":
+            mismatched.identifier = "TASK-OTHER"
+        else:
+            mismatched.project_id = "proj-other"
+        untrusted = mismatched
+    tracker.fetch_issue_detail.return_value = untrusted
+
+    try:
+        changed = orchestrator._reconcile_integrated_audit_recovery_alert(
+            project.id,
+            issue.identifier,
+            DONE,
+            "stale staging failure",
+            issue.integration.integrated_sha,
+            fingerprint,
+        )
+
+        assert changed is False
+        assert orchestrator._alerts_snapshot() == before
+    finally:
+        _close(orchestrator)
+
+
+def test_integrated_replay_retains_retry_alert_while_status_staging_keeps_failing(
+    tmp_path,
+):
+    """A durable owner rearm cannot make its warning disappear before staging."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="2" * 40)
+    tracker = _IntegratedAuditTracker(issue)
+    tracker.metadata[issue.identifier] = _completed_integrated_audit_metadata(
+        issue,
+        "proj-1",
+        FailureClassification.NO_AUDITOR,
+    )
+    tracker.fail_status_updates = True
+    orchestrator, project = _make_real_audit_harness(tmp_path, issue, tracker)
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="worker-1",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        issue.identifier,
+        lease_owner="worker-1",
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    orchestrator._arm_integrated_audit_recovery_alert(
+        project.id,
+        issue.identifier,
+        DONE,
+        "auditor capacity exhausted",
+        issue.integration.integrated_sha,
+        recovery_action="audit_retry",
+        evidence_fingerprint=fingerprint,
+    )
+
+    try:
+        retry = asyncio.run(
+            orchestrator.terminal_transition_coordinator.retry_failed_audit(
+                current_issue=issue,
+                requested_target=TargetState.DONE,
+                authorized_actor=ContributorIdentity("project-owner", "api"),
+                project_id=project.id,
+                reason="Independent auditor capacity restored.",
+                project=project,
+                evidence_fingerprint=fingerprint,
+            )
+        )
+        assert retry.success is False
+        assert retry.reason == "status_stage_failed"
+
+        # Periodic integrated replay repeatedly coalesces the durable pending
+        # audit, and repeatedly fails the same tracker write.  Neither pass may
+        # reinterpret or clear the accepted owner retry instruction.
+        asyncio.run(orchestrator._stage_integrated_task_audit(item))
+        asyncio.run(orchestrator._stage_integrated_task_audit(item))
+
+        alerts = [
+            alert
+            for alert in orchestrator._alerts_snapshot()
+            if alert.get("source")
+            == "terminal_audit_recovery:proj-1:TASK-1"
+        ]
+        assert len(alerts) == 1
+        assert alerts[0]["recovery_action"] == "audit_retry"
+        assert issue.state == "Needs Human"
+        stored = TerminalAuditMetadata.from_dict(
+            tracker.metadata[issue.identifier][METADATA_KEY]
+        )
+        assert stored.pending_chain[-1].request_state == RequestState.PENDING
+        intents = stored.unknown_fields["oompah.terminal_audit_result_intents"]
+        assert intents[-1]["kind"] == "audit_rearm"
+        assert intents[-1]["applied"] is False
+    finally:
+        _close(orchestrator)
+
+
+def test_alert_family_refresh_cannot_resurrect_concurrently_cleared_alert(tmp_path):
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    orchestrator, _project, _tracker = _make_harness(tmp_path, issue)
+    source = "terminal_audit_recovery:proj-1:TASK-1"
+    writer_entered = threading.Event()
+    release_writer = threading.Event()
+    clear_attempted = threading.Event()
+    clear_finished = threading.Event()
+    errors: list[BaseException] = []
+    orchestrator._alerts_lock = _ObservedAlertLock(clear_attempted)
+    orchestrator._alerts = _BlockingAlertList(
+        [{"level": "warning", "source": source, "message": "stale"}],
+        writer_entered,
+        release_writer,
+    )
+
+    def refresh_health_alerts() -> None:
+        try:
+            orchestrator._refresh_terminal_audit_health(
+                [],
+                scan_complete=True,
+                scan_error_count=0,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def clear_integrated_alert() -> None:
+        try:
+            orchestrator._clear_integrated_audit_recovery_alert(
+                "proj-1",
+                "TASK-1",
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+        finally:
+            clear_finished.set()
+
+    health_thread = threading.Thread(
+        target=refresh_health_alerts,
+        name="health-alert-writer",
+    )
+    clear_thread = threading.Thread(
+        target=clear_integrated_alert,
+        name="integrated-alert-clear",
+    )
+    health_started = False
+    clear_started = False
+    try:
+        health_thread.start()
+        health_started = True
+        assert writer_entered.wait(timeout=5)
+        clear_thread.start()
+        clear_started = True
+        assert clear_attempted.wait(timeout=5)
+        assert not clear_finished.wait(timeout=0.05)
+        release_writer.set()
+        health_thread.join(timeout=5)
+        clear_thread.join(timeout=5)
+
+        assert not health_thread.is_alive()
+        assert not clear_thread.is_alive()
+        assert errors == []
+        assert not any(
+            alert.get("source") == source
+            for alert in orchestrator._alerts_snapshot()
+        )
+    finally:
+        release_writer.set()
+        if health_started:
+            health_thread.join(timeout=5)
+        if clear_started:
+            clear_thread.join(timeout=5)
+        _close(orchestrator)
+
+
+def test_bootstrap_callback_and_terminal_clear_share_alert_lock(tmp_path):
+    """A live bootstrap callback cannot lose alerts or restore a cleared family."""
+
+    from oompah.bootstrap import attach_webhook_forwarder_alerts
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    orchestrator, _project, _tracker = _make_harness(tmp_path, issue)
+    recovery_source = "terminal_audit_recovery:proj-1:TASK-1"
+    writer_entered = threading.Event()
+    release_writer = threading.Event()
+    clear_attempted = threading.Event()
+    clear_finished = threading.Event()
+    errors: list[BaseException] = []
+    orchestrator._alerts_lock = _ObservedAlertLock(clear_attempted)
+    orchestrator._alerts = _BlockingAlertList(
+        [
+            {"level": "warning", "source": recovery_source, "message": "stale"},
+            {"level": "info", "source": "unrelated", "message": "preserve"},
+        ],
+        writer_entered,
+        release_writer,
+        writer_name="webhook-alert-writer",
+    )
+    forwarder = SimpleNamespace(_status_callback=None)
+
+    with mock.patch(
+        "oompah.webhooks.build_webhook_forwarder_alerts",
+        return_value=[
+            {
+                "level": "warning",
+                "source": "webhook_forwarder:delivery",
+                "message": "forwarder unavailable",
+            }
+        ],
+    ):
+        attach_webhook_forwarder_alerts(orchestrator, forwarder)
+
+        def publish_forwarder_alert() -> None:
+            try:
+                forwarder._status_callback({})
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        def clear_integrated_alert() -> None:
+            try:
+                orchestrator._clear_integrated_audit_recovery_alert(
+                    "proj-1",
+                    "TASK-1",
+                )
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+            finally:
+                clear_finished.set()
+
+        callback_thread = threading.Thread(
+            target=publish_forwarder_alert,
+            name="webhook-alert-writer",
+        )
+        clear_thread = threading.Thread(
+            target=clear_integrated_alert,
+            name="integrated-alert-clear",
+        )
+        callback_started = False
+        clear_started = False
+        try:
+            callback_thread.start()
+            callback_started = True
+            assert writer_entered.wait(timeout=5)
+            clear_thread.start()
+            clear_started = True
+            assert clear_attempted.wait(timeout=5)
+            assert not clear_finished.wait(timeout=0.05)
+            release_writer.set()
+            callback_thread.join(timeout=5)
+            clear_thread.join(timeout=5)
+
+            assert not callback_thread.is_alive()
+            assert not clear_thread.is_alive()
+            assert errors == []
+            alerts = {
+                alert["source"]: alert
+                for alert in orchestrator._alerts_snapshot()
+            }
+            assert recovery_source not in alerts
+            assert alerts["unrelated"]["message"] == "preserve"
+            assert (
+                alerts["webhook_forwarder:delivery"]["message"]
+                == "forwarder unavailable"
+            )
+        finally:
+            release_writer.set()
+            if callback_started:
+                callback_thread.join(timeout=5)
+            if clear_started:
+                clear_thread.join(timeout=5)
+            _close(orchestrator)
+def test_queue_first_legacy_checkpoint_repairs_tracker_before_terminal_stage(tmp_path):
+    issue = _issue(integration_state="ready")
+    predecessor = issue.integration.head_sha
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    queued = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=predecessor,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="legacy-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    checkpoint = orchestrator.integration_queue.checkpoint_legacy_integration(
+        project.id,
+        issue.identifier,
+        lease_owner="legacy-worker",
+        expected_task_branch=queued.task_branch,
+        expected_head_sha=predecessor,
+        rebased_head_sha="b" * 40,
+        integrated_sha="c" * 40,
+        base_sha="d" * 40,
+    )
+    assert checkpoint is not None
+    order = []
+
+    def persist_metadata(_identifier, _field, value):
+        order.append("tracker")
+        issue.integration = IntegrationRecord.from_dict(value)
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+    orchestrator._notify_integrated_task_peers = mock.MagicMock(
+        side_effect=lambda **_kwargs: order.append("peers")
+    )
+    orchestrator.request_terminal_transition = mock.AsyncMock(
+        return_value=TransitionResult(success=True, status_staged=True)
+    )
+    try:
+        staged = asyncio.run(
+            orchestrator._stage_integrated_task_audit(
+                checkpoint,
+                expected_generation=checkpoint.authority_generation(),
+                expected_task_branch=checkpoint.task_branch,
+                expected_head_sha=checkpoint.head_sha,
+                expected_integrated_sha=checkpoint.integrated_sha,
+            )
+        )
+
+        assert staged is True
+        assert order[:2] == ["peers", "tracker"]
+        assert issue.integration.state == "integrated"
+        assert issue.integration.head_sha == "b" * 40
+        assert issue.integration.integrated_sha == "c" * 40
+        assert orchestrator.integration_queue.get(
+            project.id, issue.identifier
+        ) == checkpoint
+    finally:
+        _close(orchestrator)
+
+
+def test_stale_audit_generation_cannot_repair_replacement_queue_first_gap(tmp_path):
+    issue = _issue(integration_state="ready")
+    branch = issue.integration.task_branch
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+
+    original = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=branch,
+        head_sha="a" * 40,
+    )
+    original_claim = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="original-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert original_claim is not None
+    generation_a = orchestrator.integration_queue.checkpoint_legacy_integration(
+        project.id,
+        issue.identifier,
+        lease_owner="original-worker",
+        expected_task_branch=original.task_branch,
+        expected_head_sha=original.head_sha,
+        rebased_head_sha="b" * 40,
+        integrated_sha="c" * 40,
+        base_sha="d" * 40,
+    )
+    assert generation_a is not None
+
+    replacement = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=branch,
+        head_sha="e" * 40,
+    )
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=branch,
+        head_sha=replacement.head_sha,
+    )
+    replacement_claim = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="replacement-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert replacement_claim is not None
+    generation_b = orchestrator.integration_queue.checkpoint_legacy_integration(
+        project.id,
+        issue.identifier,
+        lease_owner="replacement-worker",
+        expected_task_branch=replacement.task_branch,
+        expected_head_sha=replacement.head_sha,
+        rebased_head_sha="f" * 40,
+        integrated_sha="1" * 40,
+        base_sha="2" * 40,
+    )
+    assert generation_b is not None
+    assert generation_b.authority_generation() != generation_a.authority_generation()
+
+    orchestrator._notify_integrated_task_peers = mock.MagicMock()
+    orchestrator._clear_integrated_audit_recovery_alert = mock.MagicMock()
+    orchestrator.request_terminal_transition = mock.AsyncMock()
+    tracker.set_metadata_field.reset_mock()
+    orchestrator.project_store.remove_worktree.reset_mock()
+    try:
+        staged = asyncio.run(
+            orchestrator._stage_integrated_task_audit(
+                generation_a,
+                expected_generation=generation_a.authority_generation(),
+                expected_task_branch=generation_a.task_branch,
+                expected_head_sha=generation_a.head_sha,
+                expected_integrated_sha=generation_a.integrated_sha,
+            )
+        )
+
+        assert staged is False
+        assert orchestrator.integration_queue.get(
+            project.id, issue.identifier
+        ) == generation_b
+        assert issue.integration.state == "ready"
+        assert issue.integration.head_sha == replacement.head_sha
+        orchestrator._notify_integrated_task_peers.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        orchestrator.request_terminal_transition.assert_not_awaited()
+        orchestrator.project_store.remove_worktree.assert_not_called()
+        orchestrator._clear_integrated_audit_recovery_alert.assert_not_called()
     finally:
         _close(orchestrator)
 
@@ -226,6 +1140,102 @@ def test_integrated_audit_replay_is_bounded_and_resumes_after_restart(tmp_path):
         _close(restarted)
 
 
+def test_durable_historical_replay_is_bounded_to_exact_project(tmp_path):
+    issue = _issue()
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    for project_id, task_id, head in (
+        (project.id, "HIST-OURS", "a" * 40),
+        ("proj-2", "HIST-THEIRS", "b" * 40),
+    ):
+        orchestrator.integration_queue.enqueue(
+            project_id=project_id,
+            epic_id="EPIC-1",
+            task_id=task_id,
+            task_branch=f"branch-{task_id}",
+            head_sha=head,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project_id,
+            epic_id="EPIC-1",
+            lease_owner=f"worker-{task_id}",
+            dependency_map={task_id: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project_id,
+            task_id,
+            lease_owner=f"worker-{task_id}",
+        )
+    staged = mock.AsyncMock()
+    orchestrator._stage_integrated_task_audit = staged
+    try:
+        receipt = asyncio.run(
+            orchestrator._replay_project_integrated_audit_batch(
+                project_id=project.id,
+            )
+        )
+
+        assert receipt["batch_completed"] is True
+        assert receipt["replayed"] == 1
+        assert [call.args[0].task_id for call in staged.await_args_list] == [
+            "HIST-OURS"
+        ]
+        kwargs = staged.await_args_list[0].kwargs
+        ours = orchestrator.integration_queue.get(project.id, "HIST-OURS")
+        assert kwargs["expected_generation"] == ours.authority_generation()
+        assert kwargs["expected_task_branch"] == ours.task_branch
+        assert kwargs["expected_head_sha"] == ours.head_sha
+        assert orchestrator._maintenance_cursors.get(
+            f"integration_audit:{project.id}"
+        ) == orchestrator.integration_queue.cursor_for(ours)
+    finally:
+        _close(orchestrator)
+
+
+def test_durable_historical_replay_does_not_advance_past_unobservable_row(
+    tmp_path,
+):
+    issue = _issue()
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    task_id = "HIST-STALLED"
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=task_id,
+        task_branch="branch-HIST-STALLED",
+        head_sha="a" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        lease_owner="history-worker",
+        dependency_map={task_id: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        task_id,
+        lease_owner="history-worker",
+    )
+    orchestrator._stage_integrated_task_audit = mock.AsyncMock(return_value=False)
+    cursor_name = f"integration_audit:{project.id}"
+    try:
+        receipt = asyncio.run(
+            orchestrator._replay_project_integrated_audit_batch(
+                project_id=project.id,
+            )
+        )
+
+        assert receipt["batch_completed"] is False
+        assert receipt["replayed"] == 0
+        assert receipt["error"]
+        assert orchestrator._maintenance_cursors.get(cursor_name) is None
+    finally:
+        _close(orchestrator)
+
+
 @pytest.mark.timeout(30)
 def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
     issue = _issue(identifier="LIVE-READY", integration_state="ready")
@@ -270,28 +1280,71 @@ def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
     orchestrator._integration_satisfied_dependencies = mock.MagicMock(
         return_value=set()
     )
-    orchestrator._execute_integration_item = mock.MagicMock(
-        return_value=IntegrationExecutionResult(
+    def execute_live_item(item, **_kwargs):
+        # The real executor durably canonicalizes the rebased combined-tree
+        # candidate before it returns success.  Model that contract here so
+        # finalization sees the same queue/tracker generation it would in
+        # production; bypassing it would correctly fail closed.
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=item.project_id,
+            task_id=item.task_id,
+            lease_owner=item.lease_owner or "",
+            expected_head_sha=item.head_sha,
+            expected_candidate_head_sha=item.candidate_head_sha,
+            candidate_head_sha="c" * 40,
+            candidate_base_sha="b" * 40,
+        ) is not None
+        issue.integration = replace(
+            issue.integration,
+            head_sha="c" * 40,
+            base_sha="b" * 40,
+        )
+        return IntegrationExecutionResult(
             status="integrated",
             message="integrated",
             expected_epic_sha="b" * 40,
             rebased_task_sha="c" * 40,
             integrated_sha="d" * 40,
         )
+
+    orchestrator._execute_integration_item = mock.MagicMock(
+        side_effect=execute_live_item
     )
+
+    audit_started = asyncio.Event()
+    release_audit = asyncio.Event()
 
     async def record_audit(item):
         events.append(f"audit:{item.task_id}")
+        audit_started.set()
+        await release_audit.wait()
 
     orchestrator._stage_integrated_task_audit = record_audit
     orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator._terminal_audit_started = True
+    post_refresh = mock.MagicMock()
+    orchestrator._post_dispatch_refresh = post_refresh
+
+    async def scenario() -> None:
+        # Historical replay owns its independent future and is deliberately
+        # blocked on the first of 200 durable integrated rows.
+        assert orchestrator._ensure_integration_audit_lane() is True
+        await asyncio.wait_for(audit_started.wait(), timeout=1)
+
+        # The prompt lane must still claim and durably integrate independent
+        # Ready work before the historical replay is allowed to advance.
+        claim_pass = asyncio.create_task(orchestrator._process_integration_queues())
+        await asyncio.wait_for(claim_pass, timeout=1)
+        assert "claim" in events
+        assert orchestrator._integration_audit_future is not None
+        assert not orchestrator._integration_audit_future.done()
+
+        release_audit.set()
+        await asyncio.wait_for(orchestrator._integration_audit_future, timeout=2)
+
     try:
-        asyncio.run(orchestrator._process_integration_queues())
-        assert events[0] == "claim"
-        assert events[1] == "audit:LIVE-READY"
-        assert orchestrator._maintenance_status["integration_queue"][
-            "audit_replayed"
-        ] == 32
+        asyncio.run(scenario())
         assert orchestrator.integration_queue.items(
             states=("integrating",),
         ) == []
@@ -300,6 +1353,16 @@ def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
             epic_id="EPIC-1",
             states=("integrated",),
         )[-1].task_id == issue.identifier
+        projection = orchestrator._integration_dependency_projections[
+            (project.id, "EPIC-1", issue.identifier)
+        ]
+        assert projection.dependencies == ()
+        assert projection.unresolved == ()
+        assert projection.unreachable == ()
+        integrated = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert integrated is not None
+        assert integrated.state == "integrated"
+        post_refresh.assert_called_once_with()
     finally:
         _close(orchestrator)
 
@@ -349,6 +1412,39 @@ def test_dependency_blocked_ready_row_is_not_reported_as_claim_stall(tmp_path):
         _close(orchestrator)
 
 
+def test_running_epic_repair_invalidates_cached_dependency_projection(tmp_path):
+    issue = _issue(identifier="REPAIR-OWNED", integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    row = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    projection = build_integration_dependency_projections(
+        [issue],
+        [row],
+        {issue.identifier: ()},
+        set(),
+    )[0]
+    orchestrator._publish_integration_dependency_projections((projection,))
+    orchestrator._running_values_snapshot = mock.MagicMock(
+        return_value=[mock.MagicMock(identifier="EPIC-1")]
+    )
+    orchestrator._integration_satisfied_dependencies = mock.MagicMock()
+
+    try:
+        asyncio.run(orchestrator._process_integration_queues())
+
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert orchestrator.integration_dependency_projection(current) is None
+        orchestrator._integration_satisfied_dependencies.assert_not_called()
+    finally:
+        _close(orchestrator)
+
+
 def _local_quality_gate_repo(tmp_path):
     repo = tmp_path / "quality-repo"
     repo.mkdir()
@@ -387,6 +1483,27 @@ def test_ready_retry_metadata_rearms_identical_blocked_queue_row(tmp_path):
             alert.get("source") == "integration_delivery:proj-1:TASK-1"
             for alert in orchestrator._alerts
         )
+    finally:
+        _close(orchestrator)
+
+
+def test_restart_sync_restores_recorded_nested_target_authority(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.parent_id = "OOMPAH-804"
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="b" * 40,
+    )
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator._sync_ready_integration_submissions()
+
+        row = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert row is not None
+        assert row.epic_id == "OOMPAH-804"
+        assert row.base_branch == "epic-OOMPAH-768--task-OOMPAH-804"
+        assert row.base_sha == "b" * 40
     finally:
         _close(orchestrator)
 
@@ -826,5 +1943,1419 @@ def test_exact_ready_submission_is_required_for_executor_authority(tmp_path):
         assert not orchestrator._integration_task_still_ready(claimed)
         tracker.fetch_issue_detail.return_value = None
         assert not orchestrator._integration_task_still_ready(claimed)
+    finally:
+        _close(orchestrator)
+
+
+def test_changed_base_sha_revokes_executor_authority(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="b" * 40,
+    )
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="base-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator._integration_task_still_ready(claimed)
+
+        issue.integration = replace(issue.integration, base_sha="c" * 40)
+
+        assert not orchestrator._integration_task_still_ready(claimed)
+    finally:
+        _close(orchestrator)
+
+
+def test_candidate_head_atomically_rebinds_queue_tracker_and_gate_owner(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.parent_id = "OOMPAH-804"
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="OOMPAH-804",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="OOMPAH-804",
+            lease_owner="candidate-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        def persist(_identifier, _field, value):
+            issue.integration = IntegrationRecord.from_dict(value)
+
+        tracker.set_metadata_field.side_effect = persist
+        authority = orchestrator._canonicalize_integration_candidate(
+            claimed,
+            "b" * 40,
+            "c" * 40,
+        )
+
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.head_sha == "a" * 40
+        assert current.candidate_head_sha == "b" * 40
+        assert current.candidate_base_sha == "c" * 40
+        assert issue.integration.head_sha == "b" * 40
+        assert authority.owner is not None
+        assert authority.owner.head_sha == "b" * 40
+        assert "b" * 40 in str(authority.generation)
+        assert authority.is_current is not None and authority.is_current()
+    finally:
+        _close(orchestrator)
+
+
+def _candidate_recovery_repo(tmp_path):
+    """Create submitted A and a newer epic base for a real rebase to C."""
+
+    remote = tmp_path / "candidate-remote.git"
+    seed = tmp_path / "candidate-seed"
+
+    def git(repo, *args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    subprocess.run(
+        ["git", "init", "-q", "--bare", str(remote)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "clone", "-q", str(remote), str(seed)],
+        check=True,
+    )
+    git(seed, "config", "user.name", "oompah")
+    git(seed, "config", "user.email", "lesserevil@users.noreply.github.com")
+    (seed / "base.txt").write_text("base\n", encoding="utf-8")
+    git(seed, "add", "base.txt")
+    git(seed, "commit", "-q", "-m", "base")
+    git(seed, "branch", "-M", "main")
+    git(seed, "push", "-q", "-u", "origin", "main")
+    git(seed, "checkout", "-q", "-b", "epic-EPIC-1")
+    submitted_base = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "-q", "-u", "origin", "epic-EPIC-1")
+    git(seed, "checkout", "-q", "-b", "epic-EPIC-1--task-TASK-1")
+    (seed / "task.txt").write_text("task\n", encoding="utf-8")
+    git(seed, "add", "task.txt")
+    git(seed, "commit", "-q", "-m", "task")
+    submitted_head = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "-q", "-u", "origin", "epic-EPIC-1--task-TASK-1")
+    git(seed, "checkout", "-q", "epic-EPIC-1")
+    (seed / "advance.txt").write_text("advance epic\n", encoding="utf-8")
+    git(seed, "add", "advance.txt")
+    git(seed, "commit", "-q", "-m", "advance epic")
+    candidate_base = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "-q", "origin", "epic-EPIC-1")
+
+    epic = tmp_path / "candidate-epic"
+    task = tmp_path / "candidate-task"
+    for branch, destination in (
+        ("epic-EPIC-1", epic),
+        ("epic-EPIC-1--task-TASK-1", task),
+    ):
+        subprocess.run(
+            [
+                "git",
+                "clone",
+                "-q",
+                "--branch",
+                branch,
+                str(remote),
+                str(destination),
+            ],
+            check=True,
+        )
+        git(destination, "config", "user.name", "oompah")
+        git(
+            destination,
+            "config",
+            "user.email",
+            "lesserevil@users.noreply.github.com",
+        )
+    return remote, epic, task, submitted_head, submitted_base, candidate_base
+
+
+def test_restart_sync_retains_and_executes_durable_candidate_recovery(tmp_path):
+    """Recover C through real startup, sync, authority, Git, and gate paths."""
+
+    values = _candidate_recovery_repo(tmp_path)
+    remote, epic, task, submitted_head, submitted_base, candidate_base = values
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        head_sha=submitted_head,
+        base_branch="epic-EPIC-1",
+        base_sha=submitted_base,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    restarted = None
+    gate_calls: list[dict[str, object]] = []
+
+    class InterruptingGate:
+        def run(self, **kwargs):
+            gate_calls.append(kwargs)
+            assert kwargs["is_current"]()
+            return QualityGateResult(
+                status="interrupted",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    def configure_production_paths(current, current_project):
+        current_project.repo_url = str(remote)
+        current_project.repo_path = str(remote)
+        current.project_store.create_epic_worktree.return_value = str(epic)
+        current.project_store.create_worktree.return_value = str(task)
+        current.project_store.project_write_lock.side_effect = (
+            lambda _project_id: nullcontext()
+        )
+        current._branch_quality_gate = InterruptingGate()
+
+    try:
+        configure_production_paths(orchestrator, project)
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        initial = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="initial-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert initial is not None
+        tracker.set_metadata_field.side_effect = RuntimeError("tracker offline")
+
+        initial_result = orchestrator._execute_integration_item(initial)
+
+        assert initial_result.status == "authority_unavailable"
+        assert initial_result.expected_epic_sha == candidate_base
+        candidate_head = initial_result.rebased_task_sha
+        assert candidate_head and candidate_head != submitted_head
+        assert gate_calls == []
+        durable = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert durable is not None
+        assert durable.head_sha == submitted_head
+        assert durable.base_sha == submitted_base
+        assert durable.candidate_head_sha == candidate_head
+        assert durable.candidate_base_sha == candidate_base
+        assert issue.integration.head_sha == submitted_head
+        assert issue.integration.base_sha == submitted_base
+
+        _close(orchestrator)
+        orchestrator = None
+        restarted, restarted_project, restarted_tracker = _make_harness(
+            tmp_path,
+            issue,
+        )
+        configure_production_paths(restarted, restarted_project)
+
+        # Production startup recovers abandoned leases before the first sync.
+        with mock.patch(
+            "oompah.orchestrator.capture_workspace_processes",
+            return_value={},
+        ):
+            asyncio.run(restarted.startup_cleanup())
+        recovered = restarted.integration_queue.get(
+            restarted_project.id,
+            issue.identifier,
+        )
+        assert recovered is not None and recovered.state == "ready"
+        restarted._sync_ready_integration_submissions()
+        preserved = restarted.integration_queue.get(
+            restarted_project.id,
+            issue.identifier,
+        )
+        assert preserved is not None
+        assert preserved.state == "ready"
+        assert preserved.head_sha == submitted_head
+        assert preserved.base_sha == submitted_base
+        assert preserved.candidate_head_sha == candidate_head
+        assert preserved.candidate_base_sha == candidate_base
+
+        retry = restarted.integration_queue.claim_next(
+            project_id=restarted_project.id,
+            epic_id="EPIC-1",
+            lease_owner="retry-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert retry is not None
+        assert not restarted._integration_task_still_ready(retry)
+        assert restarted._integration_task_still_ready(
+            retry,
+            allow_precanonical_tracker_submission=True,
+        )
+
+        def persist_candidate(_identifier, _field, value):
+            issue.integration = IntegrationRecord.from_dict(value)
+
+        restarted_tracker.set_metadata_field.side_effect = persist_candidate
+        authority_modes: list[bool] = []
+        original_authority_check = restarted._integration_task_still_ready
+
+        def observe_authority(
+            item,
+            *,
+            allow_precanonical_tracker_submission=False,
+        ):
+            authority_modes.append(allow_precanonical_tracker_submission)
+            return original_authority_check(
+                item,
+                allow_precanonical_tracker_submission=(
+                    allow_precanonical_tracker_submission
+                ),
+            )
+
+        with mock.patch.object(
+            restarted,
+            "_integration_task_still_ready",
+            side_effect=observe_authority,
+        ):
+            retry_result = restarted._execute_integration_item(retry)
+
+        generation = (
+            f"integration:{restarted_project.id}:{issue.identifier}:"
+            f"{candidate_head}:retry-generation"
+        )
+        assert retry_result.status == "interrupted"
+        assert retry_result.status != "stale_head"
+        assert retry_result.rebased_task_sha == candidate_head
+        assert authority_modes[:2] == [True, True]
+        assert False in authority_modes[2:]
+        assert len(gate_calls) == 1
+        assert gate_calls[0]["expected_head_sha"] == candidate_head
+        assert gate_calls[0]["generation"] == generation
+        gate_owner = gate_calls[0]["owner"]
+        assert isinstance(gate_owner, QualityGateOwner)
+        assert gate_owner.authority_generation == generation
+        assert issue.integration.head_sha == candidate_head
+        assert issue.integration.base_sha == candidate_base
+    finally:
+        if restarted is not None:
+            _close(restarted)
+        if orchestrator is not None:
+            _close(orchestrator)
+
+
+def test_restart_sync_replaces_a_different_tracker_submission(tmp_path):
+    """A candidate fence must not suppress a genuine replacement submission."""
+
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="9" * 40,
+    )
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="candidate-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=issue.identifier,
+            lease_owner="candidate-generation",
+            expected_head_sha=claimed.head_sha,
+            candidate_head_sha="b" * 40,
+            candidate_base_sha="c" * 40,
+        ) is not None
+
+        issue.integration = replace(
+            issue.integration,
+            head_sha="d" * 40,
+            base_sha="e" * 40,
+        )
+        candidate = orchestrator.integration_queue.get(
+            project.id,
+            issue.identifier,
+        )
+        assert candidate is not None
+        assert not orchestrator._integration_task_still_ready(
+            candidate,
+            allow_precanonical_tracker_submission=True,
+        )
+        orchestrator._sync_ready_integration_submissions()
+
+        replacement = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert replacement is not None
+        assert replacement.state == "ready"
+        assert replacement.head_sha == "d" * 40
+        assert replacement.base_sha == "e" * 40
+        assert replacement.candidate_head_sha is None
+        assert replacement.candidate_base_sha is None
+    finally:
+        _close(orchestrator)
+
+
+def test_candidate_rebind_cannot_overwrite_waiting_new_submission(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="a" * 40,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    stale_write_started = threading.Event()
+    replacement_waiting = threading.Event()
+    replacement_done = threading.Event()
+    replacement = IntegrationRecord(
+        state="ready",
+        task_branch=issue.integration.task_branch,
+        base_branch=issue.integration.base_branch,
+        base_sha="d" * 40,
+        head_sha="e" * 40,
+    )
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="stale-candidate",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        def persist_candidate(_identifier, _field, value):
+            stale_write_started.set()
+            assert replacement_waiting.wait(timeout=5)
+            assert not replacement_done.is_set()
+            issue.integration = IntegrationRecord.from_dict(value)
+
+        tracker.set_metadata_field.side_effect = persist_candidate
+
+        def fetch_current(_identifier):
+            if stale_write_started.is_set() and replacement_waiting.is_set():
+                assert replacement_done.wait(timeout=5)
+            return issue
+
+        tracker.fetch_issue_detail.side_effect = fetch_current
+
+        def submit_replacement() -> None:
+            assert stale_write_started.wait(timeout=5)
+            replacement_waiting.set()
+            with orchestrator.issue_transition_lock(issue.id).sync():
+                orchestrator.integration_queue.enqueue(
+                    project_id=project.id,
+                    epic_id="EPIC-1",
+                    task_id=issue.identifier,
+                    task_branch=replacement.task_branch,
+                    head_sha=replacement.head_sha,
+                    base_branch=replacement.base_branch,
+                    base_sha=replacement.base_sha,
+                )
+                issue.integration = replacement
+            replacement_done.set()
+
+        contender = threading.Thread(target=submit_replacement)
+        contender.start()
+        with pytest.raises(RuntimeError, match="did not persist atomically"):
+            orchestrator._canonicalize_integration_candidate(
+                claimed,
+                "b" * 40,
+                "c" * 40,
+            )
+        contender.join(timeout=5)
+
+        assert not contender.is_alive()
+        assert issue.integration == replacement
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.head_sha == replacement.head_sha
+        assert current.base_sha == replacement.base_sha
+    finally:
+        _close(orchestrator)
+
+
+def test_success_finalization_cas_preserves_replacement_generation(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="a" * 40,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="stale-finalizer",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        issue.integration = replace(
+            issue.integration,
+            head_sha="b" * 40,
+            base_sha="c" * 40,
+        )
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=issue.identifier,
+            lease_owner="stale-finalizer",
+            expected_head_sha=claimed.head_sha,
+            candidate_head_sha="b" * 40,
+            candidate_base_sha="c" * 40,
+        ) is not None
+        replacement = replace(
+            issue.integration,
+            head_sha="e" * 40,
+            base_sha="d" * 40,
+        )
+        original_complete = orchestrator.integration_queue.complete
+
+        def replace_before_cas(project_id, task_id, *, lease_owner):
+            orchestrator.integration_queue.enqueue(
+                project_id=project.id,
+                epic_id="EPIC-1",
+                task_id=issue.identifier,
+                task_branch=replacement.task_branch,
+                head_sha=replacement.head_sha,
+                base_branch=replacement.base_branch,
+                base_sha=replacement.base_sha,
+            )
+            issue.integration = replacement
+            return original_complete(
+                project_id,
+                task_id,
+                lease_owner=lease_owner,
+            )
+
+        tracker.set_metadata_field.reset_mock()
+        with mock.patch.object(
+            orchestrator.integration_queue,
+            "complete",
+            side_effect=replace_before_cas,
+        ):
+            finalized = orchestrator._finalize_integration_success(
+                claimed,
+                IntegrationExecutionResult(
+                    status="integrated",
+                    message="landed",
+                    expected_epic_sha="c" * 40,
+                    rebased_task_sha="b" * 40,
+                    integrated_sha="b" * 40,
+                ),
+                epic_id="EPIC-1",
+                lease_owner="stale-finalizer",
+                dependency_heads={},
+                expected_dependencies=None,
+                expected_dependency_revision=None,
+            )
+
+        assert finalized is None
+        tracker.set_metadata_field.assert_not_called()
+        assert issue.integration == replacement
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.head_sha == replacement.head_sha
+        assert current.state == "ready"
+    finally:
+        _close(orchestrator)
+
+
+def test_success_finalization_persists_exact_candidate_generation(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="a" * 40,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+            base_branch=issue.integration.base_branch,
+            base_sha=issue.integration.base_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="successful-finalizer",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        issue.integration = replace(
+            issue.integration,
+            head_sha="b" * 40,
+            base_sha="c" * 40,
+        )
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=issue.identifier,
+            lease_owner="successful-finalizer",
+            expected_head_sha=claimed.head_sha,
+            candidate_head_sha="b" * 40,
+            candidate_base_sha="c" * 40,
+        ) is not None
+
+        def persist(_identifier, _field, value):
+            issue.integration = IntegrationRecord.from_dict(value)
+
+        tracker.set_metadata_field.side_effect = persist
+        finalized = orchestrator._finalize_integration_success(
+            claimed,
+            IntegrationExecutionResult(
+                status="integrated",
+                message="landed",
+                expected_epic_sha="c" * 40,
+                rebased_task_sha="b" * 40,
+                integrated_sha="f" * 40,
+            ),
+            epic_id="EPIC-1",
+            lease_owner="successful-finalizer",
+            dependency_heads={"UPSTREAM": "9" * 40},
+            expected_dependencies=None,
+            expected_dependency_revision=None,
+        )
+
+        assert finalized is not None
+        assert finalized.state == "integrated"
+        assert issue.integration.state == "integrated"
+        assert issue.integration.head_sha == "b" * 40
+        assert issue.integration.base_sha == "c" * 40
+        assert issue.integration.integrated_sha == "f" * 40
+        assert issue.integration.dependency_heads == {"UPSTREAM": "9" * 40}
+    finally:
+        _close(orchestrator)
+
+
+def test_tracker_finalization_failure_rearms_integrated_queue_row(tmp_path):
+    issue = _issue(integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        base_branch="epic-EPIC-1",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha="a" * 40,
+            base_branch=issue.integration.base_branch,
+            base_sha="9" * 40,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="tracker-failure",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.record_candidate(
+            project_id=project.id,
+            task_id=issue.identifier,
+            lease_owner="tracker-failure",
+            expected_head_sha=claimed.head_sha,
+            candidate_head_sha="b" * 40,
+            candidate_base_sha="a" * 40,
+        ) is not None
+        tracker.set_metadata_field.side_effect = RuntimeError("tracker offline")
+
+        finalized = orchestrator._finalize_integration_success(
+            claimed,
+            IntegrationExecutionResult(
+                status="integrated",
+                message="landed",
+                expected_epic_sha="a" * 40,
+                rebased_task_sha="b" * 40,
+                integrated_sha="f" * 40,
+            ),
+            epic_id="EPIC-1",
+            lease_owner="tracker-failure",
+            dependency_heads={},
+            expected_dependencies=None,
+            expected_dependency_revision=None,
+        )
+
+        assert finalized is None
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.state == "ready"
+        assert current.attempts == 0
+        assert current.candidate_head_sha == "b" * 40
+        assert "tracker integration finalization failed" in (
+            current.last_error or ""
+        )
+        assert issue.integration.state == "ready"
+        assert orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="tracker-retry",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+            max_attempts=1,
+        ) is not None
+    finally:
+        _close(orchestrator)
+
+
+def _cycle_restore_case(tmp_path):
+    issue = _issue(state="Needs Human", integration_state="ready")
+    issue.integration = replace(
+        issue.integration,
+        task_branch="task/TASK-1",
+        base_branch="epic-ROOT--task-CHILD",
+        base_sha="2" * 40,
+        head_sha="b" * 40,
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="CHILD",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha="a" * 40,
+        base_branch=issue.integration.base_branch,
+        base_sha="1" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="CHILD",
+        lease_owner="cycle-generation",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.record_candidate(
+        project_id=project.id,
+        task_id=issue.identifier,
+        lease_owner="cycle-generation",
+        expected_head_sha="a" * 40,
+        candidate_head_sha="b" * 40,
+        candidate_base_sha="2" * 40,
+    ) is not None
+    assert orchestrator.integration_queue.cancel(
+        project.id,
+        issue.identifier,
+        reason="cycle fence",
+        expected_head_sha="a" * 40,
+        expected_state="integrating",
+    )
+    row = CycleRepairRow(
+        task_id=issue.identifier,
+        container_id="CHILD",
+        epic_id="CHILD",
+        task_branch=issue.integration.task_branch,
+        head_sha="b" * 40,
+        submission_head_sha="a" * 40,
+        base_branch=issue.integration.base_branch,
+    )
+    plan = ContainerCycleRepairPlan(
+        key="cycle-restore",
+        authoritative_container="PARENT",
+        dependent_containers=("CHILD",),
+        prerequisite_shas=(("UPSTREAM", "c" * 40),),
+        rows=(row,),
+        container_branches=(("CHILD", issue.integration.base_branch),),
+    )
+    result = ContainerCycleRepairResult(
+        status="ready_for_queue_restore",
+        phase="children_synchronized",
+        parent_branch="epic-PARENT",
+        parent_sha="c" * 40,
+        children=[
+            ChildRepairResult(
+                container_id="CHILD",
+                branch=issue.integration.base_branch,
+                expected_sha="3" * 40,
+                resulting_sha="d" * 40,
+                action="merge_parent",
+            )
+        ],
+        restorable_rows=(issue.identifier,),
+    )
+    executor = mock.MagicMock()
+    executor.remote_head.return_value = "b" * 40
+    return orchestrator, project, tracker, issue, plan, result, executor
+
+
+def test_cycle_restore_uses_exact_child_tip_in_queue_and_tracker(tmp_path):
+    values = _cycle_restore_case(tmp_path)
+    orchestrator, project, tracker, issue, plan, result, executor = values
+    try:
+        tracker.set_metadata_field.side_effect = (
+            lambda _identifier, _field, value: setattr(
+                issue,
+                "integration",
+                IntegrationRecord.from_dict(value),
+            )
+        )
+        tracker.update_issue.side_effect = (
+            lambda _identifier, **fields: setattr(issue, "state", fields["status"])
+        )
+
+        restored, changed = orchestrator._restore_container_cycle_rows(
+            project.id,
+            tracker,
+            project,
+            plan,
+            result,
+            executor,
+        )
+
+        assert restored == (issue.identifier,)
+        assert changed == ()
+        assert issue.integration.base_sha == "d" * 40
+        assert issue.integration.base_sha != result.parent_sha
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.base_branch == "epic-ROOT--task-CHILD"
+        assert current.base_sha == "d" * 40
+        assert current.candidate_base_sha == "d" * 40
+    finally:
+        _close(orchestrator)
+
+
+def test_cycle_restore_tracker_failure_rolls_queue_back_to_cancelled(tmp_path):
+    values = _cycle_restore_case(tmp_path)
+    orchestrator, project, tracker, issue, plan, result, executor = values
+    try:
+        tracker.set_metadata_field.side_effect = RuntimeError("tracker offline")
+
+        with pytest.raises(RuntimeError, match="tracker offline"):
+            orchestrator._restore_container_cycle_rows(
+                project.id,
+                tracker,
+                project,
+                plan,
+                result,
+                executor,
+            )
+
+        tracker.update_issue.assert_not_called()
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.state == "cancelled"
+        assert current.head_sha == "a" * 40
+        assert current.candidate_head_sha == "b" * 40
+    finally:
+        _close(orchestrator)
+
+
+def test_cycle_restore_does_not_override_superseding_archived_state(tmp_path):
+    values = _cycle_restore_case(tmp_path)
+    orchestrator, project, tracker, issue, plan, result, executor = values
+    try:
+        needs_human_snapshot = replace(issue, state="Needs Human")
+        issue.state = ARCHIVED
+        tracker.fetch_issue_detail.side_effect = [needs_human_snapshot, issue]
+
+        restored, changed = orchestrator._restore_container_cycle_rows(
+            project.id,
+            tracker,
+            project,
+            plan,
+            result,
+            executor,
+        )
+
+        assert restored == ()
+        assert changed == (issue.identifier,)
+        assert issue.state == ARCHIVED
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert current.state == "cancelled"
+        assert current.head_sha == "a" * 40
+        assert current.candidate_head_sha == "b" * 40
+    finally:
+        _close(orchestrator)
+
+
+def test_gate_authority_revokes_when_normalized_dependency_evidence_changes(
+    tmp_path,
+):
+    issue = _issue(integration_state="ready")
+    issue.parent_id = "EPIC-1"
+    parent = Issue(
+        id="epic-native",
+        identifier="EPIC-1",
+        title="Parent",
+        project_id="proj-1",
+        blocked_by=[BlockerRef(identifier="EXTERNAL")],
+    )
+    external = Issue(
+        id="external-native",
+        identifier="EXTERNAL",
+        title="External prerequisite",
+        project_id="proj-1",
+        state=DONE,
+        integration=IntegrationRecord(
+            state="integrated",
+            head_sha="e" * 40,
+            integrated_sha="e" * 40,
+        ),
+    )
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    issues = [parent, issue, external]
+    tracker.fetch_all_issues.return_value = issues
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        dependencies = orchestrator._integration_dependency_map(
+            issues,
+            orchestrator.integration_queue.items(project_id=project.id),
+        )[issue.identifier]
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="dependency-authority",
+            dependency_map={issue.identifier: dependencies},
+            satisfied={external.identifier},
+        )
+        assert claimed is not None
+        authority = orchestrator._integration_dependency_authority(
+            claimed,
+            dependencies,
+            orchestrator._integration_dependency_revision(
+                issue_index(issues),
+                dependencies,
+            ),
+        )
+
+        assert authority()
+        external.state = OPEN
+        # A second check in the same scheduling interval must observe the
+        # change; authority evidence is never served from a time cache.
+        assert not authority()
+        external.state = DONE
+        external.integration = replace(
+            external.integration,
+            base_sha="f" * 40,
+        )
+        assert not authority()
+    finally:
+        _close(orchestrator)
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-806: preserve blocked rows through watchdog-driven Open transitions
+# ---------------------------------------------------------------------------
+
+
+def _blocked_row_for(orchestrator, project, issue):
+    """Enqueue an item and drive it to a durable ``blocked`` queue state."""
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="gate-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.fail(
+        project.id,
+        issue.identifier,
+        lease_owner="gate-worker",
+        error="combined-tree gate failed at ef5e8c30e",
+    )
+    row = orchestrator.integration_queue.get(project.id, issue.identifier)
+    assert row is not None
+    assert row.state == "blocked"
+    return row
+
+
+def test_combined_tree_gate_failure_uses_transition_service(tmp_path):
+    """The blocked record is persisted before its generation-fenced status."""
+
+    issue = _issue(state=READY_TO_INTEGRATE, integration_state="ready")
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+
+    def set_metadata(identifier, key, value):
+        assert identifier == issue.identifier
+        assert key == "oompah.integration"
+        issue.integration = IntegrationRecord.from_dict(value)
+
+    def update_issue(identifier, **fields):
+        assert identifier == issue.identifier
+        issue.state = fields["status"]
+
+    tracker.set_metadata_field.side_effect = set_metadata
+    tracker.update_issue.side_effect = update_issue
+    tracker.fetch_issue_detail.side_effect = lambda identifier: (
+        issue if identifier == issue.identifier else None
+    )
+
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="gate-generation-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        orchestrator._route_integration_failure(
+            claimed,
+            IntegrationExecutionResult(
+                status="ci_failure",
+                message="combined-tree gate failed at exact head",
+                expected_epic_sha="b" * 40,
+                rebased_task_sha="a" * 40,
+            ),
+        )
+
+        assert issue.integration.state == "blocked"
+        assert issue.integration.head_sha == "a" * 40
+        assert issue.integration.gate_outcome == "ci_failure"
+        assert issue.state == NEEDS_CI_FIX
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier, status=NEEDS_CI_FIX
+        )
+        row = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert row is not None and row.state == "blocked"
+        assert "combined-tree gate failed at exact head" in tracker.add_comment.call_args.args[1]
+    finally:
+        _close(orchestrator)
+
+
+def test_cancelled_exact_gate_stays_ready_and_recovers_once_after_restart(tmp_path):
+    """Scheduling preemption preserves the exact accepted head without CI fix."""
+
+    issue = _issue(state=READY_TO_INTEGRATE, integration_state="ready")
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+
+    def set_metadata(identifier, key, value):
+        assert identifier == issue.identifier
+        assert key == "oompah.integration"
+        issue.integration = IntegrationRecord.from_dict(value)
+
+    tracker.set_metadata_field.side_effect = set_metadata
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="gate-generation-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        orchestrator._route_integration_failure(
+            claimed,
+            IntegrationExecutionResult(
+                status="interrupted",
+                message=(
+                    "Combined-tree quality gate cancelled by operator:alice: "
+                    "critical-path preemption"
+                ),
+                expected_epic_sha="b" * 40,
+                rebased_task_sha="a" * 40,
+                quality=QualityGateResult(
+                    status="interrupted",
+                    head_sha="a" * 40,
+                    command="make test",
+                    cancellation={
+                        "cancelled_by": "operator:alice",
+                        "reason": "critical-path preemption",
+                    },
+                ),
+            ),
+        )
+
+        assert issue.state == READY_TO_INTEGRATE
+        assert issue.integration.state == "ready"
+        assert issue.integration.head_sha == "a" * 40
+        assert issue.integration.gate_outcome == "cancelled_retryable"
+        assert issue.integration.gate_cancellation == {
+            "cancelled_by": "operator:alice",
+            "reason": "critical-path preemption",
+        }
+        tracker.update_issue.assert_not_called()
+        assert all("ci-fix" not in str(call) for call in tracker.method_calls)
+        retry_alert = next(
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == f"integration_retry:{project.id}:{issue.identifier}"
+        )
+        assert retry_alert["level"] == "info"
+        assert retry_alert["action_required"] is False
+        assert retry_alert["gate_outcome"] == "cancelled_retryable"
+
+        # The state API/WebSocket snapshot explicitly projects a cancellation
+        # as retryable with its operator provenance, not a failed gate.
+        orchestrator._remember_quality_gate_result(
+            project.id,
+            issue.identifier,
+            QualityGateResult(
+                status="interrupted",
+                head_sha="a" * 40,
+                command="make test",
+                cancellation=dict(issue.integration.gate_cancellation or {}),
+            ),
+        )
+        snapshot = orchestrator.get_snapshot()
+        gate_snapshot = snapshot["quality_gates"]
+        assert gate_snapshot["status"] == "interrupted_for_retry"
+        assert gate_snapshot["recent"] == [
+            {
+                "project_id": project.id,
+                "task_id": issue.identifier,
+                "status": "interrupted",
+                "head_sha": "a" * 40,
+                "command": "make test",
+                "cached": False,
+                "cancellation": issue.integration.gate_cancellation,
+            }
+        ]
+        projected_alert = next(
+            alert
+            for alert in snapshot["alerts"]
+            if alert.get("source") == f"integration_retry:{project.id}:{issue.identifier}"
+        )
+        assert projected_alert["gate_outcome"] == "cancelled_retryable"
+        assert projected_alert["action_required"] is False
+
+        _close(orchestrator)
+        orchestrator = None
+        orchestrator, project, tracker = _make_harness(tmp_path, issue)
+        orchestrator._sync_ready_integration_submissions()
+        rows = orchestrator.integration_queue.items(project_id=project.id)
+        assert len(rows) == 1
+        assert rows[0].state == "ready"
+        assert rows[0].head_sha == "a" * 40
+    finally:
+        if orchestrator is not None:
+            _close(orchestrator)
+
+
+def test_retire_preserves_blocked_row_when_watchdog_reopens_task(tmp_path):
+    """OOMPAH-806: an internal blocked gate must survive watchdog-driven Open.
+
+    Reproduces OOMPAH-793: gate failed, integration row is blocked at head H,
+    tracker task is Needs CI Fix.  Watchdog observed unrelated passing external
+    CI and flipped the task to Open.  The queue reconciler previously cancelled
+    the blocked row because tracker state was no longer Ready to Integrate,
+    discarding authoritative internal gate authority.
+    """
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        # Simulate the watchdog reopen: tracker now shows Open.
+        issue.state = OPEN
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+
+        assert retired == 0
+        row_after = orchestrator.integration_queue.get(
+            project.id, issue.identifier
+        )
+        assert row_after is not None
+        assert row_after.state == "blocked"
+        assert row_after.head_sha == blocked.head_sha
+    finally:
+        _close(orchestrator)
+
+
+def test_open_task_with_blocked_gate_cannot_dispatch_without_direct_owner(tmp_path):
+    """Persisted gate authority prevents duplicate generic implementation."""
+
+    issue = _issue(state=OPEN, integration_state="blocked")
+    issue.project_id = "proj-1"
+    issue.description = "Already implemented; exact-head gate needs repair."
+    orchestrator, _project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        assert not orchestrator._has_live_owner_claim(issue.id, issue.project_id)
+        assert orchestrator._should_dispatch(issue) is False
+        assert orchestrator.state.reject_streak[issue.id][0] == (
+            "internal_gate_blocked"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_preserves_blocked_row_when_tracker_shows_needs_ci_fix(tmp_path):
+    """Blocked rows also survive Needs CI Fix, In Progress, Needs Human, etc."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        for tracker_state in (NEEDS_CI_FIX, NEEDS_REBASE, OPEN, "In Progress"):
+            issue.state = tracker_state
+            retired = orchestrator._retire_inactive_integration_rows(
+                project.id,
+                [issue],
+                [
+                    orchestrator.integration_queue.get(
+                        project.id, issue.identifier
+                    )
+                ],
+            )
+            assert retired == 0, (
+                f"blocked row was retired under tracker state {tracker_state!r}"
+            )
+            assert (
+                orchestrator.integration_queue.get(
+                    project.id, issue.identifier
+                ).state
+                == "blocked"
+            )
+    finally:
+        _close(orchestrator)
+
+
+@pytest.mark.parametrize("terminal_state", [DONE, MERGED, ARCHIVED])
+def test_retire_retires_blocked_row_when_task_is_terminal(tmp_path, terminal_state):
+    """Terminal tracker state authorises retiring the blocked row."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+        issue.state = terminal_state
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+        assert retired == 1
+        assert (
+            orchestrator.integration_queue.get(
+                project.id, issue.identifier
+            ).state
+            == "cancelled"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_retires_blocked_row_when_tracker_head_moved_past(tmp_path):
+    """A newer head on the tracker means the blocked row is superseded."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        # A fresh submission recorded a newer head on the tracker record while
+        # the task is back in Open (a new implementation attempt is queued).
+        issue.state = OPEN
+        issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch=blocked.task_branch,
+            head_sha="b" * 40,
+        )
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+
+        # The head divergence AND non-READY_TO_INTEGRATE tracker state make
+        # the stale blocked generation retirable.
+        assert retired == 1
+        assert (
+            orchestrator.integration_queue.get(
+                project.id, issue.identifier
+            ).state
+            == "cancelled"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_still_cancels_ready_row_when_tracker_shows_open(tmp_path):
+    """OOMPAH-657 regression: non-blocked (ready/integrating) rows still retire."""
+    issue = _issue(state=OPEN, integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        row = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert row is not None and row.state == "ready"
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [row],
+        )
+
+        assert retired == 1
+        assert (
+            orchestrator.integration_queue.get(project.id, issue.identifier).state
+            == "cancelled"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_leaves_blocked_row_when_tracker_issue_absent(tmp_path):
+    """When the tracker issue is missing entirely, retire the row (stale ref)."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        # The tracker no longer reports this task at all — treat as retirable
+        # so stale references don't accumulate indefinitely.
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [],  # no issues at all
+            [blocked],
+        )
+        assert retired == 1
+    finally:
+        _close(orchestrator)
+
+
+def test_repair_submission_rearms_the_same_head_via_explicit_retry(tmp_path):
+    """OOMPAH-806: an explicit retry with the same head rearms exactly once.
+
+    Ensures the CI/CD boundary: a resubmission via ``oompah task submit``
+    (which sets ``explicit_retry=True``) may reopen the blocked row exactly
+    once, without racing the retirement logic.
+    """
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+        first_head = blocked.head_sha
+
+        # Explicit retry with SAME head must rearm to ready exactly once.
+        rearmed = orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=blocked.task_branch,
+            head_sha=first_head,
+            explicit_retry=True,
+        )
+        assert rearmed.state == "ready"
+        assert rearmed.retry_forced is True
+
+        # A second identical resubmission without explicit_retry is idempotent
+        # — must not reset state (which is now "ready").
+        again = orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=blocked.task_branch,
+            head_sha=first_head,
+        )
+        assert again.state == "ready"
+        assert (
+            orchestrator.integration_queue.get(project.id, issue.identifier).state
+            == "ready"
+        )
     finally:
         _close(orchestrator)

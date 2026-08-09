@@ -18,7 +18,9 @@ from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_RESULT_TOOL_SCHEMA,
     AuditorTargetContract,
+    AuditorValidationContract,
     auditor_target_contract,
+    build_auditor_validation_contract,
 )
 from oompah.provenance import (
     ContentSource,
@@ -359,6 +361,7 @@ def render_auditor_prompt(
     task_metadata: Mapping[str, Any] | None = None,
     project_id: str | None = None,
     validation_targets: list[str] | None = None,
+    validation_contract: AuditorValidationContract | None = None,
 ) -> str:
     """Render the trusted contract and untrusted evidence for an auditor.
 
@@ -406,11 +409,83 @@ def render_auditor_prompt(
         )
     evidence_text = evidence_text.replace("`", "\\u0060")
 
+    metadata_archive = (
+        evidence_summary.get("metadata_archive")
+        if isinstance(evidence_summary, Mapping)
+        else None
+    )
+    metadata_archive_contract: list[str] = []
+    if (
+        isinstance(metadata_archive, Mapping)
+        and metadata_archive.get("mode") == "revisionless_metadata_archive"
+    ):
+        metadata_archive_contract = [
+            "### Metadata-only Archived target",
+            "This task is a planning-metadata retirement, not code-bearing completion.",
+            "No implementation revision, Git branch, code diff, or test run is expected; "
+            "their absence is not missing evidence and must not be reported as a transport failure.",
+            "Validate the trusted preflight facts and independently check that the untrusted "
+            "disposition explanation and source/replacement reference support retirement.",
+            "Fail the Archived target if the reason/source is inconsistent or any active "
+            "work, claim, retry, review, child, dependency, or changed-requirement evidence remains.",
+            "",
+        ]
+
     def _safe_json(value: Any) -> str:
         """Serialize dynamic values without allowing Markdown fence escape."""
         return json.dumps(
             value, ensure_ascii=False, sort_keys=True, default=str, indent=2
         ).replace("`", "\\u0060")
+
+    quality_gate_evidence = None
+    if isinstance(evidence_summary, Mapping):
+        quality_gate_evidence = evidence_summary.get(
+            "authoritative_quality_gate",
+            evidence_summary.get("quality_gate"),
+        )
+    quality_gate_contract: list[str] = []
+    if isinstance(quality_gate_evidence, Mapping):
+        decision = str(quality_gate_evidence.get("decision") or "").strip()
+        quality_gate_contract = [
+            "### Authoritative exact-head quality-gate evidence",
+            "The following is scheduler-supplied evidence for the accepted head;"
+            " it is not a request to mutate state:",
+            "@@TICK@@json",
+            _safe_json(dict(quality_gate_evidence)),
+            "@@TICK@@",
+        ]
+        if decision == "reuse_authoritative_gate":
+            quality_gate_contract.extend(
+                [
+                    "The configured full gate is current and passing for the exact"
+                    " accepted head. Verify the patch and audit its requirements,"
+                    " but do not rerun the configured full gate merely for completion.",
+                    "Do not substitute a redundant full-suite variant such as"
+                    " `make test-serial` for the already passing gate.",
+                    "The approved validation-target list is an allowlist, not a"
+                    " request to run every listed target; the configured full gate"
+                    " remains satisfied by the evidence above.",
+                    "Narrowly targeted missing checks remain allowed, including"
+                    " focused warning or race checks. A distinct execution mode"
+                    " remains allowed when the task specifically requires it or"
+                    " the supplied exact-head evidence is no longer current.",
+                ]
+            )
+        elif decision == "not_configured":
+            quality_gate_contract.append(
+                "No configured full gate is available; inspect the patch and use"
+                " only the approved focused validation relevant to this task."
+            )
+        else:
+            quality_gate_contract.extend(
+                [
+                    "A current passing exact-head full-gate result was not found."
+                    " The configured full gate is required when code-bearing"
+                    " validation is needed; focused checks are not a substitute.",
+                    "If the evidence is missing, stale, failed, or for a different"
+                    " head, do not claim that the full gate was reused.",
+                ]
+            )
 
     wrapped_description = _wrap_issue_description(issue) or "(no description supplied)"
     comment_lines: list[str] = []
@@ -445,27 +520,43 @@ def render_auditor_prompt(
     )
     schema = json.dumps(AUDITOR_RESULT_TOOL_SCHEMA, ensure_ascii=False, indent=2)
     
-    # Build the validation targets section from project config or explicit list
+    # Build the validation targets section from the scheduler's project snapshot.
     validation_targets_section = ""
-    if validation_targets is not None:
-        # Use explicitly provided targets
-        targets_list = validation_targets
-    elif project_id is not None:
-        # Look up targets from project configuration
-        try:
-            from oompah.auditor import _get_auditor_validation_targets
-            targets_list = _get_auditor_validation_targets(project_id)
-        except Exception:
-            targets_list = []
-    else:
-        targets_list = []
-    
-    if targets_list:
+    effective_contract = validation_contract
+    if effective_contract is None and validation_targets is not None:
+        project_like = type(
+            "AuditorPromptProject",
+            (),
+            {
+                "id": project_id or "",
+                "auditor_validation_targets": validation_targets,
+                "auditor_validation_target_deadlines": {},
+                "auditor_validation_target_expected_seconds": {},
+            },
+        )()
+        effective_contract = build_auditor_validation_contract(project_like)
+
+    if effective_contract is not None and effective_contract.targets:
+        target_lines = []
+        for budget in effective_contract.targets:
+            target_lines.append(
+                f"- make {budget.target} — "
+                f"expected_seconds={budget.expected_seconds}; "
+                f"deadline_seconds={budget.deadline_seconds}; "
+                f"deadline_source={budget.deadline_source}"
+            )
         validation_targets_section = (
-            "\n### Approved validation targets\n"
-            "When run_command is used with make, only these targets are allowed:\n"
-            + "\n".join(f"- make {target}" for target in targets_list)
+            "\n### Approved validation targets (preference order)\n"
+            "Only these exact Make targets are allowed. Prefer the first focused "
+            "target that can establish the required evidence:\n"
+            + "\n".join(target_lines)
             + "\n"
+        )
+    if effective_contract is not None and effective_contract.configuration_error:
+        validation_targets_section += (
+            "\n### Validation configuration error\n"
+            "The scheduler must block this audit launch: "
+            f"{effective_contract.configuration_error}\n"
         )
 
     # Build the prompt content, conditionally including validation targets
@@ -501,6 +592,10 @@ def render_auditor_prompt(
         evidence_text,
         "",
     ]
+    if quality_gate_contract:
+        prompt_content.extend(quality_gate_contract)
+        prompt_content.append("")
+    prompt_content.extend(metadata_archive_contract)
     
     # Conditionally add validation targets section
     if validation_targets_section:
@@ -521,6 +616,9 @@ def render_auditor_prompt(
         "return a recoverable validation response; split the commands and continue.",
         "- A validation response from run_command means the command was not "
         "executed; it is not a provider transport failure or an audit verdict.",
+        "- If a validation target times out, do not run a broader or predictably "
+        "slower fallback (especially a serial full-suite fallback). Submit the "
+        "timeout evidence as a configuration/code failure instead.",
         "- The result tool is the only stateful capability; it submits to the scheduler "
         "and does not directly change repository or tracker state.",
         "",
@@ -584,6 +682,11 @@ def render_prompt(
     native tasks that are stored on a state branch rather than in the worker
     checkout.
     """
+    auditor_validation_contract = (
+        build_auditor_validation_contract(project)
+        if auditor_context
+        else None
+    )
     if not template_source.strip():
         text = f"You are working on an issue from the project tracker.\n\nIssue: {issue.identifier} - {issue.title}"
         if auditor_context:
@@ -593,6 +696,7 @@ def render_prompt(
                 evidence_summary=auditor_context.get("evidence_summary"),
                 comments=auditor_context.get("comments"),
                 task_metadata=auditor_context.get("task_metadata"),
+                validation_contract=auditor_validation_contract,
             )
         if duplicate_task_corpus:
             corpus_provenance = make_provenance(
@@ -755,6 +859,7 @@ def render_prompt(
             evidence_summary=auditor_context.get("evidence_summary"),
             comments=auditor_context.get("comments"),
             task_metadata=auditor_context.get("task_metadata"),
+            validation_contract=auditor_validation_contract,
         )
 
     if attachments is None:

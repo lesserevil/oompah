@@ -2075,7 +2075,9 @@ class TestWebhookGitHubTaskResolution:
         _mark_task_in_review_from_webhook(orch, event, project)
 
         orch._resolve_task_for_branch.assert_called_once()
-        tracker.update_issue.assert_called_once_with(issue.identifier, status=IN_REVIEW)
+        orch._transition_issue_status.assert_called_once()
+        assert orch._transition_issue_status.call_args.args[:2] == (issue, IN_REVIEW)
+        tracker.update_issue.assert_not_called()
 
     def test_pr_opened_webhook_resolve_returns_none_is_noop(self):
         """PR opened webhook is a no-op when no task resolves."""

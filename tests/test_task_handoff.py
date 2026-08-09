@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -108,6 +108,188 @@ class TestTaskHandoffGrantStore:
         finally:
             clear_registered_secrets()
 
+    def test_suspension_rollback_preserves_concurrent_lease_renewal(self):
+        """A retirement rollback must not erase a live lease heartbeat."""
+
+        now = [100.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=10,
+            owner_id="worker-1",
+        )
+        lease = store.start_lease(
+            token,
+            owner_id="worker-1",
+            heartbeat_interval_seconds=60,
+        )
+        assert lease is not None
+        try:
+            fence = store.suspend(token)
+            assert fence is not None
+            now[0] = 105.0
+            assert lease.heartbeat() is True
+            renewed_expiry = store._grants[store._digest(token)].expires_at
+
+            assert store.restore(fence) is True
+
+            restored = store._grants[store._digest(token)]
+            assert restored.expires_at == renewed_expiry
+            assert restored.operation_permit_generation == (
+                fence.original_grant.operation_permit_generation
+            )
+            assert restored.admission_suspended is False
+        finally:
+            lease.stop()
+
+    def test_suspension_rollback_stays_valid_past_original_expiry(self):
+        """A near-expiry fence uses the heartbeat's renewed deadline."""
+
+        now = [200.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=2,
+            owner_id="worker-1",
+        )
+        fence = store.suspend(token)
+        assert fence is not None
+        now[0] = 201.9
+        assert store.refresh(token, owner_id="worker-1") is True
+        now[0] = 202.1
+
+        assert store.restore(fence) is True
+        assert store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        ) == (True, "")
+
+    def test_suspension_of_unknown_token_without_operation_needs_no_fence(self):
+        """A truly absent capability cannot leave a mutation to drain."""
+
+        store = TaskHandoffGrantStore()
+
+        assert store.suspend("never-issued-token") is None
+
+    def test_reversible_suspension_validation_class_survives_restore_or_revoke(
+        self,
+    ) -> None:
+        """The observed denial class cannot be changed by a later race winner."""
+
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+        fence = store.suspend(token)
+        assert fence is not None
+
+        restored_observation = store.validate_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert restored_observation[0] is False
+        assert restored_observation[2] is True
+        assert store.restore(fence) is True
+        assert restored_observation[2] is True
+        assert store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        ) == (True, "")
+
+        final_fence = store.suspend(token)
+        assert final_fence is not None
+        revoked_observation = store.validate_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        store.revoke(token)
+
+        assert revoked_observation[2] is True
+        assert store.validate_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )[2] is False
+
+    def test_reversible_suspension_is_classified_at_permit_race_windows(self):
+        """Permit acquisition and admission preserve the fence observation."""
+
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+        permit = store.acquire_permit(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert permit is not None
+
+        fence = store.suspend(token)
+        assert fence is not None
+        denied_permit, temporary = store.acquire_permit_classified(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert denied_permit is None
+        assert temporary is True
+        with pytest.raises(OperationPermitDenied) as denied:
+            permit.begin()
+        assert denied.value.temporary_suspension is True
+
+        assert store.restore(fence) is True
+        permit.begin()
+        permit.end()
+
+    def test_expired_revoked_and_invalid_denials_remain_actionable_classes(self):
+        """Only the reversible retirement fence receives the temporary class."""
+
+        now = [100.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        expired = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=1,
+        )
+        revoked = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+        store.revoke(revoked)
+        now[0] = 102.0
+
+        for token in (expired, revoked, "never-issued-token"):
+            allowed, _reason, temporary = store.validate_classified(
+                token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="comment",
+            )
+            assert allowed is False
+            assert temporary is False
+
 
 class TestTaskCliHandoff:
     def test_capability_route_has_no_basic_auth_and_uses_project_scope(
@@ -173,6 +355,92 @@ class TestTaskCliHandoff:
             )
 
         assert client.post.call_args.kwargs["json"]["worker_task_identifier"] == "TASK-1"
+
+    def test_publish_rebase_payload_contains_only_server_scoped_inputs(
+        self, monkeypatch, capsys
+    ):
+        from oompah import task_cli
+
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "opaque")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        monkeypatch.setenv(TASK_HANDOFF_TASK_ENV, "REBASE-1")
+        args = task_cli.build_parser().parse_args(
+            [
+                "publish-rebase",
+                "REBASE-1",
+                "--candidate",
+                "c" * 40,
+            ]
+        )
+        with patch.object(
+            task_cli,
+            "_task_handoff_request",
+            return_value={"published": True, "recovered": False},
+        ) as request:
+            task_cli._cmd_publish_rebase("http://server", args)
+
+        request.assert_called_once_with(
+            "http://server",
+            "publish-epic-rebase",
+            {
+                "project_id": "proj-a",
+                "identifier": "REBASE-1",
+                "candidate_sha": "c" * 40,
+            },
+        )
+        assert "Epic rebase published" in capsys.readouterr().out
+
+    def test_publish_rebase_has_no_operator_http_fallback(self, monkeypatch):
+        from oompah import task_cli
+
+        monkeypatch.delenv(TASK_HANDOFF_TOKEN_ENV, raising=False)
+        args = task_cli.build_parser().parse_args(
+            [
+                "publish-rebase",
+                "REBASE-1",
+                "--project",
+                "proj-a",
+                "--candidate",
+                "c" * 40,
+            ]
+        )
+        with patch.object(task_cli, "_task_handoff_request") as request:
+            with pytest.raises(SystemExit, match="live task-scoped"):
+                task_cli._cmd_publish_rebase("http://server", args)
+        request.assert_not_called()
+
+    def test_publish_handoff_request_does_not_add_worker_context(
+        self, monkeypatch
+    ):
+        from oompah import task_cli
+
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "opaque")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        monkeypatch.setenv(TASK_HANDOFF_TASK_ENV, "REBASE-1")
+        response = MagicMock(is_success=True, status_code=200)
+        response.json.return_value = {"published": True}
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.__exit__.return_value = False
+        client.post.return_value = response
+
+        with patch("httpx.Client", return_value=client):
+            task_cli._task_handoff_request(
+                "http://server",
+                "publish-epic-rebase",
+                {
+                    "project_id": "proj-a",
+                    "identifier": "REBASE-1",
+                    "candidate_sha": "c" * 40,
+                },
+            )
+
+        assert client.post.call_args.kwargs["json"] == {
+            "project_id": "proj-a",
+            "identifier": "REBASE-1",
+            "candidate_sha": "c" * 40,
+            "action": "publish-epic-rebase",
+        }
 
     def test_spawned_cli_does_not_resolve_inherited_operator_credentials(
         self, monkeypatch
@@ -275,6 +543,80 @@ class TestTaskCliHandoff:
 
 
 class TestTaskScopeDirectPath:
+    @staticmethod
+    def _authoritative_submission_handler(
+        tracker,
+        *,
+        project_store=None,
+        coordination=None,
+        direct_completion=None,
+    ):
+        from oompah.server import _accept_worker_submission
+
+        orch = MagicMock()
+        orch.project_store = project_store
+        orch.config.parallel_epic_children_enabled = False
+        orch.issue_transition_lock.side_effect = lambda _issue_id: asyncio.Lock()
+
+        def transition_issue_status(issue, requested_status, **_kwargs):
+            tracker.update_issue(issue.identifier, status=requested_status)
+            issue.state = requested_status
+
+        orch._transition_issue_status.side_effect = transition_issue_status
+        if coordination is not None:
+            orch.coordination_checkpoint = coordination.coordination_checkpoint
+            orch.coordination_send = coordination.coordination_send
+        if direct_completion is not None:
+            orch.complete_direct_epic_maintenance_submission = AsyncMock(
+                return_value=direct_completion
+            )
+
+        def accept(**kwargs):
+            return asyncio.run(
+                _accept_worker_submission(orch, **kwargs)
+            )
+
+        return accept, orch
+
+    @pytest.mark.parametrize(
+        ("parent_id", "requested_mode", "expected_mode"),
+        [
+            (None, "queue", "standalone"),
+            ("EPIC-1", "standalone", "queue"),
+        ],
+    )
+    def test_submission_delivery_mode_is_derived_by_the_service(
+        self,
+        parent_id,
+        requested_mode,
+        expected_mode,
+    ):
+        from oompah.server import _submission_record
+
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            parent_id=parent_id,
+            work_branch="TASK-1",
+        )
+
+        record = _submission_record(
+            issue,
+            {
+                "summary": "Completed and tested",
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "mode": requested_mode,
+            },
+        )
+
+        assert record.mode == expected_mode
+
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):
         from oompah.acp_tools import _exec_oompah_task_command
 
@@ -335,6 +677,35 @@ class TestTaskScopeDirectPath:
         assert tracker.add_comment.call_count == 1
         tracker.update_issue.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "oompah task set-status TASK-1 'ready-to-integrate'",
+            "oompah task add-label TASK-1 oompah:status:ready-to-integrate",
+            "oompah task remove-label TASK-1 oompah:status:ready-to-integrate",
+        ],
+    )
+    def test_direct_acp_ready_mutations_require_authoritative_submit(
+        self,
+        command,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            command,
+            tracker,
+            "proj-a",
+            task_identifier="TASK-1",
+        )
+
+        assert result.startswith("Error: spawned workers must use")
+        assert "oompah task submit TASK-1" in result
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
+
     def test_direct_acp_submit_requires_and_persists_pushed_git_evidence(
         self,
         tmp_path,
@@ -349,6 +720,10 @@ class TestTaskScopeDirectPath:
             work_branch="epic-TASK-0--task-TASK-1",
         )
         coordination = MagicMock()
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            coordination=coordination,
+        )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -367,10 +742,12 @@ class TestTaskScopeDirectPath:
                 task_identifier="TASK-1",
                 coordination_service=coordination,
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result == "Submitted for integration: TASK-1"
         record = tracker.set_metadata_field.call_args.args[2]
+        assert record["mode"] == "standalone"
         assert record["task_branch"] == "epic-TASK-0--task-TASK-1"
         assert record["head_sha"] == "a" * 40
         tracker.update_issue.assert_called_once_with(
@@ -392,6 +769,9 @@ class TestTaskScopeDirectPath:
             title="Task",
             work_branch="epic-TASK-0--task-TASK-1",
         )
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker
+        )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -407,9 +787,299 @@ class TestTaskScopeDirectPath:
                 "proj-a",
                 task_identifier="TASK-1",
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result.startswith("Error: submitted branch 'main'")
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_direct_acp_submit_uses_accepted_branch_and_repairs_projection(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+        from oompah.integration import IntegrationRecord
+        from oompah.projects import SubmissionGitAuthority
+
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="Task",
+            parent_id="OOMPAH-763",
+            work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+            integration=IntegrationRecord(
+                state="blocked",
+                task_branch="OOMPAH-814",
+                head_sha="a" * 40,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+
+        class Store:
+            @staticmethod
+            def epic_branch_name(_identifier):
+                return "epic-OOMPAH-763"
+
+            @staticmethod
+            def verify_submission_git_authority(project_id, **kwargs):
+                assert project_id == "proj-a"
+                assert kwargs["task_branch"] == "OOMPAH-814"
+                return SubmissionGitAuthority(
+                    task_branch="OOMPAH-814",
+                    head_sha="a" * 40,
+                    base_branch="epic-OOMPAH-763",
+                    base_sha="b" * 40,
+                )
+
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=Store(),
+        )
+
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "OOMPAH-814",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit OOMPAH-814 --summary 'Repaired'",
+                tracker,
+                "proj-a",
+                task_identifier="OOMPAH-814",
+                project_store=Store(),
+                workspace_path=tmp_path,
+                submission_handler=submission_handler,
+            )
+
+        assert result == "Submitted for integration: OOMPAH-814"
+        assert tracker.set_metadata_field.call_args_list[0].args[1] == (
+            "oompah.integration"
+        )
+        assert tracker.set_metadata_field.call_args_list[1].args == (
+            "OOMPAH-814",
+            "oompah.work_branch",
+            "OOMPAH-814",
+        )
+        assert issue.work_branch == "OOMPAH-814"
+
+    def test_direct_acp_same_head_ready_retry_only_repairs_projection(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+        from oompah.integration import IntegrationRecord
+        from oompah.projects import SubmissionGitAuthority
+
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="Task",
+            state="Ready to Integrate",
+            parent_id="OOMPAH-763",
+            work_branch="stale-projection",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                base_branch="epic-OOMPAH-763",
+                base_sha="b" * 40,
+                head_sha="a" * 40,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+
+        def persist_metadata(_identifier, key, value):
+            if key == "oompah.integration":
+                issue.integration = IntegrationRecord.from_dict(value)
+
+        tracker.set_metadata_field.side_effect = persist_metadata
+
+        class Store:
+            @staticmethod
+            def epic_branch_name(_identifier):
+                return "epic-OOMPAH-763"
+
+            @staticmethod
+            def verify_submission_git_authority(_project_id, **kwargs):
+                return SubmissionGitAuthority(
+                    task_branch=kwargs["task_branch"],
+                    head_sha=kwargs["head_sha"],
+                    base_branch=kwargs["base_branch"],
+                    base_sha=kwargs["base_sha"],
+                )
+
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=Store(),
+        )
+
+        evidence = {
+            "task_branch": "OOMPAH-814",
+            "head_sha": "a" * 40,
+            "remote_head_sha": "a" * 40,
+            "worktree_clean": True,
+        }
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value=evidence,
+        ):
+            first = _exec_oompah_task_command(
+                "oompah task submit OOMPAH-814 --summary 'Retry'",
+                tracker,
+                "proj-a",
+                task_identifier="OOMPAH-814",
+                project_store=Store(),
+                workspace_path=tmp_path,
+                submission_handler=submission_handler,
+            )
+            second = _exec_oompah_task_command(
+                "oompah task submit OOMPAH-814 --summary 'Retry again'",
+                tracker,
+                "proj-a",
+                task_identifier="OOMPAH-814",
+                project_store=Store(),
+                workspace_path=tmp_path,
+                submission_handler=submission_handler,
+            )
+
+        assert first == "Submitted for integration: OOMPAH-814"
+        assert second == first
+        assert tracker.set_metadata_field.call_args_list == [
+            call("OOMPAH-814", "oompah.work_branch", "OOMPAH-814"),
+        ]
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    def test_direct_acp_epic_rebase_omits_rewritten_base_from_verifier(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+        from oompah.integration import IntegrationRecord
+        from oompah.projects import SubmissionGitAuthority
+
+        issue = Issue(
+            id="DIRECT-TASK",
+            identifier="DIRECT-TASK",
+            title="Rebase epic-EPIC-PARENT onto main",
+            parent_id="EPIC-PARENT",
+            work_branch="epic-EPIC-PARENT",
+            integration=IntegrationRecord(
+                state="working",
+                task_branch="epic-EPIC-PARENT",
+                base_branch="epic-EPIC-PARENT",
+                base_sha="a" * 40,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        captured = {}
+
+        class Store:
+            @staticmethod
+            def epic_branch_name(_identifier):
+                return "epic-EPIC-PARENT"
+
+            @staticmethod
+            def verify_submission_git_authority(project_id, **kwargs):
+                captured.update(project_id=project_id, **kwargs)
+                return SubmissionGitAuthority(
+                    task_branch=kwargs["task_branch"],
+                    head_sha=kwargs["head_sha"],
+                    base_branch=kwargs["base_branch"],
+                    base_sha=None,
+                )
+
+        completed_record = IntegrationRecord(
+            state="integrated",
+            task_branch="epic-EPIC-PARENT",
+            base_branch="epic-EPIC-PARENT",
+            head_sha="b" * 40,
+            integrated_sha="b" * 40,
+        )
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=Store(),
+            direct_completion=(True, "reconciled", completed_record),
+        )
+
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "epic-EPIC-PARENT",
+                "head_sha": "b" * 40,
+                "remote_head_sha": "b" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit DIRECT-TASK --summary 'Rebased'",
+                tracker,
+                "proj-a",
+                task_identifier="DIRECT-TASK",
+                project_store=Store(),
+                workspace_path=tmp_path,
+                submission_handler=submission_handler,
+            )
+
+        assert result == "Submitted for integration: DIRECT-TASK"
+        assert captured["task_branch"] == "epic-EPIC-PARENT"
+        assert captured["head_sha"] == "b" * 40
+        assert captured["base_branch"] == "epic-EPIC-PARENT"
+        assert captured["base_sha"] is None
+
+    def test_direct_acp_remote_authority_rejection_precedes_tracker_writes(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            work_branch="TASK-1",
+        )
+
+        class RejectingStore:
+            @staticmethod
+            def verify_submission_git_authority(_project_id, **_kwargs):
+                from oompah.projects import ProjectError
+
+                raise ProjectError("origin/TASK-1 moved")
+
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=RejectingStore(),
+        )
+
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                project_store=RejectingStore(),
+                workspace_path=tmp_path,
+                submission_handler=submission_handler,
+            )
+
+        assert "submission Git authority rejected" in result
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
 
@@ -430,6 +1100,10 @@ class TestTaskScopeDirectPath:
         coordination.coordination_checkpoint.side_effect = RuntimeError(
             "coordination database temporarily unavailable"
         )
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            coordination=coordination,
+        )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -448,6 +1122,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="TASK-1",
                 coordination_service=coordination,
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result == "Submitted for integration: TASK-1"
@@ -478,6 +1153,502 @@ class TestTaskScopeDirectPath:
             "TASK-1", "api progress", author="oompah"
         )
 
+    @pytest.mark.asyncio
+    async def test_direct_acp_submit_rechecks_replaced_branch_authority_under_lock(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command_async
+        from oompah.server import _accept_worker_submission
+
+        stale = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="branch-a",
+        )
+        current = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="branch-b",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = [stale, current]
+        orch = MagicMock()
+        orch.project_store = None
+        orch.config.parallel_epic_children_enabled = False
+        authority_lock = asyncio.Lock()
+        orch.issue_transition_lock.return_value = authority_lock
+
+        async def accept_worker_submission(**kwargs):
+            return await _accept_worker_submission(orch, **kwargs)
+
+        coordination = SimpleNamespace(
+            accept_worker_submission=accept_worker_submission
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "branch-a",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = await _exec_oompah_task_command_async(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                coordination_service=coordination,
+                workspace_path=tmp_path,
+            )
+
+        assert "expected work branch 'branch-b'" in result
+        assert tracker.fetch_issue_detail.call_count == 2
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_direct_acp_submit_cancels_selected_retry_before_single_enqueue(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command_async
+        from oompah.server import _accept_worker_submission
+
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.get_metadata.return_value = {
+            "oompah.agent_run_id": "selected-retry-run"
+        }
+        events: list[str] = []
+        retry_authority = {"active": True}
+        tracker.set_metadata_field.side_effect = (
+            lambda _identifier, field, _value: events.append(field)
+        )
+
+        orch = MagicMock()
+        orch.project_store = None
+        orch.config.parallel_epic_children_enabled = True
+        authority_lock = asyncio.Lock()
+        orch.issue_transition_lock.return_value = authority_lock
+
+        def cancel_retry(**_kwargs):
+            events.append("cancel-retry")
+            retry_authority["active"] = False
+
+        def enqueue(**_kwargs):
+            assert retry_authority["active"] is False
+            assert "oompah.agent_run_id" in events
+            events.append("enqueue")
+
+        orch._cancel_retry_for_issue.side_effect = cancel_retry
+        orch.integration_queue.enqueue.side_effect = enqueue
+
+        async def accept_worker_submission(**kwargs):
+            return await _accept_worker_submission(orch, **kwargs)
+
+        coordination = SimpleNamespace(
+            accept_worker_submission=accept_worker_submission
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = await _exec_oompah_task_command_async(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                coordination_service=coordination,
+                workspace_path=tmp_path,
+            )
+
+        duplicate_workers = 0
+        async with authority_lock:
+            if retry_authority["active"]:
+                duplicate_workers += 1
+
+        assert result == "Submitted for integration: TASK-1"
+        assert events.index("oompah.integration") < events.index(
+            "oompah.agent_run_id"
+        )
+        assert events.index("oompah.agent_run_id") < events.index("cancel-retry")
+        assert events.index("cancel-retry") < events.index("enqueue")
+        orch.integration_queue.enqueue.assert_called_once()
+        assert duplicate_workers == 0
+
+    @pytest.mark.asyncio
+    async def test_live_acp_submit_binds_before_revoke_and_fences_late_exit(
+        self,
+        tmp_path,
+    ):
+        """A real live generation returns from submit with its fence attached."""
+
+        from oompah.acp_tools import _exec_oompah_task_command_async
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.get_metadata.return_value = {
+            "oompah.agent_run_id": "live-run"
+        }
+        events: list[str] = []
+
+        def set_metadata(_identifier, field, _value):
+            events.append(field)
+            if field == "oompah.agent_run_id":
+                raise RuntimeError("assignment projection unavailable")
+
+        tracker.set_metadata_field.side_effect = set_metadata
+
+        def update_issue(_identifier, **fields):
+            if "status" in fields:
+                issue.state = fields["status"]
+
+        tracker.update_issue.side_effect = update_issue
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "service-state.json"),
+        )
+        preservation_calls: list[tuple[object, ...]] = []
+
+        class LegacyProjectStore:
+            def list_all(self):
+                return []
+
+            def preserve_worktree_changes(self, *args):
+                preservation_calls.append(args)
+                return None
+
+        orch.project_store = LegacyProjectStore()
+        orch.config.parallel_epic_children_enabled = True
+        orch._project_trackers[issue.project_id] = tracker
+        start = asyncio.Event()
+
+        async def submit_from_worker():
+            await start.wait()
+            return await _exec_oompah_task_command_async(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                issue.project_id,
+                task_identifier=issue.identifier,
+                coordination_service=SimpleNamespace(
+                    accept_worker_submission=orch.accept_worker_submission
+                ),
+                workspace_path=tmp_path,
+            )
+
+        worker_task = asyncio.create_task(submit_from_worker())
+        entry = RunningEntry(
+            worker_task=worker_task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            assignment_id="live-run",
+            authority_generation="generation-1",
+            workspace_path=str(tmp_path),
+        )
+        orch._register_running_entry(issue.id, entry)
+        orch.state.claimed.add(issue.id)
+        acp_session = SimpleNamespace(terminate=AsyncMock())
+        orch._acp_agent_sessions[issue.id] = acp_session
+        assert entry.accepted_submission_record is None
+        real_cancel = orch._cancel_retry_for_issue
+        real_accepted_fence = orch._handle_revoked_submission_exit
+
+        def checked_cancel(**kwargs):
+            events.append("cancel-retry")
+            assert "oompah.integration" in events
+            assert entry.accepted_submission_record is not None
+            return real_cancel(**kwargs)
+
+        with (
+            patch(
+                "oompah.task_cli._git_submission_evidence",
+                return_value={
+                    "task_branch": "TASK-1",
+                    "head_sha": "a" * 40,
+                    "remote_head_sha": "a" * 40,
+                    "worktree_clean": True,
+                },
+            ),
+            patch.object(
+                orch,
+                "_cancel_retry_for_issue",
+                side_effect=checked_cancel,
+            ),
+            patch.object(
+                orch,
+                "_handle_revoked_submission_exit",
+                wraps=real_accepted_fence,
+            ) as accepted_fence,
+        ):
+            start.set()
+            result = await worker_task
+            for _ in range(100):
+                if (
+                    orch._current_running_entry(issue.id) is None
+                    and not any(
+                        key[0] == issue.id
+                        for key in orch._scheduled_termination_entries
+                    )
+                ):
+                    break
+                await asyncio.sleep(0.01)
+
+        assert result == "Submitted for integration: TASK-1"
+        assert entry.authority_revoked is True
+        record = entry.accepted_submission_record
+        assert record is not None
+        assert record.mode == "queue"
+        assert record.task_branch == "TASK-1"
+        assert record.head_sha == "a" * 40
+        assert events.index("oompah.integration") < events.index(
+            "oompah.agent_run_id"
+        )
+        assert events.index("oompah.agent_run_id") < events.index("cancel-retry")
+        accepted_fence.assert_awaited_once_with(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+        acp_session.terminate.assert_awaited_once_with()
+        assert preservation_calls == [
+            (
+                issue.project_id,
+                issue.identifier,
+                str(tmp_path),
+                "TASK-1",
+            )
+        ]
+        assert orch._current_running_entry(issue.id) is None
+        assert issue.id not in orch.state.claimed
+        assert not any(
+            key[0] == issue.id for key in orch._scheduled_termination_entries
+        )
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status="Ready to Integrate",
+        )
+        queued = orch.integration_queue.items(
+            project_id=issue.project_id,
+            epic_id=issue.parent_id,
+        )
+        assert len(queued) == 1
+        assert queued[0].task_id == issue.identifier
+        assert queued[0].task_branch == record.task_branch
+        assert queued[0].head_sha == record.head_sha
+
+    def test_api_agent_submit_forwards_store_and_authoritative_handler(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _execute_tool
+
+        tracker = MagicMock()
+        store = MagicMock()
+        store.get.return_value = SimpleNamespace(
+            access_token="project-token",
+            forge_kind="gitlab",
+        )
+        submission_handler = MagicMock(
+            return_value=SimpleNamespace(direct_failure_message=None)
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ) as evidence:
+            result = _execute_tool(
+                tmp_path,
+                "run_command",
+                {"command": "oompah task submit TASK-1 --summary 'Done'"},
+                task_tracker=tracker,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                project_store=store,
+                submission_handler=submission_handler,
+            )
+
+        assert result == "Submitted for integration: TASK-1"
+        store.get.assert_called_once_with("proj-a")
+        assert evidence.call_args.kwargs["access_token"] == "project-token"
+        assert evidence.call_args.kwargs["forge_kind"] == "gitlab"
+        assert submission_handler.call_args.kwargs["tracker"] is tracker
+        assert submission_handler.call_args.kwargs["body"]["summary"] == "Done"
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_api_agent_submit_uses_coherent_first_read_project_snapshot(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _execute_tool
+
+        tracker = MagicMock()
+        project = SimpleNamespace(
+            access_token="original-token",
+            forge_kind="gitlab",
+        )
+        store = MagicMock()
+        store.get.return_value = project
+        submission_handler = MagicMock(
+            return_value=SimpleNamespace(direct_failure_message=None)
+        )
+
+        def rotate_project_during_policy_check(*_args, **_kwargs):
+            project.access_token = "rotated-token"
+            project.forge_kind = "github"
+            return None
+
+        with (
+            patch(
+                "oompah.api_agent.check_shell_command",
+                side_effect=rotate_project_during_policy_check,
+            ),
+            patch(
+                "oompah.task_cli._git_submission_evidence",
+                return_value={
+                    "task_branch": "TASK-1",
+                    "head_sha": "a" * 40,
+                    "remote_head_sha": "a" * 40,
+                    "worktree_clean": True,
+                },
+            ) as evidence,
+        ):
+            result = _execute_tool(
+                tmp_path,
+                "run_command",
+                {"command": "oompah task submit TASK-1 --summary 'Done'"},
+                task_tracker=tracker,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                project_store=store,
+                submission_handler=submission_handler,
+            )
+
+        assert result == "Submitted for integration: TASK-1"
+        store.get.assert_called_once_with("proj-a")
+        assert evidence.call_args.kwargs["access_token"] == "original-token"
+        assert evidence.call_args.kwargs["forge_kind"] == "gitlab"
+        assert project.access_token == "rotated-token"
+        assert project.forge_kind == "github"
+
+    def test_api_agent_status_handoff_forwards_durable_coordination(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+
+        issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        coordination = MagicMock()
+        coordination.workflow_runtime = SimpleNamespace(enforce=True)
+        coordination._current_running_entry.return_value = SimpleNamespace(
+            issue=issue,
+            identifier=issue.identifier,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        coordination._schedule_implementation_workflow_event.return_value = (
+            SimpleNamespace(job_id="status-job")
+        )
+
+        result = _execute_tool(
+            tmp_path,
+            "run_command",
+            {"command": "oompah task set-status TASK-1 'Needs Human'"},
+            task_tracker=tracker,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            coordination_service=coordination,
+        )
+
+        assert result == "Status set to: Needs Human"
+        tracker.update_issue.assert_not_called()
+        scheduled = coordination._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "oompah task set-status TASK-1 'Ready to Integrate'",
+            "oompah task add-label TASK-1 oompah:status:ready-to-integrate",
+            "oompah task remove-label TASK-1 oompah:status:ready-to-integrate",
+        ],
+    )
+    def test_api_agent_ready_mutations_require_authoritative_submit(
+        self,
+        tmp_path,
+        command,
+    ):
+        from oompah.api_agent import _execute_tool
+
+        tracker = MagicMock()
+
+        result = _execute_tool(
+            tmp_path,
+            "run_command",
+            {"command": command},
+            task_tracker=tracker,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+        )
+
+        assert result.startswith("Error: spawned workers must use")
+        assert "oompah task submit TASK-1" in result
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
+
 
 class TestTaskHandoffEndpoint:
     def test_api_submission_marks_queue_enqueue_as_explicit_retry(self):
@@ -494,6 +1665,7 @@ class TestTaskHandoffEndpoint:
             state="ready",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
+            base_branch="epic-EPIC-1",
             base_sha="b" * 40,
             submitted_at="2026-07-30T00:00:00+00:00",
         )
@@ -523,6 +1695,7 @@ class TestTaskHandoffEndpoint:
             state="integrated",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
+            base_branch="epic-EPIC-1",
             base_sha="b" * 40,
             submitted_at="2026-07-30T00:00:00+00:00",
         )
@@ -533,6 +1706,166 @@ class TestTaskHandoffEndpoint:
             orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
             is False
         )
+
+    def test_scoped_submit_remote_rejection_precedes_tracker_mutation(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            issue_task_handoff_token,
+        )
+
+        issue = Issue(
+            id="issue-remote-reject",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.config.parallel_epic_children_enabled = False
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"submit"},
+        )
+        orch.state = SimpleNamespace(
+            running={
+                issue.id: SimpleNamespace(
+                    identifier=issue.identifier,
+                    issue=issue,
+                    task_handoff_token=token,
+                )
+            }
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with (
+                patch.object(
+                    server,
+                    "_verify_submission_git_authority",
+                    new=AsyncMock(side_effect=ValueError("origin moved")),
+                ),
+                TestClient(app, raise_server_exceptions=False) as client,
+            ):
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "submit",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "summary": "Done",
+                        "task_branch": "TASK-1",
+                        "head_sha": "a" * 40,
+                        "remote_head_sha": "a" * 40,
+                        "worktree_clean": True,
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert response.status_code == 400
+        assert "origin moved" in response.text
+        orch._cancel_retry_for_issue.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_scoped_ready_status_and_labels_require_authoritative_submit(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-ready-bypass",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"set-status", "add-label", "remove-label"},
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                headers = {TASK_HANDOFF_HEADER: token}
+                responses = [
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "set-status",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "status": "ready-to-integrate",
+                        },
+                    ),
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "add-label",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "label": "oompah:status:ready-to-integrate",
+                        },
+                    ),
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "remove-label",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "label": "oompah:status:ready-to-integrate",
+                        },
+                    ),
+                ]
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert [response.status_code for response in responses] == [400, 400, 400]
+        for response in responses:
+            assert response.json()["error"]["code"] == "validation"
+            assert "oompah task submit TASK-1" in response.json()["error"]["message"]
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
+        orch._cancel_retry_for_issue.assert_not_called()
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
 
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
         from fastapi.testclient import TestClient
@@ -628,6 +1961,198 @@ class TestTaskHandoffEndpoint:
         assert status.json()["status"] == "In Validation"
         assert status.json()["requested_target"] == "Done"
         assert status.json()["audit_id"] == "audit-handoff-1"
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.parametrize("requested_status", ["Needs Answer", "Needs Human"])
+    def test_enforce_nonterminal_status_uses_durable_single_writer(
+        self, requested_status
+    ):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id=f"issue-{requested_status}",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        entry = SimpleNamespace(
+            issue=issue,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._current_running_entry.return_value = entry
+        orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+            job_id="status-job"
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"set-status"},
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "set-status",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "status": requested_status,
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert response.status_code == 200, response.text
+        tracker.update_issue.assert_not_called()
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == requested_status
+        assert scheduled["payload"]["prior_generation"] == "generation-1"
+        assert scheduled["payload"]["run_id"] == "run-1"
+        assert scheduled["expected_evidence_revision"]
+
+    def test_enforce_nonterminal_status_label_uses_durable_single_writer(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-status-label",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        entry = SimpleNamespace(
+            issue=issue,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._current_running_entry.return_value = entry
+        orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+            job_id="status-label-job"
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"add-label"},
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "add-label",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "label": "oompah:status:needs-human",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert response.status_code == 200, response.text
+        tracker.add_label.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+        assert scheduled["payload"]["prior_generation"] == "generation-1"
+
+    def test_enforce_status_label_removal_requires_destination_status(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-status-label-remove",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"remove-label"},
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "remove-label",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "label": "oompah:status:in-progress",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 400
+        tracker.remove_label.assert_not_called()
         tracker.update_issue.assert_not_called()
 
     def test_capability_header_cannot_bypass_basic_auth_on_general_api(self):
@@ -773,6 +2298,11 @@ class TestFailedHandoffLifecycle:
 
         tracker.update_issue.side_effect = update_issue
         server_orch = MagicMock()
+
+        def transition_issue_status(current, requested_status, **_kwargs):
+            tracker.update_issue(current.identifier, status=requested_status)
+
+        server_orch._transition_issue_status.side_effect = transition_issue_status
         server_orch._tracker_for_project.return_value = tracker
         server_orch.project_store.list_all.return_value = []
         server_orch.config.parallel_epic_children_enabled = False
@@ -915,14 +2445,201 @@ class TestFailedHandoffLifecycle:
         )
         orch.state.running[issue.id] = entry
         orch.tracker = MagicMock()
+        orch.tracker.fetch_issue_detail.return_value = issue
+
+        def update_issue(_identifier, **fields):
+            if "status" in fields:
+                issue.state = fields["status"]
+
+        orch.tracker.update_issue.side_effect = update_issue
+        orch._fire_work_contributor_record = MagicMock()
 
         asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
 
         assert issue.id in orch.state.completed
         assert issue.id not in orch.state.running
-        orch.tracker.mark_needs_human.assert_called_once()
-        assert "handoff" in orch.tracker.mark_needs_human.call_args.args[1].lower()
+        orch.tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status="Needs Human",
+        )
+        handoff_comments = [
+            comment
+            for comment in orch.tracker.add_comment.call_args_list
+            if "handoff" in comment.args[1].lower()
+        ]
+        assert len(handoff_comments) == 1
         assert not orch.state.retry_attempts
+
+    def test_enforce_failed_handoff_schedules_needs_human_without_retry(
+        self, tmp_path
+    ):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = Issue(
+            id="issue-durable-failure",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True, close=MagicMock())
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="handoff-failure")
+        )
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-failure",
+            authority_generation="generation-failure",
+        )
+        orch.state.running[issue.id] = entry
+
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "abnormal",
+                "oompah task handoff returned HTTP 401 Unauthorized",
+                run_id=entry.run_id,
+            )
+        )
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+        assert scheduled["payload"]["reason"] == "task_handoff_failed"
+        assert scheduled["payload"]["prior_generation"] == "generation-failure"
+        orch._schedule_retry.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_enforce_normal_exit_uses_bounded_durable_retry(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = Issue(
+            id="issue-incomplete",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True, close=MagicMock())
+        orch._schedule_implementation_workflow_event = MagicMock()
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-incomplete",
+            authority_generation="generation-incomplete",
+        )
+        orch.state.running[issue.id] = entry
+
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "normal",
+                None,
+                run_id=entry.run_id,
+            )
+        )
+
+        retry = orch._schedule_retry.call_args.kwargs
+        assert retry["attempt"] == 1
+        assert retry["error"] == "completed_without_handoff"
+        assert retry["context_entry"] is entry
+        orch._schedule_implementation_workflow_event.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_enforce_third_incomplete_session_routes_needs_human(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = Issue(
+            id="issue-incomplete-third",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True, close=MagicMock())
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="needs-human")
+        )
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        orch._post_comment = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=2,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-third",
+            authority_generation="generation-third",
+        )
+        orch.state.running[issue.id] = entry
+
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "normal",
+                None,
+                run_id=entry.run_id,
+            )
+        )
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+        assert scheduled["payload"]["incomplete_sessions"] == 3
+        assert scheduled["payload"]["reason"] == "completed_without_handoff"
+        orch._schedule_retry.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     @pytest.mark.parametrize(
         "error",
@@ -1008,6 +2725,11 @@ class TestCoordinationSendRaces:
         tracker.update_issue.side_effect = update_issue
 
         orch = MagicMock()
+
+        def transition_issue_status(current, requested_status, **_kwargs):
+            tracker.update_issue(current.identifier, status=requested_status)
+
+        orch._transition_issue_status.side_effect = transition_issue_status
         orch._tracker_for_project.return_value = tracker
         orch.project_store.list_all.return_value = []
         orch.config.parallel_epic_children_enabled = False
@@ -2161,6 +3883,102 @@ class TestHandoffTokenFailClosed:
         )
 
 
+class TestEpicRebasePublishHandoff:
+    def test_endpoint_accepts_only_scoped_candidate_and_honors_revocation(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        issue = Issue(
+            id="rebase-1",
+            identifier="REBASE-1",
+            title="Rebase epic-EPIC-1 onto main",
+            description="server publish",
+            state="Needs Rebase",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        project = SimpleNamespace(id="proj-a", name="project-a")
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.side_effect = (
+            lambda project_id: project if project_id == "proj-a" else None
+        )
+        orch.project_store.find_by_name.return_value = None
+        orch.project_store.list_all.return_value = [project]
+        orch.publish_epic_rebase_candidate.return_value = {
+            "published": True,
+            "recovered": False,
+            "candidate": "c" * 40,
+        }
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="REBASE-1",
+            allowed_actions={"publish-epic-rebase"},
+        )
+        revoked = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="REBASE-1",
+            allowed_actions={"publish-epic-rebase"},
+        )
+        revoke_task_handoff_token(revoked)
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                payload = {
+                    "action": "publish-epic-rebase",
+                    "project_id": "proj-a",
+                    "identifier": "REBASE-1",
+                    "candidate_sha": "c" * 40,
+                }
+                accepted = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json=payload,
+                )
+                extra_control = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={**payload, "remote": "attacker"},
+                )
+                invalid_candidate = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={**payload, "candidate_sha": "refs/heads/main"},
+                )
+                after_revoke = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: revoked},
+                    json=payload,
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            revoke_task_handoff_token(token)
+
+        assert accepted.status_code == 200
+        assert accepted.json()["published"] is True
+        orch.publish_epic_rebase_candidate.assert_called_once_with(
+            "proj-a", "REBASE-1", "c" * 40
+        )
+        assert extra_control.status_code == 400
+        assert "accepts only project_id" in extra_control.text
+        assert invalid_candidate.status_code == 400
+        assert "full lowercase commit SHA" in invalid_candidate.text
+        assert after_revoke.status_code == 401
+
+
 class TestOrchestratorHandoffTokenMint:
     """OOMPAH-593 live-path reproducer: verify Orchestrator._issue_task_handoff_token
     mints a capability whose scope and action set are exactly what a
@@ -2231,6 +4049,213 @@ class TestOrchestratorHandoffTokenMint:
             action="view",
         )
         assert allowed, f"minted token should validate for its own scope: {reason}"
+
+        publish_allowed, _reason = validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="OOMPAH-999",
+            action="publish-epic-rebase",
+        )
+        assert publish_allowed is False
+
+    def test_only_rebase_helper_grant_receives_publish_action(self, tmp_path):
+        from oompah.models import EpicRebaseStateEntry
+        from oompah.task_handoff import (
+            acquire_task_handoff_permit,
+            revoke_task_handoff_token,
+            validate_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        helper = Issue(
+            id="rebase-live",
+            identifier="REBASE-1",
+            title="Rebase epic-EPIC-1 onto main",
+            description="body",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+        orch._epic_rebase_authorities[
+            orch._epic_rebase_authority_key("proj-live", "EPIC-1")
+        ] = EpicRebaseStateEntry(
+            state="rebasing",
+            updated_at=time.time(),
+            project_id="proj-live",
+            authority_generation="generation-1",
+            authority_task_id=helper.identifier,
+            authority_epic_head="a" * 40,
+        )
+        token = orch._issue_task_handoff_token(helper)
+        assert token is not None
+        allowed, reason = validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="REBASE-1",
+            action="publish-epic-rebase",
+        )
+        assert allowed, reason
+        assert validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="REBASE-OTHER",
+            action="publish-epic-rebase",
+        )[0] is False
+        assert validate_task_handoff_token(
+            token,
+            project_id="proj-other",
+            task_identifier="REBASE-1",
+            action="publish-epic-rebase",
+        )[0] is False
+
+        permit = acquire_task_handoff_permit(
+            token,
+            project_id="proj-live",
+            task_identifier="REBASE-1",
+            action="publish-epic-rebase",
+        )
+        assert permit is not None
+        revoke_task_handoff_token(token)
+        with pytest.raises(OperationPermitDenied, match="revoked"):
+            permit.begin()
+
+    def test_spoofed_rebase_title_does_not_receive_publish_action(self, tmp_path):
+        from oompah.task_handoff import (
+            revoke_task_handoff_token,
+            validate_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        spoof = Issue(
+            id="spoof-rebase",
+            identifier="SPOOF-1",
+            title="Rebase epic-EPIC-1 onto main",
+            description="user-created lookalike",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+
+        token = orch._issue_task_handoff_token(spoof)
+        assert token is not None
+        try:
+            assert validate_task_handoff_token(
+                token,
+                project_id="proj-live",
+                task_identifier="SPOOF-1",
+                action="publish-epic-rebase",
+            )[0] is False
+        finally:
+            revoke_task_handoff_token(token)
+
+    def test_in_process_publish_bridge_uses_running_workers_active_permit(
+        self, tmp_path
+    ):
+        from oompah.projects import ProjectError
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        helper = Issue(
+            id="rebase-bridge",
+            identifier="REBASE-BRIDGE",
+            title="Rebase epic-EPIC-1 onto main",
+            description="body",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-live",
+            task_identifier=helper.identifier,
+            allowed_actions={"publish-epic-rebase"},
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=helper.identifier,
+            issue=helper,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            task_handoff_token=token,
+        )
+        orch.state.running[helper.id] = entry
+        candidate = "e" * 40
+
+        def publish(project_id, task_identifier, received_candidate):
+            # Revocation after permit.begin() cannot unwind an already-admitted
+            # external mutation, but it must fence every later call.
+            revoke_task_handoff_token(token)
+            return {
+                "published": True,
+                "recovered": False,
+                "candidate": received_candidate,
+            }
+
+        orch.publish_epic_rebase_candidate = MagicMock(side_effect=publish)
+        result = orch.publish_worker_epic_rebase_candidate(
+            "proj-live",
+            helper.identifier,
+            candidate,
+        )
+
+        assert result["published"] is True
+        orch.publish_epic_rebase_candidate.assert_called_once_with(
+            "proj-live", helper.identifier, candidate
+        )
+        with pytest.raises(ProjectError, match="capability_revoked"):
+            orch.publish_worker_epic_rebase_candidate(
+                "proj-live",
+                helper.identifier,
+                candidate,
+            )
+
+    def test_in_process_publish_bridge_rejects_lifecycle_tombstone(self, tmp_path):
+        from oompah.projects import ProjectError
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        orch = self._make_orch(tmp_path)
+        helper = Issue(
+            id="rebase-revoked",
+            identifier="REBASE-REVOKED",
+            title="Rebase epic-EPIC-1 onto main",
+            description="body",
+            state="Needs Rebase",
+            project_id="proj-live",
+            parent_id="EPIC-1",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-live",
+            task_identifier=helper.identifier,
+            allowed_actions={"publish-epic-rebase"},
+        )
+        orch.state.running[helper.id] = RunningEntry(
+            worker_task=None,
+            identifier=helper.identifier,
+            issue=helper,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            task_handoff_token=token,
+            authority_revoked=True,
+        )
+        orch.publish_epic_rebase_candidate = MagicMock()
+        try:
+            with pytest.raises(ProjectError, match="authority_revoked"):
+                orch.publish_worker_epic_rebase_candidate(
+                    "proj-live",
+                    helper.identifier,
+                    "f" * 40,
+                )
+        finally:
+            revoke_task_handoff_token(token)
+
+        orch.publish_epic_rebase_candidate.assert_not_called()
 
     def test_orchestrator_reissues_atomically_for_same_live_entry(self, tmp_path):
         """A retry/restart replacement revokes the old worker token first."""
@@ -3097,7 +5122,10 @@ class TestOOMPAH650WorkerLifetimeCredentials:
                 orch.state.running[issue.id] = replacement_entry
                 return await terminate_task
 
-            assert asyncio.run(_swap_and_terminate()) is True
+            # The exact old bearer is retired, but a replacement runtime is
+            # still live.  Report the overall stop as incomplete so a service
+            # shutdown cannot treat the replacement as drained.
+            assert asyncio.run(_swap_and_terminate()) is False
 
             # OLD token: revoked (or already outright removed after grace).
             valid_old, reason_old = validate_task_handoff_token(
@@ -3320,7 +5348,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         old_orch = server._orchestrator
         old_creds = server._http_credentials
         old_broadcast = server.broadcast_issues
-        old_acquire = server.acquire_task_handoff_permit
+        old_acquire = server.acquire_task_handoff_permit_classified
         server._orchestrator = orch
         server._http_credentials = None
         server.broadcast_issues = AsyncMock()
@@ -3333,7 +5361,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             assert release_admission.wait(2.0)
             return permit
 
-        server.acquire_task_handoff_permit = gated_acquire
+        server.acquire_task_handoff_permit_classified = gated_acquire
         result: dict[str, object] = {}
 
         def issue_request() -> None:
@@ -3365,11 +5393,107 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             server._orchestrator = old_orch
             server._http_credentials = old_creds
             server.broadcast_issues = old_broadcast
-            server.acquire_task_handoff_permit = old_acquire
+            server.acquire_task_handoff_permit_classified = old_acquire
 
         response = result["response"]
         assert response.status_code == 401
         assert response.json()["error"]["code"] == "handoff_revoked"
+        tracker.add_comment.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "race_window",
+        ["validation", "permit_acquisition", "operation_admission"],
+    )
+    def test_temporary_retirement_denial_does_not_degrade_auth_health(
+        self,
+        race_window,
+    ):
+        """A reversible retirement fence is contention, not broken auth."""
+
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as auth_health
+        import oompah.server as server
+        import oompah.task_handoff as task_handoff_module
+        from oompah.server import app
+
+        auth_health._reset_for_testing()
+        store = TaskHandoffGrantStore()
+        old_store = task_handoff_module._default_store
+        task_handoff_module._default_store = store
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker.fetch_comments.return_value = []
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        old_acquire = server.acquire_task_handoff_permit_classified
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+
+        if race_window == "validation":
+            assert store.suspend(token) is not None
+        elif race_window == "permit_acquisition":
+            def suspend_before_acquire(*args, **kwargs):
+                assert store.suspend(token) is not None
+                return old_acquire(*args, **kwargs)
+
+            server.acquire_task_handoff_permit_classified = suspend_before_acquire
+        else:
+            def suspend_after_acquire(*args, **kwargs):
+                result = old_acquire(*args, **kwargs)
+                assert result[0] is not None
+                assert store.suspend(token) is not None
+                return result
+
+            server.acquire_task_handoff_permit_classified = suspend_after_acquire
+
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "must wait for retirement resolution",
+                    },
+                )
+            failure = store.consume_failure(token)
+            health = auth_health.auth_health_snapshot()["worker"]
+        finally:
+            task_handoff_module._default_store = old_store
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+            server.acquire_task_handoff_permit_classified = old_acquire
+            auth_health._reset_for_testing()
+
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "handoff_revoked"
+        assert failure is None
+        assert health["recent_401_count"] == 0
+        assert health["total_401_count"] == 0
+        assert health["recent_403_scope_count"] == 0
         tracker.add_comment.assert_not_called()
 
     def test_admitted_operation_is_ordered_before_revocation(self):

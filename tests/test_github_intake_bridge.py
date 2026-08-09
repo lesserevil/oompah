@@ -91,6 +91,14 @@ class FakeNativeTracker:
             issue.labels = list(fields["labels"])  # type: ignore[arg-type]
         self.update_calls.append((identifier, dict(fields)))
 
+    def transition_issue_status(
+        self,
+        issue: Issue,
+        status: str,
+        **_fields: object,
+    ) -> None:
+        self.update_issue(issue.identifier, status=status)
+
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         self.comments.append((identifier, text, author))
         return {"author": author, "text": text}
@@ -164,6 +172,11 @@ def _orch(native: FakeNativeTracker):
             tracker_terminal_states=["Done", "Merged", "Archived"],
         ),
         _tracker_for_project=lambda project_id: native,
+        _transition_issue_status=(
+            lambda issue, status, **fields: native.transition_issue_status(
+                issue, status, **fields
+            )
+        ),
     )
 
 

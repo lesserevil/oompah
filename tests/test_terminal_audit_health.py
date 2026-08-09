@@ -134,8 +134,10 @@ class TestEmptyBacklog:
             "launch_failure_count",
             "transport_failure_count",
             "policy_incompatibility_count",
+            "configuration_error_count",
             "failure_count",
             "retry_exhausted_count",
+            "transport_retry_pending_count",
             "quarantined_count",
             "stale_after_seconds",
             "scan_complete",
@@ -178,11 +180,52 @@ class TestFreshNormalQueue:
         assert alerts == [], f"Expected no alerts for fresh queue, got: {alerts}"
 
     def test_fresh_in_progress_counts_correctly(self):
-        """An in-progress record increments in_progress_count, not pending_count."""
+        """A live request is supervised by liveness, not pending-age alerts."""
         rec = _record(request_state=RequestState.IN_PROGRESS)
-        health = build_terminal_audit_health([_obs(rec)], now=NOW)
+        health = build_terminal_audit_health(
+            [_obs(rec)],
+            now=NOW + timedelta(days=2),
+            stale_after_seconds=60,
+        )
         assert health.in_progress_count == 1
         assert health.pending_count == 0
+        assert health.stale_pending_count == 0
+        assert health.oldest_pending_at is None
+        assert health.oldest_pending_age_seconds is None
+        assert not health.degraded
+        assert terminal_audit_health_alerts(health) == []
+
+    def test_aged_in_progress_is_not_a_pending_backlog(self):
+        """An active auditor cannot manufacture zero-pending backlog facts."""
+        rec = _record(request_state=RequestState.IN_PROGRESS)
+        health = build_terminal_audit_health(
+            [_obs(rec)],
+            now=NOW + timedelta(seconds=DEFAULT_STALE_AFTER_SECONDS + 1),
+        )
+
+        assert health.pending_count == 0
+        assert health.in_progress_count == 1
+        assert health.oldest_pending_at is None
+        assert health.oldest_pending_age_seconds is None
+        assert health.stale_pending_count == 0
+        assert health.projects["project-1"].get("stale_pending_count", 0) == 0
+        assert not health.degraded
+        assert terminal_audit_health_alerts(health) == []
+
+    def test_impossible_zero_pending_backlog_facts_do_not_emit_an_alert(self):
+        """The alert boundary fails closed if a legacy cache is inconsistent."""
+        health = TerminalAuditHealth(
+            pending_count=0,
+            oldest_pending_at=NOW.isoformat(),
+            oldest_pending_age_seconds=DEFAULT_STALE_AFTER_SECONDS + 1,
+            stale_pending_count=1,
+        )
+
+        assert not [
+            alert
+            for alert in terminal_audit_health_alerts(health)
+            if alert["source"] == HEALTH_ALERT_PREFIX + "backlog_age"
+        ]
 
     def test_stale_threshold_not_reached_is_healthy(self):
         """A record at exactly stale_after_seconds - 1 must not be stale."""
@@ -205,21 +248,25 @@ class TestFreshNormalQueue:
 
 
 class TestAgedBacklogAndStaleValidation:
-    def test_aged_backlog_surfaces_warning_alert(self):
-        """A record older than stale_after_seconds must surface a backlog_age alert."""
+    def test_aged_backlog_surfaces_task_local_info(self):
+        """An aged queue remains informational while automatic recovery owns it."""
         rec = _record()
         health = build_terminal_audit_health(
             [_obs(rec)],
             now=NOW + timedelta(seconds=DEFAULT_STALE_AFTER_SECONDS + 1),
         )
+        assert health.pending_count == 1
         assert health.stale_pending_count == 1
+        assert health.oldest_pending_age_seconds == DEFAULT_STALE_AFTER_SECONDS + 1
         alerts = terminal_audit_health_alerts(health)
         sources = [a["source"] for a in alerts]
         assert HEALTH_ALERT_PREFIX + "backlog_age" in sources, (
             f"Expected backlog_age alert, got: {sources}"
         )
         backlog_alert = next(a for a in alerts if "backlog_age" in a["source"])
-        assert backlog_alert["level"] == "warning"
+        assert backlog_alert["level"] == "info"
+        assert backlog_alert["action_required"] is False
+        assert backlog_alert["recovery_state"] == "automatic_recovery"
 
     def test_stale_in_validation_no_record_surfaces_validation_alert(self):
         """An In Validation task with no audit record beyond threshold is stale."""
@@ -290,8 +337,8 @@ class TestLaunchAndTransportFailures:
                     f"Model output in {field}: {text}"
                 )
 
-    def test_failure_alert_is_error_level(self):
-        """Launch failure alerts must be error-level, not warning."""
+    def test_failure_observation_is_info_while_retries_continue(self):
+        """Launch failures remain task-local while retry recovery continues."""
         launch_attempt = _attempt(
             "attempt-launch",
             failure_reason="auditor launch failed",
@@ -304,7 +351,8 @@ class TestLaunchAndTransportFailures:
             (a for a in alerts if "launch_failures" in a["source"]), None
         )
         assert launch_alert is not None, "Expected launch_failures alert"
-        assert launch_alert["level"] == "error"
+        assert launch_alert["level"] == "info"
+        assert launch_alert["action_required"] is False
 
     def test_connection_timeout_is_transport_failure(self):
         """An attempt with 'connection timeout' in the reason is a transport failure."""
@@ -365,6 +413,95 @@ class TestLaunchAndTransportFailures:
 
 
 class TestRetryExhaustion:
+    def test_scheduler_pause_is_normal_and_consumes_no_retry_budget(self):
+        """Routine lifecycle interruption stays out of operator warnings."""
+        from dataclasses import replace
+
+        interrupted = replace(
+            _attempt(
+                "attempt-paused",
+                failure_reason="operator pause interrupted auditor before verdict",
+                ended_at=NOW.isoformat(),
+            ),
+            failure_classification=FailureClassification.SCHEDULER_PAUSE,
+        )
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=[interrupted]))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=1,
+        )
+
+        assert health.retry_exhausted_count == 0
+        assert health.transport_retry_pending_count == 0
+        assert health.transport_failure_count == 0
+        sources = {alert["source"] for alert in terminal_audit_health_alerts(health)}
+        assert HEALTH_ALERT_PREFIX + "retry_exhausted" not in sources
+        assert HEALTH_ALERT_PREFIX + "transport_retry_pending" not in sources
+
+    def test_transport_recovery_is_not_candidate_exhaustion(self):
+        """A pre-verdict delivery failure surfaces a recovery signal, not no_auditor."""
+        from dataclasses import replace
+
+        timeout = replace(
+            _attempt(
+                "attempt-timeout",
+                failure_reason="run_command result delivery timed out after 30s",
+                ended_at=NOW.isoformat(),
+            ),
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+        )
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=[timeout]))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=2,
+        )
+
+        assert health.transport_retry_pending_count == 1
+        assert health.retry_exhausted_count == 0
+        alerts = terminal_audit_health_alerts(health)
+        sources = {alert["source"] for alert in alerts}
+        assert HEALTH_ALERT_PREFIX + "transport_retry_pending" in sources
+        assert HEALTH_ALERT_PREFIX + "retry_exhausted" not in sources
+
+    def test_transport_retry_budget_becomes_actionable_after_bound(self):
+        """Transport recovery cannot retry forever when the provider remains down."""
+        from dataclasses import replace
+
+        attempts = [
+            replace(
+                _attempt(
+                    f"attempt-timeout-{index}",
+                    failure_reason="forced provider shutdown before verdict",
+                    ended_at=NOW.isoformat(),
+                ),
+                failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+            )
+            for index in range(2)
+        ]
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=attempts))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=2,
+        )
+
+        assert health.transport_retry_pending_count == 0
+        assert health.retry_exhausted_count == 1
+
+    def test_zero_transport_retry_budget_does_not_exhaust_before_initial_launch(self):
+        """Zero disables recovery retries without hiding fresh candidate capacity."""
+        health = build_terminal_audit_health(
+            [_obs(_record(attempts=[]))],
+            now=NOW,
+            max_attempts=1,
+            max_transport_retries=0,
+        )
+
+        assert health.transport_retry_pending_count == 0
+        assert health.retry_exhausted_count == 0
+
     def test_retry_exhaustion_is_active_until_the_record_recovers(self):
         """An audit that used max_attempts increments retry_exhausted_count."""
         attempts = [
@@ -392,6 +529,7 @@ class TestRetryExhaustion:
         )
         assert exhausted_alert is not None
         assert exhausted_alert["level"] == "error"
+        assert exhausted_alert["action_required"] is True
 
     def test_fewer_than_max_attempts_is_not_exhausted(self):
         """An audit with fewer attempts than max is not exhausted."""
@@ -425,6 +563,10 @@ class TestRecoveryAndAlertClearing:
         # Now simulate recovery: empty queue
         health2 = build_terminal_audit_health([], now=NOW + timedelta(seconds=1))
         assert not health2.degraded
+        assert health2.pending_count == 0
+        assert health2.stale_pending_count == 0
+        assert health2.oldest_pending_at is None
+        assert health2.oldest_pending_age_seconds is None
         alerts = terminal_audit_health_alerts(health2)
         assert alerts == [], f"Expected no alerts after recovery: {alerts}"
 
@@ -543,6 +685,21 @@ class TestRedaction:
                 assert "Exception" not in text, (
                     f"Exception class in alert.{field}: {text!r}"
                 )
+
+    def test_budgeted_partial_scan_is_informational(self):
+        """A cursor continuation is normal capacity flow, not operator work."""
+
+        health = build_terminal_audit_health(
+            [], now=NOW, scan_complete=False, scan_error_count=0
+        )
+        alert = next(
+            item
+            for item in terminal_audit_health_alerts(health)
+            if item["source"] == HEALTH_ALERT_PREFIX + "scan"
+        )
+        assert alert["level"] == "info"
+        assert alert["action_required"] is False
+        assert "durable cursor" in alert["action"]
 
 
 # ---------------------------------------------------------------------------

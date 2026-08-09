@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import functools
+import inspect
 import json
 import logging
 import os
@@ -16,7 +17,7 @@ import threading
 import time
 import urllib.parse
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping
@@ -59,8 +60,10 @@ from oompah.agent_profile_store import (
     AgentProfileStore,
     DEFAULT_AGENT_PROFILES_PATH,
 )
+from oompah.alert_safety import DIAGNOSTIC_AVAILABLE_TEXT
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.orchestrator_thread import orchestrator_thread_error_fields
 from oompah.dashboard_alerts import normalize_alerts
 from oompah.ipc import OrchestratorIPC, get_ipc
 from oompah.issue_enhancer import (
@@ -73,15 +76,14 @@ from oompah.intake_summary import build_intake_summary
 from oompah.integration import (
     IntegrationRecord,
     is_direct_epic_maintenance_issue,
+    task_submit_required_message,
     validate_submission_branch,
 )
 from oompah.coordination import CoordinationStore
 from oompah.container_dependency_graph import (
-    find_container_dependency_cycles,
     container_dependency_cycle_for_new_edge,
 )
 from oompah.dependency_graph import (
-    dependency_parent_has_landed,
     dependency_cycle_for_new_edge,
     effective_dependencies,
     issue_index,
@@ -142,11 +144,16 @@ from oompah.validation_resource_lease import (
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
-    acquire_task_handoff_permit,
+    acquire_task_handoff_permit_classified,
     OperationPermit,
     OperationPermitDenied,
     record_task_handoff_failure,
-    validate_task_handoff_token,
+    validate_task_handoff_token_classified,
+)
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    issue_authority_version,
+    issue_exact_head,
 )
 from oompah.auth_health import (
     record_operator_401,
@@ -162,7 +169,12 @@ from oompah.projects import (
     ProjectStore,
     is_generated_worktree_helper,
 )
+from oompah.integration_projection import IntegrationDependencyProjection
 from oompah.integration_queue import IntegrationQueueStore
+from oompah.work_decision_projection import (
+    operator_actionable_alerts,
+    project_work_decision_payload,
+)
 from oompah.label_auth import is_authorized_status_actor
 from oompah.tracker import TrackerError, normalize_priority_int
 from oompah.providers import ProviderStore
@@ -218,6 +230,73 @@ if TYPE_CHECKING:
     from oompah.orchestrator import Orchestrator
 
 logger = logging.getLogger(__name__)
+
+
+async def _await_fail_closed_orchestrator_stop(orchestrator: Any) -> None:
+    """Keep the process boundary alive until shutdown authority is durable."""
+
+    current = asyncio.current_task()
+    try_threadsafe_owner = True
+    while True:
+        stop_future = None
+        if try_threadsafe_owner:
+            try:
+                stop_future = orchestrator.stop_threadsafe()
+            except Exception:  # noqa: BLE001 - fall back to the live boundary loop
+                logger.exception(
+                    "Could not schedule safe stop on orchestrator loop; "
+                    "continuing on process-boundary loop"
+                )
+        try_threadsafe_owner = False
+        if stop_future is not None:
+            owned_stop = asyncio.wrap_future(stop_future)
+        else:
+            stop_until_safe = getattr(orchestrator, "stop_until_safe", None)
+            stop_call = (
+                stop_until_safe()
+                if callable(stop_until_safe)
+                else orchestrator.stop()
+            )
+            owned_stop = asyncio.create_task(stop_call, name="fail-closed-stop")
+
+        while not owned_stop.done():
+            try:
+                await asyncio.shield(owned_stop)
+            except asyncio.CancelledError:
+                if current is not None and current.cancelling():
+                    # Shutdown has already begun. Deferring outer cancellation
+                    # keeps this exact owner alive until its journal is durable.
+                    current.uncancel()
+                    logger.critical(
+                        "Deferring process-boundary cancellation until "
+                        "orchestrator shutdown recovery is durable"
+                    )
+                    continue
+                if owned_stop.cancelled():
+                    break
+                raise
+
+        if owned_stop.cancelled():
+            logger.critical(
+                "Safe-stop owner was cancelled before acknowledging durable "
+                "shutdown; replacing it on the process-boundary loop"
+            )
+            continue
+        try:
+            stopped = owned_stop.result()
+        except BaseException:  # noqa: BLE001 - never unwind an unsafe boundary
+            logger.exception(
+                "Safe-stop owner failed before acknowledging durable shutdown; "
+                "replacing it on the process-boundary loop"
+            )
+            continue
+        if stopped is False:
+            logger.critical(
+                "Safe-stop owner retained unsafe runtime authority; retrying "
+                "on the process-boundary loop"
+            )
+            continue
+        return
 
 
 def _task_priority_int(value: Any) -> int | None:
@@ -440,8 +519,9 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
     def _run_orchestrator_thread() -> None:
         try:
             _asyncio.run(services.orchestrator.run())
-        except Exception:
-            logger.exception("Orchestrator thread crashed")
+        except Exception as exc:  # noqa: BLE001 -- thread boundary must be logged
+            message, extra = orchestrator_thread_error_fields(exc)
+            logger.exception(message, extra=extra)
 
     watch_task = _asyncio.create_task(_watch_workflow())
     orch_thread = threading.Thread(
@@ -456,14 +536,7 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         yield  # --- app is running ---
     finally:
         # Shutdown: stop all background tasks.
-        stop_future = services.orchestrator.stop_threadsafe()
-        if stop_future is not None:
-            try:
-                await _asyncio.wait_for(_asyncio.wrap_future(stop_future), timeout=5.0)
-            except (_asyncio.TimeoutError, Exception) as exc:
-                logger.warning("Timed out stopping orchestrator thread: %s", exc)
-        else:
-            await services.orchestrator.stop()
+        await _await_fail_closed_orchestrator_stop(services.orchestrator)
         await services.webhook_forwarder.stop()
         await services.gitlab_hook_manager.stop()
         supervise_task.cancel()
@@ -1233,7 +1306,12 @@ def _set_management_tracker_resolution_alert(
                     "the service checkout. Backend/frontend error tasks will "
                     "not be filed until the repository registration is fixed."
                 ),
-                "detail": diagnostic,
+                # Keep local checkout identities and filesystem paths behind
+                # the explicit diagnostic disclosure boundary.  Relying on
+                # the generic length threshold made compact presentation vary
+                # with the configured temporary-root length.
+                "detail": DIAGNOSTIC_AVAILABLE_TEXT,
+                "diagnostic": diagnostic,
                 "action": (
                     "Ensure exactly one registered project has the service "
                     "checkout's canonical repository identity, then restart "
@@ -1338,6 +1416,18 @@ def set_orchestrator(orch: Orchestrator) -> None:
         _error_watcher = ErrorWatcher(
             management_tracker,
             project_id=management_project_id,
+            status_transition=lambda current, status, **fields: (
+                _apply_task_status_transition(
+                    orch,
+                    management_tracker,
+                    current,
+                    status,
+                    project_id=management_project_id,
+                    actor=str(fields["actor"]),
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code=str(fields["reason_code"]),
+                )
+            ),
         )
         _error_watcher.install_log_handler("oompah")
         # Register globally so retry recovery for any source project can close
@@ -1360,7 +1450,22 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # error tasks are created in the correct project.
     def _make_error_watcher(project_id: str) -> ErrorWatcher:
         tracker = orch._tracker_for_project(project_id)
-        watcher = ErrorWatcher(tracker, project_id=project_id)
+        watcher = ErrorWatcher(
+            tracker,
+            project_id=project_id,
+            status_transition=lambda current, status, **fields: (
+                _apply_task_status_transition(
+                    orch,
+                    tracker,
+                    current,
+                    status,
+                    project_id=project_id,
+                    actor=str(fields["actor"]),
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code=str(fields["reason_code"]),
+                )
+            ),
+        )
         # Same auto-close hook as the global watcher above, scoped per project.
         orch.register_error_watcher(watcher, project_id=project_id)
         return watcher
@@ -1678,12 +1783,33 @@ async def _run_task_handoff_mutation(
         return await operation()
 
 
+def _exact_implementation_running_entry(
+    orch: Any,
+    issue: Any,
+    project_id: str,
+) -> Any | None:
+    """Return only the runtime owned by this authenticated project/task."""
+
+    entry = getattr(orch, "_current_running_entry", lambda _id: None)(issue.id)
+    if entry is None or getattr(entry, "is_auditor", False):
+        return None
+    entry_issue = getattr(entry, "issue", None)
+    if str(getattr(entry_issue, "project_id", None) or "") != str(project_id):
+        return None
+    if str(getattr(entry_issue, "identifier", None) or "") != str(
+        issue.identifier
+    ):
+        return None
+    return entry
+
+
 def _observe_task_handoff_mutation(
     orch: Any,
     *,
     identifier: str,
     action: str,
     tracker: Any,
+    project_id: str | None = None,
     message: str | None = None,
     label: str | None = None,
     status: str | None = None,
@@ -1701,6 +1827,7 @@ def _observe_task_handoff_mutation(
         observer(
             identifier=identifier,
             action=action,
+            project_id=project_id,
             message=message,
             label=label,
             status=status,
@@ -2074,6 +2201,40 @@ def _detail_cache_get(
     cached = _api_cache.get(cache_key)
     if cached is None:
         return None
+    if isinstance(cached, Mapping):
+        identifier = str(cached.get("identifier") or "").strip()
+        cached_project = str(cached.get("project_id") or project_id or "").strip()
+        cached_decision = cached.get("work_decision")
+        cached_revision = (
+            str(cached_decision.get("decision_revision") or "")
+            if isinstance(cached_decision, Mapping)
+            else ""
+        )
+        current_decision = _work_decision_for_task(
+            orch, cached_project or None, identifier
+        )
+        current_revision = (
+            str(current_decision.get("decision_revision") or "")
+            if isinstance(current_decision, Mapping)
+            else ""
+        )
+        cached_availability = str(
+            cached.get("work_decision_availability") or ""
+        )
+        current_availability = _work_decision_availability_for_task(
+            orch,
+            cached_project or None,
+            identifier,
+            task_state=str(cached.get("state") or ""),
+        )
+        if (
+            cached_revision != current_revision
+            or cached_availability != current_availability
+        ):
+            _api_cache.invalidate(cache_key)
+            with _detail_cache_lock:
+                _detail_cache_generations.pop(cache_key, None)
+            return None
     with _detail_cache_lock:
         binding = _detail_cache_generations.get(cache_key)
     if binding is None:
@@ -2122,6 +2283,10 @@ _GITLAB_HOOK_RECONCILE_FIELDS = frozenset(
 
 _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
     {
+        # Repository identity can determine an inferred forge-tracker scope;
+        # the default branch configures native-Markdown tracker reads/writes.
+        "repo_url",
+        "default_branch",
         "access_token",
         "status_actor_login",
         "status_label_authorized_logins",
@@ -2147,7 +2312,16 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     """Drop cached tracker state after project tracker config changes."""
     project_trackers = getattr(orch, "_project_trackers", None)
     if isinstance(project_trackers, dict):
-        project_trackers.pop(project_id, None)
+        tracker_lock = getattr(orch, "_project_trackers_lock", None)
+        if tracker_lock is None:
+            project_trackers.pop(project_id, None)
+        else:
+            with tracker_lock:
+                project_trackers.pop(project_id, None)
+                generation = int(
+                    getattr(orch, "_project_tracker_generation", 1)
+                )
+                setattr(orch, "_project_tracker_generation", generation + 1)
 
     branch_indexes = getattr(orch, "_branch_indexes", None)
     if isinstance(branch_indexes, dict):
@@ -2156,6 +2330,27 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     stale_caches = getattr(orch, "_stale_caches", None)
     if isinstance(stale_caches, dict):
         stale_caches.pop(project_id, None)
+
+
+def _update_project_tracker_configuration(
+    orch: object,
+    project_id: str,
+    **fields: Any,
+) -> Any | None:
+    """Persist tracker config and fence tracker/decision caches in one cut."""
+
+    updater = getattr(type(orch), "update_project_tracker_configuration", None)
+    if callable(updater):
+        return updater(orch, project_id, **fields)
+    # Compatibility for API-only embedders and narrow test doubles. Production
+    # uses the orchestrator authority cut above.
+    project_store = getattr(orch, "project_store", None)
+    if project_store is None:
+        raise RuntimeError("project store is unavailable")
+    project = project_store.update(project_id, **fields)
+    if project is not None:
+        _invalidate_project_tracker_cache(orch, project_id)
+    return project
 
 
 def _resolve_github_token_owner(access_token: str | None) -> str | None:
@@ -3007,7 +3202,12 @@ def _any_tracker_checkpoint_newer_than(orch: "Orchestrator", snapshot_at: float)
         trackers.append(primary)
     project_trackers = getattr(orch, "_project_trackers", {})
     if isinstance(project_trackers, dict):
-        trackers.extend(project_trackers.values())
+        tracker_lock = getattr(orch, "_project_trackers_lock", None)
+        if tracker_lock is None:
+            trackers.extend(tuple(project_trackers.values()))
+        else:
+            with tracker_lock:
+                trackers.extend(tuple(project_trackers.values()))
     for tracker in trackers:
         checkpoint_at = getattr(tracker, "last_checkpoint_at", None)
         if isinstance(checkpoint_at, float) and checkpoint_at > snapshot_at:
@@ -3246,18 +3446,201 @@ def _manual_needs_human_comment(
     )
 
 
-def _mark_tracker_needs_human(
+def _apply_task_status_transition(
+    orch,
     tracker,
-    identifier: str,
+    issue,
+    requested_status: str,
+    *,
+    project_id: str | None,
+    actor: str,
+    authority: TransitionAuthority,
+    reason_code: str,
+    evidence_generation: str | None = None,
+    exact_head: str | None = None,
+):
+    """Commit one API lifecycle decision through the durable status writer."""
+
+    transition = getattr(orch, "_transition_issue_status", None)
+    if not callable(transition):
+        raise RuntimeError("Task transition service is unavailable")
+    if not getattr(issue, "project_id", None):
+        issue.project_id = project_id
+    return transition(
+        issue,
+        requested_status,
+        project_id=project_id,
+        tracker=tracker,
+        actor=actor,
+        authority=authority,
+        reason_code=reason_code,
+        evidence_generation=evidence_generation,
+        exact_head=exact_head,
+    )
+
+
+async def _apply_task_status_transition_async(
+    orch,
+    tracker,
+    issue,
+    requested_status: str,
+    *,
+    project_id: str | None,
+    actor: str,
+    authority: TransitionAuthority,
+    reason_code: str,
+    evidence_generation: str | None = None,
+    exact_head: str | None = None,
+):
+    """Commit an API transition without blocking the ASGI event loop.
+
+    The durable transition service performs tracker I/O on worker threads.
+    Calling its synchronous bridge while the request thread owns a project
+    ``RLock`` deadlocks as soon as the tracker facade acquires that same lock
+    on the worker.  Async routes use the native async bridge when available;
+    lightweight embedders and test doubles retain the synchronous contract on
+    the shared API executor.
+    """
+
+    transition = getattr(orch, "_transition_issue_status_async", None)
+    if callable(transition) and asyncio.iscoroutinefunction(transition):
+        if not getattr(issue, "project_id", None):
+            issue.project_id = project_id
+        return await transition(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            actor=actor,
+            authority=authority,
+            reason_code=reason_code,
+            evidence_generation=evidence_generation,
+            exact_head=exact_head,
+        )
+    return await _run_api_io(
+        _apply_task_status_transition,
+        orch,
+        tracker,
+        issue,
+        requested_status,
+        project_id=project_id,
+        actor=actor,
+        authority=authority,
+        reason_code=reason_code,
+        evidence_generation=evidence_generation,
+        exact_head=exact_head,
+    )
+
+
+def _transition_tracker_error_type(exc: Exception) -> str | None:
+    """Return a tracker error type retained by a failed durable transition.
+
+    ``TaskTransitionService`` converts an ambiguous tracker read or write into
+    a retryable outcome so callers cannot mistake the failed mutation for a
+    commit.  The original exception type remains in the outcome's redacted
+    details.  Preserve that narrow classification at API boundaries without
+    exposing tracker exception text or treating unrelated transition
+    rejections as transport failures.
+    """
+
+    outcome = getattr(exc, "outcome", None)
+    if getattr(outcome, "reason_code", None) not in {
+        "transition.tracker_read_failed",
+        "transition.tracker_write_failed",
+    }:
+        return None
+    details = getattr(outcome, "details", None)
+    if not isinstance(details, Mapping):
+        return None
+    error_type = details.get("error_type")
+    return error_type if isinstance(error_type, str) and error_type else None
+
+
+def _transition_waiting_reason(exc: Exception) -> str | None:
+    """Classify expected durable-writer contention without logging an error."""
+
+    outcome = getattr(exc, "outcome", None)
+    disposition = getattr(getattr(outcome, "disposition", None), "value", None)
+    reason = getattr(outcome, "reason_code", None)
+    if disposition != "waiting" or reason not in {
+        "transition.owner_active",
+        "transition.recovery_required",
+    }:
+        return None
+    return reason
+
+
+def _transition_rejected_reason(exc: Exception) -> str | None:
+    """Return the safe reason for an expected durable-policy rejection."""
+
+    outcome = getattr(exc, "outcome", None)
+    disposition = getattr(getattr(outcome, "disposition", None), "value", None)
+    reason = getattr(outcome, "reason_code", None)
+    expected_policy_rejections = {
+        "transition.generation_mismatch",
+        "transition.generation_required",
+        "transition.head_mismatch",
+        "transition.head_missing",
+        "transition.head_required",
+        "transition.idempotency_conflict",
+        "transition.illegal_edge",
+        "transition.maintenance_audit_authority_required",
+        "transition.project_mismatch",
+        "transition.recovery_authority_rejected",
+        "transition.rollup_authority_required",
+        "transition.rollup_generation_mismatch",
+        "transition.stale_precondition",
+        "transition.stale_status",
+        "transition.stale_version",
+        "transition.task_missing",
+    }
+    if disposition != "rejected" or reason not in expected_policy_rejections:
+        return None
+    return reason
+
+
+def _mark_tracker_needs_human(
+    orch,
+    tracker,
+    issue,
     comment: str,
     *,
+    project_id: str | None,
     author: str = "oompah",
 ) -> None:
-    if hasattr(tracker, "mark_needs_human"):
-        tracker.mark_needs_human(identifier, comment, author=author)
-        return
-    tracker.update_issue(identifier, status=NEEDS_HUMAN)
-    tracker.add_comment(identifier, comment, author=author)
+    _apply_task_status_transition(
+        orch,
+        tracker,
+        issue,
+        NEEDS_HUMAN,
+        project_id=project_id,
+        actor=author,
+        authority=TransitionAuthority.API,
+        reason_code="api.human_action_requested",
+    )
+    tracker.add_comment(issue.identifier, comment, author=author)
+
+
+async def _mark_tracker_needs_human_async(
+    orch,
+    tracker,
+    issue,
+    comment: str,
+    *,
+    project_id: str | None,
+    author: str = "oompah",
+) -> None:
+    await _apply_task_status_transition_async(
+        orch,
+        tracker,
+        issue,
+        NEEDS_HUMAN,
+        project_id=project_id,
+        actor=author,
+        authority=TransitionAuthority.API,
+        reason_code="api.human_action_requested",
+    )
+    await _run_api_io(tracker.add_comment, issue.identifier, comment, author=author)
 
 
 def _fetch_open_reviews_for_api(
@@ -3337,6 +3720,85 @@ def _running_items_snapshot(orch: "Orchestrator") -> tuple[tuple[str, Any], ...]
         return tuple(snapshotter(orch))
     running = getattr(getattr(orch, "state", None), "running", {})
     return tuple(running.items())
+
+
+def _work_decision_for_task(
+    orch: Any,
+    project_id: str | None,
+    identifier: str | None,
+    task: Any | None = None,
+) -> dict[str, Any] | None:
+    """Read one canonical decision without falling back to UI heuristics."""
+
+    task_id = str(identifier or "").strip()
+    if not task_id:
+        return None
+    getter = getattr(type(orch), "work_decision_projection", None)
+    if callable(getter):
+        value = None
+        try:
+            value = getter(orch, project_id, task_id, task)
+        except TypeError:
+            # Preserve compatibility with small embedders exposing the
+            # pre-task-context two-argument method.
+            try:
+                value = getter(orch, project_id, task_id)
+            except Exception:
+                logger.debug("workflow decision unavailable for %s", task_id)
+                value = None
+        except Exception:
+            logger.debug("workflow decision unavailable for %s", task_id)
+        if isinstance(value, Mapping):
+            return dict(value)
+        # An authoritative getter returning no projection is itself a
+        # fail-closed answer (bounded omission, unavailable project, or
+        # lifecycle-final task). Never bypass it through the retained raw cache.
+        return None
+    # Lightweight test doubles and API-only embedders may expose the cache as
+    # a mapping rather than the orchestrator method.  Accept only serialized
+    # WorkDecision values and project them through the same boundary.
+    values = getattr(orch, "_work_decisions", None)
+    if isinstance(values, Mapping):
+        key = (str(project_id or "legacy"), task_id)
+        raw = values.get(key) or values.get(task_id)
+        if isinstance(raw, Mapping):
+            try:
+                return project_work_decision_payload(raw)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _work_decision_availability_for_task(
+    orch: Any,
+    project_id: str | None,
+    identifier: str | None,
+    *,
+    task_state: str | None = None,
+) -> str:
+    """Read the controller's explicit availability for one task identity."""
+
+    task_id = str(identifier or "").strip()
+    if canonicalize_status(task_state) in {MERGED, ARCHIVED}:
+        return "not_applicable"
+    getter = getattr(type(orch), "work_decision_availability", None)
+    if callable(getter):
+        try:
+            return str(getter(orch, project_id, task_id))
+        except TypeError:
+            # Compatibility for embedders that still expose project-only
+            # availability. They remain conservative for cache misses.
+            try:
+                return str(getter(orch, project_id))
+            except Exception:
+                return "unavailable"
+        except Exception:
+            return "unavailable"
+    return (
+        "available"
+        if _work_decision_for_task(orch, project_id, task_id) is not None
+        else "pending"
+    )
 
 
 def _sync_orchestrator_review_cache(
@@ -3560,6 +4022,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
 
 
 def _on_agent_activity(
+    project_id: str | None,
     identifier: str,
     entry,
     run_id: str | None = None,
@@ -3571,6 +4034,7 @@ def _on_agent_activity(
         lambda: _broadcast(
             {
                 "type": "activity",
+                "project_id": project_id,
                 "identifier": identifier,
                 "run_id": run_id,
                 "entry": entry.to_dict()
@@ -3587,67 +4051,43 @@ def _integration_queue_summary(
     issues,
     *,
     repair_evidence: Mapping[str, Any] | None = None,
+    dependency_projection: IntegrationDependencyProjection | None = None,
 ) -> dict[str, Any]:
-    """Serialize a queue row with its operator-facing wait reason."""
+    """Serialize a queue row with its operator-facing wait reason.
+
+    A matching ``dependency_projection`` was computed from the same raw issue
+    snapshot and reachability evidence used by the executor.  Request paths
+    never reconstruct those facts from display-mutated issue records.
+    """
 
     result = item.to_dict()
-    index = issue_index(issues)
-    container_cycles = find_container_dependency_cycles(
-        issues,
-        ready_task_ids=(
-            candidate.identifier
-            for candidate in issues
-            if canonicalize_status(candidate.state) == READY_TO_INTEGRATE
-        ),
+    _ = issue, issues
+    projection_matches = bool(
+        dependency_projection is not None
+        and dependency_projection.matches(item)
     )
-    container_cycle = next(
-        (
-            cycle
-            for cycle in container_cycles
-            if issue.identifier in cycle.affected_tasks
-        ),
-        None,
+    dependency_projection_current = bool(
+        projection_matches
+        and dependency_projection is not None
+        and dependency_projection.dependency_authoritative
     )
-    dependencies = effective_dependencies(issue, index)
-    unresolved: list[str] = []
-    unreachable: list[str] = []
-    parent = index.get(str(issue.parent_id or "").strip())
-    own_parent_aliases = {
-        str(value).strip()
-        for value in (
-            issue.parent_id,
-            getattr(parent, "id", None),
-            getattr(parent, "identifier", None),
-        )
-        if str(value or "").strip()
-    }
-    for dependency in dependencies:
-        blocker = index.get(dependency)
-        if blocker is None or not is_terminal_status(blocker.state):
-            unresolved.append(dependency)
-            continue
-        blocker_parent = index.get(str(blocker.parent_id or "").strip())
-        blocker_parent_aliases = {
-            str(value).strip()
-            for value in (
-                blocker.parent_id,
-                getattr(blocker_parent, "id", None),
-                getattr(blocker_parent, "identifier", None),
-            )
-            if str(value or "").strip()
-        }
-        if (
-            own_parent_aliases
-            and blocker_parent_aliases
-            and not own_parent_aliases & blocker_parent_aliases
-            and not (
-                canonicalize_status(blocker.state) == DONE
-                and dependency_parent_has_landed(blocker, index)
-            )
-        ):
-            unreachable.append(dependency)
+    container_cycle = (
+        dependency_projection.container_cycle
+        if projection_matches and dependency_projection is not None
+        else None
+    )
+    if dependency_projection_current and dependency_projection is not None:
+        unresolved = list(dependency_projection.unresolved)
+        unreachable = list(dependency_projection.unreachable)
+    else:
+        # A missing executor projection is unknown, not authority to derive
+        # claimability from a display-mutated tracker view.
+        unresolved = []
+        unreachable = []
 
     state = str(item.state or "ready")
+    projection_unknown = not dependency_projection_current
+    projection_wait = f"executor-dependency-scan:{item.task_id}"
     retry_at = getattr(item, "next_retry_at", None)
     retry_wait = ""
     if retry_at is not None:
@@ -3685,6 +4125,11 @@ def _integration_queue_summary(
         reason = "Rebasing, testing, and integrating the submitted head"
     elif state == "integrated":
         reason = "Integrated into the epic branch; waiting for terminal audit"
+    elif projection_unknown:
+        reason = (
+            "Waiting for the integration executor to refresh authoritative "
+            f"dependency facts for {item.task_id}"
+        )
     elif unresolved:
         reason = (
             "Waiting for finish dependencies to pass terminal audit: "
@@ -3701,7 +4146,17 @@ def _integration_queue_summary(
             reason = f"Last integration failure: {item.last_error}"
     if retry_wait:
         reason += retry_wait
-    result["waiting_on"] = [*unresolved, *unreachable]
+    result["waiting_on"] = (
+        [projection_wait]
+        if projection_unknown
+        else [*unresolved, *unreachable]
+    )
+    result["dependency_projection_status"] = (
+        "current" if dependency_projection_current else "unknown"
+    )
+    result["container_cycle_projection_status"] = (
+        "current" if projection_matches else "unknown"
+    )
     result["wait_reason"] = reason
     result["failing_step"] = (
         "generated-helper validation"
@@ -3727,6 +4182,11 @@ def _integration_queue_summary(
         )
         else "Inspect the failure above, repair the task branch, and submit again."
         if state == "blocked"
+        else (
+            "Wait for the next integration scan; if this persists, inspect "
+            "executor health for this project and epic."
+        )
+        if projection_unknown
         else "Wait for the scheduled retry."
     )
     if container_cycle is None:
@@ -3752,6 +4212,24 @@ def _container_cycle_repair_for_item(orch, item) -> dict[str, Any] | None:
             if isinstance(row, Mapping) and row.get("task_id") == item.task_id:
                 return dict(evidence)
     return None
+
+
+def _integration_dependency_projection_for_item(
+    orch,
+    item,
+) -> IntegrationDependencyProjection | None:
+    """Read an exact executor projection without tracker or repository I/O."""
+
+    getter = getattr(orch, "integration_dependency_projection", None)
+    if not callable(getter):
+        return None
+    projection = getter(item)
+    return (
+        projection
+        if isinstance(projection, IntegrationDependencyProjection)
+        and projection.matches(item)
+        else None
+    )
 
 
 def _fetch_and_serialize_issues(
@@ -3849,6 +4327,15 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
             "priority": issue.priority,
             "state": state,
             "tracker_state": tracker_state,
+            "work_decision": _work_decision_for_task(
+                orch, issue.project_id, issue.identifier, issue
+            ),
+            "work_decision_availability": _work_decision_availability_for_task(
+                orch,
+                issue.project_id,
+                issue.identifier,
+                task_state=issue.state,
+            ),
             "labels": issue.labels,
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
@@ -3880,6 +4367,12 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
                     repair_evidence=_container_cycle_repair_for_item(
                         orch,
                         integration_item,
+                    ),
+                    dependency_projection=(
+                        _integration_dependency_projection_for_item(
+                            orch,
+                            integration_item,
+                        )
                     ),
                 )
                 if integration_item is not None
@@ -4021,15 +4514,21 @@ async def _send_ws(ws: WebSocket, msg: dict[str, Any]) -> None:
             _ws_send_locks[ws] = send_lock
             _ws_delivery_sequences.setdefault(ws, 0)
     async with send_lock:
-        with _ws_delivery_sequences_lock:
-            sequence = _ws_delivery_sequences.get(ws, 0) + 1
-            _ws_delivery_sequences[ws] = sequence
-        envelope = _protocol_message(msg, sequence)
-        try:
-            await ws.send_text(json.dumps(envelope, default=str))
-        except Exception:
-            _unregister_ws(ws)
-            raise
+        await _send_ws_locked(ws, msg)
+
+
+async def _send_ws_locked(ws: WebSocket, msg: dict[str, Any]) -> None:
+    """Send while the caller owns this connection's send lock."""
+
+    with _ws_delivery_sequences_lock:
+        sequence = _ws_delivery_sequences.get(ws, 0) + 1
+        _ws_delivery_sequences[ws] = sequence
+    envelope = _protocol_message(msg, sequence)
+    try:
+        await ws.send_text(json.dumps(envelope, default=str))
+    except Exception:
+        _unregister_ws(ws)
+        raise
 
 
 async def _broadcast(msg: dict) -> None:
@@ -4145,68 +4644,73 @@ async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
         if ws in _ws_fullsync_pending:
             return
         _ws_fullsync_pending.add(ws)
-    try:
-        # 1. Read state with its own revision (stale is acceptable for a
-        #    full sync — the client is replacing its whole cached state).
-        state_snapshot, state_revision = _read_state_snapshot_with_revision(
-            allow_stale=True
-        )
-        if state_snapshot is None:
-            state_snapshot = _cached_state_snapshot_or_unavailable()
-            _, state_revision, _ = _protocol_values()
-        state_data = _enrich_state_snapshot(state_snapshot)
-
-        # 2. Try to get a fresh issues snapshot before reading it.  Use a
-        #    bounded wait so the client is not blocked indefinitely on a slow
-        #    rebuild; an unavailable fresh snapshot becomes a retryable error.
-        await _ensure_issues_snapshot_refresh(orch, broadcast=False)
-        await _wait_for_issues_snapshot_refresh(timeout_ms=3000)
-
-        # 3. Read issues + revision atomically.  The lock inside
-        #    _issues_snapshot_payload_with_revision ensures the payload and
-        #    its ``data_revision`` come from the same snapshot generation:
-        #    a concurrent invalidation cannot stamp the old board with the
-        #    new revision.
-        issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
-            allow_empty=False, orch=orch
-        )
-        if issues_payload is None:
-            raise RuntimeError("fresh issue snapshot is unavailable")
-
-        # 4. Stamp the current epoch so the client can verify the watermarks
-        #    belong to this process lifetime.
-        epoch, _, _ = _protocol_values()
-
-        await _send_ws(
-            ws,
-            {
-                "type": "full_sync",
-                "state": state_data,
-                "state_revision": state_revision,
-                "issues": issues_payload,
-                "issue_revision": issue_revision,
-                "epoch": epoch,
-            },
-        )
-        # Full sync message sent successfully; record success
-        _ws_sync_record_success()
-    except Exception as exc:
-        logger.debug("full_sync assembly failed for connection: %s", exc)
-        _ws_sync_record_failure()
+    with _ws_delivery_sequences_lock:
+        send_lock = _ws_send_locks.get(ws)
+        if send_lock is None:
+            send_lock = asyncio.Lock()
+            _ws_send_locks[ws] = send_lock
+            _ws_delivery_sequences.setdefault(ws, 0)
+    # Hold the per-connection ordering lock for the complete snapshot cut.
+    # State/issue observers can continue updating caches and queue broadcasts,
+    # but those decision messages receive a sequence only after full_sync and
+    # are therefore replayed instead of being hidden below its watermark.
+    async with send_lock:
         try:
-            await _send_ws(
+            # 1. Read state with its own revision (stale is acceptable for a
+            #    full sync — the client is replacing its whole cached state).
+            state_snapshot, state_revision = _read_state_snapshot_with_revision(
+                allow_stale=True
+            )
+            if state_snapshot is None:
+                state_snapshot = _cached_state_snapshot_or_unavailable()
+                _, state_revision, _ = _protocol_values()
+            state_data = _enrich_state_snapshot(state_snapshot)
+
+            # 2. Try to get a fresh issues snapshot before reading it.  Use a
+            #    bounded wait so the client is not blocked indefinitely on a
+            #    slow rebuild; unavailable fresh data is a retryable error.
+            await _ensure_issues_snapshot_refresh(orch, broadcast=False)
+            await _wait_for_issues_snapshot_refresh(timeout_ms=3000)
+
+            # 3. Read issues + revision atomically.  The lock inside
+            #    _issues_snapshot_payload_with_revision ensures the payload and
+            #    its ``data_revision`` come from the same snapshot generation.
+            issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
+                allow_empty=False, orch=orch
+            )
+            if issues_payload is None:
+                raise RuntimeError("fresh issue snapshot is unavailable")
+
+            epoch, _, _ = _protocol_values()
+            await _send_ws_locked(
                 ws,
                 {
-                    "type": "full_sync_error",
-                    "code": "snapshot_unavailable",
-                    "retryable": True,
+                    "type": "full_sync",
+                    "state": state_data,
+                    "state_revision": state_revision,
+                    "issues": issues_payload,
+                    "issue_revision": issue_revision,
+                    "epoch": epoch,
                 },
             )
-        except Exception:
-            pass  # connection may already be dead; that's fine
-    finally:
-        with _ws_fullsync_lock:
-            _ws_fullsync_pending.discard(ws)
+            _ws_sync_record_success()
+        except Exception as exc:
+            logger.debug("full_sync assembly failed for connection: %s", exc)
+            _ws_sync_record_failure()
+            try:
+                await _send_ws_locked(
+                    ws,
+                    {
+                        "type": "full_sync_error",
+                        "code": "snapshot_unavailable",
+                        "retryable": True,
+                    },
+                )
+            except Exception:
+                pass  # connection may already be dead; that's fine
+        finally:
+            with _ws_fullsync_lock:
+                _ws_fullsync_pending.discard(ws)
 
 
 # ----------------------------------------------------------------------
@@ -4597,6 +5101,13 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     enriched["http_auth"] = _http_auth_reload_status()
     enriched["api_metrics"] = _api_metrics_snapshot()
     enriched["ws_sync_metrics"] = _ws_sync_get_metrics_snapshot()
+    # The compatibility ``alerts`` stream may contain task-local
+    # informational observations.  Global warning surfaces require an
+    # explicit action_required marker and are derived again here so API-only
+    # snapshots follow the same truthfulness rule as embedded mode.
+    enriched["global_alerts"] = operator_actionable_alerts(
+        enriched.get("alerts", ())
+    )
     alert = _ws_sync_get_alert()
     if alert:
         enriched["ws_sync_alert"] = alert
@@ -4664,6 +5175,55 @@ async def api_state():
         )
 
 
+@app.get(
+    "/api/v1/projects/{project_id}/tasks/{identifier}/workflow-diagnostic"
+)
+async def api_workflow_diagnostic(project_id: str, identifier: str):
+    """Return the redacted facts/decision/legacy comparison for one task."""
+
+    try:
+        orch = _get_orchestrator()
+    except Exception:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "Workflow diagnostics require the scheduler process.",
+                }
+            },
+            status_code=503,
+        )
+    shadow = getattr(orch, "workflow_shadow", None)
+    if shadow is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "Workflow diagnostics are not initialized.",
+                }
+            },
+            status_code=503,
+        )
+    diagnostic = shadow.diagnostic(project_id, identifier)
+    if diagnostic is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "not_evaluated",
+                    "message": "No workflow diagnostic exists for this task.",
+                },
+                "workflow_shadow": shadow.summary(),
+            },
+            status_code=404,
+        )
+    return JSONResponse(
+        {
+            "workflow_shadow": shadow.summary(),
+            "diagnostic": diagnostic,
+        }
+    )
+
+
 def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     """Build validated durable evidence for one worker submission."""
 
@@ -4690,8 +5250,8 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     head_sha = str(body.get("head_sha") or "").strip().lower() or None
     if head_sha is None:
         raise ValueError("head_sha is required for task submission")
-    if not re.fullmatch(r"[0-9a-f]{7,64}", head_sha):
-        raise ValueError("head_sha must be a hexadecimal git object id")
+    if not re.fullmatch(r"[0-9a-f]{40,64}", head_sha):
+        raise ValueError("head_sha must be a full hexadecimal git object id")
     remote_head_sha = (
         str(body.get("remote_head_sha") or "").strip().lower() or None
     )
@@ -4699,8 +5259,10 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         raise ValueError(
             "remote_head_sha is required; push the task branch before submission"
         )
-    if not re.fullmatch(r"[0-9a-f]{7,64}", remote_head_sha):
-        raise ValueError("remote_head_sha must be a hexadecimal git object id")
+    if not re.fullmatch(r"[0-9a-f]{40,64}", remote_head_sha):
+        raise ValueError(
+            "remote_head_sha must be a full hexadecimal git object id"
+        )
     if remote_head_sha != head_sha:
         raise ValueError(
             "the pushed remote task branch does not match the local HEAD"
@@ -4710,17 +5272,55 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
             "the worktree must be clean before task submission"
         )
     existing = getattr(issue, "integration", None)
-    base_sha = (
-        str(body.get("base_sha") or "").strip().lower()
-        or (
-            str(getattr(existing, "base_sha", "") or "").strip().lower()
-            if existing is not None
-            else ""
-        )
-        or None
+    same_task_head = bool(
+        existing is not None
+        and str(getattr(existing, "head_sha", "") or "").strip().lower()
+        == head_sha
+        and str(getattr(existing, "task_branch", "") or "").strip()
+        == task_branch
     )
-    if base_sha is not None and not re.fullmatch(r"[0-9a-f]{7,64}", base_sha):
-        raise ValueError("base_sha must be a hexadecimal git object id")
+    delivery_mode = (
+        "queue" if str(getattr(issue, "parent_id", "") or "").strip()
+        else "standalone"
+    )
+    supplied_base_branch = str(body.get("base_branch") or "").strip()
+    existing_base_branch = str(
+        getattr(existing, "base_branch", "") or ""
+    ).strip()
+    preserves_existing_base_authority = bool(
+        same_task_head
+        and (
+            not supplied_base_branch
+            or supplied_base_branch == existing_base_branch
+        )
+    )
+    supplied_base_sha = str(body.get("base_sha") or "").strip().lower()
+    base_sha = supplied_base_sha or (
+        str(getattr(existing, "base_sha", "") or "").strip().lower()
+        if preserves_existing_base_authority
+        else None
+    ) or None
+    if base_sha is not None and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
+        raise ValueError("base_sha must be a full hexadecimal git object id")
+    if supplied_base_branch:
+        base_branch = supplied_base_branch
+    elif same_task_head:
+        # A legacy accepted generation may legitimately predate persisted base
+        # authority.  Omitting ``base_branch`` on a same-head retry must
+        # preserve that exact record (including its missing value) instead of
+        # silently converting the issue's mutable target projection into new
+        # submission authority.  An explicitly supplied corrected target still
+        # creates a fresh generation below.
+        base_branch = getattr(existing, "base_branch", None)
+    else:
+        # For a new-head submission: use the issue's authoritative delivery
+        # target when it is set (nested child tasks have this populated from
+        # the parent epic branch recorded at task-creation time).  Fall back
+        # to the existing accepted base_branch for legacy tasks and direct
+        # epic-maintenance issues whose target_branch is not explicitly set.
+        base_branch = getattr(issue, "target_branch", None) or (
+            str(getattr(existing, "base_branch", "") or "").strip() or None
+        )
     raw_dependency_heads = body.get("dependency_heads")
     dependency_heads = (
         {
@@ -4743,21 +5343,21 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and existing.state in {"ready", "queued", "integrating"}
         and existing.head_sha == head_sha
         and existing.task_branch == task_branch
+        and existing.base_branch == base_branch
+        and existing.base_sha == base_sha
     ):
-        return existing
+        existing_mode = getattr(existing, "mode", None)
+        return (
+            existing
+            if existing_mode in (None, delivery_mode)
+            else replace(existing, mode=delivery_mode)
+        )
     now = datetime.now(timezone.utc).isoformat()
     return IntegrationRecord(
         state="ready",
+        mode=delivery_mode,
         task_branch=task_branch,
-        base_branch=(
-            str(body.get("base_branch") or "").strip()
-            or (
-                str(getattr(existing, "base_branch", "") or "").strip()
-                if existing is not None
-                else ""
-            )
-            or getattr(issue, "target_branch", None)
-        ),
+        base_branch=base_branch,
         base_sha=base_sha,
         head_sha=head_sha,
         submitted_at=now,
@@ -4767,11 +5367,14 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
 
 
 async def _persist_worker_submission(
+    orch,
     tracker,
     issue,
     body: dict[str, Any],
     *,
+    project_id: str,
     record: IntegrationRecord | None = None,
+    persist_status: bool = True,
 ) -> IntegrationRecord:
     """Atomically reconcile lifecycle to ``Ready to Integrate`` on every accepted submit.
 
@@ -4781,14 +5384,16 @@ async def _persist_worker_submission(
     of what path moved the task to ``In Progress``, ``Needs Human``, or
     ``Needs CI Fix`` between two same-head submissions.
 
-    Idempotency is scoped to a *duplicate accepted* generation: when the
-    integration record is unchanged **and** the canonical tracker status is
-    already ``Ready to Integrate``, no tracker writes fire (no duplicate
-    summary comment, status update, or metadata write). This preserves the
-    existing ``open_review`` / queue-owned properties while letting a same-head
-    recovery from ``In Progress`` / ``Needs Human`` / ``Needs CI Fix`` write
-    the ``Ready to Integrate`` status and a fresh summary comment so the 201
-    response is truthful. The queue rearm from OOMPAH-628 (in
+    Idempotency is scoped to a *duplicate accepted* generation: when the exact
+    branch/head is already accepted and the canonical tracker status is
+    ``Ready to Integrate``, no lifecycle or summary writes fire.  The mutable
+    ``work_branch`` projection and explicitly conflicting delivery modes may
+    still be repaired, but a missing legacy mode is not inferred. This preserves
+    the existing ``open_review``
+    / queue-owned properties while letting a same-head recovery from ``In
+    Progress`` / ``Needs Human`` / ``Needs CI Fix`` write the ``Ready to
+    Integrate`` status and a fresh summary comment so the 201 response is
+    truthful. The queue rearm from OOMPAH-628 (in
     :func:`_enqueue_worker_submission`) handles the queue side of the same-head
     reflow and is not duplicated here.
     """
@@ -4796,39 +5401,66 @@ async def _persist_worker_submission(
     record = record or _submission_record(issue, body)
     existing = getattr(issue, "integration", None)
     canonical_status = canonicalize_status(getattr(issue, "state", None))
-    reuses_existing_record = (
+    reuses_existing_generation = (
         existing is not None
-        and record is existing
+        and existing.state in {"ready", "queued", "integrating"}
         and existing.head_sha == record.head_sha
         and existing.task_branch == record.task_branch
     )
-    if reuses_existing_record and canonical_status == READY_TO_INTEGRATE:
-        # Duplicate accepted submit for the same generation: nothing new to
-        # persist, no fresh summary to record, and the queue still owns the
-        # active row.
-        return existing
-    if not reuses_existing_record:
-        # A fresh integration record is durable evidence for a new generation
-        # (new head, or a recovery from a state that dropped the ``ready``
-        # record). Same-head recovery reuses the existing record, so we skip
-        # this write to avoid an identical metadata rewrite.
+    if record is not existing:
+        # Persist new-generation evidence and canonical repairs (for example,
+        # an explicitly conflicting service-derived delivery mode).
+        # Exact duplicate records retain object identity and skip this write.
         await _run_api_io(
             tracker.set_metadata_field,
             issue.identifier,
             "oompah.integration",
             record.to_dict(),
         )
-    if canonical_status != READY_TO_INTEGRATE:
+        # The transition service compares the supplied authority snapshot to
+        # a fresh tracker read.  Keep the in-memory snapshot aligned with the
+        # integration evidence just persisted so this transaction cannot
+        # reject its own accepted generation as stale.
+        issue.integration = record
+    projected_branch = str(getattr(issue, "work_branch", "") or "").strip()
+    branch_projection_matches = projected_branch == record.task_branch
+    if not branch_projection_matches:
+        # ``work_branch`` is the mutable tracker projection of immutable
+        # accepted-generation authority.  Persist it even for an otherwise
+        # idempotent same-head submission so older null/stale rows heal.
+        await _run_api_io(
+            tracker.set_metadata_field,
+            issue.identifier,
+            "oompah.work_branch",
+            record.task_branch,
+        )
+        issue.work_branch = record.task_branch
+    if reuses_existing_generation and canonical_status == READY_TO_INTEGRATE:
+        # Duplicate accepted submit for the same generation: after repairing
+        # its branch projection, no fresh summary/status/queue generation is
+        # required.  Return the canonical record, not the pre-repair object:
+        # callers bind this value back onto the live Issue, and returning the
+        # legacy object would discard a just-persisted delivery-mode repair so
+        # every identical retry rewrote the same metadata.
+        return record
+    if persist_status and canonical_status != READY_TO_INTEGRATE:
         # Same-head recovery from In Progress / Needs Human / Needs CI Fix
         # (and any other non-ready status) reconciles the canonical lifecycle
         # atomically before the response returns 201. Doing this even when
         # the durable record is unchanged is the fix for OOMPAH-669: the
         # previous ``record is existing`` short-circuit stranded the task in
         # the pre-submit status despite a success response.
-        await _run_api_io(
-            tracker.update_issue,
-            issue.identifier,
-            status=READY_TO_INTEGRATE,
+        await _apply_task_status_transition_async(
+            orch,
+            tracker,
+            issue,
+            READY_TO_INTEGRATE,
+            project_id=project_id,
+            actor="oompah-worker",
+            authority=TransitionAuthority.WORKER,
+            reason_code="handoff.submission_accepted",
+            evidence_generation=getattr(issue, "assignment_id", None),
+            exact_head=record.head_sha,
         )
     summary = str(body.get("summary") or "").strip()
     await _run_api_io(
@@ -4838,6 +5470,82 @@ async def _persist_worker_submission(
         author="oompah",
     )
     return record
+
+
+async def _verify_submission_git_authority(
+    orch,
+    issue,
+    project_id: str,
+    record: IntegrationRecord,
+) -> IntegrationRecord:
+    """Verify remote branch/head and parent-base evidence before mutation."""
+
+    store = getattr(orch, "project_store", None)
+    verifier = (
+        getattr(store, "verify_submission_git_authority", None)
+        if getattr(type(store), "verify_submission_git_authority", None)
+        is not None
+        else None
+    )
+    if not callable(verifier):
+        # Legacy/custom project-store adapters predate managed Git authority.
+        # Their callers retain their existing validation contract.
+        return record
+
+    base_branch = str(record.base_branch or "").strip() or None
+    parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+    existing = getattr(issue, "integration", None)
+    reuses_exact_submission = bool(
+        existing is not None
+        and record is existing
+        and str(existing.task_branch or "").strip()
+        == str(record.task_branch or "").strip()
+        and str(existing.head_sha or "").strip().lower()
+        == str(record.head_sha or "").strip().lower()
+    )
+    if (
+        parent_id
+        and not base_branch
+        and not reuses_exact_submission
+        and getattr(orch.config, "parallel_epic_children_enabled", False)
+    ):
+        try:
+            base_branch = store.epic_branch_name(parent_id)
+        except Exception as exc:  # noqa: BLE001 - validation must fail closed
+            raise ValueError(
+                f"could not resolve parent branch for {issue.identifier}: {exc}"
+            ) from exc
+    verification_base_sha = record.base_sha
+    if is_direct_epic_maintenance_issue(issue):
+        # A direct rebase helper force-pushes the parent epic branch itself.
+        # Its pre-rebase base can intentionally disappear from the rewritten
+        # history, so the dedicated direct-maintenance reconciliation remains
+        # responsible for proving old/published/current evidence.  Exact
+        # remote branch=head publication is still verified here before it may
+        # mutate tracker state.
+        verification_base_sha = None
+    try:
+        authority = await _run_api_io(
+            verifier,
+            project_id,
+            task_branch=str(record.task_branch or ""),
+            head_sha=str(record.head_sha or ""),
+            base_branch=base_branch,
+            base_sha=verification_base_sha,
+        )
+    except (ProjectError, OSError, subprocess.SubprocessError) as exc:
+        raise ValueError(f"submission Git authority rejected: {exc}") from exc
+    verified_record = replace(
+        record,
+        task_branch=authority.task_branch,
+        head_sha=authority.head_sha,
+        base_branch=authority.base_branch or record.base_branch,
+        base_sha=authority.base_sha or record.base_sha,
+    )
+    # Preserve object identity when verification merely confirms the durable
+    # generation. _persist_worker_submission uses that identity to keep an
+    # accepted same-head retry free of duplicate metadata/comment writes.
+    return record if verified_record == record else verified_record
 
 
 @contextlib.asynccontextmanager
@@ -4854,12 +5562,12 @@ async def _submission_authority_lock(orch, issue_id: str):
         yield
 
 
-async def _clear_submission_assignment(tracker, issue) -> None:
+async def _clear_submission_assignment(tracker, issue) -> bool:
     """Remove a stale shared-tracker run claim when a submit is accepted."""
     get_metadata = getattr(tracker, "get_metadata", None)
     set_metadata = getattr(tracker, "set_metadata_field", None)
     if not callable(get_metadata) or not callable(set_metadata):
-        return
+        return False
     try:
         metadata = await _run_api_io(get_metadata, issue.identifier)
     except Exception as exc:  # noqa: BLE001 - accepted submission still wins
@@ -4868,20 +5576,35 @@ async def _clear_submission_assignment(tracker, issue) -> None:
             issue.identifier,
             exc,
         )
-        return
+        return False
     if not isinstance(metadata, dict):
-        return
+        return False
     assignment = metadata.get("oompah.agent_run_id") or metadata.get(
         "agent_run_id"
     )
     if not assignment:
-        return
-    await _run_api_io(
-        set_metadata,
-        issue.identifier,
-        "oompah.agent_run_id",
-        None,
-    )
+        issue.assignment_id = None
+        return True
+    try:
+        await _run_api_io(
+            set_metadata,
+            issue.identifier,
+            "oompah.agent_run_id",
+            None,
+        )
+        issue.assignment_id = None
+        return True
+    except Exception as exc:  # noqa: BLE001 - durable acceptance must finish
+        # The integration record and canonical Ready lifecycle already own
+        # this generation.  A stale assignment projection is repairable; it
+        # must not prevent the bound live run from being revoked or the exact
+        # accepted head from entering the durable integration queue.
+        logger.warning(
+            "Accepted submission could not clear stale assignment for %s: %s",
+            issue.identifier,
+            exc,
+        )
+        return False
 
 
 def _enqueue_worker_submission(
@@ -4915,6 +5638,7 @@ def _enqueue_worker_submission(
         task_id=issue.identifier,
         task_branch=record.task_branch,
         head_sha=record.head_sha,
+        base_branch=record.base_branch,
         base_sha=record.base_sha,
         priority=getattr(issue, "priority", None),
         submitted_at=record.submitted_at,
@@ -4968,6 +5692,211 @@ def _publish_submission_coordination(
             "Submission coordination publication failed for %s: %s",
             issue.identifier,
             exc,
+        )
+
+
+@dataclass(frozen=True)
+class AcceptedWorkerSubmission:
+    """Result of the single authoritative worker-submission transaction."""
+
+    issue: Any
+    record: IntegrationRecord
+    direct_maintenance: bool = False
+    direct_failure_message: str | None = None
+
+
+async def _accept_worker_submission(
+    orch,
+    tracker,
+    identifier: str,
+    project_id: str,
+    body: dict[str, Any],
+    *,
+    initial_issue: Any = None,
+) -> AcceptedWorkerSubmission:
+    """Accept one submitted generation under the dispatch authority fence.
+
+    HTTP, scoped handoff, ACP, and API-agent submissions all enter here.  The
+    tracker issue is re-read under the same per-issue lock used by dispatch so
+    branch authority, retry withdrawal, assignment clearing, durable lifecycle
+    writes, and queue ownership form one ordered transaction.
+    """
+
+    issue = initial_issue
+    if issue is None:
+        issue = await _run_api_io(tracker.fetch_issue_detail, identifier)
+    if issue is None:
+        raise ValueError(f"Issue {identifier!r} not found")
+
+    async with _submission_authority_lock(orch, issue.id):
+        fresh_issue = await _run_api_io(
+            tracker.fetch_issue_detail,
+            identifier,
+        )
+        if fresh_issue is None:
+            raise ValueError(
+                f"Issue {identifier!r} disappeared during submission"
+            )
+        issue = fresh_issue
+        if issue.project_id and str(issue.project_id) != str(project_id):
+            raise ValueError(
+                "submission task does not belong to the authenticated project"
+            )
+        if not issue.project_id:
+            issue.project_id = project_id
+        record = _submission_record(issue, body)
+        record = await _verify_submission_git_authority(
+            orch,
+            issue,
+            project_id,
+            record,
+        )
+        direct_maintenance = is_direct_epic_maintenance_issue(issue)
+        direct_failure_message: str | None = None
+        if direct_maintenance:
+            # Direct maintenance owns its durable completion and revocation in
+            # one orchestrator operation.  Clear the shared assignment before
+            # that operation schedules retirement so an in-process submitter
+            # is never cancelled at this await after its evidence was accepted.
+            assignment_cleared = await _clear_submission_assignment(tracker, issue)
+            try:
+                authority_issue = await _run_api_io(
+                    tracker.fetch_issue_detail, issue.identifier
+                )
+            except Exception as exc:  # accepted record remains authoritative
+                logger.warning(
+                    "Could not refresh accepted submission authority for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                authority_issue = None
+            if authority_issue is not None:
+                issue = authority_issue
+                if not issue.project_id:
+                    issue.project_id = project_id
+                issue.integration = record
+            elif assignment_cleared:
+                issue.assignment_id = None
+            complete = getattr(
+                orch,
+                "complete_direct_epic_maintenance_submission",
+                None,
+            )
+            if not callable(complete):
+                raise ValueError(
+                    "direct epic maintenance completion service is unavailable"
+                )
+            direct_completion = await complete(
+                issue,
+                record,
+                project_id,
+                summary=str(body.get("summary") or "").strip(),
+            )
+            if direct_completion is None:
+                raise ValueError(
+                    "direct epic maintenance classification changed during submission"
+                )
+            completed, message, completed_record = direct_completion
+            if not completed:
+                direct_failure_message = message
+            elif completed_record is not None:
+                record = completed_record
+        else:
+            durable_implementation = (
+                getattr(getattr(orch, "workflow_runtime", None), "enforce", False)
+                is True
+            )
+            record = await _persist_worker_submission(
+                orch,
+                tracker,
+                issue,
+                body,
+                project_id=project_id,
+                record=record,
+                persist_status=not durable_implementation,
+            )
+            issue.integration = record
+
+            # Persisted integration evidence must be visible both durably and
+            # on the exact live generation before revocation.  Otherwise a
+            # racing exit sees only ``authority_revoked`` and takes the generic
+            # quarantine path, bypassing the accepted-submission recovery fence.
+            bind_record = getattr(orch, "bind_accepted_submission_record", None)
+            if callable(bind_record):
+                bind_record(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=project_id,
+                    record=record,
+                )
+            await _clear_submission_assignment(tracker, issue)
+
+            # Revoke last: every operation after this call is synchronous, so
+            # an ACP/API tool invocation can return its accepted result before
+            # the scheduled retirement task cancels the provider worker.
+            if durable_implementation:
+                from oompah.implementation_workflow import ImplementationAction
+
+                submitted_entry = _exact_implementation_running_entry(
+                    orch, issue, project_id
+                )
+                scheduled = orch._schedule_implementation_workflow_event(
+                    project_id=project_id,
+                    identifier=issue.identifier,
+                    action=ImplementationAction.VALIDATION_SUBMISSION,
+                    payload={
+                        "owner_id": str(
+                            getattr(submitted_entry, "run_id", None) or ""
+                        ),
+                        "run_id": str(
+                            getattr(submitted_entry, "run_id", None) or ""
+                        ),
+                        "prior_generation": str(
+                            getattr(submitted_entry, "authority_generation", None)
+                            or ""
+                        ),
+                        "assignment_id": str(
+                            getattr(issue, "assignment_id", None) or ""
+                        ),
+                        "work_branch": record.task_branch,
+                        "head_sha": record.head_sha,
+                        "base_branch": record.base_branch,
+                        "base_sha": record.base_sha,
+                        "expected_status": issue.state,
+                    },
+                    expected_evidence_revision=issue_authority_version(issue),
+                    expected_head_sha=record.head_sha,
+                    priority=10,
+                )
+                if scheduled is None:
+                    raise RuntimeError(
+                        "durable implementation submission was not scheduled"
+                    )
+            else:
+                cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+                if callable(cancel_retry):
+                    cancel_retry(
+                        issue_id=issue.id,
+                        identifier=issue.identifier,
+                        project_id=project_id,
+                        reason="task submitted for integration",
+                    )
+                _enqueue_worker_submission(orch, project_id, issue, record)
+
+        if direct_failure_message is None:
+            _publish_submission_coordination(
+                orch,
+                project_id,
+                issue,
+                record,
+                body,
+            )
+
+        return AcceptedWorkerSubmission(
+            issue=issue,
+            record=record,
+            direct_maintenance=direct_maintenance,
+            direct_failure_message=direct_failure_message,
         )
 
 
@@ -5036,59 +5965,20 @@ async def api_submit_issue(identifier: str, request: Request):
         # per-task lock is shared with the dispatcher's final In Progress
         # transition, so a callback selected before this request cannot write
         # stale lifecycle state after the accepted submission wins.
-        record = _submission_record(issue, body)
-        direct_completion = None
-        direct_failure_message: str | None = None
-        async with _submission_authority_lock(orch, issue.id):
-            cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-            if callable(cancel_retry):
-                cancel_retry(
-                    issue_id=issue.id,
-                    identifier=issue.identifier,
-                    project_id=project_id,
-                    reason="task submitted for integration",
-                )
-            await _clear_submission_assignment(tracker, issue)
-            if is_direct_epic_maintenance_issue(issue):
-                complete = getattr(
-                    orch,
-                    "complete_direct_epic_maintenance_submission",
-                    None,
-                )
-                if not callable(complete):
-                    raise ValueError(
-                        "direct epic maintenance completion service is unavailable"
-                    )
-                direct_completion = await complete(
-                    issue,
-                    record,
-                    project_id,
-                    summary=str(body.get("summary") or "").strip(),
-                )
-                if direct_completion is None:
-                    raise ValueError(
-                        "direct epic maintenance classification changed during submission"
-                    )
-                completed, message, completed_record = direct_completion
-                if not completed:
-                    direct_failure_message = message
-                elif completed_record is not None:
-                    record = completed_record
-            else:
-                record = await _persist_worker_submission(
-                    tracker, issue, body, record=record
-                )
-                _enqueue_worker_submission(orch, project_id, issue, record)
-            if direct_failure_message is None:
-                _publish_submission_coordination(
-                    orch, project_id, issue, record, body
-                )
+        accepted = await _accept_worker_submission(
+            orch,
+            tracker,
+            resolved_identifier,
+            project_id,
+            body,
+            initial_issue=issue,
+        )
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "validation", "message": str(exc)}},
             status_code=400,
         )
-    if direct_failure_message is not None:
+    if accepted.direct_failure_message is not None:
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         orch.request_refresh()
@@ -5097,7 +5987,7 @@ async def api_submit_issue(identifier: str, request: Request):
             {
                 "error": {
                     "code": "direct_epic_maintenance_blocked",
-                    "message": direct_failure_message,
+                    "message": accepted.direct_failure_message,
                 }
             },
             status_code=409,
@@ -5107,13 +5997,13 @@ async def api_submit_issue(identifier: str, request: Request):
     orch.request_refresh()
     await broadcast_issues()
     response_state = (
-        IN_VALIDATION if direct_completion is not None else READY_TO_INTEGRATE
+        IN_VALIDATION if accepted.direct_maintenance else READY_TO_INTEGRATE
     )
     return JSONResponse(
         {
             "ok": True,
             "state": response_state,
-            "integration": record.to_dict(),
+            "integration": accepted.record.to_dict(),
         },
         status_code=201,
     )
@@ -5433,6 +6323,7 @@ async def api_task_handoff(request: Request):
         "coordination-checkpoint",
         "add-label",
         "remove-label",
+        "publish-epic-rebase",
     }:
         # Intentional least-privilege denial — not a health signal.
         record_worker_403_action()
@@ -5447,11 +6338,13 @@ async def api_task_handoff(request: Request):
             status_code=400,
         )
 
-    allowed, reason = validate_task_handoff_token(
-        token,
-        project_id=project_id,
-        task_identifier=identifier,
-        action=action,
+    allowed, reason, temporary_suspension_denial = (
+        validate_task_handoff_token_classified(
+            token,
+            project_id=project_id,
+            task_identifier=identifier,
+            action=action,
+        )
     )
     orch = None
     if not allowed and reason == "task handoff capability is scoped to another project":
@@ -5465,11 +6358,13 @@ async def api_task_handoff(request: Request):
         except (ProjectError, RuntimeError):
             pass
         else:
-            allowed, reason = validate_task_handoff_token(
-                token,
-                project_id=project_id,
-                task_identifier=identifier,
-                action=action,
+            allowed, reason, temporary_suspension_denial = (
+                validate_task_handoff_token_classified(
+                    token,
+                    project_id=project_id,
+                    task_identifier=identifier,
+                    action=action,
+                )
             )
     if not allowed:
         # Expired and explicitly revoked grants are authentication failures;
@@ -5512,12 +6407,14 @@ async def api_task_handoff(request: Request):
         # Do not expose whether a token exists for another task/project. A
         # verified policy denial is expected exploration and must not poison
         # the worker-exit failure reconciler either.
-        if not expected_policy_denial:
+        if not expected_policy_denial and not temporary_suspension_denial:
             record_task_handoff_failure(token, "task handoff scope validation failed")
 
         # Count by auth-plane failure type for health signals. Expected
         # cross-task policy denials are informational, like action denials.
-        if status_code == 401:
+        if temporary_suspension_denial:
+            pass
+        elif status_code == 401:
             record_worker_401()
         elif expected_policy_denial:
             record_worker_403_policy()
@@ -5570,16 +6467,23 @@ async def api_task_handoff(request: Request):
             "coordination-checkpoint",
             "add-label",
             "remove-label",
+            "publish-epic-rebase",
         }
         if action in mutating_actions:
-            permit = acquire_task_handoff_permit(
-                token,
-                project_id=project_id,
-                task_identifier=identifier,
-                action=action,
+            permit, permit_suspension_denial = (
+                acquire_task_handoff_permit_classified(
+                    token,
+                    project_id=project_id,
+                    task_identifier=identifier,
+                    action=action,
+                )
             )
             if permit is None:
-                _still_allowed, permit_reason = validate_task_handoff_token(
+                (
+                    _still_allowed,
+                    permit_reason,
+                    validation_suspension_denial,
+                ) = validate_task_handoff_token_classified(
                     token,
                     project_id=project_id,
                     task_identifier=identifier,
@@ -5588,10 +6492,14 @@ async def api_task_handoff(request: Request):
                 permit_reason = permit_reason or (
                     "task handoff capability was revoked before the operation started"
                 )
-                record_task_handoff_failure(
-                    token, "task handoff capability authorization failed"
+                temporary_suspension_denial = (
+                    permit_suspension_denial or validation_suspension_denial
                 )
-                record_worker_401()
+                if not temporary_suspension_denial:
+                    record_task_handoff_failure(
+                        token, "task handoff capability authorization failed"
+                    )
+                    record_worker_401()
                 return JSONResponse(
                     {
                         "error": {
@@ -5748,6 +6656,7 @@ async def api_task_handoff(request: Request):
                     orch,
                     identifier=identifier,
                     action="comment",
+                    project_id=project_id,
                     message=text,
                     tracker=tracker,
                 )
@@ -5759,27 +6668,16 @@ async def api_task_handoff(request: Request):
         if action == "submit":
             try:
                 async def persist_submission() -> Any:
-                    record = _submission_record(issue, body)
-                    async with _submission_authority_lock(orch, issue.id):
-                        cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-                        if callable(cancel_retry):
-                            cancel_retry(
-                                issue_id=getattr(issue, "id", None),
-                                identifier=identifier,
-                                project_id=project_id,
-                                reason="task submitted for integration",
-                            )
-                        await _clear_submission_assignment(tracker, issue)
-                        record = await _persist_worker_submission(
-                            tracker, issue, body, record=record
-                        )
-                        _enqueue_worker_submission(orch, project_id, issue, record)
-                        _publish_submission_coordination(
-                            orch, project_id, issue, record, body
-                        )
-                    return record
+                    return await _accept_worker_submission(
+                        orch,
+                        tracker,
+                        identifier,
+                        project_id,
+                        body,
+                        initial_issue=issue,
+                    )
 
-                record = await run_mutation(persist_submission)
+                accepted = await run_mutation(persist_submission)
             except ValueError as exc:
                 record_task_handoff_failure(
                     token, "task handoff submission validation failed"
@@ -5791,7 +6689,85 @@ async def api_task_handoff(request: Request):
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
             await broadcast_issues()
-            return JSONResponse({"ok": True, "integration": record.to_dict()})
+            if accepted.direct_failure_message is not None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "direct_epic_maintenance_blocked",
+                            "message": accepted.direct_failure_message,
+                        }
+                    },
+                    status_code=409,
+                )
+            return JSONResponse(
+                {"ok": True, "integration": accepted.record.to_dict()}
+            )
+
+        if action == "publish-epic-rebase":
+            allowed_fields = {
+                "action",
+                "project_id",
+                "identifier",
+                "candidate_sha",
+            }
+            if set(body) != allowed_fields:
+                record_task_handoff_failure(
+                    token, "epic rebase publication payload validation failed"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "epic rebase publication accepts only project_id, "
+                                "identifier, and candidate_sha"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            candidate = body.get("candidate_sha")
+            if not isinstance(candidate, str) or re.fullmatch(
+                r"(?:[0-9a-f]{40}|[0-9a-f]{64})",
+                candidate,
+            ) is None:
+                record_task_handoff_failure(
+                    token, "epic rebase publication payload validation failed"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "candidate_sha must be a full lowercase commit SHA"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                result = await run_mutation(
+                    lambda: _run_api_io(
+                        orch.publish_epic_rebase_candidate,
+                        project_id,
+                        identifier,
+                        candidate,
+                    )
+                )
+            except ProjectError as exc:
+                record_task_handoff_failure(
+                    token, "epic rebase publication was rejected"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "epic_rebase_publish_rejected",
+                            "message": str(exc),
+                        }
+                    },
+                    status_code=409,
+                )
+            return JSONResponse(result)
 
         if action == "set-status":
             status = body.get("status")
@@ -5799,6 +6775,16 @@ async def api_task_handoff(request: Request):
                 record_task_handoff_failure(token, "task handoff status validation failed")
                 return JSONResponse(
                     {"error": {"code": "validation", "message": "status is required"}},
+                    status_code=400,
+                )
+            if canonicalize_status(status) == READY_TO_INTEGRATE:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": task_submit_required_message(identifier),
+                        }
+                    },
                     status_code=400,
                 )
 
@@ -5865,22 +6851,99 @@ async def api_task_handoff(request: Request):
                         None,
                     )
                 else:
-                    _cancel_retry_for_authority_change(
-                        orch,
-                        issue,
-                        identifier,
-                        project_id,
-                        status,
-                        None,
+                    durable_handoff = bool(
+                        getattr(
+                            getattr(orch, "workflow_runtime", None),
+                            "enforce",
+                            False,
+                        )
+                        is True
                     )
-                    await _run_api_io(tracker.update_issue, identifier, status=status)
-                    _observe_task_handoff_mutation(
-                        orch,
-                        identifier=identifier,
-                        action="set-status",
-                        status=status,
-                        tracker=tracker,
-                    )
+                    if not durable_handoff:
+                        _cancel_retry_for_authority_change(
+                            orch,
+                            issue,
+                            identifier,
+                            project_id,
+                            status,
+                            None,
+                        )
+                    observed = False
+                    if durable_handoff and canonicalize_status(status) == OPEN:
+                        observed = _observe_task_handoff_mutation(
+                            orch,
+                            identifier=identifier,
+                            action="set-status",
+                            project_id=project_id,
+                            status=status,
+                            tracker=tracker,
+                        )
+                    if durable_handoff and not observed:
+                        entry = _exact_implementation_running_entry(
+                            orch, issue, project_id
+                        )
+                        head = issue_exact_head(issue)
+                        job = orch._schedule_implementation_workflow_event(
+                            project_id=project_id,
+                            identifier=identifier,
+                            action="worker_exit",
+                            payload={
+                                "owner_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "run_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "prior_generation": str(
+                                    getattr(entry, "authority_generation", None)
+                                    or ""
+                                ),
+                                "assignment_id": str(
+                                    getattr(entry, "assignment_id", None) or ""
+                                ),
+                                "focus": str(
+                                    getattr(entry, "focus_name", None)
+                                    or "implementation"
+                                ),
+                                "work_branch": str(
+                                    issue.work_branch or issue.branch_name or ""
+                                ),
+                                "head_sha": str(head or ""),
+                                "requested_status": status,
+                                "expected_status": issue.state,
+                                "reason": "accepted task-handoff status",
+                            },
+                            expected_evidence_revision=issue_authority_version(issue),
+                            expected_head_sha=head,
+                            priority=0,
+                        )
+                        if job is None:
+                            raise RuntimeError(
+                                "durable task-handoff status was not scheduled"
+                            )
+                        observed = True
+                    if not durable_handoff:
+                        await _apply_task_status_transition_async(
+                            orch,
+                            tracker,
+                            issue,
+                            status,
+                            project_id=project_id,
+                            actor=transition_actor or "oompah-worker",
+                            authority=TransitionAuthority.WORKER,
+                            reason_code="handoff.worker_status_requested",
+                            evidence_generation=getattr(
+                                issue, "assignment_id", None
+                            ),
+                        )
+                        _observe_task_handoff_mutation(
+                            orch,
+                            identifier=identifier,
+                            action="set-status",
+                            project_id=project_id,
+                            status=status,
+                            tracker=tracker,
+                        )
                 summary = str(body.get("summary") or "").strip()
                 if summary:
                     await _run_api_io(
@@ -5913,8 +6976,19 @@ async def api_task_handoff(request: Request):
             )
         from oompah.label_auth import label_name_to_status
 
+        status_from_label = label_name_to_status(label)
+        if canonicalize_status(status_from_label) == READY_TO_INTEGRATE:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": task_submit_required_message(identifier),
+                    }
+                },
+                status_code=400,
+            )
+
         async def apply_label_mutation() -> JSONResponse:
-            status_from_label = label_name_to_status(label)
             terminal_target = _terminal_target_for_status(status_from_label)
             terminal_payload: dict[str, Any] | None = None
             if terminal_target is not None:
@@ -5981,15 +7055,97 @@ async def api_task_handoff(request: Request):
                     status_from_label,
                     None,
                 )
+            elif status_from_label is not None:
+                if action == "remove-label":
+                    record_task_handoff_failure(
+                        token, "task handoff status label removal rejected"
+                    )
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": (
+                                    "Status labels cannot be removed directly; "
+                                    "set the intended destination status instead."
+                                ),
+                            }
+                        },
+                        status_code=400,
+                    )
+                durable_handoff = bool(
+                    getattr(
+                        getattr(orch, "workflow_runtime", None),
+                        "enforce",
+                        False,
+                    )
+                    is True
+                )
+                if not durable_handoff:
+                    await _run_api_io(tracker.add_label, identifier, label)
+                else:
+                    observed = False
+                    if canonicalize_status(status_from_label) == OPEN:
+                        observed = _observe_task_handoff_mutation(
+                            orch,
+                            identifier=identifier,
+                            action="set-status",
+                            project_id=project_id,
+                            status=status_from_label,
+                            tracker=tracker,
+                        )
+                    if not observed:
+                        entry = _exact_implementation_running_entry(
+                            orch, issue, project_id
+                        )
+                        head = issue_exact_head(issue)
+                        job = orch._schedule_implementation_workflow_event(
+                            project_id=project_id,
+                            identifier=identifier,
+                            action="worker_exit",
+                            payload={
+                                "owner_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "run_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "prior_generation": str(
+                                    getattr(entry, "authority_generation", None)
+                                    or ""
+                                ),
+                                "assignment_id": str(
+                                    getattr(entry, "assignment_id", None) or ""
+                                ),
+                                "focus": str(
+                                    getattr(entry, "focus_name", None)
+                                    or "implementation"
+                                ),
+                                "work_branch": str(
+                                    issue.work_branch or issue.branch_name or ""
+                                ),
+                                "head_sha": str(head or ""),
+                                "requested_status": status_from_label,
+                                "expected_status": issue.state,
+                                "reason": "accepted task-handoff status label",
+                            },
+                            expected_evidence_revision=issue_authority_version(issue),
+                            expected_head_sha=head,
+                            priority=0,
+                        )
+                        if job is None:
+                            raise RuntimeError(
+                                "durable task-handoff status label was not scheduled"
+                            )
             elif action == "add-label":
                 await _run_api_io(tracker.add_label, identifier, label)
             else:
                 await _run_api_io(tracker.remove_label, identifier, label)
-            if action == "add-label":
+            if action == "add-label" and status_from_label is None:
                 _observe_task_handoff_mutation(
                     orch,
                     identifier=identifier,
                     action=action,
+                    project_id=project_id,
                     label=label,
                     tracker=tracker,
                 )
@@ -6002,8 +7158,11 @@ async def api_task_handoff(request: Request):
 
         return await run_mutation(apply_label_mutation)
     except OperationPermitDenied as exc:
-        record_task_handoff_failure(token, "task handoff capability revoked before mutation")
-        record_worker_401()
+        if not exc.temporary_suspension:
+            record_task_handoff_failure(
+                token, "task handoff capability revoked before mutation"
+            )
+            record_worker_401()
         return JSONResponse(
             {
                 "error": {
@@ -6521,6 +7680,7 @@ async def _stage_terminal_transition(
         completed.add(issue_id)
 
     locked_issue = issue
+    locked_owner_claim = None
 
     async def _with_issue_ownership_lock(operation):
         """Run a terminal operation with a fresh issue snapshot under ownership.
@@ -6532,10 +7692,10 @@ async def _stage_terminal_transition(
         canonical evidence refresh under its project lock as the final CAS
         boundary.
         """
-        nonlocal locked_issue
+        nonlocal locked_issue, locked_owner_claim
 
         async def invoke() -> Any:
-            nonlocal locked_issue
+            nonlocal locked_issue, locked_owner_claim
             fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
             if callable(fetch_issue_detail):
                 try:
@@ -6553,6 +7713,10 @@ async def _stage_terminal_transition(
                 else:
                     if refreshed is not None:
                         locked_issue = refreshed
+            locked_owner_claim = orch._owner_claim_for_issue(
+                locked_issue.id,
+                project_id,
+            )
             return await operation(locked_issue)
 
         lock_factory = getattr(orch, "issue_transition_lock", None)
@@ -6560,6 +7724,37 @@ async def _stage_terminal_transition(
             return await invoke()
         async with lock_factory(issue_id):
             return await invoke()
+
+    async def _retire_committed_owner_claim() -> None:
+        retire = getattr(orch, "_retire_owner_claim_after_status_commit", None)
+        if not callable(retire):
+            return
+        current_issue = locked_issue
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if callable(fetch_issue_detail):
+            try:
+                refreshed = await _run_api_io(
+                    fetch_issue_detail,
+                    locked_issue.identifier,
+                )
+            except Exception:  # noqa: BLE001 - terminal commit already succeeded
+                logger.exception(
+                    "Post-commit owner-claim refresh failed for %s/%s",
+                    project_id,
+                    locked_issue.identifier,
+                )
+                return
+            if refreshed is not None:
+                current_issue = refreshed
+        result = retire(
+            issue=current_issue,
+            project_id=project_id,
+            claim=locked_owner_claim,
+            observed_status=getattr(current_issue, "state", None),
+            observed_version=issue_authority_version(current_issue),
+        )
+        if inspect.isawaitable(result):
+            await result
 
     def _rollback_dispatch_fence() -> None:
         if issue_id and completed is not None and not was_completed:
@@ -6602,10 +7797,8 @@ async def _stage_terminal_transition(
                     project_id=str(project_id),
                     reason=retry_reason,
                     project=_project_by_id(orch, str(project_id)),
-                    evidence_fingerprint=(
-                        _terminal_evidence_fingerprint(current_issue, str(project_id))
-                        if evidence_addendum is not None
-                        else None
+                    evidence_fingerprint=_terminal_evidence_fingerprint(
+                        current_issue, str(project_id)
                     ),
                     evidence_addendum=evidence_addendum,
                 )
@@ -6618,7 +7811,9 @@ async def _stage_terminal_transition(
             logger.exception("Terminal audit retry failed")
             return None, ("The terminal audit retry could not be staged.", 503)
         if not result.success:
-            _rollback_dispatch_fence()
+            status_stage_failed = result.reason == "status_stage_failed"
+            if not status_stage_failed:
+                _rollback_dispatch_fence()
             if result.reason == "unauthorized_actor":
                 return None, ("Only a project owner may retry an audit.", 403)
             if result.reason == "invalid_evidence_addendum":
@@ -6629,14 +7824,27 @@ async def _stage_terminal_transition(
                     "refresh and retry.",
                     409,
                 )
+            if result.reason == "evidence_unavailable":
+                return None, (
+                    "The current task evidence could not be verified; no audit "
+                    "retry was recorded. Restore tracker reads and retry.",
+                    503,
+                )
             if result.reason in {"audit_not_retryable", "project_mismatch"}:
                 return None, (
                     "No matching exhausted audit can be retried for this task.",
                     409,
                 )
+            if status_stage_failed:
+                return None, (
+                    "The audit retry was recorded, but In Validation could not "
+                    "be restored; durable recovery will retry the status write.",
+                    503,
+                )
             if "shared-epic" in str(result.reason or "").lower() or "auto-filed epic" in str(result.reason or "").lower():
                 return None, (str(result.reason), 409)
             return None, ("The terminal audit retry could not be staged.", 503)
+        await _retire_committed_owner_claim()
         payload = _terminal_transition_payload(
             target,
             result,
@@ -6687,6 +7895,7 @@ async def _stage_terminal_transition(
         if not result.success:
             _rollback_dispatch_fence()
             return None, _safe_terminal_transition_error(result, override=True)
+        await _retire_committed_owner_claim()
         return _terminal_transition_payload(
             target,
             result,
@@ -6720,6 +7929,7 @@ async def _stage_terminal_transition(
     if not result.success:
         _rollback_dispatch_fence()
         return None, _safe_terminal_transition_error(result)
+    await _retire_committed_owner_claim()
     return _terminal_transition_payload(
         target,
         result,
@@ -7375,15 +8585,21 @@ async def api_create_issue(request: Request):
             else:
                 description = source_header
 
-        issue = tracker.create_issue(
-            title=title,
-            issue_type=issue_type,
-            description=description,
-            priority=_task_priority_int(body.get("priority")),
-            initial_status=body.get("status"),
-            labels=initial_labels,
-            parent=parent_id,
+        creation_lock = (
+            orch.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
         )
+        with creation_lock:
+            issue = tracker.create_issue(
+                title=title,
+                issue_type=issue_type,
+                description=description,
+                priority=_task_priority_int(body.get("priority")),
+                initial_status=body.get("status"),
+                labels=initial_labels,
+                parent=parent_id,
+            )
         issue.project_id = project_id
         # Persist tracker-identity fields onto the returned issue so the
         # response carries the full schema even when the tracker adapter
@@ -7396,6 +8612,15 @@ async def api_create_issue(request: Request):
             issue.work_branch = work_branch
 
         _api_cache.invalidate("issues:all")
+        orch.event_bus.emit(
+            EventType.ISSUE_STATE_CHANGED,
+            {
+                "project_id": project_id,
+                "identifier": issue.identifier,
+                "parent_id": parent_id,
+                "change": "created",
+            },
+        )
         await broadcast_issues()
         return JSONResponse(
             {
@@ -11362,6 +12587,52 @@ def _cancel_retry_for_authority_change(
     )
     if not status_changed and not branch_changed:
         return set()
+    if (
+        getattr(getattr(orch, "workflow_runtime", None), "enforce", False)
+        is True
+        and project_id
+    ):
+        issue_id = str(getattr(existing_issue, "id", None) or "")
+        entry = (
+            _exact_implementation_running_entry(
+                orch, existing_issue, project_id
+            )
+            if issue_id and existing_issue is not None
+            else None
+        )
+        head = issue_exact_head(existing_issue) if existing_issue is not None else None
+        job = orch._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=identifier,
+            action="authority_revocation",
+            payload={
+                "owner_id": str(getattr(entry, "run_id", None) or ""),
+                "run_id": str(getattr(entry, "run_id", None) or ""),
+                "prior_run_id": str(getattr(entry, "run_id", None) or ""),
+                "prior_generation": str(
+                    getattr(entry, "authority_generation", None) or ""
+                ),
+                "authority_kind": "scheduler",
+                "expected_status": str(current_state or ""),
+                "work_branch": str(
+                    new_work_branch or current_branch or ""
+                ),
+                "head_sha": str(head or ""),
+                "reason": (
+                    "task status changed" if status_changed else "task work branch changed"
+                ),
+            },
+            # The accepted mutation itself changes status/branch evidence before
+            # this job can run. Exact live generation/run plus immutable head
+            # are the revocation fence; using the pre-mutation authority hash
+            # would supersede every legitimate event.
+            expected_evidence_revision=None,
+            expected_head_sha=head,
+            priority=0,
+        )
+        if job is None:
+            raise RuntimeError("durable implementation revocation was not scheduled")
+        return set()
     state = getattr(orch, "state", None)
     retry_attempts = getattr(state, "retry_attempts", {})
     matching_retry_ids: set[str] = set()
@@ -11691,6 +12962,8 @@ def _retire_expected_legacy_validation_owner(
     issue,
     expected_owner: ValidationLeaseOwner,
     expected_process_identity: Mapping[str, int],
+    *,
+    cancelled_by: str = "operator",
 ) -> tuple[bool, str]:
     """Cancel exactly the health-advertised legacy worker generation."""
 
@@ -11735,6 +13008,8 @@ def _retire_expected_legacy_validation_owner(
         ],
         child_pid=expected_process_identity["child_pid"],
         child_start_ticks=expected_process_identity["child_start_ticks"],
+        cancelled_by=cancelled_by,
+        reason="direct owner takeover",
     ):
         return False, "the exact legacy validation owner was already replaced"
     if _matching_legacy_validation_owner(
@@ -11833,6 +13108,37 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 status_code=400,
             )
 
+    if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
+        from oompah.implementation_workflow import ImplementationAction
+
+        job = orch._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=issue.identifier,
+            action=ImplementationAction.DIRECT_OWNER_CLAIM,
+            payload={
+                "owner_id": owner_login,
+                "claim_id": uuid.uuid4().hex,
+                "ttl_hours": ttl_hours or orch.config.owner_claim_ttl_hours,
+                "expected_status": issue.state,
+                "work_branch": str(issue.work_branch or issue.branch_name or ""),
+                "head_sha": str(issue_exact_head(issue) or ""),
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=issue_exact_head(issue),
+            priority=0,
+        )
+        return JSONResponse(
+            {
+                "active": False,
+                "pending": True,
+                "job_id": job.job_id,
+                "generation": job.generation,
+                "owner_login": owner_login,
+                "ownership_source": "direct_owner",
+            },
+            status_code=202,
+        )
+
     # Persist a dispatch fence before retiring scheduler authority.  A stale
     # candidate may already have passed selection, so the orchestrator's final
     # dispatch boundary also checks the durable owner lease granted below.
@@ -11862,6 +13168,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             issue,
             expected_validation_owner,
             expected_process_identity or {},
+            cancelled_by=f"operator:{owner_login}",
         )
         if not retired:
             _api_cache.invalidate("issues:all")
@@ -11898,8 +13205,13 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             status_code=409,
         )
 
-    # The project lock is shared with orphan recovery. Grant the durable claim
-    # and move state while still locked, so no Open/dispatchable window exists.
+    # The project lock is shared with orphan recovery.  Persist the durable
+    # claim first so it fences dispatch before the status transition begins.
+    # The transition itself must run without this request thread owning the
+    # project RLock: its tracker write executes on a worker thread and acquires
+    # the same fence there.
+    claim = None
+    current = None
     try:
         with orch.project_store.project_write_lock(project_id):
             try:
@@ -11929,35 +13241,50 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 owner_login=owner_login,
                 ttl_hours=ttl_hours,
             )
-            if canonicalize_status(current.state) != IN_PROGRESS:
-                try:
-                    tracker.update_issue(issue.identifier, status=IN_PROGRESS)
-                except Exception:
-                    orch.release_owner_claim(
-                        issue_id=issue.id,
-                        project_id=project_id,
-                    )
-                    raise
-            if added_dispatch_fence:
-                # The durable lease and In Progress state now fence both fresh
-                # and stale dispatches. Remove only the temporary label this
-                # request added; an operator's pre-existing human-only policy
-                # remains untouched.
-                try:
-                    tracker.remove_label(issue.identifier, "human-only")
-                    issue.labels = [
-                        label
-                        for label in issue.labels or []
-                        if str(label).strip().lower() != "human-only"
-                    ]
-                except Exception as exc:
-                    logger.warning(
-                        "Owner takeover retained temporary human-only fence for "
-                        "%s/%s: %s",
-                        project_id,
-                        identifier,
-                        exc,
-                    )
+        if canonicalize_status(current.state) != IN_PROGRESS:
+            try:
+                await _apply_task_status_transition_async(
+                    orch,
+                    tracker,
+                    current,
+                    IN_PROGRESS,
+                    project_id=project_id,
+                    actor=owner_login,
+                    authority=TransitionAuthority.PROJECT_OWNER,
+                    reason_code="owner.claim_granted",
+                    evidence_generation=claim.claim_id,
+                )
+            except Exception:
+                orch.release_owner_claim(
+                    issue_id=issue.id,
+                    project_id=project_id,
+                    expected_claim_id=claim.claim_id,
+                )
+                raise
+        if added_dispatch_fence:
+            def _remove_temporary_owner_fence() -> None:
+                with orch.project_store.project_write_lock(project_id):
+                    # The durable lease and In Progress state now fence both
+                    # fresh and stale dispatches. Remove only the temporary
+                    # label this request added; an operator's pre-existing
+                    # human-only policy remains untouched.
+                    try:
+                        tracker.remove_label(issue.identifier, "human-only")
+                        issue.labels = [
+                            label
+                            for label in issue.labels or []
+                            if str(label).strip().lower() != "human-only"
+                        ]
+                    except Exception as exc:
+                        logger.warning(
+                            "Owner takeover retained temporary human-only fence for "
+                            "%s/%s: %s",
+                            project_id,
+                            identifier,
+                            exc,
+                        )
+
+            await _run_api_io(_remove_temporary_owner_fence)
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "scheduler_owned", "message": str(exc)}},
@@ -12019,7 +13346,69 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     if error is not None:
         return error
 
-    removed = orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
+    if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
+        from oompah.implementation_workflow import ImplementationAction
+
+        claim = orch._owner_claim_for_issue(issue.id, project_id)
+        if claim is not None:
+            try:
+                orch.mark_owner_claim_retirement_pending(
+                    issue_id=issue.id,
+                    project_id=project_id,
+                    expected_claim_id=claim.claim_id,
+                )
+            except OSError as exc:
+                logger.exception(
+                    "Direct-owner release marker could not be persisted for %s/%s",
+                    project_id,
+                    issue.identifier,
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "owner_claim_release_unavailable",
+                            "message": str(exc),
+                        }
+                    },
+                    status_code=503,
+                )
+        job = orch._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=issue.identifier,
+            action=ImplementationAction.AUTHORITY_REVOCATION,
+            payload={
+                "owner_id": str(getattr(claim, "owner_login", None) or ""),
+                "requested_by": _owner_login,
+                "claim_id": str(getattr(claim, "claim_id", None) or ""),
+                "authority_kind": "direct_owner",
+                "expected_status": issue.state,
+                "reason": "direct owner released task",
+                "work_branch": str(issue.work_branch or issue.branch_name or ""),
+                "head_sha": str(issue_exact_head(issue) or ""),
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=issue_exact_head(issue),
+            priority=0,
+        )
+        await _publish_owner_claim_state(orch)
+        return JSONResponse(
+            {
+                "released": False,
+                "pending": True,
+                "job_id": job.job_id,
+                "generation": job.generation,
+            },
+            status_code=202,
+        )
+
+    claim = orch._owner_claim_for_issue(issue.id, project_id)
+    removed = orch.release_owner_claim(
+        issue_id=issue.id,
+        project_id=project_id,
+        expected_claim_id=(
+            str(getattr(claim, "claim_id", None) or "")
+        ),
+    )
     _api_cache.invalidate("issues:all")
     _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
     await _publish_owner_claim_state(orch)
@@ -12284,6 +13673,7 @@ async def api_terminal_provenance_action(
                     resolved_identifier,
                     ContributorIdentity(actor_login, "api"),
                     reason,
+                    status_transition=orch._recover_terminal_audit_status,
                 )
                 status = OPEN
     except ProvenanceOwnerRevisionNotFoundError:
@@ -12625,11 +14015,28 @@ async def api_update_issue(identifier: str, request: Request):
                     or body.get("actor")
                     or "project-owner"
                 )
-                result = promote_proposed_issue_to_backlog(
+                result = await _run_api_io(
+                    promote_proposed_issue_to_backlog,
                     tracker,
                     identifier,
                     current_status=existing_status,
                     owner_override_actor=owner_override_actor,
+                    status_transition=lambda current, status, **fields: (
+                        _apply_task_status_transition(
+                            orch,
+                            tracker,
+                            current,
+                            status,
+                            project_id=project_id,
+                            actor=str(fields["actor"]),
+                            authority=(
+                                TransitionAuthority.PROJECT_OWNER
+                                if fields.get("owner_override")
+                                else TransitionAuthority.API
+                            ),
+                            reason_code=str(fields["reason_code"]),
+                        )
+                    ),
                 )
                 if not result.promoted:
                     return JSONResponse(
@@ -12747,17 +14154,53 @@ async def api_update_issue(identifier: str, request: Request):
                     new_status,
                     new_work_branch,
                 )
-            if update_fields:
-                tracker.update_issue(identifier, **update_fields)
-            if needs_human_status is not None:
-                _mark_tracker_needs_human(
+            status_update = update_fields.pop("status", None)
+            if status_update is not None:
+                await _apply_task_status_transition_async(
+                    orch,
                     tracker,
-                    identifier,
+                    existing_issue,
+                    str(status_update),
+                    project_id=project_id,
+                    actor=(
+                        transition_actor
+                        or _request_actor_login(body, request)
+                        or "api"
+                    ),
+                    authority=TransitionAuthority.API,
+                    reason_code="api.status_updated",
+                )
+            if update_fields:
+                def _update_fields_under_project_lock() -> None:
+                    with orch.project_store.project_write_lock(project_id):
+                        if status_update is not None:
+                            invalidate = getattr(tracker, "invalidate_read_cache", None)
+                            if callable(invalidate):
+                                invalidate()
+                            current = tracker.fetch_issue_detail(identifier)
+                            if (
+                                current is None
+                                or canonicalize_status(current.state)
+                                != canonicalize_status(status_update)
+                            ):
+                                raise RuntimeError(
+                                    "task status changed before metadata update"
+                                )
+                        tracker.update_issue(identifier, **update_fields)
+
+                await _run_api_io(_update_fields_under_project_lock)
+            if needs_human_status is not None:
+                await _mark_tracker_needs_human_async(
+                    orch,
+                    tracker,
+                    existing_issue,
                     _manual_needs_human_comment(
                         identifier,
                         existing_issue,
                         needs_human_comment,
                     ),
+                    project_id=project_id,
+                    author=transition_actor or "oompah",
                 )
 
         _record_owner_override_if_needed(
@@ -12851,15 +14294,73 @@ async def api_update_issue(identifier: str, request: Request):
                                 issue_id, cleanup_workspace=(status_norm in terminal)
                             )
                         except Exception as exc:  # noqa: BLE001 - commit already won
-                            logger.exception(
-                                "Post-commit worker cleanup failed for %s",
-                                identifier,
+                            from oompah.orchestrator import (  # noqa: PLC0415
+                                RuntimeTerminationPublicationTimeout,
                             )
+                            retryable_publication_timeout = isinstance(
+                                exc,
+                                RuntimeTerminationPublicationTimeout,
+                            )
+                            cleanup_diagnostic = str(exc)
+                            if retryable_publication_timeout:
+                                try:
+                                    retry_admitted = bool(
+                                        orch._schedule_running_termination(
+                                            issue_id,
+                                            cleanup_workspace=(
+                                                status_norm in terminal
+                                            ),
+                                            task_name_prefix=(
+                                                "retry-post-commit-cleanup"
+                                            ),
+                                            expected_entry=entry,
+                                        )
+                                    )
+                                except Exception:  # noqa: BLE001 - retry admission failed
+                                    logger.exception(
+                                        "Post-commit worker cleanup retry scheduling "
+                                        "failed for %s",
+                                        identifier,
+                                    )
+                                    cleanup_diagnostic = (
+                                        "runtime-owner publication timed out; "
+                                        "exact-runtime retirement retry scheduling "
+                                        "failed"
+                                    )
+                                else:
+                                    if retry_admitted:
+                                        logger.warning(
+                                            "Post-commit worker cleanup publication "
+                                            "timed out for %s; exact-runtime retry "
+                                            "admitted",
+                                            identifier,
+                                        )
+                                        cleanup_diagnostic = (
+                                            "runtime-owner publication timed out; "
+                                            "exact-runtime retirement retry admitted"
+                                        )
+                                    else:
+                                        logger.error(
+                                            "Post-commit worker cleanup publication "
+                                            "timed out for %s; exact-runtime retry "
+                                            "was not admitted",
+                                            identifier,
+                                        )
+                                        cleanup_diagnostic = (
+                                            "runtime-owner publication timed out; "
+                                            "exact-runtime retirement retry was not "
+                                            "admitted"
+                                        )
+                            else:
+                                logger.exception(
+                                    "Post-commit worker cleanup failed for %s",
+                                    identifier,
+                                )
                             terminal_cleanup_diagnostics.append(
                                 {
                                     "operation": "retire_running_worker",
                                     "issue_id": str(issue_id),
-                                    "message": str(exc),
+                                    "message": cleanup_diagnostic,
                                 }
                             )
                         else:
@@ -12887,6 +14388,20 @@ async def api_update_issue(identifier: str, request: Request):
 
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        if new_status is not None or new_target_branch or new_work_branch:
+            orch.event_bus.emit(
+                EventType.ISSUE_STATE_CHANGED,
+                {
+                    "project_id": project_id,
+                    "identifier": identifier,
+                    "parent_id": getattr(existing_issue, "parent_id", None),
+                    "previous_status": getattr(existing_issue, "state", None),
+                    "status": new_status,
+                    "target_branch": new_target_branch,
+                    "work_branch": new_work_branch,
+                    "change": "updated",
+                },
+            )
         # A status transition into a dispatchable state must wake the
         # event-driven scheduler.  Without this, a task moved from Backlog or
         # Needs Human to Open waits for the long safety-net poll even when
@@ -12948,7 +14463,50 @@ async def api_update_issue(identifier: str, request: Request):
     except Exception as exc:
         from oompah.tracker import StateBranchFetchError
 
-        if isinstance(exc, StateBranchFetchError):
+        waiting_reason = _transition_waiting_reason(exc)
+        if waiting_reason is not None:
+            # An active transition owner (or a bounded restart recovery on an
+            # older deployment) is normal contention, not a backend defect for
+            # error_watcher to auto-file.  The client can retry the same
+            # operation after the durable lease/recovery finishes.
+            logger.warning(
+                "Update issue waiting for durable transition: %s",
+                waiting_reason,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "transition_waiting",
+                        "message": str(exc),
+                        "reason": waiting_reason,
+                    }
+                },
+                status_code=409,
+            )
+        rejected_reason = _transition_rejected_reason(exc)
+        if rejected_reason is not None:
+            # A durable-policy rejection is a successful fail-closed outcome,
+            # not a service-health warning or an unhandled backend defect.
+            # Return the structured conflict so the client can correct the
+            # request without causing error_watcher to file a recurrence.
+            logger.info(
+                "Update issue rejected by durable transition: %s",
+                rejected_reason,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "transition_rejected",
+                        "message": str(exc),
+                        "reason": rejected_reason,
+                    }
+                },
+                status_code=409,
+            )
+        if (
+            isinstance(exc, StateBranchFetchError)
+            or _transition_tracker_error_type(exc) == StateBranchFetchError.__name__
+        ):
             # Transient network failure syncing the state branch — degrade
             # gracefully so error_watcher is not triggered.
             logger.warning("Update issue state-branch sync skipped: %s", exc)
@@ -13103,7 +14661,16 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
 
         new_status = None
         if normalized_action == PROMOTE_TO_BACKLOG:
-            tracker.update_issue(resolved_identifier, status=BACKLOG)
+            await _apply_task_status_transition_async(
+                orch,
+                tracker,
+                issue,
+                BACKLOG,
+                project_id=project_id,
+                actor=actor_login,
+                authority=TransitionAuthority.PROJECT_OWNER,
+                reason_code="intake.owner_promoted_to_backlog",
+            )
             new_status = BACKLOG
 
         tracker.add_comment(resolved_identifier, audit_comment, author=actor_login)
@@ -13265,7 +14832,20 @@ async def api_add_label(identifier: str, request: Request):
                         status_code=status_code,
                     )
             else:
-                tracker.update_issue(resolved_identifier, status=status_from_label)
+                await _apply_task_status_transition_async(
+                    orch,
+                    tracker,
+                    existing_issue,
+                    status_from_label,
+                    project_id=project_id,
+                    actor=(
+                        transition_actor
+                        or _request_actor_login(body, request)
+                        or "api"
+                    ),
+                    authority=TransitionAuthority.API,
+                    reason_code="api.status_label_applied",
+                )
                 terminal_payload = None
         else:
             tracker.add_label(resolved_identifier, label)
@@ -13837,10 +15417,15 @@ async def api_add_comment(identifier: str, request: Request):
                     canonicalize_status(issue.state) == NEEDS_ANSWER
                     or "asking_question" in issue.labels
                 ):
-                    await _run_api_io(
-                        tracker.update_issue,
-                        resolved_identifier,
-                        status=OPEN,
+                    await _apply_task_status_transition_async(
+                        orch,
+                        tracker,
+                        issue,
+                        OPEN,
+                        project_id=project_id,
+                        actor=author,
+                        authority=TransitionAuthority.API,
+                        reason_code="api.question_answered",
                     )
                     if "asking_question" in issue.labels:
                         await _run_api_io(
@@ -13975,12 +15560,15 @@ async def api_issue_full_detail(identifier: str, request: Request):
                 None,
             )
             if integration_item is not None:
-                graph_issues = tracker.fetch_all_issues()
                 integration_queue_summary = _integration_queue_summary(
                     integration_item,
                     issue,
-                    graph_issues,
+                    [issue],
                     repair_evidence=_container_cycle_repair_for_item(
+                        orch,
+                        integration_item,
+                    ),
+                    dependency_projection=_integration_dependency_projection_for_item(
                         orch,
                         integration_item,
                     ),
@@ -13994,6 +15582,15 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "description": issue.description,
             "priority": issue.priority,
             "state": issue.state,
+            "work_decision": _work_decision_for_task(
+                orch, project_id, issue.identifier, issue
+            ),
+            "work_decision_availability": _work_decision_availability_for_task(
+                orch,
+                project_id,
+                issue.identifier,
+                task_state=issue.state,
+            ),
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
             "project_id": project_id,
@@ -14087,6 +15684,17 @@ async def api_issue_full_detail(identifier: str, request: Request):
                     ),
                     "title": c.title,
                     "state": c.state,
+                    "work_decision": _work_decision_for_task(
+                        orch, c.project_id or project_id, c.identifier, c
+                    ),
+                    "work_decision_availability": (
+                        _work_decision_availability_for_task(
+                            orch,
+                            c.project_id or project_id,
+                            c.identifier,
+                            task_state=c.state,
+                        )
+                    ),
                     "priority": c.priority,
                     "issue_type": c.issue_type,
                     "project_id": c.project_id or project_id,
@@ -14109,6 +15717,80 @@ async def api_issue_full_detail(identifier: str, request: Request):
         logger.error("Issue detail API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/tasks/{identifier}/work-decision")
+async def api_work_decision(project_id: str, identifier: str):
+    """Return the single redacted why-not-progressing projection for a task."""
+
+    try:
+        orch = _get_orchestrator()
+        tracker = _get_tracker(orch, project_id)
+        issue = await _run_api_io(tracker.fetch_issue_detail, identifier)
+        if issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "task_not_found",
+                        "message": "Task was not found in the requested project",
+                    }
+                },
+                status_code=404,
+            )
+        decision = _work_decision_for_task(
+            orch, project_id, issue.identifier, issue
+        )
+        if decision is None:
+            availability = _work_decision_availability_for_task(
+                orch,
+                project_id,
+                issue.identifier,
+                task_state=issue.state,
+            )
+            messages = {
+                "incomplete": (
+                    "The current bounded workflow pass is incomplete for this "
+                    "task; rotating or reconciliation sweeps will reevaluate it"
+                ),
+                "unavailable": (
+                    "Workflow evidence for this task's project is currently "
+                    "unavailable"
+                ),
+                "pending": "No current workflow decision is available yet",
+                "disabled": "The workflow decision controller is disabled",
+                "not_applicable": (
+                    "Workflow decisions are not produced for lifecycle-final tasks"
+                ),
+            }
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "decision_unavailable",
+                        "message": messages.get(
+                            availability,
+                            "No current workflow decision is available yet",
+                        ),
+                    },
+                    "availability": availability,
+                },
+                status_code=503,
+            )
+        return JSONResponse({"work_decision": decision})
+    except ValueError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    except Exception:
+        logger.exception(
+            "Workflow decision API error for project=%s task=%s",
+            project_id,
+            identifier,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": "Workflow decision unavailable"}},
             status_code=503,
         )
 
@@ -14785,50 +16467,84 @@ async def api_apply_release_picks_to_all_children(identifier: str, request: Requ
 
 
 @app.get("/api/v1/agents/{identifier}/activity")
-async def api_agent_activity(identifier: str):
-    """Return the activity log for a running agent."""
+async def api_agent_activity(identifier: str, project_id: str | None = None):
+    """Return one project-scoped running agent activity log.
+
+    ``project_id`` is optional only for legacy callers when the task identifier
+    resolves to exactly one running entry.
+    """
     try:
         orch = _get_orchestrator()
+        project_supplied = project_id is not None
+        requested_project_key = str(project_id or "")
+        matches = []
         for _, entry in _running_items_snapshot(orch):
-            if entry.identifier == identifier:
-                issue = getattr(entry, "issue", None)
-                project_id = issue.project_id if issue else None
-                terminal_audit_summary: dict[str, Any] | None = None
-                if issue is not None:
-                    try:
-                        tracker = orch._tracker_for_project(project_id) if project_id else getattr(orch, "tracker", None)
-                        terminal_audit_summary = _issue_terminal_audit_summary(
-                            issue, tracker=tracker
-                        )
-                    except Exception:  # noqa: BLE001 – audit read must not break activity
-                        pass
-                payload: dict[str, Any] = {
-                    "identifier": identifier,
-                    "run_id": getattr(entry, "run_id", None),
-                    "profile": entry.agent_profile_name,
-                    "provider_name": entry.provider_name,
-                    "model_name": entry.model_name,
-                    "work_kind": entry.classify_work_kind(),
-                    "duplicate_preflight": bool(
-                        getattr(entry, "duplicate_preflight", False)
-                    ),
-                    "started_at": entry.started_at.isoformat(),
-                    "activity": [a.to_dict() for a in entry.activity_log],
-                }
-                # Add safe audit identity fields
-                if getattr(entry, "is_auditor", False):
-                    payload["is_auditor"] = True
-                    if getattr(entry, "audit_id", None):
-                        payload["audit_id"] = entry.audit_id
-                    if getattr(entry, "audit_attempt_id", None):
-                        payload["audit_attempt_id"] = entry.audit_attempt_id
-                # Add retirement state
-                if getattr(entry, "retirement_pending", False):
-                    payload["retiring"] = True
-                if terminal_audit_summary is not None:
-                    payload["terminal_audit_summary"] = terminal_audit_summary
-                return JSONResponse(payload)
-        return JSONResponse({"identifier": identifier, "run_id": None, "activity": []})
+            issue = getattr(entry, "issue", None)
+            entry_project_id = issue.project_id if issue else None
+            entry_project_key = str(entry_project_id or "")
+            if entry.identifier == identifier and (
+                not project_supplied or entry_project_key == requested_project_key
+            ):
+                matches.append((entry, issue, entry_project_id))
+        if not project_supplied and len(matches) > 1:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "ambiguous_task_identity",
+                        "message": (
+                            "project_id is required when task identifiers overlap"
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+        for entry, issue, entry_project_id in matches:
+            terminal_audit_summary: dict[str, Any] | None = None
+            if issue is not None:
+                try:
+                    tracker = (
+                        orch._tracker_for_project(entry_project_id)
+                        if entry_project_id
+                        else getattr(orch, "tracker", None)
+                    )
+                    terminal_audit_summary = _issue_terminal_audit_summary(
+                        issue, tracker=tracker
+                    )
+                except Exception:  # noqa: BLE001 – audit read must not break activity
+                    pass
+            payload: dict[str, Any] = {
+                "identifier": identifier,
+                "project_id": entry_project_id,
+                "run_id": getattr(entry, "run_id", None),
+                "profile": entry.agent_profile_name,
+                "provider_name": entry.provider_name,
+                "model_name": entry.model_name,
+                "work_kind": entry.classify_work_kind(),
+                "duplicate_preflight": bool(
+                    getattr(entry, "duplicate_preflight", False)
+                ),
+                "started_at": entry.started_at.isoformat(),
+                "activity": [a.to_dict() for a in entry.activity_log],
+            }
+            if getattr(entry, "is_auditor", False):
+                payload["is_auditor"] = True
+                if getattr(entry, "audit_id", None):
+                    payload["audit_id"] = entry.audit_id
+                if getattr(entry, "audit_attempt_id", None):
+                    payload["audit_attempt_id"] = entry.audit_attempt_id
+            if getattr(entry, "retirement_pending", False):
+                payload["retiring"] = True
+            if terminal_audit_summary is not None:
+                payload["terminal_audit_summary"] = terminal_audit_summary
+            return JSONResponse(payload)
+        return JSONResponse(
+            {
+                "identifier": identifier,
+                "project_id": project_id,
+                "run_id": None,
+                "activity": [],
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -14884,15 +16600,40 @@ async def api_orchestrator_resume():
             cmd_id = _ipc.enqueue_command("unpause")
             return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        orch.unpause()
+        resumed = orch.unpause()
+        if resumed is False:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "paused": bool(getattr(orch, "_paused", True)),
+                    "restart_in_progress": True,
+                    "restart_request_id": getattr(
+                        orch, "_restart_request_id", None
+                    ),
+                    "error": "cannot resume while graceful restart is in progress",
+                },
+                status_code=409,
+            )
         return JSONResponse({"ok": True, "paused": False})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+def _create_restart_drain_task(coroutine, *, name: str) -> asyncio.Task:
+    """Create the restart owner task through an injectable narrow boundary."""
+
+    return asyncio.create_task(coroutine, name=name)
+
+
 @app.post("/api/v1/orchestrator/restart")
 async def api_orchestrator_restart(request: Request):
-    """Graceful restart: drain running agents, then restart the process."""
+    """Claim, start, or cancel one graceful-restart transaction.
+
+    ``claim_only`` installs the durable in-process admission fence used by the
+    canonical CLI cutover before that workflow quiesces or stages anything.
+    A matching ``restart_request_id`` later starts the one drain owner.
+    ``cancel_claim`` is valid only before the drain has been scheduled.
+    """
     try:
         orch = _get_orchestrator()
         body = {}
@@ -14900,6 +16641,27 @@ async def api_orchestrator_restart(request: Request):
             body = await request.json()
         except Exception:
             pass
+        claim_only = body.get("claim_only") is True
+        cancel_claim = body.get("cancel_claim") is True
+        supplied_request_id = body.get("restart_request_id")
+        if supplied_request_id is not None:
+            supplied_request_id = str(supplied_request_id).strip()
+            if not supplied_request_id:
+                return JSONResponse(
+                    {"error": "restart_request_id must be non-empty"},
+                    status_code=400,
+                )
+        if claim_only and cancel_claim:
+            return JSONResponse(
+                {"error": "claim_only and cancel_claim are mutually exclusive"},
+                status_code=400,
+            )
+        if cancel_claim and supplied_request_id is None:
+            return JSONResponse(
+                {"error": "cancel_claim requires restart_request_id"},
+                status_code=400,
+            )
+
         raw_timeout = body.get(
             "drain_timeout_s", orch.config.restart_drain_timeout_seconds
         )
@@ -14910,36 +16672,266 @@ async def api_orchestrator_restart(request: Request):
                 {"error": "drain_timeout_s must be a non-negative number"},
                 status_code=400,
             )
-        running_count = len(orch.state.running)
-        if getattr(orch, "_restart_in_progress", False):
+        request_id = supplied_request_id or str(uuid.uuid4())
+        admission_lock = getattr(orch, "_provider_admission_lock", None)
+        with admission_lock or contextlib.nullcontext():
+            running_count = len(orch.state.running)
+            in_progress = bool(getattr(orch, "_restart_in_progress", False))
+            existing_request_id = getattr(orch, "_restart_request_id", None)
+            # Task creation is part of the restart admission transaction.
+            # Preserve the exact prior claim so a failed scheduler call can
+            # restore either an unclaimed state or the still-cancellable
+            # matching preclaim that existed before this request.
+            restart_snapshot = {
+                "in_progress": in_progress,
+                "request_id": existing_request_id,
+                "requested_at": getattr(orch, "_restart_requested_at", None),
+                "initial_running": getattr(orch, "_restart_initial_running", 0),
+                "drain_scheduled": bool(
+                    getattr(orch, "_restart_drain_scheduled", False)
+                ),
+                "drain_started": bool(
+                    getattr(orch, "_restart_drain_started", False)
+                ),
+                "drain_task": getattr(orch, "_restart_drain_task", None),
+                "drain_owner": getattr(orch, "_restart_drain_owner", None),
+                "admission_generation": getattr(
+                    orch, "_provider_admission_generation", 0
+                ),
+                "paused": bool(getattr(orch, "_paused", False)),
+                "quiesced": bool(getattr(orch, "_quiesced", False)),
+                "stopping": bool(getattr(orch, "_stopping", False)),
+                "restart_requested": bool(
+                    getattr(orch, "_restart_requested", False)
+                ),
+            }
+            rollback_admission_generation: int | None = None
+
+            def _restore_restart_snapshot() -> None:
+                # ``graceful_restart`` can fail because its durable restart
+                # journal could not be written.  That failure deliberately
+                # installs a fail-closed admission fence before it escapes to
+                # this task callback.  Roll back the transient API claim, but
+                # never roll back that newer safety state to the unquiesced
+                # snapshot captured before the request.
+                persistence_failed = bool(
+                    getattr(orch, "_restart_persistence_failed", False)
+                )
+                current_generation = getattr(
+                    orch, "_provider_admission_generation", 0
+                )
+                lifecycle_cas_matches = (
+                    rollback_admission_generation is not None
+                    and current_generation == rollback_admission_generation
+                )
+                orch._restart_in_progress = restart_snapshot["in_progress"]
+                orch._restart_request_id = restart_snapshot["request_id"]
+                orch._restart_requested_at = restart_snapshot["requested_at"]
+                orch._restart_initial_running = restart_snapshot["initial_running"]
+                orch._restart_drain_scheduled = restart_snapshot["drain_scheduled"]
+                orch._restart_drain_started = restart_snapshot["drain_started"]
+                orch._restart_drain_task = restart_snapshot["drain_task"]
+                orch._restart_drain_owner = restart_snapshot["drain_owner"]
+                # A completed drain owns only the generation published by this
+                # API transaction. Any later pause/quiesce/stop mutation wins
+                # the CAS and its lifecycle state must remain untouched.
+                if lifecycle_cas_matches:
+                    orch._provider_admission_generation = restart_snapshot[
+                        "admission_generation"
+                    ]
+                    orch._paused = restart_snapshot["paused"]
+                    orch._quiesced = restart_snapshot["quiesced"]
+                    orch._stopping = restart_snapshot["stopping"]
+                    orch._restart_requested = restart_snapshot[
+                        "restart_requested"
+                    ]
+                if persistence_failed:
+                    if not orch._quiesced:
+                        orch._quiesced = True
+                        orch._provider_admission_generation = max(
+                            restart_snapshot["admission_generation"],
+                            current_generation,
+                            rollback_admission_generation or 0,
+                        ) + 1
+
+            if cancel_claim:
+                if not in_progress:
+                    return JSONResponse(
+                        {
+                            "ok": True,
+                            # Cancellation is idempotent: the requested claim
+                            # is definitively absent, including when the
+                            # original claim request never reached the server.
+                            "cancelled": True,
+                            "restart_request_id": supplied_request_id,
+                        }
+                    )
+                if existing_request_id != supplied_request_id:
+                    return JSONResponse(
+                        {
+                            "error": "restart_request_id does not own the active claim",
+                            "restart_request_id": existing_request_id,
+                        },
+                        status_code=409,
+                    )
+                if bool(getattr(orch, "_restart_drain_scheduled", False)) or bool(
+                    getattr(orch, "_restart_drain_started", False)
+                ):
+                    return JSONResponse(
+                        {
+                            "error": "restart drain has already started",
+                            "restart_request_id": existing_request_id,
+                        },
+                        status_code=409,
+                    )
+                orch._restart_in_progress = False
+                orch._restart_request_id = None
+                orch._restart_requested_at = None
+                orch._restart_initial_running = 0
+                orch._restart_drain_scheduled = False
+                orch._restart_drain_started = False
+                orch._restart_drain_task = None
+                orch._restart_drain_owner = None
+                orch._provider_admission_generation = (
+                    getattr(orch, "_provider_admission_generation", 0) + 1
+                )
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "cancelled": True,
+                        "restart_request_id": supplied_request_id,
+                    }
+                )
+
+            if in_progress:
+                if supplied_request_id is not None and (
+                    supplied_request_id != existing_request_id
+                ):
+                    return JSONResponse(
+                        {
+                            "error": "restart_request_id does not own the active claim",
+                            "restart_request_id": existing_request_id,
+                        },
+                        status_code=409,
+                    )
+                coalesced = True
+                schedule_drain = bool(
+                    not claim_only
+                    and supplied_request_id == existing_request_id
+                    and not getattr(orch, "_restart_drain_scheduled", False)
+                    and not getattr(orch, "_restart_drain_started", False)
+                    and getattr(orch, "_restart_drain_task", None) is None
+                )
+                if schedule_drain:
+                    orch._restart_drain_scheduled = True
+            else:
+                orch._restart_in_progress = True
+                orch._restart_drain_started = False
+                orch._restart_drain_scheduled = not claim_only
+                orch._restart_request_id = request_id
+                orch._restart_requested_at = datetime.now(timezone.utc).isoformat()
+                orch._restart_initial_running = running_count
+                orch._provider_admission_generation = (
+                    getattr(orch, "_provider_admission_generation", 0) + 1
+                )
+                existing_request_id = request_id
+                coalesced = False
+                schedule_drain = not claim_only
+
+            if schedule_drain:
+                rollback_admission_generation = getattr(
+                    orch,
+                    "_provider_admission_generation",
+                    0,
+                )
+                publication_gate = asyncio.Event()
+
+                async def _run_published_restart() -> None:
+                    await publication_gate.wait()
+                    await orch.graceful_restart(
+                        drain_timeout_s=drain_timeout,
+                        request_id=existing_request_id,
+                    )
+
+                drain_coroutine = _run_published_restart()
+                try:
+                    drain_task = _create_restart_drain_task(
+                        drain_coroutine,
+                        name=f"graceful-restart-{existing_request_id}",
+                    )
+                except BaseException:
+                    # ``create_task`` leaves ownership with the caller when it
+                    # raises.  Close the coroutine and restore the precise
+                    # state observed before this request; a preclaim therefore
+                    # remains cancellable and a new claim disappears entirely.
+                    drain_coroutine.close()
+                    _restore_restart_snapshot()
+                    raise
+                orch._restart_drain_task = drain_task
+                orch._restart_drain_owner = existing_request_id
+
+                def _clear_drain_task(completed: asyncio.Task) -> None:
+                    failed = completed.cancelled()
+                    if not failed:
+                        try:
+                            failed = completed.exception() is not None
+                        except BaseException:
+                            failed = True
+                    with admission_lock or contextlib.nullcontext():
+                        if getattr(orch, "_restart_drain_task", None) is completed:
+                            if failed:
+                                _restore_restart_snapshot()
+                            else:
+                                orch._restart_drain_task = None
+                    if failed:
+                        save_paused = getattr(orch, "_save_paused_state", None)
+                        if callable(save_paused):
+                            save_paused()
+                        notify = getattr(orch, "_notify_observers", None)
+                        if callable(notify):
+                            notify()
+
+                drain_task.add_done_callback(_clear_drain_task)
+                publication_gate.set()
+
+        if claim_only:
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "claimed": True,
+                    "coalesced": coalesced,
+                    "restart_request_id": existing_request_id,
+                    "draining": running_count,
+                    "drain_timeout_s": drain_timeout,
+                },
+                status_code=202 if coalesced else 200,
+            )
+        if coalesced:
+            if schedule_drain:
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "coalesced": False,
+                        "restart_request_id": existing_request_id,
+                        "draining": running_count,
+                        "drain_timeout_s": drain_timeout,
+                    }
+                )
             return JSONResponse(
                 {
                     "ok": True,
                     "coalesced": True,
-                    "restart_request_id": orch._restart_request_id,
+                    "restart_request_id": existing_request_id,
                     "draining": len(orch.state.running),
                     "drain_timeout_s": drain_timeout,
                 },
                 status_code=202,
             )
-        request_id = str(uuid.uuid4())
-        # Claim synchronously so back-to-back HTTP requests cannot start two
-        # drain loops before the first task receives event-loop time.
-        orch._restart_in_progress = True
-        orch._restart_request_id = request_id
-        orch._restart_requested_at = datetime.now(timezone.utc).isoformat()
-        orch._restart_initial_running = running_count
-        asyncio.create_task(
-            orch.graceful_restart(
-                drain_timeout_s=drain_timeout,
-                request_id=request_id,
-            )
-        )
         return JSONResponse(
             {
                 "ok": True,
                 "coalesced": False,
-                "restart_request_id": request_id,
+                "restart_request_id": existing_request_id,
                 "draining": running_count,
                 "drain_timeout_s": drain_timeout,
             }
@@ -15296,10 +17288,15 @@ async def api_test_provider(provider_id: str):
     Returns 404 only when the provider_id is not in the store at all.
     """
     from oompah.provider_health import (
+        PROVIDER_HEALTH_CACHE,
+        ProviderProbeAuthorityError,
+        ProviderTestResult,
         redact_sensitive_text,
         run_acp_health_check,
         run_health_check,
+        snapshot_provider_for_probe,
     )
+    from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 
     provider = _provider_store.get(provider_id)
     if provider is None:
@@ -15313,6 +17310,49 @@ async def api_test_provider(provider_id: str):
             status_code=404,
         )
 
+    provider, provider_signature, policy_generation = snapshot_provider_for_probe(
+        provider
+    )
+
+    def _contact_authority() -> str | None:
+        generation = policy_generation
+        while True:
+            with AUDITOR_POLICY_AUTHORITY.admission(generation) as current:
+                if not current:
+                    generation = AUDITOR_POLICY_AUTHORITY.generation()
+                    continue
+                live_provider = _provider_store.get(provider_id)
+                if live_provider is None:
+                    return "provider was removed before health probe contact"
+                if (
+                    PROVIDER_HEALTH_CACHE.configuration_signature(live_provider)
+                    != provider_signature
+                ):
+                    return "provider configuration changed before health probe contact"
+                return None
+
+    def _publish(result: ProviderTestResult) -> bool:
+        return PROVIDER_HEALTH_CACHE.record_if_configuration(
+            provider,
+            result,
+            expected_signature=provider_signature,
+            current_provider=lambda: _provider_store.get(provider_id),
+        )
+
+    def _stale_result() -> ProviderTestResult:
+        return ProviderTestResult(
+            provider_id=str(provider.id),
+            provider_name=str(provider.name),
+            model=str(getattr(provider, "default_model", None) or ""),
+            success=False,
+            latency_ms=0.0,
+            error_reason="health_unknown",
+            error_detail=(
+                "Provider configuration changed while the health probe was in "
+                "flight. Retry against the current provider configuration."
+            ),
+        )
+
     try:
         if provider.mode == "acp":
             # ACP providers are session-based (Claude Agent SDK / OpenAI
@@ -15320,10 +17360,30 @@ async def api_test_provider(provider_id: str):
             # probed by running a live turn — there is no synchronous HTTP
             # path. run_acp_health_check is async, so await it directly
             # rather than offloading to a thread.
-            result = await run_acp_health_check(provider)
+            result = await run_acp_health_check(
+                provider,
+                before_transport_contact=_contact_authority,
+            )
         else:
-            result = await asyncio.to_thread(run_health_check, provider)
+            result = await asyncio.to_thread(
+                run_health_check,
+                provider,
+                before_transport_contact=_contact_authority,
+            )
+    except ProviderProbeAuthorityError:
+        return JSONResponse(_stale_result().to_dict())
     except Exception as exc:
+        result = ProviderTestResult(
+            provider_id=str(provider.id),
+            provider_name=str(provider.name),
+            model=str(getattr(provider, "default_model", None) or ""),
+            success=False,
+            latency_ms=0.0,
+            error_reason="unknown_error",
+            error_detail=redact_sensitive_text(str(exc)),
+        )
+        if not _publish(result):
+            return JSONResponse(_stale_result().to_dict())
         logger.error(
             "Provider health-check error for %s: %s",
             provider_id,
@@ -15332,15 +17392,12 @@ async def api_test_provider(provider_id: str):
         return JSONResponse(
             {
                 "provider_id": provider_id,
-                "provider_name": provider.name,
-                "model": "",
-                "success": False,
-                "latency_ms": 0.0,
-                "error_reason": "unknown_error",
-                "error_detail": redact_sensitive_text(str(exc)[:300]),
+                **result.to_dict(),
             }
         )
 
+    if not _publish(result):
+        return JSONResponse(_stale_result().to_dict())
     return JSONResponse(result.to_dict())
 
 
@@ -16819,6 +18876,48 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        if "auditor_validation_targets" in body:
+            val = body["auditor_validation_targets"]
+            if val is None:
+                fields["auditor_validation_targets"] = []
+            elif isinstance(val, list) and all(
+                isinstance(item, str) for item in val
+            ):
+                fields["auditor_validation_targets"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "auditor_validation_targets must be a list "
+                                "of strings or null"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+        for key in (
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
+        ):
+            if key not in body:
+                continue
+            val = body[key]
+            if val is None:
+                fields[key] = {}
+            elif isinstance(val, dict):
+                fields[key] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": f"{key} must be an object or null",
+                        }
+                    },
+                    status_code=400,
+                )
         if "epic_strategy" in body:
             val = body["epic_strategy"]
             if val is None:
@@ -17024,7 +19123,20 @@ async def api_update_project(project_id: str, request: Request):
             fields["status_actor_login"] = _resolve_github_token_owner(
                 fields["access_token"]
             )
-        project = orch.project_store.update(project_id, **fields)
+        admission_lock = (
+            getattr(orch, "_provider_admission_lock", None)
+            if "paused" in fields
+            else None
+        )
+        tracker_configuration_changed = bool(
+            set(fields) & _PROJECT_TRACKER_CACHE_FIELDS
+        )
+        with admission_lock or contextlib.nullcontext():
+            project = (
+                _update_project_tracker_configuration(orch, project_id, **fields)
+                if tracker_configuration_changed
+                else orch.project_store.update(project_id, **fields)
+            )
         if not project:
             return JSONResponse(
                 {
@@ -17035,8 +19147,7 @@ async def api_update_project(project_id: str, request: Request):
                 },
                 status_code=404,
             )
-        if set(fields) & _PROJECT_TRACKER_CACHE_FIELDS:
-            _invalidate_project_tracker_cache(orch, project_id)
+        if tracker_configuration_changed:
             _api_cache.invalidate("issues:all")
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
@@ -17096,7 +19207,9 @@ async def api_project_pause(project_id: str):
     """
     try:
         orch = _get_orchestrator()
-        project = orch.project_store.update(project_id, paused=True)
+        admission_lock = getattr(orch, "_provider_admission_lock", None)
+        with admission_lock or contextlib.nullcontext():
+            project = orch.project_store.update(project_id, paused=True)
         if not project:
             return JSONResponse(
                 {
@@ -17107,6 +19220,10 @@ async def api_project_pause(project_id: str):
                 },
                 status_code=404,
             )
+        # Wake the durable runtime so it withdraws the project's accepted
+        # projections immediately and stops claiming queued work.  The
+        # project-bound handler fence remains the final race boundary.
+        orch.request_refresh()
         return JSONResponse({"ok": True, "id": project_id, "paused": True})
     except ProjectError as exc:
         return JSONResponse(
@@ -17123,7 +19240,9 @@ async def api_project_resume(project_id: str):
     """Resume dispatch for a single project (clear the per-project pause)."""
     try:
         orch = _get_orchestrator()
-        project = orch.project_store.update(project_id, paused=False)
+        admission_lock = getattr(orch, "_provider_admission_lock", None)
+        with admission_lock or contextlib.nullcontext():
+            project = orch.project_store.update(project_id, paused=False)
         if not project:
             return JSONResponse(
                 {
@@ -17389,8 +19508,8 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                         else:
                             # Config update happens last, under the lock,
                             # only after remote verification succeeds.
-                            _invalidate_project_tracker_cache(orch, project_id)
-                            orch.project_store.update(
+                            _update_project_tracker_configuration(
+                                orch,
                                 project_id,
                                 state_branch_enabled=True,
                                 state_branch_shadow_write=True,
@@ -17430,8 +19549,8 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                         forge_base_url=forge_base_url,
                     )
                     if result.ok:
-                        _invalidate_project_tracker_cache(orch, project_id)
-                        orch.project_store.update(
+                        _update_project_tracker_configuration(
+                            orch,
                             project_id,
                             state_branch_shadow_write=False,
                             state_branch_migration_stage="B",
@@ -17487,8 +19606,8 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                         forge_base_url=forge_base_url,
                     )
                     if result.ok:
-                        _invalidate_project_tracker_cache(orch, project_id)
-                        orch.project_store.update(
+                        _update_project_tracker_configuration(
+                            orch,
                             project_id,
                             state_branch_enabled=False,
                             state_branch_shadow_write=False,
@@ -18118,11 +20237,26 @@ async def api_list_reviews():
                 # A close/merge that overtook the fetch also wins the HTTP
                 # response and its TTL cache.  Do not send or cache the older
                 # open row merely because the remote request completed later.
+                # Preserve sibling rows that remain in the accepted cache:
+                # rejecting one stale project snapshot must not make every
+                # unrelated open review disappear for a complete TTL cycle.
+                current_cache = getattr(orch, "_reviews_cache", {}) or {}
+                accepted_review_ids = {
+                    (str(project_id), str(getattr(review, "id", "") or ""))
+                    for project_id, project_reviews in current_cache.items()
+                    for review in project_reviews or []
+                }
                 reviews = [
                     item
                     for item in reviews
-                    if str(item.get("project_id", ""))
-                    in published_project_ids
+                    if (
+                        str(item.get("project_id", "")) in published_project_ids
+                        or (
+                            str(item.get("project_id", "")),
+                            str(item.get("review", {}).get("id", "") or ""),
+                        )
+                        in accepted_review_ids
+                    )
                 ]
             _api_cache.set("reviews:all", reviews, ttl_ms=10000)
             response = JSONResponse(reviews)
@@ -18262,9 +20396,18 @@ async def api_retry_review(project_id: str, review_id: str):
                 branch,
             )
         else:
+            await _apply_task_status_transition_async(
+                orch,
+                tracker,
+                matched,
+                NEEDS_CI_FIX,
+                project_id=project_id,
+                actor="oompah",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.ci_retry_requested",
+            )
             tracker.update_issue(
                 matched.identifier,
-                status=NEEDS_CI_FIX,
                 priority="0",
                 **{"add-label": "ci-fix"},
             )
@@ -18355,9 +20498,18 @@ def _notify_conflict_on_task(
         # Mark the task if it's in a terminal state, and add label atomically
         state_lower = issue.state.strip().lower()
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                issue,
+                NEEDS_REBASE,
+                project_id=project_id,
+                actor="oompah",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.merge_conflict_detected",
+            )
             tracker.update_issue(
                 issue.identifier,
-                status=NEEDS_REBASE,
                 priority="0",
                 **{"add-label": "merge-conflict"},
             )
@@ -18368,9 +20520,18 @@ def _notify_conflict_on_task(
             )
         else:
             try:
+                _apply_task_status_transition(
+                    orch,
+                    tracker,
+                    issue,
+                    NEEDS_REBASE,
+                    project_id=project_id,
+                    actor="oompah",
+                    authority=TransitionAuthority.SYSTEM,
+                    reason_code="review.merge_conflict_detected",
+                )
                 tracker.update_issue(
                     issue.identifier,
-                    status=NEEDS_REBASE,
                     **{"add-label": "merge-conflict"},
                 )
             except Exception as label_exc:
@@ -19534,6 +21695,18 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
         tracker,
         identifier,
         current_status=issue.state,
+        status_transition=lambda current, status, **fields: (
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                current,
+                status,
+                project_id=str(project.id),
+                actor=str(fields["actor"]),
+                authority=TransitionAuthority.API,
+                reason_code=str(fields["reason_code"]),
+            )
+        ),
     )
     if result.promoted:
         logger.info("Promoted %s to Backlog via intake approval", identifier)
@@ -19566,6 +21739,18 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
                 tracker,
                 identifier,
                 current_status=issue.state,
+                status_transition=lambda current, status, **fields: (
+                    _apply_task_status_transition(
+                        orch,
+                        tracker,
+                        current,
+                        status,
+                        project_id=str(project.id),
+                        actor=str(fields["actor"]),
+                        authority=TransitionAuthority.API,
+                        reason_code=str(fields["reason_code"]),
+                    )
+                ),
             )
             if result.promoted:
                 logger.info("Promoted %s to Backlog after intake validation", identifier)
@@ -20037,6 +22222,26 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
     return False
 
 
+def _durable_epic_webhook_owned(orch, issue, project) -> bool:
+    """Return whether enforce mode owns this epic's webhook reconciliation."""
+
+    runtime = getattr(orch, "workflow_runtime", None)
+    if runtime is None or not bool(getattr(runtime, "enforce", False)):
+        return False
+    if str(getattr(issue, "issue_type", "") or "").strip().lower() != "epic":
+        return False
+    bindings = getattr(runtime, "project_bindings", {})
+    binding = (
+        bindings.get(getattr(project, "id", None))
+        if isinstance(bindings, dict)
+        else None
+    )
+    return (
+        binding is not None
+        and getattr(binding, "epic_controller", None) is not None
+    )
+
+
 def _label_task_merged_from_merge_group(orch, event, project) -> None:
     """Label the task as merged when a merge_group destroyed event signals success.
 
@@ -20089,6 +22294,11 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
                 "merge_group: no task found for branch %r (head_ref=%r)",
                 branch_name,
                 head_ref,
+            )
+            return
+        if _durable_epic_webhook_owned(orch, issue, project):
+            logger.debug(
+                "merge_group: durable epic workflow owns %s", issue.identifier
             )
             return
         if canonicalize_status(issue.state) != MERGED:
@@ -20145,6 +22355,12 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
                 "webhook In Review: no task found for branch %r (project=%s)",
                 source_branch,
                 project.name,
+            )
+            return
+        if _durable_epic_webhook_owned(orch, issue, project):
+            logger.debug(
+                "webhook In Review: durable epic workflow owns %s",
+                issue.identifier,
             )
             return
         review_id = str(event.review_id or "").strip()
@@ -20226,7 +22442,17 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
             )
             return
         else:
-            tracker.update_issue(issue.identifier, status=IN_REVIEW)
+            _apply_task_status_transition(
+                orch,
+                tracker,
+                issue,
+                IN_REVIEW,
+                project_id=str(project.id),
+                actor="oompah-webhook",
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.webhook_review_opened",
+                exact_head=review_head or None,
+            )
             logger.info(
                 "webhook: marked %s as In Review (PR #%s opened/reopened, branch=%s)",
                 issue.identifier,
@@ -20286,6 +22512,11 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
                 "webhook Merged: no task found for branch %r (project=%s)",
                 source_branch,
                 project.name,
+            )
+            return
+        if _durable_epic_webhook_owned(orch, issue, project):
+            logger.debug(
+                "webhook Merged: durable epic workflow owns %s", issue.identifier
             )
             return
         if canonicalize_status(issue.state) != MERGED:
@@ -20704,6 +22935,14 @@ async def dashboard_content():
             project_names.get(row.get("project_id")),
         )
 
+    def decision_summary(row: dict[str, Any]) -> str:
+        decision = row.get("work_decision")
+        if not isinstance(decision, Mapping):
+            return "Decision pending"
+        owner = decision.get("owner") or decision.get("responsible_owner") or "unknown"
+        reason = decision.get("reason_text") or decision.get("reason_code") or "Evidence pending"
+        return f"{reason} (owner: {owner})"
+
     html = f"""
     <div class="stats">
       <div class="stat-card">
@@ -20731,7 +22970,7 @@ async def dashboard_content():
         <table>
           <thead><tr>
             <th>Issue</th><th>State</th><th>Turns</th><th>Last Event</th>
-            <th>Last Message</th><th>Started</th><th>Tokens</th>
+            <th>Last Message</th><th>Why / owner</th><th>Started</th><th>Tokens</th>
           </tr></thead>
           <tbody>
         """
@@ -20744,6 +22983,7 @@ async def dashboard_content():
               <td>{row["turn_count"]}</td>
               <td class="mono">{_esc(row.get("last_event") or "-")}</td>
               <td class="truncate">{_esc(row.get("last_message") or "-")}</td>
+              <td class="truncate">{_esc(decision_summary(row))}</td>
               <td class="mono">{fmt_time(row.get("started_at"))}</td>
               <td class="mono">{fmt_tokens(tokens.get("total_tokens", 0))}</td>
             </tr>
@@ -20757,7 +22997,7 @@ async def dashboard_content():
         html += """
         <table>
           <thead><tr>
-            <th>Issue</th><th>Attempt</th><th>Due At</th><th>Error</th>
+            <th>Issue</th><th>Attempt</th><th>Due At</th><th>Why / owner</th><th>Error</th>
           </tr></thead>
           <tbody>
         """
@@ -20767,6 +23007,7 @@ async def dashboard_content():
               <td class="mono">{_esc(row["issue_identifier"])}</td>
               <td>{row["attempt"]}</td>
               <td class="mono">{fmt_time(row.get("due_at"))}</td>
+              <td class="truncate">{_esc(decision_summary(row))}</td>
               <td class="truncate"><span class="badge badge-error">{_esc(row.get("error") or "-")}</span></td>
             </tr>
             """

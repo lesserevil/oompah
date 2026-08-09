@@ -23,17 +23,13 @@ from typing import Any
 
 from oompah.provider_health import ERROR_REASONS, openai_base_url_error
 from oompah.roles import Candidate, Role, RoleStore
-from oompah.work_contributors import WorkContributor
+from oompah.work_contributors import WorkContributor, normalize_contributor_model
 
 logger = logging.getLogger(__name__)
 
 AUDITOR_ROLE_NAME = "auditor"
 
-# WorkContributor uses these values when a backend manages the model itself.
-# Keep the set local as well as in work_contributors so this module remains
-# usable with small test doubles and older records.
-UNKNOWN_MODEL_NAMES = frozenset({"", "default", "cli-managed", "cli", "sdk-managed", "unknown", "auto"})
-
+# Machine-readable policy diagnostics accepted by ``NoCandidateReason``.
 _REASONS = frozenset(
     {
         "empty_role",
@@ -43,6 +39,8 @@ _REASONS = frozenset(
         "all_unhealthy",
         "all_over_budget",
         "all_are_contributors",
+        "insufficient_independent_candidates",
+        "auditor_reservation_required",
         "all_attempted",
         "missing_audit_capability",
         "unknown_acp_models_only",
@@ -88,7 +86,7 @@ class AuditorCandidateSelector:
         provider_store: Any,
         project_config: Any | None = None,
         *,
-        health_results: Mapping[str, Any] | None = None,
+        health_results: Mapping[Any, Any] | None = None,
         health_checker: Callable[..., Any] | None = None,
         budget_state: Any | None = None,
         budget_checker: Callable[..., Any] | None = None,
@@ -96,7 +94,7 @@ class AuditorCandidateSelector:
         current_spend: float = 0.0,
         # Short aliases are useful for callers constructing the selector from
         # a provider/status response and retain a forgiving integration API.
-        health: Mapping[str, Any] | None = None,
+        health: Mapping[Any, Any] | None = None,
         budget: Any | None = None,
     ):
         self.role_store = role_store
@@ -164,7 +162,11 @@ class AuditorCandidateSelector:
         """
         role = self.role_store.get(AUDITOR_ROLE_NAME)
         if role is None or not role.candidates:
-            return None, NoCandidateReason("empty_role", "Auditor role has no candidates.")
+            return None, NoCandidateReason(
+                "empty_role",
+                "Auditor role is absent or has no candidates. Configure a dedicated "
+                "healthy provider/model before retrying terminal review.",
+            )
         eligible, reason = self._eligible_candidates(
             list(role.candidates), self._contributor_pairs(contributors)
         )
@@ -188,7 +190,12 @@ class AuditorCandidateSelector:
         """
         role = self.role_store.get(AUDITOR_ROLE_NAME)
         if role is None or not role.candidates:
-            return [], NoCandidateReason("empty_role", "Auditor role has no candidates.")
+            return [], NoCandidateReason(
+                "empty_role",
+                "Auditor role is absent or has no candidates. Configure at least "
+                "one dedicated healthy provider/model, or two candidates when "
+                "implementation may use the same role, then retry dispatch.",
+            )
         eligible, reason = self._eligible_candidates(
             list(role.candidates), self._contributor_pairs(contributors)
         )
@@ -205,6 +212,80 @@ class AuditorCandidateSelector:
         return [], NoCandidateReason(
             "all_attempted" if eligible else "empty_role",
             "All eligible auditor candidates were already attempted for this audit.",
+        )
+
+    def reserve_for_contributor_candidates(
+        self,
+        candidates: list[Candidate],
+        contributors: list[WorkContributor] | None = None,
+    ) -> tuple[list[Candidate], Candidate | None, NoCandidateReason | None]:
+        """Keep one currently viable auditor candidate out of contributor use.
+
+        ``candidates`` is the ordered set that a contributor dispatch would
+        otherwise be allowed to try.  The durable contributor records are
+        applied first, so a restart never forgets a provider/model that has
+        already contributed.  When two or more candidates can still provide
+        an independent terminal audit, reserve the last one and leave every
+        other candidate available to preserve the contributor's existing
+        diversity and failover order.
+
+        A single remaining auditor candidate is not consumed.  Callers may
+        still proceed with contributor candidates that do not overlap it;
+        this supports deliberately dedicated auditor providers while refusing
+        to spend the final independent reviewer on implementation work.
+        """
+        eligible, reason = self.select_candidates(contributors)
+        if reason is not None:
+            return [], None, reason
+
+        available_pairs = {self._candidate_pair(candidate) for candidate in eligible}
+        overlapping = [
+            candidate
+            for candidate in candidates
+            if self._candidate_pair(candidate) in available_pairs
+        ]
+        if not overlapping:
+            # Even a dedicated provider consumes financial capacity. Return
+            # the exact candidate so the orchestrator can reserve its
+            # projected audit cost atomically before contributor launch.
+            return list(candidates), eligible[-1], None
+
+        if len(eligible) == 1:
+            candidate = eligible[0]
+            remaining = [
+                value
+                for value in candidates
+                if self._candidate_pair(value) != self._candidate_pair(candidate)
+            ]
+            if remaining:
+                return remaining, candidate, None
+            return [], candidate, NoCandidateReason(
+                "insufficient_independent_candidates",
+                "Only one healthy auditor candidate remains and this contributor "
+                f"would consume it ({candidate.provider_id}/{candidate.model}). "
+                "Configure or restore another independent auditor provider/model "
+                "before dispatching implementation work.",
+            )
+
+        # Keep the final eligible candidate in the operator's ordering for
+        # terminal review.  Earlier candidates remain available to the
+        # contributor, so a haiku -> sonnet -> opus escalation can continue
+        # while terra (or another final candidate) remains independent.
+        reserved = eligible[-1]
+        remaining = [
+            value
+            for value in candidates
+            if self._candidate_pair(value) != self._candidate_pair(reserved)
+        ]
+        if remaining:
+            return remaining, reserved, None
+        return [], reserved, NoCandidateReason(
+            "auditor_reservation_required",
+            "Contributor dispatch would consume the auditor candidate reserved "
+            "for independent terminal review "
+            f"({reserved.provider_id}/{reserved.model}). "
+            "Choose another contributor candidate or configure another healthy "
+            "auditor provider/model.",
         )
 
     def _seed_candidates(self) -> list[Candidate]:
@@ -354,12 +435,17 @@ class AuditorCandidateSelector:
                 str(contributor.provider_id).strip()
                 if contributor.provider_id is not None
                 else None,
-                str(contributor.model_id).strip()
-                if contributor.model_id is not None
-                else None,
+                normalize_contributor_model(contributor.model_id),
             )
             for contributor in (contributors or [])
         }
+
+    @staticmethod
+    def _candidate_pair(candidate: Candidate) -> tuple[str, str]:
+        return (
+            str(candidate.provider_id).strip(),
+            normalize_contributor_model(candidate.model) or "",
+        )
 
     def _exclude_contributors(
         self,
@@ -399,17 +485,20 @@ class AuditorCandidateSelector:
             if provider_id not in contributed_providers:
                 independent.append(candidate)
                 continue
-            if (provider_id, candidate.model) in contributor_pairs:
-                continue
+            candidate_model = normalize_contributor_model(candidate.model)
             # An SDK-managed contributor has no model identity to compare
             # against.  Treating any later explicit model as "different" would
             # claim independence that the evidence cannot establish.
             if provider_id in unknown_contributor_providers:
                 unknown_models.append(candidate)
                 continue
+            if (provider_id, candidate_model) in contributor_pairs:
+                continue
             # Same-provider fallback is deliberately explicit and must differ
             # from every known model contributed by that provider.
-            if self._is_unknown_model(candidate.model) or candidate.model in contributed_models.get(provider_id, set()):
+            if self._is_unknown_model(
+                candidate.model
+            ) or candidate_model in contributed_models.get(provider_id, set()):
                 unknown_models.append(candidate)
                 continue
             fallback.append(candidate)
@@ -446,9 +535,7 @@ class AuditorCandidateSelector:
 
     @staticmethod
     def _is_unknown_model(model: Any) -> bool:
-        if model is None:
-            return True
-        return str(model).strip().casefold() in UNKNOWN_MODEL_NAMES
+        return normalize_contributor_model(model) is None
 
     @staticmethod
     def _is_subscription_acp(provider: Any) -> bool:
@@ -486,11 +573,11 @@ class AuditorCandidateSelector:
         provider_id = getattr(provider, "id", candidate.provider_id)
         if self.health_results is not None:
             if isinstance(self.health_results, Mapping):
-                value = self.health_results.get(provider_id)
-                if value is None:
-                    value = self.health_results.get(candidate.provider_id)
-                if value is None:
-                    value = self.health_results.get(getattr(provider, "name", ""))
+                value = self.health_results.get(
+                    (str(provider_id), str(candidate.model or ""))
+                )
+            if value is None and self.health_checker is None:
+                return False, "health_unknown"
         if value is None and self.health_checker is not None:
             try:
                 value = self._call_checker(self.health_checker, provider, candidate)
@@ -515,11 +602,17 @@ class AuditorCandidateSelector:
             return value, "provider_unavailable" if not value else ""
         if isinstance(value, Mapping):
             if "success" in value:
-                success = bool(value.get("success"))
+                success = value.get("success")
+                if not isinstance(success, bool):
+                    return False, "health_unknown"
                 return success, str(value.get("error_reason") or "provider_unavailable")
             if "healthy" in value:
-                healthy = bool(value.get("healthy"))
+                healthy = value.get("healthy")
+                if not isinstance(healthy, bool):
+                    return False, "health_unknown"
                 return healthy, str(value.get("reason") or "provider_unavailable")
+            if "error_reason" not in value and "status" not in value:
+                return False, "health_unknown"
             value = value.get("error_reason", value.get("status"))
         else:
             success = getattr(value, "success", None)
@@ -698,7 +791,10 @@ class AuditorCandidateSelector:
                 "over_budget": "all_over_budget",
                 "missing_audit_capability": "missing_audit_capability",
             }
-            return NoCandidateReason(reason_map[key], ", ".join(values))
+            detail = ", ".join(values)
+            if key == "over_budget":
+                detail = f"All auditor candidates are over budget: {detail}"
+            return NoCandidateReason(reason_map[key], detail)
         return NoCandidateReason(
             "unknown_error",
             "; ".join(f"{key}={values}" for key, values in nonempty),
@@ -752,6 +848,5 @@ __all__ = [
     "AUDITOR_ROLE_NAME",
     "AuditorCandidateSelector",
     "NoCandidateReason",
-    "UNKNOWN_MODEL_NAMES",
     "seed_auditor_role_from_config",
 ]

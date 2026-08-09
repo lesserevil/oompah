@@ -568,6 +568,7 @@ class TestFaultInjectionWithRealProtocol:
         """When messages are dropped, full_sync recovers the authoritative state."""
         _reset_ws_sync_metrics()
         dropped_envelopes: list[dict[str, Any]] = []
+        issues_drop_completed = threading.Event()
         original_send_ws = server_module._send_ws
 
         def drop_issues(envelope):
@@ -576,6 +577,7 @@ class TestFaultInjectionWithRealProtocol:
             should_drop = envelope.get("type") == "issues"
             if should_drop:
                 dropped_envelopes.append(envelope)
+                issues_drop_completed.set()
             return should_drop
 
         patched_send_ws = _wire_fault_injector(
@@ -592,6 +594,9 @@ class TestFaultInjectionWithRealProtocol:
                     assert msg.get("type") == "state"
                     # The issues message is dropped on the wire, leaving a
                     # genuine delivery sequence gap for the browser.
+                    assert issues_drop_completed.wait(3), (
+                        "initial issues envelope was not offered to the wire"
+                    )
                     assert dropped_envelopes
                     assert all("delivery_seq" in msg for msg in dropped_envelopes)
 
@@ -746,7 +751,25 @@ class TestLiveDashboardConvergence:
         )
         try:
             server_module._update_state_snapshot(_state_with_running(completed_auditors))
-            with patch.object(server_module, "_send_ws", patched_send_ws):
+            with (
+                patch.object(server_module, "_send_ws", patched_send_ws),
+                patch.object(
+                    server_module,
+                    "_ensure_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                ),
+                patch.object(
+                    server_module,
+                    "_wait_for_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                    return_value=True,
+                ),
+                patch.object(
+                    server_module,
+                    "_issues_snapshot_payload_with_revision",
+                    return_value=({"Open": []}, 1),
+                ),
+            ):
                 client = TestClient(app, raise_server_exceptions=False)
                 with client.websocket_connect("/ws") as ws:
                     initial = _receive_message_type(ws, "state")

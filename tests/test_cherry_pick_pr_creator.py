@@ -444,6 +444,11 @@ class TestWriteChildBackportOf:
 class TestCherryPickPushAndOpenPr:
     def _make_deps(self):
         tracker = MagicMock()
+        tracker.transition_issue_status.side_effect = (
+            lambda issue, status, **_fields: tracker.update_issue(
+                issue.identifier, status=status
+            )
+        )
         project_store = MagicMock()
         project_store.worktree_path_for.return_value = "/wt/TASK-10_1"
         scm = MagicMock()

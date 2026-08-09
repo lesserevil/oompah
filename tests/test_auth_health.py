@@ -2,12 +2,12 @@
 
 Covers:
 - Healthy operator path (no 401s → status ok, no alert)
-- Stale operator credentials (recent 401s → status degraded, alert generated)
-- Credential recovery (failure followed by success → status recovered, alert demoted)
-- Continuing failures (failure after recovery → status degraded, alert active again)
+- Stale operator credentials (recent 401s → degraded diagnostic observation)
+- Credential recovery (failure followed by success → recovery detail retained)
+- Continuing failures (failure after recovery → non-actionable observation updated)
 - Healthy worker path (token minted and accepted → status ok, no alert)
-- Missing/expired worker token (401 → degraded alert)
-- Cross-scope rejection (403_scope → degraded alert)
+- Missing/expired worker token (401 → diagnostic observation)
+- Cross-scope rejection (403_scope → diagnostic observation)
 - Intentional action denial (403_action → never triggers an alert)
 - Alert clear after recovery (counts fall out of window → ok again)
 - Redaction (no credentials in snapshot or alert dicts)
@@ -87,7 +87,8 @@ class TestOperatorAuthHealth:
         alert = health.build_alert()
         assert alert is not None
         assert alert["source"] == "auth_health:operator"
-        assert alert["level"] == "warning"
+        assert alert["level"] == "info"
+        assert alert["action_required"] is False
         assert "1" in alert["message"]
         assert "restart" in alert["action"].lower() or "htpasswd" in alert["action"].lower()
 
@@ -163,34 +164,36 @@ class TestOperatorAuthHealth:
         assert snap["recent_401_count"] == 1
         assert snap["recovered"] is True
 
-    def test_alert_marked_recovered_after_success(self):
-        """Alert changes from active to recovered when credentials work."""
+    def test_alert_remains_an_observation_before_and_after_success(self):
+        """Rolling failures stay informational while preserving recovery detail."""
         health, now = self._make(start_time=0.0)
         health.record_401()
 
-        # Before recovery: alert is active
+        # Before recovery: the rolling-window fact is diagnostic, not proof
+        # that current authentication is broken.
         alert = health.build_alert(window_seconds=900)
         assert alert is not None
-        assert alert["recovery_state"] == "active"
-        assert alert["action_required"] is True
+        assert alert["recovery_state"] == "observation_window"
+        assert alert["action_required"] is False
         assert alert["recovered"] is False
         assert alert["active"] is True
 
         now[0] = 10.0
         health.record_success()
 
-        # After recovery: alert is recovered
+        # After recovery: the same diagnostic remains visible until the
+        # window ages out, with recovery detail but no operator action.
         alert = health.build_alert(window_seconds=900)
         assert alert is not None
-        assert alert["recovery_state"] == "recovered"
+        assert alert["recovery_state"] == "observation_window"
         assert alert["action_required"] is False
         assert alert["recovered"] is True
-        assert alert["active"] is False
+        assert alert["active"] is True
         # Alert should have recovery guidance, not remediation instructions
         assert "restored" in alert["remediation"].lower()
 
-    def test_continuing_failures_remain_active(self):
-        """Failures that continue after an initial success remain actionable."""
+    def test_continuing_failures_remain_in_the_observation_window(self):
+        """New failures update diagnostics without creating a global warning."""
         health, now = self._make(start_time=0.0)
         health.record_401()  # Failure at t=0
         now[0] = 10.0
@@ -207,10 +210,13 @@ class TestOperatorAuthHealth:
 
         alert = health.build_alert(window_seconds=900)
         assert alert is not None
-        assert alert["recovery_state"] == "active"
-        assert alert["action_required"] is True
-        # Now should include remediation instructions again
-        assert "htpasswd" in alert["remediation"].lower() or "restart" in alert["remediation"].lower()
+        assert alert["recovery_state"] == "observation_window"
+        assert alert["action_required"] is False
+        # Diagnostics still retain useful remediation for drill-down views.
+        assert (
+            "htpasswd" in alert["remediation"].lower()
+            or "restart" in alert["remediation"].lower()
+        )
 
     def test_success_before_any_failure_is_ok(self):
         """Success with no prior failures keeps status as ok."""
@@ -338,7 +344,8 @@ class TestWorkerAuthHealth:
         alert = health.build_alert()
         assert alert is not None
         assert alert["source"] == "auth_health:worker"
-        assert alert["level"] == "warning"
+        assert alert["level"] == "info"
+        assert alert["action_required"] is False
         assert "OOMPAH_TASK_HANDOFF_TOKEN" in alert["action"]
 
     def test_alert_includes_not_accepted_note_when_minted_but_never_accepted(self):
@@ -476,24 +483,25 @@ class TestCombinedAuthHealth:
     # Recovery tests via public API (OOMPAH-857)
     # -----------------------------------------------------------------------
 
-    def test_operator_failure_then_success_removes_action_required(self):
-        """Failure followed by success through public API marks as recovered."""
+    def test_operator_failure_then_success_stays_non_actionable(self):
+        """Rolling observations are never promoted to operator action."""
         # Initial: no alert
         assert not any(a["source"] == "auth_health:operator" for a in auth_health_alerts())
 
-        # After failure: actionable warning
+        # After failure: informational rolling-window observation.
         record_operator_401()
         alerts = auth_health_alerts()
         op_alerts = [a for a in alerts if a["source"] == "auth_health:operator"]
         assert len(op_alerts) == 1
-        assert op_alerts[0]["action_required"] is True
+        assert op_alerts[0]["recovery_state"] == "observation_window"
+        assert op_alerts[0]["action_required"] is False
 
         # After success: recovered (no longer actionable)
         record_operator_success()
         alerts = auth_health_alerts()
         op_alerts = [a for a in alerts if a["source"] == "auth_health:operator"]
         assert len(op_alerts) == 1
-        assert op_alerts[0]["recovery_state"] == "recovered"
+        assert op_alerts[0]["recovery_state"] == "observation_window"
         assert op_alerts[0]["action_required"] is False
 
     def test_operator_recovered_alert_has_correct_semantics(self):
@@ -503,15 +511,15 @@ class TestCombinedAuthHealth:
         alerts = auth_health_alerts()
         op_alert = next(a for a in alerts if a["source"] == "auth_health:operator")
 
-        # Check recovery semantics
+        # Recovery remains a diagnostic detail inside the observation.
         assert op_alert["recovered"] is True
-        assert op_alert["active"] is False
+        assert op_alert["active"] is True
         assert op_alert["action_required"] is False
-        assert op_alert["status"] == "recovered"
-        assert op_alert["lifecycle_state"] == "recovered"
+        assert op_alert["status"] == "observation_window"
+        assert op_alert["lifecycle_state"] == "observation_window"
 
-    def test_operator_failure_after_recovery_requires_action_again(self):
-        """New failure after recovery marks alert as active again."""
+    def test_operator_failure_after_recovery_updates_observation(self):
+        """A new failure updates detail without manufacturing actionability."""
         record_operator_401()
         record_operator_success()
 
@@ -525,8 +533,10 @@ class TestCombinedAuthHealth:
         alerts = auth_health_alerts()
         op_alert = next(a for a in alerts if a["source"] == "auth_health:operator")
 
-        # Back to active/actionable
-        assert op_alert["action_required"] is True
-        assert op_alert["status"] == "active"
-        # Should include remediation instructions again
-        assert "htpasswd" in op_alert["remediation"].lower() or "restart" in op_alert["remediation"].lower()
+        assert op_alert["action_required"] is False
+        assert op_alert["status"] == "observation_window"
+        # Drill-down diagnostics still include recovery instructions.
+        assert (
+            "htpasswd" in op_alert["remediation"].lower()
+            or "restart" in op_alert["remediation"].lower()
+        )

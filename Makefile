@@ -93,7 +93,7 @@ define port_in_use
 	fi
 endef
 
-.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status workflow-rollout-check logs test test-serial workflow-soak-ci workflow-soak terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -106,10 +106,13 @@ help:
 	@echo "  graceful       Alias for the normal draining restart"
 	@echo "  force-restart  Emergency hard stop + start; interrupts active agents"
 	@echo "  status         Print PID + state JSON if running"
+	@echo "  workflow-rollout-check  Run the bounded workflow canary/soak health gate"
 	@echo "  logs           Tail $(LOG_FILE)"
 	@echo "  test           Run pytest in parallel (OOMPAH_PYTEST_WORKERS, default: 4)"
 	@echo "  test-serial    Run pytest serially for race/debug diagnostics"
-	@echo "  terminal-audit-scan  Reject unauthorized direct terminal tracker writes"
+	@echo "  workflow-soak-ci  Run the deterministic bounded 120-task workflow soak"
+	@echo "  workflow-soak  Run the longer deterministic operator workflow soak"
+	@echo "  terminal-audit-scan  Reject unauthorized direct task-status writes"
 	@echo "  run-granian    Run oompah in the foreground using the Granian ASGI server (opt-in; see TASK-472)"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
@@ -217,6 +220,7 @@ start: setup
 			--operator-path "$(OPERATOR_PATH)" \
 			--verify-only || exit 1; \
 	else \
+		LISTENER_STARTUP_TIMEOUT=$$($(PYTHON) scripts/listener_startup_timeout.py --env-file .env) || exit 1; \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		if $(call port_in_use,$(PORT)); then \
 			echo "ERROR: Port $(PORT) is already in use. Cannot start oompah."; \
@@ -243,13 +247,13 @@ start: setup
 			rm -f "$(PID_FILE)" "$(PID_META_FILE)" "$$META_TMP"; \
 			exit 1; \
 		fi; \
-		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT)..."; \
+		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT) (timeout: $${LISTENER_STARTUP_TIMEOUT}s)..."; \
 		ELAPSED=0; \
+		TIMEOUT_REACHED=0; \
 		while ! $(call port_in_use,$(PORT)); do \
-			if [ $$ELAPSED -ge 10 ]; then \
-				echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within 10 seconds"; \
-				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
-				exit 1; \
+			if [ $$ELAPSED -ge $$LISTENER_STARTUP_TIMEOUT ]; then \
+				TIMEOUT_REACHED=1; \
+				break; \
 			fi; \
 			if ! kill -0 $$NEWPID 2>/dev/null; then \
 				echo "ERROR: oompah process $$NEWPID exited unexpectedly"; \
@@ -259,6 +263,26 @@ start: setup
 			sleep 1; \
 			ELAPSED=$$((ELAPSED + 1)); \
 		done; \
+		if [ $$TIMEOUT_REACHED -eq 1 ]; then \
+			if $(call port_in_use,$(PORT)); then \
+				echo "WARNING: oompah (pid $$NEWPID) exceeded startup timeout but listener is now active (late listener)"; \
+			elif ! kill -0 $$NEWPID 2>/dev/null; then \
+				echo "ERROR: oompah process $$NEWPID exited before opening port $(PORT)"; \
+				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+				exit 1; \
+			elif $(PYTHON) scripts/process_identity.py verify "$$NEWPID" "$$(pwd)" "$(PID_META_FILE)" 2>/dev/null; then \
+				echo "ERROR: verified oompah process $$NEWPID is still starting after $${LISTENER_STARTUP_TIMEOUT}s; retaining $(PID_FILE) and $(PID_META_FILE). Retry 'make status' or use 'make stop' for this exact process."; \
+				exit 1; \
+			else \
+				if ! kill -0 $$NEWPID 2>/dev/null; then \
+					echo "ERROR: oompah process $$NEWPID exited before opening port $(PORT)"; \
+					rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
+				else \
+					echo "ERROR: PID $$NEWPID is live but no longer matches its stored identity; retaining lifecycle evidence and refusing to signal it."; \
+				fi; \
+				exit 1; \
+			fi; \
+		fi; \
 		if ! $(PYTHON) scripts/canonical_cli_cutover.py \
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
@@ -397,14 +421,25 @@ status:
 		echo "oompah is not running"; \
 	fi
 
+workflow-rollout-check: setup
+	@$(PYTHON) scripts/workflow_rollout_check.py
+
 test: test-setup terminal-audit-scan
 	@OOMPAH_PYTEST_WORKERS="$(PYTEST_WORKERS)" \
 		OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
+		OOMPAH_TEST_PYTHON="$(abspath $(PYTHON))" \
 		scripts/run-tests.sh parallel
 
 test-serial: test-setup
 	@OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
+		OOMPAH_TEST_PYTHON="$(abspath $(PYTHON))" \
 		scripts/run-tests.sh serial
+
+workflow-soak-ci: test-setup
+	@$(PYTHON) scripts/workflow_soak.py --profile ci
+
+workflow-soak: test-setup
+	@$(PYTHON) scripts/workflow_soak.py --profile operator
 
 terminal-audit-scan: test-setup
 	@$(PYTHON) scripts/find_terminal_mutations.py oompah

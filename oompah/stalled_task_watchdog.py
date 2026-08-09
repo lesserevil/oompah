@@ -59,7 +59,6 @@ from oompah.statuses import (
     NEEDS_CI_FIX,
     NEEDS_HUMAN,
     NEEDS_REBASE,
-    OPEN,
     canonicalize_status,
 )
 from oompah.archived_audit_requests import request_archived_audit
@@ -768,6 +767,82 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
     }
 
 
+def _blocked_gate_authority_decision_from_evidence(
+    task_id: str,
+    stalled_status: str,
+    evidence: Any,
+    *,
+    project_id: str | None,
+    run_id: int,
+) -> StalledTaskDecision | None:
+    """Convenience wrapper for callers that hold raw evidence."""
+
+    if evidence is None:
+        return None
+    signals = _evidence_signals(evidence)
+    return _blocked_gate_authority_decision(
+        task_id,
+        stalled_status,
+        signals,
+        project_id=project_id,
+        run_id=run_id,
+    )
+
+
+def _blocked_gate_authority_decision(
+    task_id: str,
+    stalled_status: str,
+    signals: Mapping[str, Any],
+    *,
+    project_id: str | None,
+    run_id: int,
+) -> StalledTaskDecision | None:
+    """Refuse to reopen when internal gate authority is authoritative.
+
+    An internal integration record in ``blocked`` state at the current head
+    is the authoritative internal gate verdict for NEEDS_CI_FIX and
+    NEEDS_REBASE.  Reopening on the strength of external forge CI would
+    discard that verdict and cancel its integration generation — see
+    OOMPAH-793 / OOMPAH-806.  Only a newer pushed branch head (indicating
+    authoritative repair evidence), an explicit same-generation retry
+    (handled by the queue), or authoritative repair evidence (merged review,
+    audit-verdict pass, branch on canonical target — handled above in
+    :func:`_current_evidence_decision`) may override the block.
+    """
+
+    canonical = canonicalize_status(stalled_status)
+    if canonical not in {NEEDS_CI_FIX, NEEDS_REBASE}:
+        return None
+    integration_state = signals.get("integration_state") or ""
+    integration_head_sha = signals.get("integration_head_sha") or ""
+    branch_head_sha = signals.get("branch_head_sha") or ""
+    if integration_state != "blocked" or not integration_head_sha:
+        return None
+    # A newer pushed head is authoritative repair evidence.  Treat identical
+    # heads or unknown branch heads as still-blocked to keep the internal
+    # gate authoritative.
+    if branch_head_sha and branch_head_sha != integration_head_sha:
+        return None
+    detail = (
+        "internal integration record is blocked at "
+        f"{integration_head_sha[:12]} — external CI cannot override the "
+        "authoritative gate verdict without a newer pushed head or "
+        "explicit same-generation retry"
+    )
+    last_error = signals.get("integration_last_error") or ""
+    if last_error:
+        detail += f"; last gate error: {last_error[:120]}"
+    return StalledTaskDecision(
+        task_id,
+        project_id,
+        stalled_status,
+        "insufficient_evidence",
+        "none",
+        detail,
+        watchdog_run_id=run_id,
+    )
+
+
 def _current_evidence_decision(
     task_id: str,
     stalled_status: str,
@@ -1278,6 +1353,17 @@ def classify_stalled_task(
 
     # ---- Needs CI Fix -------------------------------------------------------
     if canonical == NEEDS_CI_FIX:
+        # Even prose "CI passed" comments cannot override an authoritative
+        # blocked internal record at the same head.  See OOMPAH-806.
+        block_decision = _blocked_gate_authority_decision_from_evidence(
+            task_id,
+            stalled_status,
+            supplied_evidence,
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if block_decision is not None:
+            return block_decision
         for c in reversed(recent):
             body = _get_comment_body(c)
             if WATCHDOG_COMMENT_MARKER in body:
@@ -1313,6 +1399,15 @@ def classify_stalled_task(
 
     # ---- Needs Rebase -------------------------------------------------------
     if canonical == NEEDS_REBASE:
+        block_decision = _blocked_gate_authority_decision_from_evidence(
+            task_id,
+            stalled_status,
+            supplied_evidence,
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if block_decision is not None:
+            return block_decision
         for c in reversed(recent):
             body = _get_comment_body(c)
             if WATCHDOG_COMMENT_MARKER in body:
@@ -1602,7 +1697,17 @@ def run_watchdog_audit(
 
             comment_body = build_watchdog_comment(decision)
 
-            if decision.action == "reopen" and reopen_executor is not None:
+            if decision.action == "reopen" and reopen_executor is None:
+                msg = (
+                    f"Failed authoritative watchdog reopen for {identifier}: "
+                    "task transition service is unavailable"
+                )
+                logger.warning(msg)
+                result.errors.append(msg)
+                continue
+
+            if decision.action == "reopen":
+                assert reopen_executor is not None
                 try:
                     executed = bool(
                         reopen_executor(
@@ -1653,20 +1758,7 @@ def run_watchdog_audit(
                 result.errors.append(msg)
                 # Don't abort the state change — comment failure is non-fatal.
 
-            if decision.action == "reopen":
-                try:
-                    tracker.update_issue(identifier, status=OPEN)
-                    logger.info(
-                        "Watchdog reopened %s (project=%s) — %s",
-                        identifier, project_id, decision.evidence,
-                    )
-                    result.actions_taken += 1
-                except Exception as exc:
-                    msg = f"Failed to reopen {identifier}: {exc}"
-                    logger.warning(msg)
-                    result.errors.append(msg)
-
-            elif decision.action == "archive":
+            if decision.action == "archive":
                 disposition_reason = f"Watchdog stalled-task archive: {decision.evidence}"
                 if request_archived_audit(
                     issue,
