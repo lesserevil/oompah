@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-908
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Give the whole-corpus dispatch contract scan a load-safe deadline
 parent: null
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T07:51:47.950793Z'
-updated_at: '2026-08-08T12:04:49.661817Z'
+updated_at: '2026-08-09T05:10:45.474760Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3679bf157b81
+    project_id: proj-14849f1b
+    task_id: OOMPAH-908
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 31932fc9ada16b5f9ac603521870910a3abce420c11117937ee949e0c73ff669
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:10:41.726355+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -29,3 +51,11 @@ Recurrence after completed OOMPAH-851 on exact systemic head 6cbbd6ef7: the full
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 05:10
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
+---
+<!-- COMMENTS:END -->
