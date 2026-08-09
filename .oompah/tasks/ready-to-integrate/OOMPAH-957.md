@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:15:16.268899Z'
+updated_at: '2026-08-09T12:47:32.374754Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-09 12:15
 ---
 Pushed 7d0807c2005cf299bc2a90a97909600d65171573; focused concurrency tests and repeated runs pass.
+---
+author: oompah
+created: 2026-08-09 12:47
+---
+Diagnosed the full-gate failure in test_cancelled_aged_waiter_does_not_transfer_protection as a real-clock fixture race, not a production lease-selection defect: the prior 10ms aging band lets an ordinary >210ms host scheduling delay legitimately make the nominally fresh worker starvation-protected. Reproduced that policy outcome deterministically. Updated the test at pushed head 1159766a5e93291320f6d4b91df85a1c102dd48c to use a 1s aging band, age the cancelled waiter beyond the exact 21s protection boundary, and explicitly model 250ms of replacement-worker latency below its first boost. Verification: focused aging/cancellation corpus 4 passed; 20 repeated exact-test runs passed; both original OOMPAH-957 concurrency regressions passed; secret scan and diff check passed. No production code changed and no full gate was started.
 ---
 <!-- COMMENTS:END -->
