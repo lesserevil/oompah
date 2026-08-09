@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-978
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Stop project config updates from dirtying managed checkouts
 parent: null
@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:14:00.520291Z'
+updated_at: '2026-08-09T23:14:11.983197Z'
 work_branch: null
 target_branch: null
 review_url: null
