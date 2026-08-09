@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T08:25:48.619150Z'
-updated_at: '2026-08-09T08:49:12.987535Z'
+updated_at: '2026-08-09T08:49:23.330360Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       after PR #750 and all required hosted/focused validation passed; no separate
       terminal audit is needed for this human-only test correction.'
     created_at: '2026-08-09T08:49:08.094062+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-938
+    target_state: Merged
+    evidence_fingerprint: 984bf5a4cd7053312e6b0519e2021d85f9992fac1a257b2c49689172cada7789
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T08:49:17.918419+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -71,5 +81,17 @@ author: oompah
 created: 2026-08-09 08:49
 ---
 Delivered to protected main by merged PR #750 at b7e7d9509a4e6025b48c54336098acef2dda4986. Hosted complete gates passed on Python 3.11, 3.12, and 3.13. Focused validation: the regression passed serially, 32 repetitions under eight-way concurrency passed, and all 499 validation-resource tests passed; production code was unchanged.
+---
+author: oompah
+created: 2026-08-09 08:49
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner direct delivery is present on protected main at b7e7d950 after PR #750 and all required hosted/focused validation passed; no separate terminal audit is needed for this human-only test correction.
+---
+author: oompah
+created: 2026-08-09 08:49
+---
+Merged in PR #750 at b7e7d950; all required validation passed.
 ---
 <!-- COMMENTS:END -->
