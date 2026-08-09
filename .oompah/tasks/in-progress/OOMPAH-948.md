@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T11:34:20.882721Z'
+updated_at: '2026-08-09T11:38:43.850197Z'
 work_branch: OOMPAH-948
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-08-09 11:33
 ---
 Reproduced the complete-gate failure deterministically: OOMPAH-948 made maintenance cursor updates transactional under _state_io_lock, while two terminal-audit test harnesses bypass Orchestrator.__init__ and did not model that production invariant. This is fixture construction drift, not cleanup state contamination or a terminal-audit product interaction. Updated both partial harnesses to supply the service-state transaction lock; all 55 previously affected terminal-audit durable-finalization/workspace-recovery tests now pass. Running the cleanup-focused suites and complete Makefile gate next.
+---
+author: oompah
+created: 2026-08-09 11:38
+---
+Complete-gate repair pushed at a557d6de3. Exact cause: the new durable maintenance-cursor transaction correctly uses Orchestrator._state_io_lock; terminal-audit durable-finalization and workspace-recovery partial harnesses construct via __new__ and omitted that production invariant. No cleanup state leak or terminal-audit runtime interaction occurred. Added the missing RLock to both partial harnesses. Verification: 55/55 exact previously failing module tests and 866/866 combined cleanup/config/tracker/project/storage plus terminal-audit tests passed; git diff --check passed. A coordinated full gate is intentionally left to Oompah because other urgent full gates are already running.
 ---
 <!-- COMMENTS:END -->
