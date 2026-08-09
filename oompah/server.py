@@ -120,7 +120,7 @@ from oompah.github_intake_bridge import (
     handle_github_issue_event_for_native_project,
 )
 from oompah.issue_validator import validate_issue
-from oompah.models import AgentProfile
+from oompah.models import AgentProfile, OwnerClaim
 from oompah.mcp_gateway import build_mcp_gateway, discovery_document
 from oompah.terminal_audit import OverrideRecord
 from oompah.terminal_audit_metadata import (
@@ -5744,6 +5744,25 @@ async def _accept_worker_submission(
             )
         if not issue.project_id:
             issue.project_id = project_id
+        durable_implementation = (
+            getattr(getattr(orch, "workflow_runtime", None), "enforce", False)
+            is True
+        )
+        direct_maintenance = is_direct_epic_maintenance_issue(issue)
+        # Snapshot direct-owner authority before the first awaited submission
+        # operation. Later release/regrant races are fenced by this immutable
+        # claim id: the validation event may retire this generation only, and a
+        # newer direct-owner event shares the imperative task lane so it
+        # supersedes this submission before transition rather than being
+        # silently retired afterward.
+        owner_claim_source = getattr(orch, "_owner_claim_for_issue", None)
+        submitted_owner_claim = (
+            owner_claim_source(issue.id, project_id)
+            if durable_implementation and callable(owner_claim_source)
+            else None
+        )
+        if not isinstance(submitted_owner_claim, OwnerClaim):
+            submitted_owner_claim = None
         record = _submission_record(issue, body)
         record = await _verify_submission_git_authority(
             orch,
@@ -5751,7 +5770,6 @@ async def _accept_worker_submission(
             project_id,
             record,
         )
-        direct_maintenance = is_direct_epic_maintenance_issue(issue)
         direct_failure_message: str | None = None
         if direct_maintenance:
             # Direct maintenance owns its durable completion and revocation in
@@ -5802,10 +5820,6 @@ async def _accept_worker_submission(
             elif completed_record is not None:
                 record = completed_record
         else:
-            durable_implementation = (
-                getattr(getattr(orch, "workflow_runtime", None), "enforce", False)
-                is True
-            )
             record = await _persist_worker_submission(
                 orch,
                 tracker,
@@ -5853,6 +5867,19 @@ async def _accept_worker_submission(
                         ),
                         "prior_generation": str(
                             getattr(submitted_entry, "authority_generation", None)
+                            or ""
+                        ),
+                        # A direct owner has no RunningEntry. Carry its exact
+                        # durable generation through the accepted submission
+                        # so the post-transition handoff can retire only the
+                        # authority which submitted this head. A later ABA
+                        # replacement must survive a stale completion event.
+                        "owner_claim_id": str(
+                            getattr(submitted_owner_claim, "claim_id", None)
+                            or ""
+                        ),
+                        "owner_login": str(
+                            getattr(submitted_owner_claim, "owner_login", None)
                             or ""
                         ),
                         "assignment_id": str(
@@ -13326,7 +13353,13 @@ async def api_get_owner_claim(project_id: str, identifier: str):
     if claim is None:
         return JSONResponse({"active": False, "ownership_source": None})
     payload = _owner_claim_payload(orch, claim)
-    return JSONResponse({"active": not payload["is_expired"], **payload})
+    return JSONResponse(
+        {
+            "active": not payload["is_expired"]
+            and not payload["retirement_pending"],
+            **payload,
+        }
+    )
 
 
 @app.delete("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")

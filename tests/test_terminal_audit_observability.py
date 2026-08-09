@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from oompah.terminal_audit_observability import (
-    AuditAlertCondition,
-    TerminalAuditAlertRegistry,
-    TerminalAuditMetrics,
-    threshold_conditions,
+from oompah.auditor_candidate_selector import AuditorCandidateSelector
+from oompah.config import ServiceConfig
+from oompah.models import Issue, RunningEntry
+from oompah.orchestrator import (
+    DispatchEventType,
+    Orchestrator,
+    _AuditCandidateScan,
 )
+from oompah.roles import Candidate
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
@@ -26,19 +31,21 @@ from oompah.terminal_audit import (
     TerminalAuditRecord,
     Verdict,
 )
+from oompah.terminal_audit_health import (
+    HEALTH_ALERT_PREFIX,
+    AuditHealthObservation,
+)
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
     MetadataQuarantine,
     TerminalAuditMetadata,
 )
-from oompah.terminal_audit_health import (
-    AuditHealthObservation,
-    HEALTH_ALERT_PREFIX,
+from oompah.terminal_audit_observability import (
+    AuditAlertCondition,
+    TerminalAuditAlertRegistry,
+    TerminalAuditMetrics,
+    threshold_conditions,
 )
-from oompah.config import ServiceConfig
-from oompah.models import Issue, RunningEntry
-from oompah.orchestrator import Orchestrator, _AuditCandidateScan
-from oompah.roles import Candidate
 
 
 class _Clock:
@@ -1104,6 +1111,484 @@ def test_audit_scan_cursor_rotates_durably_across_restart(tmp_path: Path) -> Non
     finally:
         restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
         restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_audit_candidate_window_interleaves_projects_within_priority(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=4,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    created_at = datetime(2026, 8, 4, tzinfo=timezone.utc)
+    candidates = tuple(
+        Issue(
+            id=f"{project_id}-{index}",
+            identifier=f"{project_id.upper()}-{index}",
+            title="Audit candidate",
+            state="In Validation",
+            project_id=project_id,
+            priority=100,
+            created_at=created_at + timedelta(seconds=index),
+        )
+        for project_id in ("project-a", "project-b")
+        for index in range(3)
+    )
+    try:
+        window, truncated = orchestrator._audit_candidate_window(candidates)
+        assert truncated is True
+        assert [issue.project_id for issue in window] == [
+            "project-a",
+            "project-b",
+            "project-a",
+            "project-b",
+        ]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_operation_budget_rotates_and_completes_health_cycle(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=32,
+            audit_lane_operation_limit=2,
+            audit_lane_max_runtime_seconds=30,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index}",
+            title="Audit candidate",
+            state="In Validation",
+            project_id="project-a",
+            created_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
+        )
+        for index in range(5)
+    )
+    reads: list[str] = []
+    store = MagicMock()
+
+    def _read(identifier: str):
+        reads.append(identifier)
+        return SimpleNamespace(
+            pending_chain=[],
+            is_quarantined=False,
+            unknown_fields={},
+        )
+
+    store.read.side_effect = _read
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(orchestrator, "_is_project_paused", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan(candidates),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ) as continuation,
+        ):
+            await orchestrator._dispatch_audit_lane()
+            assert orchestrator._audit_health.scan_complete is False
+            assert orchestrator._audit_metrics["budget_reason"] == "operation_limit"
+            await orchestrator._dispatch_audit_lane()
+            assert orchestrator._audit_health.scan_complete is False
+            await orchestrator._dispatch_audit_lane()
+
+        assert reads == [
+            "TASK-0",
+            "TASK-1",
+            "TASK-2",
+            "TASK-3",
+            "TASK-4",
+            "TASK-0",
+        ]
+        assert continuation.call_count == 2
+        assert orchestrator._audit_health.scan_complete is True
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is True
+        assert orchestrator._audit_metrics["health_cycle_candidate_count"] == 5
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_hundreds_of_slow_candidates_stop_at_operation_budget(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=0,
+            audit_lane_operation_limit=3,
+            audit_lane_max_runtime_seconds=30,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index:03d}",
+            title="Slow audit candidate",
+            state="In Validation",
+            project_id=f"project-{index % 5}",
+            created_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
+        )
+        for index in range(250)
+    )
+    clock = {"value": 0.0}
+    reads: list[str] = []
+    store = MagicMock()
+
+    def _slow_read(identifier: str):
+        reads.append(identifier)
+        clock["value"] += 0.25
+        return SimpleNamespace(
+            pending_chain=[],
+            is_quarantined=False,
+            unknown_fields={},
+        )
+
+    store.read.side_effect = _slow_read
+    orchestrator._monotonic_clock = lambda: clock["value"]
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(orchestrator, "_is_project_paused", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan(candidates),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ) as continuation,
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        assert len(reads) == 3
+        assert orchestrator._audit_metrics["discovered_candidate_count"] == 250
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 3
+        assert orchestrator._audit_metrics["budget_reason"] == "operation_limit"
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is False
+        continuation.assert_called_once_with()
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_slow_selector_preparation_yields_at_audit_runtime_budget(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_operation_limit=8,
+            audit_lane_max_runtime_seconds=0.1,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    issue = Issue(
+        id="slow-issue",
+        identifier="TASK-SLOW",
+        title="Slow audit authority",
+        state="In Validation",
+        project_id="project-a",
+        created_at=datetime.now(timezone.utc),
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-slow",
+        project_id="project-a",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.PENDING,
+        created_at=issue.created_at.isoformat(),
+    )
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[record],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+
+    async def _slow_prepare(_issue: Issue):
+        await asyncio.sleep(1)
+        raise AssertionError("selector preparation should have been cancelled")
+
+    runtime = SimpleNamespace(
+        started=True,
+        worker=SimpleNamespace(accepting=True),
+        reconcile_async=AsyncMock(return_value={"worker": {}}),
+    )
+    orchestrator.workflow_runtime = runtime
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(orchestrator, "_is_project_paused", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan((issue,)),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_terminal_audit_validation_configuration_error",
+                return_value=None,
+            ),
+            patch.object(
+                orchestrator,
+                "_prepare_audit_selector",
+                new=AsyncMock(side_effect=_slow_prepare),
+            ),
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ) as continuation,
+            patch.object(orchestrator, "_dispatch", new=AsyncMock()) as dispatch,
+            patch.object(orchestrator, "_run_non_lifecycle_housekeeping"),
+            patch.object(orchestrator, "_notify_observers"),
+            patch.object(
+                orchestrator,
+                "_handle_auto_update",
+                new=AsyncMock(),
+            ),
+        ):
+            started = asyncio.get_running_loop().time()
+            await orchestrator._run_durable_workflow_tick(started_at=started)
+            elapsed = asyncio.get_running_loop().time() - started
+
+        assert elapsed < 0.35
+        assert orchestrator._audit_metrics["budget_exhausted"] is True
+        assert orchestrator._audit_metrics["budget_reason"] == "selector_timeout"
+        assert orchestrator._audit_health.scan_complete is False
+        continuation.assert_called_once_with()
+        runtime.reconcile_async.assert_awaited_once_with()
+        dispatch.assert_not_awaited()
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_selector_authority_is_cached_per_project_lane_cut(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    project = SimpleNamespace(id="project-a", provider_whitelist=[])
+    prepared = AuditorCandidateSelector(
+        orchestrator.role_store,
+        orchestrator.provider_store,
+        project_config=project,
+        health_results={},
+        budget_limit=orchestrator.config.budget_limit,
+    )
+    first = Issue(
+        id="issue-first",
+        identifier="TASK-FIRST",
+        title="First",
+        state="In Validation",
+        project_id="project-a",
+    )
+    second = Issue(
+        id="issue-second",
+        identifier="TASK-SECOND",
+        title="Second",
+        state="In Validation",
+        project_id="project-a",
+    )
+    cache = {}
+    try:
+        with patch.object(
+            orchestrator,
+            "_prepare_audit_selector",
+            new=AsyncMock(return_value=(prepared, None)),
+        ) as prepare:
+            first_selector, first_error = (
+                await orchestrator._prepare_cached_audit_selector(first, cache)
+            )
+            second_selector, second_error = (
+                await orchestrator._prepare_cached_audit_selector(second, cache)
+            )
+
+        assert first_error is None
+        assert second_error is None
+        assert first_selector is prepared
+        assert second_selector is not prepared
+        assert second_selector is not None
+        assert second_selector.project_config is project
+        assert second_selector.health_results is prepared.health_results
+        prepare.assert_awaited_once_with(first)
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_audit_finalization_replays_before_expired_candidate_budget(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_max_runtime_seconds=0.1,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    issue = Issue(
+        id="deferred-issue",
+        identifier="TASK-DEFERRED",
+        title="Deferred audit candidate",
+        state="In Validation",
+        project_id="project-a",
+    )
+    clock = {"value": 0.0}
+
+    async def _replay() -> int:
+        clock["value"] = 1.0
+        return 1
+
+    orchestrator._monotonic_clock = lambda: clock["value"]
+    try:
+        with (
+            patch.object(
+                orchestrator,
+                "_replay_terminal_audit_finalizations",
+                new=AsyncMock(side_effect=_replay),
+            ) as replay,
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan((issue,)),
+            ),
+            patch.object(orchestrator, "_audit_store") as audit_store,
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        replay.assert_awaited_once_with()
+        assert orchestrator._audit_metrics["finalizations_replayed"] == 1
+        assert orchestrator._audit_metrics["budget_reason"] == "runtime_limit"
+        audit_store.assert_not_called()
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_audit_budget_continuation_posts_coalescible_refresh() -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = SimpleNamespace(
+        worker=SimpleNamespace(accepting=True)
+    )
+    orchestrator._provider_admission_lock = threading.RLock()
+    orchestrator._stopping = False
+    orchestrator._quiesced = False
+    orchestrator._paused = False
+    orchestrator._set_refresh_requested = Mock()
+    orchestrator._post_event = Mock()
+
+    assert orchestrator._request_audit_lane_continuation() is True
+
+    orchestrator._set_refresh_requested.assert_called_once_with()
+    event = orchestrator._post_event.call_args.args[0]
+    assert event.event_type is DispatchEventType.REFRESH_REQUESTED
+    assert event.payload == {"reason": "terminal_audit_budget_deferred"}
+
+
+@pytest.mark.parametrize(
+    ("stopping", "quiesced", "paused", "accepting"),
+    (
+        (True, False, False, True),
+        (False, True, False, True),
+        (False, False, True, True),
+        (False, False, False, False),
+    ),
+)
+def test_audit_budget_continuation_respects_shutdown_fences(
+    stopping: bool,
+    quiesced: bool,
+    paused: bool,
+    accepting: bool,
+) -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = SimpleNamespace(
+        worker=SimpleNamespace(accepting=accepting)
+    )
+    orchestrator._provider_admission_lock = threading.RLock()
+    orchestrator._stopping = stopping
+    orchestrator._quiesced = quiesced
+    orchestrator._paused = paused
+    orchestrator._set_refresh_requested = Mock()
+    orchestrator._post_event = Mock()
+
+    assert orchestrator._request_audit_lane_continuation() is False
+    orchestrator._set_refresh_requested.assert_not_called()
+    orchestrator._post_event.assert_not_called()
 
 
 def test_audit_capacity_reserves_repair_slot_and_alternates_at_one(

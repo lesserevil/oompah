@@ -11,17 +11,34 @@ explicit release arrives.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
+import fcntl
 import os
 import sqlite3
 import threading
 import time
-from typing import Iterable
+from typing import Iterable, Iterator
 
 
 REVIEW_CAPACITY_SCHEMA_VERSION = 2
 DEFAULT_REVIEW_RESERVATION_TTL_SECONDS = 15 * 60
 _INITIALIZE_LOCK = threading.Lock()
+
+
+@contextlib.contextmanager
+def _bootstrap_lock(path: str) -> Iterator[None]:
+    """Serialize connection bootstrap before the transactional migration."""
+
+    lock_path = f"{path}.initialize.lock"
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
 
 
 @dataclass(frozen=True)
@@ -86,8 +103,15 @@ class ReviewCapacityStore:
         self._conn.row_factory = sqlite3.Row
         with _INITIALIZE_LOCK, self._lock:
             self._conn.execute("PRAGMA busy_timeout=10000")
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.executescript(_SCHEMA)
+            # journal_mode and executescript can fail immediately with
+            # SQLITE_BUSY when two newly spawned service processes bootstrap
+            # the same file, before BEGIN IMMEDIATE's busy timeout has a chance
+            # to serialize the real migration.  Fence only this bootstrap
+            # phase; release it before _migrate_schema so the transactional
+            # migration remains the cross-process authority.
+            with _bootstrap_lock(self.path):
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.executescript(_SCHEMA)
             self._migrate_schema()
 
     def _migrate_schema(self) -> None:

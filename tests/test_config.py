@@ -92,6 +92,7 @@ class TestServiceConfig:
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_interval_seconds == 60
         assert cfg.worktree_cleanup_batch_size == 100
+        assert cfg.worktree_cleanup_max_runtime_seconds == 15
         assert cfg.storage_cleanup_interval_seconds == 86400
         assert cfg.storage_cleanup_pressure_min_free_bytes == 5 * 1024**3
         assert cfg.storage_cleanup_pressure_min_free_percent == 5.0
@@ -424,6 +425,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         monkeypatch.setenv("OOMPAH_INTEGRATION_READY_CLAIM_TIMEOUT_SECONDS", "42")
         monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
         monkeypatch.setenv("OOMPAH_MERGED_LABELS_MAX_RUNTIME_SECONDS", "6")
+        monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_MAX_RUNTIME_SECONDS", "3")
         wf = WorkflowDefinition(config={}, prompt_template="test")
 
         cfg = ServiceConfig.from_workflow(wf)
@@ -436,6 +438,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.auto_archive_interval_seconds == 30
         assert cfg.worktree_cleanup_interval_seconds == 11
         assert cfg.worktree_cleanup_batch_size == 5
+        assert cfg.worktree_cleanup_max_runtime_seconds == 3
         assert cfg.maintenance_startup_delay_seconds == 9
         assert cfg.terminal_lifecycle_reconciliation_batch_size == 8
         assert cfg.terminal_lifecycle_reconciliation_max_attempts == 7
@@ -782,15 +785,21 @@ class TestAuditDispatchConfiguration:
         cfg = ServiceConfig.from_workflow(
             WorkflowDefinition(config={}, prompt_template="test")
         )
+        assert cfg.audit_lane_operation_limit == 8
+        assert cfg.audit_lane_max_runtime_seconds == 15.0
         assert cfg.audit_lane_dispatch_limit == 2
         assert cfg.audit_non_audit_reserved_slots == 1
 
     def test_audit_lane_capacity_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_LANE_OPERATION_LIMIT", "5")
+        monkeypatch.setenv("OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS", "9.5")
         monkeypatch.setenv("OOMPAH_AUDIT_LANE_DISPATCH_LIMIT", "7")
         monkeypatch.setenv("OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS", "3")
         cfg = ServiceConfig.from_workflow(
             WorkflowDefinition(config={}, prompt_template="test")
         )
+        assert cfg.audit_lane_operation_limit == 5
+        assert cfg.audit_lane_max_runtime_seconds == 9.5
         assert cfg.audit_lane_dispatch_limit == 7
         assert cfg.audit_non_audit_reserved_slots == 3
 
@@ -805,6 +814,8 @@ class TestAuditDispatchConfiguration:
         assert "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS" in content
         assert "OOMPAH_AUDIT_PRIORITY" in content
         assert "OOMPAH_AUDIT_LANE_SCAN_LIMIT" in content
+        assert "OOMPAH_AUDIT_LANE_OPERATION_LIMIT" in content
+        assert "OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS" in content
         assert "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT" in content
         assert "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS" in content
 
@@ -815,6 +826,8 @@ class TestAuditDispatchConfiguration:
         assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
         assert "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS" in content
         assert "OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS" in content
+        assert "OOMPAH_AUDIT_LANE_OPERATION_LIMIT" in content
+        assert "OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS" in content
         assert "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT" in content
         assert "OOMPAH_AUDIT_NON_AUDIT_RESERVED_SLOTS" in content
         assert "Needs Human" in content

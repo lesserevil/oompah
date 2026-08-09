@@ -552,6 +552,16 @@ class ServiceConfig:
     # dispatch lane.  Set to 0 for no per-tick cap (scan all pending audits).
     # Configurable via OOMPAH_AUDIT_LANE_SCAN_LIMIT. Default: 32.
     audit_lane_scan_limit: int = 32
+    # Maximum candidate transactions advanced by one audit-lane invocation.
+    # The scan limit bounds discovery; this smaller operation budget bounds
+    # metadata, recovery, selector, revision-binding, and launch work.
+    # Configurable via OOMPAH_AUDIT_LANE_OPERATION_LIMIT. Default: 8.
+    audit_lane_operation_limit: int = 8
+    # Cooperative wall-clock budget for one audit-lane invocation.  The lane
+    # may time out read-only preparation, but never cancels a metadata CAS,
+    # workflow lease, provider admission, or launch half-way through.
+    # Configurable via OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS. Default: 15.
+    audit_lane_max_runtime_seconds: float = 15.0
     # Maximum auditor launches attempted per scheduler tick.  Candidate
     # inspection can include bounded provider probes, so keep this separate
     # from the larger health-scan window.
@@ -633,6 +643,7 @@ class ServiceConfig:
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_interval_seconds: int = 60
     worktree_cleanup_batch_size: int = 100
+    worktree_cleanup_max_runtime_seconds: int = 15
     storage_cleanup_interval_seconds: int = 24 * 60 * 60
     storage_cleanup_pressure_min_free_bytes: int = 5 * 1024 * 1024 * 1024
     storage_cleanup_pressure_min_free_percent: float = 5.0
@@ -868,6 +879,9 @@ class ServiceConfig:
         self.worktree_cleanup_interval_seconds = max(
             int(self.worktree_cleanup_interval_seconds), 1
         )
+        self.worktree_cleanup_max_runtime_seconds = max(
+            int(self.worktree_cleanup_max_runtime_seconds), 0
+        )
         self.owner_claim_ttl_hours = max(int(self.owner_claim_ttl_hours), 1)
         from oompah.workflow_shadow import (
             aggregate_workflow_domain_mode,
@@ -1015,6 +1029,12 @@ class ServiceConfig:
         self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
         self.audit_priority = max(int(self.audit_priority), 1)
         self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
+        self.audit_lane_operation_limit = max(
+            int(self.audit_lane_operation_limit), 1
+        )
+        self.audit_lane_max_runtime_seconds = max(
+            float(self.audit_lane_max_runtime_seconds), 0.1
+        )
         self.audit_lane_dispatch_limit = max(
             int(self.audit_lane_dispatch_limit), 1
         )
@@ -1299,6 +1319,12 @@ class ServiceConfig:
             audit_lane_scan_limit=_env_int(
                 "OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32
             ),
+            audit_lane_operation_limit=_env_int(
+                "OOMPAH_AUDIT_LANE_OPERATION_LIMIT", None, 8
+            ),
+            audit_lane_max_runtime_seconds=_env_float(
+                "OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS", None, 15.0
+            ),
             audit_lane_dispatch_limit=_env_int(
                 "OOMPAH_AUDIT_LANE_DISPATCH_LIMIT", None, 2
             ),
@@ -1383,6 +1409,9 @@ class ServiceConfig:
             ),
             worktree_cleanup_batch_size=_env_int(
                 "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 100
+            ),
+            worktree_cleanup_max_runtime_seconds=_env_int(
+                "OOMPAH_WORKTREE_CLEANUP_MAX_RUNTIME_SECONDS", None, 15
             ),
             storage_cleanup_interval_seconds=_env_int(
                 "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS", None, 24 * 60 * 60
@@ -1633,6 +1662,10 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
         errors.append("audit_attempt_ttl must be positive")
     if config.audit_lane_scan_limit < 0:
         errors.append("audit_lane_scan_limit must be non-negative")
+    if config.audit_lane_operation_limit <= 0:
+        errors.append("audit_lane_operation_limit must be positive")
+    if config.audit_lane_max_runtime_seconds <= 0:
+        errors.append("audit_lane_max_runtime_seconds must be positive")
     if config.audit_lane_dispatch_limit <= 0:
         errors.append("audit_lane_dispatch_limit must be positive")
     if config.audit_non_audit_reserved_slots < 0:

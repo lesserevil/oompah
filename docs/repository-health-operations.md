@@ -184,7 +184,13 @@ Expected observations:
 **Causes:**
 - Cleanup may be deferred if resource limits are active (see `deferred` flag in maintenance status)
 - Cleanup scheduler may not be enabled (check `OOMPAH_WORKTREE_CLEANUP_INTERVAL_SECONDS`)
-- Cleanup batch limits may be too strict (increase `OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE`)
+- Cleanup slices may be too strict (inspect `examined`, `cursor`, and `reason`,
+  then tune `OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE` or
+  `OOMPAH_WORKTREE_CLEANUP_MAX_RUNTIME_SECONDS`). Skipped and failed candidates
+  consume the batch budget so a large unsafe-to-prune history cannot monopolize
+  the scheduler. Native Markdown trackers use strict-after bounded state pages;
+  an adapter without that capability reports `unbounded_source_scan` and skips
+  destructive cleanup rather than hiding an unbounded full-history read.
 
 **Resolution:**
 ```bash

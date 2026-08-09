@@ -202,7 +202,8 @@ via `/api/v1/state` → `running`/`retrying` for any reject reason.
 | `OOMPAH_DISPATCH_STALE_THRESHOLD_MS` | 120000 | How long the dispatch loop can be silent before it is considered stale and recovery is armed (ms). Set to `0` to fall back to the legacy `dispatch_loop_stale_factor`-based formula (full_sync_interval_ms × factor). |
 | `OOMPAH_DISPATCH_STALE_GRACE_MS` | 30000  | Additional wait after staleness is detected before recovery actually fires (ms). Prevents spurious recoveries during brief pauses. |
 | `worktree_cleanup_interval_seconds` | 60 | Minimum seconds between branch/worktree cleanup passes |
-| `worktree_cleanup_batch_size`   | 100     | Branches/worktrees removed per maintenance pass          |
+| `worktree_cleanup_batch_size`   | 100     | Terminal candidates examined per maintenance slice       |
+| `worktree_cleanup_max_runtime_seconds` | 15 | Cooperative wall-clock budget per cleanup slice        |
 | `maintenance_startup_delay_seconds` | 60  | Grace period before maintenance jobs start               |
 
 All variables can be set via `.env` with the `OOMPAH_` prefix (e.g.
