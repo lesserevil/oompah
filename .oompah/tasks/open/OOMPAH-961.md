@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:03:27.931317Z'
+updated_at: '2026-08-09T15:20:15.707693Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-08-09 15:03
 ---
 Implemented exact published retirement proofs for superseded exhausted authority across zero-job, terminal-audit, and lifecycle handoffs; 392 focused tests and safety scans pass at b4d84c207fe2160dfbd502ffd9b0f95ff561142a.
+---
+author: oompah
+created: 2026-08-09 15:20
+---
+Addressed exact-head review blocker: the read predicate now accepts only terminal_audit_handoff NULL proofs that name a real exact terminal-audit job, or managed/lifecycle proofs whose exact cursor/final revision and snapshot publication relationships hold. Write paths reject kind/job-cut mismatches, missing proof relationships, and non-final lifecycle statuses such as Open; runtime excludes terminal maintenance identities from lifecycle-final retirement. Added corruption regressions for unknown kinds, blank/missing revisions, illegal NULL/published generation shapes, wrong managed revision, forged lifecycle-final:Open, active membership, and kind/cut mismatch. Affected suite passes: 402 tests; terminal mutation and secret scans pass. Preparing amended pushed head.
 ---
 <!-- COMMENTS:END -->
