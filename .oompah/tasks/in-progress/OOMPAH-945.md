@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T09:27:18.231907Z'
-work_branch: null
+updated_at: '2026-08-09T09:28:04.687547Z'
+work_branch: OOMPAH-945
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-945
+  base_branch: epic-OOMPAH-940
+  base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
+  head_sha: 395ce9938df94d3e2c14a4b642238f735fb0357b
+  submitted_at: '2026-08-09T09:27:53.327707+00:00'
+  updated_at: '2026-08-09T09:27:53.327707+00:00'
+oompah.work_branch: OOMPAH-945
 ---
 ## Summary
 
@@ -55,5 +67,10 @@ author: oompah
 created: 2026-08-09 09:27
 ---
 Clarification: the normal Oompah submission command was attempted and correctly failed closed because the declared immediate target origin/epic-OOMPAH-940 is not yet published. Commit 395ce9938 remains clean and pushed; resubmit after the parent epic target is published/composed.
+---
+author: oompah
+created: 2026-08-09 09:28
+---
+Published 395ce9938: canonicalize terminal API refresh scope and share containment-derived Done-epic landing authority between WorkDecision and lifecycle guards. Regressions cover native scope restoration, cross-project refresh rejection, unrelated child landing exclusion, and missing/malformed containment. Verification: 826 focused tests passed; terminal mutation and secret scans passed.
 ---
 <!-- COMMENTS:END -->
