@@ -7,7 +7,6 @@ from contextlib import nullcontext
 import os
 import subprocess
 import threading
-import time
 from dataclasses import replace
 from types import SimpleNamespace
 import pytest
@@ -708,12 +707,27 @@ def test_executor_wrapper_rejects_ambiguous_workflow_authority():
 
 
 @pytest.mark.asyncio
+@pytest.mark.timeout(10)
 async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
     authority_checks = []
+    clock = {"now": 0.0}
+    clock_lock = threading.Lock()
+    renewal_lock = threading.Lock()
+    first_renewed_jobs = []
+    renewed = threading.Event()
+
+    def read_clock():
+        with clock_lock:
+            return clock["now"]
 
     def execute(row, *, workflow_authority, **_kwargs):
         authority_checks.append(workflow_authority())
-        time.sleep(0.15)
+        assert renewed.wait(timeout=2)
+        # Cross the original lease deadline deterministically after the first
+        # renewal.  The renewed lease remains current, while a missing or late
+        # heartbeat would make the second authority check fail closed.
+        with clock_lock:
+            clock["now"] = max(clock["now"], 6.0)
         authority_checks.append(workflow_authority())
         return IntegrationExecutionResult(
             "integrated",
@@ -727,14 +741,33 @@ async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
         tmp_path,
         execute=execute,
     )
-    store = WorkflowJobStore(str(tmp_path / "durable-workflow.sqlite3"))
+    store = WorkflowJobStore(
+        str(tmp_path / "durable-workflow.sqlite3"),
+        clock=read_clock,
+    )
+    original_renew = store.renew
+
+    def renew_after_advancing_clock(*args, **kwargs):
+        with renewal_lock:
+            if not first_renewed_jobs:
+                with clock_lock:
+                    clock["now"] = max(clock["now"], 4.0)
+            job = original_renew(*args, **kwargs)
+            if not first_renewed_jobs:
+                assert job.lease_expires_at is not None
+                assert job.lease_expires_at > 6.0
+                first_renewed_jobs.append(job)
+                renewed.set()
+            return job
+
+    store.renew = renew_after_advancing_clock
     try:
         queued = enqueue_durable_integration_job(store, context)
         result = await durable_integration_worker(
             store,
             backend,
-            lease_seconds=0.08,
-            heartbeat_seconds=0.02,
+            lease_seconds=5,
+            heartbeat_seconds=0.05,
         ).run_once()
 
         assert result.disposition is WorkflowRunDisposition.COMPLETED
@@ -742,13 +775,14 @@ async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
         assert completed.state is WorkflowJobState.COMPLETED
         assert completed.attempts == 1
         assert authority_checks == [True, True]
+        assert first_renewed_jobs[0].lease_expires_at > 6.0
         assert len(
             [
                 event
                 for event in store.events(queued.job_id)
                 if event.event_type == "renewed"
             ]
-        ) >= 2
+        ) >= 1
         integrated = queue.get("project-1", "TASK-A")
         assert integrated is not None
         assert integrated.state == "integrated"

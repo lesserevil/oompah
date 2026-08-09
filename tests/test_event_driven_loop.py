@@ -208,6 +208,9 @@ class TestDispatchEventType:
     def test_refresh_requested_value(self):
         assert DispatchEventType.REFRESH_REQUESTED == "refresh_requested"
 
+    def test_workflow_admission_value(self):
+        assert DispatchEventType.WORKFLOW_ADMISSION == "workflow_admission"
+
     def test_retry_fired_value(self):
         assert DispatchEventType.RETRY_FIRED == "retry_fired"
 

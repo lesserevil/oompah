@@ -165,6 +165,14 @@ class WorkflowRuntimeError(RuntimeError):
     """Raised when durable runtime composition is invalid."""
 
 
+@dataclass(frozen=True, slots=True)
+class _WorkflowAdmissionCut:
+    """Exact published world snapshot permitted to admit durable effects."""
+
+    snapshot_generation: int
+    project_ids: tuple[str, ...]
+
+
 class WorkflowRuntimeHandlerFactory(Protocol):
     def __call__(
         self, binding: "WorkflowProjectBinding"
@@ -499,6 +507,7 @@ class WorkflowRuntime:
         self._started = False
         self._draining = False
         self._last_reconcile: dict[str, Any] = {}
+        self._admission_cut: _WorkflowAdmissionCut | None = None
         self._latest_decisions: dict[tuple[str, str], Any] = {}
         self._events: list[WorkflowRuntimeEvent] = []
         self._effect_tasks: dict[asyncio.Task[Any], str] = {}
@@ -1237,15 +1246,24 @@ class WorkflowRuntime:
                     "change": "durable-workflow-transition-applied",
                 },
             )
-            orchestrator.request_refresh()
+            # A committed transition is already part of the exact published
+            # workflow cut.  Preserve its UI notification while keeping the
+            # scheduler wake on the admission-only lane; the paired effect
+            # completion callback then coalesces onto this same event key
+            # instead of contaminating the burst with an ordinary world scan.
+            orchestrator._request_workflow_batch_continuation(
+                reason="workflow_transition_applied"
+            )
 
         def effect_completion_observer(result: Any) -> None:
             # Completion is the replenishment edge for detached execution.
             # Idle admission probes are impossible because the runtime claims
             # before spawning, so every callback represents durable progress
-            # and may safely request one coalesced controller pass.
+            # and may safely request one coalesced admission-only pass.
             if getattr(result, "job_id", None) is not None:
-                orchestrator.request_refresh()
+                orchestrator._request_workflow_batch_continuation(
+                    reason="workflow_effect_completed"
+                )
 
         def publish_projection(
             decisions: Sequence[Any],
@@ -3100,6 +3118,175 @@ class WorkflowRuntime:
             raise asyncio.CancelledError
         return thread_future.result()
 
+    def _refresh_admission_cut(
+        self,
+        report: Mapping[str, Any],
+        project_ids: Sequence[str],
+    ) -> _WorkflowAdmissionCut | None:
+        """Publish the exact successful world cut used by fast admission."""
+
+        generations: set[int] = set()
+        projects = report.get("projects")
+        if isinstance(projects, Mapping):
+            for project_id in project_ids:
+                project_report = projects.get(project_id)
+                snapshot = (
+                    project_report.get("snapshot")
+                    if isinstance(project_report, Mapping)
+                    else None
+                )
+                generation = (
+                    snapshot.get("generation")
+                    if isinstance(snapshot, Mapping)
+                    and snapshot.get("published") is True
+                    else None
+                )
+                if isinstance(generation, bool) or not isinstance(generation, int):
+                    generations.clear()
+                    break
+                generations.add(generation)
+        cut = None
+        normalized_projects = tuple(sorted(set(project_ids)))
+        if len(generations) == 1 and normalized_projects:
+            generation = generations.pop()
+            if self.store.published_snapshot_generation_is_current(generation):
+                cut = _WorkflowAdmissionCut(generation, normalized_projects)
+        with self._lock:
+            self._admission_cut = cut
+        return cut
+
+    @staticmethod
+    def _admission_skip(
+        reason: str,
+        *,
+        requires_reconcile: bool,
+        snapshot_generation: int | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "admission_only": True,
+            "skipped": True,
+            "reason": reason,
+            "requires_reconcile": requires_reconcile,
+            "snapshot_generation": snapshot_generation,
+            "worker": {
+                "skipped": True,
+                "reason": reason,
+                "batch_saturated": False,
+            },
+        }
+
+    async def continue_admission_async(self) -> dict[str, Any]:
+        """Admit one bounded slice from the exact last-published world cut.
+
+        This path deliberately performs no tracker read, fact collection,
+        controller evaluation, or snapshot publication.  The cached cut is a
+        convenience only: the job-store claim transaction independently binds
+        every admitted row to the same exact published generation.
+        """
+
+        if not self._admit_reconcile():
+            return self._admission_skip(
+                "workflow runtime is draining",
+                requires_reconcile=False,
+            )
+        try:
+            with self._lock:
+                cut = self._admission_cut
+                draining = self._draining
+            if draining or not self.worker.accepting:
+                return self._admission_skip(
+                    "workflow runtime is not accepting effects",
+                    requires_reconcile=False,
+                    snapshot_generation=(
+                        cut.snapshot_generation if cut is not None else None
+                    ),
+                )
+            if cut is None:
+                return self._admission_skip(
+                    "no published workflow admission cut is available",
+                    requires_reconcile=True,
+                )
+            if not self._binding_topology_current():
+                with self._lock:
+                    if self._admission_cut == cut:
+                        self._admission_cut = None
+                return self._admission_skip(
+                    "workflow project bindings changed",
+                    requires_reconcile=True,
+                    snapshot_generation=cut.snapshot_generation,
+                )
+            if not self.store.published_snapshot_generation_is_current(
+                cut.snapshot_generation
+            ):
+                with self._lock:
+                    if self._admission_cut == cut:
+                        self._admission_cut = None
+                return self._admission_skip(
+                    "workflow admission cut is stale",
+                    requires_reconcile=True,
+                    snapshot_generation=cut.snapshot_generation,
+                )
+            try:
+                enabled_projects = tuple(
+                    project_id
+                    for project_id in cut.project_ids
+                    if self.project_bindings[project_id].read_enabled_state()
+                )
+            except Exception:
+                enabled_projects = ()
+            if enabled_projects != cut.project_ids:
+                return self._admission_skip(
+                    "workflow project admission changed",
+                    requires_reconcile=True,
+                    snapshot_generation=cut.snapshot_generation,
+                )
+
+            worker_report = await self._run_due(
+                cut.project_ids,
+                required_snapshot_generation=cut.snapshot_generation,
+            )
+            still_current = self.store.published_snapshot_generation_is_current(
+                cut.snapshot_generation
+            )
+            queue_drained_after_completion = bool(
+                worker_report.get("completed", 0)
+                and not worker_report.get("scheduled", 0)
+                and not worker_report.get("active", 0)
+            )
+            report = {
+                "mode": self.mode,
+                "admission_only": True,
+                # Completion can change the facts from which the next durable
+                # generation is derived. Drain the already-published queue
+                # through this cheap path, then rebuild the world exactly once
+                # at the empty boundary instead of once per concurrency slice.
+                "requires_reconcile": (
+                    not still_current or queue_drained_after_completion
+                ),
+                "reconcile_reason": (
+                    "admission_cut_stale"
+                    if not still_current
+                    else (
+                        "published_queue_drained"
+                        if queue_drained_after_completion
+                        else None
+                    )
+                ),
+                "snapshot_generation": cut.snapshot_generation,
+                "projects": list(cut.project_ids),
+                "worker": worker_report,
+            }
+            with self._lock:
+                last = dict(self._last_reconcile)
+                last["worker"] = dict(worker_report)
+                last["admission"] = dict(report)
+                self._last_reconcile = last
+                if not still_current and self._admission_cut == cut:
+                    self._admission_cut = None
+            return report
+        finally:
+            self._release_reconcile()
+
     async def _reconcile_async_once(self) -> dict[str, Any]:
         """Run one admitted reconciliation without nested ownership."""
 
@@ -3125,6 +3312,7 @@ class WorkflowRuntime:
             if report:
                 with self._lock:
                     self._last_reconcile = dict(report)
+                    self._admission_cut = None
                 if self._topology_change_handler is not None:
                     result = self._topology_change_handler()
                     if inspect.isawaitable(result):
@@ -3144,6 +3332,8 @@ class WorkflowRuntime:
                 if "error" not in result and not result.get("skipped", False)
             )
             if not runnable_projects:
+                with self._lock:
+                    self._admission_cut = None
                 report["worker"] = {
                     "skipped": True,
                     "reason": (
@@ -3156,14 +3346,29 @@ class WorkflowRuntime:
                 # A failed project must not stall unrelated healthy projects.
                 # Exact project claims also keep paused projects' queued rows
                 # durable without consuming attempts while they are disabled.
-                report["worker"] = await self._run_due(runnable_projects)
+                admission_cut = self._refresh_admission_cut(
+                    report, runnable_projects
+                )
+                report["worker"] = await self._run_due(
+                    runnable_projects,
+                    required_snapshot_generation=(
+                        admission_cut.snapshot_generation
+                        if admission_cut is not None
+                        else None
+                    ),
+                )
                 if failed_projects:
                     report["worker"]["failed_projects"] = failed_projects
             with self._lock:
                 self._last_reconcile = report
         return report
 
-    async def _run_due(self, project_ids: Sequence[str]) -> dict[str, Any]:
+    async def _run_due(
+        self,
+        project_ids: Sequence[str],
+        *,
+        required_snapshot_generation: int | None = None,
+    ) -> dict[str, Any]:
         active_projects = tuple(
             dict.fromkeys(str(value) for value in project_ids)
         )
@@ -3205,6 +3410,9 @@ class WorkflowRuntime:
                         job = await self.worker.claim_next(
                             project_ids=active_projects,
                             actions=actions,
+                            required_snapshot_generation=(
+                                required_snapshot_generation
+                            ),
                             fair_across_projects=True,
                         )
                         if job is None:
@@ -3242,6 +3450,9 @@ class WorkflowRuntime:
                         if await self.worker.has_claimable(
                             project_ids=active_projects,
                             actions=actions,
+                            required_snapshot_generation=(
+                                required_snapshot_generation
+                            ),
                         ):
                             admission_saturated = True
                             break
@@ -3456,6 +3667,7 @@ class WorkflowRuntime:
     def health_snapshot(self) -> dict[str, Any]:
         with self._lock:
             last = dict(self._last_reconcile)
+            admission_cut = self._admission_cut
             retained_effects = sum(
                 not task.done() for task in self._effect_tasks
             )
@@ -3476,6 +3688,14 @@ class WorkflowRuntime:
             "rollout_gate": rollout_gate,
             "started": self._started,
             "draining": self._draining,
+            "admission_cut": (
+                {
+                    "snapshot_generation": admission_cut.snapshot_generation,
+                    "projects": list(admission_cut.project_ids),
+                }
+                if admission_cut is not None
+                else None
+            ),
             "legacy_lifecycle_writers_enabled": self.legacy_lifecycle_writers_enabled,
             "projects": sorted(self.project_bindings),
             "controllers": {
