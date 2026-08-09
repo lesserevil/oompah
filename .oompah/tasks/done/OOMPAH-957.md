@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T16:13:49.316606Z'
+updated_at: '2026-08-09T16:14:04.830869Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -62,7 +62,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:13:45.100663+00:00'
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    target_state: Done
+    evidence_fingerprint: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    audit_ids:
+    - audit-fee0ad90fd0f
+    - audit-fa8de4cae680
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:13:54.408487+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -70,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-957
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,13 +112,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T14:45:00.549243+00:00'
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
-    updated_at: '2026-08-09T16:07:53.806659+00:00'
+    updated_at: '2026-08-09T16:13:54.408444+00:00'
   - version: 1
     audit_id: audit-fa8de4cae680
     project_id: proj-14849f1b
     task_id: OOMPAH-957
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -121,6 +133,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T14:45:00.549243+00:00'
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+    updated_at: '2026-08-09T16:13:54.408472+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0c542522ab6e
@@ -137,6 +150,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-957
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+oompah.task_costs:
+  total_input_tokens: 30
+  total_output_tokens: 9
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 30
+      output_tokens: 9
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 9
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T16:13:58.026392+00:00'
 ---
 ## Summary
 
@@ -246,5 +275,27 @@ author: oompah
 created: 2026-08-09 16:13
 ---
 Final exact head 561deed0f5bb9d897454b7b29756185100989968 passed hosted CI on Python 3.11, 3.12, and 3.13 in run 31322718498. Independent final review found no blockers after 189 combined affected tests, repeated heartbeat and long-delivery proofs, and clean diff/lint checks. Merging PR #772 now.
+---
+author: oompah
+created: 2026-08-09 16:13
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner direct completion: exact PR head 561deed0f5bb9d897454b7b29756185100989968 passed hosted Python 3.11/3.12/3.13 CI run 31322718498, independent final review reported no blockers, and squash merge 11e295d082bdbd0d966b39884eb5f24e6ed09568 has an identical Git tree.
+---
+author: oompah
+created: 2026-08-09 16:14
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 1
+- Tokens: 30 in / 9 out [39 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 58s
+- Log: OOMPAH-957__20260809T160809Z.jsonl
+---
+author: oompah
+created: 2026-08-09 16:14
+---
+Merged PR #772 after exact-head hosted CI and independent no-blocker review; merge tree equals the qualified head.
 ---
 <!-- COMMENTS:END -->
