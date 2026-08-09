@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-975
 type: bug
-status: In Review
+status: Ready to Integrate
 priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:53:57.286505Z'
+updated_at: '2026-08-09T21:55:50.895205Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
