@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-909
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Close owned Orchestrator resources between tests and on shutdown
 parent: null
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T12:20:40.667997Z'
-updated_at: '2026-08-08T13:35:27.540030Z'
+updated_at: '2026-08-09T05:11:09.983093Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9722a386b8ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-909
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 745abc64dd2774e066bb7a2128d6803c4f4f4fe3e2352c0793ea86df9d840113
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:11:06.138754+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -45,5 +67,10 @@ author: oompah
 created: 2026-08-08 13:35
 ---
 The b80e632 resource-lifecycle repair kept the interrupted full gate's worker FDs flat through 99%, resolving the prior accumulation. That run exposed a separate deterministic terminal-provenance RLock deadlock, now filed and directly claimed as OOMPAH-910; its focused fix passes 36/36. Ten additional fixture-contract failures have been reproduced exactly and are being repaired in parallel before the next exact full gate.
+---
+author: oompah
+created: 2026-08-09 05:11
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
