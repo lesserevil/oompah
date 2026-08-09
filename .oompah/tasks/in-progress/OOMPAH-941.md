@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T09:43:05.611720Z'
+updated_at: '2026-08-09T09:43:24.236567Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-09 09:43
+---
+Implemented exact revision binding for project-owner terminal overrides and fail-closed owner-delivery landing facts. Added wrong-target, stale, malformed, unauthorized, supersession, and restart regression coverage. Focused suite: 414 passed. Branch OOMPAH-941 is pushed at e5df74c13292aefa564436995aa506a4592f11e9; PR #752 has auto-merge enabled and is awaiting CI.
 ---
 <!-- COMMENTS:END -->
