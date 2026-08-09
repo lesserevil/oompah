@@ -75,6 +75,12 @@ _BOUNDARY_GROUP_ENV = "OOMPAH_NATIVE_VALIDATION_BOUNDARY_GROUP"
 _CAPABILITY_FD_ENV = "OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"
 _VALIDATION_MODE_ENV = "OOMPAH_VALIDATION_MODE"
 _VALIDATION_JUSTIFICATION_ENV = "OOMPAH_VALIDATION_JUSTIFICATION"
+# A light command reports its boundary before exec, while the owning command
+# item can consume that proof only after the process returns.  Preserve the
+# receipt through the configured execution budget plus a short scheduler/
+# event-handoff interval; the one-shot group and item bindings below still
+# prevent reuse by later work.
+_BOUNDARY_HANDOFF_GRACE_SECONDS = 5.0
 NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION = (
     "For a task-required full-suite mode that is genuinely distinct from the "
     "reused exact gate, invoke the native shell command with both structured "
@@ -2367,9 +2373,14 @@ class _NativeValidationLeaseBroker:
         command_identity: str,
         item_id: str,
         *,
-        max_age_seconds: float = 5.0,
+        max_age_seconds: float | None = None,
     ) -> bool:
-        cutoff = time.monotonic() - max(float(max_age_seconds), 0.1)
+        retention_seconds = (
+            self.timeout_seconds + _BOUNDARY_HANDOFF_GRACE_SECONDS
+            if max_age_seconds is None
+            else float(max_age_seconds)
+        )
+        cutoff = time.monotonic() - max(retention_seconds, 0.1)
         with self._boundary_lock:
             if not item_id or item_id in self._bound_item_ids:
                 return False

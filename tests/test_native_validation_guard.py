@@ -3035,6 +3035,23 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         assert communicate_before_deadline(second) == "second"
         assert first.returncode == 0
         assert second.returncode == 0
+
+        # Model both commands consuming their complete configured execution
+        # budget without sleeping. Boundary proof is published before exec and
+        # cannot be consumed by the command item until after process return, so
+        # it must survive that budget plus the bounded event-handoff grace.
+        with guard_module._BROKER_REGISTRY_LOCK:
+            broker = guard_module._BROKER_REGISTRY[root.resolve()]
+        with broker._boundary_lock:
+            assert len(broker._boundaries) == 2
+            aged_at = time.monotonic() - broker.timeout_seconds - 1.0
+            aged_boundaries = [
+                (aged_at, boundary_group, command_identity)
+                for _timestamp, boundary_group, command_identity in broker._boundaries
+            ]
+            broker._boundaries.clear()
+            broker._boundaries.extend(aged_boundaries)
+
         assert (
             consume_native_validation_boundary(root, "printf first", "item-1")
             is True
@@ -3056,6 +3073,49 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=2)
+
+
+def test_native_command_boundary_retention_remains_bounded(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", "-c", "printf stale"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert completed.stdout == "stale"
+
+    with guard_module._BROKER_REGISTRY_LOCK:
+        broker = guard_module._BROKER_REGISTRY[root.resolve()]
+    with broker._boundary_lock:
+        assert len(broker._boundaries) == 1
+        _timestamp, boundary_group, command_identity = broker._boundaries[0]
+        expired_at = (
+            time.monotonic()
+            - broker.timeout_seconds
+            - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
+            - 1.0
+        )
+        broker._boundaries[0] = (expired_at, boundary_group, command_identity)
+
+    assert (
+        consume_native_validation_boundary(root, "printf stale", "stale-item")
+        is False
+    )
 
 
 def test_late_background_boundary_cannot_spoof_later_item(tmp_path: Path) -> None:
