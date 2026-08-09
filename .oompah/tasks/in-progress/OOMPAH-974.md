@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T21:11:41.476536Z'
+updated_at: '2026-08-09T21:19:57.972734Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-09 21:05
 ---
 Direct owner recovery/implementation claimed after live reproduction. Exact incident: verified service PID 2715559, no worker children, all HTTP lifecycle calls timed out, force-restart could not pass old-health precondition, SIGTERM stop exceeded 30 seconds, exact process group required SIGKILL, and make start recovered exact build 312c18ae3.
+---
+author: oompah
+created: 2026-08-09 21:19
+---
+Additional post-restart liveness evidence: after generation 852 finished, SQLite had zero running jobs, but /api/v1/state continued to report workflow_runtime.worker active=3, retained=3, shared active lanes=3 and last admission repeatedly processed/scheduled zero. A priority-0 direct_owner_claim for OOMPAH-975 remained queued despite two explicit POST /api/v1/refresh requests. All worker/reconcile threads were sleeping; no new full tick published after 21:14:24. The fix must reconcile retained in-memory calls with terminal/exhausted durable rows and preserve the reserved control slot so priority-0 owner/lifecycle control cannot be starved by orphaned shared effects.
 ---
 <!-- COMMENTS:END -->
