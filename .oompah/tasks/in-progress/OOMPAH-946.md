@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T09:36:47.246102Z'
+updated_at: '2026-08-09T10:20:04.781408Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Hosted CI run 31305502103 on reviewed OOMPAH-939 head b1fc26aa passed the comple
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 10:20
+---
+Diagnosis confirmed from hosted run 31305502103 attempt 1: competing lease acquisition timed out even though /proc for the recorded PID vanished, so the production inherited-descriptor fence remained held. The test recorded the transient setsid launcher via $!, which may fork when it is already a group leader. Commit 8e2527b74 makes the detached inner Bash publish $BASHPID after session creation, waits for that readiness before wrapper exit, verifies exact start ticks/PGID/SID, and cleans up via exact-generation termination. Verification: 11 targeted lifecycle/PID tests, 634 complete native guard+lease tests, focused Python 3.11/3.12/3.13 matrix, repeated regression runs, Ruff, mutation scan, and secret scan passed. Full make test passed the changed regression and 18,890 other tests, then hit unrelated real-clock waiter-priority flake tracked as OOMPAH-949; that isolated test passed 20 immediate reruns.
+---
+<!-- COMMENTS:END -->
