@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-941
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Project authorized owner delivery before requiring landing recovery
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T09:10:18.566653Z'
+updated_at: '2026-08-09T09:11:32.485405Z'
 work_branch: null
 target_branch: null
 review_url: null

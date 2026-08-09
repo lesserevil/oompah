@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -17,7 +17,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T09:10:09.533860Z'
+updated_at: '2026-08-09T09:11:29.389896Z'
 work_branch: null
 target_branch: null
 review_url: null
