@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:21:07.970284Z'
+updated_at: '2026-08-09T23:22:06.737416Z'
 work_branch: OOMPAH-978
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-09 23:21
 ---
 Removed implicit AGENTS.md writes from project lifecycle APIs; clean-checkout and explicit-bootstrap regressions pass on a1f6ef58e.
+---
+author: oompah
+created: 2026-08-09 23:22
+---
+Opened PR #787 for exact head a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd so protected checks can run while the queued workflow submission catches up.
 ---
 <!-- COMMENTS:END -->
