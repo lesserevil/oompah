@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T12:08:27.911941Z'
+updated_at: '2026-08-09T12:18:22.099507Z'
 work_branch: OOMPAH-955
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-09 12:07
 ---
 Implemented bounded detached workflow effects with a reserved control lane, independent lease heartbeats, completion-driven replenishment, safe drain/restart recovery, configuration and telemetry, plus deterministic HOL/concurrency/serialization/lease regressions. Commit 5bb0803b396d0cd7d7cd5837c31d05742e99aba0 pushed.
+---
+author: oompah
+created: 2026-08-09 12:18
+---
+Addressed independent-review blocker in fc1c8dc993964b34fbd60a008654fa8ca315b54f: a runtime-owned async admission critical section now spans capacity observation, awaited exact claims, and retained-task publication, so overlapping reconcile_async/_run_due callers cannot spend the same reserved/shared slot. Added a deterministic two-caller race regression that suspends the first claim at the former gap and proves control=1, shared=3, total=4. Verification: 318 focused tests passed; task-status mutation scan, secret scan, and git diff --check passed. Branch pushed clean/up-to-date; no restart.
 ---
 <!-- COMMENTS:END -->
