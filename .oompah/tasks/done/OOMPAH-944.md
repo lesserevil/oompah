@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T15:14:40.388071Z'
+updated_at: '2026-08-09T15:14:47.620505Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -254,5 +254,10 @@ created: 2026-08-09 15:14
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Accepted head c07a3ba543 is an exact ancestor of current main and was independently reviewed. Audit full gate passed 18,885 tests; seven failures are the known nested quality-gate Python path infrastructure tracked by OOMPAH-831/OOMPAH-862, while the validation-resource timing and workflow-mode expectations are stale-head suite failures corrected in the combined OOMPAH-940 main composition whose hosted Python 3.11/3.12/3.13 gates passed. No OOMPAH-944 behavior failure was identified.
+---
+author: oompah
+created: 2026-08-09 15:14
+---
+Canonical cleanup proof fix is contained in main; exact review and combined hosted matrix pass.
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T14:42:16.499419Z'
+updated_at: '2026-08-09T15:14:54.169527Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-09 14:42
 ---
 Direct-owner implementation started in isolated worktree /home/shedwards/src/oompah-962 on branch OOMPAH-962. I am reproducing the authority_revocation timeout/quarantined NULL-lease deadlock and implementing fenced late-completion recovery while preserving never-overlap safety; no service mutation or deployment.
+---
+author: oompah
+created: 2026-08-09 15:14
+---
+Implemented the quarantine settlement/recycle design on branch OOMPAH-962: exact late-result CAS settlement, durable bounded recycle marker, production mutation drain transfer, process/PID generation fencing, and no-overlap guards across control/data lanes and replacement paths. Focused config/job/worker/adapter/runtime suite is green (385 tests plus targeted replacement coverage). Rebasing onto current origin/main and performing final checks now.
 ---
 <!-- COMMENTS:END -->
