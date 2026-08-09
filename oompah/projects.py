@@ -1230,6 +1230,37 @@ def _install_prepare_commit_msg_hook(wt_path: str) -> None:
             pass
 
 
+def _is_legacy_managed_hooks_path(value: str, wt_path: str) -> bool:
+    """Return whether ``value`` is an old shared Oompah worktree hook path.
+
+    Before worktree-specific Git configuration was enabled, Oompah wrote an
+    absolute ``<managed-worktree>/.oompah-no-hooks`` path to the repository's
+    common ``core.hooksPath``.  Removing that worktree then disabled hooks for
+    every surviving checkout.  Migration must be deliberately narrow: an
+    operator may have configured an unrelated shared hooks directory, even one
+    with the same basename.
+
+    Oompah worktrees for one project are direct children of the same managed
+    project root.  Requiring an absolute path with that exact topology lets us
+    recognize a stale (already removed) sibling without treating arbitrary
+    operator configuration as Oompah-owned.
+    """
+
+    configured = str(value or "").strip()
+    if not configured or not os.path.isabs(configured):
+        return False
+    configured = os.path.normpath(configured)
+    if os.path.basename(configured) != ".oompah-no-hooks":
+        return False
+
+    configured_worktree = os.path.dirname(configured)
+    managed_project_root = os.path.dirname(os.path.abspath(wt_path))
+    return (
+        os.path.dirname(configured_worktree) == managed_project_root
+        and configured_worktree != managed_project_root
+    )
+
+
 def _is_transient_git_config_lock_error(stderr: str) -> bool:
     """Return True if ``stderr`` indicates a transient ``.git/config`` lock
     contention failure.
@@ -6942,21 +6973,98 @@ class ProjectStore:
         The redirected hooks directory is NOT empty: we install the oompah
         ``prepare-commit-msg`` hook into it so every commit produced by an
         agent picks up the canonical oompah attribution trailer (see
-        :mod:`oompah.git_hooks` and oompah-zlz_2-3cpz).
+        :mod:`oompah.git_hooks` and oompah-zlz_2-3cpz).  The setting is stored
+        in Git's worktree-specific config so removing one task checkout cannot
+        disable hooks in the main checkout or any surviving worktree.
         """
+        hooks_dir = os.path.join(os.path.abspath(wt_path), ".oompah-no-hooks")
         try:
-            hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
             os.makedirs(hooks_dir, exist_ok=True)
-            subprocess.run(
-                ["git", "config", "core.hooksPath", hooks_dir],
+
+            # Read the common value before enabling worktree config.  This is
+            # migration evidence only; per-worktree writes below never depend
+            # on an inherited hook path.
+            shared_hooks = subprocess.run(
+                ["git", "config", "--local", "--get-all", "core.hooksPath"],
                 cwd=wt_path,
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=5,
                 env=_recovery_git_env(),
             )
+
+            # extensions.worktreeConfig must live in the common config.  Once
+            # enabled, --worktree writes config.worktree for exactly this
+            # linked checkout instead of mutating .git/config for all of them.
+            enabled = subprocess.run(
+                ["git", "config", "--local", "extensions.worktreeConfig", "true"],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+                env=_recovery_git_env(),
+            )
+            if enabled.returncode != 0:
+                logger.warning(
+                    "Failed to enable worktree-specific Git config in %s: %s",
+                    wt_path,
+                    enabled.stderr.strip()[:500],
+                )
+            else:
+                configured = subprocess.run(
+                    ["git", "config", "--worktree", "core.hooksPath", hooks_dir],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5,
+                    env=_recovery_git_env(),
+                )
+                if configured.returncode != 0:
+                    logger.warning(
+                        "Failed to configure worktree-local hooks in %s: %s",
+                        wt_path,
+                        configured.stderr.strip()[:500],
+                    )
+                elif shared_hooks.returncode == 0:
+                    # Remove only the exact legacy value Oompah used to own.
+                    # --fixed-value avoids interpreting path characters as a
+                    # regex and preserves every unrelated shared value.
+                    for legacy_path in shared_hooks.stdout.splitlines():
+                        if not _is_legacy_managed_hooks_path(legacy_path, wt_path):
+                            continue
+                        migrated = subprocess.run(
+                            [
+                                "git",
+                                "config",
+                                "--local",
+                                "--fixed-value",
+                                "--unset-all",
+                                "core.hooksPath",
+                                legacy_path,
+                            ],
+                            cwd=wt_path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=5,
+                            env=_recovery_git_env(),
+                        )
+                        if migrated.returncode not in (0, 5):
+                            logger.warning(
+                                "Failed to migrate legacy shared hooks path "
+                                "in %s: %s",
+                                wt_path,
+                                migrated.stderr.strip()[:500],
+                            )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-            pass
+            logger.warning(
+                "Failed to prepare worktree-local hooks in %s",
+                wt_path,
+                exc_info=True,
+            )
         # Best-effort install of the prepare-commit-msg hook. Failures here
         # must never block worktree creation — agents can still commit, the
         # trailer just won't be auto-enforced.
