@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T14:21:33.959761Z'
+updated_at: '2026-08-09T14:23:09.587773Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Add an atomic durable authority marker for canonical zero-obligation decisions a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 14:23
+---
+Implementation started on dedicated branch OOMPAH-961 at ba0859da9. Mapping durable snapshot publication, managed/event cursor authority, and current-exhaustion invariants before adding the atomic no-job/handoff proof.
+---
+<!-- COMMENTS:END -->
