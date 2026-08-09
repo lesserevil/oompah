@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T09:43:42.030292Z'
+updated_at: '2026-08-09T09:45:32.596722Z'
 work_branch: OOMPAH-941
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-941
   base_branch: epic-OOMPAH-940
   base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
-  head_sha: e5df74c13292aefa564436995aa506a4592f11e9
-  submitted_at: '2026-08-09T09:43:26.794804+00:00'
-  updated_at: '2026-08-09T09:43:26.794804+00:00'
+  head_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+  submitted_at: '2026-08-09T09:45:24.452634+00:00'
+  updated_at: '2026-08-09T09:45:24.452634+00:00'
 oompah.work_branch: OOMPAH-941
 ---
 ## Summary
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-08-09 09:43
 ---
 Revision-bound authorized owner delivery now becomes canonical landing evidence before landing recovery; non-qualifying provenance remains actionable. Focused checks passed and PR #752 is queued for auto-merge.
+---
+author: oompah
+created: 2026-08-09 09:45
+---
+Corrected delivery target to epic-OOMPAH-940 and republished exact head 9996c0f8e8b64d83ee59bd65d3552f034df6031a. Revision-bound owner-delivery implementation and 414 focused tests are ready for the normal integration gate.
 ---
 <!-- COMMENTS:END -->
