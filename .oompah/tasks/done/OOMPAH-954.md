@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T16:28:56.502819Z'
+updated_at: '2026-08-09T16:29:06.991012Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -60,7 +60,18 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:28:52.344603+00:00'
     selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
     selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-954
+    target_state: Done
+    evidence_fingerprint: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+    audit_ids:
+    - audit-f0bc7481f2ea
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:29:00.466007+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -68,7 +79,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-954
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -120,7 +131,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:51:29.097174+00:00'
     selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
     selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
-    updated_at: '2026-08-09T16:24:04.659603+00:00'
+    updated_at: '2026-08-09T16:29:00.465975+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9908b9664e50
@@ -273,5 +284,17 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 21m 37s
 - Log: OOMPAH-954__20260809T160248Z.jsonl
+---
+author: oompah
+created: 2026-08-09 16:28
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner override after git patch identity proved accepted head dccbeb5ac4e1012d772ebfa366e586bdb6df76db and its prerequisite patch are contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435; PR #757 merged as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01 with hosted Python 3.11/3.12/3.13 checks successful.
+---
+author: oompah
+created: 2026-08-09 16:29
+---
+Done: OOMPAH-954 accepted patches through dccbeb5ac are contained in merged epic PR #757 (ba0859da9); all hosted Python matrices passed.
 ---
 <!-- COMMENTS:END -->
