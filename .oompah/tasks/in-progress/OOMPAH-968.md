@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:06:10.129089Z'
+updated_at: '2026-08-09T19:09:12.626077Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-08-09 19:06
 ---
 Prior submission is superseded by pushed corrective head 285fc11fe. The supported absent-to-authorize-new-revision path now records the revising owner, reason, and timestamps on its generation-one marker, so the writer, adapter, decision, and publication proof agree. Added direct persistence, production adapter, and truly absent-to-authorize runtime coverage. Verification: 555 focused tests pass; critical Ruff/diff checks pass. Final independent re-reviews are in progress; do not integrate 514bc9e30.
+---
+author: oompah
+created: 2026-08-09 19:09
+---
+Final exact head 277a99a1c is pushed. Revision and retention timestamps are now distinct: absent-to-authorize records owner/reason/updated_at with generation 1 and leaves marked_at empty until the first actual retain; retained facts still require a real mark timestamp. Verification: 557 focused tests pass; two independent final reviews report no blockers (one reran 193 relevant tests); critical Ruff/diff checks pass. This supersedes every prior submitted head and is the integration candidate.
 ---
 <!-- COMMENTS:END -->
