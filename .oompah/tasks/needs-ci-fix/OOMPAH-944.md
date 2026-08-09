@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-944
 type: bug
-status: In Validation
+status: Needs CI Fix
 priority: 1
 title: Use canonical child landing proof in epic cleanup
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T14:07:02.559431Z'
+updated_at: '2026-08-09T15:06:10.832976Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -38,6 +38,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-944
     digest: a5ea3a6a0b3910eeb77ce134737842dbbaabe9829cce254bff04b95b8f7a0695
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-944","audit-2858f61fbee4","attempt-05365adc4d9b"]': '2026-08-09T15:06:02.071857+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-944
+    target_state: Done
+    evidence_fingerprint: a5ea3a6a0b3910eeb77ce134737842dbbaabe9829cce254bff04b95b8f7a0695
+    audit_ids:
+    - audit-2858f61fbee4
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T15:06:02.071871+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-944
+    audit_id: audit-2858f61fbee4
+    attempt_id: attempt-05365adc4d9b
+    target_state: Done
+    evidence_fingerprint: a5ea3a6a0b3910eeb77ce134737842dbbaabe9829cce254bff04b95b8f7a0695
+    status: Needs CI Fix
+    audit_ids:
+    - audit-2858f61fbee4
+    kind: result
+    applied: true
+    created_at: '2026-08-09T15:06:02.071880+00:00'
+    applied_at: '2026-08-09T15:06:09.122846+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +71,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-944
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +80,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-05365adc4d9b
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +92,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-944
       selected_ref: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
       selected_sha: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
+      verdict: fail
+      failure_classification: ci_failure
+      completed_at: '2026-08-09T15:06:02.071744+00:00'
+      ended_at: '2026-08-09T15:06:02.071744+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -75,7 +105,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:53:17.091159+00:00'
     selected_ref: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
     selected_sha: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
-    updated_at: '2026-08-09T14:06:52.778248+00:00'
+    updated_at: '2026-08-09T15:06:02.071744+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-05365adc4d9b
@@ -159,5 +189,12 @@ author: oompah
 created: 2026-08-09 14:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 15:06
+---
+Audit FAIL — ci failure. Routing task to Needs CI Fix.
+
+Full gate test at accepted head c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca produced 9 test failures: 7 infrastructure-related in test_pytest_parallel.py (quality-gate Python path errors), 1 race condition in test_validation_resource_lease.py, 1 configuration mode mismatch in test_workflow_shadow_integration.py. 18885 tests passed; exit code 2. The full gate is required and must pass before Done state transition.
 ---
 <!-- COMMENTS:END -->
