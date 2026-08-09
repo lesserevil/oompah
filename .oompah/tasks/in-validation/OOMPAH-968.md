@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-968
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Fence absent-to-retained provenance changes during workflow publication
 parent: OOMPAH-940
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:36:47.613119Z'
+updated_at: '2026-08-09T19:45:44.132835Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -31,6 +31,62 @@ oompah.integration:
   submitted_at: '2026-08-09T19:25:00.003039+00:00'
   updated_at: '2026-08-09T19:25:00.003039+00:00'
 oompah.work_branch: OOMPAH-968
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-283cac3bcd42
+    project_id: proj-14849f1b
+    task_id: OOMPAH-968
+    digest: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+  - version: 1
+    audit_id: audit-7c38826b083b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-968
+    digest: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-283cac3bcd42
+    project_id: proj-14849f1b
+    task_id: OOMPAH-968
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T19:45:36.044266+00:00'
+    selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+    selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+  - version: 1
+    audit_id: audit-7c38826b083b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-968
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T19:45:36.044266+00:00'
+    selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+    selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+  attempt_history: []
 ---
 ## Summary
 
@@ -88,5 +144,10 @@ author: oompah
 created: 2026-08-09 19:36
 ---
 Protected CI: Python 3.11 and 3.13 passed. Python 3.12 had one unrelated timing failure after 19,176 passes: detached effect heartbeat lease expiry was ~63 ms beyond the test assertion window. Rerunning the failed job and checking existing tracker coverage for the lease-heartbeat race; exact code head remains 6f3ee4170.
+---
+author: oompah
+created: 2026-08-09 19:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
