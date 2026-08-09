@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:46:27.644873Z'
-updated_at: '2026-08-09T10:52:21.172731Z'
+updated_at: '2026-08-09T10:52:25.371291Z'
 work_branch: OOMPAH-951
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-08-09 10:52
 ---
 Implemented and pushed exact head 5defaaa42. Claude/OpenCode MCP tools now register the canonical top-level AUDITOR_RESULT_TOOL_SCHEMA, Codex uses the same explicit FunctionTool schema, and the obsolete nested result envelope is rejected. Provider-shaped tests prove schema equality and exactly one accepted coordinator submission. Verification: 191 auditor contract/API/bridge/deadline/output tests passed; terminal mutation, secret, diff, and fatal/static scans passed.
+---
+author: oompah
+created: 2026-08-09 10:52
+---
+Aligned ACP auditor result contract at 5defaaa42
 ---
 <!-- COMMENTS:END -->
