@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T22:04:40.474038Z'
+updated_at: '2026-08-09T22:06:28.650263Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -91,5 +91,10 @@ author: oompah
 created: 2026-08-09 21:53
 ---
 Security/replay review hardening pushed at ad70402ee. Supplied terminal-audit revision authority is now restricted to a mutation-guarded integrator request for a parented, headless, current-Done child targeting Merged; the exact SHA/ref/project must resolve identically in the managed repo. Wrong role/status/target/project, parentless/ordinary-head, missing guard, non-SHA ref, unavailable SHA, and resolution mismatch all reject before mutation. The transition-service exception separately requires observed Done, and native blank project IDs are normalized before the final authority CAS. Relevant five-file suite: 655 passed; independent affected-suite review: 548 passed, no remaining blocker.
+---
+author: oompah
+created: 2026-08-09 22:06
+---
+Rebased after OOMPAH-974 merged/deployed. Exact combined head d173e88eec2552ee639ef235a772fceeed8b66e6 contains main merge 9ea2d4d07 plus the reviewed OOMPAH-975 patch. Combined affected suite: 953 passed in 25.18 seconds; terminal status mutation scan passed 20/20; diff check clean. PR #782 protected Python 3.11/3.12/3.13 checks are rerunning on this exact composition.
 ---
 <!-- COMMENTS:END -->
