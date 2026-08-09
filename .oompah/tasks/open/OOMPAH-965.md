@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T16:25:26.622591Z'
-updated_at: '2026-08-09T16:27:22.144113Z'
+updated_at: '2026-08-09T16:27:50.807609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-09 16:27
 ---
 Root cause captured at 2026-08-09T16:25:25 while direct owner audit overrides changed terminal-audit disposition during a full publication: publish_after_terminal_proof deliberately raised WorkflowRuntimeError('terminal-audit disposition changed before publication') as a stale-snapshot fence. The publication was correctly rejected and retryable; treating this expected authority race as an unhandled ERROR caused error_watcher to file this task. Scope should distinguish expected stale/fenced publication invalidation from genuine durable-store/publication failure, reschedule/coalesce a fresh reconcile, emit bounded informational telemetry, and retain ERROR/error_watcher behavior for unexpected failures. Add an exact disposition-change-before-publication regression proving no task is auto-filed and fresh publication converges.
+---
+author: oompah
+created: 2026-08-09 16:27
+---
+Project owner promotes the confirmed expected-publication-fence misclassification for direct implementation.
 ---
 <!-- COMMENTS:END -->
