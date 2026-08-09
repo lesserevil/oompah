@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-962
 type: bug
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Recover quarantined control effects without task deadlock
 parent: OOMPAH-940
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T17:29:10.852929Z'
+updated_at: '2026-08-09T17:38:00.715879Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -32,6 +32,82 @@ oompah.integration:
   submitted_at: '2026-08-09T15:53:51.676561+00:00'
   updated_at: '2026-08-09T15:53:51.676561+00:00'
 oompah.work_branch: OOMPAH-962
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-9395b169f62b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-962
+    digest: 5d8a322ba5ec49ced13cd0ee83e901e769502b480cca7a84268d42e0510a73ff
+  - version: 1
+    audit_id: audit-b8c10ad24d18
+    project_id: proj-14849f1b
+    task_id: OOMPAH-962
+    digest: 5d8a322ba5ec49ced13cd0ee83e901e769502b480cca7a84268d42e0510a73ff
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ea9aa28d7423
+    project_id: proj-14849f1b
+    task_id: OOMPAH-962
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5d8a322ba5ec49ced13cd0ee83e901e769502b480cca7a84268d42e0510a73ff
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner completion after exact hosted CI and independent no-blocker
+      composition review.
+    created_at: '2026-08-09T17:37:56.146363+00:00'
+    selected_ref: 8bea28656286d06fd254e8d6a39592ade981939f
+    selected_sha: 8bea28656286d06fd254e8d6a39592ade981939f
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9395b169f62b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-962
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5d8a322ba5ec49ced13cd0ee83e901e769502b480cca7a84268d42e0510a73ff
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T17:37:47.780490+00:00'
+    selected_ref: 8bea28656286d06fd254e8d6a39592ade981939f
+    selected_sha: 8bea28656286d06fd254e8d6a39592ade981939f
+  - version: 1
+    audit_id: audit-b8c10ad24d18
+    project_id: proj-14849f1b
+    task_id: OOMPAH-962
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5d8a322ba5ec49ced13cd0ee83e901e769502b480cca7a84268d42e0510a73ff
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T17:37:47.780490+00:00'
+    selected_ref: 8bea28656286d06fd254e8d6a39592ade981939f
+    selected_sha: 8bea28656286d06fd254e8d6a39592ade981939f
+  attempt_history: []
 ---
 ## Summary
 
@@ -163,5 +239,10 @@ author: oompah
 created: 2026-08-09 17:29
 ---
 Final composition with landed OOMPAH-964/OOMPAH-965 pushed at exact head dd2e18fc263f16717a7b31802968f235a4401525 on PR #770. The sole test-module conflict preserved all publication-provider and callback/quarantine regressions; production composition was clean. Validation: 8 focused composition tests, 50 race repetitions, 671 affected tests, targeted critical Ruff, terminal mutation, secret, and diff checks pass. Hosted exact matrix is running; OOMPAH-961 final composition has started in parallel.
+---
+author: oompah
+created: 2026-08-09 17:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
