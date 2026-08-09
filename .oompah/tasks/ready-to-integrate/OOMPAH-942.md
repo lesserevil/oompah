@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T10:04:14.876337Z'
+updated_at: '2026-08-09T10:04:25.455355Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-942
   base_branch: epic-OOMPAH-940
   base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
-  head_sha: 53799805cf75199c1635cd4bf0856f91d2201730
-  submitted_at: '2026-08-09T09:55:02.854251+00:00'
-  updated_at: '2026-08-09T09:55:02.854251+00:00'
+  head_sha: dcda220c225eef11f4704f61cade067d609e2da9
+  submitted_at: '2026-08-09T10:04:18.080825+00:00'
+  updated_at: '2026-08-09T10:04:18.080825+00:00'
 oompah.work_branch: OOMPAH-942
 ---
 ## Summary
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-09 10:04
 ---
 Second independent review completed before integration. Fixed two additional authority gaps: terminal-audit parent receipts must match the current canonical issue evidence fingerprint, and simultaneous queue/audit/forge exact receipts must agree on one revision before any backfill is persisted. Added stale pre-edit audit and cross-authority conflict regressions. Verification: 156 integration/runtime tests passed; mutation/secret scans and targeted Ruff passed. Exact head dcda220c2.
+---
+author: oompah
+created: 2026-08-09 10:04
+---
+Persist only one exact route-bound terminal-parent head after current-fingerprint and cross-authority agreement. Exact head dcda220c2; 156 focused tests pass.
 ---
 <!-- COMMENTS:END -->
