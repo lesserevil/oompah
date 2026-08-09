@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T10:37:21.916619Z'
+updated_at: '2026-08-09T10:45:26.775646Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-939
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,6 +83,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-09T10:37:15.112396+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-09T10:37:35.112365+00:00'
+    - version: 1
+      attempt_id: attempt-8219358c7bea
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+      created_at: '2026-08-09T10:45:18.785995+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T10:45:18.785995+00:00'
+      branch_key: OOMPAH-939
+      selected_ref: origin/OOMPAH-939
+      selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
+      candidate_rotation_count: 2
     source_generation: 1
     requested_by:
       version: 1
@@ -92,7 +108,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T09:39:27.270044+00:00'
     selected_ref: origin/OOMPAH-939
     selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
-    updated_at: '2026-08-09T10:37:15.112396+00:00'
+    updated_at: '2026-08-09T10:45:18.785995+00:00'
   - version: 1
     audit_id: audit-bd560d2bb335
     project_id: proj-14849f1b
@@ -153,6 +169,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-09T10:37:15.112396+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-09T10:37:35.112365+00:00'
+  - version: 1
+    attempt_id: attempt-8219358c7bea
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    created_at: '2026-08-09T10:45:18.785995+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T10:45:18.785995+00:00'
+    branch_key: OOMPAH-939
+    selected_ref: origin/OOMPAH-939
+    selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 340
   total_output_tokens: 12965
@@ -276,5 +308,15 @@ author: oompah
 created: 2026-08-09 10:37
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-09 10:45
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 10:45
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
