@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-839
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Classify and preserve externally terminated quality-gate outcomes
 parent: null
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:49:04.553399Z'
-updated_at: '2026-08-08T12:03:28.044628Z'
+updated_at: '2026-08-09T05:09:17.822627Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-be1b453f3fe9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-839
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2b8fbe1fce4d88ef626525d9c673b75fe7c59e9095c2cdb586c312b65461a55d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:09:13.826506+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -29,3 +51,11 @@ Forensic gap exposed by OOMPAH-523: its persisted exact BranchQualityGate result
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 05:09
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
+---
+<!-- COMMENTS:END -->
