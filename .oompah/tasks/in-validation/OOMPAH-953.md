@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-953
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep quality-gate cancellation polling local and bounded
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T12:31:44.264593Z'
+updated_at: '2026-08-09T12:39:54.091831Z'
 work_branch: OOMPAH-953
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/764
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/764
 oompah.review_number: '764'
 oompah.target_branch: main
 oompah.review_head: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-b540d9ce7512
+    project_id: proj-14849f1b
+    task_id: OOMPAH-953
+    digest: 5f96aa11fbbf50f981a8528ce23a93e02195af2d24c93421c2b271417f65a8da
+  - version: 1
+    audit_id: audit-865e79362ee3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-953
+    digest: 5f96aa11fbbf50f981a8528ce23a93e02195af2d24c93421c2b271417f65a8da
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b540d9ce7512
+    project_id: proj-14849f1b
+    task_id: OOMPAH-953
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5f96aa11fbbf50f981a8528ce23a93e02195af2d24c93421c2b271417f65a8da
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T12:39:47.931468+00:00'
+    selected_ref: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+    selected_sha: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+  - version: 1
+    audit_id: audit-865e79362ee3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-953
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5f96aa11fbbf50f981a8528ce23a93e02195af2d24c93421c2b271417f65a8da
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T12:39:47.931468+00:00'
+    selected_ref: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+    selected_sha: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+  attempt_history: []
 ---
 ## Summary
 
@@ -64,5 +120,10 @@ author: oompah
 created: 2026-08-09 12:31
 ---
 Branch quality gate passed for `20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c` using `make test` in 160.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 12:39
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
