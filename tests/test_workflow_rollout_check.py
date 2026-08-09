@@ -40,6 +40,7 @@ def healthy_snapshot() -> dict:
         "workflow_jobs": {
             "leases": {"running": 1, "expired": 0},
             "states": {"running": 1, "queued": 2},
+            "current_states": {"exhausted": 0},
         },
     }
 
@@ -63,6 +64,36 @@ def test_canary_rejects_actionable_alert_and_expired_lease():
     assert not result.healthy
     assert "1 operator-actionable alert(s) remain" in result.failures
     assert "expired durable workflow leases remain" in result.failures
+
+
+def test_canary_ignores_historical_exhaustion_with_current_replacement():
+    snapshot = healthy_snapshot()
+    snapshot["workflow_jobs"]["states"]["exhausted"] = 1
+
+    result = evaluate_snapshot(snapshot)
+
+    assert result.healthy
+
+
+def test_canary_rejects_current_exhaustion():
+    snapshot = healthy_snapshot()
+    snapshot["workflow_jobs"]["current_states"]["exhausted"] = 1
+
+    result = evaluate_snapshot(snapshot)
+
+    assert not result.healthy
+    assert "exhausted durable workflow jobs remain" in result.failures
+
+
+def test_canary_falls_back_to_raw_exhaustion_for_older_server():
+    snapshot = healthy_snapshot()
+    snapshot["workflow_jobs"].pop("current_states")
+    snapshot["workflow_jobs"]["states"]["exhausted"] = 1
+
+    result = evaluate_snapshot(snapshot)
+
+    assert not result.healthy
+    assert "exhausted durable workflow jobs remain" in result.failures
 
 
 def test_canary_rejects_restart_staleness_and_latest_failed_shadow_sample():

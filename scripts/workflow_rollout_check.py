@@ -84,9 +84,15 @@ def evaluate_snapshot(snapshot: Mapping[str, Any]) -> CanaryResult:
     else:
         leases = jobs.get("leases")
         states = jobs.get("states")
+        current_states = jobs.get("current_states")
         if not isinstance(leases, Mapping) or int(leases.get("expired", 0)):
             failures.append("expired durable workflow leases remain")
-        if isinstance(states, Mapping) and int(states.get("exhausted", 0)):
+        exhausted_states = (
+            current_states if isinstance(current_states, Mapping) else states
+        )
+        if isinstance(exhausted_states, Mapping) and int(
+            exhausted_states.get("exhausted", 0)
+        ):
             failures.append("exhausted durable workflow jobs remain")
 
     return CanaryResult(not failures, tuple(failures))

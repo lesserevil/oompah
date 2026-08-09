@@ -551,6 +551,10 @@ def test_event_lane_materialization_rejects_retired_current_job(
     assert same_source.job is not None
     assert same_source.job.job_id == write.job.job_id
     assert same_source.job.state not in ACTIVE_JOB_STATES
+    assert store.get(write.job.job_id).state is WorkflowJobState(terminal_state)
+    assert store.health_snapshot()["states"].get("exhausted", 0) == (
+        1 if terminal_state == "exhausted" else 0
+    )
 
     newer_source = store.materialize_event(
         project_id="project-1",
@@ -569,6 +573,12 @@ def test_event_lane_materialization_rejects_retired_current_job(
     assert newer_source.job.job_id != write.job.job_id
     assert newer_source.job.generation != write.job.generation
     assert newer_source.job.state is WorkflowJobState.QUEUED
+    assert store.get(write.job.job_id).state is WorkflowJobState(terminal_state)
+    health = store.health_snapshot()
+    assert health["states"].get("exhausted", 0) == (
+        1 if terminal_state == "exhausted" else 0
+    )
+    assert health["current_states"]["exhausted"] == 0
     assert store.event_lane_materialized(
         project_id="project-1",
         task_id="TASK-1",
@@ -577,6 +587,330 @@ def test_event_lane_materialization_rejects_retired_current_job(
         source_revision="source-1",
         actions=("implementation_retry",),
     )
+
+    jobs_before_replay = store.list_jobs(task_id="TASK-1")
+    replacement_events = store.events(newer_source.job.job_id)
+    replay = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+    assert replay.accepted
+    assert not replay.created
+    assert replay.job is not None
+    assert replay.job.job_id == newer_source.job.job_id
+    assert store.list_jobs(task_id="TASK-1") == jobs_before_replay
+    assert store.events(newer_source.job.job_id) == replacement_events
+
+
+def test_active_replacement_hides_historical_exhaustion_across_restart(
+    tmp_path, clock
+):
+    database = tmp_path / "workflow.sqlite3"
+    store = WorkflowJobStore(str(database), clock=clock)
+    failed = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert failed.job is not None
+    running = claim(store)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 1
+
+    replacement = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+    assert replacement.created
+    assert replacement.job is not None
+    assert replacement.job.state is WorkflowJobState.QUEUED
+    assert store.get(failed.job.job_id).state is WorkflowJobState.EXHAUSTED
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 0
+    jobs_before_restart = store.list_jobs(task_id="TASK-1")
+    store.close()
+
+    reopened = WorkflowJobStore(str(database), clock=clock)
+    replay = reopened.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+    assert replay.accepted
+    assert not replay.created
+    assert replay.job is not None
+    assert replay.job.job_id == replacement.job.job_id
+    assert reopened.list_jobs(task_id="TASK-1") == jobs_before_restart
+    assert reopened.get(failed.job.job_id).state is WorkflowJobState.EXHAUSTED
+    health = reopened.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 0
+    reopened.close()
+
+
+def test_replacement_exhaustion_is_current_health(store):
+    first = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert first.job is not None
+    running = claim(store)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="first terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    replacement = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+    assert replacement.job is not None
+    running = claim(store)
+    assert running is not None
+    assert running.job_id == replacement.job.job_id
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="replacement terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 2
+    assert health["current_states"]["exhausted"] == 1
+
+
+def test_stale_later_lane_enqueue_does_not_hide_current_exhaustion(store):
+    lane = "terminal-audit:Done"
+    current = store.enqueue_replacing_lane(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="generation-2",
+            action="terminal_audit",
+            idempotency_key="terminal-audit:current",
+            scheduling_lane=lane,
+        ),
+        source_generation=2,
+    )
+    assert current.job is not None
+    running = claim(store)
+    assert running is not None
+    assert running.job_id == current.job.job_id
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    stale = store.enqueue_replacing_lane(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="generation-1",
+            action="terminal_audit",
+            idempotency_key="terminal-audit:stale",
+            scheduling_lane=lane,
+        ),
+        source_generation=1,
+    )
+    assert not stale.accepted
+    assert stale.created
+    assert stale.job is not None
+    assert stale.job.state is WorkflowJobState.SUPERSEDED
+    assert stale.job.enqueue_sequence > current.job.enqueue_sequence
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 1
+
+    replacement = store.enqueue_replacing_lane(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="generation-3",
+            action="terminal_audit",
+            idempotency_key="terminal-audit:replacement",
+            scheduling_lane=lane,
+        ),
+        source_generation=3,
+    )
+    assert replacement.accepted
+    assert replacement.created
+    assert replacement.job is not None
+    assert replacement.job.state is WorkflowJobState.QUEUED
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 0
+
+
+def test_managed_cursor_hides_exhaustion_only_after_materialization(store):
+    project_id = "project-1"
+    task_id = "TASK-1"
+    first_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first_snapshot)
+    membership = store.reconcile_snapshot_membership(
+        snapshot_generation=first_snapshot,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    )
+    assert membership.accepted
+    first_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-1",
+        snapshot_generation=first_snapshot,
+    )
+    first_write = store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first_snapshot,
+        job_generation=first_cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=first_cursor.job_generation,
+                action="implementation_retry",
+                idempotency_key="managed:first",
+            ),
+        ),
+    )
+    assert first_write.accepted
+    published, _result = store.publish_snapshot_generation(
+        first_snapshot, lambda: None
+    )
+    assert published
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 1
+
+    second_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second_snapshot)
+    second_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-2",
+        snapshot_generation=second_snapshot,
+    )
+    assert not second_cursor.materialized
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 1
+
+    second_write = store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=second_snapshot,
+        job_generation=second_cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=second_cursor.job_generation,
+                action="implementation_retry",
+                idempotency_key="managed:second",
+            ),
+        ),
+    )
+    assert second_write.accepted
+    assert store.schedule_cursor(
+        project_id=project_id, task_id=task_id
+    ).materialized
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 0
+
+
+def test_unowned_exhaustion_remains_current_health(store):
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="generation-1",
+            action="implementation_retry",
+            idempotency_key="direct:1",
+        )
+    )
+    running = claim(store)
+    assert running is not None
+    assert running.job_id == job.job_id
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    health = store.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 1
 
 
 def test_terminal_audit_lane_materialization_requires_exact_current_record(

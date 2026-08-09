@@ -5046,6 +5046,51 @@ class WorkflowJobStore:
                   FROM workflow_jobs GROUP BY state ORDER BY state
                 """
             ).fetchall()
+            # ``states`` is the immutable ledger-history projection, so an
+            # exhausted generation stays exhausted after a replacement owns
+            # the lane.  Rollout health needs the narrower actionable view:
+            # an exhausted row is current unless a durable authority cursor
+            # proves that another generation now owns its lane.  Unknown and
+            # legacy rows deliberately remain current (fail closed).
+            current_exhausted = self._conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                  FROM workflow_jobs job
+                 WHERE job.state = 'exhausted'
+                   AND NOT (
+                       (job.workflow_managed = 1 AND EXISTS (
+                           SELECT 1 FROM workflow_schedule_cursors cursor
+                            WHERE cursor.project_id = job.project_id
+                              AND cursor.task_id = job.task_id
+                              AND cursor.materialized_job_generation IS NOT NULL
+                              AND cursor.materialized_job_generation
+                                  != job.generation
+                       ))
+                       OR
+                       (job.workflow_managed = 0 AND EXISTS (
+                           SELECT 1 FROM workflow_event_cursors cursor
+                            WHERE cursor.project_id = job.project_id
+                              AND cursor.task_id = job.task_id
+                              AND cursor.event_namespace = job.scheduling_lane
+                              AND cursor.event_generation != job.generation
+                       ))
+                       OR
+                       (job.workflow_managed = 0 AND NOT EXISTS (
+                           SELECT 1 FROM workflow_event_cursors cursor
+                            WHERE cursor.project_id = job.project_id
+                              AND cursor.task_id = job.task_id
+                              AND cursor.event_namespace = job.scheduling_lane
+                       ) AND EXISTS (
+                           SELECT 1 FROM workflow_event_ordering ordering
+                            WHERE ordering.project_id = job.project_id
+                              AND ordering.task_id = job.task_id
+                              AND ordering.ordering_namespace
+                                  = job.scheduling_lane
+                              AND ordering.decision_revision != job.generation
+                       ))
+                   )
+                """
+            ).fetchone()
             phase_rows = self._conn.execute(
                 """
                 SELECT action, phase, COUNT(*) AS count
@@ -5136,6 +5181,11 @@ class WorkflowJobStore:
         return {
             "schema_version": self.schema_version,
             "states": {str(row["state"]): int(row["count"]) for row in state_rows},
+            "current_states": {
+                "exhausted": int(current_exhausted["count"] or 0)
+                if current_exhausted is not None
+                else 0,
+            },
             "phases": phases,
             "terminal_audit_phases": phases.get("terminal_audit", {}),
             "leases": {
