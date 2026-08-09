@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T14:08:58.066871Z'
+updated_at: '2026-08-09T14:09:16.687635Z'
 work_branch: null
 target_branch: null
 review_url: null
