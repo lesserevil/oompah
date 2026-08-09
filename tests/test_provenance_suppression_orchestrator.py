@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 import oompah.orchestrator as orchestrator_module
 from oompah.config import ServiceConfig
 from oompah.models import Issue
@@ -227,7 +229,10 @@ def test_workflow_terminal_audit_fact_projects_exact_retention_authority(tmp_pat
     }
 
 
-def test_workflow_terminal_audit_fact_projects_malformed_marker_fail_closed(tmp_path):
+@pytest.mark.parametrize("version", [99, True, 1.0])
+def test_workflow_terminal_audit_fact_projects_malformed_marker_fail_closed(
+    tmp_path, version: object
+):
     tracker = _MetadataTracker()
     issue = _issue("TASK-967", state="Done")
     tracker.issue_details[issue.identifier] = issue
@@ -235,7 +240,7 @@ def test_workflow_terminal_audit_fact_projects_malformed_marker_fail_closed(tmp_
     marker = tracker._metadata[issue.identifier][METADATA_KEY][  # noqa: SLF001
         PROVENANCE_SUPPRESSION_KEY
     ]
-    marker["version"] = 99
+    marker["version"] = version
     orch = _make_orchestrator(tmp_path, tracker)
 
     source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]

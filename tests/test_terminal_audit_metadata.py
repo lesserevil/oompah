@@ -26,6 +26,7 @@ from oompah.terminal_audit_metadata import (
     METADATA_KEY,
     MetadataQuarantine,
     TerminalAuditMetadata,
+    TerminalAuditMetadataError,
     TerminalAuditMetadataQuarantinedError,
     TerminalAuditMetadataStore,
 )
@@ -266,10 +267,13 @@ class TestTerminalAuditMetadataContract:
             f"attempt-{number}" for number in range(20)
         }
 
-    def test_malformed_document_is_quarantined_without_copying_secrets(self) -> None:
+    @pytest.mark.parametrize("version", ["bad", True, 1.0])
+    def test_malformed_document_is_quarantined_without_copying_secrets(
+        self, version: object
+    ) -> None:
         secret = "ghp_this_must_not_be_persisted"
         tracker = _MemoryTracker(
-            {METADATA_KEY: {"version": "bad", "model_response": secret}}
+            {METADATA_KEY: {"version": version, "model_response": secret}}
         )
         repository = TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1")
 
@@ -282,6 +286,19 @@ class TestTerminalAuditMetadataContract:
         assert tracker.set_calls == 1
         with pytest.raises(TerminalAuditMetadataQuarantinedError):
             repository.append_attempt("TASK-1", _attempt())
+
+    @pytest.mark.parametrize("version", [True, 1.0])
+    def test_quarantine_rejects_non_integer_version(self, version: object) -> None:
+        with pytest.raises(
+            TerminalAuditMetadataError, match="unsupported quarantine version"
+        ):
+            MetadataQuarantine.from_dict(
+                {
+                    "version": version,
+                    "fingerprint": "a" * 64,
+                    "reason": "malformed terminal-audit metadata",
+                }
+            )
 
     def test_malformed_document_is_quarantined_by_every_tracker_adapter(
         self, tracker_adapter

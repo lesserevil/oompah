@@ -92,7 +92,12 @@ class MetadataQuarantine:
     def from_dict(cls, raw: Mapping[str, Any]) -> "MetadataQuarantine":
         if not isinstance(raw, Mapping):
             raise TerminalAuditMetadataError("quarantine must be a mapping")
-        if raw.get("version") != METADATA_VERSION:
+        version = raw.get("version")
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version != METADATA_VERSION
+        ):
             raise TerminalAuditMetadataError("unsupported quarantine version")
         fingerprint = raw.get("fingerprint")
         reason = raw.get("reason")
@@ -155,7 +160,12 @@ class TerminalAuditMetadata:
 
         if not isinstance(raw, Mapping):
             raise TerminalAuditMetadataError("terminal-audit metadata must be a mapping")
-        if raw.get("version") != METADATA_VERSION:
+        version = raw.get("version")
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version != METADATA_VERSION
+        ):
             raise TerminalAuditMetadataError("unsupported terminal-audit metadata version")
 
         raw_chain = raw.get("pending_chain", [])
