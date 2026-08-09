@@ -1723,7 +1723,7 @@ def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):
                 "sleep 60",
                 expected_head_sha=head,
                 generation="liveness-generation",
-                is_current=current.is_set,
+                is_cancelled=lambda: not current.is_set(),
             )
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
@@ -1734,10 +1734,12 @@ def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):
             else:
                 raise AssertionError("liveness quality gate was not active")
 
+            cancelled_at = time.monotonic()
             current.clear()
             result = future.result(timeout=5)
 
         assert result.status == "interrupted"
+        assert time.monotonic() - cancelled_at < 2
         assert not (tmp_path / "quality.json").exists()
     finally:
         BranchQualityGate.cleanup_active_processes()
@@ -5812,8 +5814,8 @@ def test_orchestrator_discards_a_pass_when_the_branch_advances_during_gate(tmp_p
     tracker.add_comment.assert_not_called()
 
 
-def test_standalone_review_gate_receives_live_delivery_authority(tmp_path):
-    """Standalone gates re-read authority until their exact command finishes."""
+def test_standalone_review_gate_keeps_hot_polling_local_and_bounded(tmp_path):
+    """Hot polls do not multiply tracker, dependency, or remote-head reads."""
     repo = _git_repo(tmp_path)
     head = BranchQualityGate._head_sha(str(repo))
     project = Project(
@@ -5833,16 +5835,23 @@ def test_standalone_review_gate_receives_live_delivery_authority(tmp_path):
     )
     tracker = MagicMock()
     tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_all_issues.return_value = [issue]
     project_store = MagicMock()
     project_store.get.return_value = project
 
     class RecordingGate:
         def run(self, **kwargs):
             self.kwargs = kwargs
+            for _ in range(200):
+                assert not kwargs["is_cancelled"]()
+            # These are the three full BranchQualityGate barriers: before
+            # snapshot, before command spawn, and after a passing command.
+            assert [kwargs["is_current"]() for _ in range(3)] == [True] * 3
             return QualityGateResult(
                 status="passed",
                 head_sha=kwargs["expected_head_sha"],
                 command=kwargs["command"],
+                cached=True,
             )
 
     gate = RecordingGate()
@@ -5855,13 +5864,158 @@ def test_standalone_review_gate_receives_live_delivery_authority(tmp_path):
     orch._quality_gate_worktree = MagicMock(return_value=str(repo))
     orch._quality_gate_branch_head = MagicMock(return_value=head)
 
+    authority = orch._claim_standalone_delivery_authority(project, issue)
+    assert authority is not None
+    remote_head = MagicMock(return_value=head)
+    assert orch._set_standalone_delivery_head(
+        authority,
+        "work",
+        head,
+        remote_head,
+    )
+    tracker.reset_mock()
+    remote_head.reset_mock()
+
     assert orch._review_quality_gate_passes(project, issue, "work", "main")
     is_current = gate.kwargs["is_current"]
+    is_cancelled = gate.kwargs["is_cancelled"]
     assert callable(is_current)
+    assert callable(is_cancelled)
     assert is_current()
+    assert not is_cancelled()
+    # Four explicit full checks above plus the manual assertion here.  The
+    # 201 local polls do not add a single task/dependency/head read.
+    assert tracker.fetch_issue_detail.call_count == 5
+    assert tracker.fetch_all_issues.call_count == 5
+    assert remote_head.call_count == 5
 
     issue.state = OPEN
-    assert not is_current()
+    authority.revoked = True
+    before = (
+        tracker.fetch_issue_detail.call_count,
+        tracker.fetch_all_issues.call_count,
+        remote_head.call_count,
+    )
+    assert is_cancelled()
+    assert before == (
+        tracker.fetch_issue_detail.call_count,
+        tracker.fetch_all_issues.call_count,
+        remote_head.call_count,
+    )
+
+
+def test_capacity_wait_and_running_gate_keep_full_revalidation_o1(tmp_path):
+    """50/100ms liveness loops never call tracker/remote full barriers."""
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        poll_seconds=0.01,
+    )
+    blocker = lease.acquire(
+        ValidationLeaseOwner.auditor(
+            project_id="project-1",
+            task_id="audit-1",
+            authority_generation="audit-attempt-1",
+        )
+    )
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        validation_lease=lease,
+    )
+    local_calls = 0
+    tracker_reads = MagicMock()
+    remote_head_reads = MagicMock(return_value=head)
+
+    def locally_cancelled() -> bool:
+        nonlocal local_calls
+        local_calls += 1
+        return False
+
+    def fully_current() -> bool:
+        tracker_reads()
+        return remote_head_reads() == head
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 0.35",
+                expected_head_sha=head,
+                owner=QualityGateOwner(
+                    "project-1",
+                    "task-1",
+                    head,
+                    "delivery-1",
+                ),
+                is_current=fully_current,
+                is_cancelled=locally_cancelled,
+            )
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline and lease.status().waiter_count != 1:
+                time.sleep(0.01)
+            assert lease.status().waiter_count == 1
+            time.sleep(0.15)
+            assert tracker_reads.call_count == 0
+            assert remote_head_reads.call_count == 0
+
+            blocker.release()
+            result = future.result(timeout=5)
+
+        assert result.passed
+        assert tracker_reads.call_count == 3
+        assert remote_head_reads.call_count == 3
+        assert local_calls > tracker_reads.call_count
+    finally:
+        blocker.release()
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_workflow_authority_change_is_a_local_cancellation(tmp_path):
+    """A durable-workflow generation loss is prompt and needs no graph read."""
+
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(tmp_path),
+        default_branch="main",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        state=READY_TO_INTEGRATE,
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    workflow_current = [True]
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        issue,
+        workflow_generation="job-1:generation-1:lease-1",
+        workflow_authority_check=lambda: workflow_current[0],
+    )
+    assert authority is not None
+    assert orch._standalone_delivery_locally_authorized(authority)
+
+    workflow_current[0] = False
+
+    assert not orch._standalone_delivery_locally_authorized(authority)
+    tracker.fetch_issue_detail.assert_not_called()
+    tracker.fetch_all_issues.assert_not_called()
 
 
 def test_quality_gate_cleans_up_active_process_groups(tmp_path):

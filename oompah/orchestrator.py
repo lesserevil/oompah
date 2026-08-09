@@ -21663,18 +21663,8 @@ class Orchestrator:
         """Compare the current task evidence with a delivery authority claim."""
 
         with self._standalone_delivery_authority_lock:
-            key = (authority.project_id, authority.task_id)
-            if (
-                authority.revoked
-                or self._standalone_delivery_authorities.get(key) is not authority
-            ):
+            if not self._standalone_delivery_locally_authorized(authority):
                 return False
-            if authority.workflow_authority_check is not None:
-                try:
-                    if not authority.workflow_authority_check():
-                        return False
-                except Exception:
-                    return False
             if tracker is None:
                 try:
                     tracker = self._tracker_for_project(authority.project_id)
@@ -21732,6 +21722,33 @@ class Orchestrator:
                 if str(current_head or "") != authority.head_sha:
                     return False
             authority.issue = current
+            return True
+
+    def _standalone_delivery_locally_authorized(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> bool:
+        """Check exact in-memory/workflow authority without tracker or forge I/O.
+
+        This predicate is safe for validation-capacity and quality-gate hot
+        polling.  Full task, dependency, project, branch, and remote-head
+        checks remain in :meth:`_standalone_delivery_authorized` at external
+        effect boundaries.
+        """
+
+        with self._standalone_delivery_authority_lock:
+            key = (authority.project_id, authority.task_id)
+            if (
+                authority.revoked
+                or self._standalone_delivery_authorities.get(key) is not authority
+            ):
+                return False
+            if authority.workflow_authority_check is not None:
+                try:
+                    if not authority.workflow_authority_check():
+                        return False
+                except Exception:
+                    return False
             return True
 
     def _refresh_standalone_delivery_authority(
@@ -32006,14 +32023,23 @@ class Orchestrator:
                 require_source_head_match=source_requires_head_match,
                 generation=gate_generation,
                 owner=gate_owner,
-                # Re-read task state/head throughout snapshot creation and
-                # command execution.  A Ready-to-Open rejection must stop a
-                # standalone gate before its result can create a review.
+                # Full task/dependency/head CAS checks belong only at the
+                # deterministic execution barriers.  Tight capacity/process
+                # loops use the separate local predicate below so ordinary
+                # liveness never becomes tracker or forge polling.
                 is_current=(
                     (
                         lambda: self._standalone_delivery_authorized(
                             authority,
-                            refresh_dependencies=False,
+                        )
+                    )
+                    if authority is not None
+                    else None
+                ),
+                is_cancelled=(
+                    (
+                        lambda: not self._standalone_delivery_locally_authorized(
+                            authority
                         )
                     )
                     if authority is not None

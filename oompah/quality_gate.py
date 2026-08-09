@@ -4671,6 +4671,7 @@ class BranchQualityGate:
         generation: str | None = None,
         owner: QualityGateOwner | None = None,
         is_current: Callable[[], bool] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> QualityGateResult:
         """Return passing evidence or execute the configured full check.
 
@@ -4686,13 +4687,19 @@ class BranchQualityGate:
         ------------------
         Two deterministic checkpoints prevent stale gate spawns:
 
-        1. Before snapshot creation: checks tombstone + is_current.
-        2. After snapshot creation, before Popen: checks tombstone + is_current.
+        1. Before snapshot creation: checks tombstone + local cancellation +
+           full ``is_current`` revalidation.
+        2. After snapshot creation, before Popen: repeats those checks.
 
         A third barrier closes the Popen-to-registration window: after
         registering the process, the code re-checks the tombstone under the
         same lock and immediately kills+marks-interrupted any process that
         was cancelled between Popen and registration.
+
+        ``is_cancelled`` is the bounded, local predicate used in the 50/100ms
+        capacity and process-monitor loops.  ``is_current`` may perform full
+        tracker, dependency, and remote-head revalidation, so it is used only
+        at the deterministic external-execution barriers and after PASS.
         """
         command = str(command or "").strip()
         if not command:
@@ -4784,6 +4791,45 @@ class BranchQualityGate:
                     else None
                 ),
             )
+
+        def _local_authority_cancelled() -> bool:
+            """Return local cancellation without tracker or forge I/O."""
+
+            if (
+                owned_generation is not None
+                and self._generation_is_cancelled(
+                    owned_generation,
+                    owner_key,
+                )
+            ):
+                return True
+            if is_cancelled is None:
+                return False
+            try:
+                return bool(is_cancelled())
+            except Exception as exc:  # noqa: BLE001 - cancellation fails closed
+                logger.warning(
+                    "Quality gate local authority check failed: %s",
+                    exc,
+                )
+                return True
+
+        def _full_authority_is_current(*, boundary: str) -> bool:
+            """Run the local fence and optional expensive boundary CAS."""
+
+            if _local_authority_cancelled():
+                return False
+            if is_current is None:
+                return True
+            try:
+                return bool(is_current())
+            except Exception as exc:  # noqa: BLE001 - authority fails closed
+                logger.warning(
+                    "Quality gate %s authority check failed: %s",
+                    boundary,
+                    exc,
+                )
+                return False
 
         # Serialize only identical evidence keys. Different exact heads must
         # be able to run concurrently so a replacement generation never waits
@@ -4964,24 +5010,7 @@ class BranchQualityGate:
             )
 
             def _lease_wait_cancelled() -> bool:
-                if (
-                    owned_generation is not None
-                    and self._generation_is_cancelled(
-                        owned_generation,
-                        owner_key,
-                    )
-                ):
-                    return True
-                if is_current is None:
-                    return False
-                try:
-                    return not bool(is_current())
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "Quality gate lease authority check failed: %s",
-                        exc,
-                    )
-                    return True
+                return _local_authority_cancelled()
 
             try:
                 validation_handle = self.validation_lease.acquire(
@@ -5052,23 +5081,15 @@ class BranchQualityGate:
                             else "generation_cancellation"
                         ),
                     )
-                if is_current is not None:
-                    try:
-                        authority_ok = bool(is_current())
-                    except Exception as exc:  # noqa: BLE001
-                        authority_ok = False
-                        logger.warning(
-                            "Quality gate pre-spawn authority check failed: %s", exc
-                        )
-                    if not authority_ok:
-                        return _owned_result(
-                            status="interrupted",
-                            head_sha=head_sha,
-                            duration_seconds=time.monotonic() - started,
-                            output_tail="Gate authority withdrawn before snapshot creation.",
-                            interrupted=True,
-                            interruption_source="authority_withdrawn",
-                        )
+                if not _full_authority_is_current(boundary="pre-snapshot"):
+                    return _owned_result(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        duration_seconds=time.monotonic() - started,
+                        output_tail="Gate authority withdrawn before snapshot creation.",
+                        interrupted=True,
+                        interruption_source="authority_withdrawn",
+                    )
 
                 try:
                     snapshot = self._snapshot_candidate_worktree(
@@ -5104,23 +5125,15 @@ class BranchQualityGate:
                             else "generation_cancellation"
                         ),
                     )
-                if is_current is not None:
-                    try:
-                        authority_ok = bool(is_current())
-                    except Exception as exc:  # noqa: BLE001
-                        authority_ok = False
-                        logger.warning(
-                            "Quality gate pre-spawn authority check failed: %s", exc
-                        )
-                    if not authority_ok:
-                        return _owned_result(
-                            status="interrupted",
-                            head_sha=head_sha,
-                            duration_seconds=time.monotonic() - started,
-                            output_tail="Gate authority withdrawn after snapshot, before spawn.",
-                            interrupted=True,
-                            interruption_source="authority_withdrawn",
-                        )
+                if not _full_authority_is_current(boundary="pre-spawn"):
+                    return _owned_result(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        duration_seconds=time.monotonic() - started,
+                        output_tail="Gate authority withdrawn after snapshot, before spawn.",
+                        interrupted=True,
+                        interruption_source="authority_withdrawn",
+                    )
 
                 try:
                     sandbox_visible_environment = True
@@ -5230,18 +5243,10 @@ class BranchQualityGate:
                     except (ProcessLookupError, OSError):
                         pass
 
-                if is_current is not None:
+                if is_cancelled is not None:
                     def _monitor_gate_authority() -> None:
                         while not monitor_stop.wait(0.1):
-                            try:
-                                current = bool(is_current())
-                            except Exception as exc:  # noqa: BLE001
-                                logger.warning(
-                                    "Quality gate authority check failed: %s",
-                                    exc,
-                                )
-                                current = False
-                            if not current:
+                            if _local_authority_cancelled():
                                 if owned_owner is not None:
                                     self.cancel_owner(owned_owner)
                                 else:
@@ -5346,6 +5351,19 @@ class BranchQualityGate:
                         work_branch=work_branch,
                     )
                     return result
+                if not _full_authority_is_current(boundary="post-pass"):
+                    return _owned_result(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        duration_seconds=duration,
+                        output_tail=(
+                            output_tail
+                            or "Gate authority changed after the command passed."
+                        ),
+                        return_code=return_code,
+                        interrupted=True,
+                        interruption_source="authority_withdrawn",
+                    )
             except subprocess.TimeoutExpired as exc:
                 assert process is not None
                 try:
