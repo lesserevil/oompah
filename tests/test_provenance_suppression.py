@@ -280,9 +280,17 @@ class TestAuthorizeNewRevision:
         store = _store(tracker)
 
         outcome = authorize_new_revision(
-            store, "TASK-1", _owner(), "opening a follow-up"
+            store,
+            "TASK-1",
+            _owner(),
+            "opening a follow-up",
+            now="2026-08-07T08:00:00+00:00",
         )
         assert outcome.marker.authority_generation == 1
+        assert outcome.marker.actor == _owner()
+        assert outcome.marker.reason == "opening a follow-up"
+        assert outcome.marker.marked_at == "2026-08-07T08:00:00+00:00"
+        assert outcome.marker.updated_at == "2026-08-07T08:00:00+00:00"
 
     def test_mark_after_revision_reuses_new_generation(self) -> None:
         tracker = _MemoryTracker()

@@ -325,6 +325,38 @@ def test_workflow_terminal_audit_fact_projects_new_revision_as_present(tmp_path)
     }
 
 
+def test_workflow_terminal_audit_fact_projects_absent_to_new_revision(tmp_path):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    authorize_new_revision(
+        TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1"),
+        issue.identifier,
+        _owner(),
+        "Owner authorized a new revision without prior retention.",
+        now="2026-08-07T01:00:00+00:00",
+    )
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert fact["terminal_provenance"] == {
+        "schema_version": 1,
+        "marker_present": True,
+        "marker_version": 1,
+        "project_id": "proj-1",
+        "task_id": issue.identifier,
+        "retained": False,
+        "malformed": False,
+        "authority_generation": 1,
+        "authorized_by": "alice",
+        "actor_source": "github",
+        "marked_at": "2026-08-07T01:00:00+00:00",
+        "updated_at": "2026-08-07T01:00:00+00:00",
+    }
+
+
 @pytest.mark.parametrize("version", [99, True, 1.0])
 def test_workflow_terminal_audit_fact_projects_malformed_marker_fail_closed(
     tmp_path, version: object

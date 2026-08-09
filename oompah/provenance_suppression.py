@@ -666,7 +666,7 @@ def authorize_new_revision(
         base_generation = (
             existing.authority_generation if existing is not None else 0
         )
-        marked_at = existing.marked_at if existing is not None else ""
+        marked_at = existing.marked_at if existing is not None else recorded_at
         new_generation = int(base_generation) + 1
         entry = RevisionAuthorization(
             kind="revise",
@@ -679,12 +679,14 @@ def authorize_new_revision(
             version=MARKER_VERSION,
             suppressed=False,
             authority_generation=new_generation,
-            # Preserve the last owner actor of record for audit history so
-            # a downstream operator can see who originally marked the
-            # task provenance-only; the revising actor lives in `history`.
-            actor=existing.actor if existing is not None else None,
+            # Preserve the last retaining owner for an existing marker; when
+            # revision authority starts from absence, establish the revising
+            # owner as the marker's durable identity as well as in history.
+            actor=existing.actor if existing is not None else actor,
             reason=(
-                existing.reason if existing is not None else ""
+                existing.reason
+                if existing is not None
+                else _truncate_reason(reason)
             ),
             marked_at=marked_at,
             updated_at=recorded_at,

@@ -3552,6 +3552,7 @@ def test_runtime_retires_exhausted_landing_refresh_for_retained_provenance(
         ("absent_unchanged", False),
         ("absent_to_retained", False),
         ("revision_unchanged", False),
+        ("absent_revision_unchanged", False),
     ),
 )
 def test_production_provenance_publication_is_exact(
@@ -3662,7 +3663,7 @@ def test_production_provenance_publication_is_exact(
             "Retain completed work as historical provenance.",
             now="2026-08-09T00:00:00+00:00",
         )
-    if authority_change == "revision_unchanged":
+    if authority_change in {"revision_unchanged", "absent_revision_unchanged"}:
         authorize_new_revision(
             metadata,
             task_id,
@@ -3750,7 +3751,10 @@ def test_production_provenance_publication_is_exact(
             assert provenance["marker_present"] is False
             assert provenance["retained"] is False
             assert provenance["authority_generation"] == 0
-        elif authority_change == "revision_unchanged":
+        elif authority_change in {
+            "revision_unchanged",
+            "absent_revision_unchanged",
+        }:
             assert provenance["marker_present"] is True
             assert provenance["retained"] is False
             assert provenance["authority_generation"] == 1
