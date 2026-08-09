@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:05:12.086853Z'
+updated_at: '2026-08-09T20:24:54.522248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-09 20:04
 ---
 Accepted for direct-owner repair during the aggressive branch/worktree pruning completion pass; reproduced locally and restored the current CLI only by invalidating the stale setup stamp.
+---
+author: oompah
+created: 2026-08-09 20:24
+---
+Implementation complete at exact rebased head 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e on main a7c418ee4. Setup now validates the private venv and isolated editable source even with a fresh stamp, refreshes stale worktree targets, preserves the correct-install fast path, and fails before stamp mutation when uv partially updates metadata then exits nonzero. Evidence: 46 focused setup/lifecycle tests, real first-run and repeated idempotent make setup/test-setup, secret scan, diff check, and independent review. Review found and the final commit closed the partial-installer fail-open; narrow re-review passed 3 nodes and full setup module passed 18 with no remaining blocker.
 ---
 <!-- COMMENTS:END -->
