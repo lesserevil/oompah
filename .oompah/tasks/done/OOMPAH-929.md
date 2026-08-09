@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-929
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Rearm superseded durable events on newer source generations
 parent: OOMPAH-763
@@ -12,13 +12,35 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T02:47:20.781959Z'
-updated_at: '2026-08-09T03:12:10.317056Z'
+updated_at: '2026-08-09T05:16:10.157201Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-45980c0f6efa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-929
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e28cd322efcb2977c5a85e93bc41b04ec509fcf87fe930d854f476eacc78569d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:16:05.914276+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -41,5 +63,10 @@ author: oompah
 created: 2026-08-09 03:12
 ---
 Fix committed and pushed at fba45f07e. The 177-test affected matrix passes. Exact gate then exposed a separate reproducible live-project test-fixture isolation defect, filed as OOMPAH-930; release remains paused until that fixture defect is corrected and the exact gate passes.
+---
+author: oompah
+created: 2026-08-09 05:16
+---
+Completed by direct project owner. Durable event reactivation fix fba45f07e is included in rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e. Exact full gate passed (18,874 passed, 7 skipped, 2 xfailed); all domains are live in enforce; the replacement generation is authoritative and current durable exhaustion is zero.
 ---
 <!-- COMMENTS:END -->
