@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-899
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Make lifecycle startup timeout safe for late listeners
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-08T07:39:39.365933Z'
+updated_at: '2026-08-09T05:10:14.443027Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
@@ -107,6 +107,28 @@ oompah.integration:
   submitted_at: '2026-08-07T18:19:59.644291+00:00'
   updated_at: '2026-08-07T18:19:59.644291+00:00'
 oompah.work_branch: OOMPAH-899
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-303e3fc14ddd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-899
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cdc815bced2a37f04ea50bc657d6aec1b2063b5ecae88dad5d5750d4d6eef924
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:10:10.623461+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -377,5 +399,10 @@ author: oompah
 created: 2026-08-08 07:39
 ---
 Direct composition checkpoint: the identity-safe configurable listener-startup timeout repair is integrated in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Combined affected validation passed 1076 tests, terminal-mutation and secret scans passed, and the exact full make test gate is currently running clean. The task will be terminalized only after that exact head publishes.
+---
+author: oompah
+created: 2026-08-09 05:10
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
