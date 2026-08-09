@@ -4676,16 +4676,16 @@ class WorkflowJobStore:
         Expired lease recovery remains exclusive to :meth:`claim_next`.
         """
 
-        timestamp = float(self._clock() if now is None else now)
-        clauses, values, _project_ids, _actions = self._claim_candidate_filter(
-            project_id=project_id,
-            project_ids=project_ids,
-            task_id=task_id,
-            generation=generation,
-            actions=actions,
-            now=timestamp,
-        )
         with self._lock:
+            timestamp = float(self._clock() if now is None else now)
+            clauses, values, _project_ids, _actions = self._claim_candidate_filter(
+                project_id=project_id,
+                project_ids=project_ids,
+                task_id=task_id,
+                generation=generation,
+                actions=actions,
+                now=timestamp,
+            )
             row = self._conn.execute(
                 f"""
                 SELECT 1 FROM workflow_jobs candidate

@@ -1484,6 +1484,42 @@ def test_claimable_probe_shares_exact_claim_eligibility_without_mutation(store, 
     assert clock.now == 1000.0
 
 
+def test_delayed_claimable_probe_uses_post_lock_time_for_retry_eligibility(
+    store, clock
+):
+    store.enqueue(spec(action="review_refresh"))
+    running = claim(store, actions=("review_refresh",))
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="retry",
+        retryable=True,
+        retry_delay_seconds=10,
+    )
+    probe_started = threading.Event()
+
+    def delayed_probe():
+        probe_started.set()
+        return store.has_claimable(actions=("review_refresh",))
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    store._lock.acquire()  # noqa: SLF001 - deliberate lock-wait regression
+    try:
+        future = pool.submit(delayed_probe)
+        assert probe_started.wait(timeout=2)
+        clock.advance(20)
+    finally:
+        store._lock.release()  # noqa: SLF001
+    try:
+        assert future.result(timeout=2) is True
+    finally:
+        pool.shutdown(wait=True)
+
+    assert store.get(running.job_id).state is WorkflowJobState.RETRY_WAIT
+    assert store.get(running.job_id).attempts == 1
+
+
 def test_claim_filters_allowed_projects_with_durable_fair_rotation(store):
     project_a_first = store.enqueue(
         spec("a-1", project="project-a", task="A-1")
