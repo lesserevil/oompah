@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shlex
 import subprocess
+import venv
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +15,37 @@ MAKEFILE = ROOT / "Makefile"
 
 def _makefile_text() -> str:
     return MAKEFILE.read_text(encoding="utf-8")
+
+
+def _editable_test_venv(tmp_path: Path, editable_checkout: Path) -> tuple[Path, Path]:
+    """Create a small real venv whose oompah import comes from one checkout."""
+    runtime = tmp_path / ".venv"
+    venv.EnvBuilder(with_pip=False).create(runtime)
+    result = subprocess.run(
+        [
+            str(runtime / "bin" / "python"),
+            "-c",
+            "import site; print(site.getsitepackages()[0])",
+        ],
+        cwd=runtime,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    editable_path = Path(result.stdout.strip()) / "_editable_impl_oompah.pth"
+    editable_path.write_text(f"{editable_checkout}\n", encoding="utf-8")
+    (runtime / ".uv-setup").touch()
+    return runtime, editable_path
+
+
+def _non_gate_environment(fake_bin: Path) -> dict[str, str]:
+    environment = os.environ.copy()
+    environment["OOMPAH_PYTEST_GATE"] = "0"
+    environment["PATH"] = f"{fake_bin}:/usr/bin:/bin"
+    # Setup must inspect the installed editable path, not import the invoking
+    # checkout just because an operator happens to expose it through PYTHONPATH.
+    environment["PYTHONPATH"] = str(ROOT)
+    return environment
 
 
 def test_setup_installs_server_dependencies_only():
@@ -187,6 +220,78 @@ def test_non_gate_test_setup_still_installs_declared_dependencies():
     assert "uv pip install --python \".venv/bin/python\" -e '.[dev]'" in result.stdout
 
 
+def test_setup_refreshes_a_fresh_stamp_with_a_stale_editable_checkout(tmp_path):
+    """A current sentinel must not preserve an install from another worktree."""
+    stale_checkout = tmp_path / "retired-worktree"
+    stale_package = stale_checkout / "oompah"
+    stale_package.mkdir(parents=True)
+    (stale_package / "__init__.py").write_text("", encoding="utf-8")
+    runtime, editable_path = _editable_test_venv(tmp_path, stale_checkout)
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n"
+        f"printf '%s\\n' {shlex.quote(str(ROOT))} > "
+        f"{shlex.quote(str(editable_path))}\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            f"VENV={runtime}",
+            "setup",
+        ],
+        cwd=ROOT,
+        env=_non_gate_environment(fake_bin),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert uv_called.exists(), "the stale editable install was not refreshed"
+    assert editable_path.read_text(encoding="utf-8").strip() == str(ROOT)
+
+
+def test_setup_keeps_a_fresh_correct_editable_checkout_idempotent(tmp_path):
+    """The normal current install takes the fast path without invoking uv."""
+    runtime, _editable_path = _editable_test_venv(tmp_path, ROOT)
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n"
+        "exit 91\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            f"VENV={runtime}",
+            "setup",
+        ],
+        cwd=ROOT,
+        env=_non_gate_environment(fake_bin),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not uv_called.exists(), "an already-correct editable install reran uv"
+
+
 def test_non_gate_setup_rejects_a_thin_venv_wrapper_before_uv(tmp_path):
     """A task checkout cannot use a wrapper that points at the service venv."""
     venv = tmp_path / ".venv"
@@ -197,6 +302,7 @@ def test_non_gate_setup_rejects_a_thin_venv_wrapper_before_uv(tmp_path):
         encoding="utf-8",
     )
     python.chmod(0o755)
+    (venv / ".uv-setup").touch()
 
     fake_uv = tmp_path / "uv"
     fake_uv.write_text(
@@ -215,7 +321,6 @@ def test_non_gate_setup_rejects_a_thin_venv_wrapper_before_uv(tmp_path):
         [
             "/usr/bin/make",
             "--no-print-directory",
-            "--always-make",
             f"VENV={venv}",
             "setup",
         ],
@@ -235,6 +340,7 @@ def test_non_gate_setup_rejects_a_symlinked_service_venv_before_uv(tmp_path):
     service_venv = tmp_path / "service" / ".venv"
     service_venv.mkdir(parents=True)
     (service_venv / "pyvenv.cfg").write_text("home = /operator/python\n", encoding="utf-8")
+    (service_venv / ".uv-setup").touch()
     worktree_venv = tmp_path / "worktree" / ".venv"
     worktree_venv.parent.mkdir()
     worktree_venv.symlink_to(service_venv, target_is_directory=True)
@@ -255,7 +361,6 @@ def test_non_gate_setup_rejects_a_symlinked_service_venv_before_uv(tmp_path):
         [
             "/usr/bin/make",
             "--no-print-directory",
-            "--always-make",
             f"VENV={worktree_venv}",
             "setup",
         ],
@@ -268,6 +373,49 @@ def test_non_gate_setup_rejects_a_symlinked_service_venv_before_uv(tmp_path):
     assert result.returncode != 0
     assert "not a real task-private virtualenv" in result.stderr
     assert not (tmp_path / "uv-used").exists()
+
+
+def test_fresh_setup_stamp_cannot_mask_a_non_private_interpreter(tmp_path):
+    """The interpreter-prefix guard still runs on the idempotent setup path."""
+    runtime = tmp_path / ".venv"
+    python = runtime / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    (runtime / "pyvenv.cfg").write_text("home = /operator/python\n", encoding="utf-8")
+    (runtime / ".uv-setup").touch()
+    python.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' /operator/service/.venv\n",
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            f"VENV={runtime}",
+            "setup",
+        ],
+        cwd=ROOT,
+        env=_non_gate_environment(fake_bin),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "interpreter resolves to /operator/service/.venv" in result.stderr
+    assert not uv_called.exists()
 
 
 def test_setup_does_not_install_external_tracker_cli():
