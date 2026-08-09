@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T17:17:49.604406Z'
+updated_at: '2026-08-09T17:18:09.139609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,7 +52,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T17:17:43.168221+00:00'
     selected_ref: origin/OOMPAH-964
     selected_sha: 21861cac88967f1b7b1fb171c8bb78ded3fd346c
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-964
+    target_state: Done
+    evidence_fingerprint: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+    audit_ids:
+    - audit-3b82473e5c6a
+    - audit-2ed0e89f0435
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T17:17:59.387203+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -60,7 +72,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-964
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -75,12 +87,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T17:16:34.821342+00:00'
     selected_ref: origin/OOMPAH-964
     selected_sha: 21861cac88967f1b7b1fb171c8bb78ded3fd346c
+    updated_at: '2026-08-09T17:17:59.387153+00:00'
   - version: 1
     audit_id: audit-2ed0e89f0435
     project_id: proj-14849f1b
     task_id: OOMPAH-964
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -95,6 +108,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T17:16:34.821342+00:00'
     selected_ref: origin/OOMPAH-964
     selected_sha: 21861cac88967f1b7b1fb171c8bb78ded3fd346c
+    updated_at: '2026-08-09T17:17:59.387185+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -154,5 +168,17 @@ author: oompah
 created: 2026-08-09 17:16
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 17:17
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner completion after independent review and exact hosted CI on Python 3.11, 3.12, and 3.13.
+---
+author: oompah
+created: 2026-08-09 17:18
+---
+Merged PR #773 at 6b1b637ffff77e24cecbfdd762fd27a82cc30475. Exact review head 21861cac88967f1b7b1fb171c8bb78ded3fd346c passed independent no-blocker review and hosted CI run 31324630032 on Python 3.11/3.12/3.13; merged tree is identical to the qualified head.
 ---
 <!-- COMMENTS:END -->
