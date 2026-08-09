@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-947
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Bound terminal-audit lane cost beyond candidate count
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T09:38:30.732911Z'
+updated_at: '2026-08-09T09:38:44.858827Z'
 work_branch: null
 target_branch: null
 review_url: null
