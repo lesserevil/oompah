@@ -12,13 +12,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:46:56.941856Z'
-updated_at: '2026-08-08T17:18:12.370903Z'
+updated_at: '2026-08-09T05:12:16.250475Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-32899455930a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-922
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d04692c9b63c05fafd79305c57588484776465ff8c88786626a6ac4ce976157f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:12:14.583577+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -75,5 +97,10 @@ author: oompah
 created: 2026-08-08 17:18
 ---
 Review hardening amended the fix to 7a4a5a3c0f912e24a00a55346af39ce7ca99213a (superseding 8a0b6948a). Expected policy REJECTED outcomes are now explicitly allowlisted for INFO/409; ambiguous terminal-stage and future operational rejections remain ERROR/500 so error_watcher still catches genuine backend failures. Focused suite: 28 passed; safety scans passed. Restarting the exact full gate on this head.
+---
+author: oompah
+created: 2026-08-09 05:12
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
