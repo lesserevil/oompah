@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T16:28:12.793365Z'
+updated_at: '2026-08-09T17:44:25.730872Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,6 +70,22 @@ oompah.terminal_audit:
       failure_classification: scheduler_pause
       ended_at: '2026-08-09T16:28:03.277838+00:00'
       failure_reason: operator pause interrupted auditor before verdict
+    - version: 1
+      attempt_id: attempt-e32fa435be1c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+      created_at: '2026-08-09T17:44:16.791279+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T17:44:16.791279+00:00'
+      branch_key: OOMPAH-940
+      selected_ref: origin/epic-OOMPAH-940
+      selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -79,7 +95,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:59:06.485551+00:00'
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-    updated_at: '2026-08-09T16:28:03.277838+00:00'
+    updated_at: '2026-08-09T17:44:16.791279+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-55037e98b910
@@ -99,6 +115,22 @@ oompah.terminal_audit:
     failure_classification: scheduler_pause
     ended_at: '2026-08-09T16:28:03.277838+00:00'
     failure_reason: operator pause interrupted auditor before verdict
+  - version: 1
+    attempt_id: attempt-e32fa435be1c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    created_at: '2026-08-09T17:44:16.791279+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T17:44:16.791279+00:00'
+    branch_key: OOMPAH-940
+    selected_ref: origin/epic-OOMPAH-940
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 142
   total_output_tokens: 31
@@ -172,5 +204,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 43s
 - Log: OOMPAH-940__20260809T161737Z.jsonl
+---
+author: oompah
+created: 2026-08-09 17:44
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 17:44
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
