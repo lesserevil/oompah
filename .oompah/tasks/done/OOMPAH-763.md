@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-763
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Build a unified, durable, live workflow engine
 parent: null
@@ -91,13 +91,35 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-09T04:24:03.867107Z'
+updated_at: '2026-08-09T05:17:32.718642Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-71aaab355b50
+    project_id: proj-14849f1b
+    task_id: OOMPAH-763
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8f30f7e01d48c8701f6debe5b1115a245e38122796506c02741affcf247ca36d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after all children/companions completed,
+      exact-head full gate passed, and live all-enforce verification.
+    created_at: '2026-08-09T05:17:28.523677+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -180,5 +202,10 @@ author: oompah
 created: 2026-08-08 12:56
 ---
 Systemic composition advanced to b80e632fcb55658d37aa267bc7fa71ef0f044991 with OOMPAH-909 resource-leak/deadlock repair. All 27 non-terminal tasks remain directly owned through 2026-08-10 with no dependency cycle or expired claim. Exact full gate OOMPAH-763-full-b80e632 is now running; publish/deploy and dependency-safe closeout follow on green.
+---
+author: oompah
+created: 2026-08-09 05:17
+---
+Systemic workflow program completed by direct project owner on rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e. Every child is terminal; all 14 parent-null systemic companion tasks were explicitly completed; focused and race suites passed; exact full gate passed (18,874 passed, 7 skipped, 2 xfailed); exact build is live with all implementation/review/integration/epic domains in enforce mode; terminal-audit backlog is zero; global actionable alerts are zero; raw exhausted history is retained while current exhausted=0; expired leases=0. Final liveness/canary convergence will be recorded after this terminal rollup publication.
 ---
 <!-- COMMENTS:END -->
