@@ -2208,7 +2208,21 @@ class EpicWorkflowEventRouter:
             controller.schedule_action(**schedule_kwargs)
             created = True
         binding.epic_controller.scheduler.wake(source)
-        self.orchestrator.request_refresh()
+        request_admission = getattr(
+            self.orchestrator,
+            "_request_workflow_batch_continuation",
+            None,
+        )
+        if callable(request_admission):
+            # This router has already performed the targeted fact collection
+            # and durably scheduled the exact epic job.  Waking an ordinary
+            # reconciliation here would turn transition UI notifications back
+            # into full world scans; admit from the published cut instead.
+            request_admission(reason=f"epic_workflow_event:{source}")
+        else:
+            # Compatibility for narrow adapter fixtures without a production
+            # orchestrator event-intake owner.
+            self.orchestrator.request_refresh()
         return created
 
     @staticmethod

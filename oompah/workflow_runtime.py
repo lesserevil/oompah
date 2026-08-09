@@ -1246,7 +1246,14 @@ class WorkflowRuntime:
                     "change": "durable-workflow-transition-applied",
                 },
             )
-            orchestrator.request_refresh()
+            # A committed transition is already part of the exact published
+            # workflow cut.  Preserve its UI notification while keeping the
+            # scheduler wake on the admission-only lane; the paired effect
+            # completion callback then coalesces onto this same event key
+            # instead of contaminating the burst with an ordinary world scan.
+            orchestrator._request_workflow_batch_continuation(
+                reason="workflow_transition_applied"
+            )
 
         def effect_completion_observer(result: Any) -> None:
             # Completion is the replenishment edge for detached execution.
