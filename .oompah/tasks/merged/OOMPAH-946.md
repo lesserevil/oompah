@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T14:03:08.714589Z'
+updated_at: '2026-08-09T14:03:15.481786Z'
 work_branch: OOMPAH-946
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/758
@@ -91,8 +91,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-5b710ff06745
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-09T14:03:04.457689+00:00'
+    applied_at: '2026-08-09T14:03:13.084112+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -294,5 +295,21 @@ author: oompah
 created: 2026-08-09 13:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 14:03
+---
+Audit PASS — Merged
+
+Completion audit PASS: Commit 8e2527b74 resolves detached descendant PID race via readiness handshake (inner bash publishes BASHPID after setsid), exact-generation fencing (_process_start_ticks), and exact-generation cleanup (_terminate_supervised_process_group). Test and production code verified. Authoritative make test gate passed. All requirements met without relaxing native capacity invariants.
+
+Safe evidence:
+- test_implementation: test_detached_heavy_descendant_retains_native_capacity_until_exit implements readiness handshake (for _attempt in {1..500}) with documented invariants
+- handshake_mechanism: Inner bash publishes $BASHPID only after setsid creates detached session, wrapper polls readiness
+- generation_fencing: _process_start_ticks captures exact process startup ticks for PID reuse prevention
+- cleanup_mechanism: _terminate_supervised_process_group uses exact-generation termination (peer_pid + peer_start_ticks)
+- invariants_maintained: No sleep-based replacement, native capacity fence preserved, process survives parent exit until exact generation terminates
+- gate_result: Authoritative make test passed 8e2527b74e958127861621fdbcebb627d0929e24 in 159.3s
+- previous_audit: Attempt #1 gave Audit PASS with same fingerprint
 ---
 <!-- COMMENTS:END -->
