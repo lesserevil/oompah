@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T09:34:14.187526Z'
+updated_at: '2026-08-09T09:54:08.391730Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-08-09 09:32
 ---
 Backfilled and persisted exact terminal-parent heads with fail-closed legacy authority selection; 153 focused tests pass.
+---
+author: oompah
+created: 2026-08-09 09:54
+---
+Independent review found and fixed a source-authority gap before integration: exact terminal-audit parent backfill now requires the persisted audit binding to match the parent source branch (or an equal immutable revision), and malformed or wrong-ref authority blocks lower-priority fallback. Added a wrong-source fail-closed regression. Verification: 154 integration/runtime tests passed; mutation and secret scans passed.
 ---
 <!-- COMMENTS:END -->
