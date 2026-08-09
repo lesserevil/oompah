@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:14.654158Z'
-updated_at: '2026-08-09T14:37:30.729574Z'
+updated_at: '2026-08-09T14:59:38.679168Z'
 work_branch: OOMPAH-960
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-08-09 14:37
 ---
 Implemented parent-scoped canonical child landing consumption with fail-closed current containment, project, source, route, revision, ambiguity, and current-target-history validation. Parent evidence remains parent-owned and survives restart. Pushed b3053aab9216b2a1ca79dba786506743074de15a; 113 integration workflow tests and 91 epic workflow tests passed, plus terminal mutation and secret scans.
+---
+author: oompah
+created: 2026-08-09 14:59
+---
+Independent exact-head review found and corrected a >1000-parent-fact starvation boundary: the resolver now uses an indexed exact source/target durable fact query instead of a lexically truncated all-pairs scan, while retaining fail-closed foreign, corrupt, and ambiguous evidence handling. Added a 1000-earlier-distractor regression. Pushed b9db677d1c4736a9c976c9a4ae3f8be33a9c071b. Validation: 10 focused parent-scope tests passed; integration + workflow store suites 193 passed; task-status mutation and secret scans passed. Hosted exact-head checks will rerun on PR #768.
 ---
 <!-- COMMENTS:END -->
