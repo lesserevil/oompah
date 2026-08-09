@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-972
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Repair stale editable installs after worktree retirement
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:28:28.843212Z'
+updated_at: '2026-08-09T20:31:57.484291Z'
 work_branch: OOMPAH-972
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/780
