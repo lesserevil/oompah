@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T09:43:19.430854Z'
+updated_at: '2026-08-09T09:44:02.025439Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-09 09:44
+---
+Implementation complete on pushed branch OOMPAH-943 at b30a2880d. PR #753 is open with squash auto-merge enabled. Local verification: 298 focused workflow/integration tests and 39 epic-workflow tests passed; Ruff, terminal task-status mutation scan, and secret scan passed. The atomic completion boundary now persists durable landing facts, rejects stale authority/evidence, retries persistence failures, replays idempotently, and feeds proof into the next fact cut.
 ---
 <!-- COMMENTS:END -->
