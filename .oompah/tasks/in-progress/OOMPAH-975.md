@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:20:52.847789Z'
+updated_at: '2026-08-09T21:22:58.276058Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-09 21:17
 ---
 The live affected set expanded deterministically from four to six as the generation-852 queue drained: OOMPAH-889 and OOMPAH-894 have the same terminal.immediate_target_landing_proven shape, exact landing revision 33f85955b3c1285987253c2ff17b31f574c6d12f into epic-OOMPAH-763, empty task branch/head, and null-head transition rejection. They were also retained through terminal-provenance authority; implementation remains terminal. Regression coverage and natural supersession must include all six rows.
+---
+author: oompah
+created: 2026-08-09 21:22
+---
+Implementation started in isolated worktree /home/shedwards/src/oompah-975 on branch OOMPAH-975 at base 312c18ae3. Confirmed six current exhausted parent_rollup_review jobs (OOMPAH-787, -794, -797, -798, -889, -894) all lose trusted composed landing revision 33f85955... before TransitionIntent. Fix will fence source/target/evidence at revalidation, carry the exact landing SHA through transition and terminal-audit binding, preserve standalone exact-head requirements, and cover natural current-exhaustion retirement/restart replay.
 ---
 <!-- COMMENTS:END -->
