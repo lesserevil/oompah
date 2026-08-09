@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T11:28:52.468684Z'
+updated_at: '2026-08-09T11:33:20.594372Z'
 work_branch: OOMPAH-948
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ FAILED tests/test_terminal_audit_workspace_recovery.py::test_restarted_legacy_bi
 
 make: *** [Makefile:428: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-09 11:33
+---
+Reproduced the complete-gate failure deterministically: OOMPAH-948 made maintenance cursor updates transactional under _state_io_lock, while two terminal-audit test harnesses bypass Orchestrator.__init__ and did not model that production invariant. This is fixture construction drift, not cleanup state contamination or a terminal-audit product interaction. Updated both partial harnesses to supply the service-state transaction lock; all 55 previously affected terminal-audit durable-finalization/workspace-recovery tests now pass. Running the cleanup-focused suites and complete Makefile gate next.
 ---
 <!-- COMMENTS:END -->
