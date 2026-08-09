@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T10:15:21.815634Z'
-work_branch: null
+updated_at: '2026-08-09T10:16:14.803827Z'
+work_branch: OOMPAH-947
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-947
+  head_sha: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
+  submitted_at: '2026-08-09T10:16:03.848211+00:00'
+  updated_at: '2026-08-09T10:16:03.848211+00:00'
+oompah.work_branch: OOMPAH-947
 ---
 ## Summary
 
@@ -35,5 +45,10 @@ author: oompah
 created: 2026-08-09 10:15
 ---
 Implemented bounded terminal-audit slicing: project-fair durable cursor rotation, configurable candidate-operation and runtime budgets, time-bounded read-only preparation, per-lane selector authority caching, coalesced continuation, and cross-slice truthful health completion while finalizations and fenced mutations retain exact ownership. Focused validation is green: 314 audit/config/orchestrator tests passed; the wider audit caller suite previously passed 636 tests with one pre-existing AsyncMock warning. Preparing the exact reviewed head for submission.
+---
+author: oompah
+created: 2026-08-09 10:16
+---
+Bound terminal-audit lane cost with project-fair durable cursor slicing, 8-operation/15-second configurable budgets, time-bounded read-only preparation, per-lane selector authority caching, coalesced continuations, and truthful cross-slice health convergence. Finalizations and fenced mutations remain prompt and uncancelled. Validation: 314 focused audit/config/restart tests passed; wider audit caller suite 636 passed with one pre-existing AsyncMock warning.
 ---
 <!-- COMMENTS:END -->
