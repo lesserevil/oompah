@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-08-03T20:03:53.913865Z'
+updated_at: '2026-08-09T20:12:44.566105Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -176,6 +176,28 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-2d6e05e1f142
     created_at: '2026-08-03T20:03:51.509520+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-600 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:12:43.004697+00:00'
+    updated_at: '2026-08-09T20:12:43.004697+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-600 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:12:43.004697+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -212,6 +234,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T03:39:04.782110+00:00'
     updated_at: '2026-07-31T03:42:36.342944+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-62ab5d8ea002
