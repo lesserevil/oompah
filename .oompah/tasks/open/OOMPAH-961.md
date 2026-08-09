@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T16:03:35.116592Z'
+updated_at: '2026-08-09T17:32:39.985070Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -93,5 +93,10 @@ author: oompah
 created: 2026-08-09 16:03
 ---
 Final exact head 2d693d7b17df91cb6fe781fa47451a72638bc4e2 fixes rollback-vs-explicit-rearm ABA with append-only event-sequence fencing. Independent re-review found no blockers: capture/rearm/rollback/fresh exhaustion remains actionable; all prior proof-shape/durable-cut cases and OOMPAH-960 composition pass. 443 affected review tests and 607 author tests passed. Hosted 3.13 failed only the unrelated loaded delivery-test race now corrected by OOMPAH-957 PR #772; compose after that merge.
+---
+author: oompah
+created: 2026-08-09 17:32
+---
+Final no-rewrite composition pushed at exact head c5644a86a4ccd9e223f298ae8b6b50262340217a on PR #769, with exact combined OOMPAH-962 parent dd2e18fc263f16717a7b31802968f235a4401525 and landed OOMPAH-964/O965 main. Retirement proofs, quarantine restore fencing, callback settlement, and publication-supersession regressions are all present. Validation: 22 focused workflow tests, 269 intake/webhook tests, 1,193 combined tests, critical Ruff/compile, terminal mutation, secret, and diff checks pass. Hosted exact matrix and independent final composition review are running in parallel with PR #770.
 ---
 <!-- COMMENTS:END -->
