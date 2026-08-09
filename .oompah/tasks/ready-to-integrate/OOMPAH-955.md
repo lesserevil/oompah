@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T12:18:22.099507Z'
+updated_at: '2026-08-09T12:18:32.981008Z'
 work_branch: OOMPAH-955
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-955
   base_branch: epic-OOMPAH-940
   base_sha: 41a158291ad932b232e9ebc4dcff5b0357d9f57b
-  head_sha: 5bb0803b396d0cd7d7cd5837c31d05742e99aba0
-  submitted_at: '2026-08-09T12:06:55.916677+00:00'
-  updated_at: '2026-08-09T12:06:55.916677+00:00'
+  head_sha: fc1c8dc993964b34fbd60a008654fa8ca315b54f
+  submitted_at: '2026-08-09T12:18:24.209775+00:00'
+  updated_at: '2026-08-09T12:18:24.209775+00:00'
 oompah.work_branch: OOMPAH-955
 ---
 ## Summary
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-08-09 12:18
 ---
 Addressed independent-review blocker in fc1c8dc993964b34fbd60a008654fa8ca315b54f: a runtime-owned async admission critical section now spans capacity observation, awaited exact claims, and retained-task publication, so overlapping reconcile_async/_run_due callers cannot spend the same reserved/shared slot. Added a deterministic two-caller race regression that suspends the first claim at the former gap and proves control=1, shared=3, total=4. Verification: 318 focused tests passed; task-status mutation scan, secret scan, and git diff --check passed. Branch pushed clean/up-to-date; no restart.
+---
+author: oompah
+created: 2026-08-09 12:18
+---
+Review blocker fixed: workflow effect admission is serialized across async claims, with deterministic concurrent-call bound coverage. Review-ready head fc1c8dc993964b34fbd60a008654fa8ca315b54f pushed.
 ---
 <!-- COMMENTS:END -->
