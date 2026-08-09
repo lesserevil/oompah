@@ -15,7 +15,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from oompah.epic_workflow import EpicFactCollector, EpicWorkflowController
-from oompah.implementation_workflow import ImplementationWorkflowController
+from oompah.implementation_workflow import (
+    ImplementationAction,
+    ImplementationWorkflowController,
+)
 from oompah.integration import IntegrationRecord
 from oompah.integration_workflow import (
     INTEGRATION_ACTIONS,
@@ -44,6 +47,7 @@ from oompah.terminal_audit_workflow import TerminalAuditWorkflow
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
 from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_jobs import (
+    ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
     WorkflowJobSpec,
     WorkflowJobState,
@@ -1256,6 +1260,96 @@ def test_runtime_liveness_fails_closed_for_unmaterialized_owner_recovery(tmp_pat
     assert not health.reconciliation_complete
     assert health.required_recovery_count == 1
     assert health.materialized_recovery_count == 0
+
+    runtime.reconcile()
+    recovered = controller.liveness_snapshot()
+    assert recovered.scan_complete
+    assert recovered.reconciliation_complete
+    assert recovered.required_recovery_count == 1
+    assert recovered.materialized_recovery_count == 1
+    runtime.close()
+    store.close()
+
+
+def test_runtime_reactivates_fact_submission_superseded_by_owner_event(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-SUBMISSION-REARM", state="In Progress")
+    task.head_sha = "a" * 40
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.collector.sources[FactDomain.CONFIG] = lambda _issue: {
+        "version": 1,
+        "implementation_pending_action": "validation_submission",
+        "implementation_pending_payload": {
+            "owner_id": "direct-owner",
+            "head_sha": task.head_sha,
+            "work_branch": task.work_branch,
+        },
+    }
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    first = runtime.reconcile()
+    original = next(
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action == ImplementationAction.VALIDATION_SUBMISSION.value
+    )
+    assert first["projects"]["project-1"]["implementation"][
+        "jobs_materialized"
+    ] == 1
+
+    imperative = binding.implementation_controller.schedule_event(
+        project_id="project-1",
+        task_id=task.identifier,
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        payload={
+            "claim_id": "claim-1",
+            "owner_id": "direct-owner",
+            "expected_status": task.state,
+            "work_branch": task.work_branch,
+            "head_sha": task.head_sha,
+        },
+        expected_evidence_revision=issue_authority_version(task),
+        expected_head_sha=task.head_sha,
+    )
+    assert store.get(original.job_id).state is WorkflowJobState.SUPERSEDED
+    running = store.claim_next(
+        lease_owner="owner-worker",
+        lease_seconds=30,
+        task_id=task.identifier,
+        actions=(ImplementationAction.DIRECT_OWNER_CLAIM.value,),
+    )
+    assert running is not None and running.job_id == imperative.job_id
+    store.complete(running.job_id, running.lease_token)
+
+    second = runtime.reconcile()
+    second_health = controller.liveness_snapshot()
+    replacements = [
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action == ImplementationAction.VALIDATION_SUBMISSION.value
+        and job.state in ACTIVE_JOB_STATES
+    ]
+    assert not second_health.reconciliation_complete
+    assert second["projects"]["project-1"]["implementation"][
+        "jobs_created"
+    ] == 1
+    assert second["projects"]["project-1"]["implementation"][
+        "jobs_materialized"
+    ] == 1
+    assert len(replacements) == 1
+    assert replacements[0].job_id != original.job_id
+    assert replacements[0].generation != original.generation
 
     runtime.reconcile()
     recovered = controller.liveness_snapshot()

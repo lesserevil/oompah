@@ -3261,8 +3261,12 @@ class WorkflowJobStore:
         Imperative workflow events cannot safely use the scheduler's three-call
         scan protocol: a process death between cursor activation and enqueue
         would lose the event payload.  This transaction gives repeated equal
-        events one generation/job and gives an intervening different event a
-        fresh generation while superseding every older active disposition.
+        live events one generation/job and gives an intervening different
+        event a fresh generation while superseding every older active
+        disposition.  When a newer source cut still requires an equal event
+        whose exact activation is absent or terminal, it also receives a
+        fresh generation: replaying a retired row cannot prove live authority
+        or let restart reconstruction converge.
         """
 
         project = _required_text(project_id, "project_id")
@@ -3306,6 +3310,7 @@ class WorkflowJobStore:
         with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
+                source_advanced = False
                 if ordering is not None:
                     ordered = self._conn.execute(
                         """
@@ -3356,6 +3361,11 @@ class WorkflowJobStore:
                         raise WorkflowJobStoreError(
                             "one event snapshot produced conflicting decisions"
                         )
+                    source_advanced = bool(
+                        ordered is not None
+                        and int(source_generation)
+                        > int(ordered["source_generation"])
+                    )
                     self._conn.execute(
                         """
                         INSERT INTO workflow_event_ordering(
@@ -3428,6 +3438,23 @@ class WorkflowJobStore:
                     existing is None
                     or str(existing["event_revision"]) != revision
                 )
+                if not changed and source_advanced:
+                    existing_generation = str(existing["event_generation"])
+                    existing_key = (
+                        f"{namespace}:{revision}:{existing_generation}"
+                    )
+                    current = self._conn.execute(
+                        """
+                        SELECT state FROM workflow_jobs
+                         WHERE project_id = ? AND idempotency_key = ?
+                        """,
+                        (project, existing_key),
+                    ).fetchone()
+                    changed = bool(
+                        current is None
+                        or WorkflowJobState(str(current["state"]))
+                        not in ACTIVE_JOB_STATES
+                    )
                 generation = (
                     f"{revision}:{sequence}"
                     if changed

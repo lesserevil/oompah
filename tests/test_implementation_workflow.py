@@ -196,7 +196,7 @@ def test_equivalent_pass_refreshes_deadline_but_replays_semantic_event(tmp_path)
     store.close()
 
 
-def test_terminal_semantic_event_replay_is_not_counted_as_materialized(tmp_path):
+def test_newer_source_reactivates_terminal_semantic_event(tmp_path):
     task = issue()
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     controller = ImplementationWorkflowController(
@@ -216,14 +216,18 @@ def test_terminal_semantic_event_replay_is_not_counted_as_materialized(tmp_path)
     second_result = controller.reconcile_evaluated(
         second, snapshot_generation=2
     )
+    replacement = store.list_jobs()[-1]
 
     assert first_result.jobs_materialized == 1
-    assert second_result.jobs_created == 0
-    assert second_result.jobs_replayed == 1
-    assert second_result.jobs_materialized == 0
-    assert second_result.schedules_materialized == 0
-    assert second_result.truncated
-    assert not store.event_lane_materialized(
+    assert second_result.jobs_created == 1
+    assert second_result.jobs_replayed == 0
+    assert second_result.jobs_materialized == 1
+    assert second_result.schedules_materialized == 1
+    assert not second_result.truncated
+    assert replacement.job_id != job.job_id
+    assert replacement.generation != job.generation
+    assert replacement.state is WorkflowJobState.QUEUED
+    assert store.event_lane_materialized(
         project_id="project-1",
         task_id=task.identifier,
         ordering_namespace="implementation-decision",

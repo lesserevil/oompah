@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from oompah.workflow_jobs import (
+    ACTIVE_JOB_STATES,
     MAX_SCAN_LIMIT,
     WORKFLOW_JOB_SCHEMA_VERSION,
     WorkflowFailureCategory,
@@ -283,6 +284,158 @@ def test_event_lane_retry_wait_is_live_authority(store):
     )
 
 
+@pytest.mark.parametrize(
+    "active_state",
+    [
+        WorkflowJobState.QUEUED,
+        WorkflowJobState.RUNNING,
+        WorkflowJobState.RETRY_WAIT,
+    ],
+)
+def test_newer_source_replays_exact_active_event_without_mutating_job(
+    store, active_state
+):
+    write = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert write.job is not None
+    current = write.job
+    if active_state in {WorkflowJobState.RUNNING, WorkflowJobState.RETRY_WAIT}:
+        running = claim(store)
+        assert running is not None
+        current = running
+        if active_state is WorkflowJobState.RETRY_WAIT:
+            current = store.fail(
+                running.job_id,
+                running.lease_token,
+                category=WorkflowFailureCategory.TRANSIENT,
+                error="retry later",
+                retryable=True,
+                retry_delay_seconds=60,
+            )
+    assert current.state is active_state
+    jobs_before = store.list_jobs(task_id="TASK-1")
+    events_before = store.events(current.job_id)
+    execution_state_before = (
+        current.state,
+        current.attempts,
+        current.lease_owner,
+        current.lease_token,
+        current.lease_expires_at,
+        current.retry_at,
+        current.failure_category,
+        current.last_error,
+    )
+
+    replay = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+
+    assert replay.accepted
+    assert not replay.created
+    assert replay.job is not None
+    assert replay.job == current
+    assert store.list_jobs(task_id="TASK-1") == jobs_before
+    assert store.events(current.job_id) == events_before
+    persisted = store.get(current.job_id)
+    assert (
+        persisted.state,
+        persisted.attempts,
+        persisted.lease_owner,
+        persisted.lease_token,
+        persisted.lease_expires_at,
+        persisted.retry_at,
+        persisted.failure_category,
+        persisted.last_error,
+    ) == execution_state_before
+
+
+def test_newer_source_reactivates_event_when_cursor_job_is_absent(store):
+    write = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert write.job is not None
+    missing_generation = "missing-generation"
+    missing_key = f"implementation-event:event-1:{missing_generation}"
+    store._conn.execute(  # noqa: SLF001
+        """
+        UPDATE workflow_event_cursors
+           SET event_generation = ?
+         WHERE project_id = ? AND task_id = ? AND event_namespace = ?
+        """,
+        (
+            missing_generation,
+            "project-1",
+            "TASK-1",
+            "event:implementation:fact",
+        ),
+    )
+    store._conn.commit()  # noqa: SLF001
+    assert (
+        store._conn.execute(  # noqa: SLF001
+            """
+        SELECT 1 FROM workflow_jobs
+         WHERE project_id = ? AND idempotency_key = ?
+        """,
+            ("project-1", missing_key),
+        ).fetchone()
+        is None
+    )
+
+    replacement = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+
+    assert replacement.accepted
+    assert replacement.created
+    assert replacement.job is not None
+    assert replacement.job.job_id != write.job.job_id
+    assert replacement.job.generation != missing_generation
+    assert replacement.job.state is WorkflowJobState.QUEUED
+    assert len(store.list_jobs(task_id="TASK-1")) == 2
+    assert store.get(write.job.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+
+
 def test_event_lane_materialization_rejects_historical_cursor_and_job(store):
     first = store.materialize_event(
         project_id="project-1",
@@ -374,6 +527,49 @@ def test_event_lane_materialization_rejects_retired_current_job(
             )
 
     assert not store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+
+    same_source = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert same_source.accepted
+    assert not same_source.created
+    assert same_source.job is not None
+    assert same_source.job.job_id == write.job.job_id
+    assert same_source.job.state not in ACTIVE_JOB_STATES
+
+    newer_source = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-1",
+    )
+    assert newer_source.accepted
+    assert newer_source.created
+    assert newer_source.job is not None
+    assert newer_source.job.job_id != write.job.job_id
+    assert newer_source.job.generation != write.job.generation
+    assert newer_source.job.state is WorkflowJobState.QUEUED
+    assert store.event_lane_materialized(
         project_id="project-1",
         task_id="TASK-1",
         ordering_namespace="implementation-ordering",
