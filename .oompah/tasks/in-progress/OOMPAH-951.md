@@ -11,13 +11,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:46:27.644873Z'
-updated_at: '2026-08-09T10:48:11.797275Z'
+updated_at: '2026-08-09T10:52:15.571011Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-951
+  head_sha: 5defaaa424e9a1303ee292ad523369e53e1b08e1
+  submitted_at: '2026-08-09T10:52:11.207142+00:00'
+  updated_at: '2026-08-09T10:52:11.207142+00:00'
 ---
 ## Summary
 
@@ -29,3 +38,11 @@ Triggered by OOMPAH-939 live terminal audit attempt audit-4827a2c0df9f. The ACP/
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 10:52
+---
+Implemented and pushed exact head 5defaaa42. Claude/OpenCode MCP tools now register the canonical top-level AUDITOR_RESULT_TOOL_SCHEMA, Codex uses the same explicit FunctionTool schema, and the obsolete nested result envelope is rejected. Provider-shaped tests prove schema equality and exactly one accepted coordinator submission. Verification: 191 auditor contract/API/bridge/deadline/output tests passed; terminal mutation, secret, diff, and fatal/static scans passed.
+---
+<!-- COMMENTS:END -->
