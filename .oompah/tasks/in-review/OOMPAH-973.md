@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-973
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Make deferred gate cleanup proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:35:08.355449Z'
-updated_at: '2026-08-09T20:51:12.116018Z'
+updated_at: '2026-08-09T20:52:03.959962Z'
 work_branch: OOMPAH-973
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/781
