@@ -21,7 +21,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T12:44:47.855893Z'
+updated_at: '2026-08-09T13:40:17.483871Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-08-09 09:10
 ---
 Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+author: oompah
+created: 2026-08-09 13:40
+---
+Refreshed the systemic workflow epic onto composition merge 91bf64c57 at exact branch head 2dd74be288b81265ea4a242d7467ecc1ed9f1435. Resolved the workflow-worker/runtime seams while preserving atomic landing completion, restart-safe transition finalization, exact containment authority, and canonical runtime fact composition. Validation: 159 workflow/runtime/finalization tests, 202 integration/epic/decision tests, 8 targeted composed-seam tests, and terminal mutation scan all passed. PR #757 hosted matrix is refreshing; a final small main refresh will follow OOMPAH-957.
 ---
 <!-- COMMENTS:END -->
