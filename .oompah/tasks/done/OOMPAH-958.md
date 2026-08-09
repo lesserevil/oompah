@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T16:30:53.415115Z'
+updated_at: '2026-08-09T16:31:04.620055Z'
 work_branch: OOMPAH-958
 target_branch: null
 review_url: null
@@ -59,7 +59,18 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:30:49.327582+00:00'
     selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-958
+    target_state: Done
+    evidence_fingerprint: f854211d29753504241eba273dd748323ab6a16e04c834bdb72f31c1614ad127
+    audit_ids:
+    - audit-42e232e2c1de
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:30:57.678796+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-958
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -119,7 +130,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:12:17.244771+00:00'
     selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
-    updated_at: '2026-08-09T16:27:33.988740+00:00'
+    updated_at: '2026-08-09T16:30:57.678761+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-aa9e85abcb71
@@ -267,5 +278,17 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 40s
 - Log: OOMPAH-958__20260809T161209Z.jsonl
+---
+author: oompah
+created: 2026-08-09 16:30
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner override after exact accepted head 44c2e40d0940f0c8f5edd859141b1b042eafd411 was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435, merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python 3.11/3.12/3.13 checks successful.
+---
+author: oompah
+created: 2026-08-09 16:31
+---
+Done: exact OOMPAH-958 head 44c2e40d0 is contained in merged epic PR #757 (ba0859da9); all hosted Python matrices passed.
 ---
 <!-- COMMENTS:END -->
