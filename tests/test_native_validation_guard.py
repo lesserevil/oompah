@@ -3136,6 +3136,24 @@ def test_orphan_boundary_cannot_authorize_later_same_command_item(
         assert not broker._boundaries
         assert not broker._boundary_items
         assert not broker._bound_item_ids
+
+    def fresh_exit_observed() -> bool:
+        with broker._boundary_lock:
+            return bool(broker._boundary_liveness) and all(
+                record.observed_exit_at is not None
+                for record in broker._boundary_liveness.values()
+            )
+
+    _wait_until(fresh_exit_observed)
+    with broker._boundary_lock:
+        for record in broker._boundary_liveness.values():
+            record.observed_exit_at = (
+                time.monotonic()
+                - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
+                - 1.0
+            )
+    broker._refresh_boundary_liveness()
+    with broker._boundary_lock:
         assert not broker._boundary_liveness
         assert not broker._seen_boundary_groups
 
@@ -3207,6 +3225,13 @@ def test_consumed_heavy_boundary_retains_delayed_completion_correlation(
             assert group not in broker._validation_runs
             assert group not in broker._boundary_items
             assert item_id not in broker._bound_item_ids
+            assert group in broker._boundary_liveness
+            assert group in broker._seen_boundary_groups
+
+        # Completion retires item correlation but keeps the process-group
+        # replay fence through the same bounded post-exit grace.
+        broker._refresh_boundary_liveness()
+        with broker._boundary_lock:
             assert group not in broker._boundary_liveness
             assert group not in broker._seen_boundary_groups
     finally:
@@ -3297,6 +3322,14 @@ def test_late_background_boundary_cannot_spoof_later_item(tmp_path: Path) -> Non
 
     assert outer.returncode == 0
     assert consume_native_validation_boundary(root, command, "item-1") is True
+    with guard_module._BROKER_REGISTRY_LOCK:
+        broker = guard_module._BROKER_REGISTRY[root.resolve()]
+    assert broker.complete_validation_item(
+        guard_module._command_identity(command),
+        "item-1",
+        succeeded=True,
+        outcome="passed",
+    ) is True
     time.sleep(0.4)
     assert consume_native_validation_boundary(root, command, "item-2") is False
     assert consume_native_validation_boundary(

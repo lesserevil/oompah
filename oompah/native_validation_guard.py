@@ -79,7 +79,7 @@ _VALIDATION_JUSTIFICATION_ENV = "OOMPAH_VALIDATION_JUSTIFICATION"
 # is alive.  Allow only this short bounded handoff after the broker observes
 # that exact PID/start-tick generation exit; an orphan receipt must not remain
 # usable for the configured turn timeout.
-_BOUNDARY_HANDOFF_GRACE_SECONDS = 5.0
+_BOUNDARY_HANDOFF_GRACE_SECONDS = 15.0
 NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION = (
     "For a task-required full-suite mode that is genuinely distinct from the "
     "reused exact gate, invoke the native shell command with both structured "
@@ -2030,7 +2030,7 @@ class _NativeValidationLeaseBroker:
             if self._validation_runs.get(boundary_group) is not run:
                 return None
             self._validation_runs.pop(boundary_group, None)
-            self._retire_boundary_group_locked(boundary_group)
+            self._retire_boundary_item_locked(boundary_group)
 
         def publish_terminal() -> bool:
             # Publication is deliberately outside the ACK boundary. The
@@ -2091,7 +2091,7 @@ class _NativeValidationLeaseBroker:
             with self._boundary_lock:
                 if self._validation_runs.get(boundary_group) is run:
                     self._validation_runs.pop(boundary_group, None)
-                    self._retire_boundary_group_locked(boundary_group)
+                    self._retire_boundary_item_locked(boundary_group)
             with run.state_lock:
                 run.terminal_publication_state = "published"
 
@@ -2186,7 +2186,7 @@ class _NativeValidationLeaseBroker:
             run = self._validation_runs.get(boundary_group)
         if run is None:
             with self._boundary_lock:
-                self._retire_boundary_group_locked(boundary_group)
+                self._retire_boundary_item_locked(boundary_group)
             return True
         with run.state_lock:
             if run.terminal_outcome:
@@ -2417,11 +2417,16 @@ class _NativeValidationLeaseBroker:
         if item_id is not None:
             self._bound_item_ids.discard(item_id)
 
-    def _retire_boundary_group_locked(self, boundary_group: str) -> None:
-        """Drop every replay, liveness, and process-fence index for a group."""
+    def _retire_boundary_item_locked(self, boundary_group: str) -> None:
+        """Retire authorization and correlation, retaining the process fence."""
 
         self._retire_boundary_receipt_locked(boundary_group)
         self._retire_boundary_correlation_locked(boundary_group)
+
+    def _retire_boundary_group_locked(self, boundary_group: str) -> None:
+        """Drop every replay, liveness, and process-fence index for a group."""
+
+        self._retire_boundary_item_locked(boundary_group)
         self._boundary_liveness.pop(boundary_group, None)
         self._seen_boundary_groups.discard(boundary_group)
 
