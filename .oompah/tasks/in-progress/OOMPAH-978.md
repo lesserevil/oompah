@@ -12,13 +12,22 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:18:22.412432Z'
+updated_at: '2026-08-09T23:21:00.679576Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-978
+  head_sha: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+  submitted_at: '2026-08-09T23:20:56.655835+00:00'
+  updated_at: '2026-08-09T23:20:56.655835+00:00'
 ---
 ## Summary
 
@@ -32,3 +41,11 @@ Bug: project create/update paths call tracker AGENTS.md installation directly ag
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 23:20
+---
+Implemented systemic fix on exact pushed head a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd. Root cause: project create/PATCH implicitly rewrote tracked AGENTS.md in the canonical managed clone; later startup pull --autostash reapplied the edit, giving it a startup-time mtime and leaving webhook sync unsound. The lifecycle calls are removed; explicit bootstrap status/preview/apply remains intact and its invocation contract is asserted. Regression coverage initializes clean Git repos with stale managed blocks and proves create plus both tracker-kind PATCH directions preserve bytes and git cleanliness. Focused result: 196 passed (project CRUD, agent instructions, project bootstrap); make terminal-audit-scan passed 20/20.
+---
+<!-- COMMENTS:END -->
