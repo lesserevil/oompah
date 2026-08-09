@@ -12,13 +12,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:03:15.470726Z'
-work_branch: null
+updated_at: '2026-08-09T19:03:31.934141Z'
+work_branch: OOMPAH-968
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-968
+  base_branch: epic-OOMPAH-940
+  base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  head_sha: 514bc9e30d676f491de9f06f579e9c6893df5fa3
+  submitted_at: '2026-08-09T19:03:18.722905+00:00'
+  updated_at: '2026-08-09T19:03:18.722905+00:00'
+oompah.work_branch: OOMPAH-968
 ---
 ## Summary
 
@@ -41,5 +53,10 @@ author: oompah
 created: 2026-08-09 19:03
 ---
 Corrective exact head 514bc9e30 is pushed. A later audit-envelope read failure now preserves scoped malformed zero-job authority; impossible present/non-retained generation-zero markers fail closed in persistence and decision layers; and the runtime matrix proves clean absence publication, clean stale effect supersession/nonclaimability, retained retry, exhausted-row rollback/retirement, retained-to-revision supersession, and unchanged generation-1 publication. Verification: 553 focused tests pass; two independent final reviews report no blockers (189 selected tests plus acceptance review); critical Ruff/diff checks pass.
+---
+author: oompah
+created: 2026-08-09 19:03
+---
+Exact head 514bc9e30 fences absent-to-retained provenance publication races, fails closed on audit-read and generation-zero edge cases, and proves clean/stale/exhausted convergence. 553 focused tests and two independent reviews are green.
 ---
 <!-- COMMENTS:END -->
