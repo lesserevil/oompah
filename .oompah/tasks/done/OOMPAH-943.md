@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T16:25:59.259292Z'
+updated_at: '2026-08-09T16:26:09.057445Z'
 work_branch: OOMPAH-943
 target_branch: null
 review_url: null
@@ -59,7 +59,18 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:25:52.994430+00:00'
     selected_ref: b30a2880d57460b730547faa2d90732a4bab8e9c
     selected_sha: b30a2880d57460b730547faa2d90732a4bab8e9c
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-943
+    target_state: Done
+    evidence_fingerprint: a9f43b17f0a0e1a017c70050d59ebc60182ae1c132df8a1ce9298c97555256dd
+    audit_ids:
+    - audit-ac3836042a86
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:26:05.058934+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-943
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -82,6 +93,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:52:58.786711+00:00'
     selected_ref: b30a2880d57460b730547faa2d90732a4bab8e9c
     selected_sha: b30a2880d57460b730547faa2d90732a4bab8e9c
+    updated_at: '2026-08-09T16:26:05.058902+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -139,5 +151,12 @@ author: oompah
 created: 2026-08-09 12:53
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 16:26
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner override after exact accepted head b30a2880d57460b730547faa2d90732a4bab8e9c was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435, merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python 3.11/3.12/3.13 checks successful.
 ---
 <!-- COMMENTS:END -->
