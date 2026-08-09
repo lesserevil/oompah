@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-977
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Keep managed worktree hook paths worktree-local
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:45:47.293153Z'
-updated_at: '2026-08-09T23:00:56.636778Z'
+updated_at: '2026-08-09T23:08:40.917050Z'
 work_branch: OOMPAH-977
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-09T23:00:43.743463+00:00'
   updated_at: '2026-08-09T23:00:43.743463+00:00'
 oompah.work_branch: OOMPAH-977
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-1b8d08d9006f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-977
+    digest: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+  - version: 1
+    audit_id: audit-c5354a243a91
+    project_id: proj-14849f1b
+    task_id: OOMPAH-977
+    digest: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1b8d08d9006f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-977
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-09T23:08:32.944952+00:00'
+    selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
+    selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
+  - version: 1
+    audit_id: audit-c5354a243a91
+    project_id: proj-14849f1b
+    task_id: OOMPAH-977
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-09T23:08:32.944952+00:00'
+    selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
+    selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
+  attempt_history: []
 ---
 ## Summary
 
@@ -50,5 +106,10 @@ author: oompah
 created: 2026-08-09 23:00
 ---
 Worktree-local hook isolation implemented and protected PR #786 opened
+---
+author: oompah
+created: 2026-08-09 23:08
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
