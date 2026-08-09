@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-942
 type: bug
-status: In Validation
+status: Needs CI Fix
 priority: 1
 title: Backfill trusted terminal-parent heads for pruned epic targets
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T14:02:17.142146Z'
+updated_at: '2026-08-09T14:25:24.542835Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -38,6 +38,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-942
     digest: cca0f60722c8c72ed4ad68084440108d7429500afdee93d32f9d1ea141ddae8e
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-942","audit-b8deaf092ff9","attempt-e3e223790931"]': '2026-08-09T14:25:16.041446+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-942
+    target_state: Done
+    evidence_fingerprint: cca0f60722c8c72ed4ad68084440108d7429500afdee93d32f9d1ea141ddae8e
+    audit_ids:
+    - audit-b8deaf092ff9
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T14:25:16.041466+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-942
+    audit_id: audit-b8deaf092ff9
+    attempt_id: attempt-e3e223790931
+    target_state: Done
+    evidence_fingerprint: cca0f60722c8c72ed4ad68084440108d7429500afdee93d32f9d1ea141ddae8e
+    status: Needs CI Fix
+    audit_ids:
+    - audit-b8deaf092ff9
+    kind: result
+    applied: true
+    created_at: '2026-08-09T14:25:16.041480+00:00'
+    applied_at: '2026-08-09T14:25:22.904093+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +71,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-942
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +80,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e3e223790931
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +92,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-942
       selected_ref: dcda220c225eef11f4704f61cade067d609e2da9
       selected_sha: dcda220c225eef11f4704f61cade067d609e2da9
+      verdict: fail
+      failure_classification: ci_failure
+      completed_at: '2026-08-09T14:25:16.041318+00:00'
+      ended_at: '2026-08-09T14:25:16.041318+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -75,7 +105,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:52:43.120907+00:00'
     selected_ref: dcda220c225eef11f4704f61cade067d609e2da9
     selected_sha: dcda220c225eef11f4704f61cade067d609e2da9
-    updated_at: '2026-08-09T14:02:05.192902+00:00'
+    updated_at: '2026-08-09T14:25:16.041318+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e3e223790931
@@ -164,5 +194,12 @@ author: oompah
 created: 2026-08-09 14:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 14:25
+---
+Audit FAIL — ci failure. Routing task to Needs CI Fix.
+
+[REDACTED]
 ---
 <!-- COMMENTS:END -->
