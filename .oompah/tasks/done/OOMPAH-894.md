@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T13:45:31.251950Z'
-updated_at: '2026-08-08T16:27:40.528628Z'
+updated_at: '2026-08-09T21:17:52.468553Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,6 +49,34 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-08T16:27:38.936574+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Retain authoritative terminal provenance while OOMPAH-975 repairs null-head
+      rollup transitions: this Done child is delivered in the accepted systemic composition,
+      and the current workflow job records exact immediate-target landing revision
+      33f85955b3c1285987253c2ff17b31f574c6d12f from this task into epic-OOMPAH-763.
+      Do not rearm implementation.'
+    marked_at: '2026-08-09T21:17:50.775567+00:00'
+    updated_at: '2026-08-09T21:17:50.775567+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Retain authoritative terminal provenance while OOMPAH-975 repairs null-head
+        rollup transitions: this Done child is delivered in the accepted systemic
+        composition, and the current workflow job records exact immediate-target landing
+        revision 33f85955b3c1285987253c2ff17b31f574c6d12f from this task into epic-OOMPAH-763.
+        Do not rearm implementation.'
+      recorded_at: '2026-08-09T21:17:50.775567+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
