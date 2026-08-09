@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:46:27.644873Z'
-updated_at: '2026-08-09T12:58:13.868350Z'
+updated_at: '2026-08-09T13:03:07.532935Z'
 work_branch: OOMPAH-951
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/759
@@ -45,6 +45,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-951
     digest: b517d9c92a02d37b7df7aa7fc3a1d6fc4b2fd5e54f8493da3d34a63b9c0db2f4
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-951","audit-9389c2e1c479","attempt-0c04e1f707a5"]': '2026-08-09T13:02:56.343300+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-951
+    target_state: Done
+    evidence_fingerprint: b517d9c92a02d37b7df7aa7fc3a1d6fc4b2fd5e54f8493da3d34a63b9c0db2f4
+    audit_ids:
+    - audit-9389c2e1c479
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T13:02:56.343328+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-951
+    audit_id: audit-9389c2e1c479
+    attempt_id: attempt-0c04e1f707a5
+    target_state: Done
+    evidence_fingerprint: b517d9c92a02d37b7df7aa7fc3a1d6fc4b2fd5e54f8493da3d34a63b9c0db2f4
+    status: In Validation
+    audit_ids:
+    - audit-9389c2e1c479
+    kind: result
+    applied: true
+    created_at: '2026-08-09T13:02:56.343346+00:00'
+    applied_at: '2026-08-09T13:03:05.953144+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -52,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-951
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -61,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0c04e1f707a5
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,6 +99,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-951
       selected_ref: 5defaaa424e9a1303ee292ad523369e53e1b08e1
       selected_sha: 5defaaa424e9a1303ee292ad523369e53e1b08e1
+      verdict: pass
+      completed_at: '2026-08-09T13:02:56.342985+00:00'
+      ended_at: '2026-08-09T13:02:56.342985+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -82,7 +111,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:15:34.848664+00:00'
     selected_ref: 5defaaa424e9a1303ee292ad523369e53e1b08e1
     selected_sha: 5defaaa424e9a1303ee292ad523369e53e1b08e1
-    updated_at: '2026-08-09T12:58:05.672669+00:00'
+    updated_at: '2026-08-09T13:02:56.342985+00:00'
   - version: 1
     audit_id: audit-a6c6f33031c8
     project_id: proj-14849f1b
@@ -161,5 +190,29 @@ author: oompah
 created: 2026-08-09 12:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 13:03
+---
+Audit PASS — Done
+
+OOMPAH-951 implementation complete. Canonical top-level AUDITOR_RESULT_TOOL_SCHEMA now exposed identically across Claude, OpenCode, and Codex ACP backends. Obsolete MCP envelope fallback removed and rejected by tests. Schema equality, top-level submission acceptance, and exact-once coordinator submission verified. All 191+ tests passed including new provider-shaped coverage in test_auditor_contract.py.
+
+Safe evidence:
+- implementation_commit: 5defaaa424e9a1303ee292ad523369e53e1b08e1
+- commit_message: Align auditor result schemas across transports
+- canonical_schema_location: oompah/auditor.py line 921
+- required_fields: audit_id, target_state, evidence_fingerprint, verdict, message
+- optional_fields: failure_classification, safe_evidence, questions, instructions, attempt_id
+- obsolete_envelope: result field - REMOVED and rejected by tests
+- claude_transport: Uses _auditor_result_input_schema() with @tool decorator
+- opencode_transport: Uses _auditor_result_input_schema() with @tool decorator
+- codex_transport: Uses _auditor_result_input_schema() with @function_tool and FunctionTool
+- test_method: test_all_auditor_catalogs_expose_canonical_top_level_result_contract
+- test_coverage: Schema equality verification, envelope rejection, exact-once submission
+- quality_gate_status: passed
+- quality_gate_command: make test
+- quality_gate_duration: 161.13 seconds
+- files_modified: oompah/acp_tools.py, tests/test_auditor_contract.py, test_acp_auditor_result_bridge.py, test_acp_tool_output_bounds.py
 ---
 <!-- COMMENTS:END -->
