@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T10:03:10.463682Z'
+updated_at: '2026-08-09T10:03:21.299443Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-945
   base_branch: epic-OOMPAH-940
   base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
-  head_sha: 395ce9938df94d3e2c14a4b642238f735fb0357b
-  submitted_at: '2026-08-09T09:27:53.327707+00:00'
-  updated_at: '2026-08-09T09:27:53.327707+00:00'
+  head_sha: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+  submitted_at: '2026-08-09T10:03:11.620082+00:00'
+  updated_at: '2026-08-09T10:03:11.620082+00:00'
 oompah.work_branch: OOMPAH-945
 ---
 ## Summary
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-09 10:03
 ---
 Independent review found and fixed a refresh-boundary identity substitution: a same-project or native project-less response for a different identifier could be rebound to the requested project and reach the coordinator under the wrong task lock. Refresh now requires exact id and identifier before project rebinding. Adversarial cases verify the original lock, no coordinator call, no project mutation, and dispatch-fence rollback. Full terminal-interface suite: 80 passed. Pushed 748fd1da7f5c3c97e9ac9695092c477412ffea2b.
+---
+author: oompah
+created: 2026-08-09 10:03
+---
+Added exact refreshed task-identity fencing before terminal project rebinding/coordinator use, with same-project and project-less wrong-identifier regressions; focused checks pass.
 ---
 <!-- COMMENTS:END -->
