@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-975
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:17:57.193609Z'
+updated_at: '2026-08-09T21:20:52.847789Z'
 work_branch: null
 target_branch: null
 review_url: null
