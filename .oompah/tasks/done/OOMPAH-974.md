@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:12:03.551303Z'
+updated_at: '2026-08-09T22:12:35.399497Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -71,6 +71,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T22:11:47.822392+00:00'
     applied_at: '2026-08-09T22:12:00.936224+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6593d203adb9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #783 merged exact head 8526a01b into 9ea2d4d07; Python 3.11/3.12/3.13
+      gates passed, independent review approved with 399 tests, focused implementation
+      suite passed 335, combined no-failure full run reached 8,580 tests, exact merge
+      is deployed, force recovery succeeded, and health remained HTTP 200 throughout
+      cold 1,776-task reconciliation. Auditor shell mutation attempts were policy-incompatible
+      and add no authority beyond these exact checks.'
+    created_at: '2026-08-09T22:12:28.374260+00:00'
+    selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    applied: false
   version: 1
   pending_chain:
   - version: 1
