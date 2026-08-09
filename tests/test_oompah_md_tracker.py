@@ -64,6 +64,13 @@ def _frontmatter(path):
     return yaml.safe_load(content[4:end])
 
 
+def _write_markdown_fixture(path: Path, meta: dict, body: str) -> None:
+    """Materialize parser input without exercising the durable writer."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = yaml.safe_dump(meta, sort_keys=False, allow_unicode=False)
+    path.write_text(f"---\n{payload}---\n{body}", encoding="utf-8")
+
+
 def _make_completed_process(returncode: int, stdout: str = "", stderr: str = "") -> MagicMock:
     """Build a mock CompletedProcess-like object for _git() to return."""
     proc = MagicMock()
@@ -378,7 +385,10 @@ class TestOompahMarkdownTrackerMutations:
         merged = tracker.tasks_root / "merged"
         for index in range(1000):
             identifier = f"TASK-{index:04d}"
-            _write_markdown(
+            # This test measures bounded cold-page parsing. Per-file fsync and
+            # atomic rename are covered by writer tests and would spend the
+            # pagination timeout on unrelated fixture durability.
+            _write_markdown_fixture(
                 merged / f"{identifier}.md",
                 {
                     "id": identifier,

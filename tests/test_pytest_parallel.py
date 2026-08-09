@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +26,15 @@ ROOT = Path(__file__).resolve().parents[1]
 MAKEFILE = ROOT / "Makefile"
 RUNNER = ROOT / "scripts" / "run-tests.sh"
 ENV_EXAMPLE = ROOT / ".env.example"
+
+
+def _runner_test_environment() -> dict[str, str]:
+    """Run the nested gate with the interpreter executing this test suite."""
+    test_python = Path(sys.executable)
+    assert test_python.is_absolute()
+    env = os.environ.copy()
+    env["OOMPAH_TEST_PYTHON"] = str(test_python)
+    return env
 
 
 def test_make_test_uses_bounded_configured_workers():
@@ -112,7 +122,7 @@ def test_runner_expands_tilde_temp_root_under_home(tmp_path: Path):
 
 @pytest.mark.parametrize("workers", ["0", "17", "auto", "-1", ""])
 def test_runner_rejects_unsafe_worker_counts(tmp_path: Path, workers: str):
-    env = os.environ.copy()
+    env = _runner_test_environment()
     env["OOMPAH_PYTEST_WORKERS"] = workers
     env["OOMPAH_PYTEST_TEMP_ROOT"] = str(tmp_path)
 
@@ -425,7 +435,7 @@ def test_runner_rejects_symlinked_worker_home_parent(tmp_path: Path):
     fake_home.mkdir()
     escape.mkdir()
     (fake_home / "pytest-workers").symlink_to(escape, target_is_directory=True)
-    env = os.environ.copy()
+    env = _runner_test_environment()
     env.pop(_WORKER_HOME_ROOT_ENV, None)
     env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
     env.update(
@@ -455,7 +465,7 @@ def test_runner_rejects_invalid_preallocated_home_before_allocating(tmp_path: Pa
     gate_temp = tmp_path / "gate-temp"
     fake_home.mkdir()
     invalid_root.mkdir(parents=True)
-    env = os.environ.copy()
+    env = _runner_test_environment()
     env.pop("OOMPAH_PYTEST_TRUSTED_HOME_ROOT", None)
     env.update(
         {
