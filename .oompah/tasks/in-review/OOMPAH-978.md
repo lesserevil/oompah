@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:27:58.175278Z'
+updated_at: '2026-08-09T23:33:17.841986Z'
 work_branch: OOMPAH-978
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/787
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-09 23:27
 ---
 Addressed independent review blocker and superseded a1f6ef58e with exact pushed head 409132582cb1c527ffa53efc174d3464289971a7, stacked directly on OOMPAH-974 exact 0006c430f566da7138f2958ed948e15d371cdf6d. Explicit bootstrap status/preview/apply is now tracker-aware while defaulting to native for CLI compatibility; real GitHub tracker regressions prove status/preview report drift without mutation and apply renders the GitHub integration block. Combined-head focused result: 198 passed; terminal scan 20/20.
+---
+author: oompah
+created: 2026-08-09 23:33
+---
+Independent exact-head review APPROVED 409132582cb1c527ffa53efc174d3464289971a7 with parent exactly OOMPAH-974 0006c430f. Reviewer verified no runtime AGENTS.md writer remains on project create/PATCH, explicit bootstrap status/preview/apply is tracker-aware for native and GitHub aliases, all public helper defaults preserve standalone CLI compatibility, and AST call-site scan found no incompatible callers. Independent combined review ran 353 focused tests; implementation run passed 198; terminal scan 20/20 and diff/trailer/origin cleanliness pass. PR #787 protected matrix is running; auto-merge remains off until parent PR #784 lands.
 ---
 <!-- COMMENTS:END -->
