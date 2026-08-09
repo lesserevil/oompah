@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-925
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: '[backend:orchestrator] Orchestrator shutdown remains fenced; runtime recovery
   is not durable for issue_ids=[] journals=[''workflow runtime drain'']'
@@ -12,13 +12,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T20:59:18.475816Z'
-updated_at: '2026-08-09T05:13:09.827554Z'
+updated_at: '2026-08-09T05:13:22.316224Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-eaeb1129c2e4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-925
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d947f0206a3a36b5a2e8d3710156d7415c0d02dcdcf0f6ae578a5ebd0f25f8d5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:13:15.641964+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
