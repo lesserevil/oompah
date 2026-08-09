@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-965
 type: bug
-status: Open
+status: Done
 priority: 2
 title: '[backend:workflow_runtime] Durable workflow publication failed for proj-14849f1b'
 parent: null
@@ -11,13 +11,89 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T16:25:26.622591Z'
-updated_at: '2026-08-09T17:14:41.167547Z'
+updated_at: '2026-08-09T17:23:26.806557Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-12e3ed6aa7f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-965
+    digest: 47a52b229c3d46f7eb32ca8fa62d816123d91bf641fbb3c8cb8179ef9a900c61
+  - version: 1
+    audit_id: audit-e6f8d4352fd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-965
+    digest: 47a52b229c3d46f7eb32ca8fa62d816123d91bf641fbb3c8cb8179ef9a900c61
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-568a055a2958
+    project_id: proj-14849f1b
+    task_id: OOMPAH-965
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47a52b229c3d46f7eb32ca8fa62d816123d91bf641fbb3c8cb8179ef9a900c61
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner completion after exact hosted CI and independent no-blocker
+      review.
+    created_at: '2026-08-09T17:23:22.280683+00:00'
+    selected_ref: origin/OOMPAH-965
+    selected_sha: c17eba9b28f68bd792d134b184cf6400f095dc86
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-12e3ed6aa7f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-965
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47a52b229c3d46f7eb32ca8fa62d816123d91bf641fbb3c8cb8179ef9a900c61
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T17:23:14.346509+00:00'
+    selected_ref: origin/OOMPAH-965
+    selected_sha: c17eba9b28f68bd792d134b184cf6400f095dc86
+  - version: 1
+    audit_id: audit-e6f8d4352fd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-965
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47a52b229c3d46f7eb32ca8fa62d816123d91bf641fbb3c8cb8179ef9a900c61
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T17:23:14.346509+00:00'
+    selected_ref: origin/OOMPAH-965
+    selected_sha: c17eba9b28f68bd792d134b184cf6400f095dc86
+  attempt_history: []
 ---
 ## Summary
 
@@ -103,5 +179,10 @@ author: oompah
 created: 2026-08-09 17:14
 ---
 Independent-review blocker corrected at exact head c17eba9b28 on PR #774: a required terminal-audit authority proof provider absent before initial projection now raises WorkflowRuntimeError before any publication; callable false proofs retain authority-change non-materialization/supersession behavior. Regression covers initial absence, removal before publication, and ordinary authority change. 438 broader tests plus lint, diff, terminal-audit, and secret scans pass; independent re-review and hosted exact matrix are running.
+---
+author: oompah
+created: 2026-08-09 17:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
