@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T21:49:54.420341Z'
-work_branch: null
+updated_at: '2026-08-09T21:50:45.434863Z'
+work_branch: OOMPAH-974
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-974
+  head_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+  submitted_at: '2026-08-09T21:50:33.423286+00:00'
+  updated_at: '2026-08-09T21:50:33.423286+00:00'
+oompah.work_branch: OOMPAH-974
 ---
 ## Summary
 
@@ -52,5 +62,10 @@ author: oompah
 created: 2026-08-09 21:49
 ---
 Implementation and review complete on exact base 312c18ae3. Validation: independent 399-test relevant suite passed; focused combined regression suite passed 335 tests; git diff --check and compileall passed (one unrelated pre-existing SyntaxWarning). A duplicate local make test run reached 8,580 passed, 7 skipped, 2 xfailed with no failures before all workers stalled in jbd2 filesystem journal waits; it was interrupted after 9m56s per operator direction because the protected exact-head gate runs once. Changes add indexed/cooperatively yielding native reads, drain-aware reconciliation checkpoints across all collector families, a reserved direct-owner control lane with retained-call safety, and identity-rechecked HTTP-independent emergency force restart escalation.
+---
+author: oompah
+created: 2026-08-09 21:50
+---
+Implemented and pushed as 8526a01bfb741eb58c267e7f4b649b75f8bdc882. Native Markdown reads now use indexed cache lookup plus cooperative GIL checkpoints; workflow reconciliation is drain-aware across implementation, review, integration, and epic collectors; direct owner claims use the reserved control lane while stale non-cancellable effects remain retained; emergency force restart is HTTP-independent with exact process identity rechecks before bounded SIGKILL escalation. Validation: independent 399 relevant tests passed, focused combined suite 335 passed, diff check and compileall passed; duplicate full run reached 8,580 passed with no failures before operator-directed interruption during filesystem journal stalls.
 ---
 <!-- COMMENTS:END -->

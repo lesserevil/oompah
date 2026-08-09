@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:50:29.047895Z'
+updated_at: '2026-08-09T21:50:37.329636Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -81,5 +81,10 @@ author: oompah
 created: 2026-08-09 21:50
 ---
 Branch quality gate passed for `0cbca98c1d6f6b3490a93b4164ef370ac01db432` using `make test` in 171.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 21:50
+---
+Resubmit updated exact head 0cbca98c1 after expanding the live corpus regression matrix to all 20 observed shapes; 644 focused tests pass.
 ---
 <!-- COMMENTS:END -->
