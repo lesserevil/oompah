@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-977
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep managed worktree hook paths worktree-local
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:45:47.293153Z'
-updated_at: '2026-08-09T22:47:12.334304Z'
+updated_at: '2026-08-09T22:47:39.839062Z'
 work_branch: null
 target_branch: null
 review_url: null
