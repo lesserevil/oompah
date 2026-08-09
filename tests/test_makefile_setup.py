@@ -259,6 +259,59 @@ def test_setup_refreshes_a_fresh_stamp_with_a_stale_editable_checkout(tmp_path):
     assert editable_path.read_text(encoding="utf-8").strip() == str(ROOT)
 
 
+def test_setup_does_not_accept_or_stamp_a_partial_failed_refresh(tmp_path):
+    """Mutated editable metadata cannot turn a failed uv refresh into success."""
+    stale_checkout = tmp_path / "stale-worktree"
+    stale_package = stale_checkout / "oompah"
+    stale_package.mkdir(parents=True)
+    (stale_package / "__init__.py").write_text("", encoding="utf-8")
+    runtime, editable_path = _editable_test_venv(tmp_path, stale_checkout)
+    setup_stamp = runtime / ".uv-setup"
+    setup_stamp.write_text("original setup stamp\n", encoding="utf-8")
+    original_mtime_ns = setup_stamp.stat().st_mtime_ns
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    touch_called = tmp_path / "touch-called"
+    fake_touch = fake_bin / "touch"
+    fake_touch.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$@\" > {shlex.quote(str(touch_called))}\n"
+        "exec /usr/bin/touch \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_touch.chmod(0o755)
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' {shlex.quote(str(ROOT))} > "
+        f"{shlex.quote(str(editable_path))}\n"
+        "exit 73\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            f"VENV={runtime}",
+            "setup",
+        ],
+        cwd=ROOT,
+        env=_non_gate_environment(fake_bin),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "failed to refresh editable oompah install" in result.stderr
+    assert editable_path.read_text(encoding="utf-8").strip() == str(ROOT)
+    assert setup_stamp.read_text(encoding="utf-8") == "original setup stamp\n"
+    assert setup_stamp.stat().st_mtime_ns == original_mtime_ns
+    assert not touch_called.exists()
+
+
 def test_setup_keeps_a_fresh_correct_editable_checkout_idempotent(tmp_path):
     """The normal current install takes the fast path without invoking uv."""
     runtime, _editable_path = _editable_test_venv(tmp_path, ROOT)

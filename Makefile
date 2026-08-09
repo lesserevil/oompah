@@ -151,7 +151,10 @@ setup: $(VENV)/.uv-setup
 		2>/dev/null || true); \
 	if [ "$$actual_checkout" != "$$expected_checkout" ]; then \
 		echo "Refreshing editable oompah install for $$expected_checkout (was $${actual_checkout:-unavailable})."; \
-		uv pip install --python "$(PYTHON)" -e '.[server]'; \
+		if ! uv pip install --python "$(PYTHON)" -e '.[server]'; then \
+			echo "ERROR: failed to refresh editable oompah install for $$expected_checkout." >&2; \
+			exit 1; \
+		fi; \
 		touch "$(VENV)/.uv-setup"; \
 		actual_checkout=$$(cd "$(VENV)" && "$(abspath $(PYTHON))" -I -c \
 			'import importlib.util, pathlib; spec = importlib.util.find_spec("oompah"); print(pathlib.Path(spec.origin).resolve().parent.parent if spec and spec.origin else "")' \
