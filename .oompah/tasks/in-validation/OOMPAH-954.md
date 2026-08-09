@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-954
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Compose canonical epic facts in universal workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T11:52:17.224593Z'
+updated_at: '2026-08-09T12:51:35.522753Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -30,6 +30,37 @@ oompah.integration:
   submitted_at: '2026-08-09T11:51:17.689634+00:00'
   updated_at: '2026-08-09T11:51:17.689634+00:00'
 oompah.work_branch: OOMPAH-954
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-f0bc7481f2ea
+    project_id: proj-14849f1b
+    task_id: OOMPAH-954
+    digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f0bc7481f2ea
+    project_id: proj-14849f1b
+    task_id: OOMPAH-954
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T12:51:29.097174+00:00'
+    selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+    selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +93,15 @@ author: oompah
 created: 2026-08-09 11:51
 ---
 Review blocker fixed at dccbeb5ac: enforce runtime liveness reuses canonical epic facts, and OOMPAH-748 cannot be falsely overridden by stale generic retry exhaustion; 227 focused tests pass.
+---
+author: oompah
+created: 2026-08-09 12:51
+---
+Worked around OOMPAH-958 durable integration lease deadlock: both accepted commits are patch-equivalent in origin/epic-OOMPAH-940 at 1ab5776d8. Reconciled to Done from authoritative target evidence.
+---
+author: oompah
+created: 2026-08-09 12:51
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

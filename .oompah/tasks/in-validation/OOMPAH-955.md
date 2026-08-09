@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-955
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Prevent long durable effects from head-of-line blocking control jobs
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T12:18:32.981008Z'
+updated_at: '2026-08-09T12:51:46.659447Z'
 work_branch: OOMPAH-955
 target_branch: null
 review_url: null
@@ -30,6 +30,37 @@ oompah.integration:
   submitted_at: '2026-08-09T12:18:24.209775+00:00'
   updated_at: '2026-08-09T12:18:24.209775+00:00'
 oompah.work_branch: OOMPAH-955
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-d341be5cbd4d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-955
+    digest: e61d6225c423b72632a018c93b66129aded2d509f9e82223137b34ac56605b1e
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d341be5cbd4d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-955
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e61d6225c423b72632a018c93b66129aded2d509f9e82223137b34ac56605b1e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T12:51:41.055249+00:00'
+    selected_ref: fc1c8dc993964b34fbd60a008654fa8ca315b54f
+    selected_sha: fc1c8dc993964b34fbd60a008654fa8ca315b54f
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +93,15 @@ author: oompah
 created: 2026-08-09 12:18
 ---
 Review blocker fixed: workflow effect admission is serialized across async claims, with deterministic concurrent-call bound coverage. Review-ready head fc1c8dc993964b34fbd60a008654fa8ca315b54f pushed.
+---
+author: oompah
+created: 2026-08-09 12:51
+---
+Worked around OOMPAH-958 durable integration lease deadlock: both accepted commits are patch-equivalent in origin/epic-OOMPAH-940 at 1ab5776d8. Reconciled to Done from authoritative target evidence.
+---
+author: oompah
+created: 2026-08-09 12:51
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T12:16:50.390368Z'
+updated_at: '2026-08-09T12:51:52.189298Z'
 work_branch: OOMPAH-956
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-08-09 12:16
 ---
 Independent review found no blockers at 60b94b8844af30c1ff796869eeab3b68b98dbe1f against exact epic base 41a158291. Lease-token mutation, administrative attempt restoration, checkpoint/generation preservation, append-only deferral history/backoff, pre-effect classification, and post-effect fail-closed behavior are coherent; targeted tests cover repeated administrative cycles, ABA/restart, pause-after-claim, genuine exhaustion, and uncertain apply.
+---
+author: oompah
+created: 2026-08-09 12:51
+---
+Worked around OOMPAH-958 durable integration lease deadlock: the accepted change is semantically identical in origin/epic-OOMPAH-940 at 1ab5776d8; range-diff differs only because DurableWorkflowWorker was already imported by OOMPAH-955. Reconciled to Done from authoritative target evidence.
 ---
 <!-- COMMENTS:END -->
