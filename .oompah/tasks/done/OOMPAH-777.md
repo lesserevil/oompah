@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:52.177276Z'
-updated_at: '2026-08-07T08:39:52.203106Z'
+updated_at: '2026-08-09T23:11:42.212071Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-777
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -82,6 +82,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T17:02:08.533793+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-e3387608a901
     project_id: proj-14849f1b
@@ -99,6 +100,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T17:02:08.533793+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-f6ca0bf9e1f9
     project_id: proj-14849f1b
@@ -118,6 +120,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:39:47.552644+00:00'
     selected_ref: 96b878f747949df1956de1d11e6f9bc6db32d279
     selected_sha: 96b878f747949df1956de1d11e6f9bc6db32d279
+    source_generation: 1
   - version: 1
     audit_id: audit-c33eb980faf0
     project_id: proj-14849f1b
@@ -137,6 +140,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:39:47.552644+00:00'
     selected_ref: 96b878f747949df1956de1d11e6f9bc6db32d279
     selected_sha: 96b878f747949df1956de1d11e6f9bc6db32d279
+    source_generation: 1
   attempt_history: []
 ---
 ## Summary
