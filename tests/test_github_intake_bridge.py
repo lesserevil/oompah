@@ -591,6 +591,35 @@ def test_pr_backed_comment_webhook_cannot_reach_native_intake(monkeypatch):
     assert native.update_calls == []
 
 
+def test_empty_pr_marker_comment_cannot_reach_native_intake(monkeypatch):
+    """The defensive boundary rejects falsey but non-null PR markers."""
+    native = FakeNativeTracker()
+
+    def fail_if_initialized(*_args, **_kwargs):
+        raise AssertionError("PR-backed comments must not initialize intake trackers")
+
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        fail_if_initialized,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issue_comment",
+        action="created",
+        repo_slug="example-org/app",
+        issue_number="768",
+        comment_id="1885001",
+        raw={"issue": {"number": 768, "pull_request": {}}},
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert native.issues == {}
+    assert native.comments == []
+    assert native.metadata == {}
+    assert native.update_calls == []
+
+
 def test_null_pr_marker_comment_still_imports_at_native_boundary(monkeypatch):
     """Direct intake preserves genuine issues with a nullable PR field."""
     native = FakeNativeTracker()

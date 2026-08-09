@@ -120,7 +120,7 @@ def _is_pr_backed_issue_comment(event: WebhookEvent) -> bool:
         return False
     raw = event.raw if isinstance(event.raw, dict) else {}
     issue = raw.get("issue")
-    return isinstance(issue, dict) and bool(issue.get("pull_request"))
+    return isinstance(issue, dict) and issue.get("pull_request") is not None
 
 
 def _github_tracker_for_project(

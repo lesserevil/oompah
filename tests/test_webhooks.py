@@ -671,6 +671,13 @@ class TestParseGitHubIssueCommentWebhook:
         assert event.issue_number == "5"
         assert event.comment_id == "987654"
 
+    def test_empty_pull_request_marker_is_still_pr_backed(self):
+        """Any present non-null PR marker stays outside issue intake."""
+        payload = self._comment_payload(action="created")
+        payload["issue"]["pull_request"] = {}
+
+        assert parse_github_webhook("issue_comment", payload) is None
+
     def test_missing_issue_returns_none(self):
         payload = {"action": "created", "comment": {"id": 1, "user": {"login": "x"}}}
         assert parse_github_webhook("issue_comment", payload) is None
