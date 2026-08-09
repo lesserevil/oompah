@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:41.045890Z'
-updated_at: '2026-08-04T14:20:56.656502Z'
+updated_at: '2026-08-09T23:58:43.155988Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-772
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -61,6 +61,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-04T14:20:55.386413+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: This completed and audited child is intentionally retained at its terminal
+      Done disposition after its implementation was composed into the delivered parent.
+      Retire obsolete rollup promotion jobs; no new revision is authorized.
+    marked_at: '2026-08-09T23:58:41.682876+00:00'
+    updated_at: '2026-08-09T23:58:41.682876+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: This completed and audited child is intentionally retained at its terminal
+        Done disposition after its implementation was composed into the delivered
+        parent. Retire obsolete rollup promotion jobs; no new revision is authorized.
+      recorded_at: '2026-08-09T23:58:41.682876+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
