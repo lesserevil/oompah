@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-966
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Fence completed workflow effects until completion callbacks settle
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T16:29:54.272144Z'
-updated_at: '2026-08-09T16:29:54.272144Z'
+updated_at: '2026-08-09T16:30:11.198481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ Hosted PR #770 run 31323480242 failed Python 3.12 in test_fast_admission_request
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 16:30
+---
+Project owner promotes the exact hosted false-idle race for direct repair on the active OOMPAH-962 integration branch.
+---
+<!-- COMMENTS:END -->
