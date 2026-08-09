@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T11:57:57.548586Z'
+updated_at: '2026-08-09T12:04:16.618175Z'
 work_branch: OOMPAH-946
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/758
@@ -45,6 +45,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-946
     digest: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-946","audit-1dbbda00b201","attempt-7f7dc8f82bbe"]': '2026-08-09T12:04:08.387247+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    target_state: Done
+    evidence_fingerprint: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+    audit_ids:
+    - audit-1dbbda00b201
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T12:04:08.387263+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    audit_id: audit-1dbbda00b201
+    attempt_id: attempt-7f7dc8f82bbe
+    target_state: Done
+    evidence_fingerprint: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+    status: In Validation
+    audit_ids:
+    - audit-1dbbda00b201
+    kind: result
+    applied: true
+    created_at: '2026-08-09T12:04:08.387272+00:00'
+    applied_at: '2026-08-09T12:04:15.102109+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -52,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-946
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -61,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7f7dc8f82bbe
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,6 +99,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-946
       selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
       selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
+      verdict: pass
+      completed_at: '2026-08-09T12:04:08.387121+00:00'
+      ended_at: '2026-08-09T12:04:08.387121+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -82,7 +111,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T11:17:43.998080+00:00'
     selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
     selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
-    updated_at: '2026-08-09T11:57:48.283643+00:00'
+    updated_at: '2026-08-09T12:04:08.387121+00:00'
   - version: 1
     audit_id: audit-5b710ff06745
     project_id: proj-14849f1b
@@ -161,5 +190,17 @@ author: oompah
 created: 2026-08-09 11:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 12:04
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commit_hash: 8e2527b74e958127861621fdbcebb627d0929e24
+- readiness_handshake: Inner bash publishes BASHPID after setsid
+- cleanup: exact-generation termination
 ---
 <!-- COMMENTS:END -->
