@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:14:48.447361Z'
+updated_at: '2026-08-09T09:34:30.243345Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-08-09 09:11
 ---
 Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+author: oompah
+created: 2026-08-09 09:34
+---
+Implemented/pushed 71e169737. Epic cleanup now consumes the same unique durable source/target/revision landing fact used by the canonical rollup path when a terminal child's ref and tracker head have been pruned. Live-head conflicts, multiple facts, wrong routes, non-durable proof, maintenance, and archived semantics remain fail-closed. Focused epic/integration result: 167 passed; targeted undefined-name lint passed.
 ---
 <!-- COMMENTS:END -->
