@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T23:09:00.912201Z'
-updated_at: '2026-08-08T23:35:19.730398Z'
+updated_at: '2026-08-09T05:14:17.329197Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-94d64915c9de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-928
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa0d5947889ae7b6d9c00e8a93d1aacdfd75811922deac0e47d51804854ad3d2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:14:14.123841+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -37,5 +59,10 @@ author: oompah
 created: 2026-08-08 23:35
 ---
 Implementation complete in the shared candidate worktree: restart cleanup seeding now counts only newly created durable jobs, is stable across runtime owner/process restarts, avoids collector/Git work for terminal epics without tracker exact heads, classifies retained durable cleanup authority, and emits exactly one bounded aggregate summary per seed pass. Focused epic workflow and adapter suite: 81 passed. Awaiting integration with OOMPAH-927 and the exact full branch gate.
+---
+author: oompah
+created: 2026-08-09 05:14
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
