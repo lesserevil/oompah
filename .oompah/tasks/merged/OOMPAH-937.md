@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:29:03.390818Z'
-updated_at: '2026-08-09T08:50:42.403328Z'
+updated_at: '2026-08-09T08:50:54.278285Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       PR #750 and all hosted tests passed; live state confirms authoritative exhausted
       rows are actionable and stale rows clear only after concrete replacement authority.'
     created_at: '2026-08-09T08:50:36.450422+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-937
+    target_state: Merged
+    evidence_fingerprint: 5da9fecba7e20132d54a19ac5ad617cc1be333e484afcb20b22086a7e58e7329
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T08:50:47.163557+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -71,5 +81,17 @@ author: oompah
 created: 2026-08-09 08:50
 ---
 Delivered to protected main by merged PR #750 at b7e7d9509a4e6025b48c54336098acef2dda4986; complete hosted gates passed on Python 3.11/3.12/3.13. Live generation 246 now projects every detected authoritative exhaustion as retry.exhausted/action_required/operator instead of normal retry info; replacement generations remove historical rows from current exhaustion as intended.
+---
+author: oompah
+created: 2026-08-09 08:50
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner direct delivery is on protected main at b7e7d950 after PR #750 and all hosted tests passed; live state confirms authoritative exhausted rows are actionable and stale rows clear only after concrete replacement authority.
+---
+author: oompah
+created: 2026-08-09 08:50
+---
+Merged in PR #750 at b7e7d950; hosted CI and live actionable-exhaustion projection passed.
 ---
 <!-- COMMENTS:END -->
