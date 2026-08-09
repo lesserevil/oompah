@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:43:16.925668Z'
+updated_at: '2026-08-09T23:45:46.590176Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -42,6 +42,11 @@ oompah.terminal_audit:
     digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
   - version: 1
     audit_id: audit-e005f71194c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+  - version: 1
+    audit_id: audit-7dcdc0452acb
     project_id: proj-14849f1b
     task_id: OOMPAH-974
     digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
@@ -194,6 +199,26 @@ oompah.terminal_audit:
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     updated_at: '2026-08-09T22:12:41.100637+00:00'
+  - version: 1
+    audit_id: audit-7dcdc0452acb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T23:45:42.374145+00:00'
+    selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
   attempt_history:
   - version: 1
     attempt_id: attempt-64bedb0842a2

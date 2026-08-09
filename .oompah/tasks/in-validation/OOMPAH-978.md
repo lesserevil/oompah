@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-978
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Stop project config updates from dirtying managed checkouts
 parent: null
@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:33:17.841986Z'
+updated_at: '2026-08-09T23:45:40.496812Z'
 work_branch: OOMPAH-978
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/787
@@ -33,6 +33,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/787
 oompah.review_number: '787'
 oompah.target_branch: main
 oompah.review_head: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-6b258e38a578
+    project_id: proj-14849f1b
+    task_id: OOMPAH-978
+    digest: 88a039ed4ac5abd74531c6b00318396dd21ce35fa374f154c028516ce7d40c99
+  - version: 1
+    audit_id: audit-0425441df257
+    project_id: proj-14849f1b
+    task_id: OOMPAH-978
+    digest: 88a039ed4ac5abd74531c6b00318396dd21ce35fa374f154c028516ce7d40c99
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6b258e38a578
+    project_id: proj-14849f1b
+    task_id: OOMPAH-978
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 88a039ed4ac5abd74531c6b00318396dd21ce35fa374f154c028516ce7d40c99
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T23:45:33.568120+00:00'
+    selected_ref: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+    selected_sha: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+  - version: 1
+    audit_id: audit-0425441df257
+    project_id: proj-14849f1b
+    task_id: OOMPAH-978
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 88a039ed4ac5abd74531c6b00318396dd21ce35fa374f154c028516ce7d40c99
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T23:45:33.568120+00:00'
+    selected_ref: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+    selected_sha: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+  attempt_history: []
 ---
 ## Summary
 
@@ -77,5 +133,10 @@ author: oompah
 created: 2026-08-09 23:33
 ---
 Independent exact-head review APPROVED 409132582cb1c527ffa53efc174d3464289971a7 with parent exactly OOMPAH-974 0006c430f. Reviewer verified no runtime AGENTS.md writer remains on project create/PATCH, explicit bootstrap status/preview/apply is tracker-aware for native and GitHub aliases, all public helper defaults preserve standalone CLI compatibility, and AST call-site scan found no incompatible callers. Independent combined review ran 353 focused tests; implementation run passed 198; terminal scan 20/20 and diff/trailer/origin cleanliness pass. PR #787 protected matrix is running; auto-merge remains off until parent PR #784 lands.
+---
+author: oompah
+created: 2026-08-09 23:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
