@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:48:07.706416Z'
+updated_at: '2026-08-09T23:54:52.537649Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -102,6 +102,28 @@ oompah.terminal_audit:
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     applied: true
+  - version: 1
+    override_id: override-88f015484d41
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected combined PR #787 merged exact OOMPAH-974 head 0006c430f566da7138f2958ed948e15d371cdf6d
+      into main as eb3ca86e56dbe87a078d81f97cfa6054b94a5ee6. Protected Python 3.11/3.12/3.13
+      gates passed; independent exact-head reviews and focused liveness/race suites
+      passed. The restored auditor was obsolete because it bound 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+      rather than the delivered head.'
+    created_at: '2026-08-09T23:54:48.414563+00:00'
+    selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    applied: false
   oompah.terminal_provenance_suppression:
     version: 1
     suppressed: false
