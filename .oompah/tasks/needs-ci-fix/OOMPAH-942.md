@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T14:25:24.542835Z'
+updated_at: '2026-08-09T14:26:32.012919Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -122,6 +122,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-942
     selected_ref: dcda220c225eef11f4704f61cade067d609e2da9
     selected_sha: dcda220c225eef11f4704f61cade067d609e2da9
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 328
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 328
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 328
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T14:26:26.586001+00:00'
 ---
 ## Summary
 
@@ -201,5 +217,15 @@ created: 2026-08-09 14:25
 Audit FAIL — ci failure. Routing task to Needs CI Fix.
 
 [REDACTED]
+---
+author: oompah
+created: 2026-08-09 14:26
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 28, Tool calls: 7
+- Tokens: 10 in / 328 out [338 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24m 17s
+- Log: OOMPAH-942__20260809T140224Z.jsonl
 ---
 <!-- COMMENTS:END -->
