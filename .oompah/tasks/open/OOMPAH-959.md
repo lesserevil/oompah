@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T15:57:57.853808Z'
+updated_at: '2026-08-09T16:15:22.779021Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-09 15:57
 ---
 Corrected transition and subscriber wake routing; exact head 42e5355de with 556 affected tests and independent re-review clear
+---
+author: oompah
+created: 2026-08-09 16:15
+---
+Final exact head 42e5355de509b5768668ca2d4462862b57d39e44 passed hosted CI on Python 3.11/3.12/3.13 in run 31322428029 and independent final review reported no blockers. After OOMPAH-957 merged, a no-commit composition with current main passed all 456 affected workflow/integration tests. Merging PR #771 now; the later stacked OOMPAH-961 exact-head gate will also qualify the final combined workflow tree.
 ---
 <!-- COMMENTS:END -->
