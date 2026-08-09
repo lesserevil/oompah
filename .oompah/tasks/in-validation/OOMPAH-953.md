@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T16:03:43.481481Z'
+updated_at: '2026-08-09T16:04:10.990494Z'
 work_branch: OOMPAH-953
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/764
@@ -148,6 +148,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-953
     selected_ref: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
     selected_sha: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 216
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 216
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 216
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T16:04:06.781847+00:00'
 ---
 ## Summary
 
@@ -208,5 +224,15 @@ Safe evidence:
 - test_coverage: test_capacity_wait_and_running_gate_keep_full_revalidation_o1 proves zero tracker calls during 120ms capacity wait exactly three calls across execution; test_workflow_authority_change_is_a_local_cancellation proves immediate workflow generation cancellation; 776 quality-gate tests 175 integration tests terminal secret scans passed
 - requirements_satisfied: local_cheap_predicate implemented in hot loops; bounded_polling via local predicate only; external_barriers retain full revalidation; prompt_revocation without network latency; exact_head_fencing preserved; fail_closed_remote preserved
 - evidence: authoritative_gate_passed full_gate_160.1s independent_review_no_blockers accepted_head_20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+---
+author: oompah
+created: 2026-08-09 16:04
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 99, Tool calls: 45
+- Tokens: 10 in / 216 out [226 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 18s
+- Log: OOMPAH-953__20260809T155858Z.jsonl
 ---
 <!-- COMMENTS:END -->
