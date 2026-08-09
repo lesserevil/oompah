@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-08T04:10:30.385566Z'
+updated_at: '2026-08-09T20:14:21.532224Z'
 work_branch: OOMPAH-843
 target_branch: null
 review_url: null
@@ -162,6 +162,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-08T04:10:00.200794+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-843 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:14:19.912184+00:00'
+    updated_at: '2026-08-09T20:14:19.912184+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-843 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:14:19.912184+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []

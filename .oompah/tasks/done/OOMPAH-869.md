@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-09T05:10:04.593380Z'
+updated_at: '2026-08-09T20:14:36.055004Z'
 work_branch: OOMPAH-869
 target_branch: null
 review_url: null
@@ -127,6 +127,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-09T05:10:03.107131+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-869 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:14:34.380572+00:00'
+    updated_at: '2026-08-09T20:14:34.380572+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-869 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:14:34.380572+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
