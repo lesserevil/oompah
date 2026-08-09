@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T16:16:21.713855Z'
+updated_at: '2026-08-09T16:16:40.840442Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -73,7 +73,21 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:16:09.166940+00:00'
     selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
     selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    target_state: Done
+    evidence_fingerprint: cb200a77409736d9c5bd729981e55649de1ceaafc6f2802d65e09a4796c1414d
+    audit_ids:
+    - audit-5317d8cb7d28
+    - audit-98be2b218af8
+    - audit-aa7f0f8bfb5e
+    - audit-b388d2365ecf
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:16:31.170990+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -121,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-959
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -136,12 +150,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:15:50.152457+00:00'
     selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
     selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
+    updated_at: '2026-08-09T16:16:31.170919+00:00'
   - version: 1
     audit_id: audit-b388d2365ecf
     project_id: proj-14849f1b
     task_id: OOMPAH-959
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -156,6 +171,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:15:50.152457+00:00'
     selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
     selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
+    updated_at: '2026-08-09T16:16:31.170961+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -209,5 +225,17 @@ author: oompah
 created: 2026-08-09 16:15
 ---
 Final exact head 42e5355de509b5768668ca2d4462862b57d39e44 passed hosted CI on Python 3.11/3.12/3.13 in run 31322428029 and independent final review reported no blockers. After OOMPAH-957 merged, a no-commit composition with current main passed all 456 affected workflow/integration tests. Merging PR #771 now; the later stacked OOMPAH-961 exact-head gate will also qualify the final combined workflow tree.
+---
+author: oompah
+created: 2026-08-09 16:16
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner direct completion: exact PR head 42e5355de509b5768668ca2d4462862b57d39e44 passed hosted Python 3.11/3.12/3.13 CI run 31322428029 and independent final review; composition with current main passed 456 affected tests; squash merge 890070ab7411b4a7874013ffdea3bf4fa227c86f matches the proven synthetic merge tree.
+---
+author: oompah
+created: 2026-08-09 16:16
+---
+Merged PR #771 after exact-head hosted CI, independent no-blocker review, and 456-test current-main composition check.
 ---
 <!-- COMMENTS:END -->
