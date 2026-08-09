@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-955
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Prevent long durable effects from head-of-line blocking control jobs
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T16:24:39.183672Z'
+updated_at: '2026-08-09T16:29:26.951605Z'
 work_branch: OOMPAH-955
 target_branch: null
 review_url: null
@@ -38,6 +38,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-955
     digest: e61d6225c423b72632a018c93b66129aded2d509f9e82223137b34ac56605b1e
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0fdfef8e1a1f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-955
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e61d6225c423b72632a018c93b66129aded2d509f9e82223137b34ac56605b1e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after git patch identity proved accepted head
+      fc1c8dc993964b34fbd60a008654fa8ca315b54f and its prerequisite patch are contained
+      in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435; PR #757 merged as
+      ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01 with hosted Python 3.11/3.12/3.13 checks
+      successful.'
+    created_at: '2026-08-09T16:29:22.667631+00:00'
+    selected_ref: fc1c8dc993964b34fbd60a008654fa8ca315b54f
+    selected_sha: fc1c8dc993964b34fbd60a008654fa8ca315b54f
+    applied: false
   version: 1
   pending_chain:
   - version: 1
