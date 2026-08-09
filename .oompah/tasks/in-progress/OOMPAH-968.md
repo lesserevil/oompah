@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-968
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Fence absent-to-retained provenance changes during workflow publication
 parent: OOMPAH-940
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T18:53:15.002575Z'
+updated_at: '2026-08-09T18:55:18.523408Z'
 work_branch: null
 target_branch: null
 review_url: null
