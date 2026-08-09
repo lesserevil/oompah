@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-963
 type: task
-status: Proposed
+status: Archived
 priority: null
 title: 'OOMPAH-960: Consume parent-scoped canonical child landing facts'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-08-09T14:59:47.450633Z'
-updated_at: '2026-08-09T16:09:54.410365Z'
+updated_at: '2026-08-09T16:11:34.154653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,6 +30,30 @@ oompah.external.github:
   - '5232157145'
   last_synced_status: Proposed
   last_synced_at: '2026-08-09T14:59:48.570298+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c57ca92b151f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-963
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 83fb17fd81755906bf6e1df1979bc2dcfd935ea0cf50af611806e3d693f76444
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner cleanup of an erroneously imported GitHub pull request:
+      OOMPAH-963 points to merged PR #768 and duplicates the delivered OOMPAH-960
+      review artifact. Runtime logs prove PR issue_comment events entered the uncovered
+      intake path; OOMPAH-964 tracks the systemic fix.'
+    created_at: '2026-08-09T16:11:27.233114+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
