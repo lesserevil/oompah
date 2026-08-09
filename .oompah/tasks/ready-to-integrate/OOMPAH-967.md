@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:44:09.998651Z'
+updated_at: '2026-08-09T18:47:00.116737Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -92,5 +92,10 @@ author: oompah
 created: 2026-08-09 18:44
 ---
 Exact head e0927912d provides end-to-end fail-closed terminal provenance, retained zero-job decisions, exact publication fencing, and durable exhaustion retirement. 531 focused tests plus independent review are green.
+---
+author: oompah
+created: 2026-08-09 18:47
+---
+Final exact head 5adb50e55 is pushed. Known non-mapping outer terminal-audit facts now fail closed, completing validation across persisted envelope, marker, fact adapter, canonical decision, publication proof, retirement rollback, and restart. Verification: 534 focused tests pass; two independent full-pipeline reviews report no blockers (36 and 226 selected tests); critical Ruff/diff checks pass. This is the integration head.
 ---
 <!-- COMMENTS:END -->
