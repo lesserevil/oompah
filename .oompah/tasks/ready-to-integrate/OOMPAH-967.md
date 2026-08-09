@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:28:08.716465Z'
+updated_at: '2026-08-09T18:32:55.366105Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-967
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  head_sha: 9dc053c7decd709dd6b46a7034adf7a26e646233
-  submitted_at: '2026-08-09T18:27:21.528495+00:00'
-  updated_at: '2026-08-09T18:27:21.528495+00:00'
+  head_sha: 6ee3612311e3c26e2404b31895e876fb9a7cd33d
+  submitted_at: '2026-08-09T18:32:50.215094+00:00'
+  updated_at: '2026-08-09T18:32:50.215094+00:00'
 oompah.work_branch: OOMPAH-967
 ---
 ## Summary
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-09 18:27
 ---
 Honor authenticated retained terminal provenance in canonical workflow decisions, fail closed on invalid authority, and fence zero-job publication against authority changes. Head 9dc053c7d is pushed; 479 focused tests and independent review are green.
+---
+author: oompah
+created: 2026-08-09 18:32
+---
+Submission head superseded by pushed corrective head 6ee361231 after adversarial review. Every present provenance fact now requires boolean retained/malformed flags, non-boolean integer schema versions, and complete project/task/actor/generation/timestamp identity before it can retain or resume delivery. Verification: 487 focused tests pass; independent 92-test re-review reports no blockers; Ruff and diff checks pass. Do not integrate prior head 9dc053c7d.
 ---
 <!-- COMMENTS:END -->
