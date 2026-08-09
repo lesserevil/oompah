@@ -48,7 +48,12 @@ from oompah.task_transition_service import (
     issue_authority_version,
     issue_exact_head,
 )
-from oompah.terminal_audit import RequestState, TargetState, Verdict
+from oompah.terminal_audit import (
+    RequestState,
+    TargetState,
+    Verdict,
+    compute_issue_evidence_fingerprint,
+)
 from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_contract import READY_TO_INTEGRATE
@@ -426,6 +431,7 @@ class IntegrationLandingRequestResolver:
     def _terminal_audit_parent_head(
         self,
         parent: Issue,
+        source_branch: str,
     ) -> tuple[str | None, bool, str | None]:
         get_metadata = getattr(self.tracker, "get_metadata", None)
         if not callable(get_metadata):
@@ -444,6 +450,9 @@ class IntegrationLandingRequestResolver:
         expected_target = (
             TargetState.ARCHIVED if current == ARCHIVED else TargetState.MERGED
         )
+        current_fingerprint = compute_issue_evidence_fingerprint(
+            parent, self.project_id
+        )
         candidates: list[str] = []
         audit_ids: list[str] = []
         for record in document.pending_chain:
@@ -452,13 +461,7 @@ class IntegrationLandingRequestResolver:
                 or record.task_id != parent.identifier
                 or record.target_state is not expected_target
                 or record.request_state is not RequestState.COMPLETED
-                or not any(
-                    attempt.verdict is Verdict.PASS
-                    and attempt.request_state is RequestState.COMPLETED
-                    and attempt.selected_ref == record.selected_ref
-                    and attempt.selected_sha == record.selected_sha
-                    for attempt in record.attempts
-                )
+                or record.evidence_fingerprint != current_fingerprint
             ):
                 continue
             if record.selected_sha is None:
@@ -466,6 +469,30 @@ class IntegrationLandingRequestResolver:
                 # not contradictory; a lower-priority exact forge receipt may
                 # still provide the one-time backfill.
                 continue
+            selected_ref = str(record.selected_ref or "").strip()
+            immutable_ref = self._git_revision(selected_ref)
+            accepted_refs = {
+                source_branch,
+                f"origin/{source_branch}",
+                f"refs/heads/{source_branch}",
+                f"refs/remotes/origin/{source_branch}",
+            }
+            if not (
+                selected_ref in accepted_refs
+                or (
+                    immutable_ref is not None
+                    and immutable_ref == str(record.selected_sha).strip().lower()
+                )
+            ):
+                return None, True, None
+            if not any(
+                attempt.verdict is Verdict.PASS
+                and attempt.request_state is RequestState.COMPLETED
+                and attempt.selected_ref == record.selected_ref
+                and attempt.selected_sha == record.selected_sha
+                for attempt in record.attempts
+            ):
+                return None, True, None
             candidates.append(record.selected_sha)
             audit_ids.append(record.audit_id)
         revision, present = self._one_exact_head(candidates)
@@ -561,43 +588,47 @@ class IntegrationLandingRequestResolver:
         if present:
             return revision
 
-        revision, present = self._queue_parent_head(parent, source_branch)
-        if present:
-            if revision and self._persist_parent_head(
-                parent,
-                source_branch=source_branch,
-                revision=revision,
-                kind="merge_commit",
-                authority_id="integration_queue",
-            ):
-                return revision
-            return None
-
-        revision, present, audit_id = self._terminal_audit_parent_head(parent)
-        if present:
-            if revision and self._persist_parent_head(
-                parent,
-                source_branch=source_branch,
-                revision=revision,
-                kind="terminal_audit",
-                authority_id=audit_id,
-            ):
-                return revision
-            return None
-
-        revision, present, review_id = self._forge_parent_head(
+        queue_revision, queue_present = self._queue_parent_head(
             parent, source_branch
         )
-        if present:
-            if revision and self._persist_parent_head(
-                parent,
-                source_branch=source_branch,
-                revision=revision,
-                kind="forge_merge",
-                authority_id=review_id,
-            ):
-                return revision
+        if queue_present and queue_revision is None:
             return None
+        audit_revision, audit_present, audit_id = self._terminal_audit_parent_head(
+            parent, source_branch
+        )
+        if audit_present and audit_revision is None:
+            return None
+        forge_revision, forge_present, review_id = self._forge_parent_head(
+            parent, source_branch
+        )
+        authorities = (
+            ("merge_commit", "integration_queue", queue_revision, queue_present),
+            ("terminal_audit", audit_id, audit_revision, audit_present),
+            ("forge_merge", review_id, forge_revision, forge_present),
+        )
+        if forge_present and forge_revision is None:
+            return None
+        exact = {
+            revision
+            for _, _, revision, present in authorities
+            if present and revision is not None
+        }
+        if len(exact) != 1:
+            return None
+        revision = next(iter(exact))
+        kind, authority_id, _, _ = next(
+            authority
+            for authority in authorities
+            if authority[3] and authority[2] == revision
+        )
+        if self._persist_parent_head(
+            parent,
+            source_branch=source_branch,
+            revision=revision,
+            kind=kind,
+            authority_id=authority_id,
+        ):
+            return revision
         return None
 
     @staticmethod
