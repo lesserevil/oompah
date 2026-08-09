@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:26:17.775582Z'
-updated_at: '2026-08-09T06:26:55.976129Z'
+updated_at: '2026-08-09T06:27:35.337495Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Problem: after OOMPAH-933 made protected GitHub CI run the supported Makefile ga
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 06:27
+---
+Claimed directly after the repaired hosted workflow exposed 7-9 residual failures in every Python matrix job (run 31298491232). Root causes are test determinism defects, not product invariant failures: asynchronous broker release asserted synchronously; fixed sleeps before startup tick; class-level PR-detail cache contamination; PID file existence/content race; and 5-second pytest deadlines shorter than bounded subprocess contracts under four-way hosted contention. Implementing event/state synchronization, cache isolation, narrow timeout budgets, and two hosted xdist workers; no global timeout or product safety relaxation.
+---
+<!-- COMMENTS:END -->
