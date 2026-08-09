@@ -5627,6 +5627,66 @@ class Orchestrator:
             await asyncio.to_thread(self._notify_state_only)
         return retired
 
+    def _retire_owner_claim_after_validation_transition(self, job: Any) -> bool:
+        """Hand an accepted direct-owner submission to Ready workflow authority.
+
+        Durable implementation transitions are applied by the shared workflow
+        worker rather than :meth:`_transition_issue_status_async`, so they do
+        not pass through its post-commit owner-retirement hook.  The workflow
+        job's bounded finalizer calls this method only after the transition
+        checkpoint is durable. The exact claim generation captured by
+        submission prevents a stale completion from revoking a later ABA
+        replacement.
+
+        The immutable transition journal remains the crash-boundary recovery
+        source for a process death between the status commit and this callback.
+        """
+
+        if str(getattr(job, "action", "") or "") != "validation_submission":
+            return False
+        payload = getattr(job, "payload", None)
+        if not isinstance(payload, Mapping):
+            return False
+        claim_id = str(payload.get("owner_claim_id") or "").strip()
+        if not claim_id:
+            return False
+        project_id = str(getattr(job, "project_id", "") or "").strip()
+        identifier = str(getattr(job, "task_id", "") or "").strip()
+        if not project_id or not identifier:
+            return False
+        try:
+            tracker = self._tracker_for_project(project_id)
+            issue = tracker.fetch_issue_detail(identifier)
+        except Exception:  # noqa: BLE001 - journal reconciliation retries later
+            logger.exception(
+                "Could not refresh direct-owner validation handoff for %s/%s",
+                project_id,
+                identifier,
+            )
+            return False
+        if issue is None:
+            return False
+        issue.project_id = project_id
+        if canonicalize_status(issue.state) != READY_TO_INTEGRATE:
+            return False
+        expected_head = str(getattr(job, "expected_head_sha", "") or "").lower()
+        observed_head = str(issue_exact_head(issue) or "").lower()
+        if expected_head and expected_head != observed_head:
+            return False
+        claim = self._owner_claim_for_issue(issue.id, project_id)
+        if claim is None or claim.claim_id != claim_id:
+            return False
+        expected_owner = str(payload.get("owner_login") or "").strip()
+        if expected_owner and claim.owner_login != expected_owner:
+            return False
+        return self._retire_owner_claim_after_status_commit_now(
+            issue=issue,
+            project_id=project_id,
+            claim=claim,
+            observed_status=issue.state,
+            observed_version=issue_authority_version(issue),
+        )
+
     def _has_active_owner_claim_revocation(
         self,
         *,
@@ -5677,12 +5737,32 @@ class Orchestrator:
             except (TypeError, ValueError):
                 continue
             if requested_at_epoch < claim.claimed_at:
-                break
+                # Results are ordered by commit event sequence, not immutable
+                # request creation time. A delayed transition requested before
+                # this claim can therefore appear ahead of a valid transition
+                # requested afterward; keep scanning rather than hiding the
+                # exact later request.
+                continue
             if (
                 canonicalize_status(intent.expected_status) == IN_PROGRESS
                 and event.outcome is not None
                 and canonicalize_status(event.outcome.observed_status) != IN_PROGRESS
             ):
+                if intent.reason_code == "implementation.validation_submission":
+                    originating_job = str(intent.originating_job or "").strip()
+                    if not originating_job:
+                        continue
+                    try:
+                        submission = self.workflow_job_store.get(originating_job)
+                    except Exception:  # fail closed without exact claim evidence
+                        continue
+                    if submission.action != "validation_submission":
+                        continue
+                    captured_claim_id = str(
+                        (submission.payload or {}).get("owner_claim_id") or ""
+                    ).strip()
+                    if not captured_claim_id or captured_claim_id != claim.claim_id:
+                        continue
                 return True
         return False
 
@@ -5816,6 +5896,7 @@ class Orchestrator:
             "expires_in_seconds": expires_in_seconds,
             "is_expired": claim.expires_at <= now,
             "renewable": claim.renewable,
+            "retirement_pending": claim.retirement_pending,
         }
 
     def _capture_shared_absorption_evidence(
@@ -13394,7 +13475,11 @@ class Orchestrator:
                     "active_job_id": active_job_id,
                 }
             claim = self._owner_claim_for_issue(current.id, current.project_id)
-            if claim is not None and claim.expires_at > time.time():
+            if (
+                claim is not None
+                and not claim.retirement_pending
+                and claim.expires_at > time.time()
+            ):
                 return {
                     "owner_id": claim.owner_login,
                     "generation": claim.claim_id,
