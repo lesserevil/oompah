@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T13:09:37.813101Z'
-work_branch: null
+updated_at: '2026-08-09T13:10:05.511553Z'
+work_branch: OOMPAH-958
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-958
+  base_branch: epic-OOMPAH-940
+  base_sha: 1ab5776d8e191d7cf1e98696a322969485a7d35a
+  head_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+  submitted_at: '2026-08-09T13:09:54.446784+00:00'
+  updated_at: '2026-08-09T13:09:54.446784+00:00'
+oompah.work_branch: OOMPAH-958
 ---
 ## Summary
 
