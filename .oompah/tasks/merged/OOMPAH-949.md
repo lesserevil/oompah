@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-949
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make fresh-waiter priority regression independent of host scheduling
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T15:51:11.211770Z'
+updated_at: '2026-08-09T16:31:44.167222Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
@@ -41,6 +41,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-949
     digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2ecd209cb4fa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-949
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact task head 27c3685dc3d2e4aba8e852a88569795acd300fe7
+      was proven to be PR #762 head and contained in main; PR #762 merged as 73705cea7523925b2bec19bc374e0399351e9e3d
+      with hosted Python 3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:31:39.981869+00:00'
+    selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    applied: false
   version: 1
   pending_chain:
   - version: 1
