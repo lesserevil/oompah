@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:32:59.527698Z'
+updated_at: '2026-08-09T18:38:09.283152Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-09 18:32
 ---
 Corrected exact head 6ee361231 fully validates all retained and non-retained provenance facts fail closed, honors valid retained authority, and fences zero-job publication. 487 focused tests and independent review are green.
+---
+author: oompah
+created: 2026-08-09 18:38
+---
+Exact submission head superseded again by pushed 79192eea1: persisted provenance marker, terminal-audit envelope, and quarantine versions now require non-boolean integers, preventing True/1.0 from being normalized into trusted version 1 before the decision boundary. Verification: 518 focused tests pass; independent 153-test review reports no blockers; critical Ruff/diff checks pass. Do not integrate prior heads.
 ---
 <!-- COMMENTS:END -->
