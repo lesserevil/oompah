@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -12,12 +12,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T12:27:46.360814Z'
+updated_at: '2026-08-09T12:28:04.287638Z'
 work_branch: OOMPAH-948
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
 review_number: '763'
-review_head: null
+review_head: a557d6de3384308a1ae18dd41fec5d12bfb8328a
 merged_at: null
 oompah.integration:
   version: 2
@@ -31,6 +31,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-948
 oompah.review_url: https://github.com/lesserevil/oompah/pull/763
 oompah.review_number: '763'
+oompah.target_branch: main
+oompah.review_head: a557d6de3384308a1ae18dd41fec5d12bfb8328a
 ---
 ## Summary
 
