@@ -1484,9 +1484,13 @@ def test_fast_admission_requests_one_world_scan_after_queue_drains(tmp_path):
     )
 
     async def exercise():
+        completion_published = asyncio.Event()
+        runtime._effect_completion_observer = (
+            lambda _result: completion_published.set()
+        )
         await runtime.start()
         first = await runtime.reconcile_async()
-        await wait_for_runtime_effects(runtime)
+        await asyncio.wait_for(completion_published.wait(), 1)
         final = await runtime.continue_admission_async()
         return first, final
 
@@ -1498,6 +1502,97 @@ def test_fast_admission_requests_one_world_scan_after_queue_drains(tmp_path):
     assert final["worker"]["active"] == 0
     assert final["requires_reconcile"] is True
     assert final["reconcile_reason"] == "published_queue_drained"
+    runtime.close()
+    store.close()
+
+
+def test_done_effect_remains_retained_until_completion_callback_settles(tmp_path):
+    """A done Task cannot open a close/drain gap before callback settlement."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    effect_entered = threading.Event()
+    release_effect = threading.Event()
+
+    class FencedHandler(CompleteHandler):
+        async def apply(self, context):
+            effect_entered.set()
+            assert await asyncio.to_thread(release_effect.wait, 2)
+            return await super().apply(context)
+
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CALLBACK-PENDING",
+            generation="callback-pending",
+            action="review_refresh",
+            idempotency_key="callback-pending",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(FencedHandler()),
+    )
+    callback_entered = threading.Event()
+    release_callback = threading.Event()
+    drain_entered = threading.Event()
+    original_effect_finished = runtime._effect_finished
+    original_worker_drain = runtime.worker.drain
+    completed_task = None
+
+    def fenced_effect_finished(task):
+        nonlocal completed_task
+        completed_task = task
+        callback_entered.set()
+        assert release_callback.wait(2), "effect callback barrier timed out"
+        original_effect_finished(task)
+
+    runtime._effect_finished = fenced_effect_finished
+
+    async def observed_worker_drain(*, timeout_seconds=None):
+        drain_entered.set()
+        return await original_worker_drain(timeout_seconds=timeout_seconds)
+
+    runtime.worker.drain = observed_worker_drain
+
+    async def exercise():
+        await runtime.start()
+        report = await runtime.reconcile_async()
+        drained = await runtime.drain(timeout_seconds=2)
+        return report, drained
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        run = executor.submit(asyncio.run, exercise())
+        try:
+            assert effect_entered.wait(2), "workflow effect never entered"
+            assert drain_entered.wait(2), "runtime drain never entered"
+            release_effect.set()
+            assert callback_entered.wait(2), "effect callback never entered"
+            assert completed_task is not None and completed_task.done()
+            assert run.done() is False
+            assert runtime.health_snapshot()["worker"]["retained"] == 1
+            assert runtime.pending_operation_count == 1
+            with pytest.raises(
+                WorkflowRuntimeError,
+                match="cannot close workflow runtime while 1 operation",
+            ):
+                runtime.close()
+        finally:
+            release_effect.set()
+            release_callback.set()
+        report, drained = run.result(timeout=2)
+
+    assert report["worker"]["scheduled"] == 1
+    assert drained is True
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    assert runtime.pending_operation_count == 0
+    assert len(runtime._effect_results) == 1
+    original_effect_finished(completed_task)
+    assert len(runtime._effect_results) == 1
     runtime.close()
     store.close()
 
