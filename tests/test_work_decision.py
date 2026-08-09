@@ -859,6 +859,7 @@ def test_invalid_terminal_provenance_absence_fails_closed(overrides):
         {"authority_generation": True},
         {"marker_version": 2},
         {"malformed": True, "marker_version": None},
+        {"marked_at": ""},
         {"retained": False, "task_id": "OTHER"},
         {"retained": False, "project_id": "other-project"},
         {"retained": False, "authorized_by": ""},
@@ -942,6 +943,7 @@ def test_owner_authorized_new_revision_resumes_normal_done_landing_decision():
                 FactDomain.TERMINAL_AUDIT: _terminal_provenance(
                     retained=False,
                     authority_generation=4,
+                    marked_at="",
                 )
             },
             landings=(_landing(LandingState.UNKNOWN, error="git_timeout"),),

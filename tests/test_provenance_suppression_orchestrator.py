@@ -352,7 +352,7 @@ def test_workflow_terminal_audit_fact_projects_absent_to_new_revision(tmp_path):
         "authority_generation": 1,
         "authorized_by": "alice",
         "actor_source": "github",
-        "marked_at": "2026-08-07T01:00:00+00:00",
+        "marked_at": "",
         "updated_at": "2026-08-07T01:00:00+00:00",
     }
 

@@ -666,7 +666,7 @@ def authorize_new_revision(
         base_generation = (
             existing.authority_generation if existing is not None else 0
         )
-        marked_at = existing.marked_at if existing is not None else recorded_at
+        marked_at = existing.marked_at if existing is not None else ""
         new_generation = int(base_generation) + 1
         entry = RevisionAuthorization(
             kind="revise",

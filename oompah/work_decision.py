@@ -1812,7 +1812,6 @@ def _terminal_provenance_decision(
         and isinstance(raw.get("actor_source"), str)
         and str(raw.get("actor_source") or "").strip()
         and isinstance(raw.get("marked_at"), str)
-        and str(raw.get("marked_at") or "").strip()
         and isinstance(raw.get("updated_at"), str)
         and str(raw.get("updated_at") or "").strip()
     )
@@ -1824,6 +1823,8 @@ def _terminal_provenance_decision(
             if generation >= 1
             else invalid("identity_or_authority_mismatch")
         )
+    if not str(raw.get("marked_at") or "").strip():
+        return invalid("identity_or_authority_mismatch")
     if task.status != DONE:
         return _decision(
             task,
