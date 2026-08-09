@@ -80,13 +80,32 @@ class ProductionReplay:
         assert issue is not None
         return issue
 
+    def facts(self):
+        task = self.task
+        if self.scenario.source_task_id != "OOMPAH-748":
+            return self.collector.collect(
+                self.task_id,
+                landing_requests=self.landing_requests,
+            )
+        orchestrator = Orchestrator.__new__(Orchestrator)
+        orchestrator.tracker = self.native.tracker
+        orchestrator._tracker_for_project = lambda _project_id: self.native.tracker
+        orchestrator.project_store = SimpleNamespace(
+            get=lambda _project_id: SimpleNamespace(
+                default_branch="main",
+                repo_path=self.git.path if self.git is not None else None,
+            )
+        )
+        orchestrator.integration_queue = self.queue
+        orchestrator._workflow_shadow_sources = lambda _task: _external_sources(
+            self.scenario.source_task_id
+        )
+        return orchestrator._collect_universal_workflow_facts(task)
+
     def decision(self):
         return evaluate_task(
             self.task,
-            self.collector.collect(
-                self.task_id,
-                landing_requests=self.landing_requests,
-            ),
+            self.facts(),
             now=NOW,
         )
 
@@ -322,6 +341,32 @@ def test_incident_decision_scheduler_ledger_and_ui_share_one_reason(
     assert len(jobs) == len(expected.durable_jobs)
     assert duplicate.jobs_created == 0
     assert duplicate.jobs_replayed == len(expected.durable_jobs)
+    if scenario.source_task_id == "OOMPAH-748":
+        task = replay.task
+        assert task.parent_id
+        containment = replay.facts().fact(FactDomain.CONTAINMENT)
+        assert containment.value == {
+            "parent_id": task.parent_id,
+            "epic_branch": f"epic-{task.identifier}",
+            "target_branch": f"epic-{task.parent_id}",
+            "children": (),
+            "acyclic": True,
+            "cycle": None,
+        }
+        assert replay.git is not None
+        epic_store = WorkflowJobStore(str(tmp_path / "OOMPAH-748-epic.sqlite3"))
+        epic_batch = EpicWorkflowController(
+            collector=EpicFactCollector(
+                project_id=PROJECT_ID,
+                tracker=replay.native.tracker,
+                default_branch="main",
+                repo_path=replay.git.path,
+                sources=_external_sources(scenario.source_task_id),
+            ),
+            store=epic_store,
+        ).evaluate((task,), persist_evidence=False)
+        assert epic_batch.tasks[0].decision.reason_code == projection["reason_code"]
+        epic_store.close()
     store.close()
     if replay.queue is not None:
         replay.queue.close()

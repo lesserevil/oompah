@@ -13773,21 +13773,56 @@ class Orchestrator:
             FactDomain.CONFIG: config,
         }
 
+    def _universal_workflow_fact_collector(
+        self,
+        task: Issue,
+        *,
+        tracker: Any | None = None,
+    ) -> WorkflowFactCollector | EpicFactCollector:
+        """Build the canonical project-scoped collector for one task.
+
+        Epic decisions require the resolved epic and target branches carried by
+        :class:`EpicFactCollector`. The generic collector intentionally exposes
+        only parent/child containment, so using it for an epic would make the
+        universal controller disagree with the dedicated epic lane and fail
+        closed on otherwise valid landing evidence.
+        """
+
+        project_id = str(task.project_id or "legacy")
+        scoped_tracker = (
+            tracker
+            if tracker is not None
+            else (
+                self._tracker_for_project(project_id)
+                if task.project_id
+                else self.tracker
+            )
+        )
+        sources = self._workflow_shadow_sources(task)
+        if str(task.issue_type or "").strip().lower() == "epic":
+            project = self.project_store.get(project_id)
+            return EpicFactCollector(
+                project_id=project_id,
+                tracker=scoped_tracker,
+                default_branch=str(
+                    getattr(project, "default_branch", None)
+                    or getattr(project, "branch", None)
+                    or "main"
+                ),
+                repo_path=getattr(project, "repo_path", None) if project else None,
+                sources=sources,
+            )
+        return WorkflowFactCollector(
+            project_id=project_id,
+            tracker=scoped_tracker,
+            sources=sources,
+            integration_queue=self.integration_queue,
+        )
+
     def _collect_universal_workflow_facts(self, task: Issue):
         """Collect one project-scoped snapshot for the enforcing controller."""
 
-        project_id = str(task.project_id or "legacy")
-        tracker = (
-            self._tracker_for_project(project_id)
-            if task.project_id
-            else self.tracker
-        )
-        collector = WorkflowFactCollector(
-            project_id=project_id,
-            tracker=tracker,
-            sources=self._workflow_shadow_sources(task),
-            integration_queue=self.integration_queue,
-        )
+        collector = self._universal_workflow_fact_collector(task)
         return collector.collect(task.identifier)
 
     def _legacy_workflow_projections(
@@ -14139,30 +14174,10 @@ class Orchestrator:
             )
             for project_id, tracker, issue in scan_window:
                 try:
-                    if str(issue.issue_type or "").strip().lower() == "epic":
-                        project = self.project_store.get(project_id)
-                        collector = EpicFactCollector(
-                            project_id=project_id,
-                            tracker=tracker,
-                            default_branch=str(
-                                getattr(project, "default_branch", None)
-                                or getattr(project, "branch", None)
-                                or "main"
-                            ),
-                            repo_path=(
-                                getattr(project, "repo_path", None)
-                                if project
-                                else None
-                            ),
-                            sources=self._workflow_shadow_sources(issue),
-                        )
-                    else:
-                        collector = WorkflowFactCollector(
-                            project_id=project_id,
-                            tracker=tracker,
-                            sources=self._workflow_shadow_sources(issue),
-                            integration_queue=self.integration_queue,
-                        )
+                    collector = self._universal_workflow_fact_collector(
+                        issue,
+                        tracker=tracker,
+                    )
                     facts = collector.collect(issue.identifier)
                     evaluate_kwargs: dict[str, Any] = {
                         "snapshot_generation": generation
