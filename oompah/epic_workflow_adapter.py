@@ -51,7 +51,11 @@ from oompah.workflow_fact_model import (
     LandingState,
     WorkflowFacts,
 )
-from oompah.workflow_jobs import WorkflowFailureCategory
+from oompah.workflow_jobs import (
+    ACTIVE_JOB_STATES,
+    WorkflowFailureCategory,
+    WorkflowJobState,
+)
 from oompah.workflow_worker import WorkflowActionError, WorkflowActionSuperseded
 
 
@@ -60,6 +64,7 @@ def _text(value: object) -> str:
 
 
 _EXACT_HEAD_RE = re.compile(r"^[0-9a-f]{40,64}$")
+_RESTART_CLEANUP_LOG_SAMPLE = 10
 logger = logging.getLogger(__name__)
 
 
@@ -1682,6 +1687,44 @@ class EpicWorkflowEventRouter:
         )
         return revision if _EXACT_HEAD_RE.fullmatch(revision) else None
 
+    @staticmethod
+    def _restart_cleanup_authority(binding: Any, epic: Issue) -> str:
+        """Classify retained cleanup authority without tracker or Git I/O."""
+
+        controller = getattr(binding, "epic_controller", None)
+        store = getattr(controller, "store", None)
+        collector = getattr(controller, "collector", None)
+        project_id = _text(epic.project_id) or _text(
+            getattr(collector, "project_id", None)
+        )
+        if store is None or not project_id:
+            return "store_unavailable"
+        try:
+            jobs = store.list_jobs(
+                project_id=project_id,
+                task_id=epic.identifier,
+                actions=(EpicAction.CLEANUP.value,),
+                scheduling_lanes=(
+                    f"epic-event:{EpicAction.CLEANUP.value}",
+                ),
+                newest_first=True,
+                limit=1,
+            )
+        except Exception:  # noqa: BLE001 - startup evidence fails closed
+            return "store_error"
+        if not jobs:
+            return "no_evidence"
+        latest = jobs[0]
+        expected_head = _text(getattr(latest, "expected_head_sha", None)).lower()
+        exact_authority = bool(_EXACT_HEAD_RE.fullmatch(expected_head))
+        if latest.state is WorkflowJobState.COMPLETED and exact_authority:
+            return "completed"
+        if latest.state in ACTIVE_JOB_STATES and exact_authority:
+            return "active"
+        if latest.state is WorkflowJobState.EXHAUSTED:
+            return "exhausted"
+        return f"{latest.state.value}_without_exact_authority"
+
     def _schedule(
         self,
         binding: Any,
@@ -1691,34 +1734,50 @@ class EpicWorkflowEventRouter:
         source: str,
         payload: Mapping[str, Any] | None = None,
         expected_evidence_revision: str | None = None,
-    ) -> None:
+    ) -> bool:
         if not self.runtime.enforce or binding.epic_controller is None:
-            return
+            return False
         event_payload = {"event_source": source, **dict(payload or {})}
         expected_head = issue_exact_head(epic)
         if action is EpicAction.CLEANUP:
             expected_head = self._cleanup_schedule_head(binding, epic)
             if expected_head is None:
-                logger.warning(
+                log = (
+                    logger.debug
+                    if source == "workflow-runtime-restart"
+                    else logger.warning
+                )
+                log(
                     "Deferred epic cleanup scheduling for %s: exact source "
                     "generation is unavailable",
                     epic.identifier,
                 )
-                return
+                return False
             # The fallback live source head is not part of tracker authority.
             # Include it in event identity so a later source generation cannot
             # replay the same durable enqueue key.
             event_payload["cleanup_head_sha"] = expected_head
-        binding.epic_controller.schedule_action(
-            task_id=epic.identifier,
-            action=action,
-            generation=self._generation(action, epic, source, event_payload),
-            expected_evidence_revision=expected_evidence_revision,
-            expected_head_sha=expected_head,
-            payload=event_payload,
-        )
+        controller = binding.epic_controller
+        schedule_kwargs = {
+            "task_id": epic.identifier,
+            "action": action,
+            "generation": self._generation(action, epic, source, event_payload),
+            "expected_evidence_revision": expected_evidence_revision,
+            "expected_head_sha": expected_head,
+            "payload": event_payload,
+        }
+        schedule_write = getattr(type(controller), "schedule_action_write", None)
+        if callable(schedule_write):
+            write = controller.schedule_action_write(**schedule_kwargs)
+            created = bool(write.created)
+        else:
+            # Compatibility for narrow injected controllers which implement the
+            # original public protocol. Production uses schedule_action_write.
+            controller.schedule_action(**schedule_kwargs)
+            created = True
         binding.epic_controller.scheduler.wake(source)
         self.orchestrator.request_refresh()
+        return created
 
     @staticmethod
     def _current_decision(binding: Any, epic: Issue) -> Any | None:
@@ -1740,7 +1799,7 @@ class EpicWorkflowEventRouter:
         *,
         source: str,
         payload: Mapping[str, Any] | None = None,
-    ) -> None:
+    ) -> int:
         """Collect and enqueue the exact epic's presently authorized action.
 
         Event-marker actions are useful restart evidence, but they cannot be
@@ -1752,26 +1811,30 @@ class EpicWorkflowEventRouter:
         """
 
         if not self.runtime.enforce:
-            return
+            return 0
         decision = self._current_decision(binding, epic)
         if decision is None:
-            return
+            return 0
         evidence_payload = {
             **dict(payload or {}),
             "decision_reason": decision.reason_code,
             "evidence_revision": decision.evidence_revision,
         }
+        scheduled = 0
         for action_name in decision.durable_jobs:
             if action_name not in EPIC_ACTIONS:
                 continue
-            self._schedule(
-                binding,
-                epic,
-                EpicAction(action_name),
-                source=source,
-                payload=evidence_payload,
-                expected_evidence_revision=decision.evidence_revision,
+            scheduled += int(
+                self._schedule(
+                    binding,
+                    epic,
+                    EpicAction(action_name),
+                    source=source,
+                    payload=evidence_payload,
+                    expected_evidence_revision=decision.evidence_revision,
+                )
             )
+        return scheduled
 
     def _wake_issue(self, payload: Mapping[str, Any], *, source: str) -> None:
         if not self.runtime.enforce:
@@ -1937,9 +2000,10 @@ class EpicWorkflowEventRouter:
 
     def _schedule_restart(self) -> int:
         scheduled = 0
+        historical_cleanup: list[str] = []
+        actionable_cleanup: list[tuple[str, str]] = []
         if not self.runtime.enforce:
             return scheduled
-        restart_owner = _text(getattr(self.runtime.worker, "worker_id", None))
         for binding in self.runtime.project_bindings.values():
             operation = getattr(binding.tracker, "fetch_all_issues_enriched", None)
             if not callable(operation):
@@ -1948,42 +2012,69 @@ class EpicWorkflowEventRouter:
                 if _text(issue.issue_type).lower() != "epic":
                     continue
                 if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
-                    self._schedule(
+                    tracker_head = _text(issue_exact_head(issue)).lower()
+                    if not _EXACT_HEAD_RE.fullmatch(tracker_head):
+                        authority = self._restart_cleanup_authority(binding, issue)
+                        if authority == "completed":
+                            historical_cleanup.append(issue.identifier)
+                        elif authority != "active":
+                            actionable_cleanup.append((issue.identifier, authority))
+                        continue
+                    cleanup_scheduled = self._schedule(
                         binding,
                         issue,
                         EpicAction.CLEANUP,
                         source="workflow-runtime-restart",
-                        payload={"restart_owner": restart_owner},
                     )
-                    scheduled += 1
+                    scheduled += int(cleanup_scheduled)
                     continue
-                self._schedule(
-                    binding,
-                    issue,
-                    EpicAction.RESTART_RECONCILIATION,
-                    source="workflow-runtime-restart",
-                    payload={"restart_owner": restart_owner},
+                scheduled += int(
+                    self._schedule(
+                        binding,
+                        issue,
+                        EpicAction.RESTART_RECONCILIATION,
+                        source="workflow-runtime-restart",
+                    )
                 )
-                scheduled += 1
                 # A forge webhook may have landed while the service was
                 # stopped. Refresh the exact review head before an auto-close
                 # generation is allowed to use that head as its terminal CAS.
-                self._schedule(
+                scheduled += int(
+                    self._schedule(
+                        binding,
+                        issue,
+                        EpicAction.TERMINAL_VALIDATION,
+                        source="workflow-runtime-restart",
+                        payload={
+                            "merged": False,
+                        },
+                    )
+                )
+                scheduled += self._schedule_current_decision(
                     binding,
                     issue,
-                    EpicAction.TERMINAL_VALIDATION,
                     source="workflow-runtime-restart",
-                    payload={
-                        "restart_owner": restart_owner,
-                        "merged": False,
-                    },
                 )
-                self._schedule_current_decision(
-                    binding,
-                    issue,
-                    source="workflow-runtime-restart",
-                    payload={"restart_owner": restart_owner},
-                )
+        if historical_cleanup or actionable_cleanup:
+            historical_examples = ", ".join(
+                sorted(historical_cleanup)[:_RESTART_CLEANUP_LOG_SAMPLE]
+            ) or "none"
+            actionable_examples = ", ".join(
+                f"{identifier}({reason})"
+                for identifier, reason in sorted(actionable_cleanup)[
+                    :_RESTART_CLEANUP_LOG_SAMPLE
+                ]
+            ) or "none"
+            log = logger.warning if actionable_cleanup else logger.info
+            log(
+                "Epic restart cleanup seed summary: historical_completed=%d "
+                "actionable_uncertain=%d; historical_examples=%s; "
+                "actionable_examples=%s",
+                len(historical_cleanup),
+                len(actionable_cleanup),
+                historical_examples,
+                actionable_examples,
+            )
         return scheduled
 
 

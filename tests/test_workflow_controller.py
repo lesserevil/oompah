@@ -11,7 +11,10 @@ import pytest
 
 from oompah.models import BlockerRef, Issue
 from oompah.work_decision import PermittedAction
-from oompah.workflow_controller import UniversalTotalityLivenessController
+from oompah.workflow_controller import (
+    UniversalTotalityLivenessController,
+    WorkflowProjectionPublicationRejected,
+)
 from oompah.workflow_contract import (
     CANONICAL_STATUSES,
     LIFECYCLE_FINAL_STATUSES,
@@ -26,12 +29,13 @@ from oompah.workflow_facts import (
     WorkflowFacts,
 )
 from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
     WorkflowJobState,
     WorkflowJobStore,
     WorkflowJobStoreError,
 )
 from oompah.workflow_reasons import AlertSeverity
-from oompah.workflow_scheduler import WorkflowJobScheduler
+from oompah.workflow_scheduler import WorkflowJobScheduler, WorkflowReconcileResult
 
 
 NOW = datetime(2026, 8, 4, 12, tzinfo=timezone.utc)
@@ -137,6 +141,40 @@ def test_every_nonfinal_status_has_exactly_one_allowed_disposition(controller):
     assert all(item.reason_code and item.evidence_revision for item in decisions)
 
 
+def test_exhausted_current_semantic_job_escalates_on_reevaluation(controller):
+    task = issue("In Progress", identifier="TASK-EXHAUSTED")
+    facts = facts_for(
+        task,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY, {}
+            )
+        },
+    )
+    first = controller.full_sync((task,), facts={task.identifier: facts})
+    assert first.decisions[0].durable_jobs == ("implementation_recovery",)
+    running = controller.store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    exhausted = controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="permanent failure",
+        retryable=False,
+    )
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+
+    decision = controller.evaluate(
+        (task,), facts={task.identifier: facts}, now=NOW
+    )[0]
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.reason_code == "retry.exhausted"
+    assert decision.durable_jobs == ()
+
+
 def test_full_sync_updates_authoritative_liveness_projection(controller):
     task = issue("Open")
 
@@ -152,6 +190,51 @@ def test_full_sync_updates_authoritative_liveness_projection(controller):
         health.tasks[0].next_reassessment_at
         == result.decisions[0].next_reassessment_at
     )
+
+
+def test_runtime_observation_rejects_stale_generation_without_liveness_write(
+    controller,
+):
+    task = issue("Open")
+    generation = controller.store.allocate_snapshot_generation()
+    assert controller.store.accept_snapshot_generation(generation)
+    observation = controller.prepare_runtime_observation(
+        (task,),
+        facts_by_task=fact_map(task),
+        snapshot_generation=generation,
+        now=NOW,
+    )
+    assert observation is not None
+    prior = controller.liveness_state()
+    newer = controller.store.allocate_snapshot_generation()
+    assert controller.store.accept_snapshot_generation(newer)
+    reconciliation = WorkflowReconcileResult(
+        generation,
+        True,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        False,
+    )
+
+    with pytest.raises(
+        WorkflowProjectionPublicationRejected,
+        match="stale_runtime_observation",
+    ):
+        controller.stage_runtime_observation(
+            observation, reconciliation=reconciliation
+        )
+
+    assert controller.liveness_state() == prior
+    assert controller.health_snapshot()["controller"]["passes"] == 0
+    controller.abort_runtime_observation(generation)
 
 
 def test_controller_rejects_scheduler_with_a_separate_durable_store(tmp_path):

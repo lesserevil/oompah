@@ -30,7 +30,7 @@ from oompah.task_transition_service import (
     TransitionDisposition,
     TransitionOutcome,
 )
-from oompah.work_decision import evaluate_task
+from oompah.work_decision import decision_scheduling_revision, evaluate_task
 from oompah.workflow_facts import (
     FactState,
     GitLandingCollector,
@@ -1068,7 +1068,7 @@ def test_orchestrator_consumes_the_same_epic_snapshot_that_it_schedules(tmp_path
     assert tracker.root_reads == 1
     assert decision.disposition is TaskDisposition.RUNNABLE
     assert cursor is not None
-    assert cursor.decision_revision == decision.decision_revision
+    assert cursor.decision_revision == decision_scheduling_revision(decision)
     store.close()
 
 

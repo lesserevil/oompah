@@ -562,6 +562,56 @@ class TerminalAuditWorkflow:
 
         return self._decision_from_job(record, self.ensure(record))
 
+    def observe_job(self, record: TerminalAuditRecord) -> WorkflowJob | None:
+        """Read the latest job owned by the exact pending audit identity.
+
+        The immutable job specification fences the project, task, target lane,
+        evidence revision, and workflow generation.  Once execution has
+        started, its checkpoint also fences the audit UUID.  A running job for
+        a sibling target or a superseded audit UUID must never be reported as
+        authority for ``record``.
+        """
+
+        candidates = tuple(
+            job
+            for job in self._matching_jobs(record)
+            if job.state
+            not in {
+                WorkflowJobState.SUPERSEDED,
+                WorkflowJobState.CANCELLED,
+            }
+            and (
+                (job.checkpoint or {}).get("audit_id") == record.audit_id
+                or (
+                    job.state
+                    not in {
+                        WorkflowJobState.RUNNING,
+                        WorkflowJobState.EXHAUSTED,
+                    }
+                    and not (job.checkpoint or {}).get("audit_id")
+                )
+            )
+        )
+        if not candidates:
+            return None
+        return max(candidates, key=lambda job: job.enqueue_sequence)
+
+    def observe(self, record: TerminalAuditRecord) -> AuditWorkflowDecision | None:
+        """Read the latest exact audit disposition without creating ownership."""
+
+        details = self.observe_details(record)
+        return details[1] if details is not None else None
+
+    def observe_details(
+        self, record: TerminalAuditRecord
+    ) -> tuple[WorkflowJob, AuditWorkflowDecision] | None:
+        """Read one consistent exact job/disposition pair without mutation."""
+
+        job = self.observe_job(record)
+        if job is None:
+            return None
+        return job, self._decision_from_job(record, job)
+
     def _checkpoint_payload(
         self,
         record: TerminalAuditRecord,

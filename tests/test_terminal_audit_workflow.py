@@ -23,6 +23,7 @@ from oompah.terminal_audit_workflow import (
 )
 from oompah.terminal_transition_coordinator import AuditResult
 from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobLeaseLost,
@@ -110,6 +111,91 @@ def test_exact_target_evidence_generation_is_idempotently_queued(durable):
     assert replay.job_id == first.job_id
     assert len(store.list_jobs()) == 1
     assert workflow.decision(current).phase is AuditWorkflowPhase.QUEUED
+
+
+def test_observe_is_read_only_and_selects_latest_nonretired_activation(durable):
+    workflow, store, _clock = durable
+    current = record()
+
+    assert workflow.observe(current) is None
+    assert store.list_jobs() == ()
+
+    first = workflow.ensure(current)
+    first_running = store.claim_next(
+        lease_owner="audit-worker", lease_seconds=30
+    )
+    assert first_running is not None
+    store.complete(first_running.job_id, first_running.lease_token)
+    second = store.enqueue(
+        workflow.spec(
+            current,
+            idempotency_key=workflow.idempotency_key(current) + ":second",
+        )
+    )
+    second_running = store.claim_next(
+        lease_owner="audit-worker", lease_seconds=30
+    )
+    assert second_running is not None
+    assert second_running.job_id == second.job_id
+    store.checkpoint(
+        second_running.job_id,
+        second_running.lease_token,
+        phase=AuditWorkflowPhase.RUNNING.value,
+        checkpoint={"audit_id": current.audit_id},
+    )
+
+    assert workflow.observe(current).phase is AuditWorkflowPhase.RUNNING
+
+    store.cancel(
+        second.job_id,
+        generation=second.generation,
+        reason="retired latest activation",
+    )
+    assert store.get(first.job_id).state is WorkflowJobState.COMPLETED
+    assert workflow.observe(current).phase is AuditWorkflowPhase.COMPLETED
+
+
+def test_observe_rejects_running_job_without_exact_audit_checkpoint(durable):
+    workflow, store, _clock = durable
+    current = record()
+    workflow.ensure(current)
+    running = store.claim_next(
+        lease_owner="audit-worker", lease_seconds=30
+    )
+    assert running is not None
+    store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase=AuditWorkflowPhase.FINALIZING.value,
+        checkpoint={},
+    )
+
+    assert workflow.observe_job(current) is None
+    assert workflow.observe(current) is None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="unattributed audit exhausted",
+        retryable=False,
+    )
+    assert workflow.observe_job(current) is None
+    assert workflow.observe(current) is None
+
+
+def test_observe_rejects_running_checkpoint_for_superseded_audit_uuid(durable):
+    workflow, _store, _clock = durable
+    prior = record(audit_id="audit-prior")
+    current = record(audit_id="audit-current")
+
+    assert workflow.start(
+        prior,
+        attempt_id="attempt-prior",
+        candidate=Candidate("provider-a", "model-a"),
+    ) is not None
+
+    assert workflow.observe_job(current) is None
+    assert workflow.observe(current) is None
 
 
 def test_duplicate_audit_ids_share_one_target_evidence_generation(durable):

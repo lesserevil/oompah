@@ -13305,6 +13305,12 @@ class Orchestrator:
                 "owner_id": row.lease_owner,
                 "active_job_id": row.job_id,
                 "job_id": row.job_id,
+                "job_action": row.action,
+                "job_generation": row.generation,
+                "scheduling_lane": row.scheduling_lane,
+                "expected_evidence_revision": (
+                    row.expected_evidence_revision
+                ),
                 "actively_working": bool(
                     row.lease_owner
                     and row.lease_expires_at is not None
@@ -13348,18 +13354,7 @@ class Orchestrator:
                 }
             return {"lease_expires_at": None}
 
-        def terminal_audit(current: Issue) -> dict[str, Any]:
-            durable = active_durable_job(
-                current,
-                {"terminal_audit", "terminal_audit_recovery"},
-            )
-            if durable is not None:
-                return {**durable, "phase": "active"}
-            running = self._workflow_shadow_running_entry(current, auditor=True)
-            # The durable job is the execution authority.  Keep the legacy
-            # ``active`` value for compatibility with the pure decision
-            # evaluator, while exposing the exact durable phase for UI and
-            # recovery consumers.
+        def terminal_audit(current: Issue) -> dict[str, Any] | None:
             try:
                 document = self._audit_store(current).read(current.identifier)
                 record = AuditorDispatchLane.pending_record(
@@ -13368,9 +13363,60 @@ class Orchestrator:
                     task_id=current.identifier,
                 )
                 if record is not None:
-                    disposition = self.terminal_audit_workflow.decision(record)
+                    authority = {
+                        "audit_id": record.audit_id,
+                        "request_state": record.request_state.value,
+                        "target_state": record.target_state.value,
+                        "evidence_fingerprint": (
+                            record.evidence_fingerprint.digest
+                        ),
+                        "source_generation": record.source_generation,
+                        "audit_generation": (
+                            self.terminal_audit_workflow.generation(record)
+                        ),
+                        "scheduling_lane": (
+                            self.terminal_audit_workflow.scheduling_lane(record)
+                        ),
+                    }
+                    details = self.terminal_audit_workflow.observe_details(record)
+                    if details is None:
+                        return {
+                            **authority,
+                            "phase": "queued",
+                            "workflow_phase": AuditWorkflowPhase.QUEUED.value,
+                            "audit_job_present": False,
+                        }
+                    job, disposition = details
+                    lease = (
+                        datetime.fromtimestamp(
+                            job.lease_expires_at, tz=timezone.utc
+                        ).isoformat()
+                        if job.lease_expires_at is not None
+                        else None
+                    )
+                    exact_job = {
+                        "audit_job_present": True,
+                        "active_job_id": job.job_id,
+                        "job_id": job.job_id,
+                        "job_action": job.action,
+                        "job_generation": job.generation,
+                        "scheduling_lane": job.scheduling_lane,
+                        "expected_evidence_revision": (
+                            job.expected_evidence_revision
+                        ),
+                        "owner_id": job.lease_owner,
+                        "actively_working": bool(
+                            job.state is WorkflowJobState.RUNNING
+                            and job.lease_owner
+                            and job.lease_expires_at is not None
+                            and job.lease_expires_at > time.time()
+                        ),
+                        "lease_expires_at": lease,
+                    }
                     if disposition.phase is AuditWorkflowPhase.ACTION_REQUIRED:
                         return {
+                            **authority,
+                            **exact_job,
                             "phase": "queued",
                             "workflow_phase": disposition.phase.value,
                             "action_required": True,
@@ -13382,22 +13428,16 @@ class Orchestrator:
                         AuditWorkflowPhase.FINALIZING,
                     }:
                         return {
+                            **authority,
+                            **exact_job,
                             "phase": "active",
                             "workflow_phase": disposition.phase.value,
-                            "audit_id": record.audit_id,
-                            "owner_id": (
-                                getattr(running, "run_id", None)
-                                if running is not None
-                                else None
-                            ),
-                            "lease_expires_at": (
-                                datetime.now(timezone.utc) + timedelta(seconds=60)
-                            ).isoformat(),
                         }
                     return {
+                        **authority,
+                        **exact_job,
                         "phase": "queued",
                         "workflow_phase": disposition.phase.value,
-                        "audit_id": record.audit_id,
                         "retry_at": (
                             datetime.fromtimestamp(
                                 disposition.retry_at, tz=timezone.utc
@@ -13406,22 +13446,15 @@ class Orchestrator:
                             else None
                         ),
                     }
-            except Exception:  # noqa: BLE001 - shadow facts are best effort
-                pass
-            if running is not None:
-                active_job_id = str(
-                    getattr(current, "assignment_id", None)
-                    or getattr(getattr(running, "session", None), "session_id", None)
-                    or f"{running.identifier}:{running.started_at.isoformat()}"
-                )
-                return {
-                    "phase": "active",
-                    "audit_id": active_job_id,
-                    "owner_id": active_job_id,
-                    "actively_working": True,
-                    "active_job_id": active_job_id,
-                }
-            return {"phase": "queued"}
+                # An In Validation task without an authoritative pending
+                # record has unknown audit state.  Returning ``None`` lets the
+                # fact collector schedule recovery instead of inventing a
+                # queue or inheriting task-wide legacy activity.
+                return None
+            except Exception as exc:  # noqa: BLE001 - evidence boundary
+                raise RuntimeError(
+                    "terminal-audit metadata is unavailable"
+                ) from exc
 
         def duplicate_investigation(current: Issue) -> dict[str, Any]:
             if canonicalize_status(current.state) != DUPLICATE_CANDIDATE:
@@ -65065,8 +65098,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         validation_resource_action_required = (
             validation_resource_state.get("status") == "action_required"
         )
-        with self.workflow_controller.liveness_observation_lock:
-            workflow_liveness = self.workflow_controller.liveness.snapshot(
+        workflow_controller = (
+            self.workflow_runtime.liveness_controller
+            if self.workflow_runtime is not None
+            and self.workflow_runtime.liveness_controller is not None
+            else self.workflow_controller
+        )
+        with workflow_controller.liveness_observation_lock:
+            workflow_liveness = workflow_controller.liveness.snapshot(
                 now=now
             )
             workflow_liveness_enabled = (
@@ -65240,7 +65279,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "quality_gates": quality_gate_state,
             "validation_resources": validation_resource_state,
             "workflow_jobs": self.workflow_job_store.health_snapshot(),
-            "workflow_controller": self.workflow_controller.health_snapshot(),
+            "workflow_controller": workflow_controller.health_snapshot(),
             "workflow_liveness": {
                 "enabled": workflow_liveness_enabled,
                 **workflow_liveness.to_dict(),

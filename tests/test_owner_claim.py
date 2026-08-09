@@ -936,6 +936,7 @@ def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_p
         enforce=True,
         health_snapshot=lambda: {},
         projections=lambda: (),
+        liveness_controller=orch.workflow_controller,
     )
     orch._schedule_implementation_workflow_event = MagicMock(
         side_effect=(

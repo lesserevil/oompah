@@ -16,6 +16,7 @@ from oompah.workflow_facts import (
     WorkflowFacts,
 )
 from oompah.workflow_liveness_metrics import (
+    LIVENESS_STATE_SCHEMA_VERSION,
     DecisionLivenessFacts,
     WorkflowLivenessTracker,
     workflow_liveness_health_alerts,
@@ -113,6 +114,7 @@ def _observe(
     source_scan_complete: bool = True,
     decision_facts: dict[tuple[str, str], DecisionLivenessFacts] | None = None,
     source_errors: dict[str, str] | None = None,
+    excluded_projects: dict[str, str] | None = None,
     reconciliation_complete: bool = True,
     required_recovery_count: int = 0,
     materialized_recovery_count: int = 0,
@@ -130,6 +132,7 @@ def _observe(
         materialized_recovery_count=materialized_recovery_count,
         decision_facts=decision_facts,
         source_errors=source_errors,
+        excluded_projects=excluded_projects,
         now=now,
     )
 
@@ -163,7 +166,7 @@ def test_exact_authoritative_deadline_is_healthy_then_one_second_late_is_not():
     assert workflow_liveness_health_alerts(overdue) == []
 
 
-def test_unchanged_evidence_refresh_does_not_renew_reassessment_deadline():
+def test_successful_unchanged_reassessment_renews_liveness_deadline():
     tracker = WorkflowLivenessTracker(
         snapshot_stale_seconds=10_000,
         clock=lambda: NOW,
@@ -182,10 +185,10 @@ def test_unchanged_evidence_refresh_does_not_renew_reassessment_deadline():
 
     assert second.tasks[0].last_progress_at == NOW.isoformat()
     assert second.tasks[0].next_reassessment_at == (
-        NOW + timedelta(seconds=120)
+        NOW + timedelta(seconds=180)
     ).isoformat()
-    assert overdue.status == "overdue"
-    assert overdue.tasks[0].deadline_lateness_seconds == 1
+    assert overdue.healthy
+    assert overdue.tasks[0].deadline_seconds_remaining == 59
 
 
 def test_owned_without_real_job_or_lease_uses_reassessment_deadline():
@@ -629,6 +632,276 @@ def test_failed_project_keeps_last_known_attribution_until_fresh_scan():
     assert recovered.healthy
 
 
+def test_schema_v6_exclusion_round_trip_suspends_paused_deadlines_and_resumes():
+    tracker = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    active = _decision(
+        "TASK-active",
+        project_id="project-active",
+        deadline=NOW + timedelta(seconds=100),
+    )
+    paused = _decision(
+        "TASK-paused",
+        project_id="project-paused",
+        deadline=NOW + timedelta(seconds=1),
+    )
+    _observe(tracker, (active, paused))
+
+    excluded = _observe(
+        tracker,
+        (active,),
+        generation=2,
+        now=NOW + timedelta(seconds=2),
+        excluded_projects={"project-paused": "project_paused"},
+    )
+    after_deadline = tracker.snapshot(now=NOW + timedelta(seconds=3))
+    state = tracker.to_state()
+
+    assert excluded.healthy
+    assert excluded.scan_complete
+    assert excluded.coverage_scope == "active_projects"
+    assert not excluded.global_coverage_complete
+    assert excluded.active_project_count == 1
+    assert excluded.excluded_projects == {
+        "project-paused": "project_paused"
+    }
+    assert excluded.excluded_project_count == 1
+    assert excluded.omitted_excluded_project_count == 0
+    assert excluded.excluded_task_count == 1
+    assert excluded.total_nonterminal_count == 2
+    assert excluded.tracked_task_count == 1
+    assert excluded.omitted_task_count == 0
+    assert {item.task_id for item in excluded.tasks} == {"TASK-active"}
+    paused_summary = excluded.projects["project-paused"]
+    assert paused_summary["coverage_state"] == "excluded"
+    assert paused_summary["exclusion_reason"] == "project_paused"
+    assert paused_summary["last_known_task_count"] == 1
+    assert paused_summary["task_count"] == 0
+    assert paused_summary["tracked_task_count"] == 0
+    assert paused_summary["omitted_task_count"] == 0
+    assert paused_summary["action_required_count"] == 0
+    assert paused_summary["overdue_count"] == 0
+    assert after_deadline.healthy
+    assert after_deadline.overdue_count == 0
+    assert {item["task_id"] for item in state["records"]} == {
+        "TASK-active",
+        "TASK-paused",
+    }
+    assert state["schema_version"] == LIVENESS_STATE_SCHEMA_VERSION == 6
+    assert state["coverage_scope"] == "active_projects"
+    assert not state["global_coverage_complete"]
+    assert state["active_project_count"] == 1
+    assert state["excluded_task_count"] == 1
+    assert state["excluded_projects"] == {
+        "project-paused": "project_paused"
+    }
+
+    restarted = WorkflowLivenessTracker(
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW + timedelta(seconds=4),
+    )
+    restarted.restore(state, now=NOW + timedelta(seconds=4))
+    restored = restarted.snapshot(now=NOW + timedelta(seconds=4))
+
+    assert restored.excluded_projects == excluded.excluded_projects
+    assert restored.excluded_project_count == 1
+    assert restored.excluded_task_count == 1
+    assert restored.active_project_count == 1
+    assert {item.task_id for item in restored.tasks} == {"TASK-active"}
+    assert not restored.scan_complete
+
+    resumed = _observe(
+        restarted,
+        (
+            active,
+            _decision(
+                "TASK-paused",
+                project_id="project-paused",
+                evidence_revision="paused-resumed",
+                deadline=NOW + timedelta(minutes=10),
+            ),
+        ),
+        generation=3,
+        now=NOW + timedelta(seconds=5),
+    )
+
+    assert resumed.healthy
+    assert resumed.scan_complete
+    assert resumed.global_coverage_complete
+    assert resumed.active_project_count == 2
+    assert resumed.excluded_projects == {}
+    assert resumed.excluded_project_count == 0
+    assert resumed.excluded_task_count == 0
+    assert {item.task_id for item in resumed.tasks} == {
+        "TASK-active",
+        "TASK-paused",
+    }
+
+
+def test_exclusion_overlap_rejection_never_changes_tracker_state():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    _observe(tracker, (_decision(),))
+    before_state = tracker.to_state()
+    before_health = tracker.snapshot(now=NOW).to_dict()
+
+    invalid_observations = (
+        {
+            "decisions": (),
+            "expected": (),
+            "source_errors": {"project-paused": "TimeoutError"},
+        },
+        {
+            "decisions": (),
+            "expected": (("project-paused", "TASK-paused"),),
+        },
+        {
+            "decisions": (
+                _decision("TASK-paused", project_id="project-paused"),
+            ),
+            "expected": (("project-a", "TASK-1"),),
+        },
+    )
+    for invalid in invalid_observations:
+        with pytest.raises(ValueError, match="overlap|escaped"):
+            _observe(
+                tracker,
+                invalid["decisions"],
+                expected=invalid["expected"],
+                generation=2,
+                source_scan_complete=not bool(invalid.get("source_errors")),
+                source_errors=invalid.get("source_errors"),
+                excluded_projects={"project-paused": "project_paused"},
+                now=NOW + timedelta(seconds=1),
+            )
+        assert tracker.to_state() == before_state
+        assert tracker.snapshot(now=NOW).to_dict() == before_health
+
+
+def test_exclusion_caps_preserve_exact_counts_without_active_omissions():
+    tracker = WorkflowLivenessTracker(
+        max_task_records=10,
+        max_project_records=1,
+        clock=lambda: NOW,
+    )
+    decisions = tuple(
+        _decision(f"TASK-{name}", project_id=f"project-{name}")
+        for name in ("active", "b", "c")
+    )
+    _observe(tracker, decisions)
+
+    health = _observe(
+        tracker,
+        (decisions[0],),
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+        excluded_projects={
+            "project-b": "project_paused",
+            "project-c": "project_paused",
+            "project-d": "project_paused",
+        },
+    )
+    state = tracker.to_state()
+
+    assert health.healthy
+    assert health.active_project_count == 1
+    assert health.excluded_project_count == 3
+    assert health.excluded_task_count == 2
+    assert len(health.excluded_projects) == 1
+    assert health.omitted_excluded_project_count == 2
+    assert health.total_nonterminal_count == 3
+    assert health.tracked_task_count == 1
+    assert health.omitted_task_count == 0
+    assert state["excluded_project_count"] == 3
+    assert len(state["excluded_projects"]) == 1
+    assert state["excluded_task_count"] == 2
+
+
+def test_exclusion_cap_restart_prioritizes_retained_paused_record_and_exact_count():
+    tracker = WorkflowLivenessTracker(
+        max_task_records=2,
+        max_project_records=1,
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW,
+    )
+    active = _decision("TASK-active", project_id="project-0-active")
+    omitted_a = _decision("TASK-a", project_id="project-a")
+    omitted_b = _decision("TASK-b", project_id="project-b")
+    retained_late = _action_required("TASK-z", project_id="project-z-paused")
+    _observe(tracker, (active, omitted_a, omitted_b, retained_late))
+    _observe(
+        tracker,
+        (active,),
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+        excluded_projects={
+            "project-a": "paused",
+            "project-b": "paused",
+            "project-z-paused": "paused",
+        },
+    )
+    state = tracker.to_state()
+
+    assert state["excluded_project_ids"][0] == "project-z-paused"
+    assert state["excluded_task_count"] == 3
+
+    restarted = WorkflowLivenessTracker(
+        max_task_records=2,
+        max_project_records=1,
+        snapshot_stale_seconds=10_000,
+        clock=lambda: NOW + timedelta(seconds=2),
+    )
+    restarted.restore(state, now=NOW + timedelta(seconds=2))
+    health = restarted.snapshot(now=NOW + timedelta(seconds=2))
+
+    assert {item.task_id for item in health.tasks} == {"TASK-active"}
+    assert health.action_required_count == 0
+    assert health.overdue_count == 0
+    assert health.excluded_project_count == 3
+    assert health.excluded_task_count == 3
+    assert health.total_nonterminal_count == 4
+    assert health.tracked_task_count == 1
+    assert health.omitted_task_count == 0
+
+
+def test_source_failure_and_paused_exclusion_remain_distinct_and_fail_closed():
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+    decisions = (
+        _decision("TASK-active", project_id="project-active"),
+        _decision("TASK-paused", project_id="project-paused"),
+        _decision("TASK-failed", project_id="project-failed"),
+    )
+    _observe(tracker, decisions)
+
+    health = _observe(
+        tracker,
+        (decisions[0],),
+        generation=2,
+        now=NOW + timedelta(seconds=1),
+        source_scan_complete=False,
+        source_errors={"project-failed": "TimeoutError"},
+        excluded_projects={"project-paused": "project_paused"},
+    )
+
+    assert health.status == "incomplete"
+    assert not health.scan_complete
+    assert not health.global_coverage_complete
+    assert health.source_errors == {"project-failed": "TimeoutError"}
+    assert health.source_error_count == 1
+    assert health.excluded_projects == {
+        "project-paused": "project_paused"
+    }
+    assert health.excluded_project_count == 1
+    assert set(health.source_errors).isdisjoint(health.excluded_projects)
+    assert {item.project_id for item in health.tasks} == {
+        "project-active",
+        "project-failed",
+    }
+    assert health.projects["project-paused"]["coverage_state"] == "excluded"
+    assert health.projects["project-failed"]["source_error"] == "TimeoutError"
+
+
 def test_task_cardinality_cap_is_enforced_and_action_required_is_retained():
     tracker = WorkflowLivenessTracker(max_task_records=2, clock=lambda: NOW)
     decisions = (
@@ -907,7 +1180,7 @@ def test_wrong_schema_and_corrupt_nested_records_use_conservative_progress():
 
     for raw in (
         "not-a-mapping",
-        {"schema_version": 4},
+        {"schema_version": LIVENESS_STATE_SCHEMA_VERSION - 1},
         corrupt_records,
     ):
         restored = WorkflowLivenessTracker(clock=lambda: NOW)
@@ -1083,10 +1356,11 @@ def test_evicted_history_cannot_renew_unchanged_deadline_after_restart_and_expan
     health = _observe(expanded, refreshed, generation=2, now=later)
 
     assert health.status == "overdue"
-    assert all(item.overdue for item in health.tasks)
-    assert any(
-        item.last_progress_at == "1970-01-01T00:00:00+00:00"
-        for item in health.tasks
+    by_task = {item.task_id: item for item in health.tasks}
+    assert not by_task["TASK-a"].overdue
+    assert by_task["TASK-b"].overdue
+    assert by_task["TASK-b"].last_progress_at == (
+        "1970-01-01T00:00:00+00:00"
     )
     assert not expanded.to_state()["history_incomplete"]
 

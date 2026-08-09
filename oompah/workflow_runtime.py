@@ -24,7 +24,8 @@ import subprocess
 import threading
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass
+from contextlib import ExitStack
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -36,7 +37,9 @@ from oompah.epic_workflow import (
 )
 from oompah.events import EventType
 from oompah.implementation_workflow import (
+    FACT_IMPLEMENTATION_LANE,
     IMPLEMENTATION_ACTIONS,
+    IMPLEMENTATION_ORDERING_NAMESPACE,
     ImplementationWorkflowController,
 )
 from oompah.integration_workflow import (
@@ -59,17 +62,27 @@ from oompah.task_transition_service import (
     TransitionJournal,
     issue_authority_version,
 )
-from oompah.workflow_fact_model import FactDomain
+from oompah.workflow_contract import LIFECYCLE_FINAL_STATUSES
+from oompah.workflow_controller import (
+    ControllerObservation,
+    ControllerPass,
+    UniversalTotalityLivenessController,
+)
+from oompah.workflow_fact_model import FactDomain, FactState, WorkflowFacts
 from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
+    WorkflowJobPublicationError,
     WorkflowJobStore,
     WorkflowSnapshotPublication,
 )
+from oompah.workflow_liveness_metrics import DecisionLivenessFacts
+from oompah.workflow_reasons import LivenessPolicy
 from oompah.workflow_shadow import (
     aggregate_workflow_domain_mode,
     normalize_workflow_domain_modes,
 )
+from oompah.workflow_scheduler import WorkflowReconcileResult
 from oompah.workflow_worker import (
     EffectObservation,
     EffectResult,
@@ -81,13 +94,18 @@ from oompah.workflow_worker import (
     WorkflowJobContext,
     DurableWorkflowWorker,
 )
-from oompah.work_decision import REVIEW_ACTION_JOBS, evaluate_task
+from oompah.work_decision import (
+    REVIEW_ACTION_JOBS,
+    WorkDecision,
+    evaluate_task,
+)
 
 logger = logging.getLogger(__name__)
 
 LEGACY_PROJECT_ID = "legacy"
 DEFAULT_RUNTIME_DECISION_LIMIT = 100
 DEFAULT_RUNTIME_BATCH_SIZE = 32
+MAX_RUNTIME_LIVENESS_DOMAIN_LIMIT = 1000
 
 _DOMAIN_ACTIONS = {
     "implementation": IMPLEMENTATION_ACTIONS,
@@ -102,6 +120,26 @@ _RUNTIME_OWNER_PATTERN = re.compile(
 
 if sum(len(actions) for actions in _DOMAIN_ACTIONS.values()) != len(RUNTIME_ACTIONS):
     raise RuntimeError("durable workflow domain action sets overlap")
+
+_LIVENESS_ACTION_OWNER = {
+    **{action: "implementation" for action in IMPLEMENTATION_ACTIONS},
+    **{action: "review" for action in REVIEW_ACTION_JOBS},
+    **{action: "integration" for action in INTEGRATION_ACTIONS},
+    **{action: "epic" for action in EPIC_ACTIONS},
+    "facts_refresh": "none",
+    "dependency_refresh": "none",
+    "terminal_audit": "terminal_audit",
+    "terminal_audit_recovery": "terminal_audit",
+}
+_LIVENESS_ACTION_OWNER["historical_audit_replay_batch"] = "excluded"
+_EXPECTED_LIVENESS_ACTIONS = RUNTIME_ACTIONS | {
+    "facts_refresh",
+    "dependency_refresh",
+    "terminal_audit",
+    "terminal_audit_recovery",
+}
+if set(_LIVENESS_ACTION_OWNER) != _EXPECTED_LIVENESS_ACTIONS:
+    raise RuntimeError("workflow liveness action ownership registry is incomplete")
 
 
 class WorkflowRuntimeError(RuntimeError):
@@ -131,19 +169,31 @@ class WorkflowProjectBinding:
     transition_journal: TransitionJournal | None = None
     dispatch_enabled: Callable[[], bool] | None = None
     lifecycle_interrupted: Callable[[], bool] | None = None
+    terminal_audit_proof_source: Callable[
+        [WorkDecision, Mapping[str, Any], str], bool
+    ] | None = None
+    terminal_audit_snapshot_proof_source: Callable[
+        [WorkDecision, Mapping[str, Any]], bool
+    ] | None = None
+    terminal_audit_publication_lock: Callable[[], Any] | None = None
 
     @property
     def enabled(self) -> bool:
         """Whether this project's durable worker may claim new work."""
 
-        if self.dispatch_enabled is None:
-            return True
         try:
-            return bool(self.dispatch_enabled())
+            return self.read_enabled_state()
         except Exception:
             # Pause/configuration authority is a correctness boundary.  A
             # failed read must never be interpreted as permission to mutate.
             return False
+
+    def read_enabled_state(self) -> bool:
+        """Read pause authority while preserving failures for reconciliation."""
+
+        if self.dispatch_enabled is None:
+            return True
+        return bool(self.dispatch_enabled())
 
     @property
     def interrupted(self) -> bool:
@@ -326,6 +376,10 @@ class WorkflowRuntime:
         topology_source: Callable[[], tuple[Any, ...]] | None = None,
         topology_change_handler: Callable[[], Any] | None = None,
         transition_observer: Callable[[Any], None] | None = None,
+        liveness_controller: UniversalTotalityLivenessController | None = None,
+        persist_liveness_state: Callable[[Mapping[str, Any]], None] | None = None,
+        projection_publisher: Callable[..., Any] | None = None,
+        projection_epoch_source: Callable[[], int] | None = None,
     ) -> None:
         normalized_mode = str(mode or "off").strip().lower()
         if normalized_mode not in {"off", "shadow", "enforce"}:
@@ -354,7 +408,56 @@ class WorkflowRuntime:
             int(rollout_min_shadow_seconds), 0
         )
         self.store = store
+        if liveness_controller is not None and liveness_controller.store is not store:
+            raise ValueError(
+                "runtime and liveness controller must share one workflow job store"
+            )
+        if (projection_publisher is None) != (projection_epoch_source is None):
+            raise ValueError(
+                "projection publisher and publication epoch source must be "
+                "configured together"
+            )
+        if (liveness_controller is None) != (projection_publisher is None):
+            raise ValueError(
+                "liveness controller and canonical projection publication "
+                "must be configured together"
+            )
+        self.liveness_controller = liveness_controller
+        self._persist_liveness_state = persist_liveness_state
+        self._projection_publisher = projection_publisher
+        self._projection_epoch_source = projection_epoch_source
         self.project_bindings = dict(project_bindings)
+        if liveness_controller is not None:
+            policy_epoch = liveness_controller.liveness_policy.epoch
+            # A canonical liveness generation must prove every identity the
+            # bounded liveness projection can represent in that same
+            # generation. Rotating smaller owning-domain windows across later
+            # generations can never close an exact-current proof gap.
+            owning_limit = min(
+                MAX_RUNTIME_LIVENESS_DOMAIN_LIMIT,
+                liveness_controller.liveness.max_task_records,
+            )
+            for binding in self.project_bindings.values():
+                for controller in (
+                    binding.implementation_controller,
+                    binding.review_controller,
+                    binding.integration_controller,
+                    binding.epic_controller,
+                ):
+                    if controller is None or not hasattr(
+                        controller, "decision_limit"
+                    ):
+                        continue
+                    effective_limit = max(
+                        int(controller.decision_limit), owning_limit
+                    )
+                    controller.decision_limit = effective_limit
+                    scheduler = getattr(controller, "scheduler", None)
+                    if scheduler is not None:
+                        scheduler.decision_limit = max(
+                            int(scheduler.decision_limit), effective_limit
+                        )
+            self._bind_policy_epoch(policy_epoch)
         self.journals = dict(journals)
         self.decision_limit = int(decision_limit)
         self.batch_size = int(batch_size)
@@ -811,6 +914,93 @@ class WorkflowRuntime:
                     project_store.project_write_lock(_project_id)
                 ),
             )
+
+            def terminal_audit_proof_source(
+                decision: WorkDecision,
+                observed: Mapping[str, Any],
+                action: str,
+                *,
+                _project_id=project_id,
+                _tracker=tracker,
+            ) -> bool:
+                """Re-read exact pending audit authority under its write lock."""
+
+                lock_source = getattr(project_store, "project_write_lock", None)
+                audit_store_source = getattr(orchestrator, "_audit_store", None)
+                if not callable(lock_source) or not callable(audit_store_source):
+                    return False
+                from oompah.auditor_dispatch import AuditorDispatchLane
+
+                with lock_source(_project_id):
+                    invalidate = getattr(_tracker, "invalidate_read_cache", None)
+                    if callable(invalidate):
+                        invalidate()
+                    current = _tracker.fetch_issue_detail(decision.task_id)
+                    if current is None:
+                        return False
+                    if not getattr(current, "project_id", None):
+                        current.project_id = _project_id
+                    document = audit_store_source(current).read(
+                        current.identifier
+                    )
+                    record = AuditorDispatchLane.pending_record(
+                        document.pending_chain,
+                        project_id=_project_id,
+                        task_id=decision.task_id,
+                    )
+                    if record is None:
+                        return False
+                    expected = {
+                        "audit_id": record.audit_id,
+                        "request_state": record.request_state.value,
+                        "target_state": record.target_state.value,
+                        "evidence_fingerprint": (
+                            record.evidence_fingerprint.digest
+                        ),
+                        "source_generation": record.source_generation,
+                        "audit_generation": terminal_workflow.generation(record),
+                    }
+                    if any(observed.get(key) != value for key, value in expected.items()):
+                        return False
+                    return store.terminal_audit_lane_materialized(
+                        project_id=_project_id,
+                        task_id=decision.task_id,
+                        audit_id=record.audit_id,
+                        target_state=record.target_state.value,
+                        evidence_fingerprint=record.evidence_fingerprint.digest,
+                        audit_generation=terminal_workflow.generation(record),
+                        source_generation=record.source_generation,
+                        obligation_action=action,
+                    )
+
+            def terminal_audit_snapshot_proof_source(
+                decision: WorkDecision,
+                observed: Mapping[str, Any],
+                *,
+                _project_id=project_id,
+                _tracker=tracker,
+                _collector=collector,
+            ) -> bool:
+                """Recollect the exact terminal disposition at publication."""
+
+                lock_source = getattr(project_store, "project_write_lock", None)
+                source = _collector.sources.get(FactDomain.TERMINAL_AUDIT)
+                if not callable(lock_source) or not callable(source):
+                    return False
+                with lock_source(_project_id):
+                    invalidate = getattr(_tracker, "invalidate_read_cache", None)
+                    if callable(invalidate):
+                        invalidate()
+                    current = _tracker.fetch_issue_detail(decision.task_id)
+                    if current is None:
+                        return False
+                    if not getattr(current, "project_id", None):
+                        current.project_id = _project_id
+                    fresh = source(current)
+                    return isinstance(fresh, Mapping) and dict(fresh) == dict(
+                        observed
+                    )
+
             binding = WorkflowProjectBinding(
                 project_id=project_id,
                 tracker=tracker,
@@ -831,6 +1021,17 @@ class WorkflowRuntime:
                 epic_controller=epic_controller,
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
+                terminal_audit_proof_source=terminal_audit_proof_source,
+                terminal_audit_snapshot_proof_source=(
+                    terminal_audit_snapshot_proof_source
+                ),
+                terminal_audit_publication_lock=(
+                    lambda _project_id=project_id: project_store.project_write_lock(
+                        _project_id
+                    )
+                )
+                if callable(getattr(project_store, "project_write_lock", None))
+                else None,
                 dispatch_enabled=dispatch_enabled,
                 lifecycle_interrupted=lifecycle_interrupted,
             )
@@ -949,6 +1150,30 @@ class WorkflowRuntime:
             )
             orchestrator.request_refresh()
 
+        def publish_projection(
+            decisions: Sequence[Any],
+            generation: int,
+            *,
+            live_keys: set[tuple[str, str]],
+            publication_epoch: int,
+            unavailable_projects: set[str],
+            scan_complete: bool,
+            incomplete_keys: set[tuple[str, str]],
+            incomplete_reason: str | None,
+        ) -> Any:
+            return orchestrator._publish_work_decisions(
+                list(decisions),
+                generation,
+                source="controller",
+                live_keys=live_keys,
+                publication_epoch=publication_epoch,
+                failed_projects=unavailable_projects,
+                scan_complete=scan_complete,
+                incomplete_keys=incomplete_keys,
+                incomplete_reason=incomplete_reason,
+                defer_memory=True,
+            )
+
         runtime = cls(
             project_bindings=bindings,
             store=store,
@@ -987,6 +1212,27 @@ class WorkflowRuntime:
             topology_source=topology_source,
             topology_change_handler=topology_change_handler,
             transition_observer=transition_observer,
+            liveness_controller=getattr(
+                orchestrator, "workflow_controller", None
+            ),
+            persist_liveness_state=getattr(
+                orchestrator, "_persist_workflow_liveness_state", None
+            ),
+            projection_publisher=(
+                publish_projection
+                if callable(
+                    getattr(orchestrator, "_publish_work_decisions", None)
+                )
+                else None
+            ),
+            projection_epoch_source=(
+                (lambda: int(orchestrator._work_decision_publication_epoch))
+                if callable(
+                    getattr(orchestrator, "_publish_work_decisions", None)
+                )
+                and hasattr(orchestrator, "_work_decision_publication_epoch")
+                else None
+            ),
         )
         runtime._integration_maintenance_scheduler = getattr(
             orchestrator,
@@ -998,6 +1244,34 @@ class WorkflowRuntime:
     @property
     def enforce(self) -> bool:
         return self.mode == "enforce"
+
+    def _bind_policy_epoch(self, policy_epoch: str) -> None:
+        """Bind universal and owning schedulers to one semantic policy cut."""
+
+        controller = self.liveness_controller
+        if controller is not None:
+            controller.scheduler.configure_policy_epoch(policy_epoch)
+        for binding in self.project_bindings.values():
+            for domain_controller in (
+                binding.implementation_controller,
+                binding.review_controller,
+                binding.integration_controller,
+                binding.epic_controller,
+            ):
+                scheduler = getattr(domain_controller, "scheduler", None)
+                if scheduler is not None:
+                    scheduler.configure_policy_epoch(policy_epoch)
+
+    def _capture_liveness_policy(self) -> LivenessPolicy | None:
+        """Capture and bind one immutable policy for a complete runtime pass."""
+
+        controller = self.liveness_controller
+        if controller is None:
+            return None
+        with controller.liveness_observation_lock:
+            policy = controller.liveness_policy
+            self._bind_policy_epoch(policy.epoch)
+            return policy
 
     def _validate_enforce_ready(self) -> None:
         if not self.enforce:
@@ -1225,6 +1499,264 @@ class WorkflowRuntime:
             self._latest_decisions = retained
             return previous
 
+    def _publish_runtime_projection(
+        self,
+        decisions: Sequence[WorkDecision],
+        *,
+        authoritative_project_ids: Sequence[str],
+    ) -> None:
+        """Replace successful projects with one domain-owned projection cut."""
+
+        projects = set(authoritative_project_ids)
+        with self._lock:
+            retained = {
+                key: decision
+                for key, decision in self._latest_decisions.items()
+                if key[0] not in projects
+            }
+            retained.update(
+                {
+                    (decision.project_id, decision.task_id): decision
+                    for decision in decisions
+                    if decision.project_id in projects
+                }
+            )
+            self._latest_decisions = retained
+
+    @staticmethod
+    def _add_projection(
+        projections: dict[tuple[str, str], WorkDecision],
+        decision: WorkDecision,
+        *,
+        domain: str,
+    ) -> None:
+        identity = (decision.project_id, decision.task_id)
+        previous = projections.get(identity)
+        if previous is not None and (
+            previous.decision_revision != decision.decision_revision
+        ):
+            raise WorkflowRuntimeError(
+                "conflicting owning-domain projections for "
+                f"{decision.project_id}/{decision.task_id}: {domain}"
+            )
+        projections[identity] = decision
+
+    def _domain_projection_and_proofs(
+        self,
+        prepared: Sequence[Mapping[str, Any]],
+        reconciled: Sequence[tuple[Mapping[str, Any], str, Any, Any, Any]],
+        observation: ControllerObservation,
+        *,
+        snapshot_generation: int,
+        workflow_facts: Mapping[tuple[str, str], WorkflowFacts],
+    ) -> tuple[
+        tuple[WorkDecision, ...],
+        dict[tuple[str, str], set[str]],
+        dict[tuple[str, str], DecisionLivenessFacts],
+    ]:
+        """Build the public cut and prove actions through their owning lanes.
+
+        The universal pass explains every task but is not a scheduler.  A
+        durable obligation is materialized only when the controller that owns
+        that action published its own exact decision revision and durable job.
+        """
+
+        projections: dict[tuple[str, str], WorkDecision] = {}
+        proven: dict[tuple[str, str], set[str]] = {}
+        live_identities = set(observation.expected_identities)
+        projection_facts: dict[
+            tuple[str, str], DecisionLivenessFacts
+        ] = {}
+        for _item, domain, controller, batch, result in reconciled:
+            for task_decision in batch.tasks:
+                decision = task_decision.decision
+                if (decision.project_id, decision.task_id) not in live_identities:
+                    # Owning domains may schedule direct terminal maintenance,
+                    # but canonical liveness accepts only the active
+                    # non-terminal topology represented by this observation.
+                    continue
+                self._add_projection(projections, decision, domain=domain)
+                projection_facts[
+                    (decision.project_id, decision.task_id)
+                ] = DecisionLivenessFacts.from_workflow_facts(
+                    decision, task_decision.facts
+                )
+                owned_actions = {
+                    action
+                    for action in decision.durable_jobs
+                    if _LIVENESS_ACTION_OWNER.get(action) == domain
+                }
+                if not owned_actions or not result.snapshot_accepted:
+                    continue
+                cursor = self.store.schedule_cursor(
+                    project_id=decision.project_id,
+                    task_id=decision.task_id,
+                )
+                if (
+                    cursor is None
+                    or cursor.snapshot_generation != snapshot_generation
+                    or cursor.decision_revision
+                    != controller.scheduler.decision_revision(decision)
+                    or not cursor.materialized
+                ):
+                    continue
+                schedules, jobs = controller.scheduler._materialized_totals(
+                    (decision,)
+                )
+                if schedules == 1 and jobs == len(decision.durable_jobs):
+                    proven.setdefault(
+                        (decision.project_id, decision.task_id), set()
+                    ).update(owned_actions)
+
+        for item in prepared:
+            implementation_batch = item["implementation_batch"]
+            for task_decision in implementation_batch.tasks:
+                decision = task_decision.decision
+                identity = (decision.project_id, decision.task_id)
+                if identity not in live_identities:
+                    continue
+                if identity in projections:
+                    # A status-selected implementation candidate can evaluate
+                    # to an integration-owned maintenance handoff.  The
+                    # specialized managed domain remains authoritative.
+                    continue
+                self._add_projection(
+                    projections, decision, domain="implementation"
+                )
+                projection_facts[
+                    identity
+                ] = DecisionLivenessFacts.from_workflow_facts(
+                    decision, task_decision.facts
+                )
+                for action in decision.durable_jobs:
+                    if _LIVENESS_ACTION_OWNER.get(action) != "implementation":
+                        continue
+                    if self.store.event_lane_materialized(
+                        project_id=decision.project_id,
+                        task_id=decision.task_id,
+                        ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+                        scheduling_lane=FACT_IMPLEMENTATION_LANE,
+                        source_revision=(
+                            item["binding"]
+                            .implementation_controller.scheduler.decision_revision(
+                                decision
+                            )
+                        ),
+                        actions=(action,),
+                    ):
+                        proven.setdefault(
+                            (decision.project_id, decision.task_id), set()
+                        ).add(action)
+
+        # Some statuses are explanatory-only and have no specialized domain
+        # controller.  Fill only those gaps; never replace an owning domain's
+        # decision with the universal controller's independently collected
+        # revision.
+        for decision in observation.decisions:
+            identity = (decision.project_id, decision.task_id)
+            if identity not in projections:
+                projections[identity] = decision
+                projection_facts[identity] = observation.decision_facts.get(
+                    identity, DecisionLivenessFacts()
+                )
+        bindings_by_project = {
+            str(item["project_id"]): item["binding"] for item in prepared
+        }
+        for identity, decision in projections.items():
+            terminal_actions = {
+                action
+                for action in decision.durable_jobs
+                if _LIVENESS_ACTION_OWNER.get(action) == "terminal_audit"
+            }
+            if not terminal_actions:
+                continue
+            facts = workflow_facts.get(identity)
+            terminal = (
+                facts.fact(FactDomain.TERMINAL_AUDIT)
+                if isinstance(facts, WorkflowFacts)
+                else None
+            )
+            value = (
+                terminal.value
+                if terminal is not None
+                and terminal.state is FactState.KNOWN
+                and isinstance(terminal.value, Mapping)
+                else None
+            )
+            if value is None or str(value.get("request_state") or "") not in {
+                "pending",
+                "in_progress",
+            }:
+                continue
+            binding = bindings_by_project.get(decision.project_id)
+            proof_source = getattr(
+                binding, "terminal_audit_proof_source", None
+            )
+            try:
+                materialized = bool(
+                    proof_source(decision, value, next(iter(terminal_actions)))
+                ) if callable(proof_source) and len(terminal_actions) == 1 else False
+            except Exception:  # noqa: BLE001 - proof failure is incomplete
+                logger.exception(
+                    "Terminal-audit liveness proof failed for %s/%s",
+                    decision.project_id,
+                    decision.task_id,
+                )
+                materialized = False
+            if materialized:
+                proven.setdefault(identity, set()).update(terminal_actions)
+        return (
+            tuple(projections[key] for key in sorted(projections)),
+            proven,
+            projection_facts,
+        )
+
+    def _liveness_reconciliation(
+        self,
+        observation: ControllerObservation,
+        *,
+        snapshot_generation: int,
+        domain_results: Sequence[WorkflowReconcileResult],
+        proven_actions: Mapping[tuple[str, str], set[str]],
+    ) -> WorkflowReconcileResult:
+        """Prove every universal durable obligation through its exact owner."""
+
+        required: list[tuple[WorkDecision, tuple[str, ...]]] = []
+        jobs_materialized = schedules_materialized = 0
+        for decision in observation.decisions:
+            actions = tuple(
+                action
+                for action in decision.durable_jobs
+                if _LIVENESS_ACTION_OWNER.get(action) != "excluded"
+            )
+            if not actions:
+                continue
+            required.append((decision, actions))
+            current = proven_actions.get(
+                (decision.project_id, decision.task_id), set()
+            )
+            materialized = sum(action in current for action in actions)
+            jobs_materialized += materialized
+            schedules_materialized += int(materialized == len(actions))
+        return WorkflowReconcileResult(
+            snapshot_generation=snapshot_generation,
+            snapshot_accepted=True,
+            decisions_seen=len(observation.decisions),
+            decisions_applied=len(observation.decisions),
+            stale_rejected=sum(item.stale_rejected for item in domain_results),
+            jobs_created=sum(item.jobs_created for item in domain_results),
+            jobs_replayed=sum(item.jobs_replayed for item in domain_results),
+            jobs_superseded=sum(item.jobs_superseded for item in domain_results),
+            jobs_required=sum(len(actions) for _decision, actions in required),
+            jobs_materialized=jobs_materialized,
+            schedules_required=len(required),
+            schedules_materialized=schedules_materialized,
+            truncated=(
+                observation.truncated
+                or any(item.truncated for item in domain_results)
+            ),
+        )
+
     def _restore_project_decisions(
         self,
         project_id: str,
@@ -1301,7 +1833,12 @@ class WorkflowRuntime:
         if self._draining or self.mode == "off":
             return {"mode": self.mode, "skipped": True}
         report: dict[str, Any] = {"mode": self.mode, "projects": {}}
+        policy_cut = self._capture_liveness_policy()
+        liveness_slo_seconds = (
+            policy_cut.seconds if policy_cut is not None else None
+        )
         if not self.enforce:
+            shadow_updates: list[tuple[str, tuple[Any, ...]]] = []
             for project_id, binding in sorted(self.project_bindings.items()):
                 try:
                     if not binding.enabled:
@@ -1334,7 +1871,8 @@ class WorkflowRuntime:
                             (
                                 "implementation",
                                 binding.implementation_controller.evaluate(
-                                    task_issues
+                                    task_issues,
+                                    liveness_slo_seconds=liveness_slo_seconds,
                                 ),
                             )
                         )
@@ -1342,14 +1880,20 @@ class WorkflowRuntime:
                         named_batches.append(
                             (
                                 "review",
-                                binding.review_controller.evaluate(task_issues),
+                                binding.review_controller.evaluate(
+                                    task_issues,
+                                    liveness_slo_seconds=liveness_slo_seconds,
+                                ),
                             )
                         )
                     if self.domain_modes["integration"] != "off":
                         named_batches.append(
                             (
                                 "integration",
-                                binding.integration_controller.evaluate(task_issues),
+                                binding.integration_controller.evaluate(
+                                    task_issues,
+                                    liveness_slo_seconds=liveness_slo_seconds,
+                                ),
                             )
                         )
                     if self.domain_modes["epic"] != "off":
@@ -1357,12 +1901,14 @@ class WorkflowRuntime:
                             (
                                 "epic",
                                 binding.epic_controller.evaluate(
-                                    epic_issues, persist_evidence=False
+                                    epic_issues,
+                                    persist_evidence=False,
+                                    liveness_slo_seconds=liveness_slo_seconds,
                                 ),
                             )
                         )
                     batches = [batch for _name, batch in named_batches]
-                    self._replace_project_decisions(project_id, batches)
+                    shadow_updates.append((project_id, tuple(batches)))
                     report["projects"][project_id] = {
                         "issues": len(issues),
                         **{
@@ -1377,6 +1923,32 @@ class WorkflowRuntime:
                     report["projects"][project_id] = {
                         "error": type(exc).__name__,
                     }
+            shadow_policy_current = True
+            policy_lock = (
+                self.liveness_controller.liveness_observation_lock
+                if self.liveness_controller is not None
+                else None
+            )
+            if policy_lock is not None:
+                policy_lock.acquire()
+            try:
+                if policy_cut is not None:
+                    current_policy = self.liveness_controller.liveness_policy
+                    shadow_policy_current = (
+                        current_policy.epoch == policy_cut.epoch
+                    )
+                    self._bind_policy_epoch(current_policy.epoch)
+                if shadow_policy_current:
+                    for project_id, batches in shadow_updates:
+                        self._replace_project_decisions(project_id, batches)
+                else:
+                    for project_id, _batches in shadow_updates:
+                        report["projects"][project_id] = {
+                            "error": "WorkflowLivenessPolicyChanged",
+                        }
+            finally:
+                if policy_lock is not None:
+                    policy_lock.release()
             with self._lock:
                 self._last_reconcile = report
             # Paused/quiesced projects are deliberately excluded from the
@@ -1431,14 +2003,41 @@ class WorkflowRuntime:
         # The job-store generation is global. Capture one generation before
         # source I/O, then accept, materialize, and publish one union cut for
         # every project whose source scan succeeded.
+        projection_epoch = (
+            int(self._projection_epoch_source())
+            if self._projection_epoch_source is not None
+            else None
+        )
+        if projection_epoch is not None and projection_epoch < 1:
+            raise WorkflowRuntimeError(
+                "work-decision publication epoch must be positive"
+            )
         generation = self.store.allocate_snapshot_generation()
         prepared: list[dict[str, Any]] = []
+        liveness_tasks: list[Any] = []
+        liveness_facts: dict[tuple[str, str], Any] = {}
+        source_errors: dict[str, str] = {}
+        excluded_projects: dict[str, str] = {}
         for project_id, binding in sorted(self.project_bindings.items()):
-            if not binding.enabled:
+            try:
+                binding_enabled = binding.read_enabled_state()
+            except Exception as exc:
+                logger.exception(
+                    "Durable workflow pause authority read failed for %s",
+                    project_id,
+                )
+                report["projects"][project_id] = {
+                    "error": type(exc).__name__,
+                }
+                source_errors[project_id] = type(exc).__name__
+                continue
+            if not binding_enabled:
+                exclusion_reason = "project paused or orchestrator quiesced"
                 report["projects"][project_id] = {
                     "skipped": True,
-                    "reason": "project paused or orchestrator quiesced",
+                    "reason": exclusion_reason,
                 }
+                excluded_projects[project_id] = exclusion_reason
                 continue
             try:
                 issues = self._issues(binding)
@@ -1455,10 +2054,27 @@ class WorkflowRuntime:
                     == "epic"
                     and canonicalize_status(issue.state) != IN_VALIDATION
                 ]
+                implementation_checkpoint = dict(
+                    binding.implementation_controller._latest
+                )
+                try:
+                    implementation_batch = (
+                        binding.implementation_controller.evaluate(
+                            task_issues,
+                            liveness_slo_seconds=liveness_slo_seconds,
+                        )
+                    )
+                finally:
+                    binding.implementation_controller._latest = (
+                        implementation_checkpoint
+                    )
                 review_checkpoint = (
                     binding.review_controller.projection_checkpoint()
                 )
-                review_batch = binding.review_controller.evaluate(task_issues)
+                review_batch = binding.review_controller.evaluate(
+                    task_issues,
+                    liveness_slo_seconds=liveness_slo_seconds,
+                )
                 self._validate_domain_decisions(
                     "review", review_batch, REVIEW_ACTION_JOBS
                 )
@@ -1468,7 +2084,8 @@ class WorkflowRuntime:
                 )
                 try:
                     integration_batch = binding.integration_controller.evaluate(
-                        task_issues
+                        task_issues,
+                        liveness_slo_seconds=liveness_slo_seconds,
                     )
                 finally:
                     binding.integration_controller._latest = (
@@ -1482,7 +2099,9 @@ class WorkflowRuntime:
                 epic_landings_checkpoint = dict(binding.epic_controller._landings)
                 try:
                     epic_batch = binding.epic_controller.evaluate(
-                        epic_issues, persist_evidence=False
+                        epic_issues,
+                        persist_evidence=False,
+                        liveness_slo_seconds=liveness_slo_seconds,
                     )
                     evaluated_epic_landings = dict(
                         binding.epic_controller._landings
@@ -1493,6 +2112,41 @@ class WorkflowRuntime:
                         epic_landings_checkpoint
                     )
                 self._validate_domain_decisions("epic", epic_batch, EPIC_ACTIONS)
+
+                project_liveness_tasks = [
+                    issue
+                    for issue in issues
+                    if canonicalize_status(issue.state)
+                    not in LIFECYCLE_FINAL_STATUSES
+                ]
+                project_liveness_facts = {
+                    (project_id, issue.identifier): binding.collector.collect(
+                        issue.identifier
+                    )
+                    for issue in project_liveness_tasks
+                }
+                # Reuse the exact owning-domain fact cut where one exists.
+                # A generic recollection can omit domain-specific landing
+                # requests and therefore hash differently from the cursor it
+                # must inspect for exhaustion/current authority.
+                for owning_batch in (
+                    implementation_batch,
+                    review_batch,
+                    integration_batch,
+                ):
+                    for task_decision in owning_batch.tasks:
+                        identity = (
+                            project_id,
+                            task_decision.task.identifier,
+                        )
+                        if identity in project_liveness_facts and isinstance(
+                            task_decision.facts, WorkflowFacts
+                        ):
+                            project_liveness_facts[identity] = (
+                                task_decision.facts
+                            )
+                liveness_tasks.extend(project_liveness_tasks)
+                liveness_facts.update(project_liveness_facts)
 
                 domains = (
                     ("review", binding.review_controller, review_batch),
@@ -1522,6 +2176,8 @@ class WorkflowRuntime:
                         "binding": binding,
                         "issues": issues,
                         "task_issues": task_issues,
+                        "implementation_batch": implementation_batch,
+                        "implementation_checkpoint": implementation_checkpoint,
                         "review_batch": review_batch,
                         "review_checkpoint": review_checkpoint,
                         "integration_batch": integration_batch,
@@ -1543,6 +2199,7 @@ class WorkflowRuntime:
                 report["projects"][project_id] = {
                     "error": type(exc).__name__,
                 }
+                source_errors[project_id] = type(exc).__name__
 
         authoritative_projects = tuple(
             item["project_id"] for item in prepared
@@ -1573,12 +2230,78 @@ class WorkflowRuntime:
                 )
 
         if not self.store.accept_snapshot_generation(generation):
+            if self.liveness_controller is not None:
+                with self.liveness_controller.liveness_observation_lock:
+                    self._bind_policy_epoch(
+                        self.liveness_controller.liveness_policy.epoch
+                    )
             reject_domains()
             with self._lock:
                 self._last_reconcile = report
             return report
 
+        liveness_controller = self.liveness_controller
+        liveness_lock = (
+            liveness_controller.liveness_observation_lock
+            if liveness_controller is not None
+            else None
+        )
+        if liveness_lock is not None:
+            liveness_lock.acquire()
+        observation: ControllerObservation | None = None
+        observation_committed = False
+        marker_committed = False
         try:
+            if liveness_controller is not None:
+                current_policy = liveness_controller.liveness_policy
+                if (
+                    policy_cut is None
+                    or current_policy.epoch != policy_cut.epoch
+                ):
+                    # Owner decisions were evaluated from an older policy
+                    # cut. Reject the accepted generation before any cursor,
+                    # job, projection, or liveness publication can mix the
+                    # old deadlines with the new semantic epoch.
+                    self._bind_policy_epoch(current_policy.epoch)
+                    reject_domains()
+                    if self.store.snapshot_generation_is_current(generation):
+                        self.store.restore_snapshot_authority(
+                            authority, snapshot_generation=generation
+                        )
+                    with self._lock:
+                        self._last_reconcile = report
+                    return report
+                self._bind_policy_epoch(policy_cut.epoch)
+                observation = liveness_controller.prepare_runtime_observation(
+                    tuple(liveness_tasks),
+                    facts_by_task=liveness_facts,
+                    snapshot_generation=generation,
+                    source_scan_complete=not source_errors,
+                    source_errors=source_errors,
+                    excluded_projects=excluded_projects,
+                )
+                if observation is None:
+                    reject_domains()
+                    if self.store.snapshot_generation_is_current(generation):
+                        self.store.restore_snapshot_authority(
+                            authority, snapshot_generation=generation
+                        )
+                    with self._lock:
+                        self._last_reconcile = report
+                    return report
+                if observation.policy_epoch != policy_cut.epoch:
+                    reject_domains()
+                    if self.store.snapshot_generation_is_current(generation):
+                        self.store.restore_snapshot_authority(
+                            authority, snapshot_generation=generation
+                        )
+                    with self._lock:
+                        self._last_reconcile = report
+                    return report
+                # Bind every owning lane to the exact liveness-policy cut
+                # held by this observation. Absolute reassessment timestamps
+                # remain outside semantic revisions; SLO changes do not.
+                self._bind_policy_epoch(observation.policy_epoch)
             membership = self.store.reconcile_snapshot_membership(
                 snapshot_generation=generation,
                 authoritative_project_ids=authoritative_projects,
@@ -1611,6 +2334,39 @@ class WorkflowRuntime:
                     self._last_reconcile = report
                 return report
 
+            projection_decisions: tuple[WorkDecision, ...] = ()
+            proven_actions: dict[tuple[str, str], set[str]] = {}
+            publication_observation = observation
+            if observation is not None:
+                (
+                    projection_decisions,
+                    proven_actions,
+                    projection_facts,
+                ) = (
+                    self._domain_projection_and_proofs(
+                        prepared,
+                        reconciled,
+                        observation,
+                        snapshot_generation=generation,
+                        workflow_facts=liveness_facts,
+                    )
+                )
+                publication_observation = replace(
+                    observation,
+                    decisions=projection_decisions,
+                    decision_facts=projection_facts,
+                )
+            liveness_reconciliation = (
+                self._liveness_reconciliation(
+                    publication_observation,
+                    snapshot_generation=generation,
+                    domain_results=tuple(item[4] for item in reconciled),
+                    proven_actions=proven_actions,
+                )
+                if publication_observation is not None
+                else None
+            )
+
             with self._lock:
                 runtime_checkpoint = dict(self._latest_decisions)
 
@@ -1619,6 +2375,9 @@ class WorkflowRuntime:
                     self._latest_decisions = dict(runtime_checkpoint)
                 for item in prepared:
                     binding = item["binding"]
+                    binding.implementation_controller._latest = dict(
+                        item["implementation_checkpoint"]
+                    )
                     binding.review_controller.restore_projection_checkpoint(
                         item["review_checkpoint"]
                     )
@@ -1638,9 +2397,15 @@ class WorkflowRuntime:
                 )
 
             def publish() -> WorkflowSnapshotPublication:
+                liveness_publication: WorkflowSnapshotPublication | None = None
+                projection_publication: Any | None = None
                 try:
                     for item in prepared:
                         binding = item["binding"]
+                        binding.implementation_controller._latest = {
+                            task.task.identifier: task
+                            for task in item["implementation_batch"].tasks
+                        }
                         binding.review_controller.commit_snapshot_projection(
                             item["task_issues"], item["review_batch"], generation
                         )
@@ -1658,24 +2423,276 @@ class WorkflowRuntime:
                         self._replace_project_decisions(
                             item["project_id"],
                             (
+                                item["implementation_batch"],
                                 item["review_batch"],
                                 item["integration_batch"],
                                 item["epic_batch"],
                             ),
                         )
-                except Exception:
-                    restore_caches()
+                    if publication_observation is not None:
+                        self._publish_runtime_projection(
+                            projection_decisions,
+                            authoritative_project_ids=authoritative_projects,
+                        )
+                        if self._projection_publisher is not None:
+                            if projection_epoch is None:  # pragma: no cover
+                                raise WorkflowRuntimeError(
+                                    "work-decision publication epoch is unavailable"
+                                )
+                            projection_keys = {
+                                (decision.project_id, decision.task_id)
+                                for decision in projection_decisions
+                            }
+                            live_keys = set(
+                                publication_observation.expected_identities
+                            )
+                            incomplete_keys = live_keys - projection_keys
+                            projection_publication = self._projection_publisher(
+                                projection_decisions,
+                                generation,
+                                live_keys=live_keys,
+                                publication_epoch=projection_epoch,
+                                unavailable_projects=(
+                                    set(source_errors) | set(excluded_projects)
+                                ),
+                                scan_complete=bool(
+                                    publication_observation.source_scan_complete
+                                    and not publication_observation.truncated
+                                    and not incomplete_keys
+                                ),
+                                incomplete_keys=incomplete_keys,
+                                incomplete_reason=(
+                                    "controller snapshot did not cover every "
+                                    "active non-terminal task"
+                                    if incomplete_keys
+                                    or publication_observation.truncated
+                                    else None
+                                ),
+                            )
+                            if not bool(
+                                getattr(
+                                    projection_publication, "accepted", False
+                                )
+                            ):
+                                raise WorkflowRuntimeError(
+                                    "canonical work-decision projection rejected: "
+                                    + str(
+                                        getattr(
+                                            projection_publication,
+                                            "rejection",
+                                            "unknown",
+                                        )
+                                    )
+                                )
+                            commit_memory = getattr(
+                                projection_publication,
+                                "commit_memory",
+                                None,
+                            )
+                            if not callable(commit_memory):
+                                raise WorkflowRuntimeError(
+                                    "canonical projection returned no memory "
+                                    "commit operation"
+                                )
+                            commit_memory()
+                        assert liveness_controller is not None
+                        assert liveness_reconciliation is not None
+                        liveness_publication = (
+                            liveness_controller.stage_runtime_observation(
+                                publication_observation,
+                                reconciliation=liveness_reconciliation,
+                                persist_liveness_state=(
+                                    self._persist_liveness_state
+                                ),
+                            )
+                        )
+                except Exception as publish_exc:
+                    errors: list[Exception] = []
+                    if (
+                        liveness_publication is not None
+                        and liveness_publication.rollback is not None
+                    ):
+                        try:
+                            liveness_publication.rollback()
+                        except Exception as exc:
+                            errors.append(exc)
+                    rollback_projection = getattr(
+                        projection_publication, "rollback", None
+                    )
+                    if callable(rollback_projection):
+                        try:
+                            rollback_projection()
+                        except Exception as exc:
+                            errors.append(exc)
+                    try:
+                        restore_caches()
+                    except Exception as exc:
+                        errors.append(exc)
+                    if errors:
+                        cause = ExceptionGroup(
+                            "runtime publication and compensation failed",
+                            [publish_exc, *errors],
+                        )
+                        raise WorkflowJobPublicationError(
+                            "runtime snapshot publication could not be "
+                            "compensated",
+                            rollback_failed=True,
+                        ) from cause
                     raise
+
+                def rollback() -> None:
+                    errors: list[Exception] = []
+                    if (
+                        liveness_publication is not None
+                        and liveness_publication.rollback is not None
+                    ):
+                        try:
+                            liveness_publication.rollback()
+                        except Exception as exc:
+                            errors.append(exc)
+                    rollback_projection = getattr(
+                        projection_publication, "rollback", None
+                    )
+                    if callable(rollback_projection):
+                        try:
+                            rollback_projection()
+                        except Exception as exc:
+                            errors.append(exc)
+                    try:
+                        restore_caches()
+                    except Exception as exc:
+                        errors.append(exc)
+                    if len(errors) == 1:
+                        raise errors[0]
+                    if errors:
+                        raise ExceptionGroup(
+                            "runtime snapshot compensators failed", errors
+                        )
+
                 return WorkflowSnapshotPublication(
-                    rollback=restore_caches,
+                    result=(
+                        liveness_publication.result
+                        if liveness_publication is not None
+                        else None
+                    ),
+                    rollback=rollback,
                     rollback_authority=rollback_authority,
                 )
 
-            published, _ = self.store.publish_snapshot_generation(
-                generation,
-                publish,
-                rollback_authority=rollback_authority,
-            )
+            # Terminal-audit metadata and its workflow lane live in separate
+            # stores.  Revalidate every proof while holding the project's
+            # metadata write lock through the durable snapshot marker, so a
+            # pending-record replacement cannot race between proof and
+            # publication.
+            terminal_publication_proofs: list[
+                tuple[WorkflowProjectBinding, WorkDecision, Mapping[str, Any], str]
+            ] = []
+            terminal_snapshot_proofs: list[
+                tuple[WorkflowProjectBinding, WorkDecision, Mapping[str, Any]]
+            ] = []
+            bindings_by_project = {
+                str(item["project_id"]): item["binding"] for item in prepared
+            }
+            for decision in projection_decisions:
+                identity = (decision.project_id, decision.task_id)
+                terminal_actions = {
+                    action
+                    for action in proven_actions.get(identity, set())
+                    if _LIVENESS_ACTION_OWNER.get(action) == "terminal_audit"
+                }
+                facts = liveness_facts.get(identity)
+                observation_fact = (
+                    facts.fact(FactDomain.TERMINAL_AUDIT)
+                    if isinstance(facts, WorkflowFacts)
+                    else None
+                )
+                observed = (
+                    observation_fact.value
+                    if observation_fact is not None
+                    and observation_fact.state is FactState.KNOWN
+                    and isinstance(observation_fact.value, Mapping)
+                    else None
+                )
+                binding = bindings_by_project.get(decision.project_id)
+                if (
+                    isinstance(observed, Mapping)
+                    and str(observed.get("request_state") or "")
+                    in {"pending", "in_progress"}
+                ):
+                    if binding is None:
+                        raise WorkflowRuntimeError(
+                            "terminal-audit snapshot proof lost its binding"
+                        )
+                    terminal_snapshot_proofs.append(
+                        (binding, decision, observed)
+                    )
+                if not terminal_actions:
+                    continue
+                if binding is None or observed is None:
+                    raise WorkflowRuntimeError(
+                        "terminal-audit publication proof lost its authority"
+                    )
+                for action in sorted(terminal_actions):
+                    terminal_publication_proofs.append(
+                        (binding, decision, observed, action)
+                    )
+
+            with ExitStack() as publication_locks:
+                locked_projects: set[str] = set()
+                proof_bindings = [
+                    item[0] for item in terminal_publication_proofs
+                ] + [item[0] for item in terminal_snapshot_proofs]
+                for binding in sorted(
+                    proof_bindings, key=lambda item: item.project_id
+                ):
+                    if binding.project_id in locked_projects:
+                        continue
+                    lock_source = binding.terminal_audit_publication_lock
+                    if not callable(lock_source):
+                        raise WorkflowRuntimeError(
+                            "terminal-audit publication lock is unavailable"
+                        )
+                    publication_locks.enter_context(lock_source())
+                    locked_projects.add(binding.project_id)
+                def publish_after_terminal_proof() -> WorkflowSnapshotPublication:
+                    # ``publish_snapshot_generation`` invokes this callback
+                    # after acquiring the cross-process authority guard and
+                    # opening its marker transaction.  Job claim/completion,
+                    # retry, failure, and cancellation therefore cannot race
+                    # this final proof-to-marker interval.
+                    for binding, decision, observed in terminal_snapshot_proofs:
+                        proof_source = (
+                            binding.terminal_audit_snapshot_proof_source
+                        )
+                        if not callable(proof_source) or not proof_source(
+                            decision, observed
+                        ):
+                            raise WorkflowRuntimeError(
+                                "terminal-audit disposition changed before "
+                                "publication"
+                            )
+                    for (
+                        binding,
+                        decision,
+                        observed,
+                        action,
+                    ) in terminal_publication_proofs:
+                        proof_source = binding.terminal_audit_proof_source
+                        if not callable(proof_source) or not proof_source(
+                            decision, observed, action
+                        ):
+                            raise WorkflowRuntimeError(
+                                "terminal-audit authority changed before publication"
+                            )
+                    return publish()
+
+                published, publication_result = (
+                    self.store.publish_snapshot_generation(
+                        generation,
+                        publish_after_terminal_proof,
+                        rollback_authority=rollback_authority,
+                    )
+                )
             if not published:
                 reject_domains()
                 if self.store.snapshot_generation_is_current(generation):
@@ -1685,7 +2702,58 @@ class WorkflowRuntime:
                 with self._lock:
                     self._last_reconcile = report
                 return report
+            # The marker is now durable.  Everything below is non-authoritative
+            # bookkeeping and must never route the committed generation back
+            # through the pre-commit authority compensator.
+            marker_committed = True
+            observation_committed = observation is not None
+            if publication_observation is not None:
+                if not isinstance(publication_result, ControllerPass):
+                    logger.error(
+                        "runtime liveness publication returned no controller pass"
+                    )
+                    assert liveness_controller is not None
+                    liveness_controller.abort_runtime_observation(generation)
+                else:
+                    assert liveness_controller is not None
+                    try:
+                        finalized = liveness_controller.commit_runtime_observation(
+                            publication_observation, publication_result
+                        )
+                        if not finalized:
+                            liveness_controller.abort_runtime_observation(
+                                generation
+                            )
+                    except Exception:
+                        logger.exception(
+                            "Runtime liveness bookkeeping failed after the "
+                            "snapshot marker committed"
+                        )
+                        liveness_controller.abort_runtime_observation(generation)
+                try:
+                    assert liveness_controller is not None
+                    health = liveness_controller.liveness_snapshot()
+                    report["liveness"] = {
+                        "snapshot_generation": generation,
+                        "scan_complete": health.scan_complete,
+                        "status": health.status,
+                    }
+                except Exception:
+                    logger.exception(
+                        "Runtime liveness health read failed after the snapshot "
+                        "marker committed"
+                    )
         except Exception as exc:
+            if marker_committed:
+                logger.exception(
+                    "Post-commit workflow bookkeeping failed after snapshot "
+                    "generation %s became authoritative",
+                    generation,
+                )
+                report["postcommit_error"] = type(exc).__name__
+                with self._lock:
+                    self._last_reconcile = report
+                return report
             if self.store.snapshot_generation_is_current(generation):
                 restored = self.store.restore_snapshot_authority(
                     authority, snapshot_generation=generation
@@ -1709,6 +2777,15 @@ class WorkflowRuntime:
             with self._lock:
                 self._last_reconcile = report
             return report
+        finally:
+            if (
+                liveness_controller is not None
+                and observation is not None
+                and not observation_committed
+            ):
+                liveness_controller.abort_runtime_observation(generation)
+            if liveness_lock is not None:
+                liveness_lock.release()
 
         for item, name, controller, _batch, result in reconciled:
             controller.scheduler.record_reconcile_metrics(result)
@@ -1731,12 +2808,13 @@ class WorkflowRuntime:
                 # outside managed membership, but cannot be exposed until the
                 # shared managed cut has published. Its source-generation CAS
                 # makes the next pass deterministic after a partial failure.
-                implementation_batch, implementation_result = (
-                    binding.implementation_controller.reconcile(
-                        item["task_issues"], snapshot_generation=generation
+                implementation_batch = item["implementation_batch"]
+                implementation_result = (
+                    binding.implementation_controller.reconcile_evaluated(
+                        implementation_batch,
+                        snapshot_generation=generation,
                     )
                 )
-                self._remember(implementation_batch)
                 project_report["implementation"] = asdict(implementation_result)
                 for task in item["epic_batch"].tasks:
                     durable = tuple(
@@ -2057,6 +3135,11 @@ class WorkflowRuntime:
     def health_snapshot(self) -> dict[str, Any]:
         with self._lock:
             last = dict(self._last_reconcile)
+        controller_health = (
+            self.liveness_controller.health_snapshot()
+            if self.liveness_controller is not None
+            else None
+        )
         rollout_gate = self.store.rollout_readiness(
             min_shadow_sweeps=self.rollout_min_shadow_sweeps,
             min_shadow_seconds=self.rollout_min_shadow_seconds,
@@ -2083,6 +3166,12 @@ class WorkflowRuntime:
                 "handlers_configured": self._handlers_configured,
             },
             "last_reconcile": last,
+            "controller": controller_health,
+            "liveness": (
+                controller_health.get("liveness")
+                if isinstance(controller_health, Mapping)
+                else None
+            ),
             "binding_topology_current": self._binding_topology_current(),
             "jobs": self.store.health_snapshot(),
         }

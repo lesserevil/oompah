@@ -366,6 +366,7 @@ class IntegrationWorkflowController:
         tasks: Sequence[Issue],
         *,
         landing_requests: Mapping[str, Sequence[LandingRequest]] | None = None,
+        liveness_slo_seconds: Mapping[str, int] | None = None,
     ) -> IntegrationDecisionBatch:
         # The window belongs to integration-owned work.  In addition to live
         # Ready submissions, the durable lane owns exact Done landing
@@ -418,7 +419,11 @@ class IntegrationWorkflowController:
                 IntegrationTaskDecision(
                     task,
                     facts,
-                    evaluate_task(task, facts),
+                    evaluate_task(
+                        task,
+                        facts,
+                        liveness_slo_seconds=liveness_slo_seconds,
+                    ),
                     task_requests,
                 )
             )

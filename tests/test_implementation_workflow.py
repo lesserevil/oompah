@@ -22,6 +22,7 @@ from oompah.implementation_workflow import (
     ImplementationWorkflowController,
     ImplementationWorkflowHandler,
     classify_implementation_result,
+    implementation_event_source_revision,
 )
 from oompah.models import Issue
 from oompah.statuses import DUPLICATE_CANDIDATE, IN_PROGRESS, OPEN
@@ -113,6 +114,128 @@ def test_controller_schedules_every_open_task_and_projects_same_decision(tmp_pat
         assert projected.reason_code == item.decision.reason_code
         assert projected.durable_jobs == item.decision.durable_jobs
         assert projected.active_job_state == WorkflowJobState.QUEUED.value
+    store.close()
+
+
+def test_reconcile_evaluated_reuses_exact_batch_without_second_fact_read(tmp_path):
+    task = issue()
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    delegate = collector([task])
+
+    class CountingCollector:
+        project_id = "project-1"
+
+        def __init__(self):
+            self.calls = 0
+
+        def collect(self, task_id, **kwargs):
+            self.calls += 1
+            return delegate.collect(task_id, **kwargs)
+
+    facts = CountingCollector()
+    controller = ImplementationWorkflowController(collector=facts, store=store)
+    batch = controller.evaluate((task,))
+    assert facts.calls == 1
+
+    result = controller.reconcile_evaluated(batch, snapshot_generation=1)
+
+    assert facts.calls == 1
+    assert result.jobs_created == 1
+    assert result.jobs_materialized == 1
+    assert store.event_lane_materialized(
+        project_id="project-1",
+        task_id=task.identifier,
+        ordering_namespace="implementation-decision",
+        scheduling_lane="event:implementation:fact",
+        source_revision=implementation_event_source_revision(
+            batch.decisions[0]
+        ),
+        actions=batch.decisions[0].durable_jobs,
+    )
+    store.close()
+
+
+def test_equivalent_pass_refreshes_deadline_but_replays_semantic_event(tmp_path):
+    task = issue()
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector([task]), store=store
+    )
+
+    first, first_result = controller.reconcile((task,), snapshot_generation=1)
+    second = controller.evaluate((task,))
+    second_result = controller.reconcile_evaluated(
+        second, snapshot_generation=2
+    )
+
+    assert second.decisions[0].next_reassessment_at > (
+        first.decisions[0].next_reassessment_at
+    )
+    assert second.decisions[0].decision_revision != (
+        first.decisions[0].decision_revision
+    )
+    assert implementation_event_source_revision(
+        second.decisions[0]
+    ) == implementation_event_source_revision(
+        first.decisions[0]
+    )
+    assert first_result.jobs_created == 1
+    assert second_result.jobs_replayed == 1
+
+    task.head_sha = "a" * 40
+    changed = controller.evaluate((task,))
+    assert changed.decisions[0].evidence_revision != (
+        second.decisions[0].evidence_revision
+    )
+    assert changed.decisions[0].decision_revision != (
+        second.decisions[0].decision_revision
+    )
+    assert implementation_event_source_revision(
+        changed.decisions[0]
+    ) != implementation_event_source_revision(second.decisions[0])
+    store.close()
+
+
+def test_terminal_semantic_event_replay_is_not_counted_as_materialized(tmp_path):
+    task = issue()
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector([task]), store=store
+    )
+    first, first_result = controller.reconcile(
+        (task,), snapshot_generation=1
+    )
+    job = store.list_jobs()[0]
+    running = store.claim_next(
+        lease_owner="worker-1", lease_seconds=30
+    )
+    assert running is not None and running.job_id == job.job_id
+    store.complete(running.job_id, running.lease_token)
+
+    second = controller.evaluate((task,))
+    second_result = controller.reconcile_evaluated(
+        second, snapshot_generation=2
+    )
+
+    assert first_result.jobs_materialized == 1
+    assert second_result.jobs_created == 0
+    assert second_result.jobs_replayed == 1
+    assert second_result.jobs_materialized == 0
+    assert second_result.schedules_materialized == 0
+    assert second_result.truncated
+    assert not store.event_lane_materialized(
+        project_id="project-1",
+        task_id=task.identifier,
+        ordering_namespace="implementation-decision",
+        scheduling_lane="event:implementation:fact",
+        source_revision=controller.scheduler.decision_revision(
+            second.decisions[0]
+        ),
+        actions=second.decisions[0].durable_jobs,
+    )
+    assert controller.scheduler.decision_revision(
+        first.decisions[0]
+    ) == controller.scheduler.decision_revision(second.decisions[0])
     store.close()
 
 

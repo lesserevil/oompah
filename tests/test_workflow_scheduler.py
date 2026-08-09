@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+from datetime import datetime, timezone
 from threading import Event
 
 import pytest
 
-from oompah.work_decision import PermittedAction, WorkDecision
+from oompah.work_decision import (
+    PermittedAction,
+    WorkDecision,
+    decision_scheduling_revision,
+)
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
@@ -147,7 +153,236 @@ def test_stale_slow_scan_cannot_replace_newer_task_schedule(store):
     assert stale.stale_rejected == 1
     cursor = store.schedule_cursor(project_id="project-a", task_id="OOMPAH-1")
     assert cursor.snapshot_generation == fast
-    assert cursor.decision_revision == decision(evidence="facts-2").decision_revision
+    assert cursor.decision_revision == decision_scheduling_revision(
+        decision(evidence="facts-2")
+    )
+
+
+def test_completed_recurring_action_rearms_only_after_reassessment_deadline(
+    store, clock
+):
+    scheduler = WorkflowJobScheduler(store=store)
+
+    def due(at: float) -> WorkDecision:
+        return replace(
+            decision(),
+            next_reassessment_at=datetime.fromtimestamp(
+                at, tz=timezone.utc
+            ).isoformat(),
+            decision_revision=None,
+        )
+
+    first_result = scheduler.reconcile((due(1010),))
+    first = store.list_jobs()[0]
+    initial_cursor = store.schedule_cursor(
+        project_id=first.project_id, task_id=first.task_id
+    )
+    assert initial_cursor is not None
+    assert store.schedule_specs_materialized(
+        project_id=first.project_id,
+        task_id=first.task_id,
+        decision_revision=initial_cursor.decision_revision,
+        job_generation=initial_cursor.job_generation,
+        idempotency_keys=(first.idempotency_key,),
+    )
+    claimed = store.claim_next(
+        lease_owner="worker-1", lease_seconds=30, now=clock.now
+    )
+    assert claimed is not None and claimed.job_id == first.job_id
+    assert store.schedule_specs_materialized(
+        project_id=first.project_id,
+        task_id=first.task_id,
+        decision_revision=initial_cursor.decision_revision,
+        job_generation=initial_cursor.job_generation,
+        idempotency_keys=(first.idempotency_key,),
+    )
+    store.complete(claimed.job_id, claimed.lease_token, now=clock.now)
+
+    clock.advance(5)
+    before = scheduler.reconcile((due(1020),))
+    first_cursor = store.schedule_cursor(
+        project_id=first.project_id, task_id=first.task_id
+    )
+    assert first_result.jobs_created == 1
+    assert before.jobs_created == 0
+    assert len(store.list_jobs()) == 1
+    assert first_cursor is not None
+    assert store.schedule_specs_materialized(
+        project_id=first.project_id,
+        task_id=first.task_id,
+        decision_revision=first_cursor.decision_revision,
+        job_generation=first_cursor.job_generation,
+        idempotency_keys=(first.idempotency_key,),
+    )
+
+    clock.advance(5)
+    after = scheduler.reconcile((due(1020),))
+    jobs = store.list_jobs()
+    current = store.schedule_cursor(
+        project_id=first.project_id, task_id=first.task_id
+    )
+    assert after.jobs_created == 1
+    assert len(jobs) == 2
+    assert current is not None and current.job_generation != first.generation
+    assert store.schedule_specs_materialized(
+        project_id=first.project_id,
+        task_id=first.task_id,
+        decision_revision=current.decision_revision,
+        job_generation=current.job_generation,
+        idempotency_keys=(jobs[-1].idempotency_key,),
+    )
+
+
+def test_completed_action_without_reassessment_deadline_remains_terminal(
+    store, clock
+):
+    scheduler = WorkflowJobScheduler(store=store)
+    first = scheduler.reconcile((decision(),))
+    job = store.list_jobs()[0]
+    initial_cursor = store.schedule_cursor(
+        project_id=job.project_id, task_id=job.task_id
+    )
+    claimed = store.claim_next(
+        lease_owner="worker-1", lease_seconds=30, now=clock.now
+    )
+    assert claimed is not None
+    store.complete(claimed.job_id, claimed.lease_token, now=clock.now)
+
+    clock.advance(60)
+    replay = scheduler.reconcile((decision(),))
+    current_cursor = store.schedule_cursor(
+        project_id=job.project_id, task_id=job.task_id
+    )
+
+    assert first.jobs_created == 1
+    assert replay.jobs_created == 0
+    assert len(store.list_jobs()) == 1
+    assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    assert current_cursor is not None and initial_cursor is not None
+    assert current_cursor.job_generation == initial_cursor.job_generation
+
+
+def test_expired_running_schedule_does_not_prove_materialization(store, clock):
+    scheduler = WorkflowJobScheduler(store=store)
+    scheduler.reconcile((decision(),))
+    job = store.list_jobs()[0]
+    cursor = store.schedule_cursor(
+        project_id=job.project_id, task_id=job.task_id
+    )
+    running = store.claim_next(
+        lease_owner="worker-1", lease_seconds=10, now=clock.now
+    )
+    assert cursor is not None and running is not None
+    clock.advance(11)
+
+    assert not store.schedule_specs_materialized(
+        project_id=job.project_id,
+        task_id=job.task_id,
+        decision_revision=cursor.decision_revision,
+        job_generation=cursor.job_generation,
+        idempotency_keys=(job.idempotency_key,),
+    )
+
+
+def test_retry_wait_schedule_proves_materialization(store):
+    scheduler = WorkflowJobScheduler(store=store)
+    scheduler.reconcile((decision(),))
+    job = store.list_jobs()[0]
+    cursor = store.schedule_cursor(
+        project_id=job.project_id, task_id=job.task_id
+    )
+    running = store.claim_next(lease_owner="worker-1", lease_seconds=10)
+    assert cursor is not None and running is not None
+    waiting = store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="retry later",
+        retryable=True,
+        retry_delay_seconds=60,
+    )
+
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+    assert store.schedule_specs_materialized(
+        project_id=job.project_id,
+        task_id=job.task_id,
+        decision_revision=cursor.decision_revision,
+        job_generation=cursor.job_generation,
+        idempotency_keys=(job.idempotency_key,),
+    )
+
+
+def test_scheduling_revision_encodes_recurrence_and_policy_not_absolute_time():
+    nonrecurring = decision()
+    recurring_a = replace(
+        nonrecurring,
+        next_reassessment_at=datetime.fromtimestamp(
+            1010, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    recurring_b = replace(
+        nonrecurring,
+        next_reassessment_at=datetime.fromtimestamp(
+            2020, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+
+    recurring_revision = decision_scheduling_revision(
+        recurring_a, policy_epoch="policy-a"
+    )
+
+    assert recurring_revision == decision_scheduling_revision(
+        recurring_b, policy_epoch="policy-a"
+    )
+    assert recurring_revision != decision_scheduling_revision(
+        nonrecurring, policy_epoch="policy-a"
+    )
+    assert recurring_revision != decision_scheduling_revision(
+        recurring_a, policy_epoch="policy-b"
+    )
+    assert decision_scheduling_revision(
+        nonrecurring, policy_epoch="policy-a"
+    ) == decision_scheduling_revision(
+        nonrecurring, policy_epoch="policy-b"
+    )
+
+
+def test_policy_epoch_change_creates_new_semantic_activation(store):
+    scheduler = WorkflowJobScheduler(store=store, policy_epoch="policy-a")
+    recurring = replace(
+        decision(),
+        next_reassessment_at=datetime.fromtimestamp(
+            1010, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+
+    first = scheduler.reconcile((recurring,))
+    first_cursor = store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-1"
+    )
+    scheduler.configure_policy_epoch("policy-b")
+    second = scheduler.reconcile((recurring,))
+    second_cursor = store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-1"
+    )
+
+    assert first.jobs_created == 1
+    assert second.jobs_created == 1
+    assert second.jobs_superseded == 1
+    assert first_cursor is not None and second_cursor is not None
+    assert first_cursor.decision_revision != second_cursor.decision_revision
+
+
+def test_scheduler_rejects_multiple_jobs_for_one_decision(store):
+    scheduler = WorkflowJobScheduler(store=store)
+
+    with pytest.raises(ValueError, match="at most one durable job"):
+        scheduler.reconcile((decision(jobs=("job-a", "job-b")),))
+
+    assert store.list_jobs() == ()
 
 
 def test_concurrent_global_fence_rejects_old_task_absent_from_newer_snapshot(

@@ -186,6 +186,331 @@ def test_event_cursor_enqueue_and_supersession_are_one_transaction(store):
     assert len(store.list_jobs()) == 1
 
 
+def test_event_lane_materialization_requires_exact_current_authority(
+    store, clock
+):
+    write = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+
+    assert write.job is not None
+    assert store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+    for override in (
+        {"ordering_namespace": "wrong-ordering"},
+        {"scheduling_lane": "event:implementation:imperative"},
+        {"source_revision": "wrong-source"},
+        {"actions": ("implementation_recovery",)},
+    ):
+        arguments = {
+            "project_id": "project-1",
+            "task_id": "TASK-1",
+            "ordering_namespace": "implementation-ordering",
+            "scheduling_lane": "event:implementation:fact",
+            "source_revision": "source-1",
+            "actions": ("implementation_retry",),
+            **override,
+        }
+        assert not store.event_lane_materialized(**arguments)
+
+    running = claim(store)
+    assert running is not None
+    assert store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+    clock.advance(31)
+    assert not store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+
+
+def test_event_lane_retry_wait_is_live_authority(store):
+    write = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert write.job is not None
+    running = claim(store)
+    assert running is not None
+    waiting = store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="retry later",
+        retryable=True,
+        retry_delay_seconds=60,
+    )
+
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+    assert store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+
+
+def test_event_lane_materialization_rejects_historical_cursor_and_job(store):
+    first = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    second = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-2",
+        action="implementation_recovery",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=2,
+        source_revision="source-2",
+    )
+
+    assert first.job is not None
+    assert second.job is not None
+    assert store.get(first.job.job_id).state is WorkflowJobState.SUPERSEDED
+    assert not store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+    assert store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-2",
+        actions=("implementation_recovery",),
+    )
+
+
+@pytest.mark.parametrize(
+    "terminal_state", ["superseded", "cancelled", "completed", "exhausted"]
+)
+def test_event_lane_materialization_rejects_retired_current_job(
+    store, terminal_state
+):
+    write = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert write.job is not None
+    if terminal_state == "superseded":
+        store.supersede(
+            write.job.job_id,
+            generation=write.job.generation,
+            replacement_generation="replacement",
+            reason="test retirement",
+        )
+    elif terminal_state == "cancelled":
+        store.cancel(
+            write.job.job_id,
+            generation=write.job.generation,
+            reason="test retirement",
+        )
+    else:
+        running = claim(store)
+        assert running is not None
+        if terminal_state == "completed":
+            store.complete(running.job_id, running.lease_token)
+        else:
+            store.fail(
+                running.job_id,
+                running.lease_token,
+                error="terminal failure",
+                category=WorkflowFailureCategory.PERMANENT,
+                retryable=False,
+            )
+
+    assert not store.event_lane_materialized(
+        project_id="project-1",
+        task_id="TASK-1",
+        ordering_namespace="implementation-ordering",
+        scheduling_lane="event:implementation:fact",
+        source_revision="source-1",
+        actions=("implementation_retry",),
+    )
+
+
+def test_terminal_audit_lane_materialization_requires_exact_current_record(
+    store, clock,
+):
+    evidence = "e" * 64
+    generation = "audit:" + "a" * 64
+    write = store.enqueue_replacing_lane(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation=generation,
+            action="terminal_audit",
+            idempotency_key="terminal-audit:project-1:TASK-1:Done:evidence",
+            scheduling_lane="terminal-audit:Done",
+            expected_evidence_revision=evidence,
+        ),
+        source_generation=7,
+    )
+    assert write.job is not None
+    arguments = {
+        "project_id": "project-1",
+        "task_id": "TASK-1",
+        "audit_id": "audit-1",
+        "target_state": "Done",
+        "evidence_fingerprint": evidence,
+        "audit_generation": generation,
+        "source_generation": 7,
+    }
+
+    assert store.terminal_audit_lane_materialized(**arguments)
+    assert store.terminal_audit_lane_materialized(
+        **arguments,
+        obligation_action="terminal_audit_recovery",
+    )
+    for override in (
+        {"target_state": "Merged"},
+        {"evidence_fingerprint": "f" * 64},
+        {"audit_generation": "audit:" + "b" * 64},
+        {"source_generation": 8},
+    ):
+        assert not store.terminal_audit_lane_materialized(
+            **{**arguments, **override}
+        )
+
+    running = claim(store)
+    assert running is not None
+    store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase="running",
+        checkpoint={"audit_id": "audit-1"},
+    )
+    assert store.terminal_audit_lane_materialized(
+        **arguments,
+        obligation_action="terminal_audit_recovery",
+    )
+    assert not store.terminal_audit_lane_materialized(
+        **{**arguments, "audit_id": "audit-sibling"}
+    )
+    store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase="finalizing",
+        checkpoint={"audit_id": "audit-1"},
+    )
+    assert store.terminal_audit_lane_materialized(**arguments)
+    clock.advance(31)
+    assert not store.terminal_audit_lane_materialized(**arguments)
+    assert not store.terminal_audit_lane_materialized(
+        **arguments,
+        obligation_action="terminal_audit_recovery",
+    )
+
+    store.cancel(
+        write.job.job_id,
+        generation=write.job.generation,
+        reason="record retired",
+    )
+    assert not store.terminal_audit_lane_materialized(**arguments)
+
+
+@pytest.mark.parametrize("terminal_state", ["completed", "exhausted"])
+def test_pending_terminal_audit_rejects_terminal_job_as_liveness_proof(
+    store, terminal_state
+):
+    evidence = "e" * 64
+    generation = "audit:" + "a" * 64
+    write = store.enqueue_replacing_lane(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation=generation,
+            action="terminal_audit",
+            idempotency_key=f"terminal-audit:{terminal_state}",
+            phase="queued",
+            scheduling_lane="terminal-audit:Done",
+            expected_evidence_revision=evidence,
+        ),
+        source_generation=7,
+    )
+    assert write.job is not None
+    running = claim(store)
+    assert running is not None
+    if terminal_state == "completed":
+        store.complete(running.job_id, running.lease_token)
+    else:
+        store.fail(
+            running.job_id,
+            running.lease_token,
+            error="terminal failure",
+            category=WorkflowFailureCategory.PERMANENT,
+            retryable=False,
+        )
+
+    arguments = {
+        "project_id": "project-1",
+        "task_id": "TASK-1",
+        "audit_id": "audit-1",
+        "target_state": "Done",
+        "evidence_fingerprint": evidence,
+        "audit_generation": generation,
+        "source_generation": 7,
+    }
+    assert not store.terminal_audit_lane_materialized(**arguments)
+    assert not store.terminal_audit_lane_materialized(
+        **arguments, obligation_action="terminal_audit_recovery"
+    )
+
+
 def test_payload_round_trips_across_store_restart(tmp_path, clock):
     path = str(tmp_path / "payload-restart.sqlite3")
     first = WorkflowJobStore(path, clock=clock)

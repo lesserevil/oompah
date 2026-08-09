@@ -15,6 +15,7 @@ durable scheduler.
 from __future__ import annotations
 
 import inspect
+import logging
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -63,6 +64,8 @@ from oompah.workflow_scheduler import (
     WorkflowJobScheduler,
     WorkflowReconcileResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_CONTROLLER_LIMIT = 100
@@ -157,6 +160,35 @@ class ControllerPass:
             "escalations": [item.to_dict() for item in self.escalations],
             "truncated": self.truncated,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ControllerObservation:
+    """Prepared totality evidence for one runtime-owned snapshot.
+
+    The durable runtime, rather than this controller's scheduler, owns job
+    materialization after the production cutover.  This value lets that owner
+    prepare universal decisions before its single snapshot publication and
+    stage only the liveness/projection side of the controller transaction.
+    """
+
+    snapshot_generation: int
+    decisions: tuple[WorkDecision, ...]
+    decision_facts: Mapping[tuple[str, str], DecisionLivenessFacts]
+    expected_identities: tuple[tuple[str, str], ...]
+    escalations: tuple[ControllerEscalation, ...]
+    source_scan_complete: bool
+    source_errors: Mapping[str, str]
+    excluded_projects: Mapping[str, str]
+    observed_at: datetime
+    policy_epoch: str
+
+    @property
+    def truncated(self) -> bool:
+        return (
+            not self.source_scan_complete
+            or len(self.decisions) < len(self.expected_identities)
+        )
 
 
 def _required_text(value: object, name: str) -> str:
@@ -376,18 +408,21 @@ def _graph_problem(facts: WorkflowFacts) -> tuple[str, ...] | None:
 
 
 def _stored_retry_exhausted(
-    store: WorkflowJobStore, decision: WorkDecision
+    scheduler: WorkflowJobScheduler, decision: WorkDecision
 ) -> bool:
     """Check exhaustion for the current activation, not historical jobs."""
 
     if not decision.durable_jobs:
         return False
-    cursor = store.schedule_cursor(
+    cursor = scheduler.store.schedule_cursor(
         project_id=decision.project_id, task_id=decision.task_id
     )
-    if cursor is None or cursor.decision_revision != decision.decision_revision:
+    if (
+        cursor is None
+        or cursor.decision_revision != scheduler.decision_revision(decision)
+    ):
         return False
-    current = store.list_jobs(
+    current = scheduler.store.list_jobs(
         project_id=decision.project_id,
         task_id=decision.task_id,
         generation=cursor.job_generation,
@@ -469,6 +504,7 @@ class UniversalTotalityLivenessController:
         self.max_attempts = int(max_attempts)
         self._liveness_lock = threading.RLock()
         self._liveness_policy = build_liveness_policy(liveness_slo_seconds)
+        self.scheduler.configure_policy_epoch(self._liveness_policy.epoch)
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self.liveness = WorkflowLivenessTracker(
             max_task_records=liveness_max_task_records,
@@ -611,7 +647,10 @@ class UniversalTotalityLivenessController:
             )
 
         if (
-            (_retry_exhausted(facts, self.max_attempts) or _stored_retry_exhausted(self.store, decision))
+            (
+                _retry_exhausted(facts, self.max_attempts)
+                or _stored_retry_exhausted(self.scheduler, decision)
+            )
             and decision.durable_jobs
         ):
             return _replace(
@@ -880,6 +919,7 @@ class UniversalTotalityLivenessController:
         snapshot_generation: int | None = None,
         source_scan_complete: bool = True,
         source_errors: Mapping[str, str] | None = None,
+        excluded_projects: Mapping[str, str] | None = None,
         authoritative_project_ids: Sequence[str] | None = None,
         full_coverage: bool = True,
         persist_liveness_state: Callable[
@@ -1110,6 +1150,7 @@ class UniversalTotalityLivenessController:
                             ),
                             decision_facts=decision_liveness_facts,
                             source_errors=source_errors,
+                            excluded_projects=excluded_projects,
                             now=current,
                         )
                         if persist_liveness_state is not None:
@@ -1203,6 +1244,7 @@ class UniversalTotalityLivenessController:
         now: datetime | None = None,
         source_scan_complete: bool = True,
         source_errors: Mapping[str, str] | None = None,
+        excluded_projects: Mapping[str, str] | None = None,
         authoritative_project_ids: Sequence[str] | None = None,
         snapshot_generation: int | None = None,
         persist_liveness_state: Callable[
@@ -1219,12 +1261,213 @@ class UniversalTotalityLivenessController:
             now=now,
             source_scan_complete=source_scan_complete,
             source_errors=source_errors,
+            excluded_projects=excluded_projects,
             authoritative_project_ids=authoritative_project_ids,
             full_coverage=True,
             snapshot_generation=snapshot_generation,
             persist_liveness_state=persist_liveness_state,
             publish_projection=publish_projection,
         )
+
+    def prepare_runtime_observation(
+        self,
+        tasks: Sequence[Issue | Mapping[str, Any]],
+        *,
+        snapshot_generation: int,
+        facts: FactsSource | None = None,
+        facts_by_task: Mapping[Any, WorkflowFacts] | None = None,
+        now: datetime | None = None,
+        source_scan_complete: bool = True,
+        source_errors: Mapping[str, str] | None = None,
+        excluded_projects: Mapping[str, str] | None = None,
+    ) -> ControllerObservation | None:
+        """Prepare totality evidence without reconciling durable jobs.
+
+        Production ``WorkflowRuntime`` has already accepted ``generation``
+        and its domain controllers are the sole job authority.  Returning
+        ``None`` fences a stale generation or concurrent policy cut without
+        mutating liveness state.
+        """
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be positive")
+        generation = int(snapshot_generation)
+        current = now or self._clock()
+        if current.tzinfo is None:
+            raise ValueError("now must include a timezone")
+        current = current.astimezone(timezone.utc)
+        errors = {
+            str(project_id): str(error)
+            for project_id, error in (source_errors or {}).items()
+        }
+        complete = bool(source_scan_complete and not errors)
+        excluded = {
+            str(project_id): str(reason or "excluded")
+            for project_id, reason in (excluded_projects or {}).items()
+        }
+        expected = tuple(
+            sorted(
+                {
+                    _task_identity(task)
+                    for task in tasks
+                    if not self._is_final(task)
+                }
+            )
+        )
+        with self._liveness_lock:
+            if not self.scheduler.snapshot_generation_is_current(generation):
+                return None
+            policy = self._liveness_policy
+            evaluation_limit = self.decision_limit
+            if len(expected) <= self.liveness.max_task_records:
+                evaluation_limit = max(evaluation_limit, len(expected))
+            decisions, decision_facts = self._evaluate_with_liveness_facts(
+                tasks,
+                facts=facts,
+                facts_by_task=facts_by_task,
+                now=current,
+                decision_limit=evaluation_limit,
+                policy=policy,
+                snapshot_generation=generation,
+            )
+            if (
+                self._liveness_policy is not policy
+                or not self.scheduler.snapshot_generation_is_current(generation)
+            ):
+                return None
+            escalations = tuple(
+                ControllerEscalation(
+                    decision.project_id,
+                    decision.task_id,
+                    decision.reason_code,
+                    decision.unmet_prerequisites,
+                )
+                for decision in decisions
+                if decision.disposition is TaskDisposition.ACTION_REQUIRED
+            )
+            self._inflight_generations.add(generation)
+            return ControllerObservation(
+                generation,
+                decisions,
+                decision_facts,
+                expected,
+                escalations,
+                complete,
+                errors,
+                excluded,
+                current,
+                policy.epoch,
+            )
+
+    def stage_runtime_observation(
+        self,
+        observation: ControllerObservation,
+        *,
+        reconciliation: WorkflowReconcileResult,
+        persist_liveness_state: Callable[[Mapping[str, Any]], None] | None = None,
+    ) -> WorkflowSnapshotPublication:
+        """Stage liveness for the runtime's existing snapshot transaction."""
+
+        generation = observation.snapshot_generation
+        with self._liveness_lock:
+            if (
+                generation not in self._inflight_generations
+                or observation.policy_epoch != self._liveness_policy.epoch
+                or not self.scheduler.snapshot_generation_is_current(generation)
+                or not reconciliation.snapshot_accepted
+                or reconciliation.snapshot_generation != generation
+            ):
+                raise WorkflowProjectionPublicationRejected(
+                    "stale_runtime_observation"
+                )
+            checkpoint = self.liveness.transaction_checkpoint()
+            prior_state = self.liveness.to_state()
+
+            def rollback() -> None:
+                self.liveness.restore_transaction_checkpoint(checkpoint)
+                if persist_liveness_state is not None:
+                    persist_liveness_state(prior_state)
+
+            result = ControllerPass(
+                generation,
+                observation.decisions,
+                reconciliation,
+                observation.escalations,
+                observation.truncated or reconciliation.truncated,
+            )
+            try:
+                self.liveness.observe(
+                    observation.decisions,
+                    expected_identities=observation.expected_identities,
+                    snapshot_generation=generation,
+                    source_scan_complete=observation.source_scan_complete,
+                    reconciliation_complete=(
+                        reconciliation.jobs_required
+                        == reconciliation.jobs_materialized
+                        and reconciliation.schedules_required
+                        == reconciliation.schedules_materialized
+                    ),
+                    required_recovery_count=reconciliation.jobs_required,
+                    materialized_recovery_count=(
+                        reconciliation.jobs_materialized
+                    ),
+                    decision_facts=observation.decision_facts,
+                    source_errors=observation.source_errors,
+                    excluded_projects=observation.excluded_projects,
+                    now=observation.observed_at,
+                )
+                if persist_liveness_state is not None:
+                    persist_liveness_state(self.liveness.to_state())
+            except Exception:
+                rollback()
+                raise
+            return WorkflowSnapshotPublication(result=result, rollback=rollback)
+
+    def commit_runtime_observation(
+        self, observation: ControllerObservation, result: ControllerPass
+    ) -> bool:
+        """Publish post-marker counters without reopening committed authority.
+
+        The durable snapshot marker and liveness state are already committed
+        when this method runs.  Bookkeeping must therefore be best-effort:
+        rejecting or raising here would incorrectly route a successful
+        publication through pre-commit compensation.
+        """
+
+        with self._liveness_lock:
+            if observation.snapshot_generation != result.snapshot_generation:
+                logger.error(
+                    "Runtime liveness bookkeeping generation mismatch: %s != %s",
+                    observation.snapshot_generation,
+                    result.snapshot_generation,
+                )
+                self._inflight_generations.discard(
+                    observation.snapshot_generation
+                )
+                return False
+            try:
+                with self._lock:
+                    self._evaluated += len(result.decisions)
+                    self._passes += 1
+                    self._escalated += len(result.escalations)
+                    self._last_pass = result
+                    self._last_error = None
+            except Exception:  # pragma: no cover - defensive post-commit fence
+                logger.exception(
+                    "Runtime liveness bookkeeping failed after snapshot commit"
+                )
+                return False
+            finally:
+                self._inflight_generations.discard(
+                    observation.snapshot_generation
+                )
+            return True
+
+    def abort_runtime_observation(self, snapshot_generation: int) -> None:
+        """Discard one uncommitted runtime observation handoff."""
+
+        with self._liveness_lock:
+            self._inflight_generations.discard(int(snapshot_generation))
 
     def begin_scan(self) -> int:
         """Capture a global generation before any tracker source is read."""
@@ -1270,6 +1513,7 @@ class UniversalTotalityLivenessController:
         with self._liveness_lock:
             checkpoint = self.liveness.transaction_checkpoint()
             previous_policy = self._liveness_policy
+            previous_scheduler_epoch = self.scheduler.policy_epoch
             previous_limits = (
                 self.liveness.max_task_records,
                 self.liveness.max_project_records,
@@ -1291,6 +1535,7 @@ class UniversalTotalityLivenessController:
                 if persist_liveness_state is not None:
                     persist_liveness_state(self.liveness.to_state())
                 self.invalidate_inflight_scans()
+                self.scheduler.configure_policy_epoch(replacement.epoch)
                 self._inflight_generations.clear()
             except Exception:
                 self.liveness.reconfigure(
@@ -1301,6 +1546,9 @@ class UniversalTotalityLivenessController:
                 )
                 self.liveness.restore_transaction_checkpoint(checkpoint)
                 self._liveness_policy = previous_policy
+                self.scheduler.configure_policy_epoch(
+                    previous_scheduler_epoch
+                )
                 raise
 
     def record_liveness_scan_failure(
@@ -1402,6 +1650,7 @@ TotalityLivenessController = UniversalTotalityLivenessController
 
 
 __all__ = [
+    "ControllerObservation",
     "ControllerEscalation",
     "ControllerPass",
     "WorkflowProjectionPublicationRejected",

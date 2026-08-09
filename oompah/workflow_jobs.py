@@ -32,6 +32,7 @@ WORKFLOW_JOB_SCHEMA_VERSION = 6
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _INITIALIZE_LOCK = threading.Lock()
+_REASSESSMENT_GENERATION_MARKER = ":reassess="
 
 
 def _required_text(value: object, name: str) -> str:
@@ -46,6 +47,38 @@ def _optional_text(value: object | None) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _schedule_reassessment_deadline(value: object) -> float | None:
+    raw = str(value or "")
+    if _REASSESSMENT_GENERATION_MARKER not in raw:
+        return None
+    try:
+        return float(raw.rsplit(_REASSESSMENT_GENERATION_MARKER, 1)[1])
+    except ValueError:
+        return None
+
+
+def _job_row_proves_live_authority(
+    row: Mapping[str, Any] | sqlite3.Row,
+    *,
+    now: float,
+    completed_until: float | None = None,
+) -> bool:
+    state = WorkflowJobState(str(row["state"]))
+    if state in {WorkflowJobState.QUEUED, WorkflowJobState.RETRY_WAIT}:
+        return True
+    if state is WorkflowJobState.RUNNING:
+        return bool(
+            str(row["lease_owner"] or "").strip()
+            and row["lease_expires_at"] is not None
+            and float(row["lease_expires_at"]) > now
+        )
+    return bool(
+        state is WorkflowJobState.COMPLETED
+        and completed_until is not None
+        and now < completed_until
+    )
 
 
 def _freeze_json(value: Any) -> Any:
@@ -1499,7 +1532,7 @@ class WorkflowJobStore:
                 )
                 self._conn.commit()
                 return True, result
-            except Exception:
+            except Exception as publish_error:
                 # A connection wrapper or storage layer may report an error
                 # after SQLite committed successfully. In that case the marker
                 # and external publication are already coherent; compensating
@@ -1538,7 +1571,11 @@ class WorkflowJobStore:
                 except Exception as exc:
                     rollback_errors.append(exc)
                     self._conn.rollback()
-                if rollback_errors:
+                publisher_rollback_failed = bool(
+                    isinstance(publish_error, WorkflowJobPublicationError)
+                    and publish_error.rollback_failed
+                )
+                if rollback_errors or publisher_rollback_failed:
                     # A failed compensator must never leave the generation
                     # publishable: otherwise a subsequent scan-failure publish
                     # could authorize successful-generation jobs accidentally.
@@ -1562,10 +1599,15 @@ class WorkflowJobStore:
                         self._conn.commit()
                     except Exception:
                         self._conn.rollback()
+                    cause = (
+                        rollback_errors[0]
+                        if rollback_errors
+                        else publish_error
+                    )
                     raise WorkflowJobStoreError(
                         "workflow snapshot publication failed and its "
                         "compensating rollback also failed"
-                    ) from rollback_errors[0]
+                    ) from cause
                 raise
 
     def allocate_decision_window(
@@ -2260,6 +2302,176 @@ class WorkflowJobStore:
             else None
         )
 
+    def event_lane_materialized(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        ordering_namespace: str,
+        scheduling_lane: str,
+        source_revision: str,
+        actions: Sequence[str],
+        now: float | None = None,
+    ) -> bool:
+        """Prove the latest ordered event lane and its exact durable job.
+
+        This is a read-only evidence seam for liveness.  Matching a historical
+        job by action is insufficient: the ordering revision, event cursor,
+        cursor generation, lane, and live job must all describe the latest
+        disposition for the task.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        ordering = _required_text(ordering_namespace, "ordering_namespace")
+        lane = _required_text(scheduling_lane, "scheduling_lane")
+        revision = _required_text(source_revision, "source_revision")
+        normalized_actions = tuple(
+            sorted({_required_text(action, "action") for action in actions})
+        )
+        if not normalized_actions:
+            raise ValueError("actions cannot be empty")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            ordered = self._conn.execute(
+                """
+                SELECT decision_revision
+                  FROM workflow_event_ordering
+                 WHERE project_id = ? AND task_id = ?
+                   AND ordering_namespace = ?
+                """,
+                (project, task, ordering),
+            ).fetchone()
+            if ordered is None or str(ordered["decision_revision"]) != revision:
+                return False
+            cursor = self._conn.execute(
+                """
+                SELECT event_generation
+                  FROM workflow_event_cursors
+                 WHERE project_id = ? AND task_id = ?
+                   AND event_namespace = ?
+                """,
+                (project, task, lane),
+            ).fetchone()
+            if cursor is None:
+                return False
+            rows = self._conn.execute(
+                f"""
+                SELECT action, state, lease_owner, lease_expires_at
+                  FROM workflow_jobs
+                 WHERE project_id = ? AND task_id = ?
+                   AND generation = ? AND scheduling_lane = ?
+                   AND action IN ({','.join('?' for _ in normalized_actions)})
+                """,
+                (
+                    project,
+                    task,
+                    str(cursor["event_generation"]),
+                    lane,
+                    *normalized_actions,
+                ),
+            ).fetchall()
+        return (
+            len(rows) == len(normalized_actions)
+            and {str(row["action"]) for row in rows}
+            == set(normalized_actions)
+            and all(
+                _job_row_proves_live_authority(row, now=timestamp)
+                for row in rows
+            )
+        )
+
+    def terminal_audit_lane_materialized(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        target_state: str,
+        evidence_fingerprint: str,
+        audit_generation: str,
+        source_generation: int,
+        obligation_action: str = "terminal_audit",
+        now: float | None = None,
+    ) -> bool:
+        """Prove the current exact audit lane has live execution authority."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        audit = _required_text(audit_id, "audit_id")
+        target = _required_text(target_state, "target_state")
+        evidence = _required_text(
+            evidence_fingerprint, "evidence_fingerprint"
+        )
+        generation = _required_text(audit_generation, "audit_generation")
+        obligation = _required_text(obligation_action, "obligation_action")
+        if obligation not in {"terminal_audit", "terminal_audit_recovery"}:
+            raise ValueError("unsupported terminal-audit obligation action")
+        if isinstance(source_generation, bool) or int(source_generation) < 1:
+            raise ValueError("source_generation must be a positive integer")
+        lane = f"terminal-audit:{target}"
+        with self._lock:
+            ordered = self._conn.execute(
+                """
+                SELECT source_generation, decision_revision
+                  FROM workflow_event_ordering
+                 WHERE project_id = ? AND task_id = ?
+                   AND ordering_namespace = ?
+                """,
+                (project, task, lane),
+            ).fetchone()
+            if (
+                ordered is None
+                or int(ordered["source_generation"]) != int(source_generation)
+                or str(ordered["decision_revision"]) != generation
+            ):
+                return False
+            latest = self._conn.execute(
+                """
+                SELECT action, generation, scheduling_lane,
+                       expected_evidence_revision, state, phase,
+                       lease_owner, lease_expires_at, checkpoint_json
+                  FROM workflow_jobs
+                 WHERE project_id = ? AND task_id = ?
+                   AND scheduling_lane = ?
+                 ORDER BY enqueue_sequence DESC
+                 LIMIT 1
+                """,
+                (project, task, lane),
+            ).fetchone()
+        exact = bool(
+            latest is not None
+            and str(latest["action"]) == "terminal_audit"
+            and str(latest["generation"]) == generation
+            and str(latest["scheduling_lane"]) == lane
+            and str(latest["expected_evidence_revision"] or "") == evidence
+            and str(latest["state"])
+            not in {
+                WorkflowJobState.SUPERSEDED.value,
+                WorkflowJobState.CANCELLED.value,
+            }
+        )
+        if not exact:
+            return False
+        state = WorkflowJobState(str(latest["state"]))
+        if state in {
+            WorkflowJobState.QUEUED,
+            WorkflowJobState.RETRY_WAIT,
+        }:
+            return True
+        timestamp = float(self._clock() if now is None else now)
+        checkpoint = _decode_json_object(
+            latest["checkpoint_json"], "checkpoint"
+        ) or {}
+        return bool(
+            state is WorkflowJobState.RUNNING
+            and str(latest["phase"] or "") in {"running", "finalizing"}
+            and str(checkpoint.get("audit_id") or "") == audit
+            and str(latest["lease_owner"] or "").strip()
+            and latest["lease_expires_at"] is not None
+            and float(latest["lease_expires_at"]) > timestamp
+        )
+
     def schedule_specs_materialized(
         self,
         *,
@@ -2268,6 +2480,7 @@ class WorkflowJobStore:
         decision_revision: str,
         job_generation: str,
         idempotency_keys: Sequence[str],
+        now: float | None = None,
     ) -> bool:
         """Verify the durable semantic cursor and all of its required jobs."""
 
@@ -2282,6 +2495,12 @@ class WorkflowJobStore:
         keys = tuple(sorted(set(raw_keys)))
         if len(keys) != len(raw_keys):
             raise ValueError("idempotency_keys must be unique")
+        if len(keys) > 1:
+            raise ValueError(
+                "one scheduler activation may materialize at most one job"
+            )
+        timestamp = float(self._clock() if now is None else now)
+        completed_until = _schedule_reassessment_deadline(generation)
         with self._lock:
             cursor = self._conn.execute(
                 """
@@ -2302,13 +2521,24 @@ class WorkflowJobStore:
                 return True
             rows = self._conn.execute(
                 f"""
-                SELECT idempotency_key FROM workflow_jobs
+                SELECT idempotency_key, state, lease_owner, lease_expires_at
+                  FROM workflow_jobs
                  WHERE project_id = ?
                    AND idempotency_key IN ({','.join('?' for _ in keys)})
                 """,
                 (project, *keys),
             ).fetchall()
-        return {str(row["idempotency_key"]) for row in rows} == set(keys)
+        return bool(
+            {str(row["idempotency_key"]) for row in rows} == set(keys)
+            and all(
+                _job_row_proves_live_authority(
+                    row,
+                    now=timestamp,
+                    completed_until=completed_until,
+                )
+                for row in rows
+            )
+        )
 
     def activate_schedule(
         self,
@@ -2317,6 +2547,7 @@ class WorkflowJobStore:
         task_id: str,
         decision_revision: str,
         snapshot_generation: int,
+        next_reassessment_at: float | None = None,
         now: float | None = None,
     ) -> WorkflowScheduleCursor:
         """CAS one decision into the durable task scheduling cursor.
@@ -2332,7 +2563,24 @@ class WorkflowJobStore:
         if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
             raise ValueError("snapshot_generation must be a positive integer")
         snapshot = int(snapshot_generation)
+        deadline = (
+            None
+            if next_reassessment_at is None
+            else float(next_reassessment_at)
+        )
         timestamp = float(self._clock() if now is None else now)
+
+        def job_generation(deadline_at: float | None) -> str:
+            suffix = (
+                ""
+                if deadline_at is None
+                else (
+                    f"{_REASSESSMENT_GENERATION_MARKER}"
+                    f"{deadline_at:.6f}"
+                )
+            )
+            return f"{revision}:{snapshot}{suffix}"
+
         with self._authority_mutation_guard():
             owns_transaction = not self._conn.in_transaction
             if owns_transaction:
@@ -2379,14 +2627,41 @@ class WorkflowJobStore:
                             self._conn.commit()
                         return self._schedule_cursor_from_row(existing, changed=False)
                     changed = str(existing["decision_revision"]) != revision
-                    job_generation = (
-                        f"{revision}:{snapshot}"
+                    existing_generation = str(existing["job_generation"])
+                    recurrence_due = False
+                    if not changed:
+                        states = {
+                            WorkflowJobState(str(row["state"]))
+                            for row in self._conn.execute(
+                                """
+                                SELECT state FROM workflow_jobs
+                                 WHERE project_id = ? AND task_id = ?
+                                   AND generation = ?
+                                   AND scheduling_lane = 'decision'
+                                   AND workflow_managed = 1
+                                """,
+                                (project, task, existing_generation),
+                            ).fetchall()
+                        }
+                        scheduled_deadline = _schedule_reassessment_deadline(
+                            existing_generation
+                        )
+                        recurrence_due = bool(
+                            states
+                            and not (states & ACTIVE_JOB_STATES)
+                            and WorkflowJobState.EXHAUSTED not in states
+                            and scheduled_deadline is not None
+                            and timestamp >= scheduled_deadline
+                        )
+                    changed = changed or recurrence_due
+                    job_generation_value = (
+                        job_generation(deadline)
                         if changed
-                        else str(existing["job_generation"])
+                        else existing_generation
                     )
                 else:
                     changed = True
-                    job_generation = f"{revision}:{snapshot}"
+                    job_generation_value = job_generation(deadline)
                 self._conn.execute(
                     """
                     INSERT INTO workflow_schedule_cursors(
@@ -2411,7 +2686,7 @@ class WorkflowJobStore:
                         task,
                         snapshot,
                         revision,
-                        job_generation,
+                        job_generation_value,
                         timestamp,
                     ),
                 )

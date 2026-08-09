@@ -16,6 +16,7 @@ from oompah.http_auth import HtpasswdCredentials, VerificationError
 from oompah.models import Issue, WorkflowDefinition
 from oompah.orchestrator import Orchestrator
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.workflow_liveness_metrics import LIVENESS_STATE_SCHEMA_VERSION
 from oompah.workflow_shadow import LegacyWorkflowProjection
 
 
@@ -394,7 +395,10 @@ def test_orchestrator_restart_restores_then_converges_liveness_state(tmp_path):
     assert before.restored
     assert before.restart_reconstruction_pending
     assert before.status == "incomplete"
-    assert second_result["liveness_status"] == "overdue"
+    assert second_result["liveness_status"] == "healthy"
+    assert after.healthy
+    assert after.scan_complete
+    assert not after.restart_reconstruction_pending
     assert after.restart_convergence_count == 1
     assert restarted._load_state()["workflow_liveness"]["cumulative"][
         "restart_convergence_count"
@@ -532,7 +536,10 @@ def test_config_reload_changes_shadow_mode_without_dropping_diagnostics(tmp_path
     assert orch.workflow_controller.liveness_slo_seconds[
         "dispatch_latency"
     ] == 11
-    assert orch._load_state()["workflow_liveness"]["schema_version"] == 5
+    assert (
+        orch._load_state()["workflow_liveness"]["schema_version"]
+        == LIVENESS_STATE_SCHEMA_VERSION
+    )
     assert orch.get_snapshot()["config"][
         "workflow_liveness_slo_seconds"
     ]["dispatch_latency"] == 11

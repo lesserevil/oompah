@@ -32,7 +32,7 @@ from oompah.workflow_reasons import (
 )
 
 
-LIVENESS_STATE_SCHEMA_VERSION = 5
+LIVENESS_STATE_SCHEMA_VERSION = 6
 DEFAULT_MAX_TASK_RECORDS = 256
 DEFAULT_MAX_PROJECT_RECORDS = 64
 DEFAULT_SNAPSHOT_STALE_SECONDS = 900
@@ -341,6 +341,13 @@ class WorkflowLivenessHealth:
     task_count_by_status: Mapping[str, int]
     projects: Mapping[str, Mapping[str, Any]]
     omitted_project_count: int
+    coverage_scope: str
+    global_coverage_complete: bool
+    active_project_count: int
+    excluded_projects: Mapping[str, str]
+    excluded_project_count: int
+    omitted_excluded_project_count: int
+    excluded_task_count: int
     oldest_decision_age_seconds: int | None
     oldest_reassessment_lateness_seconds: int | None
     max_task_records: int
@@ -402,6 +409,15 @@ class WorkflowLivenessHealth:
                 for project_id, summary in self.projects.items()
             },
             "omitted_project_count": self.omitted_project_count,
+            "coverage_scope": self.coverage_scope,
+            "global_coverage_complete": self.global_coverage_complete,
+            "active_project_count": self.active_project_count,
+            "excluded_projects": dict(self.excluded_projects),
+            "excluded_project_count": self.excluded_project_count,
+            "omitted_excluded_project_count": (
+                self.omitted_excluded_project_count
+            ),
+            "excluded_task_count": self.excluded_task_count,
             "oldest_decision_age_seconds": self.oldest_decision_age_seconds,
             "oldest_reassessment_lateness_seconds": (
                 self.oldest_reassessment_lateness_seconds
@@ -508,18 +524,6 @@ class _DecisionRecord:
         if conservative_progress and previous is None and slo_seconds is not None:
             anchored_reassessment = _render_time(
                 CONSERVATIVE_PROGRESS_EPOCH + timedelta(seconds=slo_seconds)
-            )
-        if previous is not None and same_semantics and same_evidence:
-            anchored_reassessment = previous.next_reassessment_at
-        if (
-            slo_seconds is not None
-            and previous is not None
-            and same_semantics
-            and same_evidence
-        ):
-            anchored_reassessment = _render_time(
-                _parse_time(previous.last_progress_at, "last_progress_at")
-                + timedelta(seconds=slo_seconds)
             )
         anchored_decision = (
             decision
@@ -921,6 +925,10 @@ class WorkflowLivenessTracker:
         self._source_error_count = 0
         self._source_error_project_ids: set[str] = set()
         self._source_error_project_count = 0
+        self._excluded_projects: dict[str, str] = {}
+        self._excluded_project_ids: set[str] = set()
+        self._excluded_project_count = 0
+        self._excluded_task_count = 0
         self._project_task_counts: dict[str, int] = {}
         self._total_nonterminal_count = 0
         self._total_project_count = 0
@@ -1015,6 +1023,23 @@ class WorkflowLivenessTracker:
                     : self.max_project_records
                 ]
             )
+            self._excluded_projects = dict(
+                sorted(self._excluded_projects.items())[
+                    : self.max_project_records
+                ]
+            )
+            recorded_projects = {
+                record.project_id for record in self._records.values()
+            }
+            self._excluded_project_ids = set(
+                sorted(
+                    self._excluded_project_ids,
+                    key=lambda project_id: (
+                        project_id not in recorded_projects,
+                        project_id,
+                    ),
+                )[: self.max_task_records]
+            )
             self._enforce_record_cap()
 
     def _restore_fail_closed(self, *, now: datetime, reason: str) -> None:
@@ -1038,6 +1063,10 @@ class WorkflowLivenessTracker:
             self._source_error_count = 0
             self._source_error_project_ids = set()
             self._source_error_project_count = 0
+            self._excluded_projects = {}
+            self._excluded_project_ids = set()
+            self._excluded_project_count = 0
+            self._excluded_task_count = 0
             self._project_task_counts = {}
             self._total_nonterminal_count = 0
             self._total_project_count = 0
@@ -1236,6 +1265,56 @@ class WorkflowLivenessTracker:
                     len(self._source_error_project_ids),
                     self._source_error_count,
                 )
+            raw_excluded = raw.get("excluded_projects", {})
+            self._excluded_projects = (
+                {
+                    str(key): str(value)
+                    for key, value in sorted(raw_excluded.items())[
+                        : self.max_project_records
+                    ]
+                }
+                if isinstance(raw_excluded, Mapping)
+                else {}
+            )
+            raw_excluded_ids = raw.get("excluded_project_ids", ())
+            self._excluded_project_ids = (
+                {
+                    str(item)
+                    for item in raw_excluded_ids[: self.max_task_records]
+                    if str(item).strip()
+                }
+                if isinstance(raw_excluded_ids, Sequence)
+                and not isinstance(raw_excluded_ids, (str, bytes))
+                else set(self._excluded_projects)
+            )
+            self._excluded_project_ids.update(self._excluded_projects)
+            recorded_projects = {record.project_id for record in records.values()}
+            self._excluded_project_ids = set(
+                sorted(
+                    self._excluded_project_ids,
+                    key=lambda project_id: (
+                        project_id not in recorded_projects,
+                        project_id,
+                    ),
+                )[: self.max_task_records]
+            )
+            try:
+                self._excluded_project_count = max(
+                    len(self._excluded_projects),
+                    len(self._excluded_project_ids),
+                    int(raw.get("excluded_project_count", 0) or 0),
+                )
+            except (TypeError, ValueError):
+                self._excluded_project_count = max(
+                    len(self._excluded_projects),
+                    len(self._excluded_project_ids),
+                )
+            try:
+                self._excluded_task_count = max(
+                    0, int(raw.get("excluded_task_count", 0) or 0)
+                )
+            except (TypeError, ValueError):
+                self._excluded_task_count = 0
             try:
                 restored_total = int(
                     raw.get("total_nonterminal_count", len(records)) or 0
@@ -1262,6 +1341,14 @@ class WorkflowLivenessTracker:
                 len(records),
                 sum(self._project_task_counts.values()),
             )
+            self._excluded_task_count = max(
+                self._excluded_task_count,
+                sum(
+                    count
+                    for project_id, count in self._project_task_counts.items()
+                    if project_id in self._excluded_project_ids
+                ),
+            )
             self._history_incomplete = bool(
                 self._history_incomplete
                 or self._total_nonterminal_count > len(self._records)
@@ -1271,6 +1358,7 @@ class WorkflowLivenessTracker:
                     len({record.project_id for record in records.values()}),
                     len(self._project_task_counts),
                     self._source_error_project_count,
+                    self._excluded_project_count,
                     int(raw.get("total_project_count", 0) or 0),
                 )
             except (TypeError, ValueError):
@@ -1278,6 +1366,7 @@ class WorkflowLivenessTracker:
                     len({record.project_id for record in records.values()}),
                     len(self._project_task_counts),
                     self._source_error_project_count,
+                    self._excluded_project_count,
                 )
             self._evaluated_count = 0
             self._missing_decision_count = 0
@@ -1402,6 +1491,7 @@ class WorkflowLivenessTracker:
             tuple[str, str], DecisionLivenessFacts
         ] | None = None,
         source_errors: Mapping[str, str] | None = None,
+        excluded_projects: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> WorkflowLivenessHealth:
         """Replace the projection from one generation-consistent full scan."""
@@ -1426,6 +1516,34 @@ class WorkflowLivenessTracker:
             for project_id, error in (source_errors or {}).items()
         )
         failed_project_ids = {project_id for project_id, _ in all_errors}
+        all_excluded = sorted(
+            (str(project_id), str(reason or "excluded"))
+            for project_id, reason in (excluded_projects or {}).items()
+        )
+        excluded_project_ids = {
+            project_id for project_id, _reason in all_excluded
+        }
+        overlapping_projects = failed_project_ids & excluded_project_ids
+        if overlapping_projects:
+            raise ValueError(
+                "source errors and explicit exclusions overlap: "
+                + ", ".join(sorted(overlapping_projects))
+            )
+        active_exclusion_overlap = {
+            project_id
+            for project_id, _task_id in expected
+            if project_id in excluded_project_ids
+        }
+        active_exclusion_overlap.update(
+            decision.project_id
+            for decision in decisions
+            if decision.project_id in excluded_project_ids
+        )
+        if active_exclusion_overlap:
+            raise ValueError(
+                "excluded projects escaped into the active topology: "
+                + ", ".join(sorted(active_exclusion_overlap))
+            )
         normalized_errors = dict(all_errors[: self.max_project_records])
         required_recovery_count = max(0, int(required_recovery_count))
         materialized_recovery_count = max(0, int(materialized_recovery_count))
@@ -1456,6 +1574,11 @@ class WorkflowLivenessTracker:
             self._source_error_count = len(all_errors)
             self._source_error_project_ids = set(failed_project_ids)
             self._source_error_project_count = len(failed_project_ids)
+            self._excluded_projects = dict(
+                all_excluded[: self.max_project_records]
+            )
+            self._excluded_project_ids = set(excluded_project_ids)
+            self._excluded_project_count = len(all_excluded)
             self._source_scan_complete = effective_source_complete
             self._reconciliation_complete = effective_reconciliation_complete
             self._required_recovery_count = required_recovery_count
@@ -1469,7 +1592,12 @@ class WorkflowLivenessTracker:
                 for identity in self._records
                 if identity[0] in failed_project_ids
             }
-            current_membership = expected | retained_failed
+            retained_excluded = {
+                identity
+                for identity in self._records
+                if identity[0] in excluded_project_ids
+            }
+            current_membership = expected | retained_failed | retained_excluded
             successful_counts: dict[str, int] = {}
             for project_id, _task_id in expected:
                 successful_counts[project_id] = (
@@ -1482,12 +1610,23 @@ class WorkflowLivenessTracker:
                     successful_counts.get(project_id, 0),
                     prior_project_counts.get(project_id, 0),
                 )
+            for project_id in excluded_project_ids:
+                self._project_task_counts[project_id] = max(
+                    successful_counts.get(project_id, 0),
+                    prior_project_counts.get(project_id, 0),
+                )
             self._total_nonterminal_count = sum(
                 self._project_task_counts.values()
+            )
+            self._excluded_task_count = sum(
+                count
+                for project_id, count in self._project_task_counts.items()
+                if project_id in excluded_project_ids
             )
             self._total_project_count = len(
                 set(self._project_task_counts)
                 | failed_project_ids
+                | excluded_project_ids
             )
             self._evaluated_count = len(decisions)
 
@@ -1638,6 +1777,10 @@ class WorkflowLivenessTracker:
             self._source_error_count = 1
             self._source_error_project_ids = {"controller"}
             self._source_error_project_count = 1
+            self._excluded_projects = {}
+            self._excluded_project_ids = set()
+            self._excluded_project_count = 0
+            self._excluded_task_count = 0
             self._total_project_count = max(
                 self._total_project_count,
                 len(set(self._project_task_counts) | {"controller"}),
@@ -1705,7 +1848,12 @@ class WorkflowLivenessTracker:
         projections = tuple(
             record.project(now=now)
             for record in sorted(
-                self._records.values(), key=lambda item: item.identity
+                (
+                    record
+                    for record in self._records.values()
+                    if record.project_id not in self._excluded_project_ids
+                ),
+                key=lambda item: item.identity,
             )
         )
         stale = True
@@ -1797,6 +1945,16 @@ class WorkflowLivenessTracker:
             summary["omitted_task_count"] = max(
                 0, exact_count - tracked_count
             )
+            if project_id in self._excluded_project_ids:
+                summary["excluded"] = True
+                summary["coverage_state"] = "excluded"
+                summary["exclusion_reason"] = self._excluded_projects.get(
+                    project_id, "explicitly excluded"
+                )
+                summary["last_known_task_count"] = exact_count
+                summary["task_count"] = 0
+                summary["tracked_task_count"] = 0
+                summary["omitted_task_count"] = 0
         for project_id, error in self._source_errors.items():
             summary = by_project.setdefault(
                 project_id,
@@ -1848,6 +2006,11 @@ class WorkflowLivenessTracker:
         omitted_projects = max(
             0,
             self._total_project_count - len(projects),
+        )
+        excluded_task_count = self._excluded_task_count
+        active_nonterminal_count = max(
+            0,
+            self._total_nonterminal_count - excluded_task_count,
         )
 
         restart_lateness = 0
@@ -1904,7 +2067,7 @@ class WorkflowLivenessTracker:
             evaluated_count=self._evaluated_count,
             tracked_task_count=len(projections),
             omitted_task_count=max(
-                0, self._total_nonterminal_count - len(projections)
+                0, active_nonterminal_count - len(projections)
             ),
             missing_decision_count=self._missing_decision_count,
             divergence_count=self._cumulative_divergence_count,
@@ -1920,6 +2083,21 @@ class WorkflowLivenessTracker:
             task_count_by_status=by_status,
             projects=projects,
             omitted_project_count=omitted_projects,
+            coverage_scope="active_projects",
+            global_coverage_complete=bool(
+                scan_complete and self._excluded_project_count == 0
+            ),
+            active_project_count=max(
+                0,
+                self._total_project_count - self._excluded_project_count,
+            ),
+            excluded_projects=dict(sorted(self._excluded_projects.items())),
+            excluded_project_count=self._excluded_project_count,
+            omitted_excluded_project_count=max(
+                0,
+                self._excluded_project_count - len(self._excluded_projects),
+            ),
+            excluded_task_count=excluded_task_count,
             oldest_decision_age_seconds=max(
                 (item.decision_age_seconds for item in projections), default=None
             ),
@@ -1955,6 +2133,16 @@ class WorkflowLivenessTracker:
                 ),
                 "total_nonterminal_count": self._total_nonterminal_count,
                 "total_project_count": self._total_project_count,
+                "coverage_scope": "active_projects",
+                "global_coverage_complete": bool(
+                    self._coverage_complete
+                    and self._excluded_project_count == 0
+                ),
+                "active_project_count": max(
+                    0,
+                    self._total_project_count - self._excluded_project_count,
+                ),
+                "excluded_task_count": self._excluded_task_count,
                 "project_task_counts": dict(
                     sorted(self._project_task_counts.items())
                 ),
@@ -1971,6 +2159,21 @@ class WorkflowLivenessTracker:
                 "source_error_project_count": (
                     self._source_error_project_count
                 ),
+                "excluded_projects": dict(
+                    sorted(self._excluded_projects.items())
+                ),
+                "excluded_project_ids": sorted(
+                    self._excluded_project_ids,
+                    key=lambda project_id: (
+                        project_id
+                        not in {
+                            record.project_id
+                            for record in self._records.values()
+                        },
+                        project_id,
+                    ),
+                )[: self.max_task_records],
+                "excluded_project_count": self._excluded_project_count,
                 "required_recovery_count": self._required_recovery_count,
                 "materialized_recovery_count": (
                     self._materialized_recovery_count

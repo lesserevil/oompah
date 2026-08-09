@@ -2,13 +2,14 @@
 
 import asyncio
 import copy
+import logging
 import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from oompah.epic_workflow import EPIC_ACTIONS, EpicAction
+from oompah.epic_workflow import EPIC_ACTIONS, EpicAction, EpicWorkflowController
 from oompah.epic_workflow_adapter import (
     EpicWorkflowEventRouter,
     OrchestratorEpicWorkflowEffects,
@@ -30,7 +31,11 @@ from oompah.task_transition_service import (
     issue_authority_version,
 )
 from oompah.workflow_facts import FactDomain, FactState, LandingFact, LandingState
-from oompah.workflow_jobs import WorkflowFailureCategory
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobState,
+    WorkflowJobStore,
+)
 from oompah.workflow_runtime import WorkflowRuntime, WorkflowRuntimeError
 from oompah.workflow_worker import WorkflowActionError, WorkflowActionSuperseded
 
@@ -1654,6 +1659,228 @@ def test_event_router_is_inert_outside_enforce_mode(mode):
     controller.schedule_action.assert_not_called()
     ephemeral.assert_not_called()
     orchestrator.request_refresh.assert_not_called()
+    router.close()
+
+
+def test_restart_cleanup_counts_created_jobs_and_replays_across_worker_ids(
+    tmp_path, caplog
+):
+    landed = epic("LANDED")
+    landed.state = MERGED
+    landed.head_sha = "a" * 40
+    historical = epic("HISTORICAL")
+    historical.state = ARCHIVED
+    historical.head_sha = "b" * 40
+    tracker = MagicMock()
+    tracker.fetch_all_issues_enriched.return_value = [landed, historical]
+    collector = MagicMock()
+    collector.project_id = "project-1"
+    controller = EpicWorkflowController(
+        collector=collector,
+        store=WorkflowJobStore(str(tmp_path / "restart-jobs.sqlite3")),
+    )
+    historical_job = controller.schedule_action(
+        task_id=historical.identifier,
+        action=EpicAction.CLEANUP,
+        generation="historical-cleanup",
+        expected_head_sha=historical.head_sha,
+    )
+    historical_claim = controller.store.claim_next(
+        lease_owner="historical-worker",
+        lease_seconds=30,
+        project_id="project-1",
+        task_id=historical.identifier,
+    )
+    assert historical_claim is not None
+    controller.store.complete(
+        historical_job.job_id,
+        historical_claim.lease_token,
+    )
+    historical.head_sha = None
+    binding = SimpleNamespace(tracker=tracker, epic_controller=controller)
+    runtime = SimpleNamespace(
+        enforce=True,
+        worker=SimpleNamespace(worker_id="runtime-owner-one"),
+        project_bindings={"project-1": binding},
+    )
+    orchestrator = SimpleNamespace(request_refresh=MagicMock())
+    router = EpicWorkflowEventRouter(orchestrator, runtime)
+
+    with caplog.at_level(logging.INFO):
+        first = router._schedule_restart()
+        same_owner_replay = router._schedule_restart()
+        router.close()
+        restarted = EpicWorkflowEventRouter(
+            orchestrator,
+            SimpleNamespace(
+                enforce=True,
+                worker=SimpleNamespace(worker_id="runtime-owner-two"),
+                project_bindings={"project-1": binding},
+            ),
+        )
+        changed_owner_replay = restarted._schedule_restart()
+
+    assert (first, same_owner_replay, changed_owner_replay) == (1, 0, 0)
+    cleanup_jobs = controller.store.list_jobs(
+        project_id="project-1",
+        actions=(EpicAction.CLEANUP.value,),
+        limit=100,
+    )
+    assert len(cleanup_jobs) == 2
+    landed_jobs = [job for job in cleanup_jobs if job.task_id == "LANDED"]
+    assert len(landed_jobs) == 1
+    assert landed_jobs[0].state is WorkflowJobState.QUEUED
+    assert "restart_owner" not in landed_jobs[0].payload
+    collector.collect.assert_not_called()
+    assert not [
+        record
+        for record in caplog.records
+        if record.levelno >= logging.WARNING
+        and "exact source generation is unavailable" in record.getMessage()
+    ]
+    summaries = [
+        record
+        for record in caplog.records
+        if "Epic restart cleanup seed summary" in record.getMessage()
+    ]
+    assert len(summaries) == 3
+    assert all(record.levelno == logging.INFO for record in summaries)
+    assert all("historical_completed=1" in record.getMessage() for record in summaries)
+    assert all("actionable_uncertain=0" in record.getMessage() for record in summaries)
+    assert all("HISTORICAL" in record.getMessage() for record in summaries)
+    restarted.close()
+    controller.store.close()
+
+
+def test_restart_cleanup_retains_retry_and_warns_for_exhausted_or_missing(
+    tmp_path, caplog
+):
+    retrying = epic("RETRYING")
+    retrying.state = MERGED
+    retrying.head_sha = "c" * 40
+    exhausted = epic("EXHAUSTED")
+    exhausted.state = ARCHIVED
+    exhausted.head_sha = "d" * 40
+    missing = epic("MISSING")
+    missing.state = ARCHIVED
+    historical = epic("HISTORICAL")
+    historical.state = ARCHIVED
+    historical.head_sha = "e" * 40
+    collector = MagicMock()
+    collector.project_id = "project-1"
+    store = WorkflowJobStore(str(tmp_path / "uncertain-cleanup.sqlite3"))
+    controller = EpicWorkflowController(collector=collector, store=store)
+    for issue, retryable in ((retrying, True), (exhausted, False)):
+        controller.schedule_action(
+            task_id=issue.identifier,
+            action=EpicAction.CLEANUP,
+            generation=f"cleanup-{issue.identifier.lower()}",
+            expected_head_sha=issue.head_sha,
+        )
+        claimed = store.claim_next(
+            lease_owner=f"worker-{issue.identifier.lower()}",
+            lease_seconds=30,
+            project_id="project-1",
+            task_id=issue.identifier,
+        )
+        assert claimed is not None
+        failed = store.fail(
+            claimed.job_id,
+            claimed.lease_token,
+            category=WorkflowFailureCategory.TRANSPORT,
+            error="cleanup unavailable",
+            retryable=retryable,
+            retry_delay_seconds=60,
+        )
+        assert failed.state is (
+            WorkflowJobState.RETRY_WAIT
+            if retryable
+            else WorkflowJobState.EXHAUSTED
+        )
+        issue.head_sha = None
+    historical_job = controller.schedule_action(
+        task_id=historical.identifier,
+        action=EpicAction.CLEANUP,
+        generation="cleanup-historical",
+        expected_head_sha=historical.head_sha,
+    )
+    historical_claim = store.claim_next(
+        lease_owner="worker-historical",
+        lease_seconds=30,
+        project_id="project-1",
+        task_id=historical.identifier,
+    )
+    assert historical_claim is not None
+    store.complete(historical_job.job_id, historical_claim.lease_token)
+    historical.head_sha = None
+    tracker = MagicMock()
+    tracker.fetch_all_issues_enriched.return_value = [
+        retrying,
+        exhausted,
+        missing,
+        historical,
+    ]
+    binding = SimpleNamespace(tracker=tracker, epic_controller=controller)
+    router = EpicWorkflowEventRouter(
+        SimpleNamespace(request_refresh=MagicMock()),
+        SimpleNamespace(
+            enforce=True,
+            worker=SimpleNamespace(worker_id="new-runtime-owner"),
+            project_bindings={"project-1": binding},
+        ),
+    )
+
+    with caplog.at_level(logging.INFO):
+        scheduled = router._schedule_restart()
+
+    assert scheduled == 0
+    assert len(store.list_jobs(project_id="project-1", limit=100)) == 3
+    collector.collect.assert_not_called()
+    summaries = [
+        record
+        for record in caplog.records
+        if "Epic restart cleanup seed summary" in record.getMessage()
+    ]
+    assert len(summaries) == 1
+    assert summaries[0].levelno == logging.WARNING
+    assert "historical_completed=1" in summaries[0].getMessage()
+    assert "actionable_uncertain=2" in summaries[0].getMessage()
+    assert "HISTORICAL" in summaries[0].getMessage()
+    assert "EXHAUSTED(exhausted)" in summaries[0].getMessage()
+    assert "MISSING(no_evidence)" in summaries[0].getMessage()
+    assert "RETRYING" not in summaries[0].getMessage()
+    router.close()
+    store.close()
+
+
+def test_live_cleanup_without_exact_generation_remains_actionable(caplog):
+    historical = epic("HISTORICAL")
+    historical.state = ARCHIVED
+    controller = MagicMock()
+    controller.collector.collect.return_value = containment_facts("HISTORICAL")
+    controller.scheduler = MagicMock()
+    binding = SimpleNamespace(tracker=MagicMock(), epic_controller=controller)
+    runtime = SimpleNamespace(enforce=True, project_bindings={"project-1": binding})
+    router = EpicWorkflowEventRouter(
+        SimpleNamespace(request_refresh=MagicMock()), runtime
+    )
+
+    with caplog.at_level(logging.WARNING):
+        scheduled = router._schedule(
+            binding,
+            historical,
+            EpicAction.CLEANUP,
+            source="issue-state-changed",
+        )
+
+    assert scheduled is False
+    assert [
+        record
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+        and "exact source generation is unavailable" in record.getMessage()
+    ]
+    controller.schedule_action.assert_not_called()
     router.close()
 
 

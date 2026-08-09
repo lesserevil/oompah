@@ -402,6 +402,34 @@ class WorkDecision:
         return cls(**values)
 
 
+def decision_scheduling_revision(
+    decision: WorkDecision,
+    *,
+    policy_epoch: str = "standalone-v1",
+) -> str:
+    """Hash durable scheduling semantics without an observation timestamp.
+
+    Whether a decision recurs is semantic, while its absolute reassessment
+    timestamp is not. The liveness-policy epoch fences SLO changes without
+    creating wall-clock revision buckets.
+    """
+
+    if not isinstance(decision, WorkDecision):
+        raise TypeError("decision must be a WorkDecision")
+    normalized_epoch = str(policy_epoch or "").strip()
+    if not normalized_epoch:
+        raise ValueError("policy_epoch is required")
+    raw = decision.to_dict()
+    raw.pop("decision_revision", None)
+    raw.pop("next_reassessment_at", None)
+    recurring = decision.next_reassessment_at is not None
+    raw["recurrence"] = {
+        "enabled": recurring,
+        "policy_epoch": normalized_epoch if recurring else None,
+    }
+    return _digest(raw)
+
+
 @dataclass(frozen=True, slots=True)
 class _TaskView:
     project_id: str

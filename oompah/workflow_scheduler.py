@@ -15,9 +15,10 @@ import json
 import threading
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
-from oompah.work_decision import WorkDecision
+from oompah.work_decision import WorkDecision, decision_scheduling_revision
 from oompah.workflow_jobs import (
     WorkflowJobSpec,
     WorkflowJobStore,
@@ -61,7 +62,7 @@ def _job_key(
         "project_id": decision.project_id,
         "task_id": decision.task_id,
         "job_generation": cursor.job_generation,
-        "decision_revision": decision.decision_revision,
+        "decision_revision": cursor.decision_revision,
         "evidence_revision": decision.evidence_revision,
         "action": action,
         "priority": priority,
@@ -103,7 +104,12 @@ DecisionSource = Callable[
 
 
 class WorkflowJobScheduler:
-    """Turn total decisions into durable jobs and fairly drive their worker."""
+    """Turn total decisions into durable jobs and fairly drive their worker.
+
+    One decision activation owns zero or one job. This keeps liveness proof
+    atomic: no mixed set of completed, exhausted, and active sibling jobs can
+    ambiguously satisfy one decision.
+    """
 
     def __init__(
         self,
@@ -115,6 +121,7 @@ class WorkflowJobScheduler:
         concurrency: int = 4,
         default_priority: int = 100,
         max_attempts: int = 5,
+        policy_epoch: str = "standalone-v1",
     ) -> None:
         self.store = store
         self.worker = worker
@@ -127,6 +134,7 @@ class WorkflowJobScheduler:
             raise ValueError("default_priority must be an integer")
         self.default_priority = int(default_priority)
         self.max_attempts = _bounded(max_attempts, "max_attempts")
+        self._policy_epoch = self._normalize_policy_epoch(policy_epoch)
         # Publication transactions hold this lock while reconcile re-enters it
         # so scheduler metrics can be restored with the durable job-store cut.
         self._metrics_lock = threading.RLock()
@@ -145,6 +153,32 @@ class WorkflowJobScheduler:
     @property
     def accepting(self) -> bool:
         return self._accepting
+
+    @staticmethod
+    def _normalize_policy_epoch(value: object) -> str:
+        epoch = str(value or "").strip()
+        if not epoch:
+            raise ValueError("policy_epoch is required")
+        return epoch
+
+    @property
+    def policy_epoch(self) -> str:
+        with self._metrics_lock:
+            return self._policy_epoch
+
+    def configure_policy_epoch(self, policy_epoch: str) -> None:
+        """Bind scheduling semantics to one immutable liveness-policy cut."""
+
+        normalized = self._normalize_policy_epoch(policy_epoch)
+        with self._metrics_lock:
+            self._policy_epoch = normalized
+
+    def decision_revision(self, decision: WorkDecision) -> str:
+        """Return the exact semantic revision used by cursors and proofs."""
+
+        return decision_scheduling_revision(
+            decision, policy_epoch=self.policy_epoch
+        )
 
     def begin_scan(self) -> int:
         """Allocate the durable fence before fetching a possibly slow snapshot."""
@@ -208,6 +242,11 @@ class WorkflowJobScheduler:
         normalized = tuple(decisions)
         if any(not isinstance(item, WorkDecision) for item in normalized):
             raise TypeError("decisions must contain WorkDecision values")
+        if any(len(item.durable_jobs) > 1 for item in normalized):
+            raise ValueError(
+                "one WorkDecision scheduler activation may require at most "
+                "one durable job"
+            )
         by_task: dict[tuple[str, str], WorkDecision] = {}
         for decision in normalized:
             key = (decision.project_id, decision.task_id)
@@ -232,7 +271,8 @@ class WorkflowJobScheduler:
             )
             if (
                 cursor is None
-                or cursor.decision_revision != decision.decision_revision
+                or cursor.decision_revision
+                != self.decision_revision(decision)
                 or not cursor.materialized
             ):
                 continue
@@ -240,7 +280,7 @@ class WorkflowJobScheduler:
             if not self.store.schedule_specs_materialized(
                 project_id=decision.project_id,
                 task_id=decision.task_id,
-                decision_revision=decision.decision_revision,
+                decision_revision=self.decision_revision(decision),
                 job_generation=cursor.job_generation,
                 idempotency_keys=tuple(
                     spec.idempotency_key for spec in specs
@@ -417,8 +457,15 @@ class WorkflowJobScheduler:
                 cursor = self.store.activate_schedule(
                     project_id=decision.project_id,
                     task_id=decision.task_id,
-                    decision_revision=decision.decision_revision,
+                    decision_revision=self.decision_revision(decision),
                     snapshot_generation=generation,
+                    next_reassessment_at=(
+                        datetime.fromisoformat(
+                            decision.next_reassessment_at.replace("Z", "+00:00")
+                        ).timestamp()
+                        if decision.next_reassessment_at is not None
+                        else None
+                    ),
                 )
                 if not cursor.accepted:
                     stale += 1

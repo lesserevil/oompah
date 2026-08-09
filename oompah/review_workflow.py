@@ -25,7 +25,11 @@ from oompah.models import Issue
 from oompah.review_capacity import ReviewCapacityStore
 from oompah.statuses import IN_REVIEW
 from oompah.task_transition_service import TransitionIntent
-from oompah.work_decision import REVIEW_ACTION_JOBS, WorkDecision, evaluate_task
+from oompah.work_decision import (
+    REVIEW_ACTION_JOBS,
+    WorkDecision,
+    evaluate_task,
+)
 from oompah.workflow_fact_model import (
     LandingFact,
     LandingRequest,
@@ -501,7 +505,12 @@ class ReviewWorkflowController:
             # not a reason to crash the complete project reconciliation pass.
             return ()
 
-    def evaluate(self, tasks: Sequence[Issue]) -> ReviewDecisionBatch:
+    def evaluate(
+        self,
+        tasks: Sequence[Issue],
+        *,
+        liveness_slo_seconds: Mapping[str, int] | None = None,
+    ) -> ReviewDecisionBatch:
         # Bound the review lane after semantic filtering.  Applying the limit
         # to unrelated project rows first can starve an In Review task forever
         # when the same earlier identifiers are returned on every scan.
@@ -529,7 +538,17 @@ class ReviewWorkflowController:
                 task.identifier,
                 landing_requests=self._landing_request(task),
             )
-            evaluated.append(ReviewTaskDecision(task, facts, evaluate_task(task, facts)))
+            evaluated.append(
+                ReviewTaskDecision(
+                    task,
+                    facts,
+                    evaluate_task(
+                        task,
+                        facts,
+                        liveness_slo_seconds=liveness_slo_seconds,
+                    ),
+                )
+            )
         return ReviewDecisionBatch(tuple(evaluated))
 
     def reconcile(
@@ -588,7 +607,8 @@ class ReviewWorkflowController:
                 if (
                     cursor is not None
                     and cursor.snapshot_generation == generation
-                    and cursor.decision_revision == item.decision.decision_revision
+                    and cursor.decision_revision
+                    == self.scheduler.decision_revision(item.decision)
                     and generation >= self._latest_generations.get(task_id, 0)
                 ):
                     self._latest[task_id] = item

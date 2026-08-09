@@ -14,7 +14,7 @@ import hashlib
 import inspect
 import json
 from collections.abc import Awaitable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
@@ -31,6 +31,7 @@ from oompah.task_transition_service import TransitionIntent, issue_authority_ver
 from oompah.work_decision import (
     IMPLEMENTATION_ACTION_JOBS,
     WorkDecision,
+    decision_scheduling_revision,
     evaluate_task,
 )
 from oompah.workflow_fact_model import (
@@ -171,6 +172,18 @@ def _event_revision(
         "expected_head_sha": _optional_text(expected_head_sha),
     }
     return hashlib.sha256(_canonical_json(semantic).encode()).hexdigest()
+
+
+def implementation_event_source_revision(
+    decision: WorkDecision,
+    *,
+    policy_epoch: str = "standalone-v1",
+) -> str:
+    """Hash stable implementation semantics independently of its SLO timer."""
+
+    return decision_scheduling_revision(
+        decision, policy_epoch=policy_epoch
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -512,7 +525,12 @@ class ImplementationWorkflowController:
         self.decision_limit = decision_limit
         self._latest: dict[str, ImplementationTaskDecision] = {}
 
-    def evaluate(self, tasks: Sequence[Issue]) -> ImplementationDecisionBatch:
+    def evaluate(
+        self,
+        tasks: Sequence[Issue],
+        *,
+        liveness_slo_seconds: Mapping[str, int] | None = None,
+    ) -> ImplementationDecisionBatch:
         # Apply the bounded window to this domain's eligible population, not
         # to the complete project corpus.  Otherwise enough alphabetically
         # earlier terminal/review tasks can permanently hide an Open task from
@@ -538,8 +556,13 @@ class ImplementationWorkflowController:
         evaluated: list[ImplementationTaskDecision] = []
         for _, task in selected:
             facts = self.collector.collect(task.identifier)
+            decision = evaluate_task(
+                task,
+                facts,
+                liveness_slo_seconds=liveness_slo_seconds,
+            )
             evaluated.append(
-                ImplementationTaskDecision(task, facts, evaluate_task(task, facts))
+                ImplementationTaskDecision(task, facts, decision)
             )
         self._latest = {item.task.identifier: item for item in evaluated}
         return ImplementationDecisionBatch(tuple(evaluated))
@@ -558,9 +581,31 @@ class ImplementationWorkflowController:
         if generation < 1:
             raise ValueError("snapshot_generation must be a positive integer")
         batch = self.evaluate(tasks)
-        applied = stale = created = replayed = superseded = 0
+        return batch, self.reconcile_evaluated(
+            batch, snapshot_generation=generation
+        )
+
+    def reconcile_evaluated(
+        self,
+        batch: ImplementationDecisionBatch,
+        *,
+        snapshot_generation: int,
+    ) -> WorkflowReconcileResult:
+        """Materialize one already-evaluated exact implementation cut."""
+
+        if not isinstance(batch, ImplementationDecisionBatch):
+            raise TypeError("batch must be an ImplementationDecisionBatch")
+        if (
+            isinstance(snapshot_generation, bool)
+            or int(snapshot_generation) < 1
+        ):
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(snapshot_generation)
+        applied = stale = created = replayed = superseded = materialized = 0
+        schedules_materialized = 0
         jobs_required = 0
         for item in batch.tasks:
+            source_revision = self.scheduler.decision_revision(item.decision)
             config = item.facts.fact(FactDomain.CONFIG)
             config_value = (
                 config.value
@@ -596,7 +641,7 @@ class ImplementationWorkflowController:
                     scheduling_lane=FACT_IMPLEMENTATION_LANE,
                     ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
                     source_generation=generation,
-                    decision_revision=item.decision.decision_revision,
+                    decision_revision=source_revision,
                     reason="retired by a newer implementation decision",
                 )
             else:
@@ -635,7 +680,7 @@ class ImplementationWorkflowController:
                     scheduling_lane=FACT_IMPLEMENTATION_LANE,
                     ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
                     source_generation=generation,
-                    source_revision=item.decision.decision_revision,
+                    source_revision=source_revision,
                     protected_scheduling_lanes=(IMPERATIVE_IMPLEMENTATION_LANE,),
                     payload=payload,
                     expected_evidence_revision=issue_authority_version(item.task),
@@ -649,6 +694,19 @@ class ImplementationWorkflowController:
             if write.job is not None:
                 created += int(write.created)
                 replayed += int(not write.created)
+                exact_materialized = self.store.event_lane_materialized(
+                    project_id=item.decision.project_id,
+                    task_id=item.decision.task_id,
+                    ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+                    scheduling_lane=FACT_IMPLEMENTATION_LANE,
+                    source_revision=source_revision,
+                    actions=actions,
+                )
+                materialized += int(exact_materialized)
+                schedules_materialized += int(exact_materialized)
+            else:
+                # An accepted no-job decision is an exact retirement proof.
+                schedules_materialized += 1
             superseded += write.superseded
         scheduled = WorkflowReconcileResult(
             snapshot_generation=generation,
@@ -660,12 +718,15 @@ class ImplementationWorkflowController:
             jobs_replayed=replayed,
             jobs_superseded=superseded,
             jobs_required=jobs_required,
-            jobs_materialized=created + replayed,
+            jobs_materialized=materialized,
             schedules_required=len(batch.tasks),
-            schedules_materialized=applied,
-            truncated=False,
+            schedules_materialized=schedules_materialized,
+            truncated=(
+                materialized < jobs_required
+                or schedules_materialized < len(batch.tasks)
+            ),
         )
-        return batch, scheduled
+        return scheduled
 
     def _latest_retry_payload(
         self,

@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import threading
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -21,6 +23,16 @@ from oompah.integration_workflow import (
 )
 from oompah.models import BlockerRef, Issue
 from oompah.review_workflow import ReviewWorkflowController
+from oompah.terminal_audit import (
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+)
+from oompah.terminal_audit_metadata import (
+    TerminalAuditMetadata,
+    TerminalAuditMetadataStore,
+)
 from oompah.task_transition_service import (
     TaskTransitionService,
     TransitionAuthority,
@@ -30,7 +42,9 @@ from oompah.task_transition_service import (
 )
 from oompah.terminal_audit_workflow import TerminalAuditWorkflow
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
+from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
@@ -48,6 +62,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
 )
+from oompah.work_decision import evaluate_task
 
 
 class NativeTracker:
@@ -164,6 +179,12 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
             "_state_path": str(tmp_path / "service-state.json"),
         },
     )()
+    controller = UniversalTotalityLivenessController(store=store)
+    persist_liveness = MagicMock()
+    orchestrator.workflow_controller = controller
+    orchestrator._persist_workflow_liveness_state = persist_liveness
+    orchestrator._work_decision_publication_epoch = 1
+    orchestrator._publish_work_decisions = MagicMock()
 
     runtime = WorkflowRuntime.from_orchestrator(orchestrator)
 
@@ -181,6 +202,8 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert binding.epic_controller is not None
     assert binding.terminal_audit_workflow is orchestrator.terminal_audit_workflow
     assert binding.transition_journal is not None
+    assert runtime.liveness_controller is controller
+    assert runtime._persist_liveness_state is persist_liveness  # noqa: SLF001
     runtime.close()
     store.close()
 
@@ -225,7 +248,10 @@ def test_runtime_authority_source_refreshes_live_durable_lease(tmp_path):
         "lease_expires_at": "2020-01-01T00:00:00+00:00",
     }
 
-    facts = binding.collector.collect(task.identifier)
+    facts = binding.review_controller.collector.collect(
+        task.identifier,
+        landing_requests=binding.review_controller._landing_request(task),
+    )
     authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY).value
 
     assert refreshed == [
@@ -312,6 +338,404 @@ def test_runtime_factory_invokes_legacy_fact_callbacks_before_hashing(tmp_path):
         FactDomain.IMPLEMENTATION_AUTHORITY.value,
         task.identifier,
     ) not in requested
+    runtime.close()
+    store.close()
+
+
+def test_terminal_audit_proof_rejects_metadata_race_until_current_job_exists(
+    tmp_path,
+):
+    from oompah.orchestrator import Orchestrator
+
+    class AuditTracker(NativeTracker):
+        def __init__(self, issues):
+            super().__init__(issues)
+            self.metadata = {}
+
+        def get_metadata(self, identifier):
+            return self.metadata.get(identifier, {})
+
+        def set_metadata_field(self, identifier, key, value):
+            self.metadata.setdefault(identifier, {})[key] = value
+
+        def invalidate_read_cache(self):
+            return None
+
+    class ProjectStore:
+        def __init__(self):
+            self.lock = threading.RLock()
+
+        def list_all(self):
+            return []
+
+        def project_write_lock(self, project_id):
+            assert project_id == "legacy"
+            return self.lock
+
+    class Config:
+        workflow_engine_mode = "shadow"
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+
+    task = make_issue("TASK-AUDIT-RACE", state="In Validation", project_id="legacy")
+    tracker = AuditTracker([task])
+    project_store = ProjectStore()
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    workflow = TerminalAuditWorkflow(store)
+    metadata = TerminalAuditMetadataStore(tracker, project_store, "legacy")
+
+    class OrchestratorDouble:
+        config = Config()
+        workflow_job_store = store
+        terminal_audit_workflow = workflow
+        _state_path = str(tmp_path / "service-state.json")
+
+        def __init__(self):
+            self.project_store = project_store
+            self.tracker = tracker
+
+        def _audit_store(self, _issue):
+            return metadata
+
+        def _workflow_shadow_sources(self, issue):
+            return Orchestrator._workflow_shadow_sources(self, issue)
+
+        def _workflow_shadow_running_entry(self, _issue, *, auditor):
+            assert auditor
+            return None
+
+    record_a = TerminalAuditRecord(
+        audit_id="audit-a",
+        project_id="legacy",
+        task_id=task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.PENDING,
+        source_generation=1,
+    )
+    record_b = TerminalAuditRecord(
+        audit_id="audit-b",
+        project_id="legacy",
+        task_id=task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("b" * 64),
+        request_state=RequestState.PENDING,
+        source_generation=2,
+    )
+    metadata.write(
+        task.identifier,
+        TerminalAuditMetadata(pending_chain=[record_a]),
+    )
+    workflow.ensure(record_a)
+    runtime = WorkflowRuntime.from_orchestrator(
+        OrchestratorDouble(), state_dir=tmp_path
+    )
+    binding = runtime.project_bindings["legacy"]
+    proof = binding.terminal_audit_proof_source
+    assert proof is not None
+
+    facts_a = binding.collector.collect(task.identifier)
+    observed_a = facts_a.fact(FactDomain.TERMINAL_AUDIT).value
+    decision_a = evaluate_task(task, facts_a)
+    assert isinstance(observed_a, Mapping)
+    assert observed_a["audit_id"] == record_a.audit_id
+    assert decision_a.durable_jobs == ("terminal_audit",)
+
+    metadata.write(
+        task.identifier,
+        TerminalAuditMetadata(pending_chain=[record_b]),
+    )
+
+    assert not proof(decision_a, observed_a, "terminal_audit")
+
+    facts_b = binding.collector.collect(task.identifier)
+    observed_b = facts_b.fact(FactDomain.TERMINAL_AUDIT).value
+    decision_b = evaluate_task(task, facts_b)
+    assert isinstance(observed_b, Mapping)
+    assert observed_b["audit_id"] == record_b.audit_id
+    assert decision_b.durable_jobs == ("terminal_audit",)
+    assert not proof(decision_b, observed_b, "terminal_audit")
+
+    mismatched_audit = {**observed_b, "audit_id": record_a.audit_id}
+    workflow.ensure(record_b)
+
+    assert not proof(decision_b, mismatched_audit, "terminal_audit")
+    assert proof(decision_b, observed_b, "terminal_audit")
+
+    runtime.close()
+    store.close()
+
+
+def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
+    tmp_path, monkeypatch
+):
+    task = make_issue("TASK-AUDIT-FENCE", state="In Validation")
+    store = WorkflowJobStore(str(tmp_path / "jobs-fence.sqlite3"))
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    workflow = binding.terminal_audit_workflow
+    assert workflow is not None
+    record_a = TerminalAuditRecord(
+        audit_id="audit-a",
+        project_id="project-1",
+        task_id=task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.PENDING,
+        source_generation=1,
+    )
+    record_b = TerminalAuditRecord(
+        audit_id="audit-b",
+        project_id="project-1",
+        task_id=task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("b" * 64),
+        request_state=RequestState.PENDING,
+        source_generation=2,
+    )
+    workflow.ensure(record_a)
+    observed = {
+        "phase": "queued",
+        "workflow_phase": "queued",
+        "audit_job_present": True,
+        "audit_id": record_a.audit_id,
+        "request_state": record_a.request_state.value,
+        "target_state": record_a.target_state.value,
+        "evidence_fingerprint": record_a.evidence_fingerprint.digest,
+        "source_generation": record_a.source_generation,
+        "audit_generation": workflow.generation(record_a),
+    }
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda _issue: observed
+    current = [record_a]
+    proof_calls = []
+    proof_fences = []
+
+    def proof(_decision, value, action):
+        proof_fences.append(
+            (store._conn.in_transaction, store._authority_lock_depth > 0)
+        )
+        record = current[0]
+        accepted = all(
+            value.get(key) == expected
+            for key, expected in {
+                "audit_id": record.audit_id,
+                "target_state": record.target_state.value,
+                "evidence_fingerprint": record.evidence_fingerprint.digest,
+                "source_generation": record.source_generation,
+                "audit_generation": workflow.generation(record),
+            }.items()
+        ) and store.terminal_audit_lane_materialized(
+            project_id="project-1",
+            task_id=task.identifier,
+            audit_id=record.audit_id,
+            target_state=record.target_state.value,
+            evidence_fingerprint=record.evidence_fingerprint.digest,
+            audit_generation=workflow.generation(record),
+            source_generation=record.source_generation,
+            obligation_action=action,
+        )
+        proof_calls.append(accepted)
+        if len(proof_calls) == 1:
+            # Metadata changes after the scan proof but before publication.
+            current[0] = record_b
+        return accepted
+
+    binding.terminal_audit_proof_source = proof
+    binding.terminal_audit_snapshot_proof_source = (
+        lambda _decision, _observed: True
+    )
+    audit_lock = threading.RLock()
+    binding.terminal_audit_publication_lock = lambda: audit_lock
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    publications = []
+    original_publish = store.publish_snapshot_generation
+
+    def track_publish(*args, **kwargs):
+        publications.append(args[0])
+        return original_publish(*args, **kwargs)
+
+    monkeypatch.setattr(store, "publish_snapshot_generation", track_publish)
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert proof_calls == [True, False]
+    assert proof_fences == [(False, False), (True, True)]
+    assert len(publications) == 1
+    assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize("workflow_phase", ["running", "finalizing"])
+def test_active_terminal_audit_proof_shares_store_publication_fence(
+    tmp_path, workflow_phase
+):
+    task = make_issue("TASK-AUDIT-ACTIVE", state="In Validation")
+    path = str(tmp_path / f"jobs-active-{workflow_phase}.sqlite3")
+    store = WorkflowJobStore(path)
+    competing_store = WorkflowJobStore(path)
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    workflow = binding.terminal_audit_workflow
+    assert workflow is not None
+    record = TerminalAuditRecord(
+        audit_id="audit-active",
+        project_id="project-1",
+        task_id=task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.IN_PROGRESS,
+        source_generation=1,
+    )
+    workflow.ensure(record)
+    running = store.claim_next(
+        lease_owner="audit-worker", lease_seconds=30
+    )
+    assert running is not None
+    running = store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase=workflow_phase,
+        checkpoint={"audit_id": record.audit_id},
+    )
+    observed = {
+        "phase": "active",
+        "workflow_phase": workflow_phase,
+        "audit_job_present": True,
+        "audit_id": record.audit_id,
+        "request_state": record.request_state.value,
+        "target_state": record.target_state.value,
+        "evidence_fingerprint": record.evidence_fingerprint.digest,
+        "source_generation": record.source_generation,
+        "audit_generation": workflow.generation(record),
+        "active_job_id": running.job_id,
+        "job_id": running.job_id,
+        "actively_working": True,
+        "lease_expires_at": datetime.fromtimestamp(
+            running.lease_expires_at, tz=timezone.utc
+        ).isoformat(),
+    }
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda _issue: observed
+    audit_lock = threading.RLock()
+    binding.terminal_audit_publication_lock = lambda: audit_lock
+    completion_started = threading.Event()
+    completion_errors = []
+    completion_threads = []
+    proof_fences = []
+
+    def complete_concurrently():
+        completion_started.set()
+        try:
+            competing_store.complete(running.job_id, running.lease_token)
+        except Exception as exc:  # pragma: no cover - assertion reports detail
+            completion_errors.append(exc)
+
+    def proof(_decision, value):
+        proof_fences.append(
+            (store._conn.in_transaction, store._authority_lock_depth > 0)
+        )
+        assert value["audit_id"] == record.audit_id
+        contender = threading.Thread(target=complete_concurrently)
+        completion_threads.append(contender)
+        contender.start()
+        assert completion_started.wait(timeout=1)
+        contender.join(timeout=0.05)
+        assert contender.is_alive()
+        return store.terminal_audit_lane_materialized(
+            project_id="project-1",
+            task_id=task.identifier,
+            audit_id=record.audit_id,
+            target_state=record.target_state.value,
+            evidence_fingerprint=record.evidence_fingerprint.digest,
+            audit_generation=workflow.generation(record),
+            source_generation=record.source_generation,
+            obligation_action="terminal_audit",
+        )
+
+    binding.terminal_audit_snapshot_proof_source = proof
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+    for contender in completion_threads:
+        contender.join(timeout=2)
+
+    assert proof_fences == [(True, True)]
+    assert not completion_errors
+    assert completion_threads and not completion_threads[0].is_alive()
+    assert store.get(running.job_id).state is WorkflowJobState.COMPLETED
+    assert report["liveness"]["scan_complete"] is True
+    runtime.close()
+    competing_store.close()
+    store.close()
+
+
+def test_action_required_terminal_disposition_is_revalidated_at_marker(
+    tmp_path
+):
+    task = make_issue("TASK-AUDIT-ACTION", state="In Validation")
+    store = WorkflowJobStore(str(tmp_path / "jobs-action.sqlite3"))
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    observed = {
+        "phase": "queued",
+        "workflow_phase": "action_required",
+        "audit_job_present": True,
+        "audit_id": "audit-action",
+        "request_state": RequestState.PENDING.value,
+        "target_state": TargetState.DONE.value,
+        "evidence_fingerprint": "a" * 64,
+        "source_generation": 1,
+        "audit_generation": "audit:" + "b" * 64,
+        "action_required": True,
+        "action_code": "audit.action_required",
+    }
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda _issue: observed
+    binding.terminal_audit_publication_lock = lambda: threading.RLock()
+    proof_fences = []
+
+    def changed_disposition(_decision, value):
+        assert value["action_required"] is True
+        proof_fences.append(
+            (store._conn.in_transaction, store._authority_lock_depth > 0)
+        )
+        return False
+
+    binding.terminal_audit_snapshot_proof_source = changed_disposition
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert proof_fences == [(True, True)]
+    assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
     runtime.close()
     store.close()
 
@@ -461,6 +885,751 @@ class CompleteHandler:
 
 def complete_handlers(handler=None):
     return {action: handler or CompleteHandler() for action in RUNTIME_ACTIONS}
+
+
+def accepted_projection_wiring():
+    def publisher(*_args, **_kwargs):
+        return SimpleNamespace(
+            accepted=True,
+            rejection=None,
+            commit_memory=lambda: None,
+            rollback=lambda: None,
+        )
+
+    return {
+        "projection_publisher": publisher,
+        "projection_epoch_source": lambda: 1,
+    }
+
+
+def test_runtime_rejects_liveness_without_canonical_projection_publisher(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+
+    with pytest.raises(ValueError, match="canonical projection publication"):
+        WorkflowRuntime(
+            project_bindings={"project-1": binding},
+            store=store,
+            journals={"project-1": journal},
+            mode="enforce",
+            handlers=complete_handlers(),
+            liveness_controller=controller,
+        )
+
+    journal.close()
+    store.close()
+
+
+def test_runtime_binds_owner_deadlines_and_jobs_to_one_live_policy_cut(
+    tmp_path, monkeypatch
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-POLICY-EPOCH", state="In Review")
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(
+        store=store,
+        liveness_slo_seconds={"review_reassessment": 61},
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    expected_epoch = controller.liveness_policy.epoch
+
+    assert controller.scheduler.policy_epoch == expected_epoch
+    assert all(
+        domain.scheduler.policy_epoch == expected_epoch
+        for domain in (
+            binding.implementation_controller,
+            binding.review_controller,
+            binding.integration_controller,
+            binding.epic_controller,
+        )
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    first_item = binding.review_controller._latest[task.identifier]
+    first_deadline = datetime.fromisoformat(
+        first_item.decision.next_reassessment_at
+    )
+    first_collected = datetime.fromisoformat(first_item.facts.collected_at)
+    assert (first_deadline - first_collected).total_seconds() == 61
+    first_cursor = store.schedule_cursor(
+        project_id="project-1", task_id=task.identifier
+    )
+    assert first_cursor is not None
+    assert first_cursor.decision_revision == (
+        binding.review_controller.scheduler.decision_revision(
+            first_item.decision
+        )
+    )
+    assert first_cursor.job_generation.endswith(
+        f":reassess={first_deadline.timestamp():.6f}"
+    )
+    review_job = next(
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action in {"review_refresh", "review_monitor"}
+    )
+    running = store.claim_next(
+        lease_owner="failed-review", lease_seconds=30,
+        task_id=task.identifier,
+        actions=(review_job.action,),
+    )
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="permanent review failure",
+        retryable=False,
+    )
+    facts = binding.review_controller.collector.collect(
+        task.identifier,
+        landing_requests=binding.review_controller._landing_request(task),
+    )
+    exhausted = controller.evaluate(
+        (task,), facts={task.identifier: facts}
+    )[0]
+
+    assert exhausted.reason_code == "retry.exhausted"
+    original_evaluate = binding.review_controller.evaluate
+
+    def evaluate_then_reload(tasks, **kwargs):
+        batch = original_evaluate(tasks, **kwargs)
+        controller.reconfigure_liveness(
+            max_task_records=controller.liveness.max_task_records,
+            max_project_records=controller.liveness.max_project_records,
+            snapshot_stale_seconds=(
+                controller.liveness.snapshot_stale_seconds
+            ),
+            slo_seconds={"review_reassessment": 62},
+        )
+        return batch
+
+    monkeypatch.setattr(
+        binding.review_controller, "evaluate", evaluate_then_reload
+    )
+    rejected = runtime.reconcile()
+    monkeypatch.setattr(
+        binding.review_controller, "evaluate", original_evaluate
+    )
+    reloaded_epoch = controller.liveness_policy.epoch
+    assert reloaded_epoch != expected_epoch
+    assert rejected["projects"]["project-1"]["review"][
+        "snapshot_accepted"
+    ] is False
+    assert store.schedule_cursor(
+        project_id="project-1", task_id=task.identifier
+    ) == first_cursor
+    assert binding.review_controller._latest[
+        task.identifier
+    ].decision.next_reassessment_at == first_item.decision.next_reassessment_at
+    assert runtime.projections()[0]["next_reassessment_at"] == (
+        first_item.decision.next_reassessment_at
+    )
+    assert [
+        domain.scheduler.policy_epoch
+        for domain in (
+            binding.implementation_controller,
+            binding.review_controller,
+            binding.integration_controller,
+            binding.epic_controller,
+        )
+    ] == [reloaded_epoch] * 4
+
+    runtime.reconcile()
+
+    assert controller.scheduler.policy_epoch == reloaded_epoch
+    assert all(
+        domain.scheduler.policy_epoch == reloaded_epoch
+        for domain in (
+            binding.implementation_controller,
+            binding.review_controller,
+            binding.integration_controller,
+            binding.epic_controller,
+        )
+    )
+    second_item = binding.review_controller._latest[task.identifier]
+    second_deadline = datetime.fromisoformat(
+        second_item.decision.next_reassessment_at
+    )
+    second_collected = datetime.fromisoformat(second_item.facts.collected_at)
+    assert (second_deadline - second_collected).total_seconds() == 62
+    second_cursor = store.schedule_cursor(
+        project_id="project-1", task_id=task.identifier
+    )
+    assert second_cursor is not None
+    assert second_cursor.decision_revision != first_cursor.decision_revision
+    assert second_cursor.job_generation.endswith(
+        f":reassess={second_deadline.timestamp():.6f}"
+    )
+    assert runtime.projections()[0]["next_reassessment_at"] == (
+        second_item.decision.next_reassessment_at
+    )
+    runtime.close()
+    store.close()
+
+
+def test_shadow_owner_projection_uses_configured_liveness_policy(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-SHADOW-POLICY", state="In Review")
+    binding, journal = make_binding(tmp_path, NativeTracker([task]), store)
+    controller = UniversalTotalityLivenessController(
+        store=store,
+        liveness_slo_seconds={"review_reassessment": 61},
+    )
+    captured = []
+    original_evaluate = binding.review_controller.evaluate
+
+    def capture_review_batch(tasks, **kwargs):
+        batch = original_evaluate(tasks, **kwargs)
+        captured.append(batch)
+        return batch
+
+    binding.review_controller.evaluate = capture_review_batch
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+
+    item = captured[0].tasks[0]
+    deadline = datetime.fromisoformat(item.decision.next_reassessment_at)
+    collected = datetime.fromisoformat(item.facts.collected_at)
+    assert (deadline - collected).total_seconds() == 61
+    assert runtime.projections()[0]["next_reassessment_at"] == (
+        item.decision.next_reassessment_at
+    )
+    runtime.close()
+    store.close()
+
+
+def test_runtime_injects_policy_seconds_into_every_owner_controller(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tasks = [
+        make_issue("TASK-OPEN-POLICY", state="Open"),
+        make_issue("TASK-REVIEW-POLICY", state="In Review"),
+        make_issue("TASK-INTEGRATION-POLICY", state="Ready to Integrate"),
+        make_issue(
+            "EPIC-ROLLUP-POLICY",
+            state="Decomposed",
+            issue_type="epic",
+        ),
+    ]
+    binding, journal = make_binding(tmp_path, NativeTracker(tasks), store)
+    controller = UniversalTotalityLivenessController(
+        store=store,
+        liveness_slo_seconds={
+            "dispatch_latency": 41,
+            "review_reassessment": 42,
+            "integration_lease": 43,
+            "rollup_reassessment": 44,
+        },
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+
+    owner_items = (
+        (
+            binding.implementation_controller._latest["TASK-OPEN-POLICY"],
+            41,
+        ),
+        (
+            binding.review_controller._latest["TASK-REVIEW-POLICY"],
+            42,
+        ),
+        (
+            binding.integration_controller._latest[
+                "TASK-INTEGRATION-POLICY"
+            ],
+            43,
+        ),
+        (
+            binding.epic_controller._latest["EPIC-ROLLUP-POLICY"],
+            44,
+        ),
+    )
+    for item, expected_seconds in owner_items:
+        deadline = datetime.fromisoformat(
+            item.decision.next_reassessment_at
+        )
+        collected = datetime.fromisoformat(item.facts.collected_at)
+        assert (deadline - collected).total_seconds() == expected_seconds
+
+    runtime.close()
+    store.close()
+
+
+def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    persisted = []
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        persist_liveness_state=lambda state: persisted.append(dict(state)),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    assert controller.liveness_snapshot().restart_reconstruction_pending
+
+    first = runtime.reconcile()
+    first_health = controller.liveness_snapshot()
+    second = runtime.reconcile()
+    second_health = controller.liveness_snapshot()
+
+    assert first["liveness"]["scan_complete"] is True
+    assert first_health.restart_reconstruction_pending is False
+    assert first_health.scan_complete and first_health.healthy
+    assert second["liveness"]["snapshot_generation"] > first["liveness"][
+        "snapshot_generation"
+    ]
+    assert second_health.restart_convergence_count == (
+        first_health.restart_convergence_count
+    )
+    assert controller.health_snapshot()["controller"]["passes"] == 2
+    assert runtime.health_snapshot()["liveness"]["scan_complete"] is True
+    assert persisted[-1]["accepted_snapshot_generation"] == (
+        second_health.snapshot_generation
+    )
+    runtime.close()
+    store.close()
+
+
+def test_runtime_liveness_fails_closed_for_unmaterialized_owner_recovery(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-OWNER", state="In Progress")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    health = controller.liveness_snapshot()
+    projection = runtime.projections()[0]
+
+    assert projection["reason_code"] == "implementation.recovery_scheduled"
+    assert projection["durable_jobs"] == ["implementation_recovery"]
+    assert not health.scan_complete
+    assert not health.reconciliation_complete
+    assert health.required_recovery_count == 1
+    assert health.materialized_recovery_count == 0
+
+    runtime.reconcile()
+    recovered = controller.liveness_snapshot()
+    assert recovered.scan_complete
+    assert recovered.reconciliation_complete
+    assert recovered.required_recovery_count == 1
+    assert recovered.materialized_recovery_count == 1
+    runtime.close()
+    store.close()
+
+
+def test_runtime_liveness_expands_owner_window_for_101_review_tasks(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tasks = [
+        make_issue(f"TASK-{index:03d}", state="In Review")
+        for index in range(101)
+    ]
+    tracker = NativeTracker(tasks)
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.review_controller = ReviewWorkflowController(
+        collector=binding.collector,
+        store=store,
+        decision_limit=100,
+    )
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    reports = [runtime.reconcile() for _ in range(3)]
+    health = controller.liveness_snapshot()
+    jobs = store.list_jobs(limit=1000)
+
+    assert binding.review_controller.decision_limit >= 101
+    assert all(
+        report["projects"]["project-1"]["review"]["decisions_seen"]
+        == 101
+        for report in reports
+    )
+    assert health.scan_complete and health.reconciliation_complete
+    assert health.required_recovery_count == 101
+    assert health.materialized_recovery_count == 101
+    assert len(jobs) < 202
+    runtime.close()
+    store.close()
+
+
+def test_runtime_atomically_publishes_canonical_owning_projection(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-PROJECTION", state="In Progress")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    calls = []
+
+    class Publication:
+        accepted = True
+        rejection = None
+
+        def __init__(self):
+            self.committed = False
+            self.rolled_back = False
+
+        def commit_memory(self):
+            self.committed = True
+
+        def rollback(self):
+            self.rolled_back = True
+
+    publication = Publication()
+
+    def publisher(decisions, generation, **kwargs):
+        calls.append((tuple(decisions), generation, kwargs))
+        return publication
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        projection_publisher=publisher,
+        projection_epoch_source=lambda: 11,
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["snapshot"]["published"]
+    assert len(calls) == 1
+    decisions, generation, kwargs = calls[0]
+    assert [(item.project_id, item.task_id) for item in decisions] == [
+        ("project-1", "TASK-PROJECTION")
+    ]
+    assert decisions[0].decision_revision == runtime.projections()[0][
+        "decision_revision"
+    ]
+    assert generation == report["liveness"]["snapshot_generation"]
+    assert kwargs["publication_epoch"] == 11
+    assert kwargs["live_keys"] == {("project-1", "TASK-PROJECTION")}
+    assert publication.committed
+    assert not publication.rolled_back
+    runtime.close()
+    store.close()
+
+
+def test_canonical_projection_excludes_terminal_domain_maintenance(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    active = make_issue("TASK-ACTIVE", state="Open")
+    terminal = make_issue(
+        "TASK-TERMINAL", state="Merged", parent_id="EPIC-1"
+    )
+    terminal.title = "Rebase epic-EPIC-1 onto main"
+    terminal.work_branch = "epic-EPIC-1"
+    terminal.target_branch = "epic-EPIC-1"
+    terminal.head_sha = "b" * 40
+    terminal.integration = IntegrationRecord(
+        state="integrated",
+        mode="queue",
+        task_branch="epic-EPIC-1",
+        base_branch="epic-EPIC-1",
+        head_sha="b" * 40,
+        integrated_sha="b" * 40,
+        maintenance_publication_proven=True,
+    )
+    tracker = NativeTracker([active, terminal])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    published = []
+
+    def publisher(decisions, _generation, *, live_keys, **_kwargs):
+        keys = {(item.project_id, item.task_id) for item in decisions}
+        assert keys <= live_keys
+        published.append(keys)
+        return SimpleNamespace(
+            accepted=True,
+            rejection=None,
+            commit_memory=lambda: None,
+            rollback=lambda: None,
+        )
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        projection_publisher=publisher,
+        projection_epoch_source=lambda: 1,
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert "error" not in report["projects"]["project-1"]
+    assert published == [{("project-1", active.identifier)}]
+    assert ("project-1", terminal.identifier) not in {
+        (item["project_id"], item["task_id"])
+        for item in runtime.projections()
+    }
+    runtime.close()
+    store.close()
+
+
+def test_postcommit_liveness_failure_clears_inflight_without_rollback(
+    tmp_path, monkeypatch
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    authority_rollbacks = []
+    original_restore = store.restore_snapshot_authority
+
+    def track_restore(*args, **kwargs):
+        authority_rollbacks.append((args, kwargs))
+        return original_restore(*args, **kwargs)
+
+    monkeypatch.setattr(store, "restore_snapshot_authority", track_restore)
+    monkeypatch.setattr(
+        controller,
+        "commit_runtime_observation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("postcommit bookkeeping failed")
+        ),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["liveness"]["snapshot_generation"] >= 1
+    assert authority_rollbacks == []
+    assert controller._inflight_generations == set()  # noqa: SLF001
+    runtime.close()
+    store.close()
+
+
+def test_postmarker_abort_failure_does_not_restore_committed_authority(
+    tmp_path, monkeypatch
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-POSTMARKER", state="In Review")
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    authority_rollbacks = []
+    original_restore = store.restore_snapshot_authority
+    original_publish = store.publish_snapshot_generation
+
+    def track_restore(*args, **kwargs):
+        authority_rollbacks.append((args, kwargs))
+        return original_restore(*args, **kwargs)
+
+    def discard_publication_result(*args, **kwargs):
+        published, _result = original_publish(*args, **kwargs)
+        return published, None
+
+    monkeypatch.setattr(store, "restore_snapshot_authority", track_restore)
+    monkeypatch.setattr(
+        store, "publish_snapshot_generation", discard_publication_result
+    )
+    monkeypatch.setattr(
+        controller,
+        "abort_runtime_observation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("post-marker abort failed")
+        ),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["postcommit_error"] == "RuntimeError"
+    assert authority_rollbacks == []
+    assert any(
+        project_id == "project-1" and task_id == task.identifier
+        for project_id, task_id, _generation in store.snapshot_membership()
+    )
+    cursor = store.schedule_cursor(
+        project_id="project-1", task_id=task.identifier
+    )
+    assert cursor is not None and cursor.materialized
+    assert runtime.projections()
+    runtime.close()
+    store.close()
+
+
+def test_runtime_liveness_and_projection_roll_back_with_rejected_marker(
+    tmp_path, monkeypatch
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    prior_state = controller.liveness_state()
+    persisted = []
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        persist_liveness_state=lambda state: persisted.append(dict(state)),
+        **accepted_projection_wiring(),
+    )
+
+    def reject_publication(generation, publisher, *, rollback_authority=None):
+        publication = publisher()
+        assert publication.rollback is not None
+        publication.rollback()
+        durable_rollback = publication.rollback_authority or rollback_authority
+        if durable_rollback is not None:
+            durable_rollback()
+        return False, None
+
+    monkeypatch.setattr(store, "publish_snapshot_generation", reject_publication)
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert "liveness" not in report
+    assert controller.liveness_state() == prior_state
+    assert controller.health_snapshot()["controller"]["passes"] == 0
+    assert runtime.projections() == ()
+    assert persisted[-1] == prior_state
+    runtime.close()
+    store.close()
+
+
+def test_midpublisher_rollback_failure_quarantines_snapshot_generation(
+    tmp_path, monkeypatch
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-SPLIT", state="In Review")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    external = {"published": False, "rollback_calls": 0}
+
+    class FailedRollbackPublication:
+        accepted = True
+        rejection = None
+
+        def commit_memory(self):
+            external["published"] = True
+
+        def rollback(self):
+            external["rollback_calls"] += 1
+            raise RuntimeError("projection rollback failed")
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        projection_publisher=lambda *_args, **_kwargs: (
+            FailedRollbackPublication()
+        ),
+        projection_epoch_source=lambda: 1,
+    )
+    monkeypatch.setattr(
+        controller,
+        "stage_runtime_observation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("liveness stage failed")
+        ),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+    health = store.health_snapshot()
+
+    assert report["projects"]["project-1"]["error"] == (
+        "WorkflowJobStoreError"
+    )
+    assert external == {"published": True, "rollback_calls": 1}
+    assert health["accepted_snapshot_generation"] == (
+        health["published_snapshot_generation"]
+    )
+    assert health["accepted_snapshot_generation"] == 0
+    assert not store.snapshot_generation_is_current(
+        health["captured_snapshot_generation"]
+    )
+    assert runtime.projections() == ()
+    runtime.close()
+    store.close()
 
 
 def test_enforce_runtime_has_one_writer_and_drains_worker(tmp_path):
@@ -1650,7 +2819,7 @@ def test_post_publish_implementation_failure_recovers_on_next_snapshot(tmp_path)
     tracker = NativeTracker([make_issue("TASK-RECOVER", state="In Review")])
     binding, journal = make_binding(tmp_path, tracker, store)
     implementation = binding.implementation_controller
-    original_reconcile = implementation.reconcile
+    original_reconcile = implementation.reconcile_evaluated
     calls = 0
 
     def fail_once(*args, **kwargs):
@@ -1660,7 +2829,7 @@ def test_post_publish_implementation_failure_recovers_on_next_snapshot(tmp_path)
             raise RuntimeError("implementation event lane unavailable")
         return original_reconcile(*args, **kwargs)
 
-    implementation.reconcile = fail_once
+    implementation.reconcile_evaluated = fail_once
     runtime = WorkflowRuntime(
         project_bindings={"project-1": binding},
         store=store,
@@ -2227,6 +3396,91 @@ def test_paused_project_keeps_due_job_unclaimed_until_resumed(tmp_path):
     resumed_report = asyncio.run(runtime.reconcile_async())
     assert resumed_report["worker"]["processed"] == 1
     assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    runtime.close()
+    store.close()
+
+
+def test_paused_project_preserves_managed_membership_jobs_and_liveness(
+    tmp_path,
+):
+    enabled = True
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-PAUSED", state="In Review")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.dispatch_enabled = lambda: enabled
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    membership = store.snapshot_membership()
+    cursor = store.schedule_cursor(
+        project_id="project-1", task_id="TASK-PAUSED"
+    )
+    jobs = store.list_jobs(project_id="project-1", task_id="TASK-PAUSED")
+    assert membership
+    assert cursor is not None
+    assert jobs
+
+    enabled = False
+    paused_report = runtime.reconcile()
+    health = controller.liveness_snapshot()
+
+    assert paused_report["projects"]["project-1"]["skipped"] is True
+    assert store.snapshot_membership() == membership
+    assert store.schedule_cursor(
+        project_id="project-1", task_id="TASK-PAUSED"
+    ) == cursor
+    assert store.list_jobs(
+        project_id="project-1", task_id="TASK-PAUSED"
+    ) == jobs
+    assert health.scan_complete
+    assert health.coverage_scope == "active_projects"
+    assert not health.global_coverage_complete
+    assert health.active_project_count == 0
+    assert health.excluded_project_count == 1
+    assert health.excluded_task_count == 1
+    runtime.close()
+    store.close()
+
+
+def test_pause_authority_read_failure_is_incomplete_not_excluded(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-PAUSE-ERROR", state="Open")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+
+    def failed_pause_read():
+        raise RuntimeError("pause authority unavailable")
+
+    binding.dispatch_enabled = failed_pause_read
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+    health = controller.liveness_snapshot()
+
+    assert binding.enabled is False
+    assert report["projects"]["project-1"]["error"] == "RuntimeError"
+    assert health.source_error_count == 1
+    assert health.excluded_project_count == 0
+    assert not health.scan_complete
     runtime.close()
     store.close()
 

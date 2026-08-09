@@ -49,6 +49,7 @@ from oompah.workflow_fact_model import (
 from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
+    WorkflowEventWrite,
     WorkflowJob,
     WorkflowJobStore,
 )
@@ -498,6 +499,7 @@ class EpicWorkflowController:
         tasks: Sequence[Issue],
         *,
         persist_evidence: bool = True,
+        liveness_slo_seconds: Mapping[str, int] | None = None,
     ) -> EpicDecisionBatch:
         # Select from actionable epics before applying the decision bound.
         # Terminal rows are stable and would otherwise permanently occupy the
@@ -554,7 +556,17 @@ class EpicWorkflowController:
                     task_id=task.identifier,
                     facts=durable,
                 )
-            evaluated.append(EpicTaskDecision(task, facts, evaluate_task(task, facts)))
+            evaluated.append(
+                EpicTaskDecision(
+                    task,
+                    facts,
+                    evaluate_task(
+                        task,
+                        facts,
+                        liveness_slo_seconds=liveness_slo_seconds,
+                    ),
+                )
+            )
         self._latest = {item.task.identifier: item for item in evaluated}
         return EpicDecisionBatch(tuple(evaluated))
 
@@ -596,6 +608,39 @@ class EpicWorkflowController:
         duplicate an external effect or revive superseded work.
         """
 
+        write = self.schedule_action_write(
+            task_id=task_id,
+            action=action,
+            generation=generation,
+            expected_evidence_revision=expected_evidence_revision,
+            expected_head_sha=expected_head_sha,
+            priority=priority,
+            max_attempts=max_attempts,
+            payload=payload,
+        )
+        if write.job is None:  # no ordering/protection fence is used above
+            raise RuntimeError("epic event materialization did not return a job")
+        return write.job
+
+    def schedule_action_write(
+        self,
+        *,
+        task_id: str,
+        action: EpicAction | str,
+        generation: str | None = None,
+        expected_evidence_revision: str | None = None,
+        expected_head_sha: str | None = None,
+        priority: int = 100,
+        max_attempts: int = 5,
+        payload: Mapping[str, Any] | None = None,
+    ) -> WorkflowEventWrite:
+        """Return the durable materialization result for an epic event.
+
+        ``schedule_action`` retains its historical job-returning API.  Startup
+        seeders use this richer result so a replayed idempotency key is not
+        reported as a newly-enqueued job.
+        """
+
         normalized_action = EpicAction(action)
         project_id = _required_text(self.collector.project_id, "project_id")
         identifier = _required_text(task_id, "task_id")
@@ -618,7 +663,7 @@ class EpicWorkflowController:
         )
         if write.job is None:  # no ordering/protection fence is used above
             raise RuntimeError("epic event materialization did not return a job")
-        return write.job
+        return write
 
     def reconcile_after_restart(
         self,
