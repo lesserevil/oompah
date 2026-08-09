@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T11:31:54.504569Z'
+updated_at: '2026-08-09T11:52:13.889409Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,7 @@ oompah.terminal_audit:
     digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-939","audit-4827a2c0df9f","attempt-8219358c7bea"]': '2026-08-09T11:10:55.552055+00:00'
+    '["proj-14849f1b","OOMPAH-939","audit-bd560d2bb335","attempt-cd9094da20a7"]': '2026-08-09T11:52:12.431727+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-939
@@ -143,7 +144,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-939
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,7 +153,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cd9094da20a7
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -164,6 +165,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-939
       selected_ref: origin/OOMPAH-939
       selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
+      verdict: fail
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-09T11:52:12.431629+00:00'
+      failure_reason: retry ceiling reached; verdict left pending
     source_generation: 1
     requested_by:
       version: 1
@@ -173,7 +178,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T09:39:27.270044+00:00'
     selected_ref: origin/OOMPAH-939
     selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
-    updated_at: '2026-08-09T11:31:45.949124+00:00'
+    updated_at: '2026-08-09T11:52:12.431629+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-70a86da90e2f
