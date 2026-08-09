@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T14:46:37.477089Z'
+updated_at: '2026-08-09T14:48:42.286555Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -149,6 +149,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-948
     selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 99
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 99
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 99
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T14:48:36.131485+00:00'
 ---
 ## Summary
 
@@ -294,5 +310,15 @@ created: 2026-08-09 14:46
 Needs Human — Done audit requires operator input.
 
 [REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-09 14:48
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 36, Tool calls: 9
+- Tokens: 10 in / 99 out [109 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 38m 1s
+- Log: OOMPAH-948__20260809T141044Z.jsonl
 ---
 <!-- COMMENTS:END -->
