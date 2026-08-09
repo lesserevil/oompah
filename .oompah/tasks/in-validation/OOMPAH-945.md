@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-945
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Unify terminal transition guards with exact-current work decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T12:53:36.358662Z'
+updated_at: '2026-08-09T12:53:42.895802Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-08-09 12:53
 ---
 Reconciled the in-flight integration deadlock: the accepted task commits are authoritatively contained in origin/epic-OOMPAH-940, so the exhausted administrative integration job is obsolete. Advancing to terminal validation while OOMPAH-958 fixes the systemic lease contract.
+---
+author: oompah
+created: 2026-08-09 12:53
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
