@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T22:40:01.145539Z'
+updated_at: '2026-08-09T22:41:57.818256Z'
 work_branch: OOMPAH-976
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-08-09 22:40
 ---
 Implemented and pushed exact head 6af2014f97244e153ba3ea1ea70a4342d63ebc8b. Added authenticated post-transfer exec admission serialized with exact terminal claims; deterministic before/after-admission withdrawal coverage proves exact cause precedence, bounded termination, and no post-withdrawal workload, lease, or FD leak. Python 3.12 affected suites: 234 passed serial and 234 passed with xdist; withdrawal edge nodes passed 10/10 each under repeated serial stress. Ready for independent exact-head review.
+---
+author: oompah
+created: 2026-08-09 22:41
+---
+Implementation pushed at exact head 6af2014f97244e153ba3ea1ea70a4342d63ebc8b. Authenticated ADMIT/ADMITTED handshake now linearizes native exec admission with the supervisor terminal claim; deterministic withdrawal before/after admission and cleanup tests pass. Affected suite: 234 serial and 234 xdist; both race edges 10/10 stress. Protected PR #785 is running while independent exact-head review completes.
 ---
 <!-- COMMENTS:END -->
