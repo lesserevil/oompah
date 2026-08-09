@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T11:51:58.797181Z'
+updated_at: '2026-08-09T12:07:07.657184Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live production evidence on 2026-08-09: OOMPAH-947 and OOMPAH-949 each consumed 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 12:07
+---
+Implemented and pushed 60b94b8844af30c1ff796869eeab3b68b98dbe1f on OOMPAH-956. Proven pre-effect pause/quiesce/lifecycle/resource deferrals now restore claim-time attempts, preserve exact checkpoints/generation, append immutable administrative_deferred events, and retain capped exponential backoff. Genuine failures and uncertain post-effect outcomes still consume/exhaust attempts; exact lease, restart, ABA, and replacement fencing are covered. Verification: 186 focused workflow job/worker/runtime tests passed; 8 new targeted regressions passed; terminal-audit scan and secret scan passed. Additional incident corpus: 43/44 passed, with only the known sibling OOMPAH-748 containment regression on the epic base (fixed independently at dccbeb5).
+---
+<!-- COMMENTS:END -->

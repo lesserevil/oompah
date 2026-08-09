@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T12:06:53.282338Z'
-work_branch: null
+updated_at: '2026-08-09T12:07:09.115357Z'
+work_branch: OOMPAH-955
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-955
+  base_branch: epic-OOMPAH-940
+  base_sha: 41a158291ad932b232e9ebc4dcff5b0357d9f57b
+  head_sha: 5bb0803b396d0cd7d7cd5837c31d05742e99aba0
+  submitted_at: '2026-08-09T12:06:55.916677+00:00'
+  updated_at: '2026-08-09T12:06:55.916677+00:00'
+oompah.work_branch: OOMPAH-955
 ---
 ## Summary
 
@@ -35,5 +47,10 @@ author: oompah
 created: 2026-08-09 12:06
 ---
 Implemented on branch OOMPAH-955 at 5bb0803b396d0cd7d7cd5837c31d05742e99aba0 (target epic-OOMPAH-940). Workflow reconciliation now claims and retains durable effects in bounded detached lanes: at least one exact control slot admits revocation/submission/recovery while the shared lane handles general effects. Completion wakes a coalesced refresh; graceful drain covers claimed/pre-start invocations; independent worker heartbeats/checkpoints and SQLite same-task/fair-project fences remain authoritative. Added env-only concurrency controls and health telemetry. Verification: 317 focused runtime/job/worker/config tests passed; 294/295 adjacent implementation/integration/review/epic/incident tests passed, with only the pre-existing OOMPAH-748 aggregate failure addressed separately by OOMPAH-954; task-status mutation scan and secret scan passed; git diff --check clean.
+---
+author: oompah
+created: 2026-08-09 12:07
+---
+Implemented bounded detached workflow effects with a reserved control lane, independent lease heartbeats, completion-driven replenishment, safe drain/restart recovery, configuration and telemetry, plus deterministic HOL/concurrency/serialization/lease regressions. Commit 5bb0803b396d0cd7d7cd5837c31d05742e99aba0 pushed.
 ---
 <!-- COMMENTS:END -->
