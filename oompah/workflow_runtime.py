@@ -44,6 +44,7 @@ from oompah.implementation_workflow import (
 )
 from oompah.integration_workflow import (
     INTEGRATION_ACTIONS,
+    IntegrationLandingRequestResolver,
     IntegrationWorkflowController,
 )
 from oompah.review_workflow import ReviewWorkflowController
@@ -818,6 +819,17 @@ class WorkflowRuntime:
             integration_controller = IntegrationWorkflowController(
                 collector=collector,
                 store=store,
+                landing_request_resolver=IntegrationLandingRequestResolver(
+                    project_id=project_id,
+                    tracker=tracker,
+                    integration_queue=getattr(orchestrator, "integration_queue", None),
+                    project_store=project_store,
+                    project_default_branch=str(
+                        getattr(project, "default_branch", None)
+                        or getattr(project, "branch", None)
+                        or "main"
+                    ),
+                ),
                 decision_limit=configured_limit,
             )
 
@@ -849,7 +861,7 @@ class WorkflowRuntime:
                     .lower()
                     != "epic"
                 ):
-                    requests = IntegrationWorkflowController._default_landing_request(
+                    requests = _integration_controller.landing_requests_for(
                         guarded_issue
                     )
                     facts = _integration_controller.collector.collect(

@@ -280,11 +280,18 @@ class GitLandingCollector:
                 durable=True,
             )
 
-        # A failed authoritative target refresh must fail closed before any
-        # new landing proof is attempted.  The only exception above is an
-        # already-durable proof for the exact accepted target generation: an
-        # epic review head can outlive its pruned container ref, but it cannot
-        # bless a different target SHA.
+        # A terminal parent can prune its mutable epic ref after its exact
+        # accepted head becomes immutable lifecycle evidence.  When that
+        # object is independently present, prove fresh ancestry or the full
+        # patch set against it below.  Missing/malformed trusted objects still
+        # fail closed, as do all requests without this explicit authority.
+        if (
+            request.authoritative_target
+            and target_revision is None
+            and verified_trusted_target is not None
+        ):
+            target_revision = verified_trusted_target
+            target_error = None
         if authoritative_target is not None and target_revision is None:
             return LandingFact(
                 source,
