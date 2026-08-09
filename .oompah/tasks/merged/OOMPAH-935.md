@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:21:24.754079Z'
-updated_at: '2026-08-09T08:49:56.725814Z'
+updated_at: '2026-08-09T08:50:06.304164Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,17 @@ oompah.terminal_audit:
       immediate-parent landing for the OOMPAH-476 legacy cohort and is replacing stale
       generations.'
     created_at: '2026-08-09T08:49:52.658285+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-935
+    target_state: Merged
+    evidence_fingerprint: e48598f8331c88a99de6a4c3e779ec80dfdea0580af378fb27957acfc13c5277
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T08:50:01.610765+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -72,5 +82,17 @@ author: oompah
 created: 2026-08-09 08:49
 ---
 Delivered to protected main by merged PR #750 at b7e7d9509a4e6025b48c54336098acef2dda4986; complete hosted gates passed on Python 3.11/3.12/3.13. Live generation 246 proves the resolver against production legacy data: OOMPAH-476 through OOMPAH-480 now project terminal.immediate_target_landing_proven instead of landing_missing, stale generations were superseded, and current exhaustion fell from 128 to 104 while the recovery wave continues.
+---
+author: oompah
+created: 2026-08-09 08:50
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner direct delivery is on protected main at b7e7d950 after PR #750 and all hosted tests passed; live production reconciliation has proven immediate-parent landing for the OOMPAH-476 legacy cohort and is replacing stale generations.
+---
+author: oompah
+created: 2026-08-09 08:50
+---
+Merged in PR #750 at b7e7d950; hosted CI and live legacy landing proof passed.
 ---
 <!-- COMMENTS:END -->
