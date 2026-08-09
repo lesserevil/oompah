@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-936
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Suspend paused-project terminal audits consistently in health projections
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-09T07:23:37.669062Z'
-updated_at: '2026-08-09T07:23:37.669062Z'
+updated_at: '2026-08-09T07:23:55.759458Z'
 work_branch: null
 target_branch: null
 review_url: null
