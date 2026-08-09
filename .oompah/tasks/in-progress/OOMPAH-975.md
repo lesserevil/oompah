@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:42:44.436271Z'
-work_branch: null
+updated_at: '2026-08-09T21:43:40.541298Z'
+work_branch: OOMPAH-975
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-975
+  head_sha: 2fd04d272f03f9ea670243978878dd8e9c88ff2f
+  submitted_at: '2026-08-09T21:43:23.517825+00:00'
+  updated_at: '2026-08-09T21:43:23.517825+00:00'
+oompah.work_branch: OOMPAH-975
 ---
 ## Summary
 
@@ -47,5 +57,10 @@ author: oompah
 created: 2026-08-09 21:42
 ---
 Implementation complete on branch OOMPAH-975. The parent-rollup authority now carries a canonical exact composed landing SHA through revalidation, effect receipt, verification, transition intent, and terminal-audit binding; source/target/project/revision/durability remain fail-closed at the final mutation guard. Regression coverage includes all six live shapes (OOMPAH-787/-794/-797/-798/-889/-894), absent/stale/wrong/mutable landing rejection, actual TaskTransitionService staging, restart journal replay, audit coalescing, standalone no-head rejection, and owner-driven exhaustion retirement without automatic rearm. Focused workflow/transition/runtime gate: 630 passed; terminal mutation scan passed. Preparing exact-head commit/push for the configured full branch gate.
+---
+author: oompah
+created: 2026-08-09 21:43
+---
+Committed and pushed 2fd04d272 on OOMPAH-975. Trusted composed parent landing heads now remain exact through rollup revalidation/effect/verification/transition and bind the terminal audit; all authority fields are rechecked at final mutation. Added six-shape, fail-closed, actual transition, restart/replay, coalescing, runtime-guard, and standalone-head regressions. Focused relevant suites: 630 passed; task mutation scan passed. Existing owner-projection retirement remains responsible for superseding old exhausted generations without unsafe rearm.
 ---
 <!-- COMMENTS:END -->
