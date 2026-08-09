@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T14:42:26.208703Z'
+updated_at: '2026-08-09T14:42:33.528015Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.terminal_audit:
     evidence_fingerprint: cca0f60722c8c72ed4ad68084440108d7429500afdee93d32f9d1ea141ddae8e
     audit_ids:
     - audit-b8deaf092ff9
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-08-09T14:25:16.041466+00:00'
   oompah.terminal_audit_result_intents:
@@ -64,6 +64,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T14:25:16.041480+00:00'
     applied_at: '2026-08-09T14:25:22.904093+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-86de5b476c6d
@@ -87,7 +88,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T14:42:20.145908+00:00'
     selected_ref: dcda220c225eef11f4704f61cade067d609e2da9
     selected_sha: dcda220c225eef11f4704f61cade067d609e2da9
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -251,5 +252,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 24m 17s
 - Log: OOMPAH-942__20260809T140224Z.jsonl
+---
+author: oompah
+created: 2026-08-09 14:42
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Exact task head dcda220c225eef11f4704f61cade067d609e2da9 was independently reviewed, merged in PR #754 as 90452d6647d132a069dd5bdac4ac8077233aa52e, and authoritatively contained in the OOMPAH-940 combined tree that passed hosted Python 3.11/3.12/3.13. The failed historical audit recorded 18,892 passing tests and only the known nested quality-gate Python-path infrastructure failures already covered by OOMPAH-831/OOMPAH-862; no task-code failure.
 ---
 <!-- COMMENTS:END -->
