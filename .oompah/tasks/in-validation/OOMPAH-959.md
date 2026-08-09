@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T16:15:22.779021Z'
+updated_at: '2026-08-09T16:15:54.355342Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -41,6 +41,16 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-959
     digest: 9a998114f7815472d49fefa3db1706de6c4637bd39a4dc56911707d275fccf4e
+  - version: 1
+    audit_id: audit-aa7f0f8bfb5e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    digest: cb200a77409736d9c5bd729981e55649de1ceaafc6f2802d65e09a4796c1414d
+  - version: 1
+    audit_id: audit-b388d2365ecf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    digest: cb200a77409736d9c5bd729981e55649de1ceaafc6f2802d65e09a4796c1414d
   version: 1
   pending_chain:
   - version: 1
@@ -48,7 +58,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-959
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -68,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-959
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,6 +93,46 @@ oompah.terminal_audit:
     created_at: '2026-08-09T15:08:15.192012+00:00'
     selected_ref: 4bd555a74d78a1fb0324a3ed58bcd7c01d342b41
     selected_sha: 4bd555a74d78a1fb0324a3ed58bcd7c01d342b41
+  - version: 1
+    audit_id: audit-aa7f0f8bfb5e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cb200a77409736d9c5bd729981e55649de1ceaafc6f2802d65e09a4796c1414d
+    attempts: []
+    source_generation: 3
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T16:15:50.152457+00:00'
+    selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
+    selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
+  - version: 1
+    audit_id: audit-b388d2365ecf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cb200a77409736d9c5bd729981e55649de1ceaafc6f2802d65e09a4796c1414d
+    attempts: []
+    source_generation: 3
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T16:15:50.152457+00:00'
+    selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
+    selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
   attempt_history: []
 ---
 ## Summary
