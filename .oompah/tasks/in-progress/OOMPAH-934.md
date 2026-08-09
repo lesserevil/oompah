@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:26:17.775582Z'
-updated_at: '2026-08-09T06:27:35.337495Z'
+updated_at: '2026-08-09T06:33:53.073820Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-09 06:27
 ---
 Claimed directly after the repaired hosted workflow exposed 7-9 residual failures in every Python matrix job (run 31298491232). Root causes are test determinism defects, not product invariant failures: asynchronous broker release asserted synchronously; fixed sleeps before startup tick; class-level PR-detail cache contamination; PID file existence/content race; and 5-second pytest deadlines shorter than bounded subprocess contracts under four-way hosted contention. Implementing event/state synchronization, cache isolation, narrow timeout budgets, and two hosted xdist workers; no global timeout or product safety relaxation.
+---
+author: oompah
+created: 2026-08-09 06:33
+---
+Implemented deterministic synchronization and constrained-host execution: bounded broker-release waits; PID publication validation; cleanup + explicit budget for parallel native guards; per-test GitHub PR-detail cache isolation; event-driven startup tick synchronization; stable dispatch tracker mock rather than exhaustible side effects; narrow budgets for repository scan/multiprocess lease checks; hosted xdist reduced to two workers. Verification: 20/20 exact prior failures passed under two-worker loadgroup; all seven affected modules 1007 passed in 44.97s; diff check clean.
 ---
 <!-- COMMENTS:END -->
