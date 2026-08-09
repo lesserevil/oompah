@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-09T07:17:11.118218Z'
+updated_at: '2026-08-09T07:17:17.868746Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -135,6 +135,21 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-07T15:16:34.205326+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Merged
+    evidence_fingerprint: e0217179809dfdb570b685ac4b2b8fd0bfdd5c35331a2957b363d2d71087f42c
+    audit_ids:
+    - audit-2f8a02a3fbeb
+    - audit-f48fab3abffb
+    - audit-8e8577f8905a
+    - audit-9cce4c37ec04
+    - audit-d0d4c70ac281
+    - audit-54b1e92558a0
+    - audit-78c11c13e933
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T07:17:15.263612+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
@@ -148,6 +163,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:20:03.985071+00:00'
     applied_at: '2026-08-07T14:20:11.409370+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
     audit_id: audit-8e8577f8905a
@@ -160,6 +176,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T14:43:37.180326+00:00'
     applied_at: '2026-08-07T14:43:49.102805+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
     audit_id: audit-9cce4c37ec04
@@ -172,6 +189,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T15:03:23.785767+00:00'
     applied_at: '2026-08-07T15:03:33.236140+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-459
     audit_id: audit-d0d4c70ac281
@@ -184,6 +202,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T15:16:34.205350+00:00'
     applied_at: '2026-08-07T15:16:43.902585+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-c849894fba1f
@@ -203,7 +222,7 @@ oompah.terminal_audit:
       and no action-required prerequisite. Project-owner override bypasses the restart-replayed
       durable queue backlog without weakening the exact landing decision.
     created_at: '2026-08-09T07:17:07.206087+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -434,7 +453,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -449,12 +468,13 @@ oompah.terminal_audit:
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     source_generation: 1
+    updated_at: '2026-08-09T07:17:15.263558+00:00'
   - version: 1
     audit_id: audit-78c11c13e933
     project_id: proj-14849f1b
     task_id: OOMPAH-459
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -469,6 +489,7 @@ oompah.terminal_audit:
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     source_generation: 1
+    updated_at: '2026-08-09T07:17:15.263587+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3ae4bc120dca
@@ -949,5 +970,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: normal, Duration: 12m 10s
 - Log: OOMPAH-459__20260807T150508Z.jsonl
+---
+author: oompah
+created: 2026-08-09 07:17
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: The deployed all-enforce workflow projection at merged main d6b3018016bfa2036a010cce7ecec9ac13924a5a reports terminal.immediate_target_landing_proven with recommended_status=Merged and no action-required prerequisite. Project-owner override bypasses the restart-replayed durable queue backlog without weakening the exact landing decision.
 ---
 <!-- COMMENTS:END -->
