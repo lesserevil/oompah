@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-958
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Bridge durable integration workflow authority to exact queue leases
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T13:10:09.789528Z'
+updated_at: '2026-08-09T13:12:23.049582Z'
 work_branch: OOMPAH-958
 target_branch: null
 review_url: null
@@ -30,6 +30,37 @@ oompah.integration:
   submitted_at: '2026-08-09T13:09:54.446784+00:00'
   updated_at: '2026-08-09T13:09:54.446784+00:00'
 oompah.work_branch: OOMPAH-958
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-42e232e2c1de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-958
+    digest: f854211d29753504241eba273dd748323ab6a16e04c834bdb72f31c1614ad127
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-42e232e2c1de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-958
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f854211d29753504241eba273dd748323ab6a16e04c834bdb72f31c1614ad127
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-09T13:12:17.244771+00:00'
+    selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+    selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +88,15 @@ author: oompah
 created: 2026-08-09 13:10
 ---
 Bridge durable integration workflow jobs into the shared executor with explicit exact workflow authority, preserving unleased queue checkpoint semantics and the legacy queue-lease fence. Candidate quality-gate authority is bound to job generation, candidate head, and base; stale, expired, replaced, concurrent, timed-out, and restarted executions fail closed. 515 focused tests and independent no-blocker review passed.
+---
+author: oompah
+created: 2026-08-09 13:12
+---
+Worked around the exact integration bug this task fixes by fast-forwarding its independently reviewed exact head 44c2e40d0 into origin/epic-OOMPAH-940. The submitted task head is now an exact ancestor of its authoritative target.
+---
+author: oompah
+created: 2026-08-09 13:12
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
