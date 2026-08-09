@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T14:33:59.794924Z'
+updated_at: '2026-08-09T15:51:03.201283Z'
 work_branch: OOMPAH-956
 target_branch: null
 review_url: null
@@ -92,6 +92,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-956
     selected_ref: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
     selected_sha: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
+oompah.task_costs:
+  total_input_tokens: 46
+  total_output_tokens: 7
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 46
+      output_tokens: 7
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 46
+    output_tokens: 7
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T15:50:58.711396+00:00'
 ---
 ## Summary
 
@@ -139,5 +155,15 @@ author: oompah
 created: 2026-08-09 14:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 15:51
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 5, Tool calls: 2
+- Tokens: 46 in / 7 out [53 total]
+- Cost: $0.0000
+- Exit: scheduler_pause, Duration: 1h 17m 5s
+- Log: OOMPAH-956__20260809T143403Z.jsonl
 ---
 <!-- COMMENTS:END -->
