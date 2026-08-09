@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-09T03:11:25.306117Z'
-updated_at: '2026-08-09T03:11:54.812664Z'
+updated_at: '2026-08-09T03:11:59.558129Z'
 work_branch: null
 target_branch: null
 review_url: null
