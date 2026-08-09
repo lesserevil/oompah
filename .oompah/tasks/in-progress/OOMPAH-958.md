@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T12:47:27.872682Z'
+updated_at: '2026-08-09T12:56:18.962171Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by live durable workflow failures on OOMPAH-941, OOMPAH-943, OOMPAH-95
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 12:56
+---
+Root cause confirmed and regression-tested on the newly composed epic head. Durable workflow integration deliberately keeps IntegrationQueue rows ready+unleased while its heartbeat-fenced workflow job owns effect authority; the shared executor incorrectly required the legacy queue lease both before preparation and again during candidate canonicalization. Implemented an explicit workflow-authority path that preserves exact job generation, queue generation, tracker branch/head, interruption, candidate head/base, and quality-gate owner fencing while leaving the legacy owns_active_lease path unchanged. Rebased head 9a61587fb0f904da22e1aa46e4cef0b79091e87c; 353 focused workflow/integration/executor/recovery tests pass. Independent review pending before push/submission.
+---
+<!-- COMMENTS:END -->
