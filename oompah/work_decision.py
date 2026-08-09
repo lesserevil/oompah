@@ -1741,6 +1741,8 @@ def _terminal_provenance_decision(
     if raw is None:
         return None
 
+    schema_version = raw.get("schema_version")
+    marker_version = raw.get("marker_version")
     generation = raw.get("authority_generation")
     raw_malformed = raw.get("malformed")
     raw_retained = raw.get("retained")
@@ -1748,8 +1750,12 @@ def _terminal_provenance_decision(
     structurally_valid = bool(
         isinstance(raw_retained, bool)
         and isinstance(raw_malformed, bool)
-        and raw.get("schema_version") == 1
-        and raw.get("marker_version") == 1
+        and isinstance(schema_version, int)
+        and not isinstance(schema_version, bool)
+        and schema_version == 1
+        and isinstance(marker_version, int)
+        and not isinstance(marker_version, bool)
+        and marker_version == 1
         and raw.get("project_id") == facts.project_id
         and raw.get("task_id") == facts.task_id
         and isinstance(generation, int)

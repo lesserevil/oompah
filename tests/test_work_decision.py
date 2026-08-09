@@ -797,6 +797,8 @@ def test_done_retained_as_terminal_provenance_requires_no_landing_effect():
         {"retained": "false"},
         {"malformed": "true"},
         {"retained": None},
+        {"schema_version": True},
+        {"marker_version": True},
     ],
 )
 def test_invalid_terminal_provenance_never_becomes_delivery_proof(overrides):
