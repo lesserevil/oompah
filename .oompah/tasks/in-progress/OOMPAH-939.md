@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T09:03:45.623921Z'
+updated_at: '2026-08-09T09:19:15.496591Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-09 09:19
+---
+Published reviewed head b1fc26aa on PR #751. The continuation path now preserves durable cross-project fairness with an explicit runnable-project allowlist; the production dispatch-loop test proves an exact-cap batch posts and consumes one coalesced refresh without waiting for the 5-minute full sync. Focused/adjacent result: 221 passed; targeted undefined-name lint passed. Independent re-review approved; hosted 3.11/3.12/3.13 gates are running with auto-merge enabled.
 ---
 <!-- COMMENTS:END -->
