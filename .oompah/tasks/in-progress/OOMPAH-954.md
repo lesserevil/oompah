@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T11:40:16.039162Z'
+updated_at: '2026-08-09T11:51:14.854273Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-09 11:40
 ---
 Canonical epic facts now drive universal controller, shadow, UI, and epic scheduling decisions; OOMPAH-748 production replay and focused fail-closed suites pass at pushed head 9062f6427.
+---
+author: oompah
+created: 2026-08-09 11:51
+---
+Independent review found and the branch now fixes a second production path at dccbeb5acbd3b17ee71ec2950e6583e824b2fdf3: WorkflowRuntime enforce-mode liveness now reuses epic_batch facts with the other owning-domain fact cuts. The new OOMPAH-748 runtime regression first proves the generic collector yields containment_malformed and an exhausted generic epic_terminal_validation row, then runs reconcile_async and proves the epic owner, runtime projection, and published decision all remain terminal.immediate_target_landing_proven while the stale exhausted row remains immutable. Focused runtime/incident/epic/decision/cache suite: 227 passed. No restart.
 ---
 <!-- COMMENTS:END -->
