@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:46:53.940359Z'
-work_branch: null
+updated_at: '2026-08-09T19:47:01.447999Z'
+work_branch: OOMPAH-970
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,7 @@ oompah.integration:
   head_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
   submitted_at: '2026-08-09T19:46:50.424122+00:00'
   updated_at: '2026-08-09T19:46:50.424122+00:00'
+oompah.work_branch: OOMPAH-970
 ---
 ## Summary
 
@@ -49,5 +50,10 @@ author: oompah
 created: 2026-08-09 19:46
 ---
 Final rebased head 23a28b1f02319faff905d2733ef290c26d7cb097 is pushed on merged OOMPAH-968 main. Stable patch-id is unchanged from independently reviewed head 13dffed48. Post-rebase validation: full workflow-runtime module 101 passed; Ruff error rules and diff checks pass.
+---
+author: oompah
+created: 2026-08-09 19:47
+---
+Replace the loaded-CI lease-heartbeat sleep race with deterministic exact-token renewal barriers. Final head 23a28b1f02319faff905d2733ef290c26d7cb097; 20/20 repeated regression runs, 101 post-rebase runtime tests, and independent review are green.
 ---
 <!-- COMMENTS:END -->
