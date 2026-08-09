@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T16:16:11.522562Z'
+updated_at: '2026-08-09T16:16:21.713855Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
