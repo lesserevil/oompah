@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-933
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Make protected-main CI reproduce the supported quality gate
 parent: null
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:09:37.822614Z'
-updated_at: '2026-08-09T06:59:05.084640Z'
+updated_at: '2026-08-09T06:59:30.207426Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c3d08001f353
+    project_id: proj-14849f1b
+    task_id: OOMPAH-933
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94ecad58d4b6319c05822dd305eb6602a11c510c10d319c08ae3b4f000919ed0
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #749 squash-integrated the OOMPAH-933 hosted-CI contract
+      into main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. All required hosted Python
+      3.11/3.12/3.13 checks and the exact complete Makefile gate passed. Owner terminalization
+      is required because delivery used the shared epic branch.'
+    created_at: '2026-08-09T06:59:26.021950+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
