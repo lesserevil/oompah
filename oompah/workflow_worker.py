@@ -760,11 +760,39 @@ class DurableWorkflowWorker:
                     },
                 )
 
+            completion_landing_facts: tuple[Mapping[str, Any], ...] = ()
+            completion_evidence = getattr(
+                handler, "completion_landing_facts", None
+            )
+            if callable(completion_evidence):
+                published = completion_evidence(context, verification)
+                if inspect.isawaitable(published):
+                    published = await self._bounded(
+                        "build_completion_evidence", published
+                    )
+                if isinstance(published, (str, bytes)) or not isinstance(
+                    published, Sequence
+                ):
+                    raise WorkflowActionError(
+                        "handler returned invalid completion landing facts",
+                        category=WorkflowFailureCategory.PERMANENT,
+                        retryable=False,
+                    )
+                if any(not isinstance(item, Mapping) for item in published):
+                    raise WorkflowActionError(
+                        "handler returned invalid completion landing fact",
+                        category=WorkflowFailureCategory.PERMANENT,
+                        retryable=False,
+                    )
+                completion_landing_facts = tuple(published)
+                context.check_interrupted()
+
             completed = await asyncio.to_thread(
                 self.store.complete,
                 context.job.job_id,
                 context.job.lease_token,
                 result_transition=transition.to_dict() if transition else None,
+                landing_facts=completion_landing_facts,
             )
             await self._notify("completed", completed)
             return WorkflowRunResult(

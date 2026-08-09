@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from oompah.workflow_fact_model import LandingFact, LandingState
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     MAX_SCAN_LIMIT,
@@ -1449,6 +1450,79 @@ def test_complete_persists_result_and_fences_late_worker(store):
     assert completed.lease_token is None
     with pytest.raises(WorkflowJobLeaseLost):
         store.complete(running.job_id, running.lease_token)
+
+
+def _durable_landing_fact(*, revision: str = "a" * 40) -> LandingFact:
+    return LandingFact(
+        "TASK-A",
+        "main",
+        revision,
+        {
+            "kind": "git_ancestry",
+            "source_sha": revision,
+            "target_sha": "b" * 40,
+        },
+        "2026-08-09T09:00:00+00:00",
+        "project-a",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+
+def test_complete_atomically_persists_idempotent_landing_fact(store):
+    store.enqueue(spec(action="integration_landing_refresh", task="TASK-A"))
+    running = claim(store)
+    fact = _durable_landing_fact()
+    reobserved = fact.to_dict()
+    reobserved["observed_at"] = "2026-08-09T09:01:00+00:00"
+
+    completed = store.complete(
+        running.job_id,
+        running.lease_token,
+        landing_facts=(fact.to_dict(), reobserved),
+    )
+
+    assert completed.state is WorkflowJobState.COMPLETED
+    assert store.landing_facts(project_id="project-a", task_id="TASK-A") == (
+        fact.to_dict(),
+    )
+    event = store.events(running.job_id)[-1]
+    assert event.payload["landing_facts"] == 2
+    assert event.payload["landing_facts_inserted"] == 1
+
+
+def test_complete_fences_landing_fact_with_stale_lease(store, clock):
+    store.enqueue(spec(action="integration_landing_refresh", task="TASK-A"))
+    stale = claim(store)
+    clock.advance(31)
+    current = claim(store)
+
+    with pytest.raises(WorkflowJobLeaseLost):
+        store.complete(
+            stale.job_id,
+            stale.lease_token,
+            landing_facts=(_durable_landing_fact().to_dict(),),
+        )
+
+    assert store.landing_facts(project_id="project-a", task_id="TASK-A") == ()
+    assert store.get(current.job_id).state is WorkflowJobState.RUNNING
+
+
+def test_complete_rejects_stale_landing_evidence_revision_atomically(store):
+    store.enqueue(spec(action="integration_landing_refresh", task="TASK-A"))
+    running = claim(store)
+    stale = _durable_landing_fact().to_dict()
+    stale["revision"] = "c" * 40
+
+    with pytest.raises(WorkflowJobStoreError, match="evidence revision"):
+        store.complete(
+            running.job_id,
+            running.lease_token,
+            landing_facts=(stale,),
+        )
+
+    assert store.landing_facts(project_id="project-a", task_id="TASK-A") == ()
+    assert store.get(running.job_id).state is WorkflowJobState.RUNNING
 
 
 def test_fail_schedules_retry_then_claims_only_when_due(store, clock):

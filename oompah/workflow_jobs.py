@@ -23,6 +23,8 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any
 
+from oompah.workflow_fact_model import LandingFact
+
 try:  # pragma: no cover - the service runtime is POSIX-only today
     import fcntl
 except ImportError:  # pragma: no cover
@@ -1277,41 +1279,126 @@ class WorkflowJobStore:
         project = _required_text(project_id, "project_id")
         task = _required_text(task_id, "task_id")
         timestamp = float(self._clock() if now is None else now)
-        rows: list[tuple[str, str, str, str]] = []
-        for raw in facts:
-            value = _json_object(raw, "landing_fact")
-            if value is None:
-                raise ValueError("landing_fact must be a mapping")
-            if str(value.get("project_id") or "") != project:
-                raise WorkflowJobStoreError("landing fact escaped project scope")
-            source = _required_text(value.get("source"), "landing source")
-            target = _required_text(value.get("target"), "landing target")
-            revision = _required_text(
-                value.get("evidence_revision"), "landing evidence_revision"
-            )
-            rows.append((source, target, revision, _canonical_json(value)))
+        rows = self._landing_fact_rows(
+            project_id=project,
+            facts=facts,
+            require_durable=False,
+        )
         if not rows:
             return 0
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                inserted = 0
-                for source, target, revision, encoded in rows:
-                    cursor = self._conn.execute(
-                        """
-                        INSERT OR IGNORE INTO workflow_landing_facts(
-                            project_id, task_id, source, target,
-                            evidence_revision, fact_json, recorded_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (project, task, source, target, revision, encoded, timestamp),
-                    )
-                    inserted += int(cursor.rowcount == 1)
+                inserted = self._insert_landing_fact_rows_locked(
+                    project_id=project,
+                    task_id=task,
+                    rows=rows,
+                    recorded_at=timestamp,
+                )
                 self._conn.commit()
                 return inserted
             except Exception:
                 self._conn.rollback()
                 raise
+
+    @staticmethod
+    def _landing_fact_rows(
+        *,
+        project_id: str,
+        facts: Sequence[Mapping[str, Any]],
+        require_durable: bool,
+    ) -> tuple[tuple[str, str, str, str], ...]:
+        """Validate immutable fact content before entering a write transaction."""
+
+        rows: list[tuple[str, str, str, str]] = []
+        for raw in facts:
+            value = _json_object(raw, "landing_fact")
+            if value is None:
+                raise ValueError("landing_fact must be a mapping")
+            try:
+                fact = LandingFact.from_dict(value)
+            except (TypeError, ValueError) as exc:
+                raise WorkflowJobStoreError(
+                    "landing fact schema or evidence revision is invalid"
+                ) from exc
+            if fact.project_id != project_id:
+                raise WorkflowJobStoreError("landing fact escaped project scope")
+            if require_durable and not fact.durable:
+                raise WorkflowJobStoreError(
+                    "job completion can publish only durable landing proof"
+                )
+            rows.append(
+                (
+                    fact.source,
+                    fact.target,
+                    str(fact.evidence_revision),
+                    _canonical_json(fact.to_dict()),
+                )
+            )
+        return tuple(rows)
+
+    def _insert_landing_fact_rows_locked(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        rows: Sequence[tuple[str, str, str, str]],
+        recorded_at: float,
+    ) -> int:
+        """Insert validated facts inside the caller's authority transaction."""
+
+        inserted = 0
+        for source, target, revision, encoded in rows:
+            cursor = self._conn.execute(
+                """
+                INSERT OR IGNORE INTO workflow_landing_facts(
+                    project_id, task_id, source, target,
+                    evidence_revision, fact_json, recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    project_id,
+                    task_id,
+                    source,
+                    target,
+                    revision,
+                    encoded,
+                    recorded_at,
+                ),
+            )
+            if cursor.rowcount == 1:
+                inserted += 1
+                continue
+            existing = self._conn.execute(
+                """
+                SELECT fact_json FROM workflow_landing_facts
+                 WHERE project_id = ? AND task_id = ? AND source = ?
+                   AND target = ? AND evidence_revision = ?
+                """,
+                (project_id, task_id, source, target, revision),
+            ).fetchone()
+            if existing is None:
+                raise WorkflowJobCorruptionError(
+                    "landing fact identity conflicts with stored content"
+                )
+            try:
+                existing_value = json.loads(str(existing["fact_json"]))
+                incoming_value = json.loads(encoded)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise WorkflowJobCorruptionError(
+                    "landing fact identity conflicts with stored content"
+                ) from exc
+            # ``observed_at`` deliberately does not contribute to the
+            # content-addressed evidence revision.  A fresh observation of
+            # the same immutable proof is an idempotent replay, not ledger
+            # corruption; every other field must remain byte-for-byte equal.
+            existing_value.pop("observed_at", None)
+            incoming_value.pop("observed_at", None)
+            if existing_value != incoming_value:
+                raise WorkflowJobCorruptionError(
+                    "landing fact identity conflicts with stored content"
+                )
+        return inserted
 
     def landing_facts(
         self,
@@ -4807,14 +4894,28 @@ class WorkflowJobStore:
         lease_token: str,
         *,
         result_transition: Mapping[str, Any] | None = None,
+        landing_facts: Sequence[Mapping[str, Any]] = (),
         now: float | None = None,
     ) -> WorkflowJob:
         result = _json_object(result_transition, "result_transition")
+        if isinstance(landing_facts, (str, bytes)):
+            raise TypeError("landing_facts must be a sequence")
         with self._authority_mutation_guard():
             timestamp = float(self._clock() if now is None else now)
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                self._owned_row_locked(job_id, lease_token, now=timestamp)
+                owned = self._owned_row_locked(job_id, lease_token, now=timestamp)
+                landing_rows = self._landing_fact_rows(
+                    project_id=str(owned["project_id"]),
+                    facts=landing_facts,
+                    require_durable=True,
+                )
+                inserted_landing_facts = self._insert_landing_fact_rows_locked(
+                    project_id=str(owned["project_id"]),
+                    task_id=str(owned["task_id"]),
+                    rows=landing_rows,
+                    recorded_at=timestamp,
+                )
                 self._conn.execute(
                     """
                     UPDATE workflow_jobs
@@ -4832,12 +4933,20 @@ class WorkflowJobStore:
                     ),
                 )
                 row = self._row_locked(job_id)
+                completion_payload: dict[str, Any] = {}
+                if result is not None:
+                    completion_payload["result_transition"] = result
+                if landing_rows:
+                    completion_payload.update(
+                        {
+                            "landing_facts": len(landing_rows),
+                            "landing_facts_inserted": inserted_landing_facts,
+                        }
+                    )
                 self._append_event_locked(
                     row,
                     "completed",
-                    payload={"result_transition": result}
-                    if result is not None
-                    else None,
+                    payload=completion_payload or None,
                     now=timestamp,
                 )
                 self._conn.commit()

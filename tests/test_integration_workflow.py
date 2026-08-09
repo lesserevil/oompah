@@ -41,6 +41,7 @@ from oompah.workflow_jobs import (
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
+    WorkflowJobStoreError,
 )
 from oompah.work_decision import evaluate_task
 from oompah.workflow_worker import (
@@ -3475,6 +3476,248 @@ def test_unproven_integrated_record_is_informational_and_retry_scheduled(tmp_pat
     assert decision.durable_jobs == ("integration_landing_refresh",)
     assert scheduled.jobs_created == 1
     store.close()
+
+
+def landing_refresh_fact(
+    *,
+    proof_kind: str = "git_ancestry",
+    revision: str = "a" * 40,
+) -> LandingFact:
+    proof = {
+        "kind": proof_kind,
+        "source_sha": revision,
+        "target_sha": "b" * 40,
+    }
+    if proof_kind == "patch_id":
+        proof["patches"] = 1
+    return LandingFact(
+        "TASK-A",
+        "main",
+        revision,
+        proof,
+        "2026-08-09T09:00:00+00:00",
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+
+class LandingRefreshActionBackend:
+    def __init__(self, fact, *, task_head=None):
+        self.fact = fact
+        self.task_head = task_head or fact.revision
+        self.apply_calls = 0
+        self.verify_calls = 0
+
+    @staticmethod
+    def _receipt(action, context):
+        return {
+            "action": action,
+            "project_id": context.job.project_id,
+            "task_id": context.job.task_id,
+            "job_generation": context.job.generation,
+        }
+
+    def revalidate_action(self, action, context):
+        return RevalidationResult(
+            context.job.generation,
+            evidence_revision=context.job.expected_evidence_revision,
+            details={
+                "task_head": self.task_head,
+                "landing_source": self.fact.source,
+                "landing_target": self.fact.target,
+                "landing_revision": self.task_head,
+            },
+        )
+
+    def observe_action(self, action, context):
+        return EffectObservation(False, self._receipt(action, context))
+
+    def apply_action(self, action, context):
+        self.apply_calls += 1
+        return EffectResult(
+            {**self._receipt(action, context), "landing": self.fact.to_dict()}
+        )
+
+    def verify_action(self, action, context, effect):
+        self.verify_calls += 1
+        return VerificationResult(True, dict(effect.receipt))
+
+    def build_action_transition(self, action, context, verification):
+        return None
+
+
+def landing_refresh_worker(store, backend, *, retry_delay_seconds=0):
+    return DurableWorkflowWorker(
+        store=store,
+        handlers={
+            "integration_landing_refresh": IntegrationActionHandler(
+                "integration_landing_refresh",
+                backend,
+                domain=WorkflowActionDomain.GIT,
+            )
+        },
+        transition_services={},
+        worker_id="landing-refresh",
+        lease_seconds=30,
+        heartbeat_seconds=10,
+        retry_delay_seconds=retry_delay_seconds,
+    )
+
+
+def enqueue_landing_refresh(store):
+    return store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-A",
+            generation="generation-1",
+            action="integration_landing_refresh",
+            idempotency_key="TASK-A:landing-refresh",
+            expected_evidence_revision="facts-1",
+            max_attempts=3,
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_landing_fact_persistence_failure_retries_then_replays(
+    tmp_path,
+    monkeypatch,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    enqueue_landing_refresh(store)
+    fact = landing_refresh_fact()
+    backend = LandingRefreshActionBackend(fact)
+    worker = landing_refresh_worker(store, backend)
+    original_insert = store._insert_landing_fact_rows_locked
+    attempts = 0
+
+    def fail_once(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise WorkflowJobStoreError("injected landing persistence failure")
+        return original_insert(**kwargs)
+
+    monkeypatch.setattr(store, "_insert_landing_fact_rows_locked", fail_once)
+
+    first = await worker.run_once()
+    second = await worker.run_once()
+
+    assert first.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert second.disposition is WorkflowRunDisposition.COMPLETED
+    assert backend.apply_calls == 1
+    assert backend.verify_calls == 1
+    assert store.landing_facts(project_id="project-1", task_id="TASK-A") == (
+        fact.to_dict(),
+    )
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_landing_completion_rejects_stale_source_revision(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    enqueue_landing_refresh(store)
+    fact = landing_refresh_fact(revision="b" * 40)
+    backend = LandingRefreshActionBackend(fact, task_head="a" * 40)
+
+    result = await landing_refresh_worker(store, backend).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert store.landing_facts(project_id="project-1", task_id="TASK-A") == ()
+    assert store.list_jobs()[0].state is WorkflowJobState.RETRY_WAIT
+    store.close()
+
+
+class PriorOnlyLandingCollector:
+    project_id = "project-1"
+
+    def collect_many(self, requests):
+        return tuple(
+            request.prior
+            if request.prior is not None
+            else LandingFact(
+                request.source,
+                request.target,
+                request.revision,
+                {"kind": "source_unavailable"},
+                "2026-08-09T09:01:00+00:00",
+                "project-1",
+                state=LandingState.UNKNOWN,
+                error_code="source_unavailable",
+            )
+            for request in requests
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("proof_kind", ("git_ancestry", "patch_id"))
+async def test_verified_landing_fact_replays_after_restart_and_suppresses_refresh(
+    tmp_path,
+    proof_kind,
+):
+    path = str(tmp_path / "jobs.sqlite3")
+    now = [1000.0]
+    first = WorkflowJobStore(path, clock=lambda: now[0])
+    job = enqueue_landing_refresh(first)
+    running = first.claim_next(lease_owner="crashed-worker", lease_seconds=30)
+    assert running is not None and running.job_id == job.job_id
+    fact = landing_refresh_fact(proof_kind=proof_kind)
+    receipt = {
+        "action": "integration_landing_refresh",
+        "project_id": "project-1",
+        "task_id": "TASK-A",
+        "job_generation": "generation-1",
+        "landing": fact.to_dict(),
+    }
+    first.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase="effect_verified",
+        checkpoint={
+            "revalidation": {
+                "generation": "generation-1",
+                "evidence_revision": "facts-1",
+                "head_sha": None,
+                "details": {"task_head": fact.revision},
+            },
+            "effect": receipt,
+            "verification": receipt,
+        },
+    )
+    first.close()
+
+    now[0] += 31
+    reopened = WorkflowJobStore(path, clock=lambda: now[0])
+    backend = LandingRefreshActionBackend(fact)
+    completed = await landing_refresh_worker(reopened, backend).run_once()
+
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert backend.apply_calls == 0
+    assert backend.verify_calls == 0
+    assert reopened.landing_facts(
+        project_id="project-1", task_id="TASK-A"
+    ) == (fact.to_dict(),)
+
+    task = issue("TASK-A", state="integrated", head=fact.revision)
+    task.integration = replace(task.integration, integrated_sha=fact.revision)
+    tracker = Tracker([task])
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, PriorOnlyLandingCollector()),
+        store=reopened,
+    )
+
+    batch, _scheduled = controller.reconcile([task])
+    decision = batch.tasks[0].decision
+
+    assert decision.reason_code == "integration.landing_proven"
+    assert decision.durable_jobs == ("integration_terminal_stage",)
+    landing_refreshes = reopened.list_jobs(
+        task_id="TASK-A", actions=("integration_landing_refresh",)
+    )
+    assert len(landing_refreshes) == 1
+    assert landing_refreshes[0].state is WorkflowJobState.COMPLETED
+    reopened.close()
 
 
 class ResultBackend:
