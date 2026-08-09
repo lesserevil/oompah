@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-968
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Fence absent-to-retained provenance changes during workflow publication
 parent: OOMPAH-940
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:45:58.521961Z'
+updated_at: '2026-08-09T19:52:35.388281Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -44,6 +44,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-968
     digest: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d83112702b86
+    project_id: proj-14849f1b
+    task_id: OOMPAH-968
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T19:52:30.878415+00:00'
+    selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+    selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+    applied: false
   version: 1
   pending_chain:
   - version: 1
