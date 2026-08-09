@@ -1737,9 +1737,31 @@ def _terminal_provenance_decision(
         if observation.state is FactState.KNOWN
         else None
     )
-    raw = _mapping(value.get("terminal_provenance")) if value is not None else None
-    if raw is None:
+    if value is None or "terminal_provenance" not in value:
         return None
+
+    def invalid(error_code: str) -> WorkDecision:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="terminal.provenance_invalid",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "terminal.provenance_invalid",
+                    task.task_id,
+                    error_code,
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
+            reassess=False,
+        )
+
+    raw = _mapping(value["terminal_provenance"])
+    if raw is None:
+        return invalid("identity_or_authority_mismatch")
 
     schema_version = raw.get("schema_version")
     marker_version = raw.get("marker_version")
@@ -1771,22 +1793,8 @@ def _terminal_provenance_decision(
         and str(raw.get("updated_at") or "").strip()
     )
     if malformed or not structurally_valid:
-        return _decision(
-            task,
-            facts,
-            disposition=TaskDisposition.ACTION_REQUIRED,
-            reason_code="terminal.provenance_invalid",
-            owner=WorkflowOwner.OPERATOR,
-            prerequisites=(
-                UnmetPrerequisite(
-                    "terminal.provenance_invalid",
-                    task.task_id,
-                    "malformed" if malformed else "identity_or_authority_mismatch",
-                ),
-            ),
-            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
-            alert=AlertSeverity.WARNING,
-            reassess=False,
+        return invalid(
+            "malformed" if malformed else "identity_or_authority_mismatch"
         )
     if not raw_retained:
         return None
