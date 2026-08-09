@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-923
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''TRICKLE-126:
   In Progress was not applied (rejected: transition.generation_required)'')'
@@ -12,13 +12,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:51:21.989830Z'
-updated_at: '2026-08-08T17:18:14.904308Z'
+updated_at: '2026-08-09T05:12:37.260015Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-167bdcba84f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-923
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7bd129f8a4d1a2b614e6d1bf7a9008539b374e4b70e2169d29182cba2cdf213f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:12:33.223840+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -75,5 +97,10 @@ author: oompah
 created: 2026-08-08 17:18
 ---
 Review hardening amended the fix to 7a4a5a3c0f912e24a00a55346af39ce7ca99213a (superseding 8a0b6948a). Expected policy REJECTED outcomes are now explicitly allowlisted for INFO/409; ambiguous terminal-stage and future operational rejections remain ERROR/500 so error_watcher still catches genuine backend failures. Focused suite: 28 passed; safety scans passed. Restarting the exact full gate on this head.
+---
+author: oompah
+created: 2026-08-09 05:12
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
