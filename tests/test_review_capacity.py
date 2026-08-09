@@ -4,29 +4,33 @@ from __future__ import annotations
 
 import multiprocessing
 import sqlite3
+import time
 
 import pytest
 
 from oompah.review_capacity import ReviewCapacityStore
 
 
-class _BarrierReviewCapacityStore(ReviewCapacityStore):
+class _CoordinatedReviewCapacityStore(ReviewCapacityStore):
     """Hold spawned contenders at the exact migration boundary."""
 
-    def __init__(self, path, migration_barrier):
-        self._migration_barrier = migration_barrier
+    def __init__(self, path, ready, release):
+        self._migration_ready = ready
+        self._migration_release = release
         super().__init__(path)
 
     def _migrate_schema(self):
-        self._migration_barrier.wait(timeout=10)
+        self._migration_ready.set()
+        if not self._migration_release.wait(timeout=60):
+            raise TimeoutError("parent did not release coordinated schema migration")
         super()._migrate_schema()
 
 
-def _open_capacity_store_concurrently(path, migration_barrier, results):
+def _open_capacity_store_concurrently(path, ready, release, results):
     """Open one store after every migration contender is ready."""
 
     try:
-        store = _BarrierReviewCapacityStore(path, migration_barrier)
+        store = _CoordinatedReviewCapacityStore(path, ready, release)
         columns = {
             row[1]
             for row in store._conn.execute(  # noqa: SLF001 - migration assertion
@@ -37,6 +41,26 @@ def _open_capacity_store_concurrently(path, migration_barrier, results):
         results.put(("ok", columns))
     except BaseException as exc:  # pragma: no cover - reported in parent
         results.put(("error", f"{type(exc).__name__}: {exc}"))
+
+
+def _wait_for_migration_contender(process, ready, results, *, deadline, label):
+    """Observe one spawned contender without hiding an early child exit."""
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AssertionError(f"{label} did not reach the migration boundary")
+        if ready.wait(timeout=min(remaining, 0.1)):
+            return
+        if process.exitcode is not None:
+            try:
+                outcome = results.get(timeout=1)
+            except Exception as exc:  # pragma: no cover - assertion detail
+                outcome = f"result unavailable: {type(exc).__name__}: {exc}"
+            raise AssertionError(
+                f"{label} exited with {process.exitcode} before migration readiness: "
+                f"{outcome}"
+            )
 
 
 def _acquire(store: ReviewCapacityStore, *, project: str, task: str, rid: str):
@@ -250,7 +274,7 @@ def test_schema_one_database_migrates_exact_authority_columns(tmp_path):
     assert version == "2"
 
 
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(90)
 def test_schema_one_concurrent_process_initialization_is_serialized(tmp_path):
     path = tmp_path / "review-capacity.sqlite3"
     connection = sqlite3.connect(path)
@@ -275,36 +299,53 @@ def test_schema_one_concurrent_process_initialization_is_serialized(tmp_path):
     connection.close()
 
     context = multiprocessing.get_context("spawn")
-    # Two children plus the parent rendezvous after each spawned interpreter
-    # has completed imports/schema setup and immediately before BEGIN
-    # IMMEDIATE.  Neither contender can finish migration before the other is
-    # actually ready to contend.
-    migration_barrier = context.Barrier(3)
-    results = context.Queue()
+    # Each child explicitly publishes readiness immediately before BEGIN
+    # IMMEDIATE, then waits for one parent-controlled release.  This preserves
+    # simultaneous contention without requiring every spawned interpreter to
+    # finish imports inside a fragile Barrier timeout under a saturated gate.
+    ready_events = [context.Event() for _ in range(2)]
+    migration_release = context.Event()
+    result_queues = [context.Queue() for _ in range(2)]
     processes = [
         context.Process(
             target=_open_capacity_store_concurrently,
-            args=(str(path), migration_barrier, results),
+            args=(str(path), ready, migration_release, results),
         )
-        for _ in range(2)
+        for ready, results in zip(ready_events, result_queues)
     ]
     observed = []
     try:
         for process in processes:
             process.start()
-        migration_barrier.wait(timeout=15)
-        observed = [results.get(timeout=15) for _ in processes]
+        deadline = time.monotonic() + 60
+        for index, (process, ready, results) in enumerate(
+            zip(processes, ready_events, result_queues)
+        ):
+            _wait_for_migration_contender(
+                process,
+                ready,
+                results,
+                deadline=deadline,
+                label=f"migration contender {index}",
+            )
+        migration_release.set()
+        observed = [
+            results.get(timeout=max(deadline - time.monotonic(), 0.1))
+            for results in result_queues
+        ]
         for process in processes:
-            process.join(timeout=15)
+            process.join(timeout=max(deadline - time.monotonic(), 0.1))
             assert process.exitcode == 0
     finally:
+        migration_release.set()
         for process in processes:
             if process.is_alive():
                 process.terminate()
         for process in processes:
             process.join(timeout=5)
-        results.close()
-        results.join_thread()
+        for results in result_queues:
+            results.close()
+            results.join_thread()
 
     assert [status for status, _payload in observed] == ["ok", "ok"]
     for _status, columns in observed:
