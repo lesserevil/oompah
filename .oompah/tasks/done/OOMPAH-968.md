@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:52:35.388281Z'
+updated_at: '2026-08-09T19:52:53.298158Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -62,7 +62,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:52:30.878415+00:00'
     selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
     selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-968
+    target_state: Done
+    evidence_fingerprint: b39b867a8aede1bf98c7147263bcf00a2ae04dad470d1486db452a3caf4c13a5
+    audit_ids:
+    - audit-283cac3bcd42
+    - audit-7c38826b083b
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T19:52:43.358947+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -70,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-968
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,13 +112,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:45:36.044266+00:00'
     selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
     selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
-    updated_at: '2026-08-09T19:45:50.621302+00:00'
+    updated_at: '2026-08-09T19:52:43.358905+00:00'
   - version: 1
     audit_id: audit-7c38826b083b
     project_id: proj-14849f1b
     task_id: OOMPAH-968
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -121,6 +133,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:45:36.044266+00:00'
     selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
     selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+    updated_at: '2026-08-09T19:52:43.358932+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1965bac73fae
@@ -137,6 +150,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-968
     selected_ref: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
     selected_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+oompah.task_costs:
+  total_input_tokens: 96
+  total_output_tokens: 11
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 96
+      output_tokens: 11
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 96
+    output_tokens: 11
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T19:52:46.529019+00:00'
 ---
 ## Summary
 
@@ -209,5 +238,27 @@ author: oompah
 created: 2026-08-09 19:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 19:52
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-09 19:52
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 5
+- Tokens: 96 in / 11 out [107 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 53s
+- Log: OOMPAH-968__20260809T194603Z.jsonl
+---
+author: oompah
+created: 2026-08-09 19:52
+---
+Absent-to-retained provenance publication fencing is integrated on main via PR #776; the exact protected matrix, focused tests, and independent reviews passed. Detached-auditor harness repair is tracked separately in OOMPAH-971.
 ---
 <!-- COMMENTS:END -->

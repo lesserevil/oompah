@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:49:43.095048Z'
+updated_at: '2026-08-09T19:52:39.503629Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -55,5 +55,24 @@ author: oompah
 created: 2026-08-09 19:47
 ---
 Replace the loaded-CI lease-heartbeat sleep race with deterministic exact-token renewal barriers. Final head 23a28b1f02319faff905d2733ef290c26d7cb097; 20/20 repeated regression runs, 101 post-rebase runtime tests, and independent review are green.
+---
+author: oompah
+created: 2026-08-09 19:52
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-970`
+Target: `main`
+Head: `23a28b1f02319faff905d2733ef290c26d7cb097`
+Command: `make test`
+Result: `infrastructure_error`
+Process: ended without subprocess exit evidence
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-7tvpz6ed/run/workspace; actual /home/shedwards/src/oompah-967. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
