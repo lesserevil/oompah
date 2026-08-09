@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: Done
+status: Open
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:13:09.427712Z'
+updated_at: '2026-08-09T22:19:14.141357Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -97,6 +97,28 @@ oompah.terminal_audit:
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain the deployed 9ea2d4d07 terminal audit as historical provenance
+      while authorizing a new revision for the reproduced post-scan lifecycle deadlock.
+    marked_at: '2026-08-09T22:19:05.593435+00:00'
+    updated_at: '2026-08-09T22:19:05.593435+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain the deployed 9ea2d4d07 terminal audit as historical provenance
+        while authorizing a new revision for the reproduced post-scan lifecycle deadlock.
+      recorded_at: '2026-08-09T22:19:05.593435+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
