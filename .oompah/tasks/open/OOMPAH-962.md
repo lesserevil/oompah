@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T14:35:45.467018Z'
+updated_at: '2026-08-09T14:42:16.499419Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Fix durable workflow recovery when a synchronous control-effect adapter exceeds 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 14:42
+---
+Direct-owner implementation started in isolated worktree /home/shedwards/src/oompah-962 on branch OOMPAH-962. I am reproducing the authority_revocation timeout/quarantined NULL-lease deadlock and implementing fenced late-completion recovery while preserving never-overlap safety; no service mutation or deployment.
+---
+<!-- COMMENTS:END -->
