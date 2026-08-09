@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T02:47:20.781959Z'
-updated_at: '2026-08-09T02:47:20.781959Z'
+updated_at: '2026-08-09T02:47:36.568267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live all-enforce rollout of candidate 33f85955b exposed an indefinite liveness d
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 02:47
+---
+Live reproduction confirmed at workflow generations 39 and 40: required_recovery_count=132, materialized_recovery_count=130, with OOMPAH-869 and OOMPAH-899 repeatedly replaying terminal superseded validation_submission jobs. Release advance is paused until the store/runtime fix, focused tests, exact gate, and all-enforce live convergence complete.
+---
+<!-- COMMENTS:END -->
