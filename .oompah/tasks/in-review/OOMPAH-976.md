@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-976
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Serialize native validation authority withdrawal with supervisor terminal claims
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T22:46:36.413299Z'
+updated_at: '2026-08-09T22:49:25.807366Z'
 work_branch: OOMPAH-976
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/785
+review_number: '785'
+review_head: 6af2014f97244e153ba3ea1ea70a4342d63ebc8b
 merged_at: null
 oompah.integration:
   version: 2
@@ -28,6 +28,10 @@ oompah.integration:
   submitted_at: '2026-08-09T22:39:52.268716+00:00'
   updated_at: '2026-08-09T22:39:52.268716+00:00'
 oompah.work_branch: OOMPAH-976
+oompah.review_url: https://github.com/lesserevil/oompah/pull/785
+oompah.review_number: '785'
+oompah.target_branch: main
+oompah.review_head: 6af2014f97244e153ba3ea1ea70a4342d63ebc8b
 ---
 ## Summary
 
@@ -60,5 +64,10 @@ author: oompah
 created: 2026-08-09 22:41
 ---
 Implementation pushed at exact head 6af2014f97244e153ba3ea1ea70a4342d63ebc8b. Authenticated ADMIT/ADMITTED handshake now linearizes native exec admission with the supervisor terminal claim; deterministic withdrawal before/after admission and cleanup tests pass. Affected suite: 234 serial and 234 xdist; both race edges 10/10 stress. Protected PR #785 is running while independent exact-head review completes.
+---
+author: oompah
+created: 2026-08-09 22:49
+---
+Branch quality gate passed for `6af2014f97244e153ba3ea1ea70a4342d63ebc8b` using `make test` in 164.6s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
