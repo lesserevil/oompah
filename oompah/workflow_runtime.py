@@ -65,6 +65,7 @@ from oompah.task_transition_service import (
     TaskTransitionService,
     TransitionJournal,
     issue_authority_version,
+    issue_exact_head,
 )
 from oompah.workflow_contract import LIFECYCLE_FINAL_STATUSES, TaskDisposition
 from oompah.workflow_controller import (
@@ -72,7 +73,12 @@ from oompah.workflow_controller import (
     ControllerPass,
     UniversalTotalityLivenessController,
 )
-from oompah.workflow_fact_model import FactDomain, FactState, WorkflowFacts
+from oompah.workflow_fact_model import (
+    FactDomain,
+    FactState,
+    LandingState,
+    WorkflowFacts,
+)
 from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
@@ -1005,6 +1011,14 @@ class WorkflowRuntime:
                 guarded_issue = _tracker.fetch_issue_detail(intent.task_id)
                 if guarded_issue is None:
                     return "guarded issue is unavailable"
+                if not str(getattr(guarded_issue, "project_id", None) or "").strip():
+                    # Native Markdown task files omit their managed project ID.
+                    # Match the normalized issue used to construct the intent
+                    # before comparing its lifecycle authority projection.
+                    guarded_issue = replace(
+                        guarded_issue,
+                        project_id=intent.project_id,
+                    )
                 if issue_authority_version(guarded_issue) != intent.expected_version:
                     return "task transition authority changed"
                 if not intent.precondition_revision or guarded_reason not in {
@@ -1031,6 +1045,31 @@ class WorkflowRuntime:
                         return "task landing evidence changed"
                     if "parent_rollup_review" not in decision.durable_jobs:
                         return "task landing no longer authorizes terminalization"
+                    if issue_exact_head(guarded_issue) is None:
+                        exact_landings = tuple(
+                            landing
+                            for landing in facts.landings
+                            if landing.project_id == intent.project_id
+                            and landing.state is LandingState.LANDED
+                            and landing.durable
+                            and landing.revision == intent.exact_head
+                            and any(
+                                request.source == landing.source
+                                and request.target == landing.target
+                                and request.revision == landing.revision
+                                and request.authoritative_target
+                                and request.prior is not None
+                                and request.prior.durable
+                                and request.prior.state is LandingState.LANDED
+                                and request.prior.project_id == intent.project_id
+                                and request.prior.source == landing.source
+                                and request.prior.target == landing.target
+                                and request.prior.revision == landing.revision
+                                for request in requests
+                            )
+                        )
+                        if len(exact_landings) != 1:
+                            return "task composed landing head changed"
                     return None
                 if guarded_reason == "epic.rebase_target_superseded":
                     epic_id = str(

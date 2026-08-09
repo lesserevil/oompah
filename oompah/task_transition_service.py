@@ -45,6 +45,7 @@ from oompah.statuses import (
     canonicalize_status,
 )
 from oompah.terminal_audit import (
+    AuditRevisionBinding,
     ContributorIdentity,
     TargetState,
     compute_issue_evidence_fingerprint,
@@ -504,6 +505,23 @@ class CoordinatorTerminalAdapter:
                 issue, intent.project_id
             ),
         )
+        if (
+            intent.exact_head is not None
+            and issue_exact_head(issue) is None
+            and intent.requested_status == MERGED
+            and intent.authority is TransitionAuthority.INTEGRATOR
+            and intent.reason_code
+            == "terminal.immediate_target_landing_proven"
+            and intent.precondition_revision is not None
+            and str(getattr(issue, "parent_id", "") or "").strip()
+        ):
+            # A composed child no longer owns a mutable task branch/head.  Its
+            # guarded workflow intent carries the immutable parent-scoped
+            # landing SHA, which must also bind the terminal audit itself.
+            fields["revision_binding"] = AuditRevisionBinding(
+                intent.exact_head,
+                intent.exact_head,
+            )
         if self._mutation_guard is not None:
             fields["mutation_guard"] = lambda: self._mutation_guard(intent)
         result = await self._coordinator.request_transition(**fields)
@@ -1798,7 +1816,17 @@ class TaskTransitionService:
                 return outcome
             if intent.exact_head:
                 observed_head = issue_exact_head(issue)
-                if observed_head != intent.exact_head:
+                composed_landing_head = bool(
+                    observed_head is None
+                    and canonicalize_status(issue.state) == DONE
+                    and intent.requested_status == MERGED
+                    and intent.authority is TransitionAuthority.INTEGRATOR
+                    and intent.reason_code
+                    == "terminal.immediate_target_landing_proven"
+                    and intent.precondition_revision
+                    and str(getattr(issue, "parent_id", "") or "").strip()
+                )
+                if observed_head != intent.exact_head and not composed_landing_head:
                     outcome = self._outcome(
                         transition_id,
                         intent,

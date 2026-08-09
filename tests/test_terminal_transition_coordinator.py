@@ -25,6 +25,7 @@ from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
     RequestState,
@@ -406,6 +407,130 @@ def test_request_persists_canonical_revision_before_tracker_refresh() -> None:
     assert document.pending_chain[0].selected_sha == sha
     assert initial_resolve_calls == ["origin/epic-OOMPAH-768"]
     assert project_store.resolve_calls == []
+
+
+def test_composed_landing_revision_binds_audit_without_mutable_task_ref() -> None:
+    tracker = _MemoryTracker()
+    revision = "3" * 40
+    project_store = _RevisionLockStore({revision: revision})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-787",
+        identifier="OOMPAH-787",
+        title="Composed child",
+        description="Accepted into its immediate epic target.",
+        state="Done",
+        project_id=PROJECT_ID,
+        parent_id="OOMPAH-771",
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    trigger = ContributorIdentity("oompah-workflow-rollup", "integrator")
+    guard = lambda: None
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=guard,
+            revision_binding=AuditRevisionBinding(revision, revision),
+        )
+    )
+    repeated = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=guard,
+            revision_binding=AuditRevisionBinding(revision, revision),
+        )
+    )
+    record = TerminalAuditMetadataStore(
+        tracker, project_store, PROJECT_ID
+    ).read(issue.identifier).pending_chain[0]
+
+    assert result.success
+    assert repeated.success
+    assert repeated.coalesced
+    assert record.selected_ref == revision
+    assert record.selected_sha == revision
+    assert project_store.resolve_calls == [revision, revision]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    (
+        ("missing_guard", "requires a workflow mutation guard"),
+        ("wrong_role", "requires integrator authority"),
+        ("wrong_status", "requires a current Done task"),
+        ("wrong_target", "requires a Merged transition"),
+        ("parentless", "requires a parented task"),
+        ("ordinary_head", "cannot replace a task-owned head"),
+        ("wrong_project", "project authority changed"),
+        ("non_sha_ref", "must use its exact SHA as the ref"),
+        ("unresolvable", "revision is unavailable"),
+        ("mismatch", "resolved to a different commit"),
+    ),
+)
+def test_composed_landing_revision_override_fails_closed(mutation, reason) -> None:
+    revision = "3" * 40
+    revisions = {revision: revision}
+    if mutation == "unresolvable":
+        revisions = {}
+    elif mutation == "mismatch":
+        revisions = {revision: "4" * 40}
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore(revisions)
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-787",
+        identifier="OOMPAH-787",
+        title="Composed child",
+        state="In Review" if mutation == "wrong_status" else "Done",
+        project_id="wrong-project" if mutation == "wrong_project" else PROJECT_ID,
+        parent_id=None if mutation == "parentless" else "OOMPAH-771",
+        head_sha=revision if mutation == "ordinary_head" else None,
+    )
+    trigger = ContributorIdentity(
+        "oompah-workflow-rollup",
+        "worker" if mutation == "wrong_role" else "integrator",
+    )
+    binding = AuditRevisionBinding(
+        "origin/composed" if mutation == "non_sha_ref" else revision,
+        revision,
+    )
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE if mutation == "wrong_target" else TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            compute_issue_evidence_fingerprint(issue, PROJECT_ID),
+            mutation_guard=None if mutation == "missing_guard" else lambda: None,
+            revision_binding=binding,
+        )
+    )
+
+    assert not result.success
+    assert reason in str(result.reason)
+    assert tracker.update_calls == []
 
 
 def test_aged_done_auto_archive_binds_main_before_coalesced_retry() -> None:

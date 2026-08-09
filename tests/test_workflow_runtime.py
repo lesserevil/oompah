@@ -9,6 +9,7 @@ import subprocess
 import threading
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -5067,6 +5068,9 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
         def project_write_lock(self, _project_id):
             return project_lock
 
+        def epic_branch_name(self, epic_id):
+            return f"epic-{epic_id}"
+
     class Config:
         workflow_engine_mode = "enforce"
         workflow_runtime_decision_limit = 20
@@ -5117,8 +5121,46 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
             integrated_sha=epic_head,
         ),
     )
-    tracker = NativeTracker([issue, child, landed_task])
+    composed_task = Issue(
+        id="COMPOSED-TASK",
+        identifier="COMPOSED-TASK",
+        title="COMPOSED-TASK",
+        description="parent-scoped composed landing guard fixture",
+        state="Done",
+        project_id="project-1",
+        issue_type="task",
+        parent_id="TOP",
+    )
+    class FreshBlankProjectTracker(NativeTracker):
+        blank_project_reads = False
+
+        def fetch_issue_detail(self, identifier):
+            current = super().fetch_issue_detail(identifier)
+            if current is None or not self.blank_project_reads:
+                return current
+            return replace(current, project_id=None)
+
+    tracker = FreshBlankProjectTracker([issue, child, landed_task, composed_task])
     store = WorkflowJobStore(str(tmp_path / "remote-jobs.sqlite3"))
+    composed_landing = LandingFact(
+        composed_task.identifier,
+        "epic-TOP",
+        epic_head,
+        {
+            "kind": "git_ancestry",
+            "source_sha": epic_head,
+            "target_sha": epic_head,
+        },
+        "2026-08-09T14:00:00+00:00",
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id="TOP",
+        facts=(composed_landing.to_dict(),),
+    )
 
     def network_git(_project, args, *, cwd, timeout):
         return subprocess.run(
@@ -5208,6 +5250,37 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
 
     assert task_decision.durable_jobs == ("parent_rollup_review",)
     assert guard(task_intent) is None
+
+    composed_decision = binding.integration_controller.evaluate(
+        (composed_task,)
+    ).tasks[0].decision
+    composed_intent = TransitionIntent(
+        project_id="project-1",
+        task_id=composed_task.identifier,
+        expected_status="Done",
+        expected_version=issue_authority_version(composed_task),
+        requested_status="Merged",
+        actor="oompah",
+        authority=TransitionAuthority.INTEGRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        idempotency_key="composed-landed-task-guard",
+        originating_job="composed-landed-task-job",
+        exact_head=epic_head,
+        precondition_revision=composed_decision.evidence_revision,
+    )
+
+    assert composed_decision.durable_jobs == ("parent_rollup_review",)
+    tracker.blank_project_reads = True
+    assert guard(composed_intent) is None
+    assert tracker.issues[composed_task.identifier].project_id == "project-1"
+    mismatched_composed_intent = TransitionIntent(
+        **{
+            **composed_intent.to_dict(),
+            "exact_head": "f" * 40,
+        }
+    )
+    assert guard(mismatched_composed_intent) == "task composed landing head changed"
+    tracker.blank_project_reads = False
 
     ordinary_intent = TransitionIntent(
         project_id="project-1",
