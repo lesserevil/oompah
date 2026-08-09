@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T15:14:54.169527Z'
+updated_at: '2026-08-09T15:17:03.430579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-09 15:14
 ---
 Implemented the quarantine settlement/recycle design on branch OOMPAH-962: exact late-result CAS settlement, durable bounded recycle marker, production mutation drain transfer, process/PID generation fencing, and no-overlap guards across control/data lanes and replacement paths. Focused config/job/worker/adapter/runtime suite is green (385 tests plus targeted replacement coverage). Rebasing onto current origin/main and performing final checks now.
+---
+author: oompah
+created: 2026-08-09 15:17
+---
+Completed and pushed commit d46e474e1a49a65b714c3304fc0fb6ccc35aea3d on origin/OOMPAH-962, rebased on current origin/main. Verification: 386 focused tests passed across config, workflow ledger, worker, production implementation adapter, and runtime; terminal-audit scan passed; secret scan exited clean. The branch preserves quarantine until exact late settlement/process recovery, checkpoints late apply receipts without duplicate mutation, terminalizes late failures, requests one durable bounded graceful recycle for permanent blocks, and fences same-PID exec/PID reuse.
 ---
 <!-- COMMENTS:END -->
