@@ -3316,6 +3316,326 @@ def integrated_queue_row(queue, task, *, parent_id, base_branch=None):
     return integrated
 
 
+def _parent_scoped_child_fact(
+    *,
+    source="TASK-A",
+    target="epic/E-1",
+    revision="a" * 40,
+    target_sha=None,
+    project_id="project-1",
+):
+    target_sha = target_sha or revision
+    return LandingFact(
+        source,
+        target,
+        revision,
+        {
+            "kind": "git_ancestry",
+            "source_sha": revision,
+            "target_sha": target_sha,
+        },
+        "2026-08-09T14:00:00+00:00",
+        project_id,
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+
+def _parent_scoped_child_fixture(*, revision="a" * 40):
+    task = issue("TASK-A")
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.target_branch = None
+    task.integration = None
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.state = "Done"
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    return task, parent, _parent_scoped_child_fact(revision=revision)
+
+
+def test_done_child_consumes_parent_scoped_canonical_landing_after_restart(tmp_path):
+    git(tmp_path, "init", "-b", "main")
+    (tmp_path / "base.txt").write_text("base\n")
+    git(tmp_path, "add", "base.txt")
+    git(tmp_path, "commit", "-m", "base")
+    git(tmp_path, "checkout", "-b", "TASK-A")
+    (tmp_path / "child.txt").write_text("accepted child\n")
+    git(tmp_path, "add", "child.txt")
+    git(tmp_path, "commit", "-m", "accepted child")
+    child_head = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "branch", "epic/E-1", child_head)
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "branch", "-D", "TASK-A")
+
+    task, parent, fact = _parent_scoped_child_fixture(revision=child_head)
+    tracker = Tracker([task, parent])
+    store_path = tmp_path / "workflow.sqlite3"
+    store = WorkflowJobStore(str(store_path))
+    assert store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(fact.to_dict(),),
+    ) == 1
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+    )
+    controller = IntegrationWorkflowController(
+        collector=collector(
+            tracker,
+            GitLandingCollector(tmp_path, project_id="project-1"),
+        ),
+        store=store,
+        landing_request_resolver=resolver,
+    )
+
+    batch = controller.evaluate([task])
+
+    request = batch.tasks[0].landing_requests[0]
+    assert (request.source, request.target, request.revision) == (
+        "TASK-A",
+        "epic/E-1",
+        child_head,
+    )
+    assert request.prior == fact
+    assert request.authoritative_target
+    landing = batch.tasks[0].facts.landings[0]
+    assert (
+        landing.source,
+        landing.target,
+        landing.revision,
+        landing.proof,
+        landing.state,
+        landing.durable,
+    ) == (
+        fact.source,
+        fact.target,
+        fact.revision,
+        fact.proof,
+        LandingState.LANDED,
+        True,
+    )
+    assert batch.tasks[0].decision.reason_code == (
+        "terminal.immediate_target_landing_proven"
+    )
+    assert batch.tasks[0].decision.durable_jobs == ("parent_rollup_review",)
+    # Import is observational: the canonical fact remains parent-owned and no
+    # second child-scoped copy is manufactured.
+    assert store.latest_landing_facts(
+        project_id="project-1", task_id=task.identifier
+    ) == ()
+    store.close()
+
+    restarted = WorkflowJobStore(str(store_path))
+    restarted_resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=restarted,
+    )
+    restarted_request = restarted_resolver(task)[0]
+    assert restarted_request.prior == fact
+    assert restarted_request.revision == child_head
+    restarted.close()
+
+
+@pytest.mark.parametrize(
+    ("fact_kwargs", "task_update", "parent_update"),
+    [
+        ({"source": "OTHER"}, {}, {}),
+        ({"target": "epic/E-OTHER"}, {}, {}),
+        ({}, {"head_sha": "b" * 40}, {}),
+        ({}, {}, {"work_branch": "epic/E-NEW"}),
+    ],
+    ids=(
+        "wrong-source",
+        "wrong-route",
+        "stale-revision",
+        "changed-current-target",
+    ),
+)
+def test_parent_scoped_child_landing_rejects_noncurrent_authority(
+    tmp_path, fact_kwargs, task_update, parent_update
+):
+    task, parent, _fact = _parent_scoped_child_fixture()
+    for field, value in task_update.items():
+        setattr(task, field, value)
+    for field, value in parent_update.items():
+        setattr(parent, field, value)
+    fact = _parent_scoped_child_fact(**fact_kwargs)
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(fact.to_dict(),),
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+    )
+
+    assert resolver(task) == ()
+    store.close()
+
+
+def test_parent_scoped_child_landing_requires_current_direct_containment(tmp_path):
+    task, parent, fact = _parent_scoped_child_fixture()
+
+    class StaleContainmentTracker(Tracker):
+        def fetch_children(self, _identifier):
+            return ()
+
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(fact.to_dict(),),
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=StaleContainmentTracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        workflow_store=store,
+    )
+
+    assert resolver(task) == ()
+    store.close()
+
+
+def test_parent_scoped_child_landing_is_not_hidden_by_large_epic(tmp_path):
+    task, parent, fact = _parent_scoped_child_fixture()
+    distractors = tuple(
+        _parent_scoped_child_fact(source=f"NOISE-{index:03d}").to_dict()
+        for index in range(120)
+    )
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    assert store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(*distractors, fact.to_dict()),
+    ) == 121
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        workflow_store=store,
+    )
+
+    request = resolver(task)[0]
+
+    assert request.prior == fact
+    store.close()
+
+
+def test_parent_scoped_child_landing_rejects_foreign_project_fact():
+    task, parent, _fact = _parent_scoped_child_fixture()
+    foreign = _parent_scoped_child_fact(project_id="foreign-project")
+
+    class ForeignStore:
+        def latest_landing_facts(self, **_kwargs):
+            return (foreign.to_dict(),)
+
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        workflow_store=ForeignStore(),
+    )
+
+    assert resolver(task) == ()
+
+
+def test_parent_scoped_child_landing_rejects_ambiguous_parent_rows():
+    task, parent, first = _parent_scoped_child_fixture()
+    second = _parent_scoped_child_fact(revision="b" * 40)
+
+    class AmbiguousStore:
+        def latest_landing_facts(self, **_kwargs):
+            return (first.to_dict(), second.to_dict())
+
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        workflow_store=AmbiguousStore(),
+    )
+
+    assert resolver(task) == ()
+
+
+def test_parent_scoped_child_landing_revalidates_current_target_history(tmp_path):
+    git(tmp_path, "init", "-b", "main")
+    (tmp_path / "base.txt").write_text("base\n")
+    git(tmp_path, "add", "base.txt")
+    git(tmp_path, "commit", "-m", "base")
+    base = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "checkout", "-b", "TASK-A")
+    (tmp_path / "child.txt").write_text("formerly landed child\n")
+    git(tmp_path, "add", "child.txt")
+    git(tmp_path, "commit", "-m", "child")
+    child_head = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "branch", "epic/E-1", child_head)
+    # The current parent target was rewritten and no longer contains the
+    # target head bound into the otherwise-valid durable fact.
+    git(tmp_path, "branch", "-f", "epic/E-1", base)
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "branch", "-D", "TASK-A")
+
+    task, parent, fact = _parent_scoped_child_fixture(revision=child_head)
+    tracker = Tracker([task, parent])
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(fact.to_dict(),),
+    )
+    controller = IntegrationWorkflowController(
+        collector=collector(
+            tracker,
+            GitLandingCollector(tmp_path, project_id="project-1"),
+        ),
+        store=store,
+        landing_request_resolver=IntegrationLandingRequestResolver(
+            project_id="project-1",
+            tracker=tracker,
+            project_store=SimpleNamespace(
+                epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+            ),
+            workflow_store=store,
+        ),
+    )
+
+    batch = controller.evaluate([task])
+
+    assert batch.tasks[0].facts.landings[0].state is LandingState.NOT_LANDED
+    assert batch.tasks[0].decision.reason_code == "landing.waiting"
+    assert batch.tasks[0].decision.disposition is TaskDisposition.BLOCKED
+    store.close()
+
+
 def test_legacy_done_child_uses_queue_revision_and_immediate_parent_target(tmp_path):
     task = issue("TASK-A", state="integrated", head="a" * 40)
     task.state = "Done"
