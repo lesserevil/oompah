@@ -178,6 +178,10 @@ class WorkflowRuntimeError(RuntimeError):
     """Raised when durable runtime composition is invalid."""
 
 
+class WorkflowPublicationSuperseded(WorkflowRuntimeError):
+    """Raised when a concurrent authority change invalidates a staged cut."""
+
+
 @dataclass(frozen=True, slots=True)
 class _WorkflowAdmissionCut:
     """Exact published world snapshot permitted to admit durable effects."""
@@ -1904,10 +1908,14 @@ class WorkflowRuntime:
             proof_source = getattr(
                 binding, "terminal_audit_proof_source", None
             )
+            if not callable(proof_source):
+                raise WorkflowRuntimeError(
+                    "terminal-audit authority proof is unavailable"
+                )
             try:
                 materialized = bool(
                     proof_source(decision, value, next(iter(terminal_actions)))
-                ) if callable(proof_source) and len(terminal_actions) == 1 else False
+                ) if len(terminal_actions) == 1 else False
             except Exception:  # noqa: BLE001 - proof failure is incomplete
                 logger.exception(
                     "Terminal-audit liveness proof failed for %s/%s",
@@ -2918,10 +2926,12 @@ class WorkflowRuntime:
                         proof_source = (
                             binding.terminal_audit_snapshot_proof_source
                         )
-                        if not callable(proof_source) or not proof_source(
-                            decision, observed
-                        ):
+                        if not callable(proof_source):
                             raise WorkflowRuntimeError(
+                                "terminal-audit snapshot proof is unavailable"
+                            )
+                        if not proof_source(decision, observed):
+                            raise WorkflowPublicationSuperseded(
                                 "terminal-audit disposition changed before "
                                 "publication"
                             )
@@ -2932,10 +2942,12 @@ class WorkflowRuntime:
                         action,
                     ) in terminal_publication_proofs:
                         proof_source = binding.terminal_audit_proof_source
-                        if not callable(proof_source) or not proof_source(
-                            decision, observed, action
-                        ):
+                        if not callable(proof_source):
                             raise WorkflowRuntimeError(
+                                "terminal-audit authority proof is unavailable"
+                            )
+                        if not proof_source(decision, observed, action):
+                            raise WorkflowPublicationSuperseded(
                                 "terminal-audit authority changed before publication"
                             )
                     return publish()
@@ -2997,6 +3009,36 @@ class WorkflowRuntime:
                         "Runtime liveness health read failed after the snapshot "
                         "marker committed"
                     )
+        except WorkflowPublicationSuperseded as exc:
+            if self.store.snapshot_generation_is_current(generation):
+                restored = self.store.restore_snapshot_authority(
+                    authority, snapshot_generation=generation
+                )
+                if authoritative_projects and not restored:
+                    raise WorkflowRuntimeError(
+                        "superseded workflow snapshot could not restore its "
+                        "durable authority checkpoint"
+                    ) from exc
+            restore = locals().get("restore_caches")
+            if callable(restore):
+                restore()
+            reason = str(exc)
+            for item in prepared:
+                project_id = item["project_id"]
+                logger.info(
+                    "Durable workflow publication superseded for %s: %s",
+                    project_id,
+                    reason,
+                )
+                report["projects"][project_id] = {
+                    "publication_superseded": True,
+                    "reason": reason,
+                }
+            report["requires_reconcile"] = True
+            report["reconcile_reason"] = "publication_authority_changed"
+            with self._lock:
+                self._last_reconcile = report
+            return report
         except Exception as exc:
             if marker_committed:
                 logger.exception(
