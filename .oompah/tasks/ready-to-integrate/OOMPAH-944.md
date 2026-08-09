@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:55:35.368665Z'
+updated_at: '2026-08-09T12:53:12.570226Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-09 09:55
 ---
 Fixed the pruned-head cleanup blocker by carrying canonical durable landing authority through the under-lock deletion fence; full effect regression and focused cleanup suites pass.
+---
+author: oompah
+created: 2026-08-09 12:53
+---
+Reconciled the in-flight integration deadlock: the accepted task commits are authoritatively contained in origin/epic-OOMPAH-940, so the exhausted administrative integration job is obsolete. Advancing to terminal validation while OOMPAH-958 fixes the systemic lease contract.
 ---
 <!-- COMMENTS:END -->
