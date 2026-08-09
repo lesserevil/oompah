@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T11:24:45.386136Z'
+updated_at: '2026-08-09T11:36:19.320352Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live OOMPAH-946 delivery made 197 GitHub branch-head requests from 11:04:00 thro
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 11:36
+---
+Implemented the local/full quality-gate authority split in the isolated OOMPAH-953 worktree. Tight 50/100ms lease/process loops now use exact local/workflow cancellation only; full tracker, dependency, project, and remote-head CAS checks run at pre-snapshot, pre-spawn, post-PASS, and the caller's final review boundary. Deterministic tests prove zero full reads while capacity-blocked and exactly three across execution, prompt local cancellation, workflow generation loss without graph I/O, and existing force-push/no-stale-review fences. Validation so far: 776 focused quality-gate/standalone/lease tests + 175 integration workflow/worker/recovery tests pass; terminal status mutation scan and secret scan pass. Awaiting independent no-blocker review before commit/submit.
+---
+<!-- COMMENTS:END -->
