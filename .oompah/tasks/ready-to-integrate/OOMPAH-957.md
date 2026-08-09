@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-957
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Stabilize concurrent validation and review-capacity CI regressions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:15:04.771202Z'
+updated_at: '2026-08-09T12:15:16.268899Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
