@@ -1950,6 +1950,53 @@ class TestOwnerOverrides:
             status_label_authorized_logins=["project-owner"],
         )
 
+    def test_owner_override_persists_exact_revision_binding(self) -> None:
+        head = "7" * 40
+        issue = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Direct owner delivery",
+            state="In Progress",
+            project_id=PROJECT_ID,
+            work_branch=TASK_ID,
+            target_branch="main",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch=TASK_ID,
+                base_branch="main",
+                head_sha=head,
+            ),
+        )
+        tracker = _RefreshingTracker(issue)
+        project_store = _RevisionLockStore({head: head})
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )
+        fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+
+        result = _run(
+            coordinator.override_transition(
+                issue,
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                fingerprint,
+                "The exact accepted revision was delivered to main.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        document = TerminalAuditMetadataStore(
+            tracker, project_store, PROJECT_ID
+        ).read(TASK_ID)
+        raw = document.unknown_fields["oompah.terminal_override_records"][0]
+        assert raw["selected_ref"] == head
+        assert raw["selected_sha"] == head
+        assert raw["applied"] is True
+
     def test_reopened_epic_ignores_historical_completed_done_evidence(self) -> None:
         historical = Issue(
             id="OOMPAH-588",
