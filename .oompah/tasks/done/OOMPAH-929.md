@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T02:47:20.781959Z'
-updated_at: '2026-08-09T05:16:10.157201Z'
+updated_at: '2026-08-09T05:16:16.884403Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,17 @@ oompah.terminal_audit:
     reason: Direct project-owner completion after exact-head full-gate and live enforce
       verification.
     created_at: '2026-08-09T05:16:05.914276+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-929
+    target_state: Done
+    evidence_fingerprint: e28cd322efcb2977c5a85e93bc41b04ec509fcf87fe930d854f476eacc78569d
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T05:16:15.450449+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -68,5 +78,12 @@ author: oompah
 created: 2026-08-09 05:16
 ---
 Completed by direct project owner. Durable event reactivation fix fba45f07e is included in rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e. Exact full gate passed (18,874 passed, 7 skipped, 2 xfailed); all domains are live in enforce; the replacement generation is authoritative and current durable exhaustion is zero.
+---
+author: oompah
+created: 2026-08-09 05:16
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct project-owner completion after exact-head full-gate and live enforce verification.
 ---
 <!-- COMMENTS:END -->
