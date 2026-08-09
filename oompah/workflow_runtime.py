@@ -2376,6 +2376,22 @@ class WorkflowRuntime:
             for item in prepared
             for name, controller, batch in item["domains"]
         ]
+        lifecycle_statuses: dict[tuple[str, str], set[str]] = {}
+        for item in prepared:
+            project_id = str(item["project_id"])
+            for issue in item["issues"]:
+                identity = (project_id, str(issue.identifier))
+                lifecycle_statuses.setdefault(identity, set()).add(
+                    canonicalize_status(issue.state)
+                )
+        lifecycle_final_tasks = tuple(
+            sorted(
+                (*identity, next(iter(statuses)))
+                for identity, statuses in lifecycle_statuses.items()
+                if len(statuses) == 1
+                and next(iter(statuses)) in LIFECYCLE_FINAL_STATUSES
+            )
+        )
 
         def reject_domains() -> None:
             for item, name, controller, batch in all_domains:
@@ -2469,6 +2485,14 @@ class WorkflowRuntime:
                 with self._lock:
                     self._last_reconcile = report
                 return report
+
+            for project_id, task_id, status in lifecycle_final_tasks:
+                self.store.record_lifecycle_final_authority(
+                    project_id=project_id,
+                    task_id=task_id,
+                    status=status,
+                    snapshot_generation=generation,
+                )
 
             reconciled: list[tuple[dict[str, Any], str, Any, Any, Any]] = []
             for item, name, controller, batch in all_domains:

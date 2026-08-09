@@ -304,6 +304,7 @@ class TerminalAuditWorkflow:
             ),
             source_generation=record.source_generation,
             require_source_advance=needs_fresh_activation,
+            retire_managed_exhaustion=True,
             reason="superseded by a newer terminal-audit evidence generation",
             now=self.clock(),
         )

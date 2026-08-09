@@ -1027,6 +1027,12 @@ def test_managed_cursor_hides_exhaustion_only_after_materialization(store):
     ).materialized
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 1
+    published, _result = store.publish_snapshot_generation(
+        second_snapshot, lambda: None
+    )
+    assert published
+    health = store.health_snapshot()
     assert health["current_states"]["exhausted"] == 0
     assert not store.current_exhausted_jobs(
         project_id=project_id, task_id=task_id
@@ -1138,6 +1144,523 @@ def test_managed_zero_job_or_retired_replacement_fails_closed(store):
         project_id=project_id, task_id=task_id
     ) == (failed,)
     assert store.health_snapshot()["current_states"]["exhausted"] == 1
+
+
+def test_published_zero_job_authority_retires_exhaustion_across_restart(tmp_path):
+    database = tmp_path / "zero-job.sqlite3"
+    store = WorkflowJobStore(str(database))
+    project_id = "project-1"
+    task_id = "TASK-ZERO"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-job",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="zero:first",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    second = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second)
+    zero_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-blocked",
+        snapshot_generation=second,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=second,
+        job_generation=zero_cursor.job_generation,
+        specs=(),
+        record_authority_cut=True,
+        authority_kind="managed_zero_job",
+    ).accepted
+    assert len(
+        store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+    ) == 1
+    assert store.publish_snapshot_generation(second, lambda: None)[0]
+    assert not store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+    store.close()
+
+    reopened = WorkflowJobStore(str(database))
+    assert not reopened.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+    reopened.close()
+
+
+def test_unpublished_or_skipped_zero_job_cut_stays_fail_closed(store):
+    project_id = "project-1"
+    task_id = "TASK-SKIPPED-CUT"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-job",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="skipped:first",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    skipped = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(skipped)
+    skipped_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-zero",
+        snapshot_generation=skipped,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=skipped,
+        job_generation=skipped_cursor.job_generation,
+        specs=(),
+        record_authority_cut=True,
+    ).accepted
+
+    later = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(later)
+    assert store.publish_snapshot_generation(later, lambda: None)[0]
+    assert len(
+        store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+    ) == 1
+
+
+def test_published_replay_cannot_retire_its_own_exhausted_job(store):
+    project_id = "project-1"
+    task_id = "TASK-EXHAUSTED-REPLAY"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    first_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="unchanged-decision",
+        snapshot_generation=first,
+    )
+    current_spec = WorkflowJobSpec(
+        project_id=project_id,
+        task_id=task_id,
+        generation=first_cursor.job_generation,
+        action="integration_landing_refresh",
+        idempotency_key="replay:current",
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=first_cursor.job_generation,
+        specs=(current_spec,),
+        record_authority_cut=True,
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    exhausted = store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    second = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second)
+    replay_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="unchanged-decision",
+        snapshot_generation=second,
+    )
+    assert replay_cursor.job_generation == first_cursor.job_generation
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=second,
+        job_generation=replay_cursor.job_generation,
+        specs=(current_spec,),
+        record_authority_cut=True,
+    ).accepted
+    assert store.publish_snapshot_generation(second, lambda: None)[0]
+
+    assert store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    ) == (exhausted,)
+
+
+def test_managed_zero_job_cut_does_not_retire_existing_event_exhaustion(store):
+    project_id = "project-1"
+    task_id = "TASK-DOMAIN-SCOPE"
+    event = store.materialize_event(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="event-generation",
+        action="epic_cleanup",
+        idempotency_namespace="cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert event.job is not None
+    event_running = claim(store, task_id=task_id)
+    assert event_running is not None
+    event_exhausted = store.fail(
+        event_running.job_id,
+        event_running.lease_token,
+        error="event terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="managed-zero-job",
+        snapshot_generation=snapshot,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=snapshot,
+        job_generation=cursor.job_generation,
+        specs=(),
+        record_authority_cut=True,
+    ).accepted
+    assert store.publish_snapshot_generation(snapshot, lambda: None)[0]
+
+    assert store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    ) == (event_exhausted,)
+
+
+def test_concurrent_publication_serializes_exact_zero_job_authority(tmp_path):
+    database = tmp_path / "concurrent-authority.sqlite3"
+    store = WorkflowJobStore(str(database))
+    peer = WorkflowJobStore(str(database))
+    project_id = "project-1"
+    task_id = "TASK-CONCURRENT-CUT"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-job",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="concurrent:first",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    second = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second)
+    zero_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-zero",
+        snapshot_generation=second,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=second,
+        job_generation=zero_cursor.job_generation,
+        specs=(),
+        record_authority_cut=True,
+    ).accepted
+
+    publication_started = threading.Event()
+    release_publication = threading.Event()
+    allocation_completed = threading.Event()
+
+    def publish():
+        publication_started.set()
+        assert release_publication.wait(timeout=2)
+
+    def allocate_peer_generation():
+        generation = peer.allocate_snapshot_generation()
+        allocation_completed.set()
+        return generation
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            publication = pool.submit(
+                store.publish_snapshot_generation, second, publish
+            )
+            assert publication_started.wait(timeout=2)
+            allocation = pool.submit(allocate_peer_generation)
+            assert not allocation_completed.wait(timeout=0.05)
+            release_publication.set()
+            assert publication.result(timeout=2)[0]
+            assert allocation.result(timeout=2) == second + 1
+
+        assert not store.current_exhausted_jobs(
+            project_id=project_id, task_id=task_id
+        )
+    finally:
+        release_publication.set()
+        peer.close()
+        store.close()
+
+
+def test_terminal_audit_handoff_retires_only_prior_managed_exhaustion(store):
+    project_id = "project-1"
+    task_id = "TASK-AUDIT-HANDOFF"
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=snapshot,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="integration-decision",
+        snapshot_generation=snapshot,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=snapshot,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="handoff:managed",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(snapshot, lambda: None)[0]
+    running = claim(store, task_id=task_id)
+    assert running is not None
+
+    audit = store.enqueue_replacing_lane(
+        WorkflowJobSpec(
+            project_id=project_id,
+            task_id=task_id,
+            generation="audit-generation",
+            action="terminal_audit",
+            idempotency_key="handoff:audit",
+            scheduling_lane="terminal-audit:Done",
+        ),
+        source_generation=2,
+        retire_managed_exhaustion=True,
+    )
+    assert audit.accepted and audit.job is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="managed terminal failure after handoff",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    assert not store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+    audit_running = claim(store, task_id=task_id)
+    assert audit_running is not None and audit_running.job_id == audit.job.job_id
+    store.fail(
+        audit_running.job_id,
+        audit_running.lease_token,
+        error="audit terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    assert [
+        job.job_id
+        for job in store.current_exhausted_jobs(
+            project_id=project_id, task_id=task_id
+        )
+    ] == [audit.job.job_id]
+
+    checkpoint = store.capture_snapshot_authority(
+        authoritative_project_ids=(),
+        evaluated_identities=((project_id, task_id),),
+        full_project_scope=False,
+    )
+    replacement = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(replacement)
+    replacement_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="later-zero-job",
+        snapshot_generation=replacement,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=replacement,
+        job_generation=replacement_cursor.job_generation,
+        specs=(),
+        record_authority_cut=True,
+    ).accepted
+    assert store.restore_snapshot_authority(
+        checkpoint, snapshot_generation=replacement
+    )
+    handoff = store._conn.execute(  # noqa: SLF001 - exact authority proof
+        "SELECT authority_kind, snapshot_generation "
+        "FROM workflow_job_retirements WHERE job_id = ?",
+        (running.job_id,),
+    ).fetchone()
+    assert handoff is not None
+    assert handoff["authority_kind"] == "terminal_audit_handoff"
+    assert handoff["snapshot_generation"] is None
+    assert [
+        job.job_id
+        for job in store.current_exhausted_jobs(
+            project_id=project_id, task_id=task_id
+        )
+    ] == [audit.job.job_id]
+
+
+def test_published_lifecycle_final_cut_retires_epic_and_rearm_clears_aba(store):
+    project_id = "project-1"
+    task_id = "EPIC-FINAL"
+    cleanup = store.materialize_event(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert cleanup.job is not None
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+    assert store.record_lifecycle_final_authority(
+        project_id=project_id,
+        task_id=task_id,
+        status="Merged",
+        snapshot_generation=snapshot,
+    ) == 1
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="cleanup terminal failure after authority staged",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    assert len(
+        store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+    ) == 1
+    assert store.publish_snapshot_generation(snapshot, lambda: None)[0]
+    assert not store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+
+    rearmed = store.rearm_terminal_job(
+        cleanup.job.job_id,
+        generation=cleanup.job.generation,
+        phase="queued",
+        reason="new exact lifecycle authority",
+    )
+    assert rearmed.state is WorkflowJobState.QUEUED
+    rerun = claim(store, task_id=task_id)
+    assert rerun is not None
+    store.fail(
+        rerun.job_id,
+        rerun.lease_token,
+        error="new activation failed",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    assert len(
+        store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+    ) == 1
 
 
 def test_missing_event_cursor_generation_fails_closed(store):
@@ -2207,6 +2730,35 @@ def test_interrupted_column_first_migration_rewrites_legacy_specs_on_restart(
         reopened.integrity_check()
     finally:
         reopened.close()
+
+
+def test_schema_v6_upgrade_seeds_exact_last_publication(tmp_path):
+    path = str(tmp_path / "v6-publication.sqlite3")
+    first = WorkflowJobStore(path)
+    generation = first.allocate_snapshot_generation()
+    assert first.accept_snapshot_generation(generation)
+    assert first.publish_snapshot_generation(generation, lambda: None)[0]
+    first.close()
+
+    connection = sqlite3.connect(path)
+    connection.execute("DROP TABLE workflow_job_retirements")
+    connection.execute("DROP TABLE workflow_snapshot_publications")
+    connection.execute(
+        "UPDATE schema_meta SET value = '6' WHERE key = 'workflow_jobs_version'"
+    )
+    connection.commit()
+    connection.close()
+
+    upgraded = WorkflowJobStore(path)
+    try:
+        publication = upgraded._conn.execute(  # noqa: SLF001
+            "SELECT snapshot_generation FROM workflow_snapshot_publications"
+        ).fetchone()
+        assert publication is not None
+        assert publication["snapshot_generation"] == generation
+        assert upgraded.schema_version == WORKFLOW_JOB_SCHEMA_VERSION
+    finally:
+        upgraded.close()
 
 
 def test_persisted_rollout_gate_survives_restart_and_allows_safe_rollback(

@@ -30,29 +30,60 @@ try:  # pragma: no cover - the service runtime is POSIX-only today
 except ImportError:  # pragma: no cover
     fcntl = None  # type: ignore[assignment]
 
-WORKFLOW_JOB_SCHEMA_VERSION = 6
+WORKFLOW_JOB_SCHEMA_VERSION = 7
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _MAX_ADMINISTRATIVE_BACKOFF_EXPONENT = 10
 _INITIALIZE_LOCK = threading.Lock()
 _REASSESSMENT_GENERATION_MARKER = ":reassess="
+_AUTHORITY_RETIREMENT_KINDS = frozenset(
+    {
+        "managed_decision",
+        "managed_zero_job",
+        "terminal_audit_handoff",
+        "lifecycle_final",
+    }
+)
 
-# One exhausted ledger row stops being current only when its durable lane
-# cursor names another fully materialized generation and that generation has a
-# concrete, non-retired job.  Cursor movement by itself is not execution
-# authority: evaluation may advance a decision revision before reconciliation,
-# and action-required decisions intentionally materialize no replacement job.
-# Unknown, legacy, and partially written authority therefore remain current
-# (fail closed).  Keep this predicate shared by the per-task lookup and global
-# health telemetry so their meanings cannot drift apart again.
+# One exhausted ledger row stops being current only after an exact retirement
+# proof is published, or when a published durable lane cursor names another
+# fully materialized generation with a concrete, non-retired job. Cursor
+# movement and staged proofs are not execution authority: evaluation may
+# advance a decision revision before reconciliation, and publication may still
+# roll back. Unknown, legacy, and partially written authority therefore remain
+# current (fail closed). Keep this predicate shared by the per-task lookup and
+# global health telemetry so their meanings cannot drift apart again.
 _CURRENT_EXHAUSTION_PREDICATE = """
 job.state = 'exhausted'
 AND NOT (
+    EXISTS (
+        SELECT 1
+          FROM workflow_job_retirements retirement
+         WHERE retirement.job_id = job.job_id
+           AND retirement.project_id = job.project_id
+           AND retirement.task_id = job.task_id
+           AND (
+               retirement.snapshot_generation IS NULL
+               OR EXISTS (
+                   SELECT 1
+                     FROM workflow_snapshot_publications publication
+                    WHERE publication.snapshot_generation =
+                          retirement.snapshot_generation
+               )
+           )
+    )
+    OR
     (job.workflow_managed = 1 AND EXISTS (
         SELECT 1
           FROM workflow_schedule_cursors cursor
          WHERE cursor.project_id = job.project_id
            AND cursor.task_id = job.task_id
+           AND EXISTS (
+               SELECT 1
+                 FROM workflow_snapshot_publications publication
+                WHERE publication.snapshot_generation =
+                      cursor.snapshot_generation
+           )
            AND cursor.job_generation != job.generation
            AND cursor.materialized_job_generation = cursor.job_generation
            AND EXISTS (
@@ -506,6 +537,7 @@ class WorkflowSnapshotAuthority:
     cursors: tuple[dict[str, Any], ...]
     memberships: tuple[dict[str, Any], ...]
     jobs: tuple[dict[str, Any], ...]
+    retirements: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -690,6 +722,25 @@ CREATE TABLE IF NOT EXISTS workflow_event_ordering (
     updated_at REAL NOT NULL,
     PRIMARY KEY(project_id, task_id, ordering_namespace)
 );
+"""
+
+_CREATE_V7_OBJECTS = """
+CREATE TABLE IF NOT EXISTS workflow_snapshot_publications (
+    snapshot_generation INTEGER PRIMARY KEY,
+    published_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workflow_job_retirements (
+    job_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    authority_kind TEXT NOT NULL,
+    decision_revision TEXT NOT NULL,
+    snapshot_generation INTEGER,
+    retired_at REAL NOT NULL,
+    FOREIGN KEY(job_id) REFERENCES workflow_jobs(job_id)
+);
+CREATE INDEX IF NOT EXISTS workflow_job_retirements_task_idx
+    ON workflow_job_retirements(project_id, task_id, snapshot_generation);
 """
 
 # Rollout evidence is an additive compatibility schema rather than a new
@@ -877,7 +928,21 @@ class WorkflowJobStore:
                     f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
                 )
         self._conn.executescript(_CREATE_V5_OBJECTS)
+        self._conn.executescript(_CREATE_V7_OBJECTS)
         self._conn.executescript(_CREATE_ROLLOUT_OBJECTS)
+        published_row = self._conn.execute(
+            "SELECT value FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_published_generation'"
+        ).fetchone()
+        if published_row is not None and int(published_row["value"]) > 0:
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO workflow_snapshot_publications(
+                    snapshot_generation, published_at
+                ) VALUES (?, ?)
+                """,
+                (int(published_row["value"]), float(self._clock())),
+            )
         # Version 4 did not persist ownership provenance.  Do not infer it
         # from a task cursor or a caller-controlled idempotency key: doing so
         # reclassifies a direct enqueue as scheduler authority after restart
@@ -1702,6 +1767,14 @@ class WorkflowJobStore:
                     "VALUES('workflow_snapshot_published_generation', ?)",
                     (str(generation),),
                 )
+                self._conn.execute(
+                    """
+                    INSERT OR IGNORE INTO workflow_snapshot_publications(
+                        snapshot_generation, published_at
+                    ) VALUES (?, ?)
+                    """,
+                    (generation, float(self._clock())),
+                )
                 self._conn.commit()
                 return True, result
             except Exception as publish_error:
@@ -2139,8 +2212,22 @@ class WorkflowJobStore:
                     params,
                 ).fetchall()
             )
+            retirements = tuple(
+                dict(row)
+                for row in self._conn.execute(
+                    "SELECT * FROM workflow_job_retirements WHERE "
+                    f"{where} AND snapshot_generation IS NOT NULL",
+                    params,
+                ).fetchall()
+            )
         return WorkflowSnapshotAuthority(
-            projects, identities, full_project_scope, cursors, memberships, jobs
+            projects,
+            identities,
+            full_project_scope,
+            cursors,
+            memberships,
+            jobs,
+            retirements,
         )
 
     def restore_snapshot_authority(
@@ -2252,9 +2339,15 @@ class WorkflowJobStore:
                 self._conn.execute(
                     f"DELETE FROM workflow_snapshot_membership WHERE {where}", params
                 )
+                self._conn.execute(
+                    "DELETE FROM workflow_job_retirements WHERE "
+                    f"{where} AND snapshot_generation IS NOT NULL",
+                    params,
+                )
                 for table, rows in (
                     ("workflow_schedule_cursors", authority.cursors),
                     ("workflow_snapshot_membership", authority.memberships),
+                    ("workflow_job_retirements", authority.retirements),
                 ):
                     if not rows:
                         continue
@@ -2422,6 +2515,12 @@ class WorkflowJobStore:
                         "WHERE project_id = ? AND task_id = ?",
                         (project, task),
                     )
+                    self._conn.execute(
+                        "DELETE FROM workflow_job_retirements "
+                        "WHERE project_id = ? AND task_id = ? "
+                        "AND snapshot_generation = ?",
+                        (project, task, snapshot),
+                    )
                 for project in sorted(projects):
                     self._conn.execute(
                         "DELETE FROM workflow_schedule_cursors WHERE project_id = ?",
@@ -2430,6 +2529,11 @@ class WorkflowJobStore:
                     self._conn.execute(
                         "DELETE FROM workflow_snapshot_membership WHERE project_id = ?",
                         (project,),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM workflow_job_retirements "
+                        "WHERE project_id = ? AND snapshot_generation = ?",
+                        (project, snapshot),
                     )
                 self._conn.commit()
                 return True
@@ -3105,6 +3209,7 @@ class WorkflowJobStore:
         *,
         source_generation: int,
         require_source_advance: bool = False,
+        retire_managed_exhaustion: bool = False,
         reason: str = "superseded by a newer workflow generation",
         now: float | None = None,
     ) -> WorkflowEventWrite:
@@ -3129,10 +3234,12 @@ class WorkflowJobStore:
             raise ValueError("source_generation must be a positive integer")
         if not isinstance(require_source_advance, bool):
             raise TypeError("require_source_advance must be a boolean")
+        if not isinstance(retire_managed_exhaustion, bool):
+            raise TypeError("retire_managed_exhaustion must be a boolean")
         incoming_generation = int(source_generation)
         message = _required_text(reason, "reason")
         timestamp = float(self._clock() if now is None else now)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 ordered = self._conn.execute(
@@ -3164,6 +3271,16 @@ class WorkflowJobStore:
                             == spec.revision
                         ):
                             replay = self._from_row(existing_activation)
+                            if retire_managed_exhaustion:
+                                self._record_job_retirements_locked(
+                                    project_id=spec.project_id,
+                                    task_id=spec.task_id,
+                                    authority_kind="terminal_audit_handoff",
+                                    decision_revision=spec.generation,
+                                    snapshot_generation=None,
+                                    workflow_managed=True,
+                                    now=timestamp,
+                                )
                             self._conn.commit()
                             return WorkflowEventWrite(
                                 replay,
@@ -3321,6 +3438,16 @@ class WorkflowJobStore:
                     )
                     superseded += 1
                 result = self._from_row(self._row_locked(job.job_id))
+                if retire_managed_exhaustion:
+                    self._record_job_retirements_locked(
+                        project_id=spec.project_id,
+                        task_id=spec.task_id,
+                        authority_kind="terminal_audit_handoff",
+                        decision_revision=spec.generation,
+                        snapshot_generation=None,
+                        workflow_managed=True,
+                        now=timestamp,
+                    )
                 self._conn.commit()
                 return WorkflowEventWrite(
                     result,
@@ -3354,7 +3481,7 @@ class WorkflowJobStore:
         queued_phase = _required_text(phase, "phase")
         message = _required_text(reason, "reason")
         timestamp = float(self._clock() if now is None else now)
-        with self._lock:
+        with self._authority_mutation_guard():
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 existing = self._row_locked(identifier)
@@ -3392,6 +3519,13 @@ class WorkflowJobStore:
                         identifier,
                         expected,
                     ),
+                )
+                # A fresh authorized activation is new execution authority for
+                # this otherwise immutable row.  Any prior handoff tombstone
+                # described the terminal activation, not this ABA-safe rearm.
+                self._conn.execute(
+                    "DELETE FROM workflow_job_retirements WHERE job_id = ?",
+                    (identifier,),
                 )
                 row = self._row_locked(identifier)
                 self._append_event_locked(
@@ -3919,6 +4053,125 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def _record_job_retirements_locked(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        authority_kind: str,
+        decision_revision: str,
+        snapshot_generation: int | None,
+        workflow_managed: bool | None = None,
+        excluded_job_ids: Sequence[str] = (),
+        now: float,
+    ) -> int:
+        """Bind every existing superseded job to exact replacement authority.
+
+        Recording the proof before a still-running job reaches ``exhausted``
+        closes the completion/publication race. Per-job identity keeps work
+        created or rearmed after this authority cut actionable.
+        """
+
+        if authority_kind not in _AUTHORITY_RETIREMENT_KINDS:
+            raise ValueError("authority_kind is not supported")
+        clauses = [
+            "project_id = ?",
+            "task_id = ?",
+        ]
+        values: list[object] = [
+            project_id,
+            task_id,
+        ]
+        if workflow_managed is not None:
+            clauses.append("workflow_managed = ?")
+            values.append(int(workflow_managed))
+        excluded = tuple(
+            _required_text(job_id, "excluded job_id") for job_id in excluded_job_ids
+        )
+        if excluded:
+            clauses.append(
+                f"job_id NOT IN ({','.join('?' for _ in excluded)})"
+            )
+            values.extend(excluded)
+        rows = self._conn.execute(
+            f"""
+            SELECT job_id FROM workflow_jobs
+             WHERE {' AND '.join(clauses)}
+             ORDER BY enqueue_sequence
+            """,
+            values,
+        ).fetchall()
+        for row in rows:
+            self._conn.execute(
+                """
+                INSERT INTO workflow_job_retirements(
+                    job_id, project_id, task_id, authority_kind,
+                    decision_revision, snapshot_generation, retired_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(job_id) DO UPDATE SET
+                    project_id = excluded.project_id,
+                    task_id = excluded.task_id,
+                    authority_kind = excluded.authority_kind,
+                    decision_revision = excluded.decision_revision,
+                    snapshot_generation = excluded.snapshot_generation,
+                    retired_at = excluded.retired_at
+                WHERE workflow_job_retirements.snapshot_generation IS NOT NULL
+                """,
+                (
+                    str(row["job_id"]),
+                    project_id,
+                    task_id,
+                    authority_kind,
+                    decision_revision,
+                    snapshot_generation,
+                    now,
+                ),
+            )
+        return len(rows)
+
+    def record_lifecycle_final_authority(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        status: str,
+        snapshot_generation: int,
+        now: float | None = None,
+    ) -> int:
+        """Stage exact retirement proof for one lifecycle-final observation."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        final_status = _required_text(status, "status")
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        snapshot = int(snapshot_generation)
+        timestamp = float(self._clock() if now is None else now)
+        with self._authority_mutation_guard():
+            owns_transaction = not self._conn.in_transaction
+            if owns_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                if not self._snapshot_generation_is_current_locked(snapshot):
+                    if owns_transaction:
+                        self._conn.commit()
+                    return 0
+                count = self._record_job_retirements_locked(
+                    project_id=project,
+                    task_id=task,
+                    authority_kind="lifecycle_final",
+                    decision_revision=f"lifecycle-final:{final_status}",
+                    snapshot_generation=snapshot,
+                    now=timestamp,
+                )
+                if owns_transaction:
+                    self._conn.commit()
+                return count
+            except Exception:
+                if owns_transaction:
+                    self._conn.rollback()
+                raise
+
     def reconcile_schedule(
         self,
         *,
@@ -3927,6 +4180,8 @@ class WorkflowJobStore:
         snapshot_generation: int,
         job_generation: str,
         specs: Sequence[WorkflowJobSpec],
+        record_authority_cut: bool = False,
+        authority_kind: str | None = None,
         reason: str = "superseded by a newer workflow decision",
         now: float | None = None,
     ) -> WorkflowScheduleWrite:
@@ -3940,6 +4195,18 @@ class WorkflowJobStore:
             raise ValueError("snapshot_generation must be a positive integer")
         snapshot = int(snapshot_generation)
         normalized_specs = tuple(specs)
+        if not isinstance(record_authority_cut, bool):
+            raise TypeError("record_authority_cut must be a boolean")
+        normalized_authority_kind = (
+            _required_text(authority_kind, "authority_kind")
+            if authority_kind is not None
+            else ("managed_decision" if normalized_specs else "managed_zero_job")
+        )
+        if normalized_authority_kind not in {
+            "managed_decision",
+            "managed_zero_job",
+        }:
+            raise ValueError("managed authority_kind is not supported")
         if any(not isinstance(spec, WorkflowJobSpec) for spec in normalized_specs):
             raise TypeError("specs must contain WorkflowJobSpec values")
         for spec in normalized_specs:
@@ -3990,10 +4257,12 @@ class WorkflowJobStore:
 
                 created = 0
                 replayed = 0
+                authoritative_job_ids: set[str] = set()
                 for spec in normalized_specs:
-                    _job, inserted = self._enqueue_locked(
+                    authoritative_job, inserted = self._enqueue_locked(
                         spec, now=timestamp, workflow_managed=True
                     )
+                    authoritative_job_ids.add(authoritative_job.job_id)
                     created += int(inserted)
                     replayed += int(not inserted)
 
@@ -4050,6 +4319,17 @@ class WorkflowJobStore:
                         now=timestamp,
                     )
                     superseded += 1
+                if record_authority_cut:
+                    self._record_job_retirements_locked(
+                        project_id=project,
+                        task_id=task,
+                        authority_kind=normalized_authority_kind,
+                        decision_revision=str(cursor["decision_revision"]),
+                        snapshot_generation=snapshot,
+                        workflow_managed=True,
+                        excluded_job_ids=tuple(authoritative_job_ids),
+                        now=timestamp,
+                    )
                 self._conn.execute(
                     """
                     UPDATE workflow_schedule_cursors
