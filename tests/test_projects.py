@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oompah.git_hooks import hook_path
 from oompah.models import Project
 from oompah.projects import (
     DEFAULT_SOURCE_SYNC_TIMEOUT_S,
@@ -1536,7 +1537,7 @@ class TestCreateWorktreeAlreadyUsedFallback:
         assert os.path.isdir(wt_path)
 
 
-class TestExistingWorktreeBranchValidation:
+class TestWrongBranchWorktreeValidation:
     def test_wrong_branch_refuses_to_reset_registered_task_worktree(self, tmp_path):
         repo = tmp_path / "repo"
         subprocess.run(["git", "init", str(repo)], check=True)
@@ -1601,6 +1602,246 @@ class TestExistingWorktreeBranchValidation:
         ).stdout.strip() == original_head
         assert open(unsaved, encoding="utf-8").read() == "must not be cleaned\n"
 
+
+class TestWorktreeLocalHooks:
+    @staticmethod
+    def _linked_repo(tmp_path):
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "config",
+                "user.email",
+                "test@example.com",
+            ],
+            check=True,
+        )
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-q", "-m", "base"], check=True
+        )
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-hooks",
+            name="hook-project",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktrees = {}
+        for identifier in ("TASK-A", "TASK-B"):
+            path = Path(store.worktree_path_for(project.id, identifier))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "worktree",
+                    "add",
+                    "-q",
+                    "-b",
+                    identifier,
+                    str(path),
+                ],
+                check=True,
+            )
+            worktrees[identifier] = path
+        return store, repo, worktrees
+
+    @staticmethod
+    def _config(cwd, *args):
+        return subprocess.run(
+            ["git", "-C", str(cwd), "config", *args],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    @staticmethod
+    def _commit(cwd, filename, message):
+        (Path(cwd) / filename).write_text(f"{filename}\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(cwd), "add", filename], check=True)
+        subprocess.run(
+            ["git", "-C", str(cwd), "commit", "-q", "-m", message],
+            check=True,
+        )
+        return subprocess.run(
+            ["git", "-C", str(cwd), "show", "-s", "--format=%B", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    @pytest.mark.parametrize("removed_identifier", ["TASK-A", "TASK-B"])
+    def test_linked_worktrees_keep_distinct_effective_hooks_after_prune(
+        self, tmp_path, removed_identifier
+    ):
+        store, repo, worktrees = self._linked_repo(tmp_path)
+
+        # The main checkout's normal hooks must become visible again after
+        # migration rather than inheriting the latest task's generated path.
+        marker = tmp_path / "main-pre-commit-ran"
+        main_hooks = repo / ".git" / "hooks"
+        pre_commit = main_hooks / "pre-commit"
+        pre_commit.write_text(
+            f"#!/bin/sh\n: > '{marker}'\n",
+            encoding="utf-8",
+        )
+        pre_commit.chmod(0o755)
+        prepare_commit_msg = main_hooks / "prepare-commit-msg"
+        prepare_commit_msg.symlink_to(hook_path("prepare-commit-msg"))
+
+        # Reproduce an upgraded repository whose common config still points
+        # every checkout at one task worktree, as the old implementation did.
+        legacy_shared = worktrees["TASK-A"] / ".oompah-no-hooks"
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "config",
+                "--local",
+                "core.hooksPath",
+                str(legacy_shared),
+            ],
+            check=True,
+        )
+
+        for path in worktrees.values():
+            store._disable_worktree_hooks(str(path))
+
+        expected_paths = {
+            identifier: str(path / ".oompah-no-hooks")
+            for identifier, path in worktrees.items()
+        }
+        assert expected_paths["TASK-A"] != expected_paths["TASK-B"]
+        for identifier, path in worktrees.items():
+            configured = self._config(
+                path, "--worktree", "--get", "core.hooksPath"
+            )
+            assert configured.returncode == 0
+            assert configured.stdout.strip() == expected_paths[identifier]
+            installed = path / ".oompah-no-hooks" / "prepare-commit-msg"
+            assert installed.exists()
+            assert os.access(installed, os.X_OK)
+
+        assert self._config(
+            repo, "--local", "--get", "extensions.worktreeConfig"
+        ).stdout.strip() == "true"
+        assert self._config(repo, "--local", "--get", "core.hooksPath").returncode == 1
+
+        removed = worktrees[removed_identifier]
+        survivor_identifier = (
+            "TASK-B" if removed_identifier == "TASK-A" else "TASK-A"
+        )
+        survivor = worktrees[survivor_identifier]
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "remove",
+                "--force",
+                str(removed),
+            ],
+            check=True,
+        )
+
+        survivor_config = self._config(
+            survivor, "--worktree", "--get", "core.hooksPath"
+        )
+        assert survivor_config.stdout.strip() == expected_paths[survivor_identifier]
+        survivor_message = self._commit(
+            survivor,
+            "survivor.txt",
+            "survivor\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+        )
+        assert "Claude" not in survivor_message
+        assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in (
+            survivor_message
+        )
+
+        # No worktree override or stale common value hides the main hooks.
+        assert self._config(repo, "--get", "core.hooksPath").returncode == 1
+        main_message = self._commit(
+            repo,
+            "main.txt",
+            "main\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+        )
+        assert marker.exists()
+        assert "Claude" not in main_message
+        assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in (
+            main_message
+        )
+
+    def test_stale_legacy_shared_oompah_path_is_migrated(self, tmp_path):
+        store, repo, worktrees = self._linked_repo(tmp_path)
+        current = worktrees["TASK-A"]
+        stale = current.parent / "REMOVED-TASK" / ".oompah-no-hooks"
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "config",
+                "--local",
+                "core.hooksPath",
+                str(stale),
+            ],
+            check=True,
+        )
+
+        store._disable_worktree_hooks(str(current))
+
+        assert self._config(repo, "--local", "--get-all", "core.hooksPath").returncode == 1
+        assert self._config(
+            current, "--worktree", "--get", "core.hooksPath"
+        ).stdout.strip() == str(current / ".oompah-no-hooks")
+
+    def test_unrelated_shared_hooks_path_is_untouched(self, tmp_path):
+        store, repo, worktrees = self._linked_repo(tmp_path)
+        current = worktrees["TASK-A"]
+        operator_hooks = tmp_path / "operator" / ".oompah-no-hooks"
+        operator_hooks.mkdir(parents=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "config",
+                "--local",
+                "core.hooksPath",
+                str(operator_hooks),
+            ],
+            check=True,
+        )
+
+        store._disable_worktree_hooks(str(current))
+
+        assert self._config(
+            repo, "--local", "--get", "core.hooksPath"
+        ).stdout.strip() == str(operator_hooks)
+        assert self._config(repo, "--get", "core.hooksPath").stdout.strip() == str(
+            operator_hooks
+        )
+        assert self._config(
+            current, "--worktree", "--get", "core.hooksPath"
+        ).stdout.strip() == str(current / ".oompah-no-hooks")
+
+
+class TestExistingWorktreeBranchValidation:
     def test_dirty_retry_snapshots_staged_unstaged_and_untracked_files(self, tmp_path):
         """Retry reuse must preserve every task-owned dirty file byte-for-byte."""
         repo = tmp_path / "repo"
