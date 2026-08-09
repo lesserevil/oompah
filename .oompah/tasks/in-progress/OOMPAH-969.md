@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T19:57:54.944610Z'
+updated_at: '2026-08-09T19:58:08.775377Z'
 work_branch: OOMPAH-969
 target_branch: null
 review_url: null
@@ -60,5 +60,24 @@ author: oompah
 created: 2026-08-09 19:57
 ---
 Preserve prompt workflow-effect admission during multi-minute ordinary reconciliation using one coalesced, fenced scheduler-loop owner. Final head ff13d997972b56cbab1b4202cc0eb9f62445cd1b; 240 post-rebase tests and independent review are green.
+---
+author: oompah
+created: 2026-08-09 19:58
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-969`
+Target: `main`
+Head: `ff13d997972b56cbab1b4202cc0eb9f62445cd1b`
+Command: `make test`
+Result: `infrastructure_error`
+Process: ended without subprocess exit evidence
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-jcls2jrm/run/workspace; actual /home/shedwards/src/oompah-967. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
