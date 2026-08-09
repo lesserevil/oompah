@@ -11,13 +11,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:41:20.671923Z'
+updated_at: '2026-08-09T19:46:53.940359Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-970
+  head_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+  submitted_at: '2026-08-09T19:46:50.424122+00:00'
+  updated_at: '2026-08-09T19:46:50.424122+00:00'
 ---
 ## Summary
 
@@ -35,5 +44,10 @@ author: oompah
 created: 2026-08-09 19:37
 ---
 Accepted for direct-owner repair from PR #776 Python 3.12. The protected job is rerunning; this task removes the underlying sleep-based race regardless of retry outcome.
+---
+author: oompah
+created: 2026-08-09 19:46
+---
+Final rebased head 23a28b1f02319faff905d2733ef290c26d7cb097 is pushed on merged OOMPAH-968 main. Stable patch-id is unchanged from independently reviewed head 13dffed48. Post-rebase validation: full workflow-runtime module 101 passed; Ruff error rules and diff checks pass.
 ---
 <!-- COMMENTS:END -->
