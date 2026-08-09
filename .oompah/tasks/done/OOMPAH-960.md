@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-960
 type: bug
-status: Open
+status: Done
 priority: 1
 title: Consume parent-scoped canonical child landing facts
 parent: OOMPAH-940
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:14.654158Z'
-updated_at: '2026-08-09T14:59:38.679168Z'
+updated_at: '2026-08-09T15:31:25.205930Z'
 work_branch: OOMPAH-960
 target_branch: null
 review_url: null
@@ -31,6 +31,86 @@ oompah.integration:
   submitted_at: '2026-08-09T14:37:07.918704+00:00'
   updated_at: '2026-08-09T14:37:07.918704+00:00'
 oompah.work_branch: OOMPAH-960
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-238e0152c0f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-960
+    digest: d33a6fca24b673436320d89579f05cce62bdf744df5e410c9d75d377aec066c5
+  - version: 1
+    audit_id: audit-46a2afc4967a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-960
+    digest: d33a6fca24b673436320d89579f05cce62bdf744df5e410c9d75d377aec066c5
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-495ea77a0b19
+    project_id: proj-14849f1b
+    task_id: OOMPAH-960
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d33a6fca24b673436320d89579f05cce62bdf744df5e410c9d75d377aec066c5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner head b9db677d1 was independently reviewed with no blockers,
+      passed 193 focused integration/store tests and hosted Python 3.11/3.12/3.13
+      gates, and is tree-identical to squash merge be4ec5d95 on current main. The
+      service is quiesced for a graceful cutover, so the normal Open workflow transition
+      cannot be generated; record the already-verified terminal result without waiting
+      for the old runtime.
+    created_at: '2026-08-09T15:31:20.978205+00:00'
+    selected_ref: b3053aab9216b2a1ca79dba786506743074de15a
+    selected_sha: b3053aab9216b2a1ca79dba786506743074de15a
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-238e0152c0f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-960
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d33a6fca24b673436320d89579f05cce62bdf744df5e410c9d75d377aec066c5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T15:31:13.169796+00:00'
+    selected_ref: b3053aab9216b2a1ca79dba786506743074de15a
+    selected_sha: b3053aab9216b2a1ca79dba786506743074de15a
+  - version: 1
+    audit_id: audit-46a2afc4967a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-960
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d33a6fca24b673436320d89579f05cce62bdf744df5e410c9d75d377aec066c5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T15:31:13.169796+00:00'
+    selected_ref: b3053aab9216b2a1ca79dba786506743074de15a
+    selected_sha: b3053aab9216b2a1ca79dba786506743074de15a
+  attempt_history: []
 ---
 ## Summary
 
@@ -63,5 +143,10 @@ author: oompah
 created: 2026-08-09 14:59
 ---
 Independent exact-head review found and corrected a >1000-parent-fact starvation boundary: the resolver now uses an indexed exact source/target durable fact query instead of a lexically truncated all-pairs scan, while retaining fail-closed foreign, corrupt, and ambiguous evidence handling. Added a 1000-earlier-distractor regression. Pushed b9db677d1c4736a9c976c9a4ae3f8be33a9c071b. Validation: 10 focused parent-scope tests passed; integration + workflow store suites 193 passed; task-status mutation and secret scans passed. Hosted exact-head checks will rerun on PR #768.
+---
+author: oompah
+created: 2026-08-09 15:31
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
