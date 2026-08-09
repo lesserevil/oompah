@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-962
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Recover quarantined control effects without task deadlock
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T14:35:21.482578Z'
+updated_at: '2026-08-09T14:35:34.588829Z'
 work_branch: null
 target_branch: null
 review_url: null
