@@ -92,6 +92,7 @@ class TestServiceConfig:
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_interval_seconds == 60
         assert cfg.worktree_cleanup_batch_size == 100
+        assert cfg.worktree_cleanup_max_runtime_seconds == 15
         assert cfg.storage_cleanup_interval_seconds == 86400
         assert cfg.storage_cleanup_pressure_min_free_bytes == 5 * 1024**3
         assert cfg.storage_cleanup_pressure_min_free_percent == 5.0
@@ -424,6 +425,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         monkeypatch.setenv("OOMPAH_INTEGRATION_READY_CLAIM_TIMEOUT_SECONDS", "42")
         monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
         monkeypatch.setenv("OOMPAH_MERGED_LABELS_MAX_RUNTIME_SECONDS", "6")
+        monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_MAX_RUNTIME_SECONDS", "3")
         wf = WorkflowDefinition(config={}, prompt_template="test")
 
         cfg = ServiceConfig.from_workflow(wf)
@@ -436,6 +438,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.auto_archive_interval_seconds == 30
         assert cfg.worktree_cleanup_interval_seconds == 11
         assert cfg.worktree_cleanup_batch_size == 5
+        assert cfg.worktree_cleanup_max_runtime_seconds == 3
         assert cfg.maintenance_startup_delay_seconds == 9
         assert cfg.terminal_lifecycle_reconciliation_batch_size == 8
         assert cfg.terminal_lifecycle_reconciliation_max_attempts == 7

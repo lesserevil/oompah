@@ -633,6 +633,7 @@ class ServiceConfig:
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_interval_seconds: int = 60
     worktree_cleanup_batch_size: int = 100
+    worktree_cleanup_max_runtime_seconds: int = 15
     storage_cleanup_interval_seconds: int = 24 * 60 * 60
     storage_cleanup_pressure_min_free_bytes: int = 5 * 1024 * 1024 * 1024
     storage_cleanup_pressure_min_free_percent: float = 5.0
@@ -867,6 +868,9 @@ class ServiceConfig:
         )
         self.worktree_cleanup_interval_seconds = max(
             int(self.worktree_cleanup_interval_seconds), 1
+        )
+        self.worktree_cleanup_max_runtime_seconds = max(
+            int(self.worktree_cleanup_max_runtime_seconds), 0
         )
         self.owner_claim_ttl_hours = max(int(self.owner_claim_ttl_hours), 1)
         from oompah.workflow_shadow import (
@@ -1383,6 +1387,9 @@ class ServiceConfig:
             ),
             worktree_cleanup_batch_size=_env_int(
                 "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 100
+            ),
+            worktree_cleanup_max_runtime_seconds=_env_int(
+                "OOMPAH_WORKTREE_CLEANUP_MAX_RUNTIME_SECONDS", None, 15
             ),
             storage_cleanup_interval_seconds=_env_int(
                 "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS", None, 24 * 60 * 60
