@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-962
 type: bug
-status: Open
+status: Needs CI Fix
 priority: 1
 title: Recover quarantined control effects without task deadlock
 parent: OOMPAH-940
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
+- ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T15:35:45.306387Z'
+updated_at: '2026-08-09T15:53:50.777257Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -68,5 +69,79 @@ author: oompah
 created: 2026-08-09 15:35
 ---
 Independent-review corrections are complete and pushed at exact head 8bea28656286d06fd254e8d6a39592ade981939f. Marker/worker UUID mismatch no longer proves abandonment; only dead PID/start/process-generation or explicit operator authority recovers. Late settlement clears markers, stale markers are atomically replaced across lease ABA, failed settlement writes cross the bounded recycle path, and live quarantine count/age now degrade top-level health, emit an actionable alert, and fail the rollout canary. Verification: 468 affected tests passed, including the hosted workflow_scheduler health expectation; terminal-audit and secret scans passed.
+---
+author: oompah
+created: 2026-08-09 15:53
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-962`
+Target: `main`
+Head: `d46e474e1a49a65b714c3304fc0fb6ccc35aea3d`
+Command: `make test`
+Result: `failed`
+Process: exited with return code 2
+Termination source: `process_exit`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+s 2 more items:
+E         {'oldest_quarantined_age_seconds': None, 'quarantined': 0}
+E         
+E         Full diff:
+E           {...
+E         
+E         ...Full output truncated (5 lines hidden), use '-vv' to show
+
+tests/test_workflow_scheduler.py:761: AssertionError
+=============================== warnings summary ===============================
+tests/test_draft_epic_kanban.py::TestLabelAPIEndpoints::test_issues_api_returns_issue_type_field
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py:2217: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format
+tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r50h3ews/run/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_http_auth.py: 21 warnings
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r50h3ews/run/workspace/tests/test_http_auth.py:37: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r50h3ews/run/workspace/tests/test_http_auth.py:49: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r50h3ews/run/workspace/oompah/acp_backends/claude.py:532: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r50h3ews/run/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_workflow_scheduler.py::test_health_snapshot_exposes_queue_lease_retry_and_cursor_state
+= 1 failed, 19025 passed, 22 skipped, 2 xfailed, 34 warnings in 150.79s (0:02:30) =
+
+make: *** [Makefile:428: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
