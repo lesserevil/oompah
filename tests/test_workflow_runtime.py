@@ -3453,6 +3453,7 @@ def test_runtime_retires_exhausted_landing_refresh_for_retained_provenance(
     binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda _issue: {
         "terminal_provenance": {
             "schema_version": 1,
+            "marker_present": True,
             "marker_version": 1,
             "project_id": project_id,
             "task_id": task_id,
@@ -3542,10 +3543,22 @@ def test_runtime_retires_exhausted_landing_refresh_for_retained_provenance(
     reopened_store.close()
 
 
-@pytest.mark.parametrize("authority_changed", (False, True))
-def test_production_retained_provenance_publication_is_exact(
+@pytest.mark.parametrize(
+    ("authority_change", "seed_exhaustion"),
+    (
+        ("retained_unchanged", True),
+        ("retained_to_revision", True),
+        ("absent_to_retained", True),
+        ("absent_unchanged", False),
+        ("absent_to_retained", False),
+        ("revision_unchanged", False),
+        ("absent_revision_unchanged", False),
+    ),
+)
+def test_production_provenance_publication_is_exact(
     tmp_path,
-    authority_changed,
+    authority_change,
+    seed_exhaustion,
 ):
     from oompah.orchestrator import Orchestrator
 
@@ -3595,58 +3608,69 @@ def test_production_retained_provenance_publication_is_exact(
     tracker = AuditTracker([task])
     project_store = ProjectStore()
     store = WorkflowJobStore(str(tmp_path / "production-race.sqlite3"))
-    first = store.allocate_snapshot_generation()
-    assert store.accept_snapshot_generation(first)
-    assert store.reconcile_snapshot_membership(
-        snapshot_generation=first,
-        authoritative_project_ids=(project_id,),
-        expected_identities=((project_id, task_id),),
-    ).accepted
-    cursor = store.activate_schedule(
-        project_id=project_id,
-        task_id=task_id,
-        decision_revision="landing-refresh-required",
-        snapshot_generation=first,
-    )
-    assert store.reconcile_schedule(
-        project_id=project_id,
-        task_id=task_id,
-        snapshot_generation=first,
-        job_generation=cursor.job_generation,
-        specs=(
-            WorkflowJobSpec(
-                project_id=project_id,
-                task_id=task_id,
-                generation=cursor.job_generation,
-                action="integration_landing_refresh",
-                idempotency_key="runtime:retained-provenance-race",
+    exhausted = None
+    if seed_exhaustion:
+        first = store.allocate_snapshot_generation()
+        assert store.accept_snapshot_generation(first)
+        assert store.reconcile_snapshot_membership(
+            snapshot_generation=first,
+            authoritative_project_ids=(project_id,),
+            expected_identities=((project_id, task_id),),
+        ).accepted
+        cursor = store.activate_schedule(
+            project_id=project_id,
+            task_id=task_id,
+            decision_revision="landing-refresh-required",
+            snapshot_generation=first,
+        )
+        assert store.reconcile_schedule(
+            project_id=project_id,
+            task_id=task_id,
+            snapshot_generation=first,
+            job_generation=cursor.job_generation,
+            specs=(
+                WorkflowJobSpec(
+                    project_id=project_id,
+                    task_id=task_id,
+                    generation=cursor.job_generation,
+                    action="integration_landing_refresh",
+                    idempotency_key="runtime:retained-provenance-race",
+                ),
             ),
-        ),
-    ).accepted
-    assert store.publish_snapshot_generation(first, lambda: None)[0]
-    exhausted = store.claim_next(
-        lease_owner="failed-worker",
-        lease_seconds=30,
-        task_id=task_id,
-    )
-    assert exhausted is not None
-    exhausted = store.fail(
-        exhausted.job_id,
-        exhausted.lease_token,
-        category=WorkflowFailureCategory.PERMANENT,
-        error="refresh failed permanently",
-        retryable=False,
-    )
+        ).accepted
+        assert store.publish_snapshot_generation(first, lambda: None)[0]
+        exhausted = store.claim_next(
+            lease_owner="failed-worker",
+            lease_seconds=30,
+            task_id=task_id,
+        )
+        assert exhausted is not None
+        exhausted = store.fail(
+            exhausted.job_id,
+            exhausted.lease_token,
+            category=WorkflowFailureCategory.PERMANENT,
+            error="refresh failed permanently",
+            retryable=False,
+        )
 
     metadata = TerminalAuditMetadataStore(tracker, project_store, project_id)
     owner = ContributorIdentity("owner", "api")
-    mark_provenance_only(
-        metadata,
-        task_id,
-        owner,
-        "Retain completed work as historical provenance.",
-        now="2026-08-09T00:00:00+00:00",
-    )
+    if not authority_change.startswith("absent"):
+        mark_provenance_only(
+            metadata,
+            task_id,
+            owner,
+            "Retain completed work as historical provenance.",
+            now="2026-08-09T00:00:00+00:00",
+        )
+    if authority_change in {"revision_unchanged", "absent_revision_unchanged"}:
+        authorize_new_revision(
+            metadata,
+            task_id,
+            owner,
+            "Owner authorized a new revision before collection.",
+            now="2026-08-09T00:01:00+00:00",
+        )
     terminal_workflow = TerminalAuditWorkflow(store)
     controller = UniversalTotalityLivenessController(store=store)
 
@@ -3695,8 +3719,10 @@ def test_production_retained_provenance_publication_is_exact(
         proof_fences.append(
             (store._conn.in_transaction, store._authority_lock_depth > 0)
         )
-        assert observed["terminal_provenance"]["retained"] is True
-        if authority_changed:
+        provenance = observed["terminal_provenance"]
+        if authority_change == "retained_to_revision":
+            assert provenance["marker_present"] is True
+            assert provenance["retained"] is True
             authorize_new_revision(
                 metadata,
                 task_id,
@@ -3704,6 +3730,37 @@ def test_production_retained_provenance_publication_is_exact(
                 "Owner authorized a new revision before publication.",
                 now="2026-08-09T00:01:00+00:00",
             )
+        elif authority_change == "absent_to_retained":
+            assert provenance == {
+                "schema_version": 1,
+                "marker_present": False,
+                "project_id": project_id,
+                "task_id": task_id,
+                "retained": False,
+                "malformed": False,
+                "authority_generation": 0,
+            }
+            mark_provenance_only(
+                metadata,
+                task_id,
+                owner,
+                "Owner retained historical provenance before publication.",
+                now="2026-08-09T00:01:00+00:00",
+            )
+        elif authority_change == "absent_unchanged":
+            assert provenance["marker_present"] is False
+            assert provenance["retained"] is False
+            assert provenance["authority_generation"] == 0
+        elif authority_change in {
+            "revision_unchanged",
+            "absent_revision_unchanged",
+        }:
+            assert provenance["marker_present"] is True
+            assert provenance["retained"] is False
+            assert provenance["authority_generation"] == 1
+        else:
+            assert provenance["marker_present"] is True
+            assert provenance["retained"] is True
         return production_proof(decision, observed)
 
     binding.terminal_audit_snapshot_proof_source = change_before_proof
@@ -3712,36 +3769,102 @@ def test_production_retained_provenance_publication_is_exact(
     report = runtime.reconcile()
 
     assert proof_fences == [(True, True)]
-    if authority_changed:
+    if authority_change in {"retained_to_revision", "absent_to_retained"}:
         assert report["requires_reconcile"] is True
         assert report["reconcile_reason"] == "publication_authority_changed"
         assert report["projects"][project_id] == {
             "publication_superseded": True,
             "reason": "terminal-audit disposition changed before publication",
         }
-        assert store.current_exhausted_jobs(
-            project_id=project_id,
-            task_id=task_id,
-        ) == (exhausted,)
-        retirement = store._conn.execute(  # noqa: SLF001 - rollback proof
-            "SELECT COUNT(*) AS count FROM workflow_job_retirements WHERE job_id = ?",
-            (exhausted.job_id,),
-        ).fetchone()
-        assert retirement["count"] == 0
+        health = store.health_snapshot()
+        assert health["accepted_snapshot_generation"] == (
+            health["published_snapshot_generation"]
+        )
+        if exhausted is not None:
+            assert store.current_exhausted_jobs(
+                project_id=project_id,
+                task_id=task_id,
+            ) == (exhausted,)
+            retirement = store._conn.execute(  # noqa: SLF001 - rollback proof
+                "SELECT COUNT(*) AS count FROM workflow_job_retirements "
+                "WHERE job_id = ?",
+                (exhausted.job_id,),
+            ).fetchone()
+            assert retirement["count"] == 0
+        else:
+            assert health["accepted_snapshot_generation"] == 0
+            staged_jobs = store.list_jobs(
+                project_id=project_id,
+                task_id=task_id,
+                actions=("integration_landing_refresh",),
+            )
+            assert {job.state for job in staged_jobs} == {
+                WorkflowJobState.SUPERSEDED
+            }
+            assert store.claim_next(
+                lease_owner="stale-effect-probe",
+                lease_seconds=30,
+                task_id=task_id,
+            ) is None
+        if authority_change == "absent_to_retained":
+            binding.terminal_audit_snapshot_proof_source = production_proof
+            retry_report = runtime.reconcile()
+
+            assert retry_report["projects"][project_id]["snapshot"]["published"]
+            assert runtime.projections()[0]["reason_code"] == (
+                "terminal.provenance_retained"
+            )
+            assert not store.current_exhausted_jobs(
+                project_id=project_id,
+                task_id=task_id,
+            )
+            if exhausted is not None:
+                retry_retirement = store._conn.execute(  # noqa: SLF001
+                    "SELECT authority_kind FROM workflow_job_retirements "
+                    "WHERE job_id = ?",
+                    (exhausted.job_id,),
+                ).fetchone()
+                assert retry_retirement["authority_kind"] == "managed_zero_job"
+            else:
+                prior_staged_jobs = store.list_jobs(
+                    project_id=project_id,
+                    task_id=task_id,
+                    actions=("integration_landing_refresh",),
+                )
+                assert {job.state for job in prior_staged_jobs} == {
+                    WorkflowJobState.SUPERSEDED
+                }
+                assert store.claim_next(
+                    lease_owner="post-retain-effect-probe",
+                    lease_seconds=30,
+                    task_id=task_id,
+                ) is None
     else:
         assert report["projects"][project_id]["snapshot"]["published"] is True
-        assert runtime.projections()[0]["reason_code"] == (
-            "terminal.provenance_retained"
-        )
-        assert not store.current_exhausted_jobs(
-            project_id=project_id,
-            task_id=task_id,
-        )
-        retirement = store._conn.execute(  # noqa: SLF001 - exact proof
-            "SELECT authority_kind FROM workflow_job_retirements WHERE job_id = ?",
-            (exhausted.job_id,),
-        ).fetchone()
-        assert retirement["authority_kind"] == "managed_zero_job"
+        if authority_change == "retained_unchanged":
+            assert runtime.projections()[0]["reason_code"] == (
+                "terminal.provenance_retained"
+            )
+            assert not store.current_exhausted_jobs(
+                project_id=project_id,
+                task_id=task_id,
+            )
+            assert exhausted is not None
+            retirement = store._conn.execute(  # noqa: SLF001 - exact proof
+                "SELECT authority_kind FROM workflow_job_retirements "
+                "WHERE job_id = ?",
+                (exhausted.job_id,),
+            ).fetchone()
+            assert retirement["authority_kind"] == "managed_zero_job"
+        else:
+            assert runtime.projections()[0]["durable_jobs"] == [
+                "integration_landing_refresh"
+            ]
+            assert store.list_jobs(
+                project_id=project_id,
+                task_id=task_id,
+                actions=("integration_landing_refresh",),
+            )
     runtime.close()
     store.close()
 

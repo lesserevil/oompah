@@ -216,6 +216,7 @@ def test_workflow_terminal_audit_fact_projects_exact_retention_authority(tmp_pat
     assert audit_store.read.call_count == 1
     assert fact["terminal_provenance"] == {
         "schema_version": 1,
+        "marker_present": True,
         "marker_version": 1,
         "project_id": "proj-1",
         "task_id": issue.identifier,
@@ -226,6 +227,133 @@ def test_workflow_terminal_audit_fact_projects_exact_retention_authority(tmp_pat
         "actor_source": "github",
         "marked_at": "2026-08-07T00:00:00+00:00",
         "updated_at": "2026-08-07T00:00:00+00:00",
+    }
+
+
+def test_workflow_terminal_audit_fact_projects_exact_absent_authority_for_done(
+    tmp_path,
+):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+
+    assert source(issue) == {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "marker_present": False,
+            "project_id": "proj-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": False,
+            "authority_generation": 0,
+        }
+    }
+
+
+def test_workflow_absent_authority_fails_closed_if_later_audit_read_fails(
+    tmp_path,
+):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    tracker.get_metadata = MagicMock(  # type: ignore[method-assign]
+        side_effect=[{}, OSError("audit unavailable")]
+    )
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert tracker.get_metadata.call_count == 2
+    assert fact == {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "marker_present": False,
+            "project_id": "proj-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": True,
+            "authority_generation": 0,
+        }
+    }
+
+
+def test_workflow_terminal_audit_fact_does_not_invent_absence_for_open(tmp_path):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state=OPEN)
+    tracker.issue_details[issue.identifier] = issue
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+
+    assert source(issue) is None
+
+
+def test_workflow_terminal_audit_fact_projects_new_revision_as_present(tmp_path):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    _seed_suppression(tracker, issue.identifier)
+    authorize_new_revision(
+        TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1"),
+        issue.identifier,
+        _owner(),
+        "Owner authorized a new revision.",
+        now="2026-08-07T01:00:00+00:00",
+    )
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert fact["terminal_provenance"] == {
+        "schema_version": 1,
+        "marker_present": True,
+        "marker_version": 1,
+        "project_id": "proj-1",
+        "task_id": issue.identifier,
+        "retained": False,
+        "malformed": False,
+        "authority_generation": 1,
+        "authorized_by": "alice",
+        "actor_source": "github",
+        "marked_at": "2026-08-07T00:00:00+00:00",
+        "updated_at": "2026-08-07T01:00:00+00:00",
+    }
+
+
+def test_workflow_terminal_audit_fact_projects_absent_to_new_revision(tmp_path):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    authorize_new_revision(
+        TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1"),
+        issue.identifier,
+        _owner(),
+        "Owner authorized a new revision without prior retention.",
+        now="2026-08-07T01:00:00+00:00",
+    )
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert fact["terminal_provenance"] == {
+        "schema_version": 1,
+        "marker_present": True,
+        "marker_version": 1,
+        "project_id": "proj-1",
+        "task_id": issue.identifier,
+        "retained": False,
+        "malformed": False,
+        "authority_generation": 1,
+        "authorized_by": "alice",
+        "actor_source": "github",
+        "marked_at": "",
+        "updated_at": "2026-08-07T01:00:00+00:00",
     }
 
 

@@ -167,6 +167,19 @@ class TestProvenanceSuppressionModel:
                 updated_at="2026-08-07T07:00:00+00:00",
             )
 
+    def test_present_non_suppressed_marker_requires_revision_generation(
+        self,
+    ) -> None:
+        with pytest.raises(ProvenanceSuppressionError):
+            ProvenanceSuppression(
+                suppressed=False,
+                authority_generation=0,
+                actor=_owner(),
+                reason="invalid cleared marker",
+                marked_at="2026-08-07T07:00:00+00:00",
+                updated_at="2026-08-07T07:00:00+00:00",
+            )
+
     def test_revision_authorization_rejects_bad_kind(self) -> None:
         with pytest.raises(ProvenanceSuppressionError):
             RevisionAuthorization(
@@ -267,9 +280,44 @@ class TestAuthorizeNewRevision:
         store = _store(tracker)
 
         outcome = authorize_new_revision(
-            store, "TASK-1", _owner(), "opening a follow-up"
+            store,
+            "TASK-1",
+            _owner(),
+            "opening a follow-up",
+            now="2026-08-07T08:00:00+00:00",
         )
         assert outcome.marker.authority_generation == 1
+        assert outcome.marker.actor == _owner()
+        assert outcome.marker.reason == "opening a follow-up"
+        assert outcome.marker.marked_at == ""
+        assert outcome.marker.updated_at == "2026-08-07T08:00:00+00:00"
+
+    def test_first_mark_after_absent_revision_records_retention_time(self) -> None:
+        tracker = _MemoryTracker()
+        store = _store(tracker)
+        authorize_new_revision(
+            store,
+            "TASK-1",
+            _owner(),
+            "opening a follow-up",
+            now="2026-08-07T08:00:00+00:00",
+        )
+
+        outcome = mark_provenance_only(
+            store,
+            "TASK-1",
+            _owner(),
+            "retain completed revision",
+            now="2026-08-07T09:00:00+00:00",
+        )
+
+        assert outcome.marker.authority_generation == 1
+        assert outcome.marker.marked_at == "2026-08-07T09:00:00+00:00"
+        assert outcome.marker.updated_at == "2026-08-07T09:00:00+00:00"
+        assert [entry.kind for entry in outcome.marker.history] == [
+            "revise",
+            "mark",
+        ]
 
     def test_mark_after_revision_reuses_new_generation(self) -> None:
         tracker = _MemoryTracker()

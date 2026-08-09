@@ -13875,9 +13875,20 @@ class Orchestrator:
                     # fact instead of collapsing it into a generic provider
                     # error that could keep scheduling delivery effects.
                     return provenance
+                if marker is None and canonicalize_status(current.state) == DONE:
+                    provenance["terminal_provenance"] = {
+                        "schema_version": 1,
+                        "marker_present": False,
+                        "project_id": project_id,
+                        "task_id": current.identifier,
+                        "retained": False,
+                        "malformed": False,
+                        "authority_generation": 0,
+                    }
                 if marker is not None:
                     provenance["terminal_provenance"] = {
                         "schema_version": 1,
+                        "marker_present": True,
                         "marker_version": marker.version,
                         "project_id": project_id,
                         "task_id": current.identifier,
@@ -13900,7 +13911,23 @@ class Orchestrator:
                         # read discard that already validated durable fence.
                         return provenance
 
-                document = audit_store.read(current.identifier)
+                try:
+                    document = audit_store.read(current.identifier)
+                except Exception:  # noqa: BLE001 - external metadata boundary
+                    terminal_provenance = provenance.get("terminal_provenance")
+                    if isinstance(terminal_provenance, dict):
+                        # A validated marker or exact absence must not vanish
+                        # merely because the unrelated audit-envelope read
+                        # failed.  Preserve its scoped identity but fail closed
+                        # until a fresh publication proof can read everything.
+                        return {
+                            "terminal_provenance": {
+                                **terminal_provenance,
+                                "retained": False,
+                                "malformed": True,
+                            }
+                        }
+                    raise
                 get_project = getattr(
                     getattr(self, "project_store", None), "get", None
                 )

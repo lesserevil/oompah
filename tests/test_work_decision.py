@@ -745,6 +745,7 @@ def test_done_uses_immediate_target_landing_without_parent_status_cycle():
 def _terminal_provenance(**overrides):
     payload = {
         "schema_version": 1,
+        "marker_present": True,
         "marker_version": 1,
         "project_id": "project-1",
         "task_id": "TASK-1",
@@ -755,6 +756,23 @@ def _terminal_provenance(**overrides):
         "actor_source": "api",
         "marked_at": NOW_ISO,
         "updated_at": NOW_ISO,
+    }
+    payload.update(overrides)
+    return _known(
+        FactDomain.TERMINAL_AUDIT,
+        {"terminal_provenance": payload},
+    )
+
+
+def _terminal_provenance_absent(**overrides):
+    payload = {
+        "schema_version": 1,
+        "marker_present": False,
+        "project_id": "project-1",
+        "task_id": "TASK-1",
+        "retained": False,
+        "malformed": False,
+        "authority_generation": 0,
     }
     payload.update(overrides)
     return _known(
@@ -782,6 +800,56 @@ def test_done_retained_as_terminal_provenance_requires_no_landing_effect():
     assert decision.next_reassessment_at is None
 
 
+def test_done_without_provenance_marker_keeps_normal_landing_decision():
+    issue = _issue(DONE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TERMINAL_AUDIT: _terminal_provenance_absent()
+            },
+            landings=(_landing(LandingState.UNKNOWN, error="git_timeout"),),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "landing.evidence_unknown"
+    assert decision.durable_jobs == ("integration_landing_refresh",)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"marker_present": "false"},
+        {"retained": True},
+        {"malformed": True},
+        {"authority_generation": 1},
+        {"task_id": "OTHER"},
+        {"project_id": "other-project"},
+        {"marker_version": 1},
+        {"authorized_by": "owner"},
+    ],
+)
+def test_invalid_terminal_provenance_absence_fails_closed(overrides):
+    issue = _issue(DONE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TERMINAL_AUDIT: _terminal_provenance_absent(
+                    **overrides
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.reason_code == "terminal.provenance_invalid"
+    assert decision.durable_jobs == ()
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -791,9 +859,11 @@ def test_done_retained_as_terminal_provenance_requires_no_landing_effect():
         {"authority_generation": True},
         {"marker_version": 2},
         {"malformed": True, "marker_version": None},
+        {"marked_at": ""},
         {"retained": False, "task_id": "OTHER"},
         {"retained": False, "project_id": "other-project"},
         {"retained": False, "authorized_by": ""},
+        {"retained": False, "authority_generation": 0},
         {"retained": "false"},
         {"malformed": "true"},
         {"retained": None},
@@ -873,6 +943,7 @@ def test_owner_authorized_new_revision_resumes_normal_done_landing_decision():
                 FactDomain.TERMINAL_AUDIT: _terminal_provenance(
                     retained=False,
                     authority_generation=4,
+                    marked_at="",
                 )
             },
             landings=(_landing(LandingState.UNKNOWN, error="git_timeout"),),

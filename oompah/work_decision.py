@@ -1764,40 +1764,67 @@ def _terminal_provenance_decision(
         return invalid("identity_or_authority_mismatch")
 
     schema_version = raw.get("schema_version")
-    marker_version = raw.get("marker_version")
+    marker_present = raw.get("marker_present")
     generation = raw.get("authority_generation")
     raw_malformed = raw.get("malformed")
     raw_retained = raw.get("retained")
     malformed = raw_malformed is True
-    structurally_valid = bool(
-        isinstance(raw_retained, bool)
+    common_valid = bool(
+        isinstance(marker_present, bool)
+        and isinstance(raw_retained, bool)
         and isinstance(raw_malformed, bool)
         and isinstance(schema_version, int)
         and not isinstance(schema_version, bool)
         and schema_version == 1
-        and isinstance(marker_version, int)
-        and not isinstance(marker_version, bool)
-        and marker_version == 1
         and raw.get("project_id") == facts.project_id
         and raw.get("task_id") == facts.task_id
         and isinstance(generation, int)
         and not isinstance(generation, bool)
         and generation >= 0
+    )
+    if malformed or not common_valid:
+        return invalid(
+            "malformed" if malformed else "identity_or_authority_mismatch"
+        )
+    if marker_present is False:
+        marker_only_fields = {
+            "marker_version",
+            "authorized_by",
+            "actor_source",
+            "marked_at",
+            "updated_at",
+        }
+        valid_absence = bool(
+            raw_retained is False
+            and generation == 0
+            and task.status == DONE
+            and not marker_only_fields.intersection(raw)
+        )
+        return None if valid_absence else invalid("identity_or_authority_mismatch")
+
+    marker_version = raw.get("marker_version")
+    marker_valid = bool(
+        isinstance(marker_version, int)
+        and not isinstance(marker_version, bool)
+        and marker_version == 1
         and isinstance(raw.get("authorized_by"), str)
         and str(raw.get("authorized_by") or "").strip()
         and isinstance(raw.get("actor_source"), str)
         and str(raw.get("actor_source") or "").strip()
         and isinstance(raw.get("marked_at"), str)
-        and str(raw.get("marked_at") or "").strip()
         and isinstance(raw.get("updated_at"), str)
         and str(raw.get("updated_at") or "").strip()
     )
-    if malformed or not structurally_valid:
-        return invalid(
-            "malformed" if malformed else "identity_or_authority_mismatch"
-        )
+    if not marker_valid:
+        return invalid("identity_or_authority_mismatch")
     if not raw_retained:
-        return None
+        return (
+            None
+            if generation >= 1
+            else invalid("identity_or_authority_mismatch")
+        )
+    if not str(raw.get("marked_at") or "").strip():
+        return invalid("identity_or_authority_mismatch")
     if task.status != DONE:
         return _decision(
             task,
