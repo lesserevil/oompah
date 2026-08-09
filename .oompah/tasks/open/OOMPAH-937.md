@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-937
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Project current exhausted jobs as actionable liveness failures
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:29:03.390818Z'
-updated_at: '2026-08-09T07:29:03.390818Z'
+updated_at: '2026-08-09T07:29:36.208727Z'
 work_branch: null
 target_branch: null
 review_url: null
