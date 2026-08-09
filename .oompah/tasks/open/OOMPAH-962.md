@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T15:17:16.454918Z'
+updated_at: '2026-08-09T15:35:45.306387Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-08-09 15:17
 ---
 Implemented exact late quarantine settlement and bounded restart-safe recovery for timed-out workflow effects; pushed d46e474e1.
+---
+author: oompah
+created: 2026-08-09 15:35
+---
+Independent-review corrections are complete and pushed at exact head 8bea28656286d06fd254e8d6a39592ade981939f. Marker/worker UUID mismatch no longer proves abandonment; only dead PID/start/process-generation or explicit operator authority recovers. Late settlement clears markers, stale markers are atomically replaced across lease ABA, failed settlement writes cross the bounded recycle path, and live quarantine count/age now degrade top-level health, emit an actionable alert, and fail the rollout canary. Verification: 468 affected tests passed, including the hosted workflow_scheduler health expectation; terminal-audit and secret scans passed.
 ---
 <!-- COMMENTS:END -->
