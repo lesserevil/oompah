@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-07T10:16:03.786819Z'
+updated_at: '2026-08-09T23:56:40.214519Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -149,6 +149,12 @@ oompah.terminal_audit:
       transports terminated before verdict; OOMPAH-876 tracks candidate exhaustion.'
     created_at: '2026-08-07T10:15:48.138939+00:00'
     applied: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-9f7dbad67167
+    project_id: proj-14849f1b
+    task_id: OOMPAH-865
+    digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
   version: 1
   pending_chain:
   - version: 1
@@ -238,6 +244,27 @@ oompah.terminal_audit:
     selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
     selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
     updated_at: '2026-08-07T10:14:25.953200+00:00'
+    source_generation: 1
+  - version: 1
+    audit_id: audit-9f7dbad67167
+    project_id: proj-14849f1b
+    task_id: OOMPAH-865
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-09T23:56:37.485052+00:00'
+    selected_ref: 04fa6781091efc6f11b952b9f1b35123facce64f
+    selected_sha: 04fa6781091efc6f11b952b9f1b35123facce64f
   attempt_history:
   - version: 1
     attempt_id: attempt-ef1dae62d434
