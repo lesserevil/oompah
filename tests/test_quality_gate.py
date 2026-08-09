@@ -2568,45 +2568,113 @@ def test_gate_cleanup_defers_bounded_work_to_one_convergent_reaper(
     monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_MAX_DEPTH", 2)
     monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_MAX_OPERATIONS", 4)
-    monkeypatch.setattr(quality_gate, "_GATE_CLEANUP_SLICE_SECONDS", 10.0)
+    # Make the deadline unreachable so PROGRESS can only come from the
+    # operation cap.  This proves the caller's slice is bounded without
+    # measuring how long a loaded CI worker takes to run those operations.
+    monkeypatch.setattr(
+        quality_gate,
+        "_GATE_CLEANUP_SLICE_SECONDS",
+        float("inf"),
+    )
     run_root = BranchQualityGate._gate_run_root()
     container = run_root.parent
     owner_path = BranchQualityGate._gate_root_owner_path(container)
     _create_deep_gate_tree(run_root, 20)
     for index in range(100):
         (run_root / f"wide-{index:03d}").write_text("x", encoding="utf-8")
-    slice_count = 0
+    caller = threading.current_thread()
+    observation_lock = threading.Lock()
+    synchronous_results: list[str] = []
+    reaper_threads: set[threading.Thread] = set()
+    reaper_results: list[str] = []
+    owner_cleanup_threads: list[threading.Thread] = []
+    reaper_slice_entered = threading.Event()
+    release_reaper = threading.Event()
+    original_remove = BranchQualityGate._remove_gate_tree_at
     original_slice = BranchQualityGate._deferred_gate_cleanup_slice
+    original_unlink_owner = BranchQualityGate._unlink_gate_root_owner
 
-    def count_slice(_cls, quarantine, expected_identity):
-        nonlocal slice_count
-        slice_count += 1
-        return original_slice(quarantine, expected_identity)
+    def observe_remove(parent_fd, name, expected_identity, root_fd):
+        result = original_remove(parent_fd, name, expected_identity, root_fd)
+        if threading.current_thread() is caller:
+            synchronous_results.append(result)
+        return result
+
+    def hold_and_observe_reaper(_cls, quarantine, expected_identity):
+        current = threading.current_thread()
+        with observation_lock:
+            reaper_threads.add(current)
+        reaper_slice_entered.set()
+        release_reaper.wait()
+        result = original_slice(quarantine, expected_identity)
+        with observation_lock:
+            reaper_results.append(result)
+        return result
+
+    def observe_owner_cleanup(_cls, root):
+        result = original_unlink_owner(root)
+        if root == container and result:
+            with observation_lock:
+                owner_cleanup_threads.append(threading.current_thread())
+        return result
 
     monkeypatch.setattr(
         BranchQualityGate,
+        "_remove_gate_tree_at",
+        staticmethod(observe_remove),
+    )
+    monkeypatch.setattr(
+        BranchQualityGate,
         "_deferred_gate_cleanup_slice",
-        classmethod(count_slice),
+        classmethod(hold_and_observe_reaper),
+    )
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_unlink_gate_root_owner",
+        classmethod(observe_owner_cleanup),
     )
 
-    started = time.monotonic()
-    BranchQualityGate._cleanup_gate_run_root(run_root)
-    synchronous_elapsed = time.monotonic() - started
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        with BranchQualityGate._processes_lock:
-            pending = bool(BranchQualityGate._deferred_gate_cleanups)
-            reaper = BranchQualityGate._deferred_gate_cleanup_thread
-        if not container.exists() and not owner_path.exists() and not pending:
-            break
-        time.sleep(0.01)
+    reaper: threading.Thread | None = None
+    try:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
 
-    assert synchronous_elapsed < 0.5
-    assert slice_count > 1
-    assert not container.exists()
-    assert not owner_path.exists()
-    assert not pending
-    assert reaper is None or not reaper.is_alive()
+        assert synchronous_results == [quality_gate._GATE_REMOVAL_PROGRESS]
+        with BranchQualityGate._processes_lock:
+            pending = tuple(BranchQualityGate._deferred_gate_cleanups.values())
+            reaper = BranchQualityGate._deferred_gate_cleanup_thread
+        assert len(pending) == 1
+        queued_root, quarantine, _identity, _attempts, _retry_at = pending[0]
+        assert queued_root == container
+        assert quarantine.exists()
+        assert not container.exists()
+        assert owner_path.exists()
+        assert reaper is not None
+        assert reaper.is_alive()
+
+        reaper_slice_entered.wait()
+        with observation_lock:
+            assert reaper_threads == {reaper}
+            assert reaper_results == []
+            assert owner_cleanup_threads == []
+
+        release_reaper.set()
+        reaper.join()
+
+        with observation_lock:
+            assert reaper_threads == {reaper}
+            assert len(reaper_results) > 1
+            assert reaper_results[-1] == quality_gate._GATE_REMOVAL_REMOVED
+            assert owner_cleanup_threads == [reaper]
+        assert not quarantine.exists()
+        assert not container.exists()
+        assert not owner_path.exists()
+        with BranchQualityGate._processes_lock:
+            assert not BranchQualityGate._deferred_gate_cleanups
+            assert BranchQualityGate._deferred_gate_cleanup_thread is None
+    finally:
+        release_reaper.set()
+        if reaper is not None and reaper.is_alive():
+            reaper.join()
 
 
 def test_gate_reaper_start_failure_cannot_strand_concurrent_enqueue(
