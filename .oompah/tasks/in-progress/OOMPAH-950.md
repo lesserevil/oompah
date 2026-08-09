@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T11:17:03.152862Z'
+updated_at: '2026-08-09T11:22:49.226351Z'
 work_branch: OOMPAH-950
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-09 11:17
 ---
 Retire the exact direct-owner claim after accepted validation submission with serialized authority capture, durable crash-safe transition intent replay, idempotent revocation publication, and ABA-safe reconciliation. 530 focused tests and independent no-blocker review passed.
+---
+author: oompah
+created: 2026-08-09 11:22
+---
+Re-armed exact-head submission after restart reconciliation superseded the first validation event with an idempotent direct-owner-claim event. Reviewed head remains fe66b5cfcdb4e0f448dec17f271fe2edebe04f33; 530 focused tests pass.
 ---
 <!-- COMMENTS:END -->
