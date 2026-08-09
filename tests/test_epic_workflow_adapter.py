@@ -919,7 +919,16 @@ async def test_epic_handler_exposes_effect_mutation_drain():
 
 
 @pytest.mark.asyncio
-async def test_terminal_cleanup_returns_exact_child_evidence(tmp_path):
+@pytest.mark.parametrize(
+    ("child_head", "fact_revision"),
+    (("a" * 40, "a" * 40), (None, None)),
+    ids=("live-child-head", "pruned-child-head"),
+)
+async def test_terminal_cleanup_returns_exact_child_evidence(
+    tmp_path,
+    child_head,
+    fact_revision,
+):
     issue = epic()
     issue.state = MERGED
     child = Issue(
@@ -933,7 +942,7 @@ async def test_terminal_cleanup_returns_exact_child_evidence(tmp_path):
         parent_id="TOP",
         work_branch="epic-TOP--task-CHILD",
         integration=SimpleNamespace(task_branch="epic-TOP--task-CHILD"),
-        head_sha="a" * 40,
+        head_sha=child_head,
     )
     facts = containment_facts(
         children=(
@@ -941,7 +950,7 @@ async def test_terminal_cleanup_returns_exact_child_evidence(tmp_path):
                 "identifier": "CHILD",
                 "status": MERGED,
                 "parent_id": "TOP",
-                "revision": "a" * 40,
+                "revision": fact_revision,
                 "authority_version": issue_authority_version(child),
                 "maintenance": False,
                 "landing_source": "epic-TOP--task-CHILD",
