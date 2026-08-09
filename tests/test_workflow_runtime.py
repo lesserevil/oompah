@@ -914,6 +914,155 @@ def accepted_projection_wiring():
     }
 
 
+def test_due_batch_reports_saturation_until_claimable_suffix_drains(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+
+    future = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-FUTURE",
+            generation="future-1",
+            action="review_refresh",
+            idempotency_key="future-job",
+        )
+    )
+    claimed = store.claim_next(
+        lease_owner="future-worker",
+        lease_seconds=30,
+        project_id="project-1",
+        actions=("review_refresh",),
+    )
+    assert claimed is not None and claimed.job_id == future.job_id
+    store.fail(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="not due yet",
+        retryable=True,
+        retry_delay_seconds=3_600,
+    )
+
+    claimable = tuple(
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"TASK-{index}",
+                generation=f"generation-{index}",
+                action="review_refresh",
+                idempotency_key=f"claimable-{index}",
+            )
+        )
+        for index in range(3)
+    )
+    ineligible = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-AUDIT",
+            generation="audit-1",
+            action="terminal_audit",
+            idempotency_key="ineligible-audit",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        batch_size=2,
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await runtime._run_due(("project-1",))
+        second = await runtime._run_due(("project-1",))
+        third = await runtime._run_due(("project-1",))
+        return first, second, third
+
+    first, second, third = asyncio.run(exercise())
+
+    assert first["processed"] == 2
+    assert first["batch_saturated"] is True
+    assert second["processed"] == 1
+    assert second["batch_saturated"] is False
+    assert third["processed"] == 0
+    assert third["batch_saturated"] is False
+    assert all(
+        store.get(job.job_id).state is WorkflowJobState.COMPLETED
+        for job in claimable
+    )
+    assert store.get(future.job_id).state is WorkflowJobState.RETRY_WAIT
+    assert store.get(ineligible.job_id).state is WorkflowJobState.QUEUED
+    runtime.close()
+    store.close()
+
+
+def test_due_batch_preserves_durable_fairness_across_continuations(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    bindings = {}
+    journals = {}
+    for project_id in ("project-a", "project-b", "project-c"):
+        tracker = NativeTracker([])
+        binding, journal = make_binding(
+            tmp_path, tracker, store, project_id=project_id
+        )
+        bindings[project_id] = binding
+        journals[project_id] = journal
+        for index in range(2):
+            store.enqueue(
+                WorkflowJobSpec(
+                    project_id=project_id,
+                    task_id=f"{project_id}-{index}",
+                    generation=f"generation-{index}",
+                    action="review_refresh",
+                    idempotency_key=f"{project_id}-{index}",
+                )
+            )
+    runtime = WorkflowRuntime(
+        project_bindings=bindings,
+        store=store,
+        journals=journals,
+        mode="enforce",
+        handlers=complete_handlers(),
+        handler_coverage={
+            action: tuple(bindings) for action in complete_handlers()
+        },
+        batch_size=2,
+    )
+
+    async def exercise():
+        await runtime.start()
+        reports = []
+        completed_counts = []
+        for _ in range(3):
+            reports.append(await runtime._run_due(tuple(bindings)))
+            completed_counts.append(
+                {
+                    project_id: len(
+                        store.list_jobs(
+                            project_id=project_id, states=("completed",)
+                        )
+                    )
+                    for project_id in bindings
+                }
+            )
+        return reports, completed_counts
+
+    reports, completed_counts = asyncio.run(exercise())
+
+    assert [report["processed"] for report in reports] == [2, 2, 2]
+    assert all(report["batch_saturated"] is True for report in reports)
+    assert completed_counts == [
+        {"project-a": 1, "project-b": 1, "project-c": 0},
+        {"project-a": 2, "project-b": 1, "project-c": 1},
+        {"project-a": 2, "project-b": 2, "project-c": 2},
+    ]
+    runtime.close()
+    store.close()
+
+
 def test_runtime_rejects_liveness_without_canonical_projection_publisher(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])

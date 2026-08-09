@@ -1315,6 +1315,42 @@ def test_claim_filters_exact_project_task_generation_and_action(store):
     assert observed.job_id == wanted.job_id
 
 
+def test_claim_filters_allowed_projects_with_durable_fair_rotation(store):
+    project_a_first = store.enqueue(
+        spec("a-1", project="project-a", task="A-1")
+    )
+    project_a_second = store.enqueue(
+        spec("a-2", project="project-a", task="A-2")
+    )
+    project_b = store.enqueue(spec("b-1", project="project-b", task="B-1"))
+    project_c = store.enqueue(spec("c-1", project="project-c", task="C-1"))
+    excluded = store.enqueue(spec("d-1", project="project-d", task="D-1"))
+
+    observed = tuple(
+        claim(
+            store,
+            project_ids=("project-a", "project-b", "project-c"),
+            fair_across_projects=True,
+        )
+        for _ in range(4)
+    )
+
+    assert [job.job_id for job in observed] == [
+        project_a_first.job_id,
+        project_b.job_id,
+        project_c.job_id,
+        project_a_second.job_id,
+    ]
+    assert store.get(excluded.job_id).state is WorkflowJobState.QUEUED
+    assert store.health_snapshot()["fair_project_count"] == 3
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        claim(store, project_id="project-a", project_ids=("project-a",))
+    with pytest.raises(ValueError, match="cannot be empty"):
+        claim(store, project_ids=())
+    with pytest.raises(TypeError, match="must be a sequence"):
+        claim(store, project_ids="project-a")  # type: ignore[arg-type]
+
+
 def test_concurrent_claimers_never_duplicate_ownership(tmp_path, clock):
     path = str(tmp_path / "concurrent-claim.sqlite3")
     seed = WorkflowJobStore(path, clock=clock)

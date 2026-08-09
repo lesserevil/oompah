@@ -3035,6 +3035,7 @@ class WorkflowRuntime:
                         "no reconciled project is eligible for durable work"
                     ),
                     "projects": failed_projects,
+                    "batch_saturated": False,
                 }
             else:
                 # A failed project must not stall unrelated healthy projects.
@@ -3049,25 +3050,19 @@ class WorkflowRuntime:
 
     async def _run_due(self, project_ids: Sequence[str]) -> dict[str, Any]:
         results: list[Any] = []
-        active_projects = list(dict.fromkeys(str(value) for value in project_ids))
-        while active_projects and sum(
-            item.job_id is not None for item in results
-        ) < self.batch_size:
-            progressed = False
-            for project_id in tuple(active_projects):
-                result = await self.worker.run_once(
-                    project_id=project_id,
-                    actions=tuple(sorted(RUNTIME_ACTIONS)),
-                )
-                results.append(result)
-                if result.job_id is None:
-                    active_projects.remove(project_id)
-                else:
-                    progressed = True
-                if sum(item.job_id is not None for item in results) >= self.batch_size:
-                    break
-            if not progressed:
+        active_projects = tuple(
+            dict.fromkeys(str(value) for value in project_ids)
+        )
+        while active_projects and len(results) < self.batch_size:
+            result = await self.worker.run_once(
+                project_ids=active_projects,
+                actions=tuple(sorted(RUNTIME_ACTIONS)),
+                fair_across_projects=True,
+            )
+            results.append(result)
+            if result.job_id is None:
                 break
+        processed = sum(item.job_id is not None for item in results)
         if not results:
             return {
                 "disposition": "idle",
@@ -3075,6 +3070,7 @@ class WorkflowRuntime:
                 "state": None,
                 "reason": "no eligible durable workflow project",
                 "processed": 0,
+                "batch_saturated": False,
             }
         result = results[-1]
         return {
@@ -3082,7 +3078,13 @@ class WorkflowRuntime:
             "job_id": result.job_id,
             "state": result.state.value if result.state else None,
             "reason": result.reason,
-            "processed": sum(item.job_id is not None for item in results),
+            "processed": processed,
+            # Reaching the bounded cap is deliberately a conservative signal:
+            # another claimable row may remain.  The orchestrator schedules one
+            # coalesced follow-up tick; an exact-cap final batch therefore costs
+            # one harmless idle tick instead of requiring an unbounded store
+            # scan here or stranding a suffix until the full-sync safety net.
+            "batch_saturated": processed >= self.batch_size,
         }
 
     def _lifecycle_handlers(self) -> tuple[WorkflowActionHandler, ...]:
