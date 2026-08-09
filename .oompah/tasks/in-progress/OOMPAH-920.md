@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:18:41.997110Z'
-updated_at: '2026-08-08T16:19:23.274131Z'
+updated_at: '2026-08-09T05:14:37.996156Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ The production durable workflow runtime owns every lifecycle tick in off/shadow/
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 05:14
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
+---
+<!-- COMMENTS:END -->
