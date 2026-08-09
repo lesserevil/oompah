@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T15:53:50.777257Z'
+updated_at: '2026-08-09T15:54:00.508251Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -28,9 +28,9 @@ oompah.integration:
   task_branch: OOMPAH-962
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  head_sha: d46e474e1a49a65b714c3304fc0fb6ccc35aea3d
-  submitted_at: '2026-08-09T15:17:04.691942+00:00'
-  updated_at: '2026-08-09T15:17:04.691942+00:00'
+  head_sha: 8bea28656286d06fd254e8d6a39592ade981939f
+  submitted_at: '2026-08-09T15:53:51.676561+00:00'
+  updated_at: '2026-08-09T15:53:51.676561+00:00'
 oompah.work_branch: OOMPAH-962
 ---
 ## Summary
@@ -143,5 +143,10 @@ FAILED tests/test_workflow_scheduler.py::test_health_snapshot_exposes_queue_leas
 
 make: *** [Makefile:428: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-09 15:54
+---
+Hardened quarantine recovery per independent review at exact head 8bea28656; 468 affected tests and scans pass.
 ---
 <!-- COMMENTS:END -->
