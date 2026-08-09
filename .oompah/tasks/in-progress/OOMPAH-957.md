@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:14:59.019436Z'
-work_branch: null
+updated_at: '2026-08-09T12:15:04.771202Z'
+work_branch: OOMPAH-957
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,7 @@ oompah.integration:
   head_sha: 7d0807c2005cf299bc2a90a97909600d65171573
   submitted_at: '2026-08-09T12:14:54.798015+00:00'
   updated_at: '2026-08-09T12:14:54.798015+00:00'
+oompah.work_branch: OOMPAH-957
 ---
 ## Summary
 
@@ -46,5 +47,10 @@ author: oompah
 created: 2026-08-09 12:14
 ---
 Investigated CI run 31312000132: the Python 3.11 schema failure was the suite's 5-second default interrupting a test whose intentional Barrier rendezvous allows 15 seconds; the remaining native failure was the test's independent hard-coded 5-second subprocess cap. Implemented test-stability repair at 7d0807c2005cf299bc2a90a97909600d65171573: explicit 30-second test budget for the schema race and a shared 12-second bounded deadline for both concurrent guarded processes. Focused pair passed; 12 repeat runs passed; ruff and diff checks clean. No production behavior or server restart.
+---
+author: oompah
+created: 2026-08-09 12:15
+---
+Pushed 7d0807c2005cf299bc2a90a97909600d65171573; focused concurrency tests and repeated runs pass.
 ---
 <!-- COMMENTS:END -->
