@@ -1292,6 +1292,8 @@ class OverrideRecord:
     authorized_by: ContributorIdentity
     reason: str
     created_at: str | None = None
+    selected_ref: str | None = None
+    selected_sha: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.override_id, str) or not self.override_id.strip():
@@ -1309,6 +1311,14 @@ class OverrideRecord:
             raise TypeError("OverrideRecord.authorized_by must be a ContributorIdentity")
         if not isinstance(self.reason, str) or not self.reason.strip():
             raise ValueError("OverrideRecord.reason must be a non-empty string")
+        binding = _validate_optional_revision_binding(
+            self.selected_ref,
+            self.selected_sha,
+            self.__class__.__name__,
+        )
+        if binding is not None:
+            object.__setattr__(self, "selected_ref", binding.selected_ref)
+            object.__setattr__(self, "selected_sha", binding.selected_sha)
 
     @property
     def id(self) -> str:
@@ -1327,6 +1337,9 @@ class OverrideRecord:
         }
         if self.created_at is not None:
             result["created_at"] = self.created_at
+        if self.selected_ref is not None:
+            result["selected_ref"] = self.selected_ref
+            result["selected_sha"] = self.selected_sha
         return result
 
     @classmethod
@@ -1348,6 +1361,8 @@ class OverrideRecord:
             authorized_by=ContributorIdentity.from_dict(authorized_by),
             reason=_required_string(data, "reason", cls.__name__),
             created_at=_optional_string(data, "created_at", cls.__name__),
+            selected_ref=_optional_string(data, "selected_ref", cls.__name__),
+            selected_sha=_optional_string(data, "selected_sha", cls.__name__),
         )
 
 

@@ -122,6 +122,7 @@ from oompah.integration_projection import (
     IntegrationDependencyProjection,
     build_integration_dependency_projections,
 )
+from oompah.owner_delivery_provenance import collect_owner_delivery_provenance
 from oompah.review_capacity import (
     DEFAULT_REVIEW_RESERVATION_TTL_SECONDS,
     ReviewCapacityReservation,
@@ -272,7 +273,11 @@ from oompah.workflow_contract import (
     TaskDisposition,
     WorkflowOwner,
 )
-from oompah.work_decision import PermittedAction, WorkDecision
+from oompah.work_decision import (
+    PermittedAction,
+    WorkDecision,
+    epic_immediate_target_landings,
+)
 from oompah.work_decision_projection import (
     operator_actionable_alerts,
 )
@@ -13787,9 +13792,26 @@ class Orchestrator:
         def terminal_audit(current: Issue) -> dict[str, Any] | None:
             try:
                 document = self._audit_store(current).read(current.identifier)
+                project_id = str(current.project_id or "legacy")
+                get_project = getattr(
+                    getattr(self, "project_store", None), "get", None
+                )
+                project = get_project(project_id) if callable(get_project) else None
+                owner_delivery = collect_owner_delivery_provenance(
+                    current,
+                    document,
+                    project_id=project_id,
+                    project=project,
+                    integration_queue=getattr(self, "integration_queue", None),
+                )
+                owner_fact = (
+                    {"owner_delivery": owner_delivery.to_dict()}
+                    if owner_delivery is not None
+                    else {}
+                )
                 record = AuditorDispatchLane.pending_record(
                     document.pending_chain,
-                    project_id=str(current.project_id or "legacy"),
+                    project_id=project_id,
                     task_id=current.identifier,
                 )
                 if record is not None:
@@ -13812,6 +13834,7 @@ class Orchestrator:
                     if details is None:
                         return {
                             **authority,
+                            **owner_fact,
                             "phase": "queued",
                             "workflow_phase": AuditWorkflowPhase.QUEUED.value,
                             "audit_job_present": False,
@@ -13847,6 +13870,7 @@ class Orchestrator:
                         return {
                             **authority,
                             **exact_job,
+                            **owner_fact,
                             "phase": "queued",
                             "workflow_phase": disposition.phase.value,
                             "action_required": True,
@@ -13860,12 +13884,14 @@ class Orchestrator:
                         return {
                             **authority,
                             **exact_job,
+                            **owner_fact,
                             "phase": "active",
                             "workflow_phase": disposition.phase.value,
                         }
                     return {
                         **authority,
                         **exact_job,
+                        **owner_fact,
                         "phase": "queued",
                         "workflow_phase": disposition.phase.value,
                         "retry_at": (
@@ -13880,6 +13906,12 @@ class Orchestrator:
                 # record has unknown audit state.  Returning ``None`` lets the
                 # fact collector schedule recovery instead of inventing a
                 # queue or inheriting task-wide legacy activity.
+                if owner_delivery is not None:
+                    return {
+                        **owner_fact,
+                        "phase": "completed",
+                        "workflow_phase": "owner_delivery",
+                    }
                 return None
             except Exception as exc:  # noqa: BLE001 - evidence boundary
                 raise RuntimeError(
@@ -23950,6 +23982,7 @@ class Orchestrator:
         expected_dependencies: tuple[str, ...] | None = None,
         expected_dependency_revision: tuple[str, ...] | None = None,
         commit_allowed: Callable[[], bool] | None = None,
+        workflow_authority: Callable[[], bool] | None = None,
         rebase_intent_prepare: Callable[[str], bool] | None = None,
         rebase_intent_abort: Callable[[], bool] | None = None,
         rebased_head_prepare: Callable[[str, str | None], bool] | None = None,
@@ -23957,6 +23990,37 @@ class Orchestrator:
         gate_generation: str | None = None,
         retry_forced: bool | None = None,
     ) -> IntegrationExecutionResult:
+        if workflow_authority is not None and (
+            commit_allowed is not None
+            or item.lease_owner is not None
+            or not str(gate_generation or "").strip()
+        ):
+            return IntegrationExecutionResult(
+                status="authority_unavailable",
+                message=(
+                    "durable workflow integration authority must be exclusive, "
+                    "unleased, and generation-bound"
+                ),
+            )
+        if workflow_authority is not None:
+            try:
+                workflow_is_current = bool(workflow_authority())
+            except Exception as exc:
+                return IntegrationExecutionResult(
+                    status="authority_unavailable",
+                    message=(
+                        "could not verify durable workflow integration "
+                        f"authority before worktree recovery: {exc}"
+                    ),
+                )
+            if not workflow_is_current:
+                return IntegrationExecutionResult(
+                    status="cancelled",
+                    message=(
+                        "durable workflow integration authority was withdrawn "
+                        "before worktree recovery"
+                    ),
+                )
         project = self.project_store.get(item.project_id)
         if project is None:
             return IntegrationExecutionResult(
@@ -23998,27 +24062,88 @@ class Orchestrator:
                 status="error",
                 message=f"could not recover integration worktrees: {exc}",
             )
-        is_current = self._integration_dependency_authority(
-            item,
-            expected_dependencies,
-            expected_dependency_revision,
-            allow_precanonical_tracker_submission=bool(
-                item.candidate_head_sha and item.candidate_base_sha
-            ),
-        )
         authority_generation = gate_generation or (
             f"integration:{item.project_id}:{item.task_id}:"
             f"{accepted_head}:{item.lease_owner or ''}"
         )
-        # ``is_current`` already proves the exact durable queue/tracker lease,
-        # including the narrowly-scoped pre-canonical candidate exception.
-        # A workflow caller may add a stricter generation fence, but restart
-        # recovery must not replace that exception with the strict tracker
-        # check before canonicalization has had a chance to repair metadata.
-        durable_commit_allowed = commit_allowed or (lambda: True)
+        if workflow_authority is None:
+            is_current = self._integration_dependency_authority(
+                item,
+                expected_dependencies,
+                expected_dependency_revision,
+                allow_precanonical_tracker_submission=bool(
+                    item.candidate_head_sha and item.candidate_base_sha
+                ),
+            )
+            # ``is_current`` proves the exact durable queue/tracker lease,
+            # including the narrowly-scoped pre-canonical candidate exception.
+            # A legacy caller may add a stricter fence, but restart recovery
+            # must retain that exception until candidate canonicalization has
+            # repaired tracker metadata.
+            durable_commit_allowed = commit_allowed or (lambda: True)
 
-        def combined_commit_allowed() -> bool:
-            return bool(durable_commit_allowed() and is_current())
+            def combined_commit_allowed() -> bool:
+                return bool(durable_commit_allowed() and is_current())
+
+            def canonicalize_candidate(
+                candidate: str,
+                base: str,
+            ) -> IntegrationCandidateAuthority:
+                return self._canonicalize_integration_candidate(
+                    item,
+                    candidate,
+                    base,
+                    expected_dependencies=expected_dependencies,
+                    expected_dependency_revision=expected_dependency_revision,
+                )
+
+            def gate_owner_factory(head: str) -> QualityGateOwner:
+                return QualityGateOwner(
+                    project_id=str(item.project_id),
+                    task_id=str(item.task_id),
+                    head_sha=str(head or "").strip(),
+                    authority_generation=authority_generation,
+                )
+        else:
+            # Durable workflow jobs already own a heartbeat-fenced workflow
+            # lease and keep the queue row deliberately ``ready`` and
+            # unleased so their exact-generation checkpoint CAS operations can
+            # proceed.  Requiring the legacy IntegrationQueue executor lease
+            # here makes every workflow attempt revoke itself before
+            # preparation.  Use the explicit workflow authority end-to-end;
+            # the adapter's dynamic callback proves the live workflow lease,
+            # exact queue generation, tracker state, branch, and head.
+            combined_commit_allowed = workflow_authority
+
+            def canonicalize_candidate(
+                candidate: str,
+                base: str,
+            ) -> IntegrationCandidateAuthority:
+                candidate_head = str(candidate or "").strip().lower()
+                candidate_base = str(base or "").strip().lower()
+                if not candidate_head or not candidate_base:
+                    raise RuntimeError(
+                        "durable workflow candidate authority is incomplete"
+                    )
+                candidate_generation = (
+                    f"{authority_generation}:candidate:"
+                    f"{candidate_head}:{candidate_base}"
+                )
+                return IntegrationCandidateAuthority(
+                    generation=candidate_generation,
+                    owner=QualityGateOwner(
+                        project_id=str(item.project_id),
+                        task_id=str(item.task_id),
+                        head_sha=candidate_head,
+                        authority_generation=candidate_generation,
+                    ),
+                    is_current=workflow_authority,
+                )
+
+            # ``execute_integration`` must retain the candidate owner above;
+            # replacing it with a head-only legacy owner would discard the
+            # workflow job and base-generation fence.
+            gate_owner_factory = None
 
         return execute_integration(
             project_lock=self.project_store.project_write_lock(item.project_id),
@@ -24048,15 +24173,7 @@ class Orchestrator:
                 authority_generation=authority_generation,
             ),
             commit_allowed=combined_commit_allowed,
-            canonicalize_candidate=lambda candidate, base: (
-                self._canonicalize_integration_candidate(
-                    item,
-                    candidate,
-                    base,
-                    expected_dependencies=expected_dependencies,
-                    expected_dependency_revision=expected_dependency_revision,
-                )
-            ),
+            canonicalize_candidate=canonicalize_candidate,
             rebase_intent_prepare=rebase_intent_prepare,
             rebase_intent_abort=rebase_intent_abort,
             rebase_intent_pending=bool(item.rebase_intent_pending),
@@ -24065,12 +24182,7 @@ class Orchestrator:
             publication_pending=bool(item.rebased_publication_pending),
             publication_predecessor_sha=item.rebased_from_head_sha,
             publication_base_sha=item.base_sha,
-            gate_owner_factory=lambda head: QualityGateOwner(
-                project_id=str(item.project_id),
-                task_id=str(item.task_id),
-                head_sha=str(head or "").strip(),
-                authority_generation=authority_generation,
-            ),
+            gate_owner_factory=gate_owner_factory,
         )
 
     def _notify_integrated_task_peers(
@@ -30419,18 +30531,9 @@ class Orchestrator:
     @staticmethod
     def _shared_epic_landing_proven(facts: Any) -> bool:
         """Check the epic's own immediate-target LandingFact, not its status."""
-        containment = facts.fact(FactDomain.CONTAINMENT)
-        if containment.state.value != "known" or not isinstance(containment.value, Mapping):
-            return False
-        source = str(containment.value.get("epic_branch") or "").strip()
-        target = str(containment.value.get("target_branch") or "").strip()
-        if not source or not target or facts.fact(FactDomain.LANDING).state.value != "known":
-            return False
         return any(
-            item.source == source
-            and item.target == target
-            and item.state is LandingState.LANDED
-            for item in facts.landings
+            item.state is LandingState.LANDED
+            for item in epic_immediate_target_landings(facts)
         )
 
     def _is_epic_rebase_task(

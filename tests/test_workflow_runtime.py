@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import threading
+import time
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -63,12 +64,15 @@ from oompah.workflow_runtime import (
     WorkflowProjectBinding,
     WorkflowRuntime,
     WorkflowRuntimeError,
+    _ProjectRoutedHandler,
 )
 from oompah.workflow_worker import (
+    DurableWorkflowWorker,
     EffectObservation,
     EffectResult,
     RevalidationResult,
     VerificationResult,
+    WorkflowRunDisposition,
 )
 from oompah.work_decision import evaluate_task
 from oompah.work_decision_projection import (
@@ -180,6 +184,8 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
         workflow_engine_mode = "shadow"
         workflow_runtime_decision_limit = 17
         workflow_runtime_batch_size = 9
+        workflow_runtime_max_concurrent = 6
+        workflow_runtime_control_reserved_slots = 2
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     integration_queue = object()
@@ -208,6 +214,8 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert runtime.mode == "shadow"
     assert runtime.decision_limit == 17
     assert runtime.batch_size == 9
+    assert runtime.max_concurrent == 6
+    assert runtime.control_reserved_slots == 2
     assert tuple(runtime.project_bindings) == ("legacy",)
     binding = runtime.project_bindings["legacy"]
     assert binding.transition_service.project_id == "legacy"
@@ -904,6 +912,14 @@ def complete_handlers(handler=None):
     return {action: handler or CompleteHandler() for action in RUNTIME_ACTIONS}
 
 
+async def wait_for_runtime_effects(runtime, *, timeout_seconds=2.0):
+    async def wait_until_idle():
+        while runtime.health_snapshot()["worker"]["retained"]:
+            await asyncio.sleep(0.001)
+
+    await asyncio.wait_for(wait_until_idle(), timeout_seconds)
+
+
 def accepted_projection_wiring():
     def publisher(*_args, **_kwargs):
         return SimpleNamespace(
@@ -982,8 +998,11 @@ def test_due_batch_reports_saturation_until_claimable_suffix_drains(tmp_path):
     async def exercise():
         await runtime.start()
         first = await runtime._run_due(("project-1",))
+        await wait_for_runtime_effects(runtime)
         second = await runtime._run_due(("project-1",))
+        await wait_for_runtime_effects(runtime)
         third = await runtime._run_due(("project-1",))
+        await wait_for_runtime_effects(runtime)
         return first, second, third
 
     first, second, third = asyncio.run(exercise())
@@ -1043,6 +1062,7 @@ def test_due_batch_preserves_durable_fairness_across_continuations(tmp_path):
         completed_counts = []
         for _ in range(3):
             reports.append(await runtime._run_due(tuple(bindings)))
+            await wait_for_runtime_effects(runtime)
             completed_counts.append(
                 {
                     project_id: len(
@@ -1065,6 +1085,458 @@ def test_due_batch_preserves_durable_fairness_across_continuations(tmp_path):
         {"project-a": 2, "project-b": 2, "project-c": 2},
     ]
     runtime.close()
+    store.close()
+
+
+def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    delivery_started = asyncio.Event()
+    release_delivery = asyncio.Event()
+    completed = set()
+
+    class BlockingDeliveryHandler(CompleteHandler):
+        async def apply(self, context):
+            if context.job.action == "standalone_delivery":
+                delivery_started.set()
+                await release_delivery.wait()
+            completed.add(context.job.action)
+            return await super().apply(context)
+
+    for task_id, action, priority in (
+        ("TASK-DELIVERY", "standalone_delivery", 0),
+        ("TASK-REVOKE", "authority_revocation", 0),
+        ("TASK-SUBMIT", "validation_submission", 10),
+    ):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=task_id,
+                generation=f"generation-{task_id}",
+                action=action,
+                idempotency_key=f"effect-{task_id}",
+                priority=priority,
+            )
+        )
+
+    publications = []
+
+    def publisher(*_args, **kwargs):
+        publications.append(kwargs.get("snapshot_generation", _args[1]))
+        return SimpleNamespace(
+            accepted=True,
+            rejection=None,
+            commit_memory=lambda: None,
+            rollback=lambda: None,
+        )
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(BlockingDeliveryHandler()),
+        max_concurrent=2,
+        control_reserved_slots=1,
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        projection_publisher=publisher,
+        projection_epoch_source=lambda: 1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await asyncio.wait_for(runtime.reconcile_async(), 1)
+        await asyncio.wait_for(delivery_started.wait(), 1)
+        while "authority_revocation" not in completed:
+            await asyncio.sleep(0.001)
+
+        # The long shared-lane delivery remains leased. A second complete
+        # controller pass and the reserved submission effect still finish.
+        second = await asyncio.wait_for(runtime.reconcile_async(), 1)
+        while "validation_submission" not in completed:
+            await asyncio.sleep(0.001)
+        delivery = next(
+            job
+            for job in store.list_jobs(task_id="TASK-DELIVERY")
+            if job.action == "standalone_delivery"
+        )
+        assert delivery.state is WorkflowJobState.RUNNING
+        assert len(publications) >= 2
+        assert publications[-1] > publications[-2]
+        assert first["worker"]["scheduled"] == 2
+        assert second["worker"]["scheduled"] == 1
+
+        release_delivery.set()
+        await wait_for_runtime_effects(runtime)
+
+    asyncio.run(exercise())
+
+    assert completed == {
+        "standalone_delivery",
+        "authority_revocation",
+        "validation_submission",
+    }
+    runtime.close()
+    store.close()
+
+
+def test_reserved_lane_and_shared_concurrency_are_hard_bounded(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    release = asyncio.Event()
+    all_started = asyncio.Event()
+    active = {"control": 0, "data": 0, "total": 0}
+    maximum = dict(active)
+
+    class MeasuringHandler(CompleteHandler):
+        async def apply(self, context):
+            kind = (
+                "control"
+                if context.job.action == "authority_revocation"
+                else "data"
+            )
+            active[kind] += 1
+            active["total"] += 1
+            for key in active:
+                maximum[key] = max(maximum[key], active[key])
+            if active["total"] == 4:
+                all_started.set()
+            try:
+                await release.wait()
+                return await super().apply(context)
+            finally:
+                active[kind] -= 1
+                active["total"] -= 1
+
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CONTROL",
+            generation="control-1",
+            action="authority_revocation",
+            idempotency_key="control-1",
+            priority=100,
+        )
+    )
+    for index in range(5):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"DATA-{index}",
+                generation=f"data-{index}",
+                action="standalone_delivery",
+                idempotency_key=f"data-{index}",
+                priority=0,
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(MeasuringHandler()),
+        batch_size=8,
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        report = await runtime._run_due(("project-1",))
+        await asyncio.wait_for(all_started.wait(), 1)
+        assert report["active_lanes"] == {"control": 1, "shared": 3}
+        assert runtime.health_snapshot()["worker"]["retained"] == 4
+        release.set()
+        await wait_for_runtime_effects(runtime)
+
+    asyncio.run(exercise())
+
+    assert maximum == {"control": 1, "data": 3, "total": 4}
+    runtime.close()
+    store.close()
+
+
+def test_concurrent_due_callers_cannot_spend_the_same_lane_reservation(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    release_effects = asyncio.Event()
+    four_started = asyncio.Event()
+    active = 0
+
+    class BlockingHandler(CompleteHandler):
+        async def apply(self, context):
+            nonlocal active
+            active += 1
+            if active == 4:
+                four_started.set()
+            try:
+                await release_effects.wait()
+                return await super().apply(context)
+            finally:
+                active -= 1
+
+    for index in range(4):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"CONTROL-RACE-{index}",
+                generation=f"control-race-{index}",
+                action="authority_revocation",
+                idempotency_key=f"control-race-{index}",
+                priority=100,
+            )
+        )
+    for index in range(8):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"DATA-RACE-{index}",
+                generation=f"data-race-{index}",
+                action="standalone_delivery",
+                idempotency_key=f"data-race-{index}",
+                priority=0,
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(BlockingHandler()),
+        batch_size=8,
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+    first_claim_entered = asyncio.Event()
+    release_claims = asyncio.Event()
+    claim_calls = 0
+    original_claim = runtime.worker.claim_next
+
+    async def delayed_claim(**kwargs):
+        nonlocal claim_calls
+        claim_calls += 1
+        first_claim_entered.set()
+        await release_claims.wait()
+        return await original_claim(**kwargs)
+
+    runtime.worker.claim_next = delayed_claim
+
+    async def exercise():
+        await runtime.start()
+        first = asyncio.create_task(runtime._run_due(("project-1",)))
+        await asyncio.wait_for(first_claim_entered.wait(), 1)
+        second = asyncio.create_task(runtime._run_due(("project-1",)))
+        # The first caller is suspended inside claim_next. The second caller
+        # must remain outside admission instead of observing the same slots.
+        await asyncio.sleep(0)
+        assert claim_calls == 1
+        release_claims.set()
+        reports = await asyncio.wait_for(asyncio.gather(first, second), 1)
+        await asyncio.wait_for(four_started.wait(), 1)
+
+        assert sum(report["scheduled"] for report in reports) == 4
+        assert runtime.health_snapshot()["worker"]["retained"] == 4
+        assert reports[-1]["active_lanes"] == {"control": 1, "shared": 3}
+
+        release_effects.set()
+        await wait_for_runtime_effects(runtime)
+
+    asyncio.run(exercise())
+
+    runtime.close()
+    store.close()
+
+
+def test_concurrent_runtime_keeps_same_task_effects_serialized(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    release_first = asyncio.Event()
+    first_started = asyncio.Event()
+    observed = []
+
+    class SerialHandler(CompleteHandler):
+        async def apply(self, context):
+            observed.append(context.job.action)
+            if context.job.action == "authority_revocation":
+                first_started.set()
+                await release_first.wait()
+            return await super().apply(context)
+
+    for action in ("authority_revocation", "standalone_delivery"):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id="TASK-SAME",
+                generation=f"generation-{action}",
+                action=action,
+                idempotency_key=f"same-{action}",
+                priority=0,
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(SerialHandler()),
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        report = await runtime._run_due(("project-1",))
+        await asyncio.wait_for(first_started.wait(), 1)
+        assert report["scheduled"] == 1
+        assert observed == ["authority_revocation"]
+        queued = store.list_jobs(task_id="TASK-SAME", states=("queued",))
+        assert [job.action for job in queued] == ["standalone_delivery"]
+        release_first.set()
+        await wait_for_runtime_effects(runtime)
+        follow_up = await runtime._run_due(("project-1",))
+        assert follow_up["scheduled"] == 1
+        await wait_for_runtime_effects(runtime)
+
+    asyncio.run(exercise())
+
+    assert observed == ["authority_revocation", "standalone_delivery"]
+    runtime.close()
+    store.close()
+
+
+def test_detached_effect_heartbeats_and_drains_without_duplicate_apply(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    started = asyncio.Event()
+    release = asyncio.Event()
+    apply_calls = 0
+
+    class LeaseHandler(CompleteHandler):
+        async def apply(self, context):
+            nonlocal apply_calls
+            apply_calls += 1
+            started.set()
+            await release.wait()
+            return await super().apply(context)
+
+    handler = LeaseHandler()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=complete_handlers(handler),
+        transition_services={"project-1": binding.transition_service},
+        worker_id="detached-heartbeat-worker",
+        lease_seconds=0.15,
+        heartbeat_seconds=0.03,
+        operation_timeout_seconds=2,
+    )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-LEASE",
+            generation="lease-1",
+            action="standalone_delivery",
+            idempotency_key="lease-1",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(handler),
+        worker=worker,
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        report = await runtime._run_due(("project-1",))
+        assert report["scheduled"] == 1
+        await asyncio.wait_for(started.wait(), 1)
+        await asyncio.sleep(0.22)
+        live = store.get(queued.job_id)
+        assert live.state is WorkflowJobState.RUNNING
+        assert live.lease_expires_at is not None
+        assert live.lease_expires_at > time.time()
+        assert await runtime.drain(timeout_seconds=0.02) is False
+        release.set()
+        assert await runtime.drain(timeout_seconds=1) is True
+
+    asyncio.run(exercise())
+
+    assert apply_calls == 1
+    assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
+    assert store.list_jobs(task_id="TASK-LEASE", states=("queued", "retry_wait")) == ()
+    runtime.close()
+    store.close()
+
+
+def test_claim_execution_gap_recovers_after_restart_without_lost_effect(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    apply_calls = 0
+
+    class CountingHandler(CompleteHandler):
+        async def apply(self, context):
+            nonlocal apply_calls
+            apply_calls += 1
+            return await super().apply(context)
+
+    abandoned_owner = "workflow-runtime:999999:deadbeef"
+    first_worker = DurableWorkflowWorker(
+        store=store,
+        handlers=complete_handlers(CountingHandler()),
+        transition_services={"project-1": binding.transition_service},
+        worker_id=abandoned_owner,
+    )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-CLAIM-GAP",
+            generation="claim-gap-1",
+            action="standalone_delivery",
+            idempotency_key="claim-gap-1",
+        )
+    )
+    claimed = asyncio.run(
+        first_worker.claim_next(
+            project_ids=("project-1",), actions=("standalone_delivery",)
+        )
+    )
+    assert claimed is not None
+    assert store.get(queued.job_id).state is WorkflowJobState.RUNNING
+
+    handler = CountingHandler()
+    restarted = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(handler),
+        abandoned_lease_owners=(abandoned_owner,),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+
+    async def recover_and_execute():
+        recovery = await restarted.start()
+        assert recovery["abandoned"] == 1
+        report = await restarted._run_due(("project-1",))
+        assert report["scheduled"] == 1
+        await wait_for_runtime_effects(restarted)
+
+    asyncio.run(recover_and_execute())
+
+    assert apply_calls == 1
+    assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
+    restarted.close()
     store.close()
 
 
@@ -1402,7 +1874,11 @@ def test_runtime_epic_facts_prevent_stale_generic_exhaustion_override(tmp_path):
         store=store,
     )
     generic = evaluate_task(epic, binding.collector.collect(task_id))
-    assert generic.reason_code == "evidence.landing_missing"
+    # The generic collector intentionally lacks the exact containment branch
+    # authority required by the epic decision path. Runtime composition below
+    # replaces this malformed snapshot with the epic collector's canonical
+    # facts before publishing liveness.
+    assert generic.reason_code == "evidence.containment_malformed"
     assert generic.durable_jobs == ("epic_terminal_validation",)
     stale = store.enqueue(
         WorkflowJobSpec(
@@ -3383,7 +3859,12 @@ def test_post_publish_implementation_failure_recovers_on_next_snapshot(tmp_path)
     )
     assert len(queued) == 1
 
-    second = asyncio.run(runtime.reconcile_async())
+    async def recover():
+        report = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
+        return report
+
+    second = asyncio.run(recover())
 
     assert "error" not in second["projects"]["project-1"]
     assert second["worker"]["processed"] == 1
@@ -3456,6 +3937,7 @@ def test_reconcile_async_executes_effects_on_callers_event_loop(tmp_path):
         expected = asyncio.get_running_loop()
         await runtime.start()
         report = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
         return expected, report
 
     expected_loop, report = asyncio.run(exercise())
@@ -3886,7 +4368,12 @@ def test_failed_project_does_not_stall_healthy_project_worker(tmp_path):
     )
 
     asyncio.run(runtime.start())
-    report = asyncio.run(runtime.reconcile_async())
+    async def reconcile_and_wait():
+        result = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
+        return result
+
+    report = asyncio.run(reconcile_and_wait())
 
     assert report["projects"]["project-bad"]["error"] == "RuntimeError"
     assert report["worker"]["failed_projects"] == ["project-bad"]
@@ -3925,10 +4412,74 @@ def test_paused_project_keeps_due_job_unclaimed_until_resumed(tmp_path):
     assert store.get(job.job_id).state is WorkflowJobState.QUEUED
 
     enabled = True
-    resumed_report = asyncio.run(runtime.reconcile_async())
+    async def resume_and_wait():
+        result = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
+        return result
+
+    resumed_report = asyncio.run(resume_and_wait())
     assert resumed_report["worker"]["processed"] == 1
     assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
     runtime.close()
+    store.close()
+
+
+def test_pause_race_after_claim_defers_without_consuming_attempt(tmp_path):
+    now = [1000.0]
+    enabled = True
+    store = WorkflowJobStore(
+        str(tmp_path / "pause-race.sqlite3"), clock=lambda: now[0]
+    )
+    leaf = CompleteHandler()
+    routed = _ProjectRoutedHandler(
+        "review_refresh",
+        {"project-1": leaf},
+        project_enabled={"project-1": lambda: enabled},
+    )
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-PAUSE-RACE",
+            generation="pause-race-1",
+            action="review_refresh",
+            idempotency_key="pause-race-job",
+            max_attempts=1,
+        )
+    )
+
+    async def exercise():
+        nonlocal enabled
+        paused_once = False
+
+        def pause_after_claim(phase, _job):
+            nonlocal enabled, paused_once
+            if phase == "leased" and not paused_once:
+                paused_once = True
+                enabled = False
+
+        runner = DurableWorkflowWorker(
+            store=store,
+            handlers={"review_refresh": routed},
+            transition_services={},
+            worker_id="pause-race-worker",
+            retry_delay_seconds=5,
+            phase_observer=pause_after_claim,
+        )
+        deferred = await runner.run_once()
+        enabled = True
+        now[0] += 5
+        completed = await runner.run_once()
+        return deferred, completed
+
+    deferred, completed = asyncio.run(exercise())
+
+    assert deferred.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert deferred.attempts == 0
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(job.job_id).attempts == 1
+    assert [event.event_type for event in store.events(job.job_id)].count(
+        "administrative_deferred"
+    ) == 1
     store.close()
 
 

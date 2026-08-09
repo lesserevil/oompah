@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from oompah.workflow_fact_model import LandingFact, LandingState
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     MAX_SCAN_LIMIT,
@@ -282,6 +283,120 @@ def test_event_lane_retry_wait_is_live_authority(store):
         source_revision="source-1",
         actions=("implementation_retry",),
     )
+
+
+def test_administrative_deferral_preserves_checkpoint_and_failure_budget(
+    store, clock
+):
+    queued = store.enqueue(spec(max_attempts=1))
+    running = claim(store)
+    assert running is not None
+    checkpointed = store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase="revalidated",
+        checkpoint={"revalidation": {"generation": "g1"}},
+    )
+
+    first = store.defer_owned_without_attempt(
+        checkpointed.job_id,
+        checkpointed.lease_token,
+        reason="operator pause",
+        retry_delay_seconds=5,
+    )
+
+    assert first.state is WorkflowJobState.RETRY_WAIT
+    assert first.attempts == 0
+    assert first.generation == queued.generation
+    assert first.phase == checkpointed.phase
+    assert first.checkpoint == checkpointed.checkpoint
+    assert first.retry_at == clock.now + 5
+    assert first.failure_category is None
+    assert first.last_error is None
+    event = store.events(queued.job_id)[-1]
+    assert event.event_type == "administrative_deferred"
+    assert event.payload == {
+        "deferral_count": 1,
+        "reason": "operator pause",
+        "restored_attempts": 0,
+        "retry_at": clock.now + 5,
+        "retry_delay_seconds": 5.0,
+    }
+
+    clock.advance(5)
+    resumed = claim(store)
+    assert resumed is not None
+    second = store.defer_owned_without_attempt(
+        resumed.job_id,
+        resumed.lease_token,
+        reason="graceful restart",
+        retry_delay_seconds=5,
+    )
+
+    assert second.attempts == 0
+    assert second.retry_at == clock.now + 10
+    assert second.checkpoint == checkpointed.checkpoint
+    assert store.events(queued.job_id)[-1].payload["deferral_count"] == 2
+
+
+def test_administrative_deferral_fences_aba_lease_across_restart(tmp_path, clock):
+    path = str(tmp_path / "administrative-restart.sqlite3")
+    store = WorkflowJobStore(path, clock=clock)
+    queued = store.enqueue(spec(max_attempts=1))
+    first = claim(store)
+    assert first is not None
+    store.defer_owned_without_attempt(
+        first.job_id,
+        first.lease_token,
+        reason="lifecycle drain",
+        retry_delay_seconds=5,
+    )
+    store.close()
+
+    clock.advance(5)
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        replacement = reopened.claim_next(
+            lease_owner="worker-after-restart",
+            lease_seconds=30,
+        )
+        assert replacement is not None
+        assert replacement.job_id == queued.job_id
+        assert replacement.generation == queued.generation
+        assert replacement.lease_token != first.lease_token
+        assert replacement.attempts == 1
+
+        with pytest.raises(WorkflowJobLeaseLost):
+            reopened.defer_owned_without_attempt(
+                first.job_id,
+                first.lease_token,
+                reason="late pre-restart callback",
+                retry_delay_seconds=5,
+            )
+
+        observed = reopened.get(queued.job_id)
+        assert observed.state is WorkflowJobState.RUNNING
+        assert observed.lease_token == replacement.lease_token
+        assert observed.attempts == 1
+
+        superseded = reopened.supersede(
+            queued.job_id,
+            generation=queued.generation,
+            replacement_generation="g2",
+            reason="new evidence generation",
+        )
+        with pytest.raises(WorkflowJobLeaseLost):
+            reopened.defer_owned_without_attempt(
+                replacement.job_id,
+                replacement.lease_token,
+                reason="late replacement callback",
+                retry_delay_seconds=5,
+            )
+        assert superseded.state is WorkflowJobState.SUPERSEDED
+        assert superseded.superseded_by_generation == "g2"
+        assert reopened.get(queued.job_id) == superseded
+    finally:
+        reopened.close()
 
 
 @pytest.mark.parametrize(
@@ -1449,6 +1564,79 @@ def test_complete_persists_result_and_fences_late_worker(store):
     assert completed.lease_token is None
     with pytest.raises(WorkflowJobLeaseLost):
         store.complete(running.job_id, running.lease_token)
+
+
+def _durable_landing_fact(*, revision: str = "a" * 40) -> LandingFact:
+    return LandingFact(
+        "TASK-A",
+        "main",
+        revision,
+        {
+            "kind": "git_ancestry",
+            "source_sha": revision,
+            "target_sha": "b" * 40,
+        },
+        "2026-08-09T09:00:00+00:00",
+        "project-a",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+
+def test_complete_atomically_persists_idempotent_landing_fact(store):
+    store.enqueue(spec(action="integration_landing_refresh", task="TASK-A"))
+    running = claim(store)
+    fact = _durable_landing_fact()
+    reobserved = fact.to_dict()
+    reobserved["observed_at"] = "2026-08-09T09:01:00+00:00"
+
+    completed = store.complete(
+        running.job_id,
+        running.lease_token,
+        landing_facts=(fact.to_dict(), reobserved),
+    )
+
+    assert completed.state is WorkflowJobState.COMPLETED
+    assert store.landing_facts(project_id="project-a", task_id="TASK-A") == (
+        fact.to_dict(),
+    )
+    event = store.events(running.job_id)[-1]
+    assert event.payload["landing_facts"] == 2
+    assert event.payload["landing_facts_inserted"] == 1
+
+
+def test_complete_fences_landing_fact_with_stale_lease(store, clock):
+    store.enqueue(spec(action="integration_landing_refresh", task="TASK-A"))
+    stale = claim(store)
+    clock.advance(31)
+    current = claim(store)
+
+    with pytest.raises(WorkflowJobLeaseLost):
+        store.complete(
+            stale.job_id,
+            stale.lease_token,
+            landing_facts=(_durable_landing_fact().to_dict(),),
+        )
+
+    assert store.landing_facts(project_id="project-a", task_id="TASK-A") == ()
+    assert store.get(current.job_id).state is WorkflowJobState.RUNNING
+
+
+def test_complete_rejects_stale_landing_evidence_revision_atomically(store):
+    store.enqueue(spec(action="integration_landing_refresh", task="TASK-A"))
+    running = claim(store)
+    stale = _durable_landing_fact().to_dict()
+    stale["revision"] = "c" * 40
+
+    with pytest.raises(WorkflowJobStoreError, match="evidence revision"):
+        store.complete(
+            running.job_id,
+            running.lease_token,
+            landing_facts=(stale,),
+        )
+
+    assert store.landing_facts(project_id="project-a", task_id="TASK-A") == ()
+    assert store.get(running.job_id).state is WorkflowJobState.RUNNING
 
 
 def test_fail_schedules_retry_then_claims_only_when_due(store, clock):

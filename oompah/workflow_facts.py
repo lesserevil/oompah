@@ -401,6 +401,74 @@ class GitLandingCollector:
 FactSource = Callable[[Issue], FactObservation | CollectedValue | Any]
 
 
+def _owner_delivery_landings(
+    observation: FactObservation,
+    requests: Sequence[LandingRequest],
+    *,
+    project_id: str,
+    task_id: str,
+    observed_at: str,
+) -> tuple[LandingFact, ...]:
+    """Project one already-authorized exact delivery as a landing fact."""
+
+    value = observation.value if observation.state is FactState.KNOWN else None
+    if not isinstance(value, Mapping):
+        return ()
+    raw = value.get("owner_delivery")
+    if not isinstance(raw, Mapping) or raw.get("schema_version") != 1:
+        return ()
+    if raw.get("project_id") != project_id or raw.get("task_id") != task_id:
+        return ()
+    revision = str(raw.get("revision") or "").strip().lower()
+    source = str(raw.get("source") or "").strip()
+    target = str(raw.get("target") or "").strip()
+    override_id = str(raw.get("override_id") or "").strip()
+    fingerprint = str(raw.get("evidence_fingerprint") or "").strip().lower()
+    selected_ref = str(raw.get("selected_ref") or "").strip()
+    authorized_by = str(raw.get("authorized_by") or "").strip()
+    if (
+        not _GIT_REVISION_RE.fullmatch(revision)
+        or not source
+        or not target
+        or not override_id
+        or not re.fullmatch(r"[0-9a-f]{64}", fingerprint)
+        or not selected_ref
+        or not authorized_by
+    ):
+        return ()
+    matching = next(
+        (
+            request
+            for request in requests
+            if request.source == source
+            and request.target == target
+            and request.revision == revision
+        ),
+        None,
+    )
+    if matching is None:
+        return ()
+    return (
+        LandingFact(
+            matching.source,
+            matching.target,
+            matching.revision,
+            {
+                "kind": LandingProofKind.TERMINAL_AUDIT.value,
+                "authority": "project_owner_delivery",
+                "override_id": override_id,
+                "evidence_fingerprint": fingerprint,
+                "selected_ref": selected_ref,
+                "authorized_by": authorized_by,
+            },
+            observed_at,
+            project_id,
+            state=LandingState.LANDED,
+            durable=True,
+        ),
+    )
+
+
 def _blocker_value(blocker: BlockerRef) -> dict[str, Any]:
     return {
         "id": _optional_text(blocker.id),
@@ -874,8 +942,24 @@ class WorkflowFactCollector:
                 domain, issue, now=now, now_iso=now_iso
             )
 
-        landings: tuple[LandingFact, ...] = ()
-        if landing_requests and self.landing_collector is None:
+        owner_landings = _owner_delivery_landings(
+            observations[FactDomain.TERMINAL_AUDIT],
+            landing_requests,
+            project_id=self.project_id,
+            task_id=task_id,
+            observed_at=now_iso,
+        )
+        owner_identities = {
+            (item.source, item.target, item.revision) for item in owner_landings
+        }
+        unresolved_requests = tuple(
+            request
+            for request in landing_requests
+            if (request.source, request.target, request.revision)
+            not in owner_identities
+        )
+        landings: tuple[LandingFact, ...] = owner_landings
+        if unresolved_requests and self.landing_collector is None:
             observations[FactDomain.LANDING] = FactObservation.error(
                 FactDomain.LANDING,
                 observed_at=now_iso,
@@ -886,11 +970,11 @@ class WorkflowFactCollector:
             try:
                 collect_many = getattr(self.landing_collector, "collect_many", None)
                 collected = (
-                    tuple(collect_many(landing_requests))
-                    if callable(collect_many)
+                    tuple(collect_many(unresolved_requests))
+                    if unresolved_requests and callable(collect_many)
                     else tuple(
                         self.landing_collector.collect(request)
-                        for request in landing_requests
+                        for request in unresolved_requests
                     )
                 )
             except Exception as exc:  # noqa: BLE001 - landing evidence boundary
@@ -901,13 +985,14 @@ class WorkflowFactCollector:
                     error_code=f"landing_{type(exc).__name__.lower()}",
                 )
             else:
+                landings = (*owner_landings, *collected)
                 observations[FactDomain.LANDING] = FactObservation.known(
                     FactDomain.LANDING,
                     {
                         "evidence_revisions": [
                             item.evidence_revision
                             for item in sorted(
-                                collected,
+                                landings,
                                 key=lambda item: (
                                     item.source,
                                     item.target,
@@ -919,7 +1004,6 @@ class WorkflowFactCollector:
                     observed_at=now_iso,
                     source="git",
                 )
-                landings = collected
         else:
             observations[FactDomain.LANDING] = FactObservation.missing(
                 FactDomain.LANDING, observed_at=now_iso, source="git"

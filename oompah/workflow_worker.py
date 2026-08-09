@@ -134,6 +134,31 @@ class WorkflowActionInterrupted(WorkflowActionError):
         )
 
 
+class WorkflowAdministrativeDeferral(WorkflowActionError):
+    """Non-failure admission deferral before an external effect starts.
+
+    ``effect_not_started`` is reserved for an admission boundary which can
+    prove it rejected the operation before delegating to the effect handler.
+    The worker still refuses to restore the attempt after a durable effect
+    receipt exists.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_delay_seconds: float | None = None,
+        effect_not_started: bool = False,
+    ) -> None:
+        super().__init__(
+            message,
+            category=WorkflowFailureCategory.TRANSIENT,
+            retryable=True,
+            retry_delay_seconds=retry_delay_seconds,
+        )
+        self.effect_not_started = bool(effect_not_started)
+
+
 class WorkflowActionSuperseded(WorkflowActionError):
     """Signal that fresh domain evidence terminally fenced this action."""
 
@@ -487,6 +512,41 @@ class DurableWorkflowWorker:
             job.attempts,
         )
 
+    async def _defer(
+        self,
+        context: WorkflowJobContext,
+        failure: WorkflowActionError,
+    ) -> WorkflowRunResult:
+        """Release proven pre-effect ownership without spending an attempt."""
+
+        try:
+            job = await asyncio.to_thread(
+                self.store.defer_owned_without_attempt,
+                context.job.job_id,
+                context.job.lease_token,
+                reason=str(failure),
+                retry_delay_seconds=(
+                    failure.retry_delay_seconds
+                    if failure.retry_delay_seconds is not None
+                    else self.retry_delay_seconds
+                ),
+            )
+        except WorkflowJobLeaseLost:
+            return WorkflowRunResult(
+                WorkflowRunDisposition.LEASE_LOST,
+                context.job.job_id,
+                WorkflowJobState.RUNNING,
+                "lease lost before administrative deferral checkpoint",
+                context.job.attempts,
+            )
+        return WorkflowRunResult(
+            WorkflowRunDisposition.RETRY_SCHEDULED,
+            job.job_id,
+            job.state,
+            str(failure),
+            job.attempts,
+        )
+
     async def _quarantine(
         self,
         context: WorkflowJobContext,
@@ -536,6 +596,7 @@ class DurableWorkflowWorker:
         )
         heartbeat_stop = asyncio.Event()
         heartbeat = asyncio.create_task(self._heartbeat(context, heartbeat_stop))
+        effect_authority_started = False
         try:
             await self._notify("leased", context.job)
             context.check_interrupted()
@@ -619,6 +680,8 @@ class DurableWorkflowWorker:
                         "operation_timeout_seconds",
                         self.operation_timeout_seconds,
                     )
+                    context.check_interrupted()
+                    effect_authority_started = True
                     effect = await self._bounded(
                         "apply",
                         handler.apply(context),
@@ -801,6 +864,33 @@ class DurableWorkflowWorker:
                     },
                 )
 
+            completion_landing_facts: tuple[Mapping[str, Any], ...] = ()
+            completion_evidence = getattr(
+                handler, "completion_landing_facts", None
+            )
+            if callable(completion_evidence):
+                published = completion_evidence(context, verification)
+                if inspect.isawaitable(published):
+                    published = await self._bounded(
+                        "build_completion_evidence", published
+                    )
+                if isinstance(published, (str, bytes)) or not isinstance(
+                    published, Sequence
+                ):
+                    raise WorkflowActionError(
+                        "handler returned invalid completion landing facts",
+                        category=WorkflowFailureCategory.PERMANENT,
+                        retryable=False,
+                    )
+                if any(not isinstance(item, Mapping) for item in published):
+                    raise WorkflowActionError(
+                        "handler returned invalid completion landing fact",
+                        category=WorkflowFailureCategory.PERMANENT,
+                        retryable=False,
+                    )
+                completion_landing_facts = tuple(published)
+                context.check_interrupted()
+
             finalize_transition = getattr(handler, "finalize_transition", None)
             if transition is not None and callable(finalize_transition):
                 await self._bounded(
@@ -814,6 +904,7 @@ class DurableWorkflowWorker:
                 context.job.job_id,
                 context.job.lease_token,
                 result_transition=transition.to_dict() if transition else None,
+                landing_facts=completion_landing_facts,
             )
             await self._notify("completed", completed)
             return WorkflowRunResult(
@@ -846,6 +937,18 @@ class DurableWorkflowWorker:
                 str(exc),
                 superseded.attempts,
             )
+        except WorkflowAdministrativeDeferral as exc:
+            checkpoint = context.job.checkpoint or {}
+            effect_is_durable = isinstance(checkpoint.get("effect"), Mapping)
+            if not effect_is_durable and (
+                not effect_authority_started or exc.effect_not_started
+            ):
+                return await self._defer(context, exc)
+            return await self._fail(context, exc)
+        except WorkflowActionInterrupted as exc:
+            if not effect_authority_started:
+                return await self._defer(context, exc)
+            return await self._fail(context, exc)
         except WorkflowActionError as exc:
             if isinstance(exc, WorkflowActionTimedOut):
                 return await self._quarantine(context, exc)
@@ -915,10 +1018,7 @@ class DurableWorkflowWorker:
                     None,
                     "worker has no registered workflow actions",
                 )
-            job = await asyncio.to_thread(
-                self.store.claim_next,
-                lease_owner=self.worker_id,
-                lease_seconds=self.lease_seconds,
+            job = await self.claim_next(
                 project_id=project_id,
                 project_ids=project_ids,
                 actions=claim_actions,
@@ -931,6 +1031,59 @@ class DurableWorkflowWorker:
                     None,
                     "no due workflow job",
                 )
+            return await self._execute_claimed(job)
+        finally:
+            if current is not None:
+                self._active.discard(current)
+
+    async def claim_next(
+        self,
+        *,
+        project_id: str | None = None,
+        project_ids: Sequence[str] | None = None,
+        actions: Sequence[str] | None = None,
+        fair_across_projects: bool = False,
+    ) -> WorkflowJob | None:
+        """Claim one exact durable row without waiting for its effect.
+
+        Runtime schedulers use this small admission boundary to retain the
+        resulting invocation in a bounded background lane.  A claim remains
+        restart-safe even if the process exits before ``execute_claimed`` is
+        admitted: its lease expires back into the ordinary recovery path.
+        """
+
+        if not self._accepting:
+            return None
+        claim_actions = (
+            tuple(sorted(self.handlers)) if actions is None else tuple(actions)
+        )
+        if not claim_actions:
+            return None
+        return await asyncio.to_thread(
+            self.store.claim_next,
+            lease_owner=self.worker_id,
+            lease_seconds=self.lease_seconds,
+            project_id=project_id,
+            project_ids=project_ids,
+            actions=claim_actions,
+            fair_across_projects=fair_across_projects,
+        )
+
+    async def execute_claimed(self, job: WorkflowJob) -> WorkflowRunResult:
+        """Execute a row already leased by :meth:`claim_next`.
+
+        Unlike new admission this method deliberately remains available after
+        ``drain`` fences claims.  Shutdown first waits for the runtime's claim
+        pass, so every lease returned to it must either start its independent
+        heartbeat here or recover durably after a process crash.
+        """
+
+        if not isinstance(job, WorkflowJob):
+            raise TypeError("job must be a WorkflowJob")
+        current = asyncio.current_task()
+        if current is not None:
+            self._active.add(current)
+        try:
             return await self._execute_claimed(job)
         finally:
             if current is not None:
