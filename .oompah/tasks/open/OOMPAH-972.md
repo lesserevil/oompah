@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-972
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Repair stale editable installs after worktree retirement
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:03:49.482603Z'
+updated_at: '2026-08-09T20:04:23.044711Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Aggressive cleanup of merged OOMPAH worktrees exposed a deterministic local-envi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 20:04
+---
+Accepted for direct-owner repair during the aggressive branch/worktree pruning completion pass; reproduced locally and restored the current CLI only by invalidating the stale setup stamp.
+---
+<!-- COMMENTS:END -->
