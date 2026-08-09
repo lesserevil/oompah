@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T16:21:25.252308Z'
+updated_at: '2026-08-09T17:29:10.852929Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-08-09 16:21
 ---
 Refreshed exact branch head ee690e89147851558b23273a26a068f23bd705f3 onto main 890070ab7411b4a7874013ffdea3bf4fa227c86f containing OOMPAH-957 and OOMPAH-959. Composition auto-merged cleanly; 820 affected/composed tests passed, along with diff, undefined-name lint, terminal-audit, and secret scans. Hosted PR #770 run 31323480242 is now qualifying this exact head on Python 3.11/3.12/3.13.
+---
+author: oompah
+created: 2026-08-09 17:29
+---
+Final composition with landed OOMPAH-964/OOMPAH-965 pushed at exact head dd2e18fc263f16717a7b31802968f235a4401525 on PR #770. The sole test-module conflict preserved all publication-provider and callback/quarantine regressions; production composition was clean. Validation: 8 focused composition tests, 50 race repetitions, 671 affected tests, targeted critical Ruff, terminal mutation, secret, and diff checks pass. Hosted exact matrix is running; OOMPAH-961 final composition has started in parallel.
 ---
 <!-- COMMENTS:END -->
