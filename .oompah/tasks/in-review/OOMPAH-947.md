@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-947
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Bound terminal-audit lane cost beyond candidate count
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T11:55:46.774980Z'
+updated_at: '2026-08-09T11:56:03.443710Z'
 work_branch: OOMPAH-947
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
 review_number: '760'
-review_head: null
+review_head: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-947
 oompah.review_url: https://github.com/lesserevil/oompah/pull/760
 oompah.review_number: '760'
+oompah.target_branch: main
+oompah.review_head: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
 ---
 ## Summary
 
