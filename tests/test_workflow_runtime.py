@@ -492,9 +492,12 @@ def test_terminal_audit_proof_rejects_metadata_race_until_current_job_exists(
     store.close()
 
 
-@pytest.mark.parametrize("provider_unavailable", (False, True))
+@pytest.mark.parametrize(
+    "provider_state",
+    ("authority_changed", "removed_before_publication", "missing_initially"),
+)
 def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
-    tmp_path, monkeypatch, caplog, provider_unavailable
+    tmp_path, monkeypatch, caplog, provider_state
 ):
     task = make_issue("TASK-AUDIT-FENCE", state="In Validation")
     store = WorkflowJobStore(str(tmp_path / "jobs-fence.sqlite3"))
@@ -563,14 +566,16 @@ def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
         )
         proof_calls.append(accepted)
         if len(proof_calls) == 1:
-            if provider_unavailable:
+            if provider_state == "removed_before_publication":
                 binding.terminal_audit_proof_source = None
             else:
                 # Metadata changes after the scan proof but before publication.
                 current[0] = record_b
         return accepted
 
-    binding.terminal_audit_proof_source = proof
+    binding.terminal_audit_proof_source = (
+        None if provider_state == "missing_initially" else proof
+    )
     binding.terminal_audit_snapshot_proof_source = (
         lambda _decision, _observed: True
     )
@@ -598,17 +603,23 @@ def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
     with caplog.at_level(logging.INFO, logger="oompah.workflow_runtime"):
         report = runtime.reconcile()
 
-    assert len(publications) == 1
-    if provider_unavailable:
-        assert proof_calls == [True]
-        assert proof_fences == [(False, False)]
+    if provider_state in {"removed_before_publication", "missing_initially"}:
+        expected_calls = [] if provider_state == "missing_initially" else [True]
+        expected_fences = (
+            [] if provider_state == "missing_initially" else [(False, False)]
+        )
+        assert proof_calls == expected_calls
+        assert proof_fences == expected_fences
+        assert len(publications) == int(provider_state != "missing_initially")
         assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+        assert "requires_reconcile" not in report
         assert any(
             record.levelno >= logging.ERROR
             and "Durable workflow publication failed" in record.message
             for record in caplog.records
         )
     else:
+        assert len(publications) == 1
         assert proof_calls == [True, False]
         assert proof_fences == [(False, False), (True, True)]
         assert report["requires_reconcile"] is True

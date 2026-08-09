@@ -1828,10 +1828,14 @@ class WorkflowRuntime:
             proof_source = getattr(
                 binding, "terminal_audit_proof_source", None
             )
+            if not callable(proof_source):
+                raise WorkflowRuntimeError(
+                    "terminal-audit authority proof is unavailable"
+                )
             try:
                 materialized = bool(
                     proof_source(decision, value, next(iter(terminal_actions)))
-                ) if callable(proof_source) and len(terminal_actions) == 1 else False
+                ) if len(terminal_actions) == 1 else False
             except Exception:  # noqa: BLE001 - proof failure is incomplete
                 logger.exception(
                     "Terminal-audit liveness proof failed for %s/%s",
