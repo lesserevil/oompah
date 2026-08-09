@@ -12,13 +12,25 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:14.654158Z'
-updated_at: '2026-08-09T14:35:27.783690Z'
-work_branch: null
+updated_at: '2026-08-09T14:37:30.729574Z'
+work_branch: OOMPAH-960
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-960
+  base_branch: epic-OOMPAH-940
+  base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  head_sha: b3053aab9216b2a1ca79dba786506743074de15a
+  submitted_at: '2026-08-09T14:37:07.918704+00:00'
+  updated_at: '2026-08-09T14:37:07.918704+00:00'
+oompah.work_branch: OOMPAH-960
 ---
 ## Summary
 
@@ -41,5 +53,10 @@ author: oompah
 created: 2026-08-09 14:35
 ---
 Implemented fail-closed parent-scoped canonical child landing consumption in the isolated OOMPAH-960 worktree. A Done child now imports only one durable LANDED fact owned by its current parent epic when current direct containment, project, exact route, source, and any named revision agree; the Git collector still revalidates current target history, and the parent fact remains parent-owned across restart. Validation so far: 113 integration workflow tests passed; 91 epic workflow/adapter tests passed; terminal mutation scan and paranoid secret scan passed. Preparing the review-ready commit and push; no service mutation or deployment.
+---
+author: oompah
+created: 2026-08-09 14:37
+---
+Implemented parent-scoped canonical child landing consumption with fail-closed current containment, project, source, route, revision, ambiguity, and current-target-history validation. Parent evidence remains parent-owned and survives restart. Pushed b3053aab9216b2a1ca79dba786506743074de15a; 113 integration workflow tests and 91 epic workflow tests passed, plus terminal mutation and secret scans.
 ---
 <!-- COMMENTS:END -->
