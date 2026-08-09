@@ -1088,6 +1088,7 @@ def test_due_batch_preserves_durable_fairness_across_continuations(tmp_path):
     store.close()
 
 
+@pytest.mark.timeout(30)
 def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])
@@ -1095,6 +1096,14 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
     delivery_started = asyncio.Event()
     release_delivery = asyncio.Event()
     completed = set()
+    completed_events = {
+        action: asyncio.Event()
+        for action in (
+            "standalone_delivery",
+            "authority_revocation",
+            "validation_submission",
+        )
+    }
 
     class BlockingDeliveryHandler(CompleteHandler):
         async def apply(self, context):
@@ -1102,6 +1111,7 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
                 delivery_started.set()
                 await release_delivery.wait()
             completed.add(context.job.action)
+            completed_events[context.job.action].set()
             return await super().apply(context)
 
     for task_id, action, priority in (
@@ -1148,14 +1158,18 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
         await runtime.start()
         first = await asyncio.wait_for(runtime.reconcile_async(), 1)
         await asyncio.wait_for(delivery_started.wait(), 1)
-        while "authority_revocation" not in completed:
-            await asyncio.sleep(0.001)
+        await asyncio.wait_for(
+            completed_events["authority_revocation"].wait(),
+            10,
+        )
 
         # The long shared-lane delivery remains leased. A second complete
         # controller pass and the reserved submission effect still finish.
         second = await asyncio.wait_for(runtime.reconcile_async(), 1)
-        while "validation_submission" not in completed:
-            await asyncio.sleep(0.001)
+        await asyncio.wait_for(
+            completed_events["validation_submission"].wait(),
+            10,
+        )
         delivery = next(
             job
             for job in store.list_jobs(task_id="TASK-DELIVERY")
