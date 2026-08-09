@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:12:28.755445Z'
+updated_at: '2026-08-09T19:25:14.285386Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -27,9 +27,9 @@ oompah.integration:
   task_branch: OOMPAH-968
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  head_sha: 277a99a1c53d6ce61ec92f88cc85413132ca6a86
-  submitted_at: '2026-08-09T19:09:13.751837+00:00'
-  updated_at: '2026-08-09T19:09:13.751837+00:00'
+  head_sha: 6f3ee4170c16cbe273dca74e9512321b6c0cabfd
+  submitted_at: '2026-08-09T19:25:00.003039+00:00'
+  updated_at: '2026-08-09T19:25:00.003039+00:00'
 oompah.work_branch: OOMPAH-968
 ---
 ## Summary
@@ -73,5 +73,15 @@ author: oompah
 created: 2026-08-09 19:09
 ---
 Final exact head 277a99a1c closes absent-to-retained and absent-to-revision publication races with consistent owner/generation/timestamp authority. 557 focused tests and two independent final reviews are green.
+---
+author: oompah
+created: 2026-08-09 19:25
+---
+Rebased the independently reviewed provenance-publication fence onto merged OOMPAH-967 without tree changes. Exact head 6f3ee4170c16cbe273dca74e9512321b6c0cabfd; 557 focused tests and three independent reviews are green.
+---
+author: oompah
+created: 2026-08-09 19:25
+---
+Post-dependency integration head 6f3ee4170 is pushed on merged main c28022a79. The full tree is byte-identical to independently reviewed head 277a99a1c; only the four commit IDs changed during clean rebase. This is the new exact integration candidate.
 ---
 <!-- COMMENTS:END -->
