@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:43:59.178057Z'
+updated_at: '2026-08-09T18:44:09.998651Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-967
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  head_sha: 79192eea194239c24024728de71921256e6553cf
-  submitted_at: '2026-08-09T18:38:10.411728+00:00'
-  updated_at: '2026-08-09T18:38:10.411728+00:00'
+  head_sha: e0927912d83c641cd8ed976fd02ae8d51a69e5cd
+  submitted_at: '2026-08-09T18:44:00.289473+00:00'
+  updated_at: '2026-08-09T18:44:00.289473+00:00'
 oompah.work_branch: OOMPAH-967
 ---
 ## Summary
@@ -87,5 +87,10 @@ author: oompah
 created: 2026-08-09 18:43
 ---
 Final corrective head e0927912d is pushed: the canonical decision boundary now distinguishes an absent provenance key from explicit null/string/list/bool fact values, which fail closed as terminal.provenance_invalid with zero jobs. Persisted and projected validation is now end-to-end. Verification: 531 focused tests pass; independent 166-test adversarial review reports no blockers; critical Ruff/diff checks pass. Supersedes all prior submitted heads.
+---
+author: oompah
+created: 2026-08-09 18:44
+---
+Exact head e0927912d provides end-to-end fail-closed terminal provenance, retained zero-job decisions, exact publication fencing, and durable exhaustion retirement. 531 focused tests plus independent review are green.
 ---
 <!-- COMMENTS:END -->
