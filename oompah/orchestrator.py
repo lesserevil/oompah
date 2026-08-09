@@ -13854,18 +13854,10 @@ class Orchestrator:
         def terminal_audit(current: Issue) -> dict[str, Any] | None:
             try:
                 project_id = str(current.project_id or "legacy")
-                suppression_source = getattr(
-                    self,
-                    "_provenance_suppression_status",
-                    None,
-                )
-                suppression = (
-                    suppression_source(current, current.project_id)
-                    if callable(suppression_source)
-                    else load_provenance_suppression_status(
-                        self._audit_store(current),
-                        current.identifier,
-                    )
+                audit_store = self._audit_store(current)
+                suppression = load_provenance_suppression_status(
+                    audit_store,
+                    current.identifier,
                 )
                 marker = suppression.marker
                 provenance: dict[str, Any] = {}
@@ -13908,7 +13900,7 @@ class Orchestrator:
                         # read discard that already validated durable fence.
                         return provenance
 
-                document = self._audit_store(current).read(current.identifier)
+                document = audit_store.read(current.identifier)
                 get_project = getattr(
                     getattr(self, "project_store", None), "get", None
                 )

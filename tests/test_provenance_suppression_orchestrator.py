@@ -197,15 +197,21 @@ def test_workflow_terminal_audit_fact_projects_exact_retention_authority(tmp_pat
     )
     _seed_suppression(tracker, issue.identifier)
     orch = _make_orchestrator(tmp_path, tracker)
+    audit_store = orch._audit_store(issue)
+    audit_store.read = MagicMock(  # type: ignore[method-assign]
+        wraps=audit_store.read
+    )
     orch._audit_store = MagicMock(  # type: ignore[method-assign]
-        side_effect=AssertionError(
-            "retained provenance must dominate unrelated audit reads"
-        )
+        return_value=audit_store
     )
 
     source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
     fact = source(issue)
 
+    # Loading the durable marker reads the envelope once.  Retention then
+    # returns before a second, unrelated audit-document read can discard the
+    # already validated authority fact.
+    assert audit_store.read.call_count == 1
     assert fact["terminal_provenance"] == {
         "schema_version": 1,
         "marker_version": 1,
