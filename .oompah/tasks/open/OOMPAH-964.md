@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T16:27:16.522562Z'
+updated_at: '2026-08-09T16:35:07.354320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-08-09 16:27
 ---
 Implemented defense-in-depth rejection of PR-backed GitHub issue_comment events at both webhook parsing and native-intake boundaries. Genuine issue comments remain covered and the full focused modules pass (265 tests), along with terminal-audit, secret, and diff checks. Pushed exact head fe2cb2d612c82d71e2637254fd79c30db5124377 and opened PR #773; hosted CI run 31323802373 is in progress.
+---
+author: oompah
+created: 2026-08-09 16:35
+---
+Addressed independent-review blocker: both PR-comment guards now require a truthy pull_request marker, preserving genuine issue_comment payloads with pull_request: null. Added explicit parser and direct-intake nullable-marker regressions. Exact head 5693a9786509d31446ae8f5232caa8fef7be7d1d is pushed to PR #773; hosted run 31324161414 queued. Validation: 416 tests across webhook/intake/server/promotion modules passed; nullable regressions passed 20 repeated process runs; terminal-audit, secret, undefined-name, and diff checks passed.
 ---
 <!-- COMMENTS:END -->
