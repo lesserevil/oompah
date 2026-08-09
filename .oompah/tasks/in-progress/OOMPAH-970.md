@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-970
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make detached workflow heartbeat proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:37:46.622244Z'
+updated_at: '2026-08-09T19:41:20.671923Z'
 work_branch: null
 target_branch: null
 review_url: null
