@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T23:04:21.034417Z'
+updated_at: '2026-08-09T23:04:27.938680Z'
 work_branch: OOMPAH-976
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/785
@@ -55,7 +55,17 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:04:14.257692+00:00'
     selected_ref: 6af2014f97244e153ba3ea1ea70a4342d63ebc8b
     selected_sha: 6af2014f97244e153ba3ea1ea70a4342d63ebc8b
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-976
+    target_state: Merged
+    evidence_fingerprint: a2abaedcf05df4a1e17157fc81594ef9a394d669c0186d2970c9d7eaa0c111eb
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T23:04:26.184196+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -96,5 +106,12 @@ author: oompah
 created: 2026-08-09 22:49
 ---
 Branch quality gate passed for `6af2014f97244e153ba3ea1ea70a4342d63ebc8b` using `make test` in 164.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 23:04
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact implementation head 6af2014f97244e153ba3ea1ea70a4342d63ebc8b passed independent security/liveness review, 234 serial plus 234 xdist tests, 10/10 stress on both race edges, protected Python 3.11/3.12/3.13, merged via PR #785 as 25154c8b709f5916d5a9744d2b2fe9979d64799f, and is the exact deployed running build.
 ---
 <!-- COMMENTS:END -->
