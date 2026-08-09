@@ -20,7 +20,10 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from oompah.agent_instructions import update_agents_text_for_oompah_tasks
+from oompah.agent_instructions import (
+    update_agents_text_for_github_issues,
+    update_agents_text_for_oompah_tasks,
+)
 from oompah.git_credentials import (
     git_credential_environment,
     redact_git_output,
@@ -150,11 +153,23 @@ def _is_oompah_managed_file(rel_path: str, current: str | None) -> bool:
     return HTML_BEGIN_MARKER in current or COMMENT_BEGIN_MARKER in current
 
 
-def _canonical_for_path(rel_path: str, current: str | None) -> tuple[str, bool, str]:
+def _canonical_for_path(
+    rel_path: str,
+    current: str | None,
+    *,
+    tracker_kind: str,
+) -> tuple[str, bool, str]:
     """Return canonical content, protected flag, and reason for *rel_path*."""
 
-    if rel_path == "AGENTS.md" and current is not None:
-        updated, _changed = update_agents_text_for_oompah_tasks(current)
+    if rel_path == "AGENTS.md":
+        source = current if current is not None else CANONICAL_FILES[rel_path]
+        normalized_tracker = (tracker_kind or "").strip().lower()
+        updater = (
+            update_agents_text_for_github_issues
+            if normalized_tracker in {"github_issues", "github-issues"}
+            else update_agents_text_for_oompah_tasks
+        )
+        updated, _changed = updater(source)
         return updated, False, ""
 
     canonical = CANONICAL_FILES[rel_path]
@@ -576,7 +591,11 @@ def ensure_state_branch_initialized(
 # ---------------------------------------------------------------------------
 
 
-def check_project_bootstrap_drift(repo_path: str | Path) -> ProjectBootstrapStatus:
+def check_project_bootstrap_drift(
+    repo_path: str | Path,
+    *,
+    tracker_kind: str = "oompah_md",
+) -> ProjectBootstrapStatus:
     """Return bootstrap drift status for *repo_path*.
 
     Existing project-owned files without oompah bootstrap markers are reported
@@ -590,7 +609,11 @@ def check_project_bootstrap_drift(repo_path: str | Path) -> ProjectBootstrapStat
 
     for rel_path in CANONICAL_FILES:
         current = _read_current(repo_path, rel_path)
-        canonical, is_protected, reason = _canonical_for_path(rel_path, current)
+        canonical, is_protected, reason = _canonical_for_path(
+            rel_path,
+            current,
+            tracker_kind=tracker_kind,
+        )
         diff = "" if is_protected else _build_diff(rel_path, canonical, current)
         entry = BootstrapDrift(
             path=rel_path,
@@ -616,10 +639,14 @@ def check_project_bootstrap_drift(repo_path: str | Path) -> ProjectBootstrapStat
     )
 
 
-def preview_project_bootstrap_updates(repo_path: str | Path) -> str:
+def preview_project_bootstrap_updates(
+    repo_path: str | Path,
+    *,
+    tracker_kind: str = "oompah_md",
+) -> str:
     """Return a combined unified diff for pending bootstrap updates."""
 
-    status = check_project_bootstrap_drift(repo_path)
+    status = check_project_bootstrap_drift(repo_path, tracker_kind=tracker_kind)
     return "\n".join(d.diff for d in status.drifted if d.diff)
 
 
@@ -661,6 +688,7 @@ def apply_project_bootstrap_updates(
     dry_run: bool = False,
     access_token: str | None = None,
     forge_kind: str = "github",
+    tracker_kind: str = "oompah_md",
 ) -> ProjectBootstrapApplyResult:
     """Write pending bootstrap files and optionally commit/push.
 
@@ -671,7 +699,7 @@ def apply_project_bootstrap_updates(
 
     repo_path = Path(repo_path)
     result = ProjectBootstrapApplyResult()
-    status = check_project_bootstrap_drift(repo_path)
+    status = check_project_bootstrap_drift(repo_path, tracker_kind=tracker_kind)
     result.protected = [d.path for d in status.protected]
 
     if status.all_current:
@@ -790,6 +818,7 @@ def ensure_project_bootstrap(
     git_user_email: str | None = None,
     branch: str = "main",
     push: bool = True,
+    tracker_kind: str = "oompah_md",
 ) -> bool:
     """Idempotently apply, commit, and push bootstrap updates when needed."""
 
@@ -800,6 +829,7 @@ def ensure_project_bootstrap(
         branch=branch,
         push=push,
         commit=True,
+        tracker_kind=tracker_kind,
     )
     if result.error:
         raise RuntimeError(result.error)

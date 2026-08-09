@@ -125,6 +125,29 @@ def test_managed_bootstrap_file_is_updated(tmp_path: Path) -> None:
     assert "Keeping Docs In Sync" in readme.read_text(encoding="utf-8")
 
 
+def test_apply_uses_github_instructions_for_github_tracker(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path)
+    agents = repo / "AGENTS.md"
+    agents.write_text(CANONICAL_FILES["AGENTS.md"], encoding="utf-8")
+    subprocess.run(["git", "add", "AGENTS.md"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "native instructions"], cwd=repo, check=True
+    )
+
+    result = apply_project_bootstrap_updates(
+        repo,
+        commit=False,
+        push=False,
+        tracker_kind="github_issues",
+    )
+
+    assert result.error == ""
+    assert "AGENTS.md" in result.applied
+    text = agents.read_text(encoding="utf-8")
+    assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in text
+    assert "BEGIN OOMPAH TASK INTEGRATION" not in text
+
+
 def test_legacy_bootstrap_agents_github_section_is_replaced(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
     agents = repo / "AGENTS.md"
@@ -192,13 +215,20 @@ def test_apply_can_commit_without_push(tmp_path: Path) -> None:
     assert "refresh oompah project bootstrap files" in log.stdout
 
 
-def _project(repo_path: str) -> SimpleNamespace:
+def _project(
+    repo_path: str,
+    *,
+    tracker_kind: str = "oompah_md",
+) -> SimpleNamespace:
     return SimpleNamespace(
         id="proj-bootstrap",
         repo_path=repo_path,
         git_user_name="bot",
         git_user_email="bot@example.com",
         default_branch="main",
+        access_token=None,
+        forge_kind="github",
+        tracker_kind=tracker_kind,
     )
 
 
@@ -236,9 +266,41 @@ def test_project_bootstrap_preview_endpoint(client, tmp_path: Path) -> None:
     assert "AGENTS.md" in res.json()["diff"]
 
 
+def test_project_bootstrap_status_and_preview_honor_github_tracker(
+    client,
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo(tmp_path)
+    agents_path = repo / "AGENTS.md"
+    agents_path.write_text(CANONICAL_FILES["AGENTS.md"], encoding="utf-8")
+    subprocess.run(["git", "add", "AGENTS.md"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "native instructions"], cwd=repo, check=True
+    )
+    project = _project(str(repo), tracker_kind="github_issues")
+
+    with patch("oompah.server._get_orchestrator") as mock_orch:
+        mock_orch.return_value.project_store.get.return_value = project
+        status_res = client.get(f"/api/v1/projects/{project.id}/bootstrap/status")
+        preview_res = client.get(f"/api/v1/projects/{project.id}/bootstrap/preview")
+
+    assert status_res.status_code == 200
+    agents_drift = next(
+        entry
+        for entry in status_res.json()["drifted"]
+        if entry["path"] == "AGENTS.md"
+    )
+    assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in agents_drift["diff"]
+    assert preview_res.status_code == 200
+    assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in preview_res.json()["diff"]
+    assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in agents_path.read_text(
+        encoding="utf-8"
+    )
+
+
 def test_project_bootstrap_apply_endpoint(client, tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
-    project = _project(str(repo))
+    project = _project(str(repo), tracker_kind="github_issues")
     fake_result = ProjectBootstrapApplyResult(
         applied=["AGENTS.md"],
         protected=["Makefile"],
@@ -251,10 +313,19 @@ def test_project_bootstrap_apply_endpoint(client, tmp_path: Path) -> None:
         with patch(
             "oompah.project_bootstrap.apply_project_bootstrap_updates",
             return_value=fake_result,
-        ):
+        ) as apply_updates:
             res = client.post(f"/api/v1/projects/{project.id}/bootstrap/apply")
 
     assert res.status_code == 200
+    apply_updates.assert_called_once_with(
+        str(repo),
+        git_user_name=project.git_user_name,
+        git_user_email=project.git_user_email,
+        branch=project.default_branch,
+        access_token=project.access_token,
+        forge_kind=project.forge_kind,
+        tracker_kind=project.tracker_kind,
+    )
     data = res.json()
     assert data["applied"] == ["AGENTS.md"]
     assert data["protected"] == ["Makefile"]

@@ -9092,7 +9092,11 @@ async def api_project_bootstrap_status(project_id: str):
 
         from oompah.project_bootstrap import check_project_bootstrap_drift
 
-        status = await asyncio.to_thread(check_project_bootstrap_drift, repo_path)
+        status = await asyncio.to_thread(
+            check_project_bootstrap_drift,
+            repo_path,
+            tracker_kind=getattr(project, "tracker_kind", None) or "oompah_md",
+        )
         return JSONResponse(
             {
                 "all_current": status.all_current,
@@ -9130,7 +9134,11 @@ async def api_project_bootstrap_preview(project_id: str):
 
         from oompah.project_bootstrap import preview_project_bootstrap_updates
 
-        diff = await asyncio.to_thread(preview_project_bootstrap_updates, repo_path)
+        diff = await asyncio.to_thread(
+            preview_project_bootstrap_updates,
+            repo_path,
+            tracker_kind=getattr(project, "tracker_kind", None) or "oompah_md",
+        )
         return JSONResponse({"diff": diff})
     except Exception as exc:
         logger.error("bootstrap/preview API error for %s: %s", project_id, exc)
@@ -9169,6 +9177,7 @@ async def api_project_bootstrap_apply(project_id: str):
             branch=getattr(project, "default_branch", None) or "main",
             access_token=getattr(project, "access_token", None),
             forge_kind=getattr(project, "forge_kind", "github"),
+            tracker_kind=getattr(project, "tracker_kind", None) or "oompah_md",
         )
         if result.error:
             if "Refused" in result.error and "uncommitted changes" in result.error:
@@ -19023,7 +19032,9 @@ async def api_create_project(request: Request):
         # Reconcile GitLab hooks when a new GitLab project is added.
         if _gitlab_hook_manager is not None and _is_gitlab_project(project):
             await _gitlab_hook_manager.reconcile()
-        _ensure_tracker_agent_instructions_for_project(project)
+        # AGENTS.md is a tracked project file.  Registration must not rewrite
+        # it in the canonical managed checkout: operators can review, commit,
+        # and push bootstrap drift through the explicit bootstrap/apply API.
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
@@ -19462,7 +19473,9 @@ async def api_update_project(project_id: str, request: Request):
             and _is_gitlab_project(project)
         ):
             await _gitlab_hook_manager.reconcile()
-        _ensure_tracker_agent_instructions_for_project(project)
+        # Project configuration reloads must remain metadata-only.  In
+        # particular, tracker changes must not dirty the canonical checkout;
+        # bootstrap/status, preview, and apply own that explicit workflow.
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
         return JSONResponse(
