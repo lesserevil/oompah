@@ -1301,6 +1301,107 @@ def test_cleanup_selects_done_shared_child_only_with_exact_landing():
     assert selected == ((child, "epic-TOP--task-CHILD", "a" * 40),)
 
 
+def test_cleanup_uses_canonical_landing_after_child_head_is_pruned():
+    issue = epic()
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="child",
+        description="fixture",
+        state=DONE,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="TOP",
+        work_branch="epic-TOP--task-CHILD",
+        integration=SimpleNamespace(task_branch="epic-TOP--task-CHILD"),
+        head_sha=None,
+    )
+    landing = LandingFact(
+        "epic-TOP--task-CHILD",
+        "epic-TOP",
+        "a" * 40,
+        {"kind": "patch_id", "source_sha": "a" * 40},
+        "2026-08-05T00:00:00+00:00",
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+    child_fact = {
+        "identifier": "CHILD",
+        "status": DONE,
+        "parent_id": "TOP",
+        "maintenance": False,
+        "landing_source": "epic-TOP--task-CHILD",
+        "landing_target": "epic-TOP",
+        "revision": None,
+        "authority_version": issue_authority_version(child),
+    }
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_issue_detail.return_value = child
+    orchestrator.project_store.epic_child_branch_name.return_value = (
+        "epic-TOP--task-CHILD"
+    )
+
+    selected = effects._cleanup_children(
+        issue,
+        containment_facts(children=(child_fact,), landings=(landing,)),
+    )
+
+    assert selected == ((child, "epic-TOP--task-CHILD", "a" * 40),)
+
+
+def test_cleanup_rejects_landing_that_conflicts_with_live_child_head():
+    issue = epic()
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="child",
+        description="fixture",
+        state=DONE,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="TOP",
+        work_branch="epic-TOP--task-CHILD",
+        integration=SimpleNamespace(task_branch="epic-TOP--task-CHILD"),
+        head_sha="a" * 40,
+    )
+    conflicting = LandingFact(
+        "epic-TOP--task-CHILD",
+        "epic-TOP",
+        "b" * 40,
+        {"kind": "git_ancestry", "source_sha": "b" * 40},
+        "2026-08-05T00:00:00+00:00",
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_issue_detail.return_value = child
+    orchestrator.project_store.epic_child_branch_name.return_value = (
+        "epic-TOP--task-CHILD"
+    )
+
+    with pytest.raises(WorkflowActionError, match="no exact landing proof"):
+        effects._cleanup_children(
+            issue,
+            containment_facts(
+                children=(
+                    {
+                        "identifier": "CHILD",
+                        "status": DONE,
+                        "parent_id": "TOP",
+                        "maintenance": False,
+                        "landing_source": "epic-TOP--task-CHILD",
+                        "landing_target": "epic-TOP",
+                        "revision": "a" * 40,
+                        "authority_version": issue_authority_version(child),
+                    },
+                ),
+                landings=(conflicting,),
+            ),
+        )
+
+
 def test_cleanup_fails_closed_for_done_child_without_landing():
     issue = epic()
     child = Issue(
