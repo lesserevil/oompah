@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T10:20:40.472192Z'
+updated_at: '2026-08-09T11:09:18.140092Z'
 work_branch: OOMPAH-946
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-08-09 10:20
 ---
 Removed the detached descendant regression's transient setsid PID race by introducing an inner-shell readiness handshake, exact process-generation/session assertions, and exact-generation cleanup without weakening native capacity fencing. Commit 8e2527b74 is pushed. Python 3.11-3.13 focused matrix and 634 native guard/lease tests pass; full gate passed OOMPAH-946 and exposed separate OOMPAH-949.
+---
+author: oompah
+created: 2026-08-09 11:09
+---
+Branch quality gate passed for `8e2527b74e958127861621fdbcebb627d0929e24` using `make test` in 159.3s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
