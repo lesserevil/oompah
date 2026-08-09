@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-950
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Retire direct-owner claim after durable validation submission
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T12:08:03.184657Z'
+updated_at: '2026-08-09T12:08:19.916683Z'
 work_branch: OOMPAH-950
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/761
 review_number: '761'
-review_head: null
+review_head: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-950
 oompah.review_url: https://github.com/lesserevil/oompah/pull/761
 oompah.review_number: '761'
+oompah.target_branch: main
+oompah.review_head: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
 ---
 ## Summary
 
