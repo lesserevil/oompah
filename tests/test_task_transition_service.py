@@ -932,6 +932,82 @@ async def test_exact_head_is_fenced(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_composed_child_landing_head_is_fenced_by_workflow_precondition(
+    tmp_path,
+):
+    issue = _issue(
+        state="Done",
+        parent_id="EPIC-1",
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    tracker = FakeTracker(issue)
+    terminal = FakeTerminalAdapter(tracker)
+    journal_path = str(tmp_path / "transitions.sqlite3")
+    service = _service(
+        tmp_path,
+        tracker,
+        terminal_adapter=terminal,
+        journal=TransitionJournal(journal_path),
+    )
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.INTEGRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        exact_head="b" * 40,
+        precondition_revision="landing-facts-v2",
+    )
+
+    outcome = await service.execute(intent)
+    restarted = _service(
+        tmp_path,
+        tracker,
+        terminal_adapter=terminal,
+        journal=TransitionJournal(journal_path),
+    )
+    replayed = await restarted.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.STAGED
+    assert outcome.reason_code == "transition.terminal_staged"
+    assert replayed.disposition is TransitionDisposition.STAGED
+    assert replayed.replayed
+    assert terminal.calls == 1
+    assert tracker.issue.state == "In Validation"
+
+
+@pytest.mark.asyncio
+async def test_parentless_task_cannot_substitute_landing_for_accepted_head(tmp_path):
+    issue = _issue(
+        state="Done",
+        parent_id=None,
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    tracker = FakeTracker(issue)
+    terminal = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=terminal)
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.INTEGRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        exact_head="b" * 40,
+        precondition_revision="landing-facts-v2",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.head_missing"
+    assert terminal.calls == 0
+
+
+@pytest.mark.asyncio
 async def test_failure_before_effect_is_retryable_with_same_intent(tmp_path):
     tracker = FakeTracker(_issue())
     tracker.fail_before = True
@@ -1155,6 +1231,44 @@ async def test_coordinator_adapter_passes_canonical_evidence():
     assert coordinator.kwargs["requested_target"].value == "Merged"
     assert coordinator.kwargs["trigger_identity"].identity == "worker-1"
     assert len(coordinator.kwargs["evidence_fingerprint"].digest) == 64
+
+
+@pytest.mark.asyncio
+async def test_coordinator_adapter_binds_composed_landing_revision():
+    class Coordinator:
+        def __init__(self):
+            self.kwargs = None
+
+        async def request_transition(self, **kwargs):
+            self.kwargs = kwargs
+            return type(
+                "Result", (), {"success": True, "audit_id": "audit-x", "reason": None}
+            )()
+
+    coordinator = Coordinator()
+    issue = _issue(
+        state="Done",
+        parent_id="EPIC-1",
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.INTEGRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        exact_head="b" * 40,
+        precondition_revision="landing-facts-v2",
+    )
+
+    result = await CoordinatorTerminalAdapter(coordinator).stage(intent, issue)
+
+    assert result.success
+    binding = coordinator.kwargs["revision_binding"]
+    assert binding.selected_ref == "b" * 40
+    assert binding.selected_sha == "b" * 40
 
 
 @pytest.mark.asyncio

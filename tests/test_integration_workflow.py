@@ -3389,6 +3389,207 @@ def _parent_scoped_child_fixture(*, revision="a" * 40):
     return task, parent, _parent_scoped_child_fact(revision=revision)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("task_id", "parent_id"),
+    (
+        ("OOMPAH-787", "OOMPAH-771"),
+        ("OOMPAH-794", "OOMPAH-767"),
+        ("OOMPAH-797", "OOMPAH-771"),
+        ("OOMPAH-798", "OOMPAH-767"),
+        ("OOMPAH-889", "OOMPAH-763"),
+        ("OOMPAH-894", "OOMPAH-763"),
+    ),
+)
+async def test_composed_done_child_carries_parent_landing_head_through_rollup(
+    tmp_path,
+    task_id,
+    parent_id,
+):
+    revision = "3" * 40
+    target = f"epic-{parent_id}"
+    task = issue(task_id)
+    task.state = "Done"
+    task.parent_id = parent_id
+    task.work_branch = None
+    task.target_branch = None
+    task.integration = None
+    parent = issue(parent_id)
+    parent.issue_type = "epic"
+    parent.state = "Done"
+    parent.work_branch = target
+    parent.target_branch = "main"
+    tracker = Tracker([task, parent])
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    fact = _parent_scoped_child_fact(
+        source=task_id,
+        target=target,
+        revision=revision,
+    )
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent_id,
+        facts=(fact.to_dict(),),
+    )
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, PriorOnlyLandingCollector()),
+        store=store,
+        landing_request_resolver=IntegrationLandingRequestResolver(
+            project_id="project-1",
+            tracker=tracker,
+            integration_queue=queue,
+            project_store=SimpleNamespace(
+                epic_branch_name=lambda epic_id: f"epic-{epic_id}"
+            ),
+            project_default_branch="main",
+            workflow_store=store,
+        ),
+    )
+    task_decision = controller.evaluate((task,)).tasks[0]
+    assert task_decision.decision.durable_jobs == ("parent_rollup_review",)
+    orchestrator = SimpleNamespace(
+        integration_queue=queue,
+        project_store=SimpleNamespace(
+            get=lambda _project_id: SimpleNamespace(default_branch="main"),
+            epic_branch_name=lambda epic_id: f"epic-{epic_id}",
+        ),
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        orchestrator,
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=controller.collector,
+            integration_controller=controller,
+        ),
+    )
+    job = SimpleNamespace(
+        project_id="project-1",
+        task_id=task_id,
+        generation="generation-2",
+        job_id=f"job-{task_id}",
+        idempotency_key=f"{task_id}:rollup:generation-2",
+        expected_evidence_revision=task_decision.decision.evidence_revision,
+        checkpoint={},
+    )
+    context = SimpleNamespace(job=job, check_interrupted=lambda: None)
+
+    revalidation = backend.revalidate_action("parent_rollup_review", context)
+    assert revalidation.current
+    assert revalidation.details["rollup_exact_head"] == revision
+    assert revalidation.details["rollup_head_authority"] == "composed_landing"
+    job.checkpoint = {
+        "revalidation": {
+            "evidence_revision": revalidation.evidence_revision,
+            "details": dict(revalidation.details),
+        }
+    }
+    effect = await backend.apply_action("parent_rollup_review", context)
+    verification = backend.verify_action(
+        "parent_rollup_review", context, effect
+    )
+    transition = backend.build_action_transition(
+        "parent_rollup_review", context, verification
+    )
+
+    assert verification.verified
+    assert transition is not None
+    assert transition.exact_head == revision
+    assert transition.precondition_revision == task_decision.decision.evidence_revision
+    assert transition.requested_status == "Merged"
+    task.parent_id = f"{parent_id}-changed"
+    with pytest.raises(WorkflowActionError, match="evidence changed|head changed") as error:
+        backend.build_action_transition(
+            "parent_rollup_review", context, verification
+        )
+    assert error.value.retryable
+    store.close()
+    queue.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    ("missing", "wrong_source", "wrong_target", "wrong_revision", "mutable"),
+)
+async def test_parent_rollup_revalidation_fails_closed_without_current_composed_head(
+    tmp_path,
+    mutation,
+):
+    task, parent, fact = _parent_scoped_child_fixture(revision="3" * 40)
+    if mutation == "wrong_revision":
+        # Retain one exact current-task revision so the differently revised
+        # parent row is provably stale instead of becoming the only candidate.
+        task.head_sha = fact.revision
+    if mutation == "missing":
+        facts = ()
+    else:
+        fields = {
+            "source": "OTHER" if mutation == "wrong_source" else fact.source,
+            "target": "epic/E-OTHER" if mutation == "wrong_target" else fact.target,
+            "revision": "4" * 40 if mutation == "wrong_revision" else fact.revision,
+        }
+        changed = _parent_scoped_child_fact(**fields)
+        if mutation == "mutable":
+            raw_changed = changed.to_dict()
+            raw_changed["durable"] = False
+            raw_changed.pop("evidence_revision")
+            changed = LandingFact.from_dict(raw_changed)
+        facts = (changed.to_dict(),)
+    tracker = Tracker([task, parent])
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    if facts:
+        store.record_landing_facts(
+            project_id="project-1", task_id=parent.identifier, facts=facts
+        )
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, PriorOnlyLandingCollector()),
+        store=store,
+        landing_request_resolver=IntegrationLandingRequestResolver(
+            project_id="project-1",
+            tracker=tracker,
+            integration_queue=queue,
+            project_store=SimpleNamespace(
+                epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+            ),
+            workflow_store=store,
+        ),
+    )
+    decision = controller.evaluate((task,)).tasks[0].decision
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=SimpleNamespace(
+                get=lambda _project_id: SimpleNamespace(default_branch="main")
+            ),
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=controller.collector,
+            integration_controller=controller,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-2",
+            expected_evidence_revision=decision.evidence_revision,
+            checkpoint={},
+        )
+    )
+
+    revalidation = backend.revalidate_action("parent_rollup_review", context)
+
+    assert not revalidation.current
+    assert revalidation.details.get("rollup_head_authority") != "composed_landing"
+    store.close()
+    queue.close()
+
+
 def test_done_child_consumes_parent_scoped_canonical_landing_after_restart(tmp_path):
     git(tmp_path, "init", "-b", "main")
     (tmp_path / "base.txt").write_text("base\n")

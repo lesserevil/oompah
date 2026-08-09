@@ -25,6 +25,7 @@ from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
     RequestState,
@@ -405,6 +406,62 @@ def test_request_persists_canonical_revision_before_tracker_refresh() -> None:
     assert document.pending_chain[0].selected_ref == "origin/epic-OOMPAH-768"
     assert document.pending_chain[0].selected_sha == sha
     assert initial_resolve_calls == ["origin/epic-OOMPAH-768"]
+    assert project_store.resolve_calls == []
+
+
+def test_composed_landing_revision_binds_audit_without_mutable_task_ref() -> None:
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore({})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-787",
+        identifier="OOMPAH-787",
+        title="Composed child",
+        description="Accepted into its immediate epic target.",
+        state="Done",
+        project_id=PROJECT_ID,
+        parent_id="OOMPAH-771",
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    revision = "3" * 40
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+            revision_binding=AuditRevisionBinding(revision, revision),
+        )
+    )
+    repeated = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+            revision_binding=AuditRevisionBinding(revision, revision),
+        )
+    )
+    record = TerminalAuditMetadataStore(
+        tracker, project_store, PROJECT_ID
+    ).read(issue.identifier).pending_chain[0]
+
+    assert result.success
+    assert repeated.success
+    assert repeated.coalesced
+    assert record.selected_ref == revision
+    assert record.selected_sha == revision
     assert project_store.resolve_calls == []
 
 

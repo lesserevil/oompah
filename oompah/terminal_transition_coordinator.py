@@ -1141,6 +1141,7 @@ class TerminalTransitionCoordinator:
         evidence_fingerprint: EvidenceFingerprint,
         *,
         mutation_guard: Callable[[], str | None] | None = None,
+        revision_binding: AuditRevisionBinding | None = None,
     ) -> TransitionResult:
         """Stage a terminal transition for *current_issue*.
 
@@ -1203,17 +1204,19 @@ class TerminalTransitionCoordinator:
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
-            try:
-                revision_binding = self._request_revision_binding(
-                    store,
-                    current_issue,
-                    requested_target,
-                    project_id,
-                    evidence_fingerprint,
-                    trigger_identity=trigger_identity,
-                )
-            except Exception as exc:  # noqa: BLE001 - fail closed before mutation
-                return TransitionResult(success=False, reason=str(exc))
+            selected_binding = revision_binding
+            if selected_binding is None:
+                try:
+                    selected_binding = self._request_revision_binding(
+                        store,
+                        current_issue,
+                        requested_target,
+                        project_id,
+                        evidence_fingerprint,
+                        trigger_identity=trigger_identity,
+                    )
+                except Exception as exc:  # noqa: BLE001 - fail closed before mutation
+                    return TransitionResult(success=False, reason=str(exc))
             self._revoke_delivery_for_terminal_transition(
                 project_id,
                 current_issue.identifier,
@@ -1226,7 +1229,7 @@ class TerminalTransitionCoordinator:
                 trigger_identity,
                 project_id,
                 evidence_fingerprint,
-                revision_binding=revision_binding,
+                revision_binding=selected_binding,
                 ensure_validation_on_coalesce=True,
             )
             if outcome.success:

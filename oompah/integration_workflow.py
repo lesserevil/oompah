@@ -284,6 +284,24 @@ class IntegrationProjection:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class _RollupHeadAuthority:
+    """Exact revision authority retained across one rollup job execution."""
+
+    exact_head: str
+    kind: str
+    landing_source: str | None = None
+    landing_target: str | None = None
+
+    def receipt(self) -> dict[str, str | None]:
+        return {
+            "rollup_exact_head": self.exact_head,
+            "rollup_head_authority": self.kind,
+            "rollup_landing_source": self.landing_source,
+            "rollup_landing_target": self.landing_target,
+        }
+
+
 class IntegrationLandingRequestResolver:
     """Resolve exact landing evidence across current and legacy authority.
 
@@ -1615,6 +1633,126 @@ class OrchestratorIntegrationActionBackend:
             landing_requests=requests,
         ).landings[0]
 
+    def _rollup_head_authority(
+        self,
+        issue: Issue,
+        *,
+        requests: Sequence[LandingRequest],
+        facts: WorkflowFacts,
+        decision: WorkDecision,
+    ) -> _RollupHeadAuthority | None:
+        """Resolve the exact head a parent-rollup transition may consume.
+
+        Ordinary submissions remain fenced by their tracker-owned accepted
+        head.  A composed Done child can lack that mutable submission record
+        after its commit is absorbed into the epic branch.  In that one case,
+        accept only the canonical parent-scoped durable landing fact already
+        revalidated by ``IntegrationLandingRequestResolver``.
+        """
+
+        tracker_head = str(issue_exact_head(issue) or "").strip().lower()
+        if tracker_head:
+            return _RollupHeadAuthority(tracker_head, "accepted_submission")
+        if (
+            canonicalize_status(issue.state) != DONE
+            or not str(issue.parent_id or "").strip()
+            or decision.reason_code
+            != "terminal.immediate_target_landing_proven"
+            or "parent_rollup_review" not in decision.durable_jobs
+            or len(requests) != 1
+        ):
+            return None
+        request = requests[0]
+        revision = IntegrationLandingRequestResolver._git_revision(
+            request.revision
+        )
+        prior = request.prior
+        if (
+            revision is None
+            or not request.authoritative_target
+            or prior is None
+            or prior.project_id != self.project_id
+            or prior.state is not LandingState.LANDED
+            or not prior.durable
+            or prior.source != request.source
+            or prior.target != request.target
+            or IntegrationLandingRequestResolver._git_revision(prior.revision)
+            != revision
+        ):
+            return None
+        proof_revision = prior.proof.get("source_sha")
+        if proof_revision is not None and (
+            IntegrationLandingRequestResolver._git_revision(proof_revision)
+            != revision
+        ):
+            return None
+        matching = tuple(
+            landing
+            for landing in facts.landings
+            if landing.project_id == self.project_id
+            and landing.state is LandingState.LANDED
+            and landing.durable
+            and landing.source == request.source
+            and landing.target == request.target
+            and IntegrationLandingRequestResolver._git_revision(
+                landing.revision
+            )
+            == revision
+        )
+        if len(matching) != 1:
+            return None
+        return _RollupHeadAuthority(
+            revision,
+            "composed_landing",
+            request.source,
+            request.target,
+        )
+
+    @staticmethod
+    def _checkpoint_rollup_authority(
+        context: WorkflowJobContext,
+    ) -> _RollupHeadAuthority | None:
+        details = OrchestratorIntegrationActionBackend._revalidation_details(
+            context
+        )
+        head = IntegrationLandingRequestResolver._git_revision(
+            details.get("rollup_exact_head")
+        )
+        kind = str(details.get("rollup_head_authority") or "").strip()
+        if head is None or kind not in {
+            "accepted_submission",
+            "composed_landing",
+        }:
+            return None
+        source = str(details.get("rollup_landing_source") or "").strip() or None
+        target = str(details.get("rollup_landing_target") or "").strip() or None
+        if kind == "composed_landing" and not all((source, target)):
+            return None
+        if kind == "accepted_submission" and (source or target):
+            return None
+        return _RollupHeadAuthority(head, kind, source, target)
+
+    @staticmethod
+    def _receipt_rollup_authority(
+        receipt: Mapping[str, Any],
+    ) -> _RollupHeadAuthority | None:
+        head = IntegrationLandingRequestResolver._git_revision(
+            receipt.get("rollup_exact_head")
+        )
+        kind = str(receipt.get("rollup_head_authority") or "").strip()
+        if head is None or kind not in {
+            "accepted_submission",
+            "composed_landing",
+        }:
+            return None
+        source = str(receipt.get("rollup_landing_source") or "").strip() or None
+        target = str(receipt.get("rollup_landing_target") or "").strip() or None
+        if kind == "composed_landing" and not all((source, target)):
+            return None
+        if kind == "accepted_submission" and (source or target):
+            return None
+        return _RollupHeadAuthority(head, kind, source, target)
+
     @staticmethod
     def _landing_target_sha(landing: LandingFact | Any | None) -> str | None:
         if landing is None:
@@ -2646,6 +2784,16 @@ class OrchestratorIntegrationActionBackend:
             issue.identifier, landing_requests=requests
         )
         decision = evaluate_task(issue, facts)
+        rollup_authority = (
+            self._rollup_head_authority(
+                issue,
+                requests=requests,
+                facts=facts,
+                decision=decision,
+            )
+            if action == "parent_rollup_review"
+            else None
+        )
         row = self._queue_row(context)
         details: dict[str, Any] = {
             "decision_revision": decision.decision_revision,
@@ -2694,9 +2842,15 @@ class OrchestratorIntegrationActionBackend:
                 ).strip(),
             }
         )
+        if rollup_authority is not None:
+            details.update(rollup_authority.receipt())
         current = (
             action in decision.durable_jobs
             and decision.evidence_revision == context.job.expected_evidence_revision
+            and (
+                action != "parent_rollup_review"
+                or rollup_authority is not None
+            )
         )
         return RevalidationResult(
             context.job.generation if current else str(decision.decision_revision),
@@ -4296,27 +4450,48 @@ class OrchestratorIntegrationActionBackend:
             )
             decision = evaluate_task(issue, facts)
             expected_evidence = self._revalidated_evidence_revision(context)
+            rollup_authority = (
+                self._rollup_head_authority(
+                    issue,
+                    requests=requests,
+                    facts=facts,
+                    decision=decision,
+                )
+                if action == "parent_rollup_review"
+                else None
+            )
+            expected_rollup_authority = (
+                self._checkpoint_rollup_authority(context)
+                if action == "parent_rollup_review"
+                else None
+            )
             if (
                 action not in decision.durable_jobs
                 or decision.evidence_revision != expected_evidence
+                or (
+                    action == "parent_rollup_review"
+                    and (
+                        rollup_authority is None
+                        or rollup_authority != expected_rollup_authority
+                    )
+                )
             ):
                 raise WorkflowActionError(
                     f"{action} evidence changed after revalidation",
                     category=WorkflowFailureCategory.STALE_EVIDENCE,
                     retryable=True,
                 )
-            return EffectResult(
-                {
-                    **self._base_receipt(action, context),
-                    "decision_reason": decision.reason_code,
-                    "evidence_revision": decision.evidence_revision,
-                    "requested_status": (
-                        MERGED
-                        if action == "parent_rollup_review"
-                        else DONE
-                    ),
-                }
-            )
+            receipt = {
+                **self._base_receipt(action, context),
+                "decision_reason": decision.reason_code,
+                "evidence_revision": decision.evidence_revision,
+                "requested_status": (
+                    MERGED if action == "parent_rollup_review" else DONE
+                ),
+            }
+            if rollup_authority is not None:
+                receipt.update(rollup_authority.receipt())
+            return EffectResult(receipt)
         if action == "historical_audit_replay_batch":
             replay = getattr(
                 self.orchestrator,
@@ -4527,23 +4702,46 @@ class OrchestratorIntegrationActionBackend:
                     dict(effect.receipt),
                     "transition preparation lost task authority",
                 )
+            requests = (
+                ()
+                if action == "terminal_audit_done"
+                else self._landing_request(issue, include_ready=True)
+            )
             facts = self.binding.collector.collect(
                 issue.identifier,
-                landing_requests=(
-                    ()
-                    if action == "terminal_audit_done"
-                    else self._landing_request(issue, include_ready=True)
-                ),
+                landing_requests=requests,
             )
             decision = evaluate_task(issue, facts)
             expected_evidence = str(
                 effect.receipt.get("evidence_revision") or ""
             ).strip()
+            rollup_authority = (
+                self._rollup_head_authority(
+                    issue,
+                    requests=requests,
+                    facts=facts,
+                    decision=decision,
+                )
+                if action == "parent_rollup_review"
+                else None
+            )
+            receipt_rollup_authority = (
+                self._receipt_rollup_authority(effect.receipt)
+                if action == "parent_rollup_review"
+                else None
+            )
             verified = bool(
                 action in decision.durable_jobs
                 and decision.evidence_revision == expected_evidence
                 and decision.reason_code
                 == str(effect.receipt.get("decision_reason") or "")
+                and (
+                    action != "parent_rollup_review"
+                    or (
+                        rollup_authority is not None
+                        and rollup_authority == receipt_rollup_authority
+                    )
+                )
             )
             return VerificationResult(
                 verified,
@@ -4689,13 +4887,14 @@ class OrchestratorIntegrationActionBackend:
                 if issue is None:
                     decision = None
                 else:
+                    requests = (
+                        ()
+                        if action == "terminal_audit_done"
+                        else self._landing_request(issue, include_ready=True)
+                    )
                     facts = self.binding.collector.collect(
                         issue.identifier,
-                        landing_requests=(
-                            ()
-                            if action == "terminal_audit_done"
-                            else self._landing_request(issue, include_ready=True)
-                        ),
+                        landing_requests=requests,
                     )
                     decision = evaluate_task(issue, facts)
                 receipt_evidence = str(
@@ -4718,9 +4917,37 @@ class OrchestratorIntegrationActionBackend:
                         category=WorkflowFailureCategory.STALE_EVIDENCE,
                         retryable=True,
                     )
+                rollup_authority = (
+                    self._rollup_head_authority(
+                        issue,
+                        requests=requests,
+                        facts=facts,
+                        decision=decision,
+                    )
+                    if action == "parent_rollup_review"
+                    else None
+                )
+                receipt_rollup_authority = (
+                    self._receipt_rollup_authority(verification.receipt)
+                    if action == "parent_rollup_review"
+                    else None
+                )
+                if action == "parent_rollup_review" and (
+                    rollup_authority is None
+                    or rollup_authority != receipt_rollup_authority
+                ):
+                    raise WorkflowActionError(
+                        "parent_rollup_review exact landing head changed before commit",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=True,
+                    )
                 expected_status = issue.state
                 expected_version = issue_authority_version(issue)
-                exact_head = issue_exact_head(issue)
+                exact_head = (
+                    rollup_authority.exact_head
+                    if rollup_authority is not None
+                    else issue_exact_head(issue)
+                )
             return TransitionIntent(
                 project_id=self.project_id,
                 task_id=issue.identifier,
