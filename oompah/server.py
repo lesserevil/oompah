@@ -7668,59 +7668,8 @@ async def _stage_terminal_transition(
             "A managed project is required for terminal status transitions.",
             400,
         )
-    try:
-        project_id = await _run_control_api_io(
-            _canonical_managed_project_id,
-            orch,
-            str(project_id),
-        )
-    except ProjectError:
-        return None, ("The managed project could not be resolved.", 404)
     if issue is None:
         return None, ("Issue not found; terminal status was not changed.", 404)
-
-    if not hasattr(issue, "project_id") or not issue.project_id:
-        issue.project_id = project_id
-
-    audit_override = body.get("audit_override", False)
-    if not isinstance(audit_override, bool):
-        return None, ("audit_override must be a boolean.", 400)
-    audit_retry = body.get("audit_retry", False)
-    if not isinstance(audit_retry, bool):
-        return None, ("audit_retry must be a boolean.", 400)
-    if audit_override and audit_retry:
-        return None, (
-            "audit_override and audit_retry are mutually exclusive.",
-            400,
-        )
-    if not audit_override and body.get("override_reason") is not None:
-        # Do not silently accept a reason that a caller may have intended to
-        # pair with an override.  It cannot change a normal staged request.
-        return None, ("override_reason requires audit_override=true.", 400)
-    if not audit_retry and body.get("audit_retry_reason") is not None:
-        return None, ("audit_retry_reason requires audit_retry=true.", 400)
-    evidence_addendum = body.get("audit_retry_evidence_addendum")
-    if not audit_retry and evidence_addendum is not None:
-        return None, (
-            "audit_retry_evidence_addendum requires audit_retry=true.",
-            400,
-        )
-    if evidence_addendum is not None and not isinstance(evidence_addendum, dict):
-        return None, (
-            "audit_retry_evidence_addendum must be an object.",
-            400,
-        )
-
-    coordinator = getattr(orch, "terminal_transition_coordinator", None)
-    if coordinator is None or not callable(
-        getattr(coordinator, "request_transition", None)
-    ):
-        return None, ("Terminal transition service is unavailable.", 503)
-    terminal_project = await _run_control_api_io(
-        _project_by_id,
-        orch,
-        str(project_id),
-    )
 
     # Fence ordinary dispatch before the first await below.  A retry timer
     # removes its RetryEntry before fetching tracker state, so the generic
@@ -7737,6 +7686,77 @@ async def _stage_terminal_transition(
     )
     if issue_id and completed is not None:
         completed.add(issue_id)
+
+    def _rollback_dispatch_fence() -> None:
+        if issue_id and completed is not None and not was_completed:
+            completed.discard(issue_id)
+        # A retry callback may have observed the temporary fence and exited.
+        # Wake ordinary dispatch so a failed terminal request cannot strand
+        # otherwise-dispatchable work.
+        refresh = getattr(orch, "request_refresh", None)
+        if callable(refresh):
+            refresh()
+
+    try:
+        project_id = await _run_control_api_io(
+            _canonical_managed_project_id,
+            orch,
+            str(project_id),
+        )
+    except ProjectError:
+        _rollback_dispatch_fence()
+        return None, ("The managed project could not be resolved.", 404)
+
+    if not hasattr(issue, "project_id") or not issue.project_id:
+        issue.project_id = project_id
+
+    audit_override = body.get("audit_override", False)
+    if not isinstance(audit_override, bool):
+        _rollback_dispatch_fence()
+        return None, ("audit_override must be a boolean.", 400)
+    audit_retry = body.get("audit_retry", False)
+    if not isinstance(audit_retry, bool):
+        _rollback_dispatch_fence()
+        return None, ("audit_retry must be a boolean.", 400)
+    if audit_override and audit_retry:
+        _rollback_dispatch_fence()
+        return None, (
+            "audit_override and audit_retry are mutually exclusive.",
+            400,
+        )
+    if not audit_override and body.get("override_reason") is not None:
+        # Do not silently accept a reason that a caller may have intended to
+        # pair with an override.  It cannot change a normal staged request.
+        _rollback_dispatch_fence()
+        return None, ("override_reason requires audit_override=true.", 400)
+    if not audit_retry and body.get("audit_retry_reason") is not None:
+        _rollback_dispatch_fence()
+        return None, ("audit_retry_reason requires audit_retry=true.", 400)
+    evidence_addendum = body.get("audit_retry_evidence_addendum")
+    if not audit_retry and evidence_addendum is not None:
+        _rollback_dispatch_fence()
+        return None, (
+            "audit_retry_evidence_addendum requires audit_retry=true.",
+            400,
+        )
+    if evidence_addendum is not None and not isinstance(evidence_addendum, dict):
+        _rollback_dispatch_fence()
+        return None, (
+            "audit_retry_evidence_addendum must be an object.",
+            400,
+        )
+
+    coordinator = getattr(orch, "terminal_transition_coordinator", None)
+    if coordinator is None or not callable(
+        getattr(coordinator, "request_transition", None)
+    ):
+        _rollback_dispatch_fence()
+        return None, ("Terminal transition service is unavailable.", 503)
+    terminal_project = await _run_control_api_io(
+        _project_by_id,
+        orch,
+        str(project_id),
+    )
 
     locked_issue = issue
     locked_owner_claim = None
@@ -7845,19 +7865,10 @@ async def _stage_terminal_transition(
         if inspect.isawaitable(result):
             await result
 
-    def _rollback_dispatch_fence() -> None:
-        if issue_id and completed is not None and not was_completed:
-            completed.discard(issue_id)
-        # A retry callback may have observed the temporary fence and exited.
-        # Wake ordinary dispatch so a failed terminal request cannot strand
-        # otherwise-dispatchable work.
-        refresh = getattr(orch, "request_refresh", None)
-        if callable(refresh):
-            refresh()
-
     actor, actor_conflict = _resolve_authorization_actor(body, request)
     if actor_conflict is not None:
         # Return the structured JSONResponse directly; callers forward it.
+        _rollback_dispatch_fence()
         return None, actor_conflict
     if audit_retry:
         retry_reason = body.get("audit_retry_reason")
