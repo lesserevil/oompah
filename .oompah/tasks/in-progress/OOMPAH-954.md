@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T11:40:01.990986Z'
-work_branch: null
+updated_at: '2026-08-09T11:40:16.039162Z'
+work_branch: OOMPAH-954
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-954
+  base_branch: epic-OOMPAH-940
+  base_sha: 41a158291ad932b232e9ebc4dcff5b0357d9f57b
+  head_sha: 9062f64273cdc0e14bac39b9d0c68f683707adae
+  submitted_at: '2026-08-09T11:40:04.612279+00:00'
+  updated_at: '2026-08-09T11:40:04.612279+00:00'
+oompah.work_branch: OOMPAH-954
 ---
 ## Summary
 
@@ -35,5 +47,10 @@ author: oompah
 created: 2026-08-09 11:40
 ---
 Implemented and pushed 9062f64273cdc0e14bac39b9d0c68f683707adae from exact epic-OOMPAH-940 head 41a158291. Universal controller and shadow fact collection now share canonical EpicFactCollector selection for epic issues, using project default branch/repo and the existing production sources. OOMPAH-748 now exercises the production universal path and asserts canonical containment plus reason agreement with UI projection and EpicWorkflowController. Checks: exact OOMPAH-748 replay passed; 160 incident/cache/epic/decision tests passed; 121 dashboard/controller/runtime/shadow tests passed; explicit malformed/wrong-target fail-closed checks passed; secret scan passed. No service restart performed.
+---
+author: oompah
+created: 2026-08-09 11:40
+---
+Canonical epic facts now drive universal controller, shadow, UI, and epic scheduling decisions; OOMPAH-748 production replay and focused fail-closed suites pass at pushed head 9062f6427.
 ---
 <!-- COMMENTS:END -->
