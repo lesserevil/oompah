@@ -1552,27 +1552,6 @@ class WorkflowRuntime:
             return False
         return False
 
-    def _quarantine_recycle_owner_is_abandoned(self, job: Any) -> bool:
-        """Recognize a durable pre-exec transfer from an older runtime image."""
-
-        if str(getattr(job, "phase", "") or "") != "quarantined":
-            return False
-        checkpoint = getattr(job, "checkpoint", None)
-        marker = (
-            checkpoint.get("quarantine_recycle")
-            if isinstance(checkpoint, Mapping)
-            else None
-        )
-        owner = str(getattr(job, "lease_owner", "") or "")
-        token = str(getattr(job, "lease_token", "") or "")
-        return bool(
-            isinstance(marker, Mapping)
-            and str(marker.get("lease_owner") or "") == owner
-            and str(marker.get("lease_token") or "") == token
-            and owner
-            and owner != self.worker.worker_id
-        )
-
     def _recover_runtime_jobs(self) -> dict[str, int]:
         """Recover only expired or proven-dead durable-domain ownership."""
 
@@ -1596,7 +1575,6 @@ class WorkflowRuntime:
             if (
                 owner not in self._abandoned_lease_owners
                 and not self._runtime_owner_is_dead(owner)
-                and not self._quarantine_recycle_owner_is_abandoned(job)
             ):
                 continue
             seen.add(identity)

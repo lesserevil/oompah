@@ -1659,7 +1659,7 @@ def test_runtime_owner_identity_fences_reused_pid_generation(monkeypatch):
         )
 
 
-def test_marked_quarantine_recovers_after_same_pid_exec_without_duplicate_apply(
+def test_quarantine_recovers_after_same_pid_exec_without_duplicate_apply(
     tmp_path,
 ):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
@@ -1667,9 +1667,13 @@ def test_marked_quarantine_recovers_after_same_pid_exec_without_duplicate_apply(
     binding, journal = make_binding(tmp_path, tracker, store)
     process_ticks = workflow_runtime_module._process_start_ticks(os.getpid())
     assert process_ticks is not None
+    current_generation = workflow_runtime_module._RUNTIME_PROCESS_GENERATION
+    previous_generation = (
+        "0" * 32 if current_generation != "0" * 32 else "1" * 32
+    )
     old_owner = (
         f"workflow-runtime:{os.getpid()}:{process_ticks}:"
-        f"p{workflow_runtime_module._RUNTIME_PROCESS_GENERATION}:deadbeef"
+        f"p{previous_generation}:deadbeef"
     )
     first_worker = DurableWorkflowWorker(
         store=store,
@@ -1737,6 +1741,68 @@ def test_marked_quarantine_recovers_after_same_pid_exec_without_duplicate_apply(
     assert handler.apply_calls == 0
     assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
     restarted.close()
+    store.close()
+
+
+@pytest.mark.parametrize("same_worker_identity", (True, False))
+def test_live_same_process_quarantine_marker_never_proves_abandonment(
+    tmp_path,
+    same_worker_identity,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+    if same_worker_identity:
+        live_owner = runtime.worker.worker_id
+    else:
+        process_ticks = workflow_runtime_module._process_start_ticks(os.getpid())
+        assert process_ticks is not None
+        live_owner = (
+            f"workflow-runtime:{os.getpid()}:{process_ticks}:"
+            f"p{workflow_runtime_module._RUNTIME_PROCESS_GENERATION}:feedface"
+        )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-LIVE-QUARANTINE",
+            generation="live-quarantine-1",
+            action="standalone_delivery",
+            idempotency_key="live-quarantine-1",
+        )
+    )
+    claimed = store.claim_next(
+        lease_owner=live_owner,
+        lease_seconds=30,
+        actions=("standalone_delivery",),
+    )
+    assert claimed is not None
+    quarantined = store.quarantine_owned(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="live adapter is still running",
+    )
+    store.mark_quarantine_recycle_requested(
+        quarantined.job_id,
+        quarantined.lease_token,
+    )
+
+    recovery = asyncio.run(runtime.start())
+
+    assert recovery == {"expired": 0, "abandoned": 0, "recovered": 0}
+    retained = store.get(queued.job_id)
+    assert retained.state is WorkflowJobState.RUNNING
+    assert retained.phase == "quarantined"
+    runtime.close()
     store.close()
 
 

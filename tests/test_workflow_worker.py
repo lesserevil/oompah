@@ -785,6 +785,73 @@ async def test_permanently_blocked_call_requests_one_bounded_recycle(store):
 
 
 @pytest.mark.asyncio
+async def test_completed_call_settlement_store_failure_requests_safe_recycle(
+    store,
+    monkeypatch,
+):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+    requested = asyncio.Event()
+    recycle_calls = []
+
+    async def late_apply(_context):
+        handler.apply_calls += 1
+        handler.started.set()
+        await handler.release.wait()
+        handler.external_applied = True
+        return EffectResult(receipt=handler.external_receipt)
+
+    async def request_recycle(job):
+        recycle_calls.append(job.job_id)
+        requested.set()
+
+    handler.apply = late_apply
+    original_settle = store.settle_quarantined_call
+    settlement_calls = 0
+
+    def unavailable_settlement(*args, **kwargs):
+        nonlocal settlement_calls
+        settlement_calls += 1
+        raise OSError("transient SQLite transport failure")
+
+    runner = worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+        quarantine_recycle_seconds=0.05,
+        quarantine_recycle_observer=request_recycle,
+    )
+    timed_out = await runner.run_once()
+    await handler.started.wait()
+    assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    monkeypatch.setattr(store, "settle_quarantined_call", unavailable_settlement)
+
+    handler.release.set()
+    await asyncio.wait_for(requested.wait(), timeout=0.5)
+
+    retained = store.get(queued.job_id)
+    assert settlement_calls == 1
+    assert retained.state is WorkflowJobState.RUNNING
+    assert retained.phase == "quarantined"
+    assert retained.checkpoint["quarantine_recycle"]["lease_token"] == (
+        retained.lease_token
+    )
+    assert recycle_calls == [queued.job_id]
+
+    monkeypatch.setattr(store, "settle_quarantined_call", original_settle)
+    recovered = original_settle(
+        retained.job_id,
+        retained.lease_token,
+        operation="apply",
+        effect_receipt=handler.external_receipt,
+    )
+    assert recovered.phase == "effect_returned"
+    assert "quarantine_recycle" not in recovered.checkpoint
+
+
+@pytest.mark.asyncio
 async def test_lost_lease_fences_worker_before_post_effect_checkpoint(store, clock):
     queued = store.enqueue(job_spec())
     handler = ScriptedHandler()

@@ -508,11 +508,11 @@ class DurableWorkflowWorker:
                 return
             except TimeoutError:
                 pass
-            if call.done():
-                # Completion won the timer race; its settlement coroutine owns
-                # the exact token and either releases it or leaves health
-                # visible for restart recovery.
-                return
+            # A completed adapter is not sufficient proof that its durable
+            # settlement committed.  If that store write failed, retain the
+            # exact quarantine and cross the same bounded recycle boundary as
+            # a call which never returned; startup recovery can then inspect
+            # the external effect without overlap.
             try:
                 current = await asyncio.to_thread(self.store.get, job_id)
             except Exception:

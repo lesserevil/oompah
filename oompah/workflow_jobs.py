@@ -4978,8 +4978,8 @@ class WorkflowJobStore:
     ) -> WorkflowJob:
         """Release one quarantine only after its exact detached call returns.
 
-        A timed-out synchronous adapter may continue outside its cancelled
-        asyncio awaiter.  Quarantine deliberately removes the lease deadline
+        A timed-out synchronous adapter may continue after its bounded worker
+        await returns.  Quarantine deliberately removes the lease deadline
         so no replacement can overlap that call.  Its eventual completion is
         the one safe in-process release edge: bind settlement to the original
         token and quarantined phase, checkpoint an exact apply receipt before
@@ -5022,6 +5022,10 @@ class WorkflowJobStore:
                     _decode_json_object(selected["checkpoint_json"], "checkpoint")
                     or {}
                 )
+                # A recycle request belongs to one exact lease token.  It is
+                # historical once that detached call has returned and must
+                # never survive into a later claim/quarantine ABA cycle.
+                checkpoint.pop("quarantine_recycle", None)
                 phase = "quarantine_recovered"
                 retry_at: float | None = None
                 completed_at: float | None = None
@@ -5123,11 +5127,16 @@ class WorkflowJobStore:
                     or {}
                 )
                 marker = checkpoint.get("quarantine_recycle")
-                if isinstance(marker, Mapping):
+                lease_owner = str(selected["lease_owner"] or "")
+                if (
+                    isinstance(marker, Mapping)
+                    and str(marker.get("lease_owner") or "") == lease_owner
+                    and str(marker.get("lease_token") or "") == token
+                ):
                     self._conn.commit()
                     return self._from_row(selected)
                 checkpoint["quarantine_recycle"] = {
-                    "lease_owner": str(selected["lease_owner"] or ""),
+                    "lease_owner": lease_owner,
                     "lease_token": token,
                     "requested_at": timestamp,
                 }
@@ -5150,7 +5159,10 @@ class WorkflowJobStore:
                 self._append_event_locked(
                     row,
                     "quarantine_recycle_requested",
-                    payload={"lease_owner": str(row["lease_owner"] or "")},
+                    payload={
+                        "lease_owner": str(row["lease_owner"] or ""),
+                        "replaced_stale_marker": marker is not None,
+                    },
                     now=timestamp,
                 )
                 self._conn.commit()

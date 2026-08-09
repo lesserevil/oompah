@@ -2048,6 +2048,60 @@ def test_quarantine_recycle_marker_is_exact_and_idempotent(store):
         )
 
 
+def test_quarantine_recycle_marker_is_retired_and_replaced_across_lease_aba(store):
+    store.enqueue(spec())
+    first_claim = claim(store)
+    first_quarantine = store.quarantine_owned(
+        first_claim.job_id,
+        first_claim.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="first adapter timeout",
+    )
+    first_marked = store.mark_quarantine_recycle_requested(
+        first_quarantine.job_id,
+        first_quarantine.lease_token,
+    )
+    stale_marker = dict(first_marked.checkpoint["quarantine_recycle"])
+
+    first_settlement = store.settle_quarantined_call(
+        first_quarantine.job_id,
+        first_quarantine.lease_token,
+        operation="inspect",
+    )
+    assert "quarantine_recycle" not in first_settlement.checkpoint
+
+    second_claim = claim(store)
+    assert second_claim.lease_token != first_claim.lease_token
+    store.checkpoint(
+        second_claim.job_id,
+        second_claim.lease_token,
+        phase="effect_pending",
+        checkpoint={"quarantine_recycle": stale_marker},
+    )
+    second_quarantine = store.quarantine_owned(
+        second_claim.job_id,
+        second_claim.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="second adapter timeout",
+    )
+    second_marked = store.mark_quarantine_recycle_requested(
+        second_quarantine.job_id,
+        second_quarantine.lease_token,
+    )
+
+    replacement = second_marked.checkpoint["quarantine_recycle"]
+    assert replacement["lease_token"] == second_claim.lease_token
+    assert replacement["lease_owner"] == second_claim.lease_owner
+    assert replacement != stale_marker
+    requests = [
+        event
+        for event in store.events(first_claim.job_id)
+        if event.event_type == "quarantine_recycle_requested"
+    ]
+    assert len(requests) == 2
+    assert requests[-1].payload["replaced_stale_marker"] is True
+
+
 def test_expired_recovery_is_bounded(store, clock):
     for index in range(3):
         store.enqueue(spec(f"key-{index}", task=f"T-{index}"))
