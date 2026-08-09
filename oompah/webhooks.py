@@ -439,7 +439,7 @@ def _parse_github_issue_comment(
     # GitHub uses ``issue_comment`` for both issues and pull requests.  PR
     # comments belong to the pull-request review lifecycle and must never be
     # normalized as customer issue intake.
-    if "pull_request" in issue:
+    if issue.get("pull_request"):
         logger.debug(
             "Skipping issue_comment event for PR-backed issue #%s",
             issue.get("number"),

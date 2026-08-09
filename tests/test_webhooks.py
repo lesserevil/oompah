@@ -660,6 +660,17 @@ class TestParseGitHubIssueCommentWebhook:
 
         assert parse_github_webhook("issue_comment", payload) is None
 
+    def test_null_pull_request_marker_remains_an_issue_comment(self):
+        """A nullable API field does not turn a genuine issue into a PR."""
+        payload = self._comment_payload(action="created")
+        payload["issue"]["pull_request"] = None
+
+        event = parse_github_webhook("issue_comment", payload)
+
+        assert event is not None
+        assert event.issue_number == "5"
+        assert event.comment_id == "987654"
+
     def test_missing_issue_returns_none(self):
         payload = {"action": "created", "comment": {"id": 1, "user": {"login": "x"}}}
         assert parse_github_webhook("issue_comment", payload) is None

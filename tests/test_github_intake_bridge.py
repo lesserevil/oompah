@@ -591,6 +591,61 @@ def test_pr_backed_comment_webhook_cannot_reach_native_intake(monkeypatch):
     assert native.update_calls == []
 
 
+def test_null_pr_marker_comment_still_imports_at_native_boundary(monkeypatch):
+    """Direct intake preserves genuine issues with a nullable PR field."""
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=PROPOSED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker([_github_issue()])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issue_comment",
+        action="created",
+        repo_slug="example-org/app",
+        issue_number="7",
+        comment_id="101",
+        author="alice",
+        raw={
+            "issue": {
+                "number": 7,
+                "state": "open",
+                "title": "Report export fails",
+                "body": "Exporting a large report returns a 500.",
+                "user": {"login": "alice"},
+                "pull_request": None,
+            },
+            "comment": {
+                "id": 101,
+                "body": "This still reproduces on main.",
+                "user": {"login": "alice"},
+            },
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert native.comments == [
+        (issue.identifier, "This still reproduces on main.", "alice")
+    ]
+    assert native.metadata[issue.identifier]["oompah.external.github"] == {
+        "id": "example-org/app#7",
+        "last_synced_status": PROPOSED,
+        "imported_comment_ids": ["101"],
+    }
+
+
 def test_closed_github_issue_does_not_archive_merged_native_task(monkeypatch):
     native = FakeNativeTracker()
     issue = native.create_issue("Imported", initial_status=MERGED)
