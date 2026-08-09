@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T13:53:43.874958Z'
+updated_at: '2026-08-09T14:01:20.817412Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -87,5 +87,10 @@ author: oompah
 created: 2026-08-09 13:53
 ---
 Replaced the fixed turn-timeout boundary-receipt retention approach after review found an orphan same-command replay/storage blocker. Head 6a14af7f749cb492c71acbfad351071a0fa813a1 now fences each receipt to the exact shim PID/start-tick generation, permits only a 5-second grace after the broker observes that generation exit, actively/lazily prunes all replay and liveness indexes, and retires item indexes immediately on completion. Added regression coverage for orphan same-command replay and bounded orphan storage while retaining the parallel, background-spoof, and retirement race coverage. Verification: complete tests/test_native_validation_guard.py passed 137/137 with 2 workers; combined liveness/replay/storage/retirement/capacity suite passed 10/10; core replay suite passed five consecutive repetitions.
+---
+author: oompah
+created: 2026-08-09 14:01
+---
+Second review blocker corrected at c59e01d3e424bea743fe25c8a7e04c3e6ba73f46. Authorization-receipt expiry is now distinct from consumed item/run completion correlation: an expired unconsumed receipt is fully pruned, while a consumed receipt cannot authorize anything and its item mapping remains until terminal completion (or broker retirement) clears the complete group. Added the exact heavy-command regression consuming near the post-exit grace edge, delaying completion beyond expiry, and verifying the run completes rather than stranding. Verification: complete native validation guard module 138/138 passed with 2 workers; focused six-test lifecycle/replay suite passed; four-test replay/storage/delayed-completion suite passed five consecutive repetitions. Auto-merge remains disabled pending fresh review and hosted checks.
 ---
 <!-- COMMENTS:END -->
