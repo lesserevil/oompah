@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-960
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Consume parent-scoped canonical child landing facts
 parent: OOMPAH-940
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-09T14:20:14.654158Z'
-updated_at: '2026-08-09T14:20:14.654158Z'
+updated_at: '2026-08-09T14:21:20.415066Z'
 work_branch: null
 target_branch: null
 review_url: null
