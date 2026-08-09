@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:26:17.775582Z'
-updated_at: '2026-08-09T06:59:47.383914Z'
+updated_at: '2026-08-09T06:59:52.804253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,17 @@ oompah.terminal_audit:
       Makefile gate passed. Owner terminalization is required because delivery used
       the shared epic branch.'
     created_at: '2026-08-09T06:59:43.559593+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-934
+    target_state: Done
+    evidence_fingerprint: 2429c20a0ba153dd7c512da48383eebf04dab6f07e3343cce78848d48e59e439
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T06:59:51.306136+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -70,5 +80,12 @@ author: oompah
 created: 2026-08-09 06:59
 ---
 Delivered through protected PR #749 and squash-merged to main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. Exact prior failures passed 20/20 under two-worker load; all seven affected modules passed 1,007 tests; required Python 3.11/3.12/3.13 CI and the complete 18,880-test Makefile gate passed.
+---
+author: oompah
+created: 2026-08-09 06:59
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Protected PR #749 squash-integrated the OOMPAH-934 deterministic concurrency regressions into main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. Exact reproductions, affected modules, required hosted Python 3.11/3.12/3.13 CI, and the complete Makefile gate passed. Owner terminalization is required because delivery used the shared epic branch.
 ---
 <!-- COMMENTS:END -->
