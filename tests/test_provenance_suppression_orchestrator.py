@@ -28,11 +28,19 @@ from oompah.provenance_suppression import (
 )
 from oompah.scm import ReviewRequest
 from oompah.statuses import MERGED, OPEN
-from oompah.terminal_audit import ContributorIdentity
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+)
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
+    TerminalAuditMetadata,
     TerminalAuditMetadataStore,
 )
+from oompah.workflow_fact_model import FactDomain
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +176,114 @@ def _seed_suppression(tracker: _MetadataTracker, identifier: str) -> None:
         "retained purely as terminal provenance for the merged record.",
         now=datetime(2026, 8, 7, tzinfo=timezone.utc).isoformat(),
     )
+
+
+def test_workflow_terminal_audit_fact_projects_exact_retention_authority(tmp_path):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-967", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1").write(
+        issue.identifier,
+        TerminalAuditMetadata(
+            pending_chain=[
+                TerminalAuditRecord(
+                    audit_id="audit-without-job",
+                    project_id="proj-1",
+                    task_id=issue.identifier,
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=EvidenceFingerprint("a" * 64),
+                    request_state=RequestState.PENDING,
+                )
+            ]
+        ),
+    )
+    _seed_suppression(tracker, issue.identifier)
+    orch = _make_orchestrator(tmp_path, tracker)
+    audit_store = orch._audit_store(issue)
+    audit_store.read = MagicMock(  # type: ignore[method-assign]
+        wraps=audit_store.read
+    )
+    orch._audit_store = MagicMock(  # type: ignore[method-assign]
+        return_value=audit_store
+    )
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    # Loading the durable marker reads the envelope once.  Retention then
+    # returns before a second, unrelated audit-document read can discard the
+    # already validated authority fact.
+    assert audit_store.read.call_count == 1
+    assert fact["terminal_provenance"] == {
+        "schema_version": 1,
+        "marker_version": 1,
+        "project_id": "proj-1",
+        "task_id": issue.identifier,
+        "retained": True,
+        "malformed": False,
+        "authority_generation": 0,
+        "authorized_by": "alice",
+        "actor_source": "github",
+        "marked_at": "2026-08-07T00:00:00+00:00",
+        "updated_at": "2026-08-07T00:00:00+00:00",
+    }
+
+
+@pytest.mark.parametrize("version", [99, True, 1.0])
+def test_workflow_terminal_audit_fact_projects_malformed_marker_fail_closed(
+    tmp_path, version: object
+):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-967", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    _seed_suppression(tracker, issue.identifier)
+    marker = tracker._metadata[issue.identifier][METADATA_KEY][  # noqa: SLF001
+        PROVENANCE_SUPPRESSION_KEY
+    ]
+    marker["version"] = version
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert fact == {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "project_id": "proj-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": True,
+            "authority_generation": 0,
+        }
+    }
+
+
+@pytest.mark.parametrize("marker", [None, "invalid", [], True])
+def test_workflow_terminal_audit_fact_projects_non_mapping_marker_fail_closed(
+    tmp_path, marker: object
+):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-967", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    _seed_suppression(tracker, issue.identifier)
+    tracker._metadata[issue.identifier][METADATA_KEY][  # noqa: SLF001
+        PROVENANCE_SUPPRESSION_KEY
+    ] = marker
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert fact == {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "project_id": "proj-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": True,
+            "authority_generation": 0,
+        }
+    }
 
 
 # ---------------------------------------------------------------------------

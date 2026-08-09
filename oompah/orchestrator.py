@@ -13853,8 +13853,54 @@ class Orchestrator:
 
         def terminal_audit(current: Issue) -> dict[str, Any] | None:
             try:
-                document = self._audit_store(current).read(current.identifier)
                 project_id = str(current.project_id or "legacy")
+                audit_store = self._audit_store(current)
+                suppression = load_provenance_suppression_status(
+                    audit_store,
+                    current.identifier,
+                )
+                marker = suppression.marker
+                provenance: dict[str, Any] = {}
+                if suppression.malformed:
+                    provenance["terminal_provenance"] = {
+                        "schema_version": 1,
+                        "project_id": project_id,
+                        "task_id": current.identifier,
+                        "retained": False,
+                        "malformed": True,
+                        "authority_generation": suppression.authority_generation,
+                    }
+                    # The normal audit document may be unreadable for the
+                    # exact same reason.  Publish the fail-closed authority
+                    # fact instead of collapsing it into a generic provider
+                    # error that could keep scheduling delivery effects.
+                    return provenance
+                if marker is not None:
+                    provenance["terminal_provenance"] = {
+                        "schema_version": 1,
+                        "marker_version": marker.version,
+                        "project_id": project_id,
+                        "task_id": current.identifier,
+                        "retained": marker.suppressed,
+                        "malformed": False,
+                        "authority_generation": marker.authority_generation,
+                        "authorized_by": (
+                            marker.actor.identity if marker.actor is not None else None
+                        ),
+                        "actor_source": (
+                            marker.actor.source if marker.actor is not None else None
+                        ),
+                        "marked_at": marker.marked_at,
+                        "updated_at": marker.updated_at,
+                    }
+                    if marker.suppressed:
+                        # Retention is the owner's complete authority answer:
+                        # this task is historical rather than pending delivery.
+                        # Do not let an unrelated or transient audit-document
+                        # read discard that already validated durable fence.
+                        return provenance
+
+                document = audit_store.read(current.identifier)
                 get_project = getattr(
                     getattr(self, "project_store", None), "get", None
                 )
@@ -13897,6 +13943,7 @@ class Orchestrator:
                         return {
                             **authority,
                             **owner_fact,
+                            **provenance,
                             "phase": "queued",
                             "workflow_phase": AuditWorkflowPhase.QUEUED.value,
                             "audit_job_present": False,
@@ -13933,6 +13980,7 @@ class Orchestrator:
                             **authority,
                             **exact_job,
                             **owner_fact,
+                            **provenance,
                             "phase": "queued",
                             "workflow_phase": disposition.phase.value,
                             "action_required": True,
@@ -13947,6 +13995,7 @@ class Orchestrator:
                             **authority,
                             **exact_job,
                             **owner_fact,
+                            **provenance,
                             "phase": "active",
                             "workflow_phase": disposition.phase.value,
                         }
@@ -13954,6 +14003,7 @@ class Orchestrator:
                         **authority,
                         **exact_job,
                         **owner_fact,
+                        **provenance,
                         "phase": "queued",
                         "workflow_phase": disposition.phase.value,
                         "retry_at": (
@@ -13971,10 +14021,11 @@ class Orchestrator:
                 if owner_delivery is not None:
                     return {
                         **owner_fact,
+                        **provenance,
                         "phase": "completed",
                         "workflow_phase": "owner_delivery",
                     }
-                return None
+                return provenance or None
             except Exception as exc:  # noqa: BLE001 - evidence boundary
                 raise RuntimeError(
                     "terminal-audit metadata is unavailable"

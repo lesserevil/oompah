@@ -231,7 +231,11 @@ class ProvenanceSuppression:
     history: tuple[RevisionAuthorization, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
-        if self.version != MARKER_VERSION:
+        if (
+            not isinstance(self.version, int)
+            or isinstance(self.version, bool)
+            or self.version != MARKER_VERSION
+        ):
             raise ProvenanceSuppressionError(
                 f"ProvenanceSuppression.version must be {MARKER_VERSION}"
             )
@@ -291,7 +295,11 @@ class ProvenanceSuppression:
                 "provenance suppression payload must be a mapping"
             )
         version = raw.get("version")
-        if version != MARKER_VERSION:
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version != MARKER_VERSION
+        ):
             # Persisted tracker metadata is untrusted.  Never interpolate the
             # attacker-controlled value into an exception that may become an
             # operator alert or log line.
@@ -337,7 +345,7 @@ class ProvenanceSuppression:
             RevisionAuthorization.from_dict(entry) for entry in raw_history
         )
         return cls(
-            version=MARKER_VERSION,
+            version=version,
             suppressed=suppressed,
             authority_generation=int(generation),
             actor=actor,
@@ -358,9 +366,9 @@ def read_provenance_suppression(
     fail-closed for status mutation and surface an operator alert.
     """
 
-    raw = document.unknown_fields.get(PROVENANCE_SUPPRESSION_KEY)
-    if raw is None:
+    if PROVENANCE_SUPPRESSION_KEY not in document.unknown_fields:
         return None
+    raw = document.unknown_fields[PROVENANCE_SUPPRESSION_KEY]
     return ProvenanceSuppression.from_dict(raw)
 
 

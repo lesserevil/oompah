@@ -34,8 +34,13 @@ from oompah.integration_workflow import (
     IntegrationWorkflowController,
 )
 from oompah.models import BlockerRef, Issue
+from oompah.provenance_suppression import (
+    authorize_new_revision,
+    mark_provenance_only,
+)
 from oompah.review_workflow import ReviewWorkflowController
 from oompah.terminal_audit import (
+    ContributorIdentity,
     EvidenceFingerprint,
     RequestState,
     TargetState,
@@ -3381,6 +3386,362 @@ def test_runtime_publishes_done_zero_job_exhaustion_authority(tmp_path):
     ).fetchone()
     assert retirement is not None
     assert retirement["authority_kind"] == "managed_zero_job"
+    runtime.close()
+    store.close()
+
+
+def test_runtime_retires_exhausted_landing_refresh_for_retained_provenance(
+    tmp_path,
+):
+    database = tmp_path / "jobs.sqlite3"
+    store = WorkflowJobStore(str(database))
+    project_id = "project-1"
+    task_id = "TASK-PROVENANCE"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="landing-refresh-required",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="runtime:retained-provenance",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = store.claim_next(
+        lease_owner="failed-worker",
+        lease_seconds=30,
+        task_id=task_id,
+    )
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="refresh failed permanently",
+        retryable=False,
+    )
+
+    done = make_issue(task_id, state="Done")
+    done.integration = IntegrationRecord(
+        state="integrated",
+        task_branch=task_id,
+        base_branch="main",
+        head_sha="a" * 40,
+        integrated_sha="a" * 40,
+    )
+    tracker = NativeTracker([done])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda _issue: {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "marker_version": 1,
+            "project_id": project_id,
+            "task_id": task_id,
+            "retained": True,
+            "malformed": False,
+            "authority_generation": 0,
+            "authorized_by": "owner",
+            "actor_source": "api",
+            "marked_at": "2026-08-09T00:00:00+00:00",
+            "updated_at": "2026-08-09T00:00:00+00:00",
+        }
+    }
+    binding.terminal_audit_snapshot_proof_source = (
+        lambda _decision, observed: (
+            binding.collector.sources[FactDomain.TERMINAL_AUDIT](done)
+            == observed
+        )
+    )
+    binding.terminal_audit_publication_lock = lambda: threading.RLock()
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={project_id: binding},
+        store=store,
+        journals={project_id: journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"][project_id]["snapshot"]["published"]
+    assert runtime.projections()[0]["reason_code"] == "terminal.provenance_retained"
+    assert not store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+    retirement = store._conn.execute(  # noqa: SLF001 - exact authority proof
+        "SELECT authority_kind FROM workflow_job_retirements WHERE job_id = ?",
+        (running.job_id,),
+    ).fetchone()
+    assert retirement is not None
+    assert retirement["authority_kind"] == "managed_zero_job"
+    runtime.close()
+    store.close()
+
+    reopened_store = WorkflowJobStore(str(database))
+    restarted_binding, restarted_journal = make_binding(
+        tmp_path,
+        tracker,
+        reopened_store,
+    )
+    restarted_binding.collector.sources[FactDomain.TERMINAL_AUDIT] = (
+        binding.collector.sources[FactDomain.TERMINAL_AUDIT]
+    )
+    restarted_binding.terminal_audit_snapshot_proof_source = (
+        lambda _decision, observed: (
+            restarted_binding.collector.sources[FactDomain.TERMINAL_AUDIT](done)
+            == observed
+        )
+    )
+    restarted_binding.terminal_audit_publication_lock = lambda: threading.RLock()
+    restarted_runtime = WorkflowRuntime(
+        project_bindings={project_id: restarted_binding},
+        store=reopened_store,
+        journals={project_id: restarted_journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(
+            store=reopened_store
+        ),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(restarted_runtime.start())
+    restart_report = restarted_runtime.reconcile()
+
+    assert restart_report["projects"][project_id]["snapshot"]["published"]
+    assert restarted_runtime.projections()[0]["reason_code"] == (
+        "terminal.provenance_retained"
+    )
+    assert not reopened_store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+    restarted_runtime.close()
+    reopened_store.close()
+
+
+@pytest.mark.parametrize("authority_changed", (False, True))
+def test_production_retained_provenance_publication_is_exact(
+    tmp_path,
+    authority_changed,
+):
+    from oompah.orchestrator import Orchestrator
+
+    class AuditTracker(NativeTracker):
+        def __init__(self, issues):
+            super().__init__(issues)
+            self.metadata = {}
+
+        def get_metadata(self, identifier):
+            return self.metadata.get(identifier, {})
+
+        def set_metadata_field(self, identifier, key, value):
+            self.metadata.setdefault(identifier, {})[key] = value
+
+        def invalidate_read_cache(self):
+            return None
+
+    class ProjectStore:
+        def __init__(self):
+            self.lock = threading.RLock()
+
+        def list_all(self):
+            return []
+
+        def project_write_lock(self, project_id):
+            assert project_id == "legacy"
+            return self.lock
+
+    class Config:
+        workflow_engine_mode = "enforce"
+        workflow_domain_modes = {}
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+        workflow_runtime_max_concurrent = 4
+        workflow_runtime_control_reserved_slots = 1
+
+    project_id = "legacy"
+    task_id = "TASK-PROVENANCE-RACE"
+    task = make_issue(task_id, state="Done", project_id=project_id)
+    task.integration = IntegrationRecord(
+        state="integrated",
+        task_branch=task_id,
+        base_branch="main",
+        head_sha="a" * 40,
+        integrated_sha="a" * 40,
+    )
+    tracker = AuditTracker([task])
+    project_store = ProjectStore()
+    store = WorkflowJobStore(str(tmp_path / "production-race.sqlite3"))
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="landing-refresh-required",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="runtime:retained-provenance-race",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    exhausted = store.claim_next(
+        lease_owner="failed-worker",
+        lease_seconds=30,
+        task_id=task_id,
+    )
+    assert exhausted is not None
+    exhausted = store.fail(
+        exhausted.job_id,
+        exhausted.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="refresh failed permanently",
+        retryable=False,
+    )
+
+    metadata = TerminalAuditMetadataStore(tracker, project_store, project_id)
+    owner = ContributorIdentity("owner", "api")
+    mark_provenance_only(
+        metadata,
+        task_id,
+        owner,
+        "Retain completed work as historical provenance.",
+        now="2026-08-09T00:00:00+00:00",
+    )
+    terminal_workflow = TerminalAuditWorkflow(store)
+    controller = UniversalTotalityLivenessController(store=store)
+
+    class OrchestratorDouble:
+        config = Config()
+        workflow_job_store = store
+        terminal_audit_workflow = terminal_workflow
+        workflow_action_handlers = complete_handlers()
+        workflow_controller = controller
+        _state_path = str(tmp_path / "service-state.json")
+        _work_decision_publication_epoch = 1
+
+        def __init__(self):
+            self.project_store = project_store
+            self.tracker = tracker
+            self.state = SimpleNamespace(retry_attempts={})
+
+        def _audit_store(self, _issue):
+            return metadata
+
+        def _workflow_shadow_sources(self, issue):
+            return Orchestrator._workflow_shadow_sources(self, issue)
+
+        def _workflow_shadow_running_entry(self, _issue, *, auditor=None):
+            return None
+
+        def _publish_work_decisions(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                accepted=True,
+                rejection=None,
+                commit_memory=lambda: None,
+                rollback=lambda: None,
+            )
+
+    runtime = WorkflowRuntime.from_orchestrator(
+        OrchestratorDouble(),
+        state_dir=tmp_path,
+        mode="enforce",
+    )
+    binding = runtime.project_bindings[project_id]
+    production_proof = binding.terminal_audit_snapshot_proof_source
+    assert production_proof is not None
+    proof_fences = []
+
+    def change_before_proof(decision, observed):
+        proof_fences.append(
+            (store._conn.in_transaction, store._authority_lock_depth > 0)
+        )
+        assert observed["terminal_provenance"]["retained"] is True
+        if authority_changed:
+            authorize_new_revision(
+                metadata,
+                task_id,
+                owner,
+                "Owner authorized a new revision before publication.",
+                now="2026-08-09T00:01:00+00:00",
+            )
+        return production_proof(decision, observed)
+
+    binding.terminal_audit_snapshot_proof_source = change_before_proof
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert proof_fences == [(True, True)]
+    if authority_changed:
+        assert report["requires_reconcile"] is True
+        assert report["reconcile_reason"] == "publication_authority_changed"
+        assert report["projects"][project_id] == {
+            "publication_superseded": True,
+            "reason": "terminal-audit disposition changed before publication",
+        }
+        assert store.current_exhausted_jobs(
+            project_id=project_id,
+            task_id=task_id,
+        ) == (exhausted,)
+        retirement = store._conn.execute(  # noqa: SLF001 - rollback proof
+            "SELECT COUNT(*) AS count FROM workflow_job_retirements WHERE job_id = ?",
+            (exhausted.job_id,),
+        ).fetchone()
+        assert retirement["count"] == 0
+    else:
+        assert report["projects"][project_id]["snapshot"]["published"] is True
+        assert runtime.projections()[0]["reason_code"] == (
+            "terminal.provenance_retained"
+        )
+        assert not store.current_exhausted_jobs(
+            project_id=project_id,
+            task_id=task_id,
+        )
+        retirement = store._conn.execute(  # noqa: SLF001 - exact proof
+            "SELECT authority_kind FROM workflow_job_retirements WHERE job_id = ?",
+            (exhausted.job_id,),
+        ).fetchone()
+        assert retirement["authority_kind"] == "managed_zero_job"
     runtime.close()
     store.close()
 

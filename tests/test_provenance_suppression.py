@@ -10,7 +10,6 @@ from __future__ import annotations
 import copy
 import threading
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -32,7 +31,6 @@ from oompah.provenance_suppression import (
 from oompah.terminal_audit import ContributorIdentity
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
-    TerminalAuditMetadata,
     TerminalAuditMetadataQuarantinedError,
     TerminalAuditMetadataStore,
 )
@@ -138,11 +136,12 @@ class TestProvenanceSuppressionModel:
         restored = ProvenanceSuppression.from_dict(marker.to_dict())
         assert restored == marker
 
-    def test_from_dict_rejects_wrong_version(self) -> None:
+    @pytest.mark.parametrize("version", [99, True, 1.0])
+    def test_from_dict_rejects_wrong_version(self, version: object) -> None:
         with pytest.raises(ProvenanceSuppressionError):
             ProvenanceSuppression.from_dict(
                 {
-                    "version": 99,
+                    "version": version,
                     "suppressed": True,
                     "authority_generation": 0,
                     "reason": "x",
@@ -151,6 +150,11 @@ class TestProvenanceSuppressionModel:
                     "history": [],
                 }
             )
+
+    @pytest.mark.parametrize("version", [True, 1.0])
+    def test_constructor_rejects_non_integer_version(self, version: object) -> None:
+        with pytest.raises(ProvenanceSuppressionError):
+            ProvenanceSuppression(version=version)  # type: ignore[arg-type]
 
     def test_suppressed_requires_actor(self) -> None:
         with pytest.raises(ProvenanceSuppressionError):
@@ -311,14 +315,15 @@ class TestSuppressionStatus:
         assert status.malformed is False
         assert status.marker is None
 
-    def test_malformed_marker_reports_fail_closed(self) -> None:
+    @pytest.mark.parametrize("version", ["bad", True, 1.0])
+    def test_malformed_marker_reports_fail_closed(self, version: object) -> None:
         tracker = _MemoryTracker(
             {
                 METADATA_KEY: {
                     "version": 1,
                     "pending_chain": [],
                     "attempt_history": [],
-                    PROVENANCE_SUPPRESSION_KEY: {"version": "bad"},
+                    PROVENANCE_SUPPRESSION_KEY: {"version": version},
                 }
             }
         )
@@ -329,6 +334,27 @@ class TestSuppressionStatus:
         # though the caller also emits an operator alert.
         assert status.suppressed is True
         assert "malformed" in status.malformed_reason.lower() or "version" in status.malformed_reason.lower()
+
+    @pytest.mark.parametrize("marker", [None, "invalid", [], True])
+    def test_present_non_mapping_marker_reports_fail_closed(
+        self, marker: object
+    ) -> None:
+        tracker = _MemoryTracker(
+            {
+                METADATA_KEY: {
+                    "version": 1,
+                    "pending_chain": [],
+                    "attempt_history": [],
+                    PROVENANCE_SUPPRESSION_KEY: marker,
+                }
+            }
+        )
+
+        status = load_provenance_suppression_status(_store(tracker), "TASK-1")
+
+        assert status.suppressed is True
+        assert status.malformed is True
+        assert status.marker is None
 
     def test_quarantined_metadata_is_treated_as_suppressed(self) -> None:
         """A quarantined envelope must not silently permit a reopen."""
