@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:27:22.190077Z'
-updated_at: '2026-08-08T16:26:14.497371Z'
+updated_at: '2026-08-09T21:42:57.944508Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,6 +49,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-08T16:26:12.294769+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Owner-reviewed terminal implementation is retained. The Done child is
+      durably composed into epic OOMPAH-763; its current parent_rollup_review head_required
+      exhaustion is the OOMPAH-975 null-head transition bug. Do not rearm implementation.
+    marked_at: '2026-08-09T21:42:56.484836+00:00'
+    updated_at: '2026-08-09T21:42:56.484836+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Owner-reviewed terminal implementation is retained. The Done child is
+        durably composed into epic OOMPAH-763; its current parent_rollup_review head_required
+        exhaustion is the OOMPAH-975 null-head transition bug. Do not rearm implementation.
+      recorded_at: '2026-08-09T21:42:56.484836+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
