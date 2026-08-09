@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-943
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Persist successful landing refresh facts before job completion
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T09:44:32.156305Z'
+updated_at: '2026-08-09T10:28:50.814771Z'
 work_branch: OOMPAH-943
 target_branch: null
 review_url: null
