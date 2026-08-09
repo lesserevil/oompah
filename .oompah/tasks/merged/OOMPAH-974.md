@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:55:00.140096Z'
+updated_at: '2026-08-09T23:55:14.602108Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -300,13 +300,13 @@ oompah.terminal_audit:
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
 oompah.task_costs:
-  total_input_tokens: 330
-  total_output_tokens: 11727
+  total_input_tokens: 608
+  total_output_tokens: 11800
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 330
-      output_tokens: 11727
+      input_tokens: 608
+      output_tokens: 11800
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -315,6 +315,12 @@ oompah.task_costs:
     output_tokens: 11727
     cost_usd: 0.0
     recorded_at: '2026-08-09T22:12:56.158163+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 278
+    output_tokens: 73
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T23:55:11.200057+00:00'
 ---
 ## Summary
 
@@ -459,5 +465,15 @@ created: 2026-08-09 23:54
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Protected combined PR #787 merged exact OOMPAH-974 head 0006c430f566da7138f2958ed948e15d371cdf6d into main as eb3ca86e56dbe87a078d81f97cfa6054b94a5ee6. Protected Python 3.11/3.12/3.13 gates passed; independent exact-head reviews and focused liveness/race suites passed. The restored auditor was obsolete because it bound 8526a01bfb741eb58c267e7f4b649b75f8bdc882 rather than the delivered head.
+---
+author: oompah
+created: 2026-08-09 23:55
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 34, Tool calls: 15
+- Tokens: 278 in / 73 out [351 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 10s
+- Log: OOMPAH-974__20260809T234810Z.jsonl
 ---
 <!-- COMMENTS:END -->
