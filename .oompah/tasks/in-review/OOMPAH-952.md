@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T13:00:43.936999Z'
+updated_at: '2026-08-09T13:23:40.344249Z'
 work_branch: OOMPAH-952
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-08-09 13:00
 ---
 All three PR #765 matrices reproduced the OOMPAH-954 production-stack contract failure. Composed the already-reviewed two-commit OOMPAH-954 fix into exact head d7cc48949; hosted checks are rerunning.
+---
+author: oompah
+created: 2026-08-09 13:23
+---
+Composed the complete current-main OOMPAH-957 stabilization into PR #765 at exact head 64afe17c0. The two repaired effect/liveness contract tests plus all three known hosted timing regressions pass together; hosted matrix is rerunning this final composition.
 ---
 <!-- COMMENTS:END -->
