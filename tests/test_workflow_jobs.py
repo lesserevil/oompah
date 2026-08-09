@@ -1862,6 +1862,79 @@ def test_published_lifecycle_cut_survives_membership_until_explicit_rearm(store)
     ) == 1
 
 
+def test_snapshot_rollback_cannot_restore_retirement_over_explicit_rearm(store):
+    project_id = "project-1"
+    task_id = "EPIC-REARM-ROLLBACK"
+    cleanup = store.materialize_event(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert cleanup.job is not None
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    exhausted = store.fail(
+        running.job_id,
+        running.lease_token,
+        error="initial cleanup failed",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    lifecycle = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(lifecycle)
+    assert store.record_lifecycle_final_authority(
+        project_id=project_id,
+        task_id=task_id,
+        status="Merged",
+        snapshot_generation=lifecycle,
+    ) == 1
+    assert store.publish_snapshot_generation(lifecycle, lambda: None)[0]
+    assert not store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+
+    checkpoint = store.capture_snapshot_authority(
+        authoritative_project_ids=(project_id,),
+        evaluated_identities=((project_id, task_id),),
+        full_project_scope=True,
+    )
+    failed_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(failed_snapshot)
+
+    rearmed = store.rearm_terminal_job(
+        exhausted.job_id,
+        generation=exhausted.generation,
+        phase="queued",
+        reason="fresh lifecycle activation",
+    )
+    assert rearmed.state is WorkflowJobState.QUEUED
+    assert store.restore_snapshot_authority(
+        checkpoint, snapshot_generation=failed_snapshot
+    )
+    assert store.get(exhausted.job_id).state is WorkflowJobState.QUEUED
+    assert store._conn.execute(  # noqa: SLF001 - exact ABA fence assertion
+        "SELECT 1 FROM workflow_job_retirements WHERE job_id = ?",
+        (exhausted.job_id,),
+    ).fetchone() is None
+
+    rerun = claim(store, task_id=task_id)
+    assert rerun is not None and rerun.job_id == exhausted.job_id
+    failed_again = store.fail(
+        rerun.job_id,
+        rerun.lease_token,
+        error="fresh activation failed",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    assert store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    ) == (failed_again,)
+
+
 def test_missing_event_cursor_generation_fails_closed(store):
     write = store.materialize_event(
         project_id="project-1",

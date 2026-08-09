@@ -604,6 +604,7 @@ class WorkflowSnapshotAuthority:
     memberships: tuple[dict[str, Any], ...]
     jobs: tuple[dict[str, Any], ...]
     retirements: tuple[dict[str, Any], ...] = ()
+    job_event_sequence: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -2343,6 +2344,11 @@ class WorkflowJobStore:
                     params,
                 ).fetchall()
             )
+            event_row = self._conn.execute(
+                "SELECT COALESCE(MAX(sequence), 0) AS sequence "
+                "FROM workflow_job_events"
+            ).fetchone()
+            job_event_sequence = int(event_row["sequence"] if event_row else 0)
         return WorkflowSnapshotAuthority(
             projects,
             identities,
@@ -2351,6 +2357,7 @@ class WorkflowJobStore:
             memberships,
             jobs,
             retirements,
+            job_event_sequence,
         )
 
     def restore_snapshot_authority(
@@ -2399,12 +2406,29 @@ class WorkflowJobStore:
                     self._conn.commit()
                     return False
 
+                # Job events are append-only, making the capture sequence a
+                # durable ABA fence. An explicit rearm after this checkpoint
+                # is newer execution authority: rollback may remove writes
+                # staged by the failed snapshot, but it must not restore the
+                # captured terminal state or retirement proof over that rearm.
+                rearmed_after_capture = {
+                    str(row["job_id"])
+                    for row in self._conn.execute(
+                        "SELECT DISTINCT job_id FROM workflow_job_events "
+                        "WHERE event_type = 'rearmed' AND sequence > ? AND "
+                        f"{where}",
+                        (authority.job_event_sequence, *params),
+                    ).fetchall()
+                }
+
                 current_jobs = self._conn.execute(
                     f"SELECT * FROM workflow_jobs WHERE {where} AND workflow_managed = 1",
                     params,
                 ).fetchall()
                 for current in current_jobs:
                     job_id = str(current["job_id"])
+                    if job_id in rearmed_after_capture:
+                        continue
                     prior = before_jobs.get(job_id)
                     if prior is not None:
                         columns = [
@@ -2472,10 +2496,15 @@ class WorkflowJobStore:
                     f"{where} AND snapshot_generation = ?",
                     (*params, snapshot),
                 )
+                captured_retirements = tuple(
+                    row
+                    for row in authority.retirements
+                    if str(row["job_id"]) not in rearmed_after_capture
+                )
                 for table, rows in (
                     ("workflow_schedule_cursors", authority.cursors),
                     ("workflow_snapshot_membership", authority.memberships),
-                    ("workflow_job_retirements", authority.retirements),
+                    ("workflow_job_retirements", captured_retirements),
                 ):
                     if not rows:
                         continue
