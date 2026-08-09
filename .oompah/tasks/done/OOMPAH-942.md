@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-942
 type: bug
-status: Needs CI Fix
+status: Done
 priority: 1
 title: Backfill trusted terminal-parent heads for pruned epic targets
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T14:42:21.807104Z'
+updated_at: '2026-08-09T14:42:26.208703Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
