@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:38:49.281536Z'
+updated_at: '2026-08-09T15:39:40.407087Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-08-09 15:38
 ---
 Exact-head correction is implemented and locally green. Published retirement now references an immutable per-task authority cut, so a later bounded-unselected cursor snapshot or membership-only snapshot cannot resurrect retired exhaustion; explicit rearm still deletes the per-job proof and restores actionability. Tests: 98 workflow-job tests and 606 OOMPAH-960/961 composition tests passed; terminal-audit and secret scans passed. Preparing the commit and current-main composition now.
+---
+author: oompah
+created: 2026-08-09 15:39
+---
+Exact corrected head c5cafe260119d383d4ff30055f82702db69e2c03 is pushed on PR #769. Durable immutable per-task authority cuts prevent later bounded-unselected cursor or membership-only publications from resurrecting retired exhaustion; explicit rearm remains the ABA boundary. Exact-tree validation: 98 workflow-job tests and 606 combined OOMPAH-960/961 tests passed; terminal-audit scan, secret scan, and diff check passed. origin/main be4ec5d95 is an ancestor; hosted CI is running on 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
