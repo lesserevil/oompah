@@ -91,7 +91,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-09T05:17:32.718642Z'
+updated_at: '2026-08-09T05:17:39.424284Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,7 +116,17 @@ oompah.terminal_audit:
     reason: Direct project-owner completion after all children/companions completed,
       exact-head full gate passed, and live all-enforce verification.
     created_at: '2026-08-09T05:17:28.523677+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-763
+    target_state: Done
+    evidence_fingerprint: 8f30f7e01d48c8701f6debe5b1115a245e38122796506c02741affcf247ca36d
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T05:17:37.959245+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -207,5 +217,12 @@ author: oompah
 created: 2026-08-09 05:17
 ---
 Systemic workflow program completed by direct project owner on rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e. Every child is terminal; all 14 parent-null systemic companion tasks were explicitly completed; focused and race suites passed; exact full gate passed (18,874 passed, 7 skipped, 2 xfailed); exact build is live with all implementation/review/integration/epic domains in enforce mode; terminal-audit backlog is zero; global actionable alerts are zero; raw exhausted history is retained while current exhausted=0; expired leases=0. Final liveness/canary convergence will be recorded after this terminal rollup publication.
+---
+author: oompah
+created: 2026-08-09 05:17
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct project-owner completion after all children/companions completed, exact-head full gate passed, and live all-enforce verification.
 ---
 <!-- COMMENTS:END -->
