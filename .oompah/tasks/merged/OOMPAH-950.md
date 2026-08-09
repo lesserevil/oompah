@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-950
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Retire direct-owner claim after durable validation submission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T14:27:13.347252Z'
+updated_at: '2026-08-09T16:32:17.754729Z'
 work_branch: OOMPAH-950
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/761
@@ -71,6 +71,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T14:26:12.483818+00:00'
     applied_at: '2026-08-09T14:26:19.580788+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f1097582fba4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact task head fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+      was proven to be PR #761 head and contained in main; PR #761 merged as 8670daf38ba56646266eb074a4e609bddb3501a8
+      with hosted Python 3.11/3.12/3.13 checks successful; the independent terminal
+      auditor also recorded PASS.'
+    created_at: '2026-08-09T16:32:13.541378+00:00'
+    selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+    selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+    applied: false
   version: 1
   pending_chain:
   - version: 1
