@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:14.654158Z'
-updated_at: '2026-08-09T14:22:56.267566Z'
+updated_at: '2026-08-09T14:35:27.783690Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-09 14:22
 ---
 Direct-owner implementation started in isolated worktree /home/shedwards/src/oompah-960 on branch OOMPAH-960. I am adding fail-closed parent-scoped child landing evidence composition and focused route/source/revision/current-containment/restart regressions; no service mutation or deployment. The Open to In Progress CLI transition was correctly rejected because the workflow generation is required, so implementation proceeds under the explicit owner assignment while preserving tracker fencing.
+---
+author: oompah
+created: 2026-08-09 14:35
+---
+Implemented fail-closed parent-scoped canonical child landing consumption in the isolated OOMPAH-960 worktree. A Done child now imports only one durable LANDED fact owned by its current parent epic when current direct containment, project, exact route, source, and any named revision agree; the Git collector still revalidates current target history, and the parent fact remains parent-owned across restart. Validation so far: 113 integration workflow tests passed; 91 epic workflow/adapter tests passed; terminal mutation scan and paranoid secret scan passed. Preparing the review-ready commit and push; no service mutation or deployment.
 ---
 <!-- COMMENTS:END -->
