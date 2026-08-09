@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-953
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep quality-gate cancellation polling local and bounded
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T16:04:10.990494Z'
+updated_at: '2026-08-09T16:33:57.474349Z'
 work_branch: OOMPAH-953
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/764
@@ -71,6 +71,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T16:03:31.001462+00:00'
     applied_at: '2026-08-09T16:03:41.916375+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8bd6633fa02f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-953
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5f96aa11fbbf50f981a8528ce23a93e02195af2d24c93421c2b271417f65a8da
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact task head 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+      was proven to be PR #764 head and contained in main; PR #764 merged as 1de571bad9bdc4ae3e62599ddf0dee7fbda53f02
+      with hosted Python 3.11/3.12/3.13 checks successful; the independent terminal
+      auditor also recorded PASS.'
+    created_at: '2026-08-09T16:33:51.109919+00:00'
+    selected_ref: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+    selected_sha: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+    applied: false
   version: 1
   pending_chain:
   - version: 1
