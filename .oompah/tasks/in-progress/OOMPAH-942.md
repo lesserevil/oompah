@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T09:32:12.647272Z'
-work_branch: null
+updated_at: '2026-08-09T09:32:26.822433Z'
+work_branch: OOMPAH-942
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-942
+  base_branch: epic-OOMPAH-940
+  base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
+  head_sha: 1b50116ce5057a617b84d22dd542c621721fc20e
+  submitted_at: '2026-08-09T09:32:14.484356+00:00'
+  updated_at: '2026-08-09T09:32:14.484356+00:00'
+oompah.work_branch: OOMPAH-942
 ---
 ## Summary
 
@@ -40,5 +52,10 @@ author: oompah
 created: 2026-08-09 09:32
 ---
 Implemented/pushed 1b50116ce. Terminal-parent exact heads now backfill from existing immutable landing facts, integrated queue receipts, exact completed audit bindings, or route-matching merged-review heads; the selected proof is persisted before child use and ambiguity, wrong targets, malformed authority, or persistence failure remain fail-closed. Focused integration/runtime result: 153 passed; targeted undefined-name lint passed.
+---
+author: oompah
+created: 2026-08-09 09:32
+---
+Backfilled and persisted exact terminal-parent heads with fail-closed legacy authority selection; 153 focused tests pass.
 ---
 <!-- COMMENTS:END -->
