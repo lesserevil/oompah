@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T12:07:07.657184Z'
-work_branch: null
+updated_at: '2026-08-09T12:07:32.642344Z'
+work_branch: OOMPAH-956
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-956
+  base_branch: epic-OOMPAH-940
+  base_sha: 41a158291ad932b232e9ebc4dcff5b0357d9f57b
+  head_sha: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
+  submitted_at: '2026-08-09T12:07:19.976703+00:00'
+  updated_at: '2026-08-09T12:07:19.976703+00:00'
+oompah.work_branch: OOMPAH-956
 ---
 ## Summary
 
@@ -35,5 +47,10 @@ author: oompah
 created: 2026-08-09 12:07
 ---
 Implemented and pushed 60b94b8844af30c1ff796869eeab3b68b98dbe1f on OOMPAH-956. Proven pre-effect pause/quiesce/lifecycle/resource deferrals now restore claim-time attempts, preserve exact checkpoints/generation, append immutable administrative_deferred events, and retain capped exponential backoff. Genuine failures and uncertain post-effect outcomes still consume/exhaust attempts; exact lease, restart, ABA, and replacement fencing are covered. Verification: 186 focused workflow job/worker/runtime tests passed; 8 new targeted regressions passed; terminal-audit scan and secret scan passed. Additional incident corpus: 43/44 passed, with only the known sibling OOMPAH-748 containment regression on the epic base (fixed independently at dccbeb5).
+---
+author: oompah
+created: 2026-08-09 12:07
+---
+Pushed 60b94b884: administrative pre-effect deferrals no longer consume workflow failure attempts; exact checkpoint/generation/lease fencing, immutable event history, capped exponential backoff, substantive failure exhaustion, and post-effect fail-closed behavior are regression covered. Focused workflow suites: 186 passed; scans passed.
 ---
 <!-- COMMENTS:END -->
