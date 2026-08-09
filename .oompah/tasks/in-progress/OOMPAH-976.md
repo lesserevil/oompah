@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T22:26:24.107568Z'
+updated_at: '2026-08-09T22:38:20.961327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-09 22:25
 ---
 Implementation started on branch OOMPAH-976. Reproduced the Python 3.12 authority-withdrawal timing lane locally and traced the unsafe interleaving to the shim receiving the lease descriptor before a final broker-mediated exec-admission decision; the shim could observe cancellation and exit while the supervisor's exact terminal claim was still pending. Implementing a fail-closed post-transfer admission handshake with deterministic race barriers and descriptor/lease cleanup coverage. The shared service will not be restarted from this lane.
+---
+author: oompah
+created: 2026-08-09 22:38
+---
+Implemented the race fix on OOMPAH-976 after rebasing onto merged main e8be4d38. The heavyweight shim now requires a broker-mediated ADMIT/ADMITTED handshake after SCM_RIGHTS descriptor transfer. Exec admission and exact terminal claims linearize on the same run lock; cancellation before admission is claimed exactly before the shim is denied, while later withdrawal terminates an already-admitted generation without allowing post-withdrawal workload effects. The admission handler joins the atomic terminal claim directly, so a delayed supervisor observer cannot strand it. Coverage includes deterministic pre-admission, post-admission, timeout, blocked observer, exact-cause precedence, no-workload-after-withdrawal, lease cleanup, FD cleanup, and bounded retirement. Checks: 234 affected tests passed; both withdrawal edge nodes passed 10/10 stress repetitions each; diff and compile checks clean.
 ---
 <!-- COMMENTS:END -->
