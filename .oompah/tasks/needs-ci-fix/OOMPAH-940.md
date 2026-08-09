@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: In Validation
+status: Needs CI Fix
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -25,7 +25,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T18:05:00.865191Z'
+updated_at: '2026-08-09T18:06:29.714745Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-940","audit-fddacbaa91fb","attempt-e32fa435be1c"]': '2026-08-09T18:06:20.147252+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    target_state: Done
+    evidence_fingerprint: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    audit_ids:
+    - audit-fddacbaa91fb
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T18:06:20.147268+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    audit_id: audit-fddacbaa91fb
+    attempt_id: attempt-e32fa435be1c
+    target_state: Done
+    evidence_fingerprint: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    status: Needs CI Fix
+    audit_ids:
+    - audit-fddacbaa91fb
+    kind: result
+    applied: true
+    created_at: '2026-08-09T18:06:20.147278+00:00'
+    applied_at: '2026-08-09T18:06:28.039581+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -47,7 +73,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -74,7 +100,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e32fa435be1c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -87,6 +113,10 @@ oompah.terminal_audit:
       selected_ref: origin/epic-OOMPAH-940
       selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
       candidate_rotation_count: 1
+      verdict: fail
+      failure_classification: ci_failure
+      completed_at: '2026-08-09T18:06:20.147127+00:00'
+      ended_at: '2026-08-09T18:06:20.147127+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -96,7 +126,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:59:06.485551+00:00'
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-    updated_at: '2026-08-09T17:44:16.791279+00:00'
+    updated_at: '2026-08-09T18:06:20.147127+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-55037e98b910
@@ -215,5 +245,12 @@ author: oompah
 created: 2026-08-09 17:44
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 18:06
+---
+Audit FAIL — ci failure. Routing task to Needs CI Fix.
+
+Full test gate FAILED: 10 test failures out of 19022 tests. Primary failures: (1) pytest parallel test infrastructure config errors - Python symlink path not absolute (6 tests); (2) fsync/I/O timeout during file write in tracker test; (3) Codex CLI lifecycle timeout; (4) Telemetry validation_scope assertion. Exit code: 2. The configured authoritative quality gate 'make test' is required for this epic's Done transition and must pass with all tests succeeding before the work can be approved.
 ---
 <!-- COMMENTS:END -->
