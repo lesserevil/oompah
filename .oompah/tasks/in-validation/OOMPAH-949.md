@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-949
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make fresh-waiter priority regression independent of host scheduling
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T12:21:13.934854Z'
+updated_at: '2026-08-09T12:27:22.493322Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-09T10:28:20.807004+00:00'
   updated_at: '2026-08-09T10:28:20.807004+00:00'
 oompah.work_branch: OOMPAH-949
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-b5437e001a05
+    project_id: proj-14849f1b
+    task_id: OOMPAH-949
+    digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+  - version: 1
+    audit_id: audit-e418ec38f7a8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-949
+    digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b5437e001a05
+    project_id: proj-14849f1b
+    task_id: OOMPAH-949
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T12:27:15.737526+00:00'
+    selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+  - version: 1
+    audit_id: audit-e418ec38f7a8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-949
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T12:27:15.737526+00:00'
+    selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +113,10 @@ author: oompah
 created: 2026-08-09 12:19
 ---
 Exact branch gate passed at 27c3685dc3d2e4aba8e852a88569795acd300fe7: make test completed with 18,901 passed, 7 skipped, and 2 xfailed in 1,212.43 seconds. Opened protected-main PR #762 and enabled merge-when-green.
+---
+author: oompah
+created: 2026-08-09 12:27
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
