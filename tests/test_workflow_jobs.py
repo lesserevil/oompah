@@ -1146,7 +1146,7 @@ def test_managed_zero_job_or_retired_replacement_fails_closed(store):
     assert store.health_snapshot()["current_states"]["exhausted"] == 1
 
 
-def test_published_zero_job_authority_retires_exhaustion_across_restart(tmp_path):
+def test_published_zero_job_cut_survives_restart_and_unselected_snapshot(tmp_path):
     database = tmp_path / "zero-job.sqlite3"
     store = WorkflowJobStore(str(database))
     project_id = "project-1"
@@ -1215,6 +1215,27 @@ def test_published_zero_job_authority_retires_exhaustion_across_restart(tmp_path
     store.close()
 
     reopened = WorkflowJobStore(str(database))
+    assert not reopened.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+    later = reopened.allocate_snapshot_generation()
+    assert reopened.accept_snapshot_generation(later)
+    assert reopened.reconcile_snapshot_membership(
+        snapshot_generation=later,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    unchanged = reopened.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-blocked",
+        snapshot_generation=later,
+    )
+    # A bounded-but-unselected task advances the durable cursor without
+    # materializing another schedule. That mutable cursor must not invalidate
+    # the already-published retirement cut.
+    assert unchanged.materialized
+    assert reopened.publish_snapshot_generation(later, lambda: None)[0]
     assert not reopened.current_exhausted_jobs(
         project_id=project_id, task_id=task_id
     )
@@ -1773,7 +1794,7 @@ def test_terminal_audit_handoff_retires_only_prior_managed_exhaustion(store):
     ] == [audit.job.job_id]
 
 
-def test_published_lifecycle_final_cut_retires_epic_and_rearm_clears_aba(store):
+def test_published_lifecycle_cut_survives_membership_until_explicit_rearm(store):
     project_id = "project-1"
     task_id = "EPIC-FINAL"
     cleanup = store.materialize_event(
@@ -1807,6 +1828,18 @@ def test_published_lifecycle_final_cut_retires_epic_and_rearm_clears_aba(store):
     ) == 1
     assert store.publish_snapshot_generation(snapshot, lambda: None)[0]
     assert not store.current_exhausted_jobs(project_id=project_id, task_id=task_id)
+
+    membership_only = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(membership_only)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=membership_only,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    assert store.publish_snapshot_generation(membership_only, lambda: None)[0]
+    assert not store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
 
     rearmed = store.rearm_terminal_job(
         cleanup.job.job_id,
@@ -2908,6 +2941,7 @@ def test_schema_v6_upgrade_seeds_exact_last_publication(tmp_path):
 
     connection = sqlite3.connect(path)
     connection.execute("DROP TABLE workflow_job_retirements")
+    connection.execute("DROP TABLE workflow_retirement_authority_cuts")
     connection.execute("DROP TABLE workflow_snapshot_publications")
     connection.execute(
         "UPDATE schema_meta SET value = '6' WHERE key = 'workflow_jobs_version'"

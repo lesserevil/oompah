@@ -56,7 +56,78 @@ _LIFECYCLE_FINAL_AUTHORITY_REVISIONS = frozenset(
 # roll back. Unknown, legacy, and partially written authority therefore remain
 # current (fail closed). Keep this predicate shared by the per-task lookup and
 # global health telemetry so their meanings cannot drift apart again.
-_CURRENT_EXHAUSTION_PREDICATE = """
+_DURABLE_RETIREMENT_PROOF_PREDICATE = """
+(
+    (
+        retirement.authority_kind = 'terminal_audit_handoff'
+        AND retirement.snapshot_generation IS NULL
+        AND EXISTS (
+            SELECT 1
+              FROM workflow_jobs handoff
+             WHERE handoff.project_id = retirement.project_id
+               AND handoff.task_id = retirement.task_id
+               AND handoff.workflow_managed = 0
+               AND handoff.action = 'terminal_audit'
+               AND handoff.scheduling_lane LIKE 'terminal-audit:%'
+               AND handoff.generation = retirement.decision_revision
+        )
+    )
+    OR (
+        retirement.authority_kind IN (
+            'managed_decision', 'managed_zero_job'
+        )
+        AND retirement.snapshot_generation IS NOT NULL
+        AND job.workflow_managed = 1
+        AND EXISTS (
+            SELECT 1
+              FROM workflow_snapshot_publications publication
+             WHERE publication.snapshot_generation =
+                   retirement.snapshot_generation
+        )
+        AND EXISTS (
+            SELECT 1
+              FROM workflow_retirement_authority_cuts authority_cut
+             WHERE authority_cut.project_id = retirement.project_id
+               AND authority_cut.task_id = retirement.task_id
+               AND authority_cut.snapshot_generation =
+                   retirement.snapshot_generation
+               AND authority_cut.authority_kind =
+                   retirement.authority_kind
+               AND authority_cut.decision_revision =
+                   retirement.decision_revision
+               AND authority_cut.job_generation IS NOT NULL
+               AND authority_cut.job_generation != job.generation
+        )
+    )
+    OR (
+        retirement.authority_kind = 'lifecycle_final'
+        AND retirement.snapshot_generation IS NOT NULL
+        AND retirement.decision_revision IN (
+            'lifecycle-final:Merged', 'lifecycle-final:Archived'
+        )
+        AND EXISTS (
+            SELECT 1
+              FROM workflow_snapshot_publications publication
+             WHERE publication.snapshot_generation =
+                   retirement.snapshot_generation
+        )
+        AND EXISTS (
+            SELECT 1
+              FROM workflow_retirement_authority_cuts authority_cut
+             WHERE authority_cut.project_id = retirement.project_id
+               AND authority_cut.task_id = retirement.task_id
+               AND authority_cut.snapshot_generation =
+                   retirement.snapshot_generation
+               AND authority_cut.authority_kind = 'lifecycle_final'
+               AND authority_cut.decision_revision =
+                   retirement.decision_revision
+               AND authority_cut.job_generation IS NULL
+        )
+    )
+)
+"""
+
+_CURRENT_EXHAUSTION_PREDICATE = f"""
 job.state = 'exhausted'
 AND NOT (
     EXISTS (
@@ -65,105 +136,7 @@ AND NOT (
          WHERE retirement.job_id = job.job_id
            AND retirement.project_id = job.project_id
            AND retirement.task_id = job.task_id
-           AND (
-               (
-                   retirement.authority_kind = 'terminal_audit_handoff'
-                   AND retirement.snapshot_generation IS NULL
-                   AND EXISTS (
-                       SELECT 1
-                         FROM workflow_jobs handoff
-                        WHERE handoff.project_id = retirement.project_id
-                          AND handoff.task_id = retirement.task_id
-                          AND handoff.workflow_managed = 0
-                          AND handoff.action = 'terminal_audit'
-                          AND handoff.scheduling_lane LIKE 'terminal-audit:%'
-                          AND handoff.generation =
-                              retirement.decision_revision
-                   )
-               )
-               OR (
-                   retirement.authority_kind IN (
-                       'managed_decision', 'managed_zero_job'
-                   )
-                   AND retirement.snapshot_generation IS NOT NULL
-                   AND job.workflow_managed = 1
-                   AND EXISTS (
-                       SELECT 1
-                         FROM workflow_snapshot_publications publication
-                        WHERE publication.snapshot_generation =
-                              retirement.snapshot_generation
-                   )
-                   AND EXISTS (
-                       SELECT 1
-                         FROM workflow_schedule_cursors proof_cursor
-                        WHERE proof_cursor.project_id = retirement.project_id
-                          AND proof_cursor.task_id = retirement.task_id
-                          AND proof_cursor.snapshot_generation =
-                              retirement.snapshot_generation
-                          AND proof_cursor.decision_revision =
-                              retirement.decision_revision
-                          AND proof_cursor.materialized_job_generation =
-                              proof_cursor.job_generation
-                          AND proof_cursor.job_generation != job.generation
-                          AND (
-                              (
-                                  retirement.authority_kind =
-                                      'managed_zero_job'
-                                  AND NOT EXISTS (
-                                      SELECT 1
-                                        FROM workflow_jobs zero_job
-                                       WHERE zero_job.project_id =
-                                             retirement.project_id
-                                         AND zero_job.task_id =
-                                             retirement.task_id
-                                         AND zero_job.workflow_managed = 1
-                                         AND zero_job.generation =
-                                             proof_cursor.job_generation
-                                  )
-                              )
-                              OR (
-                                  retirement.authority_kind =
-                                      'managed_decision'
-                                  AND EXISTS (
-                                      SELECT 1
-                                        FROM workflow_jobs replacement
-                                       WHERE replacement.project_id =
-                                             retirement.project_id
-                                         AND replacement.task_id =
-                                             retirement.task_id
-                                         AND replacement.workflow_managed = 1
-                                         AND replacement.generation =
-                                             proof_cursor.job_generation
-                                         AND replacement.state IN (
-                                             'queued', 'running', 'retry_wait',
-                                             'completed', 'exhausted'
-                                         )
-                                  )
-                              )
-                          )
-                   )
-               )
-               OR (
-                   retirement.authority_kind = 'lifecycle_final'
-                   AND retirement.snapshot_generation IS NOT NULL
-                   AND retirement.decision_revision IN (
-                       'lifecycle-final:Merged',
-                       'lifecycle-final:Archived'
-                   )
-                   AND EXISTS (
-                       SELECT 1
-                         FROM workflow_snapshot_publications publication
-                        WHERE publication.snapshot_generation =
-                              retirement.snapshot_generation
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1
-                         FROM workflow_snapshot_membership membership
-                        WHERE membership.project_id = retirement.project_id
-                          AND membership.task_id = retirement.task_id
-                   )
-               )
-           )
+           AND {_DURABLE_RETIREMENT_PROOF_PREDICATE}
     )
     OR
     (job.workflow_managed = 1 AND EXISTS (
@@ -821,6 +794,16 @@ _CREATE_V7_OBJECTS = """
 CREATE TABLE IF NOT EXISTS workflow_snapshot_publications (
     snapshot_generation INTEGER PRIMARY KEY,
     published_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workflow_retirement_authority_cuts (
+    snapshot_generation INTEGER NOT NULL,
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    authority_kind TEXT NOT NULL,
+    decision_revision TEXT NOT NULL,
+    job_generation TEXT,
+    recorded_at REAL NOT NULL,
+    PRIMARY KEY(snapshot_generation, project_id, task_id)
 );
 CREATE TABLE IF NOT EXISTS workflow_job_retirements (
     job_id TEXT PRIMARY KEY,
@@ -2484,6 +2467,11 @@ class WorkflowJobStore:
                     f"{where} AND snapshot_generation IS NOT NULL",
                     params,
                 )
+                self._conn.execute(
+                    "DELETE FROM workflow_retirement_authority_cuts WHERE "
+                    f"{where} AND snapshot_generation = ?",
+                    (*params, snapshot),
+                )
                 for table, rows in (
                     ("workflow_schedule_cursors", authority.cursors),
                     ("workflow_snapshot_membership", authority.memberships),
@@ -2661,6 +2649,12 @@ class WorkflowJobStore:
                         "AND snapshot_generation = ?",
                         (project, task, snapshot),
                     )
+                    self._conn.execute(
+                        "DELETE FROM workflow_retirement_authority_cuts "
+                        "WHERE project_id = ? AND task_id = ? "
+                        "AND snapshot_generation = ?",
+                        (project, task, snapshot),
+                    )
                 for project in sorted(projects):
                     self._conn.execute(
                         "DELETE FROM workflow_schedule_cursors WHERE project_id = ?",
@@ -2672,6 +2666,11 @@ class WorkflowJobStore:
                     )
                     self._conn.execute(
                         "DELETE FROM workflow_job_retirements "
+                        "WHERE project_id = ? AND snapshot_generation = ?",
+                        (project, snapshot),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM workflow_retirement_authority_cuts "
                         "WHERE project_id = ? AND snapshot_generation = ?",
                         (project, snapshot),
                     )
@@ -4193,6 +4192,23 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def _job_has_durable_retirement_locked(self, job_id: str) -> bool:
+        """Return whether one row already has immutable published authority."""
+
+        return self._conn.execute(
+            f"""
+            SELECT 1
+              FROM workflow_job_retirements retirement
+              JOIN workflow_jobs job ON job.job_id = retirement.job_id
+             WHERE retirement.job_id = ?
+               AND retirement.project_id = job.project_id
+               AND retirement.task_id = job.task_id
+               AND {_DURABLE_RETIREMENT_PROOF_PREDICATE}
+             LIMIT 1
+            """,
+            (_required_text(job_id, "job_id"),),
+        ).fetchone() is not None
+
     def _record_job_retirements_locked(
         self,
         *,
@@ -4217,6 +4233,7 @@ class WorkflowJobStore:
         revision = _required_text(decision_revision, "decision_revision")
         if authority_kind not in _AUTHORITY_RETIREMENT_KINDS:
             raise ValueError("authority_kind is not supported")
+        cut_job_generation: str | None = None
         if authority_kind == "terminal_audit_handoff":
             if snapshot_generation is not None:
                 raise ValueError(
@@ -4275,6 +4292,7 @@ class WorkflowJobStore:
                     raise WorkflowJobStoreError(
                         "managed retirement lost its exact materialized cursor"
                     )
+                cut_job_generation = str(cursor["job_generation"])
                 replacement = self._conn.execute(
                     """
                     SELECT 1 FROM workflow_jobs
@@ -4332,6 +4350,59 @@ class WorkflowJobStore:
             """,
             values,
         ).fetchall()
+        rows = [
+            row
+            for row in rows
+            if not self._job_has_durable_retirement_locked(str(row["job_id"]))
+        ]
+        if not rows:
+            return 0
+        if snapshot_generation is not None:
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO workflow_retirement_authority_cuts(
+                    snapshot_generation, project_id, task_id,
+                    authority_kind, decision_revision, job_generation,
+                    recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    snapshot_generation,
+                    project,
+                    task,
+                    authority_kind,
+                    revision,
+                    cut_job_generation,
+                    now,
+                ),
+            )
+            authority_cut = self._conn.execute(
+                """
+                SELECT authority_kind, decision_revision, job_generation
+                  FROM workflow_retirement_authority_cuts
+                 WHERE snapshot_generation = ?
+                   AND project_id = ? AND task_id = ?
+                """,
+                (snapshot_generation, project, task),
+            ).fetchone()
+            expected_cut = (
+                authority_kind,
+                revision,
+                cut_job_generation,
+            )
+            observed_cut = (
+                (
+                    str(authority_cut["authority_kind"]),
+                    str(authority_cut["decision_revision"]),
+                    _optional_text(authority_cut["job_generation"]),
+                )
+                if authority_cut is not None
+                else None
+            )
+            if observed_cut != expected_cut:
+                raise WorkflowJobStoreError(
+                    "snapshot contains conflicting retirement authority cuts"
+                )
         for row in rows:
             self._conn.execute(
                 """
@@ -4346,7 +4417,6 @@ class WorkflowJobStore:
                     decision_revision = excluded.decision_revision,
                     snapshot_generation = excluded.snapshot_generation,
                     retired_at = excluded.retired_at
-                WHERE workflow_job_retirements.snapshot_generation IS NOT NULL
                 """,
                 (
                     str(row["job_id"]),
