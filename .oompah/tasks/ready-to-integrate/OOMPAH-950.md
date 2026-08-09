@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-950
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Retire direct-owner claim after durable validation submission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T11:22:49.226351Z'
+updated_at: '2026-08-09T11:24:05.959001Z'
 work_branch: OOMPAH-950
 target_branch: null
 review_url: null
