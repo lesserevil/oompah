@@ -3431,8 +3431,8 @@ class WorkflowRuntime:
             self._effect_results.clear()
             active_by_lane = {
                 lane: sum(
-                    task_lane == lane and not task.done()
-                    for task, task_lane in self._effect_tasks.items()
+                    task_lane == lane
+                    for task_lane in self._effect_tasks.values()
                 )
                 for lane in ("control", "shared")
             }
@@ -3456,8 +3456,8 @@ class WorkflowRuntime:
                 for lane, capacity, actions in lane_limits:
                     with self._lock:
                         lane_active = sum(
-                            task_lane == lane and not task.done()
-                            for task, task_lane in self._effect_tasks.items()
+                            task_lane == lane
+                            for task_lane in self._effect_tasks.values()
                         )
                     free = max(capacity - lane_active, 0)
                     for _index in range(min(free, remaining)):
@@ -3496,8 +3496,8 @@ class WorkflowRuntime:
                     for lane, capacity, actions in lane_limits:
                         with self._lock:
                             lane_active = sum(
-                                task_lane == lane and not task.done()
-                                for task, task_lane in self._effect_tasks.items()
+                                task_lane == lane
+                                for task_lane in self._effect_tasks.values()
                             )
                         if lane_active < capacity:
                             continue
@@ -3514,8 +3514,8 @@ class WorkflowRuntime:
         with self._lock:
             active_by_lane = {
                 lane: sum(
-                    task_lane == lane and not task.done()
-                    for task, task_lane in self._effect_tasks.items()
+                    task_lane == lane
+                    for task_lane in self._effect_tasks.values()
                 )
                 for lane in ("control", "shared")
             }

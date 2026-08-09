@@ -1597,6 +1597,76 @@ def test_done_effect_remains_retained_until_completion_callback_settles(tmp_path
     store.close()
 
 
+def test_fast_admission_cannot_observe_idle_before_callback_settlement(tmp_path):
+    """A ready continuation cannot pass a completed callback in the same loop."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    effect_entered = asyncio.Event()
+    release_effect = asyncio.Event()
+    continuation_waiting = asyncio.Event()
+
+    class FencedHandler(CompleteHandler):
+        async def apply(self, context):
+            effect_entered.set()
+            await release_effect.wait()
+            return await super().apply(context)
+
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CALLBACK-GAP-ADMISSION",
+            generation="callback-gap-admission",
+            action="review_refresh",
+            idempotency_key="callback-gap-admission",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(FencedHandler()),
+    )
+
+    async def continue_after_release():
+        continuation_waiting.set()
+        await release_effect.wait()
+        return await runtime.continue_admission_async()
+
+    async def exercise():
+        completion_published = asyncio.Event()
+        runtime._effect_completion_observer = (
+            lambda _result: completion_published.set()
+        )
+        await runtime.start()
+        first = await runtime.reconcile_async()
+        await asyncio.wait_for(effect_entered.wait(), 1)
+        continuation = asyncio.create_task(continue_after_release())
+        await asyncio.wait_for(continuation_waiting.wait(), 1)
+        release_effect.set()
+        gap = await asyncio.wait_for(continuation, 1)
+        await asyncio.wait_for(completion_published.wait(), 1)
+        settled = await runtime.continue_admission_async()
+        return first, gap, settled
+
+    first, gap, settled = asyncio.run(exercise())
+
+    assert first["worker"]["scheduled"] == 1
+    assert gap["worker"]["completed"] == 0
+    assert gap["worker"]["scheduled"] == 0
+    assert gap["worker"]["active"] == 1
+    assert gap["worker"]["active_lanes"] == {"control": 0, "shared": 1}
+    assert gap["requires_reconcile"] is False
+    assert settled["worker"]["completed"] == 1
+    assert settled["worker"]["active"] == 0
+    assert settled["requires_reconcile"] is True
+    assert settled["reconcile_reason"] == "published_queue_drained"
+    runtime.close()
+    store.close()
+
+
 def test_fast_admission_rechecks_project_pause_before_claiming(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])
