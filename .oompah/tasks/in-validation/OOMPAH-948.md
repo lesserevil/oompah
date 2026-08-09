@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T12:57:23.179654Z'
+updated_at: '2026-08-09T13:09:13.053323Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -33,6 +33,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/763
 oompah.review_number: '763'
 oompah.target_branch: main
 oompah.review_head: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-99898cc9a80c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+  - version: 1
+    audit_id: audit-1c147ee3beb8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-99898cc9a80c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T13:09:07.549841+00:00'
+    selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+  - version: 1
+    audit_id: audit-1c147ee3beb8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T13:09:07.549841+00:00'
+    selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+  attempt_history: []
 ---
 ## Summary
 
@@ -156,5 +212,10 @@ author: oompah
 created: 2026-08-09 12:57
 ---
 Refreshed PR #763 onto current main at exact head 43531865c; the OOMPAH-957 timing proof was resolved deterministically and passed 20 repetitions on the identical merged content.
+---
+author: oompah
+created: 2026-08-09 13:09
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
