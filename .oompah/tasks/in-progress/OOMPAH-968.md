@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:09:12.626077Z'
+updated_at: '2026-08-09T19:09:23.589823Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -27,9 +27,9 @@ oompah.integration:
   task_branch: OOMPAH-968
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  head_sha: 514bc9e30d676f491de9f06f579e9c6893df5fa3
-  submitted_at: '2026-08-09T19:03:18.722905+00:00'
-  updated_at: '2026-08-09T19:03:18.722905+00:00'
+  head_sha: 277a99a1c53d6ce61ec92f88cc85413132ca6a86
+  submitted_at: '2026-08-09T19:09:13.751837+00:00'
+  updated_at: '2026-08-09T19:09:13.751837+00:00'
 oompah.work_branch: OOMPAH-968
 ---
 ## Summary
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-08-09 19:09
 ---
 Final exact head 277a99a1c is pushed. Revision and retention timestamps are now distinct: absent-to-authorize records owner/reason/updated_at with generation 1 and leaves marked_at empty until the first actual retain; retained facts still require a real mark timestamp. Verification: 557 focused tests pass; two independent final reviews report no blockers (one reran 193 relevant tests); critical Ruff/diff checks pass. This supersedes every prior submitted head and is the integration candidate.
+---
+author: oompah
+created: 2026-08-09 19:09
+---
+Final exact head 277a99a1c closes absent-to-retained and absent-to-revision publication races with consistent owner/generation/timestamp authority. 557 focused tests and two independent final reviews are green.
 ---
 <!-- COMMENTS:END -->
