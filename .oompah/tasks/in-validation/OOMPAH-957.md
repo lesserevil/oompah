@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T16:03:29.978196Z'
+updated_at: '2026-08-09T16:08:06.205588Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -48,12 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-957
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-0c542522ab6e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+      created_at: '2026-08-09T16:07:53.806659+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T16:07:53.806659+00:00'
+      branch_key: OOMPAH-957
+      selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
+      selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
     source_generation: 1
     requested_by:
       version: 1
@@ -63,6 +78,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T14:45:00.549243+00:00'
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+    updated_at: '2026-08-09T16:07:53.806659+00:00'
   - version: 1
     audit_id: audit-fa8de4cae680
     project_id: proj-14849f1b
@@ -83,7 +99,22 @@ oompah.terminal_audit:
     created_at: '2026-08-09T14:45:00.549243+00:00'
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-0c542522ab6e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    created_at: '2026-08-09T16:07:53.806659+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T16:07:53.806659+00:00'
+    branch_key: OOMPAH-957
+    selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
+    selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
 ---
 ## Summary
 
@@ -178,5 +209,15 @@ author: oompah
 created: 2026-08-09 16:03
 ---
 Hosted PR #769 Python 3.13 and PR #770 Python 3.12 independently reproduced two loaded-suite timing defects while their other versions passed: the durable integration heartbeat proof used an 80ms real lease, and the long-delivery concurrency proof relied on unbounded polling under the global 5s timeout. Direct-owner correction is pushed at 561deed0f5bb9d897454b7b29756185100989968 on PR #772: monotonic fake-clock renewal proof plus bounded completion events. Exact tests passed 100 heartbeat repetitions, 50 delivery repetitions, and 189 combined module tests; hosted matrix and final independent review are running.
+---
+author: oompah
+created: 2026-08-09 16:08
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 16:08
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
