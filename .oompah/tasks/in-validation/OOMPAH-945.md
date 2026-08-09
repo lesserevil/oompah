@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T15:51:55.360949Z'
+updated_at: '2026-08-09T16:26:55.346843Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -38,6 +38,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-945
     digest: b5832f95f60866a606034ed5b62fdf3147df4fcbd413f40d912ebc6b363bdd91
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-aa8b27576581
+    project_id: proj-14849f1b
+    task_id: OOMPAH-945
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b5832f95f60866a606034ed5b62fdf3147df4fcbd413f40d912ebc6b363bdd91
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact accepted head 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+      was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435,
+      merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python
+      3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:26:52.974826+00:00'
+    selected_ref: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+    selected_sha: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+    applied: false
   version: 1
   pending_chain:
   - version: 1

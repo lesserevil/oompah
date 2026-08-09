@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T16:20:18.654117Z'
+updated_at: '2026-08-09T16:26:49.965142Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,24 @@ author: oompah
 created: 2026-08-09 16:20
 ---
 Project owner promotes the confirmed PR-backed issue_comment intake regression for direct implementation.
+---
+author: oompah
+created: 2026-08-09 16:26
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-964`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `infrastructure_error`
+Process: ended without subprocess exit evidence
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
+```
 ---
 <!-- COMMENTS:END -->
