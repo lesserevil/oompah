@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:21:24.754079Z'
-updated_at: '2026-08-09T07:22:30.766318Z'
+updated_at: '2026-08-09T07:43:12.463009Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Problem: the all-enforce production rollout resumed a pre-existing durable batch
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 07:43
+---
+Direct-owner implementation complete at clean pushed head dec7e472ca653d5a35aa0ffba68a4f2e1c10947d. Legacy Done children now use durable integrated queue source revisions and immediate-parent targets; pruned parent refs are recovered only through an accepted final parent head plus fresh exact ancestry or complete non-empty git-cherry patch equivalence. Actual OOMPAH-476 has five of five equivalent patches against accepted parent head 95581aca. Verification: 191 affected tests passed plus focused negative cases; Ruff/diff checks clean. Awaiting combined protected-main integration with OOMPAH-936/OOMPAH-937.
+---
+<!-- COMMENTS:END -->
