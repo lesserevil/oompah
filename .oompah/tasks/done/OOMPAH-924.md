@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-924
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:__main__] Orchestrator thread crashed'
 parent: null
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T19:33:35.949962Z'
-updated_at: '2026-08-08T21:00:15.808040Z'
+updated_at: '2026-08-09T05:12:57.004047Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-72eeb4423a81
+    project_id: proj-14849f1b
+    task_id: OOMPAH-924
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f505f711f4484155799287195a02238bc312f6224725439ba2726b535feb7615
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:12:53.123754+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -83,5 +105,10 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:__main__`
 
 Message: Orchestrator thread crashed
+---
+author: oompah
+created: 2026-08-09 05:12
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
