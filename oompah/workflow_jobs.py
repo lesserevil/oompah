@@ -2016,6 +2016,12 @@ class WorkflowJobStore:
                             ),
                         ).fetchall()
                         for selected in active_rows:
+                            if (
+                                str(selected["state"])
+                                == WorkflowJobState.RUNNING.value
+                                and str(selected["phase"]) == "quarantined"
+                            ):
+                                continue
                             self._conn.execute(
                                 """
                                 UPDATE workflow_jobs
@@ -2430,6 +2436,12 @@ class WorkflowJobStore:
                         ),
                     ).fetchall()
                     for selected in active_rows:
+                        if (
+                            str(selected["state"])
+                            == WorkflowJobState.RUNNING.value
+                            and str(selected["phase"]) == "quarantined"
+                        ):
+                            continue
                         self._conn.execute(
                             """
                             UPDATE workflow_jobs
@@ -3230,8 +3242,10 @@ class WorkflowJobStore:
                             spec,
                             now=timestamp,
                         )
-                        if stale_job.state in ACTIVE_JOB_STATES and (
-                            stale_job.generation != observed_revision
+                        if (
+                            stale_job.state in ACTIVE_JOB_STATES
+                            and stale_job.phase != "quarantined"
+                            and stale_job.generation != observed_revision
                         ):
                             self._conn.execute(
                                 """
@@ -3337,6 +3351,11 @@ class WorkflowJobStore:
                 superseded = 0
                 for selected in active_rows:
                     if str(selected["job_id"]) == job.job_id:
+                        continue
+                    if (
+                        str(selected["state"]) == WorkflowJobState.RUNNING.value
+                        and str(selected["phase"]) == "quarantined"
+                    ):
                         continue
                     self._conn.execute(
                         """
@@ -3741,6 +3760,11 @@ class WorkflowJobStore:
                         and str(selected["idempotency_key"]) == key
                     ):
                         continue
+                    if (
+                        str(selected["state"]) == WorkflowJobState.RUNNING.value
+                        and str(selected["phase"]) == "quarantined"
+                    ):
+                        continue
                     self._conn.execute(
                         """
                         UPDATE workflow_jobs
@@ -4067,6 +4091,11 @@ class WorkflowJobStore:
                         and str(selected["idempotency_key"]) in expected_keys
                     )
                     if is_current:
+                        continue
+                    if (
+                        str(selected["state"]) == WorkflowJobState.RUNNING.value
+                        and str(selected["phase"]) == "quarantined"
+                    ):
                         continue
                     self._conn.execute(
                         """
@@ -4932,6 +4961,204 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def settle_quarantined_call(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        operation: str,
+        effect_receipt: Mapping[str, Any] | None = None,
+        failure_category: WorkflowFailureCategory | str = (
+            WorkflowFailureCategory.UNKNOWN
+        ),
+        error: str | None = None,
+        retryable: bool = True,
+        retry_delay_seconds: float = 0,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Release one quarantine only after its exact detached call returns.
+
+        A timed-out synchronous adapter may continue outside its cancelled
+        asyncio awaiter.  Quarantine deliberately removes the lease deadline
+        so no replacement can overlap that call.  Its eventual completion is
+        the one safe in-process release edge: bind settlement to the original
+        token and quarantined phase, checkpoint an exact apply receipt before
+        requeueing, and clear ownership in the same transaction.
+
+        Successful calls resume the interrupted attempt, so the next claim
+        does not spend an additional retry merely to verify an already-returned
+        receipt.  Failed calls use the ordinary attempt budget and can become
+        terminal; either outcome removes the per-task running fence only after
+        the old invocation is proven finished.
+        """
+
+        identifier = _required_text(job_id, "job_id")
+        token = _required_text(lease_token, "lease_token")
+        call_operation = _required_text(operation, "operation")
+        if retry_delay_seconds < 0:
+            raise ValueError("retry_delay_seconds cannot be negative")
+        if effect_receipt is not None and not isinstance(effect_receipt, Mapping):
+            raise TypeError("effect_receipt must be a mapping")
+        timestamp = float(self._clock() if now is None else now)
+        succeeded = effect_receipt is not None or error is None
+        category = WorkflowFailureCategory(failure_category)
+        message = str(error or "").strip()
+        if not succeeded and not message:
+            raise ValueError("error is required for failed quarantine settlement")
+
+        with self._authority_mutation_guard():
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                selected = self._row_locked(identifier)
+                if (
+                    str(selected["state"]) != WorkflowJobState.RUNNING.value
+                    or str(selected["phase"]) != "quarantined"
+                    or str(selected["lease_token"] or "") != token
+                ):
+                    raise WorkflowJobLeaseLost(
+                        f"workflow quarantine is no longer owned: {identifier}"
+                    )
+                checkpoint = dict(
+                    _decode_json_object(selected["checkpoint_json"], "checkpoint")
+                    or {}
+                )
+                phase = "quarantine_recovered"
+                retry_at: float | None = None
+                completed_at: float | None = None
+                attempts = int(selected["attempts"])
+                if succeeded:
+                    state = WorkflowJobState.QUEUED
+                    # The next claim resumes this same interrupted attempt.
+                    attempts = max(attempts - 1, 0)
+                    if effect_receipt is not None:
+                        checkpoint["effect"] = dict(effect_receipt)
+                        phase = "effect_returned"
+                    stored_category: str | None = None
+                    stored_error: str | None = None
+                    outcome = "returned"
+                else:
+                    exhausted = (
+                        not retryable
+                        or attempts >= int(selected["max_attempts"])
+                    )
+                    state = (
+                        WorkflowJobState.EXHAUSTED
+                        if exhausted
+                        else WorkflowJobState.RETRY_WAIT
+                    )
+                    retry_at = (
+                        None
+                        if exhausted
+                        else timestamp + float(retry_delay_seconds)
+                    )
+                    completed_at = timestamp if exhausted else None
+                    stored_category = category.value
+                    stored_error = message
+                    outcome = "failed"
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET state = ?, phase = ?, checkpoint_json = ?,
+                           lease_owner = NULL, lease_token = NULL,
+                           lease_expires_at = NULL, retry_at = ?, attempts = ?,
+                           failure_category = ?, last_error = ?, updated_at = ?,
+                           completed_at = ?
+                     WHERE job_id = ? AND state = ? AND phase = 'quarantined'
+                       AND lease_token = ?
+                    """,
+                    (
+                        state.value,
+                        phase,
+                        _canonical_json(checkpoint),
+                        retry_at,
+                        attempts,
+                        stored_category,
+                        stored_error,
+                        timestamp,
+                        completed_at,
+                        identifier,
+                        WorkflowJobState.RUNNING.value,
+                        token,
+                    ),
+                )
+                row = self._row_locked(identifier)
+                self._append_event_locked(
+                    row,
+                    "quarantine_settled",
+                    payload={"operation": call_operation, "outcome": outcome},
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def mark_quarantine_recycle_requested(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Durably bind one coalesced process-recycle request to a quarantine."""
+
+        identifier = _required_text(job_id, "job_id")
+        token = _required_text(lease_token, "lease_token")
+        timestamp = float(self._clock() if now is None else now)
+        with self._authority_mutation_guard():
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                selected = self._row_locked(identifier)
+                if (
+                    str(selected["state"]) != WorkflowJobState.RUNNING.value
+                    or str(selected["phase"]) != "quarantined"
+                    or str(selected["lease_token"] or "") != token
+                ):
+                    raise WorkflowJobLeaseLost(
+                        f"workflow quarantine is no longer owned: {identifier}"
+                    )
+                checkpoint = dict(
+                    _decode_json_object(selected["checkpoint_json"], "checkpoint")
+                    or {}
+                )
+                marker = checkpoint.get("quarantine_recycle")
+                if isinstance(marker, Mapping):
+                    self._conn.commit()
+                    return self._from_row(selected)
+                checkpoint["quarantine_recycle"] = {
+                    "lease_owner": str(selected["lease_owner"] or ""),
+                    "lease_token": token,
+                    "requested_at": timestamp,
+                }
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET checkpoint_json = ?, updated_at = ?
+                     WHERE job_id = ? AND state = ? AND phase = 'quarantined'
+                       AND lease_token = ?
+                    """,
+                    (
+                        _canonical_json(checkpoint),
+                        timestamp,
+                        identifier,
+                        WorkflowJobState.RUNNING.value,
+                        token,
+                    ),
+                )
+                row = self._row_locked(identifier)
+                self._append_event_locked(
+                    row,
+                    "quarantine_recycle_requested",
+                    payload={"lease_owner": str(row["lease_owner"] or "")},
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def renew(
         self,
         job_id: str,
@@ -5334,6 +5561,14 @@ class WorkflowJobStore:
                 if WorkflowJobState(str(existing["state"])) in TERMINAL_JOB_STATES:
                     self._conn.commit()
                     return self._from_row(existing)
+                if (
+                    str(existing["state"]) == WorkflowJobState.RUNNING.value
+                    and str(existing["phase"]) == "quarantined"
+                ):
+                    raise WorkflowJobStoreError(
+                        "a quarantined workflow call cannot be superseded "
+                        "before exact settlement or process recovery"
+                    )
                 self._conn.execute(
                     """
                     UPDATE workflow_jobs
@@ -5402,7 +5637,13 @@ class WorkflowJobStore:
                         bounded,
                     ),
                 ).fetchall()
+                superseded = 0
                 for selected in rows:
+                    if (
+                        str(selected["state"]) == WorkflowJobState.RUNNING.value
+                        and str(selected["phase"]) == "quarantined"
+                    ):
+                        continue
                     self._conn.execute(
                         """
                         UPDATE workflow_jobs
@@ -5428,8 +5669,9 @@ class WorkflowJobStore:
                         payload={"replacement_generation": current, "reason": message},
                         now=timestamp,
                     )
+                    superseded += 1
                 self._conn.commit()
-                return len(rows)
+                return superseded
             except Exception:
                 self._conn.rollback()
                 raise
@@ -5456,6 +5698,14 @@ class WorkflowJobStore:
                 if WorkflowJobState(str(existing["state"])) in TERMINAL_JOB_STATES:
                     self._conn.commit()
                     return self._from_row(existing)
+                if (
+                    str(existing["state"]) == WorkflowJobState.RUNNING.value
+                    and str(existing["phase"]) == "quarantined"
+                ):
+                    raise WorkflowJobStoreError(
+                        "a quarantined workflow call cannot be cancelled "
+                        "before exact settlement or process recovery"
+                    )
                 self._conn.execute(
                     """
                     UPDATE workflow_jobs
@@ -5535,7 +5785,11 @@ class WorkflowJobStore:
                 SELECT
                     SUM(CASE WHEN state = 'running' THEN 1 ELSE 0 END) AS running,
                     SUM(CASE WHEN state = 'running' AND lease_expires_at <= ?
-                             THEN 1 ELSE 0 END) AS expired
+                             THEN 1 ELSE 0 END) AS expired,
+                    SUM(CASE WHEN state = 'running' AND phase = 'quarantined'
+                             THEN 1 ELSE 0 END) AS quarantined,
+                    MIN(CASE WHEN state = 'running' AND phase = 'quarantined'
+                             THEN updated_at END) AS oldest_quarantined_at
                   FROM workflow_jobs
                 """,
                 (timestamp,),
@@ -5613,6 +5867,15 @@ class WorkflowJobStore:
             "leases": {
                 "running": int(lease["running"] or 0) if lease is not None else 0,
                 "expired": int(lease["expired"] or 0) if lease is not None else 0,
+                "quarantined": (
+                    int(lease["quarantined"] or 0) if lease is not None else 0
+                ),
+                "oldest_quarantined_age_seconds": (
+                    max(0.0, timestamp - float(lease["oldest_quarantined_at"]))
+                    if lease is not None
+                    and lease["oldest_quarantined_at"] is not None
+                    else None
+                ),
             },
             "retries": {
                 "waiting": int(retry["waiting"] or 0) if retry is not None else 0,

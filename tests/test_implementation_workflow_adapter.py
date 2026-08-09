@@ -340,6 +340,8 @@ async def test_cancelled_outer_apply_keeps_runtime_open_until_inner_mutation_dra
     issue = make_issue()
     orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
     jobs, context = make_context(tmp_path)
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
     effects = OrchestratorImplementationEffects(orch, project_id="project-a")
     started = asyncio.Event()
     release = asyncio.Event()
@@ -384,6 +386,50 @@ async def test_cancelled_outer_apply_keeps_runtime_open_until_inner_mutation_dra
     assert runtime.pending_operation_count == 0
 
     runtime.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+async def test_marked_quarantine_detaches_exact_mutation_from_recycle_drain(tmp_path):
+    issue = make_issue()
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    jobs, context = make_context(tmp_path)
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def blocked_apply(_context):
+        started.set()
+        await release.wait()
+        return disposition(context)
+
+    effects._apply = blocked_apply
+    outer = asyncio.create_task(effects.apply(context))
+    await started.wait()
+    claimed = jobs.claim_next(lease_owner="runtime-old", lease_seconds=30)
+    assert claimed is not None
+    quarantined = jobs.quarantine_owned(
+        claimed.job_id,
+        claimed.lease_token,
+        category="timeout",
+        error="synchronous adapter did not return",
+    )
+
+    with pytest.raises(WorkflowActionError, match="durable quarantine marker"):
+        await effects.prepare_quarantine_recycle(quarantined)
+    marked = jobs.mark_quarantine_recycle_requested(
+        quarantined.job_id,
+        quarantined.lease_token,
+    )
+    await effects.prepare_quarantine_recycle(marked)
+
+    with pytest.raises(asyncio.CancelledError):
+        await outer
+    assert effects.pending_mutation_count == 0
+    assert await effects.drain_mutations(timeout_seconds=0.01) is True
+    effects.receipts.close()
     jobs.close()
 
 

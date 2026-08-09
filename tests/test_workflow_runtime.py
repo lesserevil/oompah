@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import threading
 import time
@@ -14,6 +15,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
+import oompah.workflow_runtime as workflow_runtime_module
 
 from oompah.epic_workflow import (
     EPIC_ACTIONS,
@@ -186,6 +189,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
         workflow_runtime_batch_size = 9
         workflow_runtime_max_concurrent = 6
         workflow_runtime_control_reserved_slots = 2
+        workflow_quarantine_recycle_seconds = 23
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     integration_queue = object()
@@ -216,6 +220,8 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert runtime.batch_size == 9
     assert runtime.max_concurrent == 6
     assert runtime.control_reserved_slots == 2
+    assert runtime.worker.quarantine_recycle_seconds == 23
+    assert runtime.worker.quarantine_recycle_observer is not None
     assert tuple(runtime.project_bindings) == ("legacy",)
     binding = runtime.project_bindings["legacy"]
     assert binding.transition_service.project_id == "legacy"
@@ -1618,6 +1624,117 @@ def test_claim_execution_gap_recovers_after_restart_without_lost_effect(tmp_path
     asyncio.run(recover_and_execute())
 
     assert apply_calls == 1
+    assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
+    restarted.close()
+    store.close()
+
+
+def test_runtime_owner_identity_fences_reused_pid_generation(monkeypatch):
+    current_pid = os.getpid()
+    monkeypatch.setattr(
+        workflow_runtime_module,
+        "_process_start_ticks",
+        lambda pid: 9001 if pid in {123, current_pid} else None,
+    )
+
+    assert WorkflowRuntime._runtime_owner_is_dead(
+        "workflow-runtime:123:8999:deadbeef"
+    )
+    assert not WorkflowRuntime._runtime_owner_is_dead(
+        "workflow-runtime:123:9001:deadbeef"
+    )
+    assert not WorkflowRuntime._runtime_owner_is_dead(
+        "workflow-runtime:123:deadbeef"
+    )
+    assert not WorkflowRuntime._runtime_owner_is_dead("another-owner")
+    current_ticks = workflow_runtime_module._process_start_ticks(current_pid)
+    if current_ticks is not None:
+        assert WorkflowRuntime._runtime_owner_is_dead(
+            f"workflow-runtime:{current_pid}:{current_ticks}:"
+            f"p{'f' * 32}:deadbeef"
+        )
+        assert not WorkflowRuntime._runtime_owner_is_dead(
+            f"workflow-runtime:{current_pid}:{current_ticks}:"
+            f"p{workflow_runtime_module._RUNTIME_PROCESS_GENERATION}:deadbeef"
+        )
+
+
+def test_marked_quarantine_recovers_after_same_pid_exec_without_duplicate_apply(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    process_ticks = workflow_runtime_module._process_start_ticks(os.getpid())
+    assert process_ticks is not None
+    old_owner = (
+        f"workflow-runtime:{os.getpid()}:{process_ticks}:"
+        f"p{workflow_runtime_module._RUNTIME_PROCESS_GENERATION}:deadbeef"
+    )
+    first_worker = DurableWorkflowWorker(
+        store=store,
+        handlers=complete_handlers(),
+        transition_services={"project-1": binding.transition_service},
+        worker_id=old_owner,
+    )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-QUARANTINE-EXEC",
+            generation="quarantine-exec-1",
+            action="standalone_delivery",
+            idempotency_key="quarantine-exec-1",
+        )
+    )
+    claimed = asyncio.run(
+        first_worker.claim_next(
+            project_ids=("project-1",), actions=("standalone_delivery",)
+        )
+    )
+    assert claimed is not None
+    quarantined = store.quarantine_owned(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="synchronous adapter did not return",
+    )
+    store.mark_quarantine_recycle_requested(
+        quarantined.job_id,
+        quarantined.lease_token,
+    )
+
+    class ObservingHandler(CompleteHandler):
+        def __init__(self):
+            self.apply_calls = 0
+
+        async def inspect(self, context):
+            return EffectObservation(True, {"accepted": True})
+
+        async def apply(self, context):
+            self.apply_calls += 1
+            return await super().apply(context)
+
+    handler = ObservingHandler()
+    restarted = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(handler),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+
+    async def recover_and_execute():
+        recovery = await restarted.start()
+        assert recovery == {"expired": 0, "abandoned": 1, "recovered": 1}
+        report = await restarted._run_due(("project-1",))
+        assert report["scheduled"] == 1
+        await wait_for_runtime_effects(restarted)
+
+    asyncio.run(recover_and_execute())
+
+    assert handler.apply_calls == 0
     assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
     restarted.close()
     store.close()
