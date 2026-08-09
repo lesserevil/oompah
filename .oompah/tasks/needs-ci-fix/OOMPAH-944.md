@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T15:06:10.832976Z'
+updated_at: '2026-08-09T15:07:00.762087Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -122,6 +122,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-944
     selected_ref: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
     selected_sha: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 155
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 155
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 155
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T15:06:56.570425+00:00'
 ---
 ## Summary
 
@@ -196,5 +212,15 @@ created: 2026-08-09 15:06
 Audit FAIL — ci failure. Routing task to Needs CI Fix.
 
 Full gate test at accepted head c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca produced 9 test failures: 7 infrastructure-related in test_pytest_parallel.py (quality-gate Python path errors), 1 race condition in test_validation_resource_lease.py, 1 configuration mode mismatch in test_workflow_shadow_integration.py. 18885 tests passed; exit code 2. The full gate is required and must pass before Done state transition.
+---
+author: oompah
+created: 2026-08-09 15:07
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 33, Tool calls: 6
+- Tokens: 10 in / 155 out [165 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1h 0m 1s
+- Log: OOMPAH-944__20260809T140708Z.jsonl
 ---
 <!-- COMMENTS:END -->
