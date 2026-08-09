@@ -4777,9 +4777,18 @@ def test_detached_heavy_descendant_retains_native_capacity_until_exit(
     real_make = real_bin / "make"
     real_make.write_text(
         "#!/bin/bash\n"
-        "setsid bash -c 'trap \"\" TERM; sleep 30' &\n"
-        "printf '%s' \"$!\" > \"$OOMPAH_TEST_DESCENDANT_PID\"\n"
-        "exit 0\n",
+        "setsid bash -c 'printf \"%s\" \"$BASHPID\" > "
+        '"$OOMPAH_TEST_DESCENDANT_PID"; '
+        "trap \"\" TERM; while :; do sleep 1; done' &\n"
+        # ``$!`` identifies the transient setsid launcher, which may fork when
+        # it is already a process-group leader.  Wait for the inner shell to
+        # publish its own PID only after setsid has created the detached
+        # session.  This is a readiness handshake, not a scheduling delay.
+        "for _attempt in {1..500}; do\n"
+        "  if [[ -s \"$OOMPAH_TEST_DESCENDANT_PID\" ]]; then exit 0; fi\n"
+        "  sleep 0.01\n"
+        "done\n"
+        "exit 1\n",
         encoding="utf-8",
     )
     real_make.chmod(0o700)
@@ -4805,6 +4814,10 @@ def test_detached_heavy_descendant_retains_native_capacity_until_exit(
     )
     assert completed.returncode == 0
     descendant_pid = _wait_for_pid(descendant_pid_path)
+    descendant_start_ticks = guard_module._process_start_ticks(descendant_pid)
+    assert descendant_start_ticks is not None
+    assert os.getpgid(descendant_pid) == descendant_pid
+    assert os.getsid(descendant_pid) == descendant_pid
 
     try:
         with pytest.raises(ValidationLeaseCancelled, match="timed out"):
@@ -4816,10 +4829,15 @@ def test_detached_heavy_descendant_retains_native_capacity_until_exit(
                 ),
                 wait_timeout_seconds=0.2,
             )
-        assert Path(f"/proc/{descendant_pid}").exists()
+        assert (
+            guard_module._process_start_ticks(descendant_pid)
+            == descendant_start_ticks
+        )
     finally:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(descendant_pid, signal.SIGKILL)
+        assert guard_module._terminate_supervised_process_group(
+            descendant_pid,
+            descendant_start_ticks,
+        )
     _wait_until(lambda: not Path(f"/proc/{descendant_pid}").exists())
     with lease.acquire(
         ValidationLeaseOwner.exact_gate(
