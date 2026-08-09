@@ -49,6 +49,7 @@ from oompah.integration_workflow import (
 )
 from oompah.review_workflow import ReviewWorkflowController
 from oompah.review_workflow_adapter import FreshReviewFactSource
+from oompah.scm import detect_provider, extract_repo_slug
 from oompah.statuses import (
     ARCHIVED,
     IN_REVIEW,
@@ -816,6 +817,26 @@ class WorkflowRuntime:
                 store=store,
                 decision_limit=configured_limit,
             )
+            forge_review_resolver = None
+            repo_url = str(getattr(project, "repo_url", "") or "").strip()
+            if repo_url:
+                try:
+                    forge_provider = detect_provider(
+                        repo_url,
+                        access_token=getattr(project, "access_token", None),
+                    )
+                    forge_repo = extract_repo_slug(repo_url)
+
+                    def forge_review_resolver(
+                        branch: str,
+                        *,
+                        _provider=forge_provider,
+                        _repo=forge_repo,
+                    ) -> Any | None:
+                        return _provider.find_pr_for_branch(_repo, branch)
+
+                except Exception:  # noqa: BLE001 - optional evidence source
+                    forge_review_resolver = None
             integration_controller = IntegrationWorkflowController(
                 collector=collector,
                 store=store,
@@ -824,6 +845,8 @@ class WorkflowRuntime:
                     tracker=tracker,
                     integration_queue=getattr(orchestrator, "integration_queue", None),
                     project_store=project_store,
+                    workflow_store=store,
+                    forge_review_resolver=forge_review_resolver,
                     project_default_branch=str(
                         getattr(project, "default_branch", None)
                         or getattr(project, "branch", None)

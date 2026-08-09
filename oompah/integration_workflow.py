@@ -14,8 +14,10 @@ import asyncio
 import contextlib
 import hashlib
 import inspect
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
 
@@ -46,6 +48,13 @@ from oompah.task_transition_service import (
     issue_authority_version,
     issue_exact_head,
 )
+from oompah.terminal_audit import (
+    RequestState,
+    TargetState,
+    Verdict,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_contract import READY_TO_INTEGRATE
 from oompah.workflow_fact_model import (
@@ -293,12 +302,335 @@ class IntegrationLandingRequestResolver:
         integration_queue: Any | None = None,
         project_store: Any | None = None,
         project_default_branch: str | None = None,
+        workflow_store: WorkflowJobStore | None = None,
+        forge_review_resolver: Callable[[str], Any | None] | None = None,
     ) -> None:
         self.project_id = str(project_id or "").strip()
         self.tracker = tracker
         self.integration_queue = integration_queue
         self.project_store = project_store
         self.project_default_branch = str(project_default_branch or "").strip()
+        self.workflow_store = workflow_store
+        self.forge_review_resolver = forge_review_resolver
+
+    @staticmethod
+    def _git_revision(value: object) -> str | None:
+        revision = str(value or "").strip().lower()
+        if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", revision):
+            return revision
+        return None
+
+    def _parent_source_branch(self, parent: Issue) -> str:
+        branch = str(getattr(parent, "work_branch", "") or "").strip()
+        if branch:
+            return branch
+        branch_name = getattr(self.project_store, "epic_branch_name", None)
+        if callable(branch_name):
+            try:
+                return str(branch_name(parent.identifier) or "").strip()
+            except Exception:  # noqa: BLE001 - optional authority source
+                return ""
+        return ""
+
+    def _parent_landing_target(self, parent: Issue) -> str:
+        target = str(getattr(parent, "target_branch", "") or "").strip()
+        if target:
+            return target
+        integration = getattr(parent, "integration", None)
+        base_branch = str(
+            integration.get("base_branch", "")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "base_branch", "")
+        ).strip()
+        source = self._parent_source_branch(parent)
+        if base_branch and base_branch != source:
+            return base_branch
+        return self.project_default_branch
+
+    @staticmethod
+    def _one_exact_head(values: Sequence[object]) -> tuple[str | None, bool]:
+        """Return one exact revision and whether this authority class existed."""
+
+        observed = [str(value or "").strip().lower() for value in values]
+        if not observed:
+            return None, False
+        valid = {
+            value
+            for value in observed
+            if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value)
+        }
+        if len(valid) != 1 or len(valid) != len(set(observed)):
+            return None, True
+        return next(iter(valid)), True
+
+    def _stored_parent_head(
+        self,
+        parent: Issue,
+        source_branch: str,
+    ) -> tuple[str | None, bool]:
+        if self.workflow_store is None:
+            return None, False
+        try:
+            raw_facts = self.workflow_store.latest_landing_facts(
+                project_id=self.project_id,
+                task_id=parent.identifier,
+                limit=100,
+            )
+        except Exception:  # noqa: BLE001 - durable evidence boundary
+            return None, True
+        revisions = []
+        expected_target = self._parent_landing_target(parent)
+        for raw in raw_facts:
+            try:
+                fact = LandingFact.from_dict(raw)
+            except (TypeError, ValueError):
+                return None, True
+            if (
+                fact.source == source_branch
+                and (not expected_target or fact.target == expected_target)
+                and fact.state is LandingState.LANDED
+                and fact.durable
+            ):
+                revisions.append(fact.revision)
+        return self._one_exact_head(revisions)
+
+    def _queue_parent_head(
+        self,
+        parent: Issue,
+        source_branch: str,
+    ) -> tuple[str | None, bool]:
+        get_row = getattr(self.integration_queue, "get", None)
+        if not callable(get_row):
+            return None, False
+        try:
+            row = get_row(self.project_id, parent.identifier)
+        except Exception:  # noqa: BLE001 - durable evidence boundary
+            return None, True
+        if row is None:
+            return None, False
+        if str(getattr(row, "state", "") or "").strip().lower() != "integrated":
+            return None, False
+        if (
+            str(getattr(row, "project_id", "") or "").strip() != self.project_id
+            or str(getattr(row, "task_id", "") or "").strip()
+            != parent.identifier
+            or str(getattr(row, "task_branch", "") or "").strip()
+            != source_branch
+        ):
+            return None, True
+        expected_target = self._parent_landing_target(parent)
+        row_target = str(getattr(row, "base_branch", "") or "").strip()
+        if expected_target and row_target and row_target != expected_target:
+            return None, True
+        return self._one_exact_head(
+            (
+                getattr(row, "integrated_sha", None)
+                or getattr(row, "head_sha", None),
+            )
+        )
+
+    def _terminal_audit_parent_head(
+        self,
+        parent: Issue,
+        source_branch: str,
+    ) -> tuple[str | None, bool, str | None]:
+        get_metadata = getattr(self.tracker, "get_metadata", None)
+        if not callable(get_metadata):
+            return None, False, None
+        try:
+            metadata = get_metadata(parent.identifier) or {}
+            raw = metadata.get(METADATA_KEY) if isinstance(metadata, Mapping) else None
+            if raw is None:
+                return None, False, None
+            document = TerminalAuditMetadata.from_dict(raw)
+        except Exception:  # noqa: BLE001 - malformed authority fails closed
+            return None, True, None
+        if document.is_quarantined:
+            return None, True, None
+        current = canonicalize_status(parent.state)
+        expected_target = (
+            TargetState.ARCHIVED if current == ARCHIVED else TargetState.MERGED
+        )
+        current_fingerprint = compute_issue_evidence_fingerprint(
+            parent, self.project_id
+        )
+        candidates: list[str] = []
+        audit_ids: list[str] = []
+        for record in document.pending_chain:
+            if (
+                record.project_id != self.project_id
+                or record.task_id != parent.identifier
+                or record.target_state is not expected_target
+                or record.request_state is not RequestState.COMPLETED
+                or record.evidence_fingerprint != current_fingerprint
+            ):
+                continue
+            if record.selected_sha is None:
+                # Older audit records predate exact revision binding. They are
+                # not contradictory; a lower-priority exact forge receipt may
+                # still provide the one-time backfill.
+                continue
+            selected_ref = str(record.selected_ref or "").strip()
+            immutable_ref = self._git_revision(selected_ref)
+            accepted_refs = {
+                source_branch,
+                f"origin/{source_branch}",
+                f"refs/heads/{source_branch}",
+                f"refs/remotes/origin/{source_branch}",
+            }
+            if not (
+                selected_ref in accepted_refs
+                or (
+                    immutable_ref is not None
+                    and immutable_ref == str(record.selected_sha).strip().lower()
+                )
+            ):
+                return None, True, None
+            if not any(
+                attempt.verdict is Verdict.PASS
+                and attempt.request_state is RequestState.COMPLETED
+                and attempt.selected_ref == record.selected_ref
+                and attempt.selected_sha == record.selected_sha
+                for attempt in record.attempts
+            ):
+                return None, True, None
+            candidates.append(record.selected_sha)
+            audit_ids.append(record.audit_id)
+        revision, present = self._one_exact_head(candidates)
+        return revision, present, audit_ids[-1] if revision and audit_ids else None
+
+    def _forge_parent_head(
+        self,
+        parent: Issue,
+        source_branch: str,
+    ) -> tuple[str | None, bool, str | None]:
+        if not callable(self.forge_review_resolver):
+            return None, False, None
+        try:
+            review = self.forge_review_resolver(source_branch)
+        except Exception:  # noqa: BLE001 - forge evidence boundary
+            return None, True, None
+        if review is None:
+            return None, False, None
+        expected_target = self._parent_landing_target(parent)
+        if (
+            str(getattr(review, "state", "") or "").strip().lower() != "merged"
+            or str(getattr(review, "source_branch", "") or "").strip()
+            != source_branch
+            or (
+                expected_target
+                and str(getattr(review, "target_branch", "") or "").strip()
+                != expected_target
+            )
+        ):
+            return None, True, None
+        revision, present = self._one_exact_head((getattr(review, "head_sha", None),))
+        return revision, present, str(getattr(review, "id", "") or "").strip() or None
+
+    def _persist_parent_head(
+        self,
+        parent: Issue,
+        *,
+        source_branch: str,
+        revision: str,
+        kind: str,
+        authority_id: str | None,
+    ) -> bool:
+        if self.workflow_store is None:
+            return True
+        target = self._parent_landing_target(parent)
+        if not target:
+            return False
+        proof: dict[str, Any] = {
+            "kind": kind,
+            "source_sha": revision,
+            "authority": "terminal_parent_head_backfill",
+        }
+        if authority_id:
+            proof["authority_id"] = authority_id
+        fact = LandingFact(
+            source_branch,
+            target,
+            revision,
+            proof,
+            datetime.now(timezone.utc).isoformat(),
+            self.project_id,
+            state=LandingState.LANDED,
+            durable=True,
+        )
+        try:
+            self.workflow_store.record_landing_facts(
+                project_id=self.project_id,
+                task_id=parent.identifier,
+                facts=(fact.to_dict(),),
+            )
+        except Exception:  # noqa: BLE001 - persistence is required authority
+            return False
+        return True
+
+    def _trusted_terminal_parent_head(
+        self,
+        parent: Issue,
+        source_branch: str,
+    ) -> str | None:
+        if canonicalize_status(parent.state) not in {MERGED, ARCHIVED}:
+            return None
+        integration = getattr(parent, "integration", None)
+        integration_state = str(
+            integration.get("state", "")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "state", "")
+        ).strip().lower()
+        if integration_state in ACCEPTED_SUBMISSION_STATES:
+            revision, _present = self._one_exact_head((issue_exact_head(parent),))
+            return revision
+
+        revision, present = self._stored_parent_head(parent, source_branch)
+        if present:
+            return revision
+
+        queue_revision, queue_present = self._queue_parent_head(
+            parent, source_branch
+        )
+        if queue_present and queue_revision is None:
+            return None
+        audit_revision, audit_present, audit_id = self._terminal_audit_parent_head(
+            parent, source_branch
+        )
+        if audit_present and audit_revision is None:
+            return None
+        forge_revision, forge_present, review_id = self._forge_parent_head(
+            parent, source_branch
+        )
+        authorities = (
+            ("merge_commit", "integration_queue", queue_revision, queue_present),
+            ("terminal_audit", audit_id, audit_revision, audit_present),
+            ("forge_merge", review_id, forge_revision, forge_present),
+        )
+        if forge_present and forge_revision is None:
+            return None
+        exact = {
+            revision
+            for _, _, revision, present in authorities
+            if present and revision is not None
+        }
+        if len(exact) != 1:
+            return None
+        revision = next(iter(exact))
+        kind, authority_id, _, _ = next(
+            authority
+            for authority in authorities
+            if authority[3] and authority[2] == revision
+        )
+        if self._persist_parent_head(
+            parent,
+            source_branch=source_branch,
+            revision=revision,
+            kind=kind,
+            authority_id=authority_id,
+        ):
+            return revision
+        return None
 
     @staticmethod
     def _record_value(task: Issue) -> dict[str, Any]:
@@ -359,19 +691,11 @@ class IntegrationLandingRequestResolver:
                     or parent_project == self.project_id
                 )
             ):
-                parent_integration = getattr(parent, "integration", None)
-                parent_integration_state = str(
-                    parent_integration.get("state", "")
-                    if isinstance(parent_integration, Mapping)
-                    else getattr(parent_integration, "state", "")
-                ).strip().lower()
-                if (
-                    canonicalize_status(parent.state) in {MERGED, ARCHIVED}
-                    and parent_integration_state in ACCEPTED_SUBMISSION_STATES
-                ):
-                    trusted_revision = issue_exact_head(parent)
-                target = str(getattr(parent, "work_branch", "") or "").strip()
+                target = self._parent_source_branch(parent)
                 if target:
+                    trusted_revision = self._trusted_terminal_parent_head(
+                        parent, target
+                    )
                     return target, trusted_revision
         branch_name = getattr(self.project_store, "epic_branch_name", None)
         if callable(branch_name):

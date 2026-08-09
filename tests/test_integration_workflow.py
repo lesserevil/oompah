@@ -27,6 +27,16 @@ from oompah.integration_workflow import (
 )
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import IN_VALIDATION
+from oompah.terminal_audit import (
+    AuditAttempt,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    Verdict,
+    compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.workflow_contract import READY_TO_INTEGRATE, TaskDisposition
 from oompah.workflow_facts import (
     FactDomain,
@@ -58,8 +68,9 @@ from oompah.workflow_worker import (
 
 
 class Tracker:
-    def __init__(self, issues):
+    def __init__(self, issues, metadata=None):
         self.issues = {issue.identifier: issue for issue in issues}
+        self.metadata = metadata or {}
 
     def fetch_issue_detail(self, identifier):
         return self.issues.get(identifier)
@@ -71,6 +82,9 @@ class Tracker:
 
     def fetch_all_issues(self):
         return list(self.issues.values())
+
+    def get_metadata(self, identifier):
+        return self.metadata.get(identifier, {})
 
 
 class RecordingActionBackend:
@@ -2993,6 +3007,376 @@ def test_deleted_parent_ref_uses_final_exact_head_for_full_patch_proof(tmp_path)
     assert unmatched.proof["kind"] == "not_ancestor"
     jobs.close()
     queue.close()
+
+
+def _completed_parent_audit(
+    task,
+    selected_sha,
+    *,
+    audit_id="audit-1",
+    selected_ref="origin/epic/E-1",
+):
+    task_id = task.identifier
+    fingerprint = compute_issue_evidence_fingerprint(task, "project-1")
+    attempt = AuditAttempt(
+        attempt_id=f"attempt-{audit_id}",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.PASS,
+        selected_ref=selected_ref,
+        selected_sha=selected_sha,
+    )
+    return TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id="project-1",
+        task_id=task_id,
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[attempt],
+        selected_ref=selected_ref,
+        selected_sha=selected_sha,
+    )
+
+
+def _legacy_child_and_terminal_parent():
+    task = issue("TASK-A", state="integrated", head="a" * 40)
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.target_branch = None
+    task.integration = replace(task.integration, base_branch=None)
+    parent = issue("E-1")
+    parent.state = "Merged"
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    return task, parent
+
+
+def test_terminal_audit_parent_head_is_persisted_and_survives_restart(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    accepted_head = "b" * 40
+    metadata = {
+        parent.identifier: {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[
+                    _completed_parent_audit(parent, accepted_head)
+                ]
+            ).to_dict()
+        }
+    }
+    tracker = Tracker([task, parent], metadata=metadata)
+    store_path = tmp_path / "workflow.sqlite3"
+    store = WorkflowJobStore(str(store_path))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+    )
+
+    assert resolver(task)[0].trusted_target_revision == accepted_head
+    persisted = store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    )
+    assert len(persisted) == 1
+    assert persisted[0]["revision"] == accepted_head
+    assert persisted[0]["proof"]["kind"] == "terminal_audit"
+    store.close()
+
+    restarted = WorkflowJobStore(str(store_path))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=restarted,
+        forge_review_resolver=lambda _branch: (_ for _ in ()).throw(
+            AssertionError("persisted backfill must precede forge lookup")
+        ),
+    )
+    assert resolver(task)[0].trusted_target_revision == accepted_head
+    restarted.close()
+
+
+def test_conflicting_terminal_audit_parent_heads_fail_closed(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    metadata = {
+        parent.identifier: {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[
+                    _completed_parent_audit(
+                        parent, "b" * 40, audit_id="audit-1"
+                    ),
+                    _completed_parent_audit(
+                        parent, "c" * 40, audit_id="audit-2"
+                    ),
+                ]
+            ).to_dict()
+        }
+    }
+    forge_calls = []
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent], metadata=metadata),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        forge_review_resolver=lambda branch: forge_calls.append(branch),
+    )
+
+    assert resolver(task)[0].trusted_target_revision is None
+    assert forge_calls == []
+    assert store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    ) == ()
+    store.close()
+
+
+def test_terminal_audit_parent_head_from_wrong_source_ref_fails_closed(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    metadata = {
+        parent.identifier: {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[
+                    _completed_parent_audit(
+                        parent,
+                        "b" * 40,
+                        selected_ref="origin/main",
+                    )
+                ]
+            ).to_dict()
+        }
+    }
+    forge_calls = []
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent], metadata=metadata),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        forge_review_resolver=lambda branch: forge_calls.append(branch),
+    )
+
+    assert resolver(task)[0].trusted_target_revision is None
+    assert forge_calls == []
+    assert store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    ) == ()
+    store.close()
+
+
+def test_stale_terminal_audit_parent_head_is_not_current_authority(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    stale_audit = _completed_parent_audit(parent, "b" * 40)
+    parent.description = "requirements changed after terminal audit"
+    metadata = {
+        parent.identifier: {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[stale_audit]
+            ).to_dict()
+        }
+    }
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent], metadata=metadata),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+    )
+
+    assert resolver(task)[0].trusted_target_revision is None
+    assert store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    ) == ()
+    store.close()
+
+
+def test_conflicting_queue_and_forge_parent_heads_fail_closed(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    queue_head = "b" * 40
+    forge_head = "c" * 40
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    queued = queue.enqueue(
+        project_id="project-1",
+        epic_id="ROOT",
+        task_id=parent.identifier,
+        task_branch=parent.work_branch,
+        head_sha=queue_head,
+        base_branch=parent.target_branch,
+    )
+    assert queue.finish_task_generation(
+        "project-1",
+        parent.identifier,
+        expected_generation=queued.authority_generation(),
+        state="integrated",
+    ) is not None
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        integration_queue=queue,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        forge_review_resolver=lambda _branch: SimpleNamespace(
+            id="42",
+            state="merged",
+            source_branch=parent.work_branch,
+            target_branch=parent.target_branch,
+            head_sha=forge_head,
+        ),
+    )
+
+    assert resolver(task)[0].trusted_target_revision is None
+    assert store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    ) == ()
+    store.close()
+    queue.close()
+
+
+def test_terminal_parent_head_is_not_used_when_backfill_persistence_fails(
+    tmp_path, monkeypatch
+):
+    task, parent = _legacy_child_and_terminal_parent()
+    accepted_head = "b" * 40
+    metadata = {
+        parent.identifier: {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[
+                    _completed_parent_audit(parent, accepted_head)
+                ]
+            ).to_dict()
+        }
+    }
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    monkeypatch.setattr(
+        store,
+        "record_landing_facts",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("disk unavailable")),
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent], metadata=metadata),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+    )
+
+    assert resolver(task)[0].trusted_target_revision is None
+    store.close()
+
+
+def test_merged_forge_parent_head_backfills_when_audit_has_no_binding(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    accepted_head = "d" * 40
+    fingerprint = compute_evidence_fingerprint(
+        "requirements", "project-1", parent.identifier
+    )
+    unbound_audit = TerminalAuditRecord(
+        audit_id="legacy-audit",
+        project_id="project-1",
+        task_id=parent.identifier,
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="legacy-attempt",
+                target_state=TargetState.MERGED,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    review = SimpleNamespace(
+        id="42",
+        state="merged",
+        source_branch=parent.work_branch,
+        target_branch=parent.target_branch,
+        head_sha=accepted_head,
+    )
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker(
+            [task, parent],
+            metadata={
+                parent.identifier: {
+                    METADATA_KEY: TerminalAuditMetadata(
+                        pending_chain=[unbound_audit]
+                    ).to_dict()
+                }
+            },
+        ),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        forge_review_resolver=lambda _branch: review,
+    )
+
+    assert resolver(task)[0].trusted_target_revision == accepted_head
+    persisted = store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    )
+    assert persisted[0]["proof"] == {
+        "authority": "terminal_parent_head_backfill",
+        "authority_id": "42",
+        "kind": "forge_merge",
+        "source_sha": accepted_head,
+    }
+    store.close()
+
+
+def test_wrong_target_forge_parent_head_fails_closed(tmp_path):
+    task, parent = _legacy_child_and_terminal_parent()
+    review = SimpleNamespace(
+        id="42",
+        state="merged",
+        source_branch=parent.work_branch,
+        target_branch="release",
+        head_sha="d" * 40,
+    )
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        forge_review_resolver=lambda _branch: review,
+    )
+
+    assert resolver(task)[0].trusted_target_revision is None
+    assert store.latest_landing_facts(
+        project_id="project-1", task_id=parent.identifier
+    ) == ()
+    store.close()
 
 
 def test_legacy_landing_target_precedence_and_unparented_default(tmp_path):
