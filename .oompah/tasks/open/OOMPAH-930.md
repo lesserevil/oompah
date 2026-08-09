@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-930
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Isolate event-loop and close-race tests from live project reconciliation
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-09T03:11:25.306117Z'
-updated_at: '2026-08-09T03:11:25.306117Z'
+updated_at: '2026-08-09T03:11:47.754791Z'
 work_branch: null
 target_branch: null
 review_url: null
