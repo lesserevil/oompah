@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T09:44:02.025439Z'
-work_branch: null
+updated_at: '2026-08-09T09:44:32.156305Z'
+work_branch: OOMPAH-943
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-943
+  base_branch: epic-OOMPAH-940
+  base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
+  head_sha: b30a2880d57460b730547faa2d90732a4bab8e9c
+  submitted_at: '2026-08-09T09:44:21.729146+00:00'
+  updated_at: '2026-08-09T09:44:21.729146+00:00'
+oompah.work_branch: OOMPAH-943
 ---
 ## Summary
 
@@ -59,5 +71,10 @@ author: oompah
 created: 2026-08-09 09:44
 ---
 Implementation complete on pushed branch OOMPAH-943 at b30a2880d. PR #753 is open with squash auto-merge enabled. Local verification: 298 focused workflow/integration tests and 39 epic-workflow tests passed; Ruff, terminal task-status mutation scan, and secret scan passed. The atomic completion boundary now persists durable landing facts, rejects stale authority/evidence, retries persistence failures, replays idempotently, and feeds proof into the next fact cut.
+---
+author: oompah
+created: 2026-08-09 09:44
+---
+Persisted successful integration landing proof atomically with fenced job completion, added idempotent replay and retry-on-publication-failure semantics, rejected stale lease/revision publication, and consumed durable proof on subsequent fact cuts to suppress replacement refresh actions. PR #753; local verification: 298 focused tests plus 39 epic-workflow tests.
 ---
 <!-- COMMENTS:END -->
