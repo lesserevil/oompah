@@ -79,7 +79,7 @@ _VALIDATION_JUSTIFICATION_ENV = "OOMPAH_VALIDATION_JUSTIFICATION"
 # is alive.  Allow only this short bounded handoff after the broker observes
 # that exact PID/start-tick generation exit; an orphan receipt must not remain
 # usable for the configured turn timeout.
-_BOUNDARY_HANDOFF_GRACE_SECONDS = 15.0
+_BOUNDARY_HANDOFF_GRACE_SECONDS = 5.0
 NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION = (
     "For a task-required full-suite mode that is genuinely distinct from the "
     "reused exact gate, invoke the native shell command with both structured "

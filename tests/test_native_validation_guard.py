@@ -3003,8 +3003,10 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
 
     processes: list[subprocess.Popen[str]] = []
     try:
+        first_command = "printf first; exec sleep 30"
+        second_command = "printf second; exec sleep 30"
         first = subprocess.Popen(
-            ["/bin/bash", "-c", "printf first"],
+            ["/bin/bash", "-c", first_command],
             env={**os.environ, **guarded},
             pass_fds=_guard_pass_fds(guarded),
             stdout=subprocess.PIPE,
@@ -3012,7 +3014,7 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         )
         processes.append(first)
         second = subprocess.Popen(
-            ["/bin/bash", "-c", "printf second"],
+            ["/bin/bash", "-c", second_command],
             env={**os.environ, **guarded},
             pass_fds=_guard_pass_fds(guarded),
             stdout=subprocess.PIPE,
@@ -3020,34 +3022,37 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         )
         processes.append(second)
 
-        # The pair is deliberately concurrent: give both processes one shared
-        # bounded startup window instead of allowing the first wait to consume
-        # the complete budget before the second is observed.  The suite-wide
-        # default is five seconds, but a loaded hosted runner can legitimately
-        # take longer to fork both guarded interpreter shims.
-        deadline = time.monotonic() + 12
+        # Hold both commands alive after their guard boundary so this models
+        # provider item.started handoff instead of making correctness depend on
+        # how long a loaded runner deschedules the test after an instant command
+        # has already exited.
+        with guard_module._BROKER_REGISTRY_LOCK:
+            broker = guard_module._BROKER_REGISTRY[root.resolve()]
 
-        def communicate_before_deadline(process: subprocess.Popen[str]) -> str:
-            remaining = max(deadline - time.monotonic(), 0.1)
-            return process.communicate(timeout=remaining)[0]
+        def both_boundaries_reported() -> bool:
+            with broker._boundary_lock:
+                return len(broker._boundaries) == 2
 
-        assert communicate_before_deadline(first) == "first"
-        assert communicate_before_deadline(second) == "second"
-        assert first.returncode == 0
-        assert second.returncode == 0
+        _wait_until(both_boundaries_reported, timeout=12)
 
         assert (
-            consume_native_validation_boundary(root, "printf first", "item-1")
+            consume_native_validation_boundary(root, first_command, "item-1")
             is True
         )
         assert (
-            consume_native_validation_boundary(root, "printf second", "item-2")
+            consume_native_validation_boundary(root, second_command, "item-2")
             is True
         )
         assert (
-            consume_native_validation_boundary(root, "printf first", "item-3")
+            consume_native_validation_boundary(root, first_command, "item-3")
             is False
         )
+        assert first.stdout is not None
+        assert second.stdout is not None
+        assert first.stdout.read(len("first")) == "first"
+        assert second.stdout.read(len("second")) == "second"
+        assert first.poll() is None
+        assert second.poll() is None
     finally:
         for process in processes:
             if process.poll() is None:
