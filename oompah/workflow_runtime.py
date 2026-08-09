@@ -1011,6 +1011,14 @@ class WorkflowRuntime:
                 guarded_issue = _tracker.fetch_issue_detail(intent.task_id)
                 if guarded_issue is None:
                     return "guarded issue is unavailable"
+                if not str(getattr(guarded_issue, "project_id", None) or "").strip():
+                    # Native Markdown task files omit their managed project ID.
+                    # Match the normalized issue used to construct the intent
+                    # before comparing its lifecycle authority projection.
+                    guarded_issue = replace(
+                        guarded_issue,
+                        project_id=intent.project_id,
+                    )
                 if issue_authority_version(guarded_issue) != intent.expected_version:
                     return "task transition authority changed"
                 if not intent.precondition_revision or guarded_reason not in {

@@ -1818,6 +1818,7 @@ class TaskTransitionService:
                 observed_head = issue_exact_head(issue)
                 composed_landing_head = bool(
                     observed_head is None
+                    and canonicalize_status(issue.state) == DONE
                     and intent.requested_status == MERGED
                     and intent.authority is TransitionAuthority.INTEGRATOR
                     and intent.reason_code

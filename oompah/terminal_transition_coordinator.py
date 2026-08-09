@@ -1128,6 +1128,67 @@ class TerminalTransitionCoordinator:
             archive_default_branch_authorized=archive_default_branch_authorized,
         )
 
+    @staticmethod
+    def _issue_exact_head(issue: Issue) -> str | None:
+        """Return mutable task-owned revision authority, when present."""
+
+        for value in (
+            getattr(issue, "head_sha", None),
+            getattr(issue, "review_head", None),
+        ):
+            rendered = str(value or "").strip().lower()
+            if rendered:
+                return rendered
+        integration = getattr(issue, "integration", None)
+        if isinstance(integration, Mapping):
+            value = integration.get("head_sha")
+        else:
+            value = getattr(integration, "head_sha", None)
+        return str(value or "").strip().lower() or None
+
+    def _composed_landing_binding_conflict(
+        self,
+        issue: Issue,
+        target: TargetState,
+        trigger_identity: ContributorIdentity,
+        project_id: str,
+        mutation_guard: Callable[[], str | None] | None,
+        binding: AuditRevisionBinding,
+    ) -> str | None:
+        """Re-prove the one lane allowed to supply external revision authority."""
+
+        if target is not TargetState.MERGED:
+            return "trusted composed landing revision requires a Merged transition"
+        if canonicalize_status(issue.state) != DONE:
+            return "trusted composed landing revision requires a current Done task"
+        if not str(getattr(issue, "parent_id", None) or "").strip():
+            return "trusted composed landing revision requires a parented task"
+        if self._issue_exact_head(issue) is not None:
+            return "trusted composed landing revision cannot replace a task-owned head"
+        if str(getattr(issue, "project_id", None) or "").strip() != project_id:
+            return "trusted composed landing revision project authority changed"
+        if str(trigger_identity.source or "").strip().lower() != "integrator":
+            return "trusted composed landing revision requires integrator authority"
+        if mutation_guard is None:
+            return "trusted composed landing revision requires a workflow mutation guard"
+        if binding.selected_ref != binding.selected_sha:
+            return "trusted composed landing revision must use its exact SHA as the ref"
+        resolver = getattr(self._project_store, "resolve_audit_revision", None)
+        getter = getattr(self._project_store, "get", None)
+        if not callable(resolver) or not callable(getter):
+            return "trusted composed landing revision cannot be resolved for the project"
+        if getter(project_id) is None:
+            return "trusted composed landing revision project is unavailable"
+        try:
+            resolved = str(
+                resolver(project_id, binding.selected_sha) or ""
+            ).strip().lower()
+        except Exception:  # noqa: BLE001 - project stores are duck-typed
+            return "trusted composed landing revision is unavailable"
+        if resolved != binding.selected_sha:
+            return "trusted composed landing revision resolved to a different commit"
+        return None
+
     # ------------------------------------------------------------------
     # Public API — request_transition
     # ------------------------------------------------------------------
@@ -1200,6 +1261,17 @@ class TerminalTransitionCoordinator:
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
+            if revision_binding is not None:
+                binding_conflict = self._composed_landing_binding_conflict(
+                    current_issue,
+                    requested_target,
+                    trigger_identity,
+                    project_id,
+                    mutation_guard,
+                    revision_binding,
+                )
+                if binding_conflict is not None:
+                    return TransitionResult(success=False, reason=binding_conflict)
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id

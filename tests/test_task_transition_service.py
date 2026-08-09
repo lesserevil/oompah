@@ -1008,6 +1008,35 @@ async def test_parentless_task_cannot_substitute_landing_for_accepted_head(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_non_done_task_cannot_substitute_landing_for_accepted_head(tmp_path):
+    issue = _issue(
+        state="In Review",
+        parent_id="EPIC-1",
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    tracker = FakeTracker(issue)
+    terminal = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=terminal)
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.INTEGRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        exact_head="b" * 40,
+        precondition_revision="landing-facts-v2",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.head_missing"
+    assert terminal.calls == 0
+
+
+@pytest.mark.asyncio
 async def test_failure_before_effect_is_retryable_with_same_intent(tmp_path):
     tracker = FakeTracker(_issue())
     tracker.fail_before = True
@@ -1263,12 +1292,16 @@ async def test_coordinator_adapter_binds_composed_landing_revision():
         precondition_revision="landing-facts-v2",
     )
 
-    result = await CoordinatorTerminalAdapter(coordinator).stage(intent, issue)
+    result = await CoordinatorTerminalAdapter(
+        coordinator,
+        mutation_guard=lambda _intent: None,
+    ).stage(intent, issue)
 
     assert result.success
     binding = coordinator.kwargs["revision_binding"]
     assert binding.selected_ref == "b" * 40
     assert binding.selected_sha == "b" * 40
+    assert coordinator.kwargs["mutation_guard"]() is None
 
 
 @pytest.mark.asyncio

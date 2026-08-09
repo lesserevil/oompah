@@ -9,6 +9,7 @@ import subprocess
 import threading
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -5130,7 +5131,16 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
         issue_type="task",
         parent_id="TOP",
     )
-    tracker = NativeTracker([issue, child, landed_task, composed_task])
+    class FreshBlankProjectTracker(NativeTracker):
+        blank_project_reads = False
+
+        def fetch_issue_detail(self, identifier):
+            current = super().fetch_issue_detail(identifier)
+            if current is None or not self.blank_project_reads:
+                return current
+            return replace(current, project_id=None)
+
+    tracker = FreshBlankProjectTracker([issue, child, landed_task, composed_task])
     store = WorkflowJobStore(str(tmp_path / "remote-jobs.sqlite3"))
     composed_landing = LandingFact(
         composed_task.identifier,
@@ -5260,7 +5270,9 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
     )
 
     assert composed_decision.durable_jobs == ("parent_rollup_review",)
+    tracker.blank_project_reads = True
     assert guard(composed_intent) is None
+    assert tracker.issues[composed_task.identifier].project_id == "project-1"
     mismatched_composed_intent = TransitionIntent(
         **{
             **composed_intent.to_dict(),
@@ -5268,6 +5280,7 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
         }
     )
     assert guard(mismatched_composed_intent) == "task composed landing head changed"
+    tracker.blank_project_reads = False
 
     ordinary_intent = TransitionIntent(
         project_id="project-1",
