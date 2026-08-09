@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:36:13.838597Z'
+updated_at: '2026-08-09T22:37:11.798081Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -328,5 +328,10 @@ author: oompah
 created: 2026-08-09 22:13
 ---
 Lifecycle/reconciliation recovery fix merged, deployed, and live-verified.
+---
+author: oompah
+created: 2026-08-09 22:37
+---
+Second revision pushed for independent review at 114b72a5a1766392c6c533e8fc5ff2c0905e915b. Root causes: owner-claim tracker/job-store locks ran synchronously on the ASGI loop, freezing /healthz, and priority-0 control events woke only the full-scan lane and could not use reserved capacity while the world cut was absent/stale. Fix offloads blocking owner-claim operations and admits only RUNTIME_CONTROL_ACTIONS through enabled project bindings during an in-flight cut. Focused tests: 193 passed (owner claim, workflow runtime, retirement architecture); terminal mutation scan 20/20; diff check clean.
 ---
 <!-- COMMENTS:END -->
