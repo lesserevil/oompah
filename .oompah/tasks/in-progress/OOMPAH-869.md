@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-07T04:34:37.725618Z'
-updated_at: '2026-08-08T12:04:53.524941Z'
+updated_at: '2026-08-09T05:09:55.342799Z'
 work_branch: OOMPAH-869
 target_branch: null
 review_url: null
@@ -98,6 +98,28 @@ oompah.integration:
   submitted_at: '2026-08-07T21:25:15.340096+00:00'
   updated_at: '2026-08-07T21:25:15.340096+00:00'
 oompah.work_branch: OOMPAH-869
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-966595d0543a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-869
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d9231993ad45a52d872e8ffb7a94cc1fb23a0482ba424a74863c5e0cc635020a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:09:53.751523+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -392,5 +414,10 @@ author: oompah
 created: 2026-08-08 07:39
 ---
 Direct composition checkpoint: the deterministic validation-fence test repair is integrated in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183. Its previous Needs CI Fix state came from operator preemption, not a product failure. Combined affected validation passed 1076 tests; the exact full make test gate is currently running clean and will provide the replacement terminal evidence.
+---
+author: oompah
+created: 2026-08-09 05:09
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
