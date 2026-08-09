@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-956
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Do not consume workflow failure attempts for administrative deferrals
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T12:51:57.487807Z'
+updated_at: '2026-08-09T12:52:05.060636Z'
 work_branch: OOMPAH-956
 target_branch: null
 review_url: null
@@ -93,5 +93,10 @@ author: oompah
 created: 2026-08-09 12:51
 ---
 Worked around OOMPAH-958 durable integration lease deadlock: the accepted change is semantically identical in origin/epic-OOMPAH-940 at 1ab5776d8; range-diff differs only because DurableWorkflowWorker was already imported by OOMPAH-955. Reconciled to Done from authoritative target evidence.
+---
+author: oompah
+created: 2026-08-09 12:52
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
