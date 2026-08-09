@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-972
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Repair stale editable installs after worktree retirement
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:43:48.264013Z'
+updated_at: '2026-08-09T20:45:03.396769Z'
 work_branch: OOMPAH-972
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/780
@@ -45,6 +45,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-972
     digest: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a12bee1da9a1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-972
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T20:44:59.171086+00:00'
+    selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -52,12 +71,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-972
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-6657e818628d
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+      created_at: '2026-08-09T20:44:47.036853+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T20:44:47.036853+00:00'
+      branch_key: OOMPAH-972
+      selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+      selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     source_generation: 1
     requested_by:
       version: 1
@@ -67,6 +101,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T20:43:37.512483+00:00'
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    updated_at: '2026-08-09T20:44:47.036853+00:00'
   - version: 1
     audit_id: audit-421c9eb62469
     project_id: proj-14849f1b
@@ -87,7 +122,22 @@ oompah.terminal_audit:
     created_at: '2026-08-09T20:43:37.512483+00:00'
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-6657e818628d
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+    created_at: '2026-08-09T20:44:47.036853+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T20:44:47.036853+00:00'
+    branch_key: OOMPAH-972
+    selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
 ---
 ## Summary
 
@@ -125,5 +175,15 @@ author: oompah
 created: 2026-08-09 20:43
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 20:44
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 20:44
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
