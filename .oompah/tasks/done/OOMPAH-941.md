@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T16:25:02.515621Z'
+updated_at: '2026-08-09T16:25:10.303547Z'
 work_branch: OOMPAH-941
 target_branch: null
 review_url: null
@@ -59,7 +59,18 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:24:58.486779+00:00'
     selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
     selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-941
+    target_state: Done
+    evidence_fingerprint: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+    audit_ids:
+    - audit-aec6dc669619
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:25:07.746348+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-941
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -97,7 +108,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:52:25.456900+00:00'
     selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
     selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
-    updated_at: '2026-08-09T16:17:30.635158+00:00'
+    updated_at: '2026-08-09T16:25:07.746314+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e5838e77fa33
@@ -185,5 +196,12 @@ author: oompah
 created: 2026-08-09 16:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 16:25
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner override after exact accepted head 9996c0f8e8b64d83ee59bd65d3552f034df6031a was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435, merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python 3.11/3.12/3.13 checks successful.
 ---
 <!-- COMMENTS:END -->
