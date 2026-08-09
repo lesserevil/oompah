@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T12:04:16.618175Z'
+updated_at: '2026-08-09T12:04:30.965727Z'
 work_branch: OOMPAH-946
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/758
@@ -148,6 +148,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-946
     selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
     selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
+oompah.task_costs:
+  total_input_tokens: 346
+  total_output_tokens: 12307
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 346
+      output_tokens: 12307
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 346
+    output_tokens: 12307
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T12:04:28.059551+00:00'
 ---
 ## Summary
 
@@ -202,5 +218,15 @@ Safe evidence:
 - commit_hash: 8e2527b74e958127861621fdbcebb627d0929e24
 - readiness_handshake: Inner bash publishes BASHPID after setsid
 - cleanup: exact-generation termination
+---
+author: oompah
+created: 2026-08-09 12:04
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 90, Tool calls: 42
+- Tokens: 346 in / 12.3K out [12.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 36s
+- Log: OOMPAH-946__20260809T115800Z.jsonl
 ---
 <!-- COMMENTS:END -->
