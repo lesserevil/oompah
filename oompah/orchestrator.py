@@ -13911,7 +13911,23 @@ class Orchestrator:
                         # read discard that already validated durable fence.
                         return provenance
 
-                document = audit_store.read(current.identifier)
+                try:
+                    document = audit_store.read(current.identifier)
+                except Exception:  # noqa: BLE001 - external metadata boundary
+                    terminal_provenance = provenance.get("terminal_provenance")
+                    if isinstance(terminal_provenance, dict):
+                        # A validated marker or exact absence must not vanish
+                        # merely because the unrelated audit-envelope read
+                        # failed.  Preserve its scoped identity but fail closed
+                        # until a fresh publication proof can read everything.
+                        return {
+                            "terminal_provenance": {
+                                **terminal_provenance,
+                                "retained": False,
+                                "malformed": True,
+                            }
+                        }
+                    raise
                 get_project = getattr(
                     getattr(self, "project_store", None), "get", None
                 )

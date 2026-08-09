@@ -862,6 +862,7 @@ def test_invalid_terminal_provenance_absence_fails_closed(overrides):
         {"retained": False, "task_id": "OTHER"},
         {"retained": False, "project_id": "other-project"},
         {"retained": False, "authorized_by": ""},
+        {"retained": False, "authority_generation": 0},
         {"retained": "false"},
         {"malformed": "true"},
         {"retained": None},

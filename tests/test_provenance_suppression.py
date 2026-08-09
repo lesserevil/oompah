@@ -167,6 +167,19 @@ class TestProvenanceSuppressionModel:
                 updated_at="2026-08-07T07:00:00+00:00",
             )
 
+    def test_present_non_suppressed_marker_requires_revision_generation(
+        self,
+    ) -> None:
+        with pytest.raises(ProvenanceSuppressionError):
+            ProvenanceSuppression(
+                suppressed=False,
+                authority_generation=0,
+                actor=_owner(),
+                reason="invalid cleared marker",
+                marked_at="2026-08-07T07:00:00+00:00",
+                updated_at="2026-08-07T07:00:00+00:00",
+            )
+
     def test_revision_authorization_rejects_bad_kind(self) -> None:
         with pytest.raises(ProvenanceSuppressionError):
             RevisionAuthorization(

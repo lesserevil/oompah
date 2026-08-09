@@ -1819,7 +1819,11 @@ def _terminal_provenance_decision(
     if not marker_valid:
         return invalid("identity_or_authority_mismatch")
     if not raw_retained:
-        return None
+        return (
+            None
+            if generation >= 1
+            else invalid("identity_or_authority_mismatch")
+        )
     if task.status != DONE:
         return _decision(
             task,

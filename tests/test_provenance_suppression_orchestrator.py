@@ -253,6 +253,34 @@ def test_workflow_terminal_audit_fact_projects_exact_absent_authority_for_done(
     }
 
 
+def test_workflow_absent_authority_fails_closed_if_later_audit_read_fails(
+    tmp_path,
+):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-968", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    tracker.get_metadata = MagicMock(  # type: ignore[method-assign]
+        side_effect=[{}, OSError("audit unavailable")]
+    )
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert tracker.get_metadata.call_count == 2
+    assert fact == {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "marker_present": False,
+            "project_id": "proj-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": True,
+            "authority_generation": 0,
+        }
+    }
+
+
 def test_workflow_terminal_audit_fact_does_not_invent_absence_for_open(tmp_path):
     tracker = _MetadataTracker()
     issue = _issue("TASK-968", state=OPEN)

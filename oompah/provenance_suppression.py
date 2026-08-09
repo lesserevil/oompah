@@ -273,6 +273,10 @@ class ProvenanceSuppression:
             raise ProvenanceSuppressionError(
                 "a suppressed marker requires a recorded owner actor"
             )
+        if not self.suppressed and self.authority_generation < 1:
+            raise ProvenanceSuppressionError(
+                "a persisted non-suppressed marker requires a new-revision generation"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
