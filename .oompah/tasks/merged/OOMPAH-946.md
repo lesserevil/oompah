@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-946
 type: task
-status: In Validation
+status: Merged
 priority: 2
 title: Remove detached native-validation descendant lifetime race
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T13:58:35.890039Z'
+updated_at: '2026-08-09T14:03:08.714589Z'
 work_branch: OOMPAH-946
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/758
@@ -47,6 +47,7 @@ oompah.terminal_audit:
     digest: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-946","audit-1dbbda00b201","attempt-7f7dc8f82bbe"]': '2026-08-09T12:04:08.387247+00:00'
+    '["proj-14849f1b","OOMPAH-946","audit-5b710ff06745","attempt-566e3f0fa51e"]': '2026-08-09T14:03:04.457656+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-946
@@ -57,6 +58,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-09T12:04:08.387263+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    target_state: Merged
+    evidence_fingerprint: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+    audit_ids:
+    - audit-5b710ff06745
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T14:03:04.457675+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-946
@@ -71,6 +81,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T12:04:08.387272+00:00'
     applied_at: '2026-08-09T12:04:15.102109+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-946
+    audit_id: audit-5b710ff06745
+    attempt_id: attempt-566e3f0fa51e
+    target_state: Merged
+    evidence_fingerprint: 53e4358b2595ea287af1cea84cc565c182fedbced4063461c76633eb66431e07
+    status: Merged
+    audit_ids:
+    - audit-5b710ff06745
+    kind: result
+    applied: false
+    created_at: '2026-08-09T14:03:04.457689+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -117,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-946
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -126,7 +148,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-566e3f0fa51e
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -138,6 +160,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-946
       selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
       selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
+      verdict: pass
+      completed_at: '2026-08-09T14:03:04.457494+00:00'
+      ended_at: '2026-08-09T14:03:04.457494+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -147,7 +172,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T11:17:43.998080+00:00'
     selected_ref: 8e2527b74e958127861621fdbcebb627d0929e24
     selected_sha: 8e2527b74e958127861621fdbcebb627d0929e24
-    updated_at: '2026-08-09T13:58:26.753314+00:00'
+    updated_at: '2026-08-09T14:03:04.457494+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7f7dc8f82bbe
