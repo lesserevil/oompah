@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-938
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Make validation lease aging regression deterministic under load
 parent: null
@@ -12,13 +12,36 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T08:25:48.619150Z'
-updated_at: '2026-08-09T08:31:25.479848Z'
+updated_at: '2026-08-09T08:49:12.987535Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-514e40b4e080
+    project_id: proj-14849f1b
+    task_id: OOMPAH-938
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 984bf5a4cd7053312e6b0519e2021d85f9992fac1a257b2c49689172cada7789
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner direct delivery is present on protected main at b7e7d950
+      after PR #750 and all required hosted/focused validation passed; no separate
+      terminal audit is needed for this human-only test correction.'
+    created_at: '2026-08-09T08:49:08.094062+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -43,5 +66,10 @@ author: oompah
 created: 2026-08-09 08:31
 ---
 Combined delivery is pushed at final head cafc100c4 on PR #750. Protected hosted CI is running the complete gate on Python 3.11, 3.12, and 3.13.
+---
+author: oompah
+created: 2026-08-09 08:49
+---
+Delivered to protected main by merged PR #750 at b7e7d9509a4e6025b48c54336098acef2dda4986. Hosted complete gates passed on Python 3.11, 3.12, and 3.13. Focused validation: the regression passed serially, 32 repetitions under eight-way concurrency passed, and all 499 validation-resource tests passed; production code was unchanged.
 ---
 <!-- COMMENTS:END -->
