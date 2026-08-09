@@ -163,6 +163,9 @@ def _orchestrator(
     orchestrator._audit_rollback_lock = threading.RLock()
     orchestrator._pending_audit_rollbacks = {}
     orchestrator._maintenance_cursors = {}
+    # The fixture bypasses Orchestrator.__init__, so model the service-state
+    # transaction lock required by durable maintenance cursor updates.
+    orchestrator._state_io_lock = threading.RLock()
     orchestrator._save_state = MagicMock(return_value=True)
     orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._reconcile_audit_budget_reservations = lambda: None
