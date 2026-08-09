@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-947
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Bound terminal-audit lane cost beyond candidate count
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T10:16:14.803827Z'
+updated_at: '2026-08-09T10:19:22.502608Z'
 work_branch: OOMPAH-947
 target_branch: null
 review_url: null
