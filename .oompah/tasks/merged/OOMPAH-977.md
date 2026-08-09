@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:45:47.293153Z'
-updated_at: '2026-08-09T23:18:53.007093Z'
+updated_at: '2026-08-09T23:19:28.805416Z'
 work_branch: OOMPAH-977
 target_branch: null
 review_url: null
@@ -147,6 +147,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-977
     selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
     selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
+oompah.task_costs:
+  total_input_tokens: 106
+  total_output_tokens: 18
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 106
+      output_tokens: 18
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 106
+    output_tokens: 18
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T23:19:21.571068+00:00'
 ---
 ## Summary
 
@@ -191,5 +207,15 @@ created: 2026-08-09 23:18
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-09 23:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 5
+- Tokens: 106 in / 18 out [124 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 54s
+- Log: OOMPAH-977__20260809T231138Z.jsonl
 ---
 <!-- COMMENTS:END -->
