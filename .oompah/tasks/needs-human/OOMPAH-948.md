@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T14:10:41.133361Z'
+updated_at: '2026-08-09T14:46:37.477089Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -46,6 +46,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-948
     digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-948","audit-99898cc9a80c","attempt-9ff8967af61e"]': '2026-08-09T14:46:28.501589+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    target_state: Done
+    evidence_fingerprint: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    audit_ids:
+    - audit-99898cc9a80c
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T14:46:28.501604+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    audit_id: audit-99898cc9a80c
+    attempt_id: attempt-9ff8967af61e
+    target_state: Done
+    evidence_fingerprint: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    status: Needs Human
+    audit_ids:
+    - audit-99898cc9a80c
+    kind: result
+    applied: true
+    created_at: '2026-08-09T14:46:28.501614+00:00'
+    applied_at: '2026-08-09T14:46:35.923212+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -53,7 +79,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-948
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -62,7 +88,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9ff8967af61e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -74,6 +100,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-948
       selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
       selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+      verdict: needs_human
+      completed_at: '2026-08-09T14:46:28.501498+00:00'
+      ended_at: '2026-08-09T14:46:28.501498+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -83,7 +112,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:09:07.549841+00:00'
     selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
-    updated_at: '2026-08-09T14:10:30.590555+00:00'
+    updated_at: '2026-08-09T14:46:28.501498+00:00'
   - version: 1
     audit_id: audit-1c147ee3beb8
     project_id: proj-14849f1b
@@ -258,5 +287,12 @@ author: oompah
 created: 2026-08-09 14:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 14:46
+---
+Needs Human — Done audit requires operator input.
+
+[REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
