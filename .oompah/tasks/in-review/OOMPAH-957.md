@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:57:27.012356Z'
+updated_at: '2026-08-09T13:20:48.289519Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-09 12:57
 ---
 Refreshed PR #766 onto current main at exact head ee116d2c5. The combined deterministic aged-waiter proof passed 20 repetitions; hosted checks are the complete exact-head gate.
+---
+author: oompah
+created: 2026-08-09 13:20
+---
+Refreshed the final OOMPAH-957 repair onto current main at exact head 626703665. The only conflict was the older 30-second timeout marker versus the new deterministic 90-second cross-process proof; retained the new proof. Both hosted-failure regressions pass after composition and PR #766 is rerunning.
 ---
 <!-- COMMENTS:END -->
