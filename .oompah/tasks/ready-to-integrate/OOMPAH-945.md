@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T09:28:13.505927Z'
+updated_at: '2026-08-09T10:03:10.463682Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-09 09:28
 ---
 Published 395ce9938: canonicalize terminal API refresh scope and share containment-derived Done-epic landing authority between WorkDecision and lifecycle guards. Regressions cover native scope restoration, cross-project refresh rejection, unrelated child landing exclusion, and missing/malformed containment. Verification: 826 focused tests passed; terminal mutation and secret scans passed.
+---
+author: oompah
+created: 2026-08-09 10:03
+---
+Independent review found and fixed a refresh-boundary identity substitution: a same-project or native project-less response for a different identifier could be rebound to the requested project and reach the coordinator under the wrong task lock. Refresh now requires exact id and identifier before project rebinding. Adversarial cases verify the original lock, no coordinator call, no project mutation, and dispatch-fence rollback. Full terminal-interface suite: 80 passed. Pushed 748fd1da7f5c3c97e9ac9695092c477412ffea2b.
 ---
 <!-- COMMENTS:END -->
