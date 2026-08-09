@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T10:26:45.543876Z'
+updated_at: '2026-08-09T11:16:40.038856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Live reproducer: OOMPAH-947 was directly claimed by oompah-cli, submitted at exa
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 11:16
+---
+Implemented durable exact direct-owner claim retirement after accepted validation submission. Serialized owner mutations with submission capture; checkpointed and replayed immutable transition intent across post-commit crashes; added idempotent state publication on revocation recovery; made reconciliation ABA-safe and commit-order safe. Independent re-review: no blockers. Validation: 530 focused tests passed; terminal mutation scan, secret scan, compile, and diff checks passed. Pushed fe66b5cfcdb4e0f448dec17f271fe2edebe04f33.
+---
+<!-- COMMENTS:END -->
