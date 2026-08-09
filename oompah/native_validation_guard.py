@@ -1090,6 +1090,12 @@ class _NativeValidationRun:
     # take this state while holding ``state_lock``; a second contender must
     # retain the guard root rather than publish a duplicate completion.
     terminal_publication_state: str = "unclaimed"
+    # A post-transfer client must not decide for itself whether cancellation
+    # won the exec race.  The terminal claimant sets this fence only after the
+    # exact cause is committed under ``state_lock``.  A denied admission
+    # keeps the shim (and therefore generic item completion) pending until
+    # that commit is visible.
+    terminal_claimed: Any = field(default_factory=threading.Event, repr=False)
     # Retirement may move a blocked terminal callback off the broker thread.
     # Keep the publisher associated with this exact run until a later bounded
     # retirement pass observes that it has exited.  Otherwise a caller could
@@ -1890,6 +1896,17 @@ class _NativeValidationLeaseBroker:
                 handle.relinquish_transferred_descriptor()
                 with self._handler_lock:
                     self._active_handles.discard(handle)
+                admission_request = _recv_packet(connection, 32)
+                if admission_request != b"ADMIT\n":
+                    raise _BrokerTransportFailure(
+                        "native validation exec admission request is invalid"
+                    )
+                self._admit_transferred_validation_launch(
+                    boundary_group,
+                    lifecycle_run,
+                    connection=connection,
+                    cancellation_outcome=cancellation_outcome,
+                )
             except Exception as exc:
                 logger.debug(
                     "Native validation broker denied request from peer %s",
@@ -2022,6 +2039,7 @@ class _NativeValidationLeaseBroker:
             run.launch_state = "terminated"
             run.terminal_outcome = resolved_outcome
             run.terminal_publication_state = "publishing"
+            run.terminal_claimed.set()
         # Remove the run from item-completion contention before acknowledging
         # the supervisor. A concurrent item that already captured ``run`` will
         # observe terminal_outcome under state_lock and cannot publish a generic
@@ -2054,6 +2072,77 @@ class _NativeValidationLeaseBroker:
             return True
 
         return publish_terminal
+
+    def _admit_transferred_validation_launch(
+        self,
+        boundary_group: str,
+        run: _NativeValidationRun,
+        *,
+        connection: socket.socket,
+        cancellation_outcome: Callable[[], str],
+    ) -> None:
+        """Linearize final exec admission against supervisor termination.
+
+        Descriptor receipt alone is not permission to execute.  The client
+        remains blocked on this authenticated broker connection while the
+        broker samples the cancellation fence under the same run lock used by
+        the supervisor's exact terminal claim.  Admission or termination can
+        therefore win, but a shim can no longer observe cancellation and exit
+        ahead of the more specific supervisor cause.
+        """
+
+        rejection = ""
+        with run.state_lock:
+            if run.launch_state == "terminated":
+                rejection = (
+                    run.terminal_outcome
+                    or run.cleanup_outcome
+                    or run.supervisor_outcome
+                    or "transport_error"
+                )
+            elif run.launch_state != "transferred":
+                rejection = "transport_error"
+            else:
+                rejection = cancellation_outcome()
+                if not rejection:
+                    # Keep delivery inside the terminal linearization lock.
+                    # Once the packet is in the authenticated client's socket,
+                    # this admission precedes a later withdrawal claim.
+                    connection.sendall(b"ADMITTED\n")
+                    run.launch_state = "admitted"
+                    return
+
+        # The independently supervised generation observes the same durable
+        # cancellation fence.  Join that contender through the single atomic
+        # terminal-claim operation instead of waiting for thread scheduling.
+        # Whichever caller arrives first owns publication; either way the
+        # client cannot self-exit until the exact cause is committed.
+        publication = self._claim_supervisor_terminal(
+            boundary_group,
+            rejection,
+        )
+        if publication is not None:
+            # The supervisor remains independently responsible for bounded
+            # termination.  User telemetry runs on a daemon and therefore
+            # cannot delay this handler, its denial, or the supervisor ACK.
+            threading.Thread(
+                target=publication,
+                name=f"native-validation-post-admission-telemetry-{boundary_group}",
+                daemon=True,
+            ).start()
+        if not run.terminal_claimed.wait(timeout=0.1):
+            raise _BrokerTransportFailure(
+                "native validation terminal claim did not commit"
+            )
+        with run.state_lock:
+            rejection = run.terminal_outcome or rejection or "transport_error"
+        if rejection == "authority_withdrawn":
+            raise _BrokerAuthorityDenied(
+                "native validation authority was withdrawn before exec admission"
+            )
+        raise _BrokerTransportFailure(
+            "native validation terminated before exec admission"
+        )
 
     def _complete_validation_group(
         self,
@@ -3263,10 +3352,25 @@ def _request_native_validation_lease(
             boundary_group=boundary_group,
             command_identity=command_identity,
         )
-        return _receive_single_descriptor(
+        descriptor = _receive_single_descriptor(
             client,
             expected_payload=b"LEASE\n",
         )
+        try:
+            client.sendall(b"ADMIT\n")
+            admission = _recv_packet(client, 32)
+            denial = _BROKER_DENIAL_MESSAGES.get(admission)
+            if denial is not None:
+                raise RuntimeError(denial)
+            if admission != b"ADMITTED\n":
+                raise RuntimeError(
+                    "native validation exec admission reply is invalid"
+                )
+            return descriptor
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+            raise
 
 
 def _report_native_validation_boundary(
@@ -3742,8 +3846,6 @@ def main() -> int:
         command_identity,
     )
     try:
-        if _cancelled():
-            raise RuntimeError("native validation authority was withdrawn before exec")
         child_env.pop(_VALIDATION_MODE_ENV, None)
         child_env.pop(_VALIDATION_JUSTIFICATION_ENV, None)
         os.set_inheritable(lease_descriptor, True)
