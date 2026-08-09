@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-956
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Do not consume workflow failure attempts for administrative deferrals
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T16:26:26.237329Z'
+updated_at: '2026-08-09T16:30:20.450231Z'
 work_branch: OOMPAH-956
 target_branch: null
 review_url: null
@@ -38,6 +38,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-956
     digest: 63b4d438cd1ac27bc9e42a318fb6f37af999c59f4f540a56fa343312be353f0a
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-855495f157ea
+    project_id: proj-14849f1b
+    task_id: OOMPAH-956
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 63b4d438cd1ac27bc9e42a318fb6f37af999c59f4f540a56fa343312be353f0a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact range-diff mapped accepted head 60b94b8844af30c1ff796869eeab3b68b98dbe1f
+      to aggregate commit cc9188123 (only a duplicate-import context adjustment after
+      OOMPAH-955 composition); aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+      merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01 with hosted Python
+      3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:30:16.541673+00:00'
+    selected_ref: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
+    selected_sha: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
+    applied: false
   version: 1
   pending_chain:
   - version: 1
