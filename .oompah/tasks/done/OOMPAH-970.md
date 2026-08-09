@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-970
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Make detached workflow heartbeat proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:57:48.372036Z'
+updated_at: '2026-08-09T19:58:54.360838Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -41,6 +41,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-970
     digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-51ad4e37e0db
+    project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T19:58:50.122021+00:00'
+    selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
+    selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+    applied: false
   version: 1
   pending_chain:
   - version: 1
