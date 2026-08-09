@@ -22,11 +22,13 @@ children:
 - OOMPAH-968
 blocked_by:
 - OOMPAH-939
+- OOMPAH-974
+- OOMPAH-975
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T21:11:44.176345Z'
+updated_at: '2026-08-09T21:15:49.781581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -269,5 +271,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 22m 24s
 - Log: OOMPAH-940__20260809T174428Z.jsonl
+---
+author: oompah
+created: 2026-08-09 21:15
+---
+Live rollout verification resumed on exact deployed main 312c18ae3. OOMPAH-973 is terminal and pruned. The first full post-restart pass directly exposed OOMPAH-974 (workflow reconciliation can make all lifecycle recovery paths unusable) and OOMPAH-975 (trusted composed landing revision is not copied into parent_rollup_review exact_head). Both are direct-owner work; OOMPAH-940 now records finish-order dependencies on them. Four affected terminal children were retained through supported terminal-provenance authority, never DB-edited or rearmed.
 ---
 <!-- COMMENTS:END -->
