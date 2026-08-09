@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T12:45:55.327920Z'
+updated_at: '2026-08-09T12:57:23.179654Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-09 12:45
 ---
 Propagated OOMPAH-957 concurrency-test stabilization onto the review branch at 7ab4713ab after hosted Python 3.13 reproduced the exact native-boundary timeout. PR #763 matrix is rerunning.
+---
+author: oompah
+created: 2026-08-09 12:57
+---
+Refreshed PR #763 onto current main at exact head 43531865c; the OOMPAH-957 timing proof was resolved deterministically and passed 20 repetitions on the identical merged content.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:48:48.982484Z'
+updated_at: '2026-08-09T12:57:27.012356Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-09 12:48
 ---
 Opened exact final-head PR #766 at 1159766a5 and armed squash auto-merge. Focused race corpora and repeated runs pass; the hosted matrix is the final exact-head gate.
+---
+author: oompah
+created: 2026-08-09 12:57
+---
+Refreshed PR #766 onto current main at exact head ee116d2c5. The combined deterministic aged-waiter proof passed 20 repetitions; hosted checks are the complete exact-head gate.
 ---
 <!-- COMMENTS:END -->

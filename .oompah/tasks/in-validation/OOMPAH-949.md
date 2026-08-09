@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T12:34:36.765046Z'
+updated_at: '2026-08-09T12:57:18.528217Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-949
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -57,7 +57,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d2e60aa0a26e
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -69,6 +69,12 @@ oompah.terminal_audit:
       branch_key: OOMPAH-949
       selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
       selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+      failure_classification: policy_incompatibility
+      ended_at: '2026-08-09T12:57:02.602239+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        auditor capability policy permits only read-only repository inspection and
+        configured test commands; command denied'
+      next_retry_at: '2026-08-09T12:57:12.602200+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -78,7 +84,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:27:15.737526+00:00'
     selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
     selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
-    updated_at: '2026-08-09T12:34:27.673582+00:00'
+    updated_at: '2026-08-09T12:57:02.602239+00:00'
   - version: 1
     audit_id: audit-e418ec38f7a8
     project_id: proj-14849f1b
@@ -103,7 +109,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-d2e60aa0a26e
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -115,6 +121,28 @@ oompah.terminal_audit:
     branch_key: OOMPAH-949
     selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
     selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    failure_classification: policy_incompatibility
+    ended_at: '2026-08-09T12:57:02.602239+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      auditor capability policy permits only read-only repository inspection and configured
+      test commands; command denied'
+    next_retry_at: '2026-08-09T12:57:12.602200+00:00'
+oompah.task_costs:
+  total_input_tokens: 294
+  total_output_tokens: 60
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 294
+      output_tokens: 60
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 294
+    output_tokens: 60
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T12:57:09.249377+00:00'
 ---
 ## Summary
 
@@ -159,5 +187,20 @@ author: oompah
 created: 2026-08-09 12:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 12:57
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-09 12:57
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 16
+- Tokens: 294 in / 60 out [354 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 22m 38s
+- Log: OOMPAH-949__20260809T123439Z.jsonl
 ---
 <!-- COMMENTS:END -->
