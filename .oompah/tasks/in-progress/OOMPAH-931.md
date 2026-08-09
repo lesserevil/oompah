@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T04:24:02.309459Z'
-updated_at: '2026-08-09T04:24:48.562408Z'
+updated_at: '2026-08-09T04:32:29.676891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Rollout of exact head d8610fbdc reproduced a durable-health deadlock: materializ
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 04:32
+---
+Focused regression and affected-module verification passed (20 serial tests; 243 parallel tests). Design correction: preserve exhausted rows as immutable ledger history and add an authoritative current_states.exhausted health projection; rollout canary uses current_states with fail-closed fallback to raw states for older servers. This clears only history proven replaced by durable schedule/event authority and leaves genuine current or unknown exhaustion actionable.
+---
+<!-- COMMENTS:END -->
