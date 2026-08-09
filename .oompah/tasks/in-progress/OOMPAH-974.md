@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T21:38:31.469515Z'
+updated_at: '2026-08-09T21:49:54.420341Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-09 21:38
 ---
 Implementation checkpoint: removed the large-corpus O(n^2) native detail-read amplification with a generation-scoped ID index and bounded cold-scan GIL yields; added cooperative pre-publication drain checkpoints across distinct implementation/review/integration/epic collectors; reserved direct_owner_claim in the control lane while preserving stale adapter calls until real settlement. Reworked make force-restart as a fully HTTP-independent exact-identity transaction: capture, stage/verify, bounded TERM then identity-rechecked SIGKILL, activate, then Make start. Wrong/stale PID remains refused. Focused new/reviewer regressions currently pass (14 tests); broader and full gates are next.
+---
+author: oompah
+created: 2026-08-09 21:49
+---
+Implementation and review complete on exact base 312c18ae3. Validation: independent 399-test relevant suite passed; focused combined regression suite passed 335 tests; git diff --check and compileall passed (one unrelated pre-existing SyntaxWarning). A duplicate local make test run reached 8,580 passed, 7 skipped, 2 xfailed with no failures before all workers stalled in jbd2 filesystem journal waits; it was interrupted after 9m56s per operator direction because the protected exact-head gate runs once. Changes add indexed/cooperatively yielding native reads, drain-aware reconciliation checkpoints across all collector families, a reserved direct-owner control lane with retained-call safety, and identity-rechecked HTTP-independent emergency force restart escalation.
 ---
 <!-- COMMENTS:END -->
