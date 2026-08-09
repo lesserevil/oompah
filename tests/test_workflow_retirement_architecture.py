@@ -317,7 +317,7 @@ def test_superseded_publication_requests_one_full_reconcile_tick() -> None:
     )
 
 
-def test_workflow_batch_continuation_posts_coalescible_admission_wake() -> None:
+def test_workflow_batch_continuation_wakes_independent_admission_lane() -> None:
     orchestrator = object.__new__(Orchestrator)
     orchestrator.workflow_runtime = SimpleNamespace(
         worker=SimpleNamespace(accepting=True)
@@ -326,14 +326,12 @@ def test_workflow_batch_continuation_posts_coalescible_admission_wake() -> None:
     orchestrator._stopping = False
     orchestrator._quiesced = False
     orchestrator._set_refresh_requested = Mock()
-    orchestrator._post_event = Mock()
+    orchestrator._wake_workflow_admission_lane = Mock()
 
     assert orchestrator._request_workflow_batch_continuation() is True
 
     orchestrator._set_refresh_requested.assert_called_once_with()
-    event = orchestrator._post_event.call_args.args[0]
-    assert event.event_type is DispatchEventType.WORKFLOW_ADMISSION
-    assert event.payload == {"reason": "workflow_batch_saturated"}
+    orchestrator._wake_workflow_admission_lane.assert_called_once_with()
 
 
 def test_workflow_reconcile_continuation_posts_coalescible_full_scan() -> None:

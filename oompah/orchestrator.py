@@ -2358,6 +2358,14 @@ class Orchestrator:
         # owner while making submit/refresh/cutover notifications prompt.
         self._integration_recheck_requested = False
         self._integration_wake_pending = False
+        # Durable workflow admission has an independent, scheduler-loop lane.
+        # A full reconciliation can spend minutes reading tracker state, so a
+        # completion wake must be able to refill the bounded worker pool while
+        # that ordinary tick is still in flight.  One future plus one recheck
+        # bit coalesces bursts without recursive admission or unbounded tasks.
+        self._workflow_admission_future: asyncio.Future[None] | None = None
+        self._workflow_admission_recheck_requested = False
+        self._workflow_admission_wake_pending = False
         # Durable integrated-row audit staging is intentionally not part of
         # the prompt claim future.  One coalesced audit owner may replay its
         # bounded history on the tick executor while the claim lane continues
@@ -11107,13 +11115,13 @@ class Orchestrator:
         *,
         reason: str = "workflow_batch_saturated",
     ) -> bool:
-        """Queue one non-recursive follow-up for a saturated durable batch.
+        """Wake one non-recursive follow-up for a saturated durable batch.
 
-        The event-intake owner coalesces this with any refresh already pending.
-        Admission is fenced again here because a graceful drain can begin after
-        the worker finishes its bounded batch but before the tick publishes its
-        report.  Posting onto the current loop is non-recursive: the dispatch
-        loop cannot consume the continuation until this tick returns.
+        Admission owns an independent coalesced scheduler task so a completed
+        effect can refill shared capacity while an ordinary world scan is in
+        flight.  Admission is fenced again here because a graceful drain can
+        begin after the worker finishes its bounded batch but before the tick
+        publishes its report.
         """
 
         runtime = self.workflow_runtime
@@ -11127,13 +11135,79 @@ class Orchestrator:
             ):
                 return False
             self._set_refresh_requested()
-            self._post_event(
-                DispatchEvent(
-                    event_type=DispatchEventType.WORKFLOW_ADMISSION,
-                    payload={"reason": reason},
-                )
-            )
+            self._wake_workflow_admission_lane()
         return True
+
+    def _ensure_workflow_admission_lane(self) -> bool:
+        """Start the single bounded workflow-admission owner when idle."""
+
+        runtime = self.workflow_runtime
+        if (
+            runtime is None
+            or self._stopping
+            or self._quiesced
+            or getattr(self, "_paused", False)
+            or not runtime.worker.accepting
+            or (
+                self._workflow_admission_future is not None
+                and not self._workflow_admission_future.done()
+            )
+        ):
+            return False
+        self._workflow_admission_wake_pending = False
+        self._workflow_admission_future = asyncio.create_task(
+            self._run_workflow_admission_lane(),
+            name="workflow-admission",
+        )
+        return True
+
+    def _wake_workflow_admission_lane_on_loop(self) -> None:
+        """Coalesce one workflow-admission wake on the scheduler loop."""
+
+        runtime = self.workflow_runtime
+        if (
+            runtime is None
+            or self._stopping
+            or self._quiesced
+            or getattr(self, "_paused", False)
+            or not runtime.worker.accepting
+        ):
+            return
+        if (
+            self._workflow_admission_future is not None
+            and not self._workflow_admission_future.done()
+        ):
+            self._workflow_admission_recheck_requested = True
+            return
+        self._ensure_workflow_admission_lane()
+
+    def _wake_workflow_admission_lane(self) -> None:
+        """Promptly wake bounded workflow admission from any worker thread."""
+
+        loop = self._dispatch_loop
+        if loop is None or not loop.is_running():
+            # The runtime may report work before scheduler startup completes.
+            # Preserve one edge without creating a task on a foreign API loop.
+            self._workflow_admission_wake_pending = True
+            return
+        if self._running_loop() is not loop:
+            loop.call_soon_threadsafe(self._wake_workflow_admission_lane_on_loop)
+            return
+        self._wake_workflow_admission_lane_on_loop()
+
+    async def _run_workflow_admission_lane(self) -> None:
+        """Run one admission owner with at most one coalesced recheck per turn."""
+
+        while not self._stopping:
+            self._workflow_admission_recheck_requested = False
+            requires_full_tick = await self._run_workflow_admission_tick()
+            if requires_full_tick:
+                self._request_workflow_reconcile_continuation(
+                    reason="workflow_admission_cut_stale"
+                )
+                return
+            if not self._workflow_admission_recheck_requested:
+                return
 
     def _request_workflow_reconcile_continuation(
         self,
@@ -13128,9 +13202,10 @@ class Orchestrator:
         - ``_full_sync_loop()`` for the periodic safety-net full sync
 
         A full ``_tick()`` (world scan) is run for every ordinary event and for
-        the initial startup tick.  A pure WORKFLOW_ADMISSION burst instead
-        drains one bounded slice from the exact last-published snapshot; a
-        stale or unavailable snapshot falls back to one full tick.
+        the initial startup tick.  WORKFLOW_ADMISSION wakes an independent,
+        bounded task that drains the exact last-published snapshot, even while
+        an ordinary scan is in flight. A stale snapshot requests a later full
+        tick through the ordinary coalesced event stream.
         """
         self._dispatch_loop = asyncio.get_running_loop()
         runtime_bound = self.workflow_runtime is not None
@@ -13260,6 +13335,8 @@ class Orchestrator:
         try:
             # Run an initial tick on startup to catch anything already pending.
             await _run_tick()
+            if self._workflow_admission_wake_pending:
+                self._wake_workflow_admission_lane_on_loop()
 
             while not self._stopping:
                 try:
@@ -13277,9 +13354,10 @@ class Orchestrator:
                 )
 
                 coalesced = self._mark_dispatch_event_dequeued(event)
-                admission_only = (
+                admission_requested = (
                     event.event_type is DispatchEventType.WORKFLOW_ADMISSION
                 )
+                ordinary_requested = not admission_requested
                 while True:
                     try:
                         extra = self._dispatch_queue.get_nowait()
@@ -13287,26 +13365,22 @@ class Orchestrator:
                         break
                     coalesced += 1
                     coalesced += self._mark_dispatch_event_dequeued(extra)
-                    admission_only = admission_only and (
-                        extra.event_type
-                        is DispatchEventType.WORKFLOW_ADMISSION
+                    extra_is_admission = (
+                        extra.event_type is DispatchEventType.WORKFLOW_ADMISSION
                     )
+                    admission_requested |= extra_is_admission
+                    ordinary_requested |= not extra_is_admission
                 # Track coalesced count for dashboard snapshots (TASK-465.2).
                 self._last_coalesced_event_count = coalesced
                 if coalesced:
                     logger.debug("Coalesced %d dispatch event(s)", coalesced)
 
-                # A pure durable-admission burst consumes only the exact last
-                # published cut. Any ordinary event in the coalesced burst
-                # still owns one full world scan, which also performs due-job
-                # admission and therefore subsumes the fast wake.
-                if admission_only:
-                    requires_full_tick = (
-                        await self._run_workflow_admission_tick()
-                    )
-                    if requires_full_tick:
-                        await _run_tick()
-                else:
+                # Admission and ordinary reconciliation are independent lanes:
+                # mixed traffic starts the prompt bounded admission turn and
+                # still preserves the ordinary event's fair full world scan.
+                if admission_requested:
+                    self._wake_workflow_admission_lane_on_loop()
+                if ordinary_requested:
                     await _run_tick()
 
         finally:
@@ -13596,6 +13670,7 @@ class Orchestrator:
                 self._maintenance_future,
                 self._epic_maintenance_future,
                 self._integration_future,
+                self._workflow_admission_future,
                 self._integration_audit_future,
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,

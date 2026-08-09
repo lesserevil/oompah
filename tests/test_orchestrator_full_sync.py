@@ -301,9 +301,16 @@ class TestRunLoopUpdatesSyncTime:
         assert orch._last_tick_metrics["workflow_admission_only"] is True
         assert orch._dispatch_queue.empty()
 
-    def test_ordinary_event_subsumes_coalesced_admission_wake(self, tmp_path):
+    def test_admission_runs_while_ordinary_reconciliation_is_in_flight(
+        self, tmp_path
+    ):
+        """Continuous ordinary traffic cannot strand newly free worker slots."""
+
         orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
         reconcile_count = 0
+        full_tick_started = asyncio.Event()
+        release_full_tick = asyncio.Event()
+        admission_ran = asyncio.Event()
 
         async def reconcile_async():
             nonlocal reconcile_count
@@ -311,23 +318,31 @@ class TestRunLoopUpdatesSyncTime:
             if reconcile_count == 1:
                 orch._post_event(
                     DispatchEvent(
-                        event_type=DispatchEventType.WORKFLOW_ADMISSION
+                        event_type=DispatchEventType.REFRESH_REQUESTED,
                     )
                 )
-                orch._post_event(
-                    DispatchEvent(
-                        event_type=DispatchEventType.REFRESH_REQUESTED
-                    )
-                )
+            elif reconcile_count == 2:
+                full_tick_started.set()
+                await release_full_tick.wait()
             else:
                 orch._stopping = True
             return {"worker": {"processed": 0, "batch_saturated": False}}
+
+        async def continue_admission_async():
+            admission_ran.set()
+            return {
+                "admission_only": True,
+                "requires_reconcile": False,
+                "worker": {"processed": 1, "batch_saturated": False},
+            }
 
         runtime = SimpleNamespace(
             started=True,
             start=AsyncMock(),
             reconcile_async=AsyncMock(side_effect=reconcile_async),
-            continue_admission_async=AsyncMock(),
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
             worker=SimpleNamespace(accepting=True, active_count=0),
             pending_operation_count=0,
             drain=AsyncMock(return_value=True),
@@ -340,12 +355,110 @@ class TestRunLoopUpdatesSyncTime:
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
-        asyncio.run(orch.run())
+        async def scenario():
+            run_task = asyncio.create_task(orch.run())
+            await asyncio.wait_for(full_tick_started.wait(), timeout=2.0)
 
-        assert runtime.reconcile_async.await_count == 2
-        runtime.continue_admission_async.assert_not_awaited()
-        assert orch._last_coalesced_event_count == 1
+            # Model ordinary refresh traffic arriving throughout the slow
+            # world scan, then an effect completion freeing shared capacity.
+            for _ in range(4):
+                orch._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.REFRESH_REQUESTED,
+                    )
+                )
+            assert orch._request_workflow_batch_continuation(
+                reason="workflow_effect_completed"
+            )
+
+            await asyncio.wait_for(admission_ran.wait(), timeout=2.0)
+            assert not release_full_tick.is_set()
+            release_full_tick.set()
+            await asyncio.wait_for(run_task, timeout=2.0)
+
+        asyncio.run(scenario())
+
+        # The queued ordinary edge still receives a fair full reconciliation
+        # after the blocked scan, while admission did not wait for either.
+        assert runtime.reconcile_async.await_count == 3
+        runtime.continue_admission_async.assert_awaited_once_with()
+        assert orch._last_coalesced_event_count == 3
         assert orch._dispatch_queue.empty()
+
+    def test_admission_lane_coalesces_wake_burst_under_one_owner(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        first_admission_started = asyncio.Event()
+        release_first_admission = asyncio.Event()
+        calls = 0
+        active = 0
+        maximum_active = 0
+
+        async def continue_admission_async():
+            nonlocal active, calls, maximum_active
+            calls += 1
+            active += 1
+            maximum_active = max(maximum_active, active)
+            if calls == 1:
+                first_admission_started.set()
+                await release_first_admission.wait()
+            active -= 1
+            return {
+                "admission_only": True,
+                "requires_reconcile": False,
+                "worker": {"processed": 0, "batch_saturated": False},
+            }
+
+        runtime = SimpleNamespace(
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+        )
+        orch.workflow_runtime = runtime
+        orch._notify_observers = MagicMock()
+
+        async def scenario():
+            orch._dispatch_loop = asyncio.get_running_loop()
+            orch._wake_workflow_admission_lane_on_loop()
+            first_owner = orch._workflow_admission_future
+            await asyncio.wait_for(first_admission_started.wait(), timeout=2.0)
+
+            for _ in range(10):
+                orch._wake_workflow_admission_lane_on_loop()
+                assert orch._workflow_admission_future is first_owner
+
+            release_first_admission.set()
+            assert first_owner is not None
+            await asyncio.wait_for(first_owner, timeout=2.0)
+
+        asyncio.run(scenario())
+
+        assert calls == 2
+        assert maximum_active == 1
+
+    @pytest.mark.parametrize("fence", ("_paused", "_quiesced"))
+    def test_admission_lane_respects_pause_and_quiesce_fences(
+        self, tmp_path, fence
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        runtime = SimpleNamespace(
+            continue_admission_async=AsyncMock(),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+        )
+        orch.workflow_runtime = runtime
+        setattr(orch, fence, True)
+
+        async def scenario():
+            orch._dispatch_loop = asyncio.get_running_loop()
+            orch._wake_workflow_admission_lane_on_loop()
+            await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        assert orch._workflow_admission_future is None
+        runtime.continue_admission_async.assert_not_awaited()
 
     def test_transition_completions_keep_fast_admission_until_empty(
         self, tmp_path
@@ -519,8 +632,10 @@ class TestRunLoopUpdatesSyncTime:
             == 4
         )
         assert epic_controller.schedule_action.call_count == 4
-        assert orch._dispatch_events_coalesced == 6
-        assert orch._last_coalesced_event_count == 3
+        # Completion/transition wake bursts coalesce on the independent lane;
+        # they do not inflate or occupy the ordinary dispatch-event queue.
+        assert orch._dispatch_events_coalesced == 0
+        assert orch._last_coalesced_event_count == 0
         assert orch._dispatch_queue.empty()
 
     def test_stale_admission_cut_falls_back_to_one_world_reconcile(
