@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T22:16:16.576828Z'
+updated_at: '2026-08-09T22:25:59.531823Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by the exact OOMPAH-975 protected Python 3.12 gate at d173e88eec2552ee
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 22:25
+---
+Implementation started on branch OOMPAH-976. Reproduced the Python 3.12 authority-withdrawal timing lane locally and traced the unsafe interleaving to the shim receiving the lease descriptor before a final broker-mediated exec-admission decision; the shim could observe cancellation and exit while the supervisor's exact terminal claim was still pending. Implementing a fail-closed post-transfer admission handshake with deterministic race barriers and descriptor/lease cleanup coverage. The shared service will not be restarted from this lane.
+---
+<!-- COMMENTS:END -->
