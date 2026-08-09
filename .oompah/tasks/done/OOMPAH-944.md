@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-944
 type: bug
-status: Needs CI Fix
+status: Done
 priority: 1
 title: Use canonical child landing proof in epic cleanup
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T15:07:00.762087Z'
+updated_at: '2026-08-09T15:14:30.465185Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -64,6 +64,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T15:06:02.071880+00:00'
     applied_at: '2026-08-09T15:06:09.122846+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-da5fc6255781
+    project_id: proj-14849f1b
+    task_id: OOMPAH-944
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a5ea3a6a0b3910eeb77ce134737842dbbaabe9829cce254bff04b95b8f7a0695
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Accepted head c07a3ba543 is an exact ancestor of current main and was
+      independently reviewed. Audit full gate passed 18,885 tests; seven failures
+      are the known nested quality-gate Python path infrastructure tracked by OOMPAH-831/OOMPAH-862,
+      while the validation-resource timing and workflow-mode expectations are stale-head
+      suite failures corrected in the combined OOMPAH-940 main composition whose hosted
+      Python 3.11/3.12/3.13 gates passed. No OOMPAH-944 behavior failure was identified.
+    created_at: '2026-08-09T15:14:22.314812+00:00'
+    selected_ref: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
+    selected_sha: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
+    applied: false
   version: 1
   pending_chain:
   - version: 1
