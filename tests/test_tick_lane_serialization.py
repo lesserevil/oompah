@@ -302,10 +302,12 @@ class TestFullTickNonOverlap:
 
         active_ticks: list[int] = [0]
         max_active: list[int] = [0]
+        startup_tick_started = asyncio.Event()
 
         async def concurrent_tracking_tick():
             active_ticks[0] += 1
             max_active[0] = max(max_active[0], active_ticks[0])
+            startup_tick_started.set()
             await asyncio.sleep(0.02)  # slow — yields control repeatedly
             active_ticks[0] -= 1
 
@@ -314,7 +316,7 @@ class TestFullTickNonOverlap:
         async def driver():
             run_task = asyncio.create_task(orch.run())
             # Post events while the startup tick is still running.
-            await asyncio.sleep(0.005)  # startup tick is mid-flight (it sleeps 20ms)
+            await asyncio.wait_for(startup_tick_started.wait(), timeout=3.0)
             for _ in range(3):
                 orch._post_event(
                     DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)

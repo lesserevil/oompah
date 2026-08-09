@@ -27,6 +27,7 @@ def test_hosted_ci_uses_the_supported_makefile_gate() -> None:
 
     assert 'python-version: ["3.11", "3.12", "3.13"]' in workflow
     assert "UV_PYTHON: ${{ matrix.python-version }}" in workflow
+    assert 'OOMPAH_PYTEST_WORKERS: "2"' in workflow
     assert "python -m pip install --upgrade pip uv" in workflow
     assert "make test-setup" in workflow
     assert "run: make test" in workflow

@@ -318,12 +318,13 @@ class TestDispatchRecheckSkipsClosedIssue:
         post_update = _issue(state="In Progress")
 
         mock_tracker = MagicMock()
-        mock_tracker.fetch_issue_states_by_ids.side_effect = [
-            [pre_update],
-            [post_update],
-            [post_update],
-            [post_update],
-        ]
+        mock_tracker.fetch_issue_states_by_ids.side_effect = (
+            lambda _issue_ids: (
+                [pre_update]
+                if mock_tracker.fetch_issue_states_by_ids.call_count == 1
+                else [post_update]
+            )
+        )
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
             patch.object(

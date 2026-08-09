@@ -21,6 +21,7 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     env:
       UV_PYTHON: ${{ matrix.python-version }}
+      OOMPAH_PYTEST_WORKERS: "2"
 
     steps:
       - uses: actions/checkout@v4

@@ -150,6 +150,7 @@ def test_allowlist_entries_have_actionable_reasons() -> None:
         assert len(reason.strip()) >= 20
 
 
+@pytest.mark.timeout(15)
 def test_repository_has_no_unauthorized_task_status_mutations() -> None:
     root = Path(__file__).resolve().parents[1]
     found = scan_paths([root / "oompah"], root=root)

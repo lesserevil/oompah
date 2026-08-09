@@ -2614,6 +2614,7 @@ def test_exact_gate_has_priority_but_aging_prevents_auditor_starvation(tmp_path)
     assert order == ["audit", "gate"]
 
 
+@pytest.mark.timeout(20)
 def test_continuous_later_exact_arrivals_cannot_starve_aged_worker_multiprocess(
     tmp_path,
 ):
@@ -2878,6 +2879,7 @@ def test_wait_cancellation_removes_durable_waiter(tmp_path):
     held.release()
 
 
+@pytest.mark.timeout(10)
 def test_requester_crash_is_recovered_without_manual_state_edit(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     script = """
@@ -3029,6 +3031,7 @@ def test_expired_attached_process_group_is_terminated(tmp_path):
     handle.release()
 
 
+@pytest.mark.timeout(15)
 def test_simultaneous_multiprocess_acquisition_has_no_lost_owner_update(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     script = """
@@ -3069,6 +3072,7 @@ print(f'{started},{ended}', flush=True)
     assert ValidationResourceLease(state_path).status().owner_count == 0
 
 
+@pytest.mark.timeout(20)
 def test_restart_observes_waiter_and_allows_it_to_continue(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     held = ValidationResourceLease(state_path, poll_seconds=0.01).acquire(
@@ -3091,7 +3095,13 @@ with lease.acquire(owner, wait_timeout_seconds=5):
         stderr=subprocess.PIPE,
         text=True,
     )
-    _wait_for(lambda: ValidationResourceLease(state_path).status().waiter_count == 1)
+    # Importing a fresh interpreter can take several seconds on a constrained
+    # runner.  Wait for the durable waiter record rather than treating process
+    # startup latency as a lease failure.
+    _wait_for(
+        lambda: ValidationResourceLease(state_path).status().waiter_count == 1,
+        timeout=10,
+    )
 
     restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
     assert restarted.status().owner_count == 1

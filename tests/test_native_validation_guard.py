@@ -48,6 +48,26 @@ def _wait_until(predicate, *, timeout: float = 5.0) -> None:
     raise AssertionError("condition did not become true")
 
 
+def _wait_for_pid(path: Path, *, timeout: float = 5.0) -> int:
+    """Return a positive PID only after its producer has finished publishing it."""
+
+    deadline = time.monotonic() + timeout
+    last_value = "<missing>"
+    while time.monotonic() < deadline:
+        try:
+            last_value = path.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            last_value = "<missing>"
+        if last_value.isascii() and last_value.isdigit():
+            pid = int(last_value)
+            if pid > 0 and Path(f"/proc/{pid}").exists():
+                return pid
+        time.sleep(0.01)
+    raise AssertionError(
+        f"{path} did not contain a complete live PID (last value: {last_value!r})"
+    )
+
+
 def _guard_pass_fds(environment: dict[str, str]) -> tuple[int, ...]:
     raw = environment.get("OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD", "")
     return (int(raw),) if raw else ()
@@ -1351,7 +1371,7 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
 
     assert completed.returncode == 0
     assert makefile_side_effect.exists() is False
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_native_reuse_policy_denies_exact_and_allows_structured_distinct_mode(
@@ -2818,7 +2838,7 @@ def test_absolute_login_shell_cannot_run_task_home_profile_before_guard(
     assert profile_marker.exists() is False
     assert heavy_marker.exists() is False
     assert resolution_marker.exists() is False
-    assert lease.status().owner_count == 0
+    _wait_until(lambda: lease.status().owner_count == 0)
 
 
 def test_native_guard_preserves_only_service_trusted_codex_home(
@@ -2964,6 +2984,7 @@ def test_absolute_bash_light_command_restores_guard_for_descendants(
     _wait_until(lambda: lease.status().owner_count == 0)
 
 
+@pytest.mark.timeout(20)
 def test_parallel_native_command_boundaries_are_consumed_independently(
     tmp_path: Path,
 ) -> None:
@@ -2980,28 +3001,50 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         timeout_seconds=10,
     )
 
-    first = subprocess.Popen(
-        ["/bin/bash", "-c", "printf first"],
-        env={**os.environ, **guarded},
-        pass_fds=_guard_pass_fds(guarded),
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    second = subprocess.Popen(
-        ["/bin/bash", "-c", "printf second"],
-        env={**os.environ, **guarded},
-        pass_fds=_guard_pass_fds(guarded),
-        stdout=subprocess.PIPE,
-        text=True,
-    )
+    processes: list[subprocess.Popen[str]] = []
+    try:
+        first = subprocess.Popen(
+            ["/bin/bash", "-c", "printf first"],
+            env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        processes.append(first)
+        second = subprocess.Popen(
+            ["/bin/bash", "-c", "printf second"],
+            env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        processes.append(second)
 
-    assert first.communicate(timeout=5)[0] == "first"
-    assert second.communicate(timeout=5)[0] == "second"
-    assert first.returncode == 0
-    assert second.returncode == 0
-    assert consume_native_validation_boundary(root, "printf first", "item-1") is True
-    assert consume_native_validation_boundary(root, "printf second", "item-2") is True
-    assert consume_native_validation_boundary(root, "printf first", "item-3") is False
+        assert first.communicate(timeout=5)[0] == "first"
+        assert second.communicate(timeout=5)[0] == "second"
+        assert first.returncode == 0
+        assert second.returncode == 0
+        assert (
+            consume_native_validation_boundary(root, "printf first", "item-1")
+            is True
+        )
+        assert (
+            consume_native_validation_boundary(root, "printf second", "item-2")
+            is True
+        )
+        assert (
+            consume_native_validation_boundary(root, "printf first", "item-3")
+            is False
+        )
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+            try:
+                process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=2)
 
 
 def test_late_background_boundary_cannot_spoof_later_item(tmp_path: Path) -> None:
@@ -4694,8 +4737,8 @@ def test_native_heavy_child_retains_lane_after_launcher_crash(tmp_path: Path) ->
     )
     assert launcher.returncode == 0
 
-    _wait_until(lambda: pid_path.exists() and lease.status().owner_count == 1)
-    heavy_pid = int(pid_path.read_text(encoding="utf-8").strip())
+    _wait_until(lambda: lease.status().owner_count == 1)
+    heavy_pid = _wait_for_pid(pid_path)
     owner = lease.status().owners[0]
     assert owner["child_pid"] == heavy_pid
 
@@ -4761,8 +4804,7 @@ def test_detached_heavy_descendant_retains_native_capacity_until_exit(
         timeout=5,
     )
     assert completed.returncode == 0
-    _wait_until(descendant_pid_path.exists)
-    descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+    descendant_pid = _wait_for_pid(descendant_pid_path)
 
     try:
         with pytest.raises(ValidationLeaseCancelled, match="timed out"):
@@ -4825,8 +4867,7 @@ def test_withdrawn_owner_remains_fenced_by_detached_descendant(
         env={**os.environ, **guarded},
         pass_fds=_guard_pass_fds(guarded),
     )
-    _wait_until(descendant_pid_path.exists)
-    descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+    descendant_pid = _wait_for_pid(descendant_pid_path)
 
     def descendant_is_detached() -> bool:
         try:
@@ -4906,8 +4947,7 @@ def test_term_ignoring_same_group_child_is_gone_before_capacity_reuse(
         env={**os.environ, **guarded},
         pass_fds=_guard_pass_fds(guarded),
     )
-    _wait_until(child_pid_path.exists)
-    child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+    child_pid = _wait_for_pid(child_pid_path)
     assert os.getpgid(child_pid) == process.pid
     child_existed_at_reuse: list[bool] = []
     errors: list[BaseException] = []

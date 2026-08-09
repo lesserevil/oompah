@@ -1082,6 +1082,12 @@ class TestGitHubReviewQueueState:
     """list_open_reviews and get_review must populate auto_merge_enabled
     and mergeable_state from the GitHub PR API response."""
 
+    def setup_method(self):
+        # These cases deliberately reuse the same repo, PR number, head SHA,
+        # and updated_at value with different detail payloads.  The production
+        # cache is class-level, so isolate each case from the preceding one.
+        GitHubProvider._pr_detail_cache.clear()
+
     class _FakeResponse:
         def __init__(self, payload, status_code=200):
             self._payload = payload
