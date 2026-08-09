@@ -5,6 +5,8 @@ from __future__ import annotations
 import multiprocessing
 import sqlite3
 
+import pytest
+
 from oompah.review_capacity import ReviewCapacityStore
 
 
@@ -248,6 +250,7 @@ def test_schema_one_database_migrates_exact_authority_columns(tmp_path):
     assert version == "2"
 
 
+@pytest.mark.timeout(30)
 def test_schema_one_concurrent_process_initialization_is_serialized(tmp_path):
     path = tmp_path / "review-capacity.sqlite3"
     connection = sqlite3.connect(path)

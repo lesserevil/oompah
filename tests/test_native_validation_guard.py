@@ -3020,8 +3020,19 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         )
         processes.append(second)
 
-        assert first.communicate(timeout=5)[0] == "first"
-        assert second.communicate(timeout=5)[0] == "second"
+        # The pair is deliberately concurrent: give both processes one shared
+        # bounded startup window instead of allowing the first wait to consume
+        # the complete budget before the second is observed.  The suite-wide
+        # default is five seconds, but a loaded hosted runner can legitimately
+        # take longer to fork both guarded interpreter shims.
+        deadline = time.monotonic() + 12
+
+        def communicate_before_deadline(process: subprocess.Popen[str]) -> str:
+            remaining = max(deadline - time.monotonic(), 0.1)
+            return process.communicate(timeout=remaining)[0]
+
+        assert communicate_before_deadline(first) == "first"
+        assert communicate_before_deadline(second) == "second"
         assert first.returncode == 0
         assert second.returncode == 0
         assert (
