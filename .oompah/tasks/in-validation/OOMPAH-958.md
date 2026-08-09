@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T16:12:06.373507Z'
+updated_at: '2026-08-09T16:27:40.681101Z'
 work_branch: OOMPAH-958
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-958
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -72,7 +72,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-687568f29e2e
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -85,6 +85,9 @@ oompah.terminal_audit:
       selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
       selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
       candidate_rotation_count: 1
+      failure_classification: scheduler_pause
+      ended_at: '2026-08-09T16:27:33.988740+00:00'
+      failure_reason: operator pause interrupted auditor before verdict
     source_generation: 1
     requested_by:
       version: 1
@@ -94,7 +97,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:12:17.244771+00:00'
     selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
-    updated_at: '2026-08-09T16:11:56.611165+00:00'
+    updated_at: '2026-08-09T16:27:33.988740+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-aa9e85abcb71
@@ -117,7 +120,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-687568f29e2e
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -130,6 +133,9 @@ oompah.terminal_audit:
     selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     candidate_rotation_count: 1
+    failure_classification: scheduler_pause
+    ended_at: '2026-08-09T16:27:33.988740+00:00'
+    failure_reason: operator pause interrupted auditor before verdict
 oompah.task_costs:
   total_input_tokens: 46
   total_output_tokens: 11
@@ -218,5 +224,10 @@ author: oompah
 created: 2026-08-09 16:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 16:27
+---
+Auditor transport/finalization ended before a verdict; the bounded audit retry will preserve candidate capacity.
 ---
 <!-- COMMENTS:END -->
