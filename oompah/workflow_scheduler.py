@@ -342,6 +342,7 @@ class WorkflowJobScheduler:
         snapshot_generation: int | None = None,
         authoritative_project_ids: Sequence[str] | None = None,
         expected_identities: Sequence[tuple[str, str]] | None = None,
+        lifecycle_final_tasks: Sequence[tuple[str, str, str]] = (),
     ) -> WorkflowReconcileResult:
         """Claim and boundedly materialize one globally fenced snapshot."""
 
@@ -374,6 +375,7 @@ class WorkflowJobScheduler:
             record_metrics=False,
             authoritative_project_ids=authoritative,
             expected_identities=membership,
+            lifecycle_final_tasks=lifecycle_final_tasks,
         )
         if not result.snapshot_accepted:
             return result
@@ -398,6 +400,7 @@ class WorkflowJobScheduler:
         record_metrics: bool = True,
         authoritative_project_ids: Sequence[str] | None = None,
         expected_identities: Sequence[tuple[str, str]] | None = None,
+        lifecycle_final_tasks: Sequence[tuple[str, str, str]] = (),
     ) -> WorkflowReconcileResult:
         """Materialize a generation already claimed before evaluation."""
 
@@ -414,6 +417,20 @@ class WorkflowJobScheduler:
             raise ValueError(
                 "authoritative_project_ids and expected_identities must be provided together"
             )
+        final_tasks = tuple(
+            sorted(
+                {
+                    (
+                        str(project_id).strip(),
+                        str(task_id).strip(),
+                        str(status).strip(),
+                    )
+                    for project_id, task_id, status in lifecycle_final_tasks
+                }
+            )
+        )
+        if any(not all(item) for item in final_tasks):
+            raise ValueError("lifecycle_final_tasks must contain non-empty values")
         membership_superseded = 0
         if authoritative_project_ids is not None and expected_identities is not None:
             expected_identity_set = set(expected_identities)
@@ -453,6 +470,13 @@ class WorkflowJobScheduler:
         # remains bounded below, but an unselected changed task's older job can
         # no longer pass the generic claim fence in the interim.
         with self.store.scheduling_batch():
+            for project_id, task_id, status in final_tasks:
+                self.store.record_lifecycle_final_authority(
+                    project_id=project_id,
+                    task_id=task_id,
+                    status=status,
+                    snapshot_generation=generation,
+                )
             for decision in all_decisions:
                 cursor = self.store.activate_schedule(
                     project_id=decision.project_id,
@@ -482,6 +506,17 @@ class WorkflowJobScheduler:
                     snapshot_generation=generation,
                     job_generation=cursor.job_generation,
                     specs=specs,
+                    record_authority_cut=(
+                        decision.reason_code
+                        not in {
+                            "retry.exhausted",
+                            "controller.evaluation_failed",
+                            "evidence.conflicting_task_facts",
+                        }
+                    ),
+                    authority_kind=(
+                        "managed_decision" if specs else "managed_zero_job"
+                    ),
                 )
                 if not write.accepted:
                     stale += 1

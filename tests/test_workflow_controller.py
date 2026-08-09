@@ -176,6 +176,227 @@ def test_exhausted_current_semantic_job_escalates_on_reevaluation(controller):
     assert decision.durable_jobs == ()
 
 
+def test_zero_job_cut_retires_exhaustion_only_after_successful_publish(controller):
+    active = issue("In Progress", identifier="TASK-ZERO-CUT")
+    active_facts = facts_for(
+        active,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY, {}
+            )
+        },
+    )
+    first = controller.full_sync(
+        (active,), facts={active.identifier: active_facts}, now=NOW
+    )
+    assert first.decisions[0].durable_jobs == ("implementation_recovery",)
+    running = controller.store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    exhausted = controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="permanent failure",
+        retryable=False,
+    )
+
+    backlog = issue("Backlog", identifier=active.identifier)
+    backlog_facts = facts_for(backlog)
+    read_only = controller.evaluate(
+        (backlog,), facts={backlog.identifier: backlog_facts}, now=NOW
+    )[0]
+    assert read_only.reason_code == "retry.exhausted"
+
+    generation = controller.begin_scan()
+
+    def fail_persist(_state):
+        raise OSError("publication unavailable")
+
+    with pytest.raises(OSError, match="publication unavailable"):
+        controller.full_sync(
+            (backlog,),
+            facts={backlog.identifier: backlog_facts},
+            now=NOW + timedelta(seconds=1),
+            snapshot_generation=generation,
+            persist_liveness_state=fail_persist,
+        )
+
+    assert controller.store.current_exhausted_jobs(
+        project_id="project-a", task_id=backlog.identifier
+    ) == (exhausted,)
+    assert controller.store.health_snapshot()["current_states"]["exhausted"] == 1
+
+    published = controller.full_sync(
+        (backlog,),
+        facts={backlog.identifier: backlog_facts},
+        now=NOW + timedelta(seconds=2),
+    )
+    assert published.decisions[0].reason_code == "prioritization.awaiting_owner"
+    assert published.decisions[0].durable_jobs == ()
+    assert not controller.store.current_exhausted_jobs(
+        project_id="project-a", task_id=backlog.identifier
+    )
+    assert controller.store.health_snapshot()["current_states"]["exhausted"] == 0
+
+
+def test_same_required_action_keeps_current_exhaustion_actionable(controller):
+    task = issue("In Progress", identifier="TASK-SAME-ACTION")
+    facts = facts_for(
+        task,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY, {}
+            )
+        },
+    )
+    controller.full_sync((task,), facts={task.identifier: facts}, now=NOW)
+    running = controller.store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    exhausted = controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="permanent failure",
+        retryable=False,
+    )
+
+    repeated = controller.full_sync(
+        (task,),
+        facts={task.identifier: facts},
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert repeated.decisions[0].reason_code == "retry.exhausted"
+    assert controller.store.current_exhausted_jobs(
+        project_id="project-a", task_id=task.identifier
+    ) == (exhausted,)
+
+
+def test_action_required_zero_job_cut_retires_unrelated_exhaustion(controller):
+    active = issue("In Progress", identifier="TASK-OPERATOR-CUT")
+    active_facts = facts_for(
+        active,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY, {}
+            )
+        },
+    )
+    controller.full_sync(
+        (active,), facts={active.identifier: active_facts}, now=NOW
+    )
+    running = controller.store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="implementation recovery failed",
+        retryable=False,
+    )
+
+    needs_human = issue("Needs Human", identifier=active.identifier)
+    needs_human_facts = facts_for(needs_human)
+    result = controller.full_sync(
+        (needs_human,),
+        facts={needs_human.identifier: needs_human_facts},
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert result.decisions[0].reason_code == "operator.action_required"
+    assert result.decisions[0].durable_jobs == ()
+    assert not controller.store.current_exhausted_jobs(
+        project_id="project-a", task_id=needs_human.identifier
+    )
+
+
+def test_full_sync_retires_terminal_epic_cleanup_exhaustion(controller):
+    terminal = issue(
+        "Merged",
+        identifier="EPIC-FINAL-CLEANUP",
+        issue_type="epic",
+    )
+    cleanup = controller.store.materialize_event(
+        project_id="project-a",
+        task_id=terminal.identifier,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert cleanup.job is not None
+    running = controller.store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="cleanup failed permanently",
+        retryable=False,
+    )
+    assert len(
+        controller.store.current_exhausted_jobs(
+            project_id="project-a", task_id=terminal.identifier
+        )
+    ) == 1
+
+    result = controller.full_sync(
+        (terminal,), facts={}, now=NOW + timedelta(seconds=1)
+    )
+
+    assert result.decisions == ()
+    assert not controller.store.current_exhausted_jobs(
+        project_id="project-a", task_id=terminal.identifier
+    )
+    assert controller.store.health_snapshot()["current_states"]["exhausted"] == 0
+
+
+def test_conflicting_lifecycle_cut_keeps_exhaustion_actionable(controller):
+    active = issue("In Progress", identifier="TASK-CONFLICTING-FINAL")
+    active_facts = facts_for(
+        active,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY, {}
+            )
+        },
+    )
+    controller.full_sync(
+        (active,), facts={active.identifier: active_facts}, now=NOW
+    )
+    running = controller.store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    exhausted = controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="permanent failure",
+        retryable=False,
+    )
+    terminal = issue("Merged", identifier=active.identifier)
+
+    result = controller.full_sync(
+        (terminal, active),
+        facts={active.identifier: active_facts},
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert result.decisions[0].reason_code == "evidence.conflicting_task_facts"
+    assert controller.store.current_exhausted_jobs(
+        project_id="project-a", task_id=active.identifier
+    ) == (exhausted,)
+
+
 def test_current_exhaustion_survives_revision_drift_and_restart_until_replaced(
     tmp_path,
 ):
@@ -283,6 +504,14 @@ def test_current_exhaustion_survives_revision_drift_and_restart_until_replaced(
         ),
     ).accepted
 
+    recovered = restarted.evaluate(
+        (task,), facts={task.identifier: changed_facts}, now=NOW
+    )[0]
+    assert recovered.reason_code == "retry.exhausted"
+    published, _result = reopened_store.publish_snapshot_generation(
+        replacement_snapshot, lambda: None
+    )
+    assert published
     recovered = restarted.evaluate(
         (task,), facts={task.identifier: changed_facts}, now=NOW
     )[0]

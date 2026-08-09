@@ -407,16 +407,30 @@ def _graph_problem(facts: WorkflowFacts) -> tuple[str, ...] | None:
 
 
 def _stored_retry_exhausted(
-    scheduler: WorkflowJobScheduler, decision: WorkDecision
+    scheduler: WorkflowJobScheduler,
+    decision: WorkDecision,
+    *,
+    prospective_authority_cut: bool,
 ) -> bool:
-    """Check the store's authoritative current exhaustion projection."""
+    """Check exhaustion without letting an unpublished cursor retire it.
 
-    return bool(
-        scheduler.store.current_exhausted_jobs(
-            project_id=decision.project_id,
-            task_id=decision.task_id,
-        )
+    A reconcile pass may prospectively replace exhausted work only when its
+    canonical decision no longer requires that action.  The actual retirement
+    remains invisible until the snapshot and its per-job proofs publish.  A
+    read-only evaluation, or a decision which still needs the exhausted
+    action, stays fail closed.
+    """
+
+    exhausted = scheduler.store.current_exhausted_jobs(
+        project_id=decision.project_id,
+        task_id=decision.task_id,
     )
+    if not exhausted:
+        return False
+    if not prospective_authority_cut:
+        return True
+    required = set(decision.durable_jobs)
+    return bool(required and any(job.action in required for job in exhausted))
 
 
 def _replace(
@@ -565,6 +579,7 @@ class UniversalTotalityLivenessController:
         cycles: set[tuple[str, str]],
         now: datetime,
         policy: LivenessPolicy,
+        prospective_authority_cut: bool,
     ) -> WorkDecision:
         decision = evaluate_task(
             task,
@@ -630,7 +645,11 @@ class UniversalTotalityLivenessController:
                 alert=AlertSeverity.CRITICAL,
             )
 
-        if _stored_retry_exhausted(self.scheduler, decision) or (
+        if _stored_retry_exhausted(
+            self.scheduler,
+            decision,
+            prospective_authority_cut=prospective_authority_cut,
+        ) or (
             decision.durable_jobs
             and _retry_exhausted(facts, self.max_attempts)
         ):
@@ -789,6 +808,7 @@ class UniversalTotalityLivenessController:
                     cycles=cycles,
                     now=current,
                     policy=policy,
+                    prospective_authority_cut=(snapshot_generation is not None),
                 )
             except Exception:
                 # A collector or malformed snapshot cannot make a task vanish
@@ -928,6 +948,14 @@ class UniversalTotalityLivenessController:
         if current.tzinfo is None:
             raise ValueError("now must include a timezone")
         current = current.astimezone(timezone.utc)
+        all_task_identities = tuple(
+            sorted({_task_identity(task) for task in tasks})
+        )
+        statuses_by_identity: dict[tuple[str, str], set[str]] = {}
+        for task in tasks:
+            statuses_by_identity.setdefault(_task_identity(task), set()).add(
+                _task_status(task)
+            )
         expected_identities = tuple(
             sorted(
                 {
@@ -964,6 +992,23 @@ class UniversalTotalityLivenessController:
             authoritative_projects = tuple(
                 sorted(task_projects - set(source_errors or {}))
             )
+        lifecycle_final_tasks = tuple(
+            sorted(
+                (
+                    *identity,
+                    next(iter(statuses)),
+                )
+                for identity, statuses in statuses_by_identity.items()
+                if len(statuses) == 1
+                and next(iter(statuses)) in LIFECYCLE_FINAL_STATUSES
+                and identity[0] in authoritative_projects
+            )
+        )
+        authority_identities = tuple(
+            identity
+            for identity in all_task_identities
+            if identity[0] in authoritative_projects
+        )
         membership_identities = tuple(
             identity
             for identity in expected_identities
@@ -1013,7 +1058,7 @@ class UniversalTotalityLivenessController:
                     authoritative_project_ids=(
                         authoritative_projects if authority_is_project_wide else ()
                     ),
-                    evaluated_identities=expected_identities,
+                    evaluated_identities=authority_identities,
                     full_project_scope=authority_is_project_wide,
                 )
                 try:
@@ -1026,6 +1071,9 @@ class UniversalTotalityLivenessController:
                         ),
                         expected_identities=(
                             membership_identities if full_coverage else None
+                        ),
+                        lifecycle_final_tasks=(
+                            lifecycle_final_tasks if full_coverage else ()
                         ),
                     )
                 except Exception:

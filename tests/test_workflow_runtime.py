@@ -54,6 +54,7 @@ from oompah.task_transition_service import (
 )
 from oompah.terminal_audit_workflow import TerminalAuditWorkflow
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
+from oompah.workflow_fact_model import LandingFact
 from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
@@ -3217,6 +3218,169 @@ def test_canonical_projection_excludes_terminal_domain_maintenance(tmp_path):
         (item["project_id"], item["task_id"])
         for item in runtime.projections()
     }
+    runtime.close()
+    store.close()
+
+
+def test_runtime_publishes_lifecycle_final_exhaustion_authority(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    terminal = make_issue(
+        "EPIC-FINAL-CLEANUP",
+        state="Merged",
+        issue_type="epic",
+    )
+    cleanup = store.materialize_event(
+        project_id="project-1",
+        task_id=terminal.identifier,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert cleanup.job is not None
+    running = store.claim_next(
+        lease_owner="failed-worker",
+        lease_seconds=30,
+        task_id=terminal.identifier,
+    )
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="cleanup failed permanently",
+        retryable=False,
+    )
+
+    tracker = NativeTracker([terminal])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["snapshot"]["published"]
+    assert not store.current_exhausted_jobs(
+        project_id="project-1", task_id=terminal.identifier
+    )
+    assert store.health_snapshot()["current_states"]["exhausted"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_runtime_publishes_done_zero_job_exhaustion_authority(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    project_id = "project-1"
+    task_id = "TASK-DONE-WAITING"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="landing-refresh-required",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="runtime:landing-refresh",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = store.claim_next(
+        lease_owner="failed-worker",
+        lease_seconds=30,
+        task_id=task_id,
+    )
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="refresh failed permanently",
+        retryable=False,
+    )
+
+    done = make_issue(task_id, state="Done")
+    done.integration = IntegrationRecord(
+        state="integrated",
+        task_branch=task_id,
+        base_branch="main",
+        head_sha="a" * 40,
+        integrated_sha="a" * 40,
+    )
+
+    class NotLandedCollector:
+        project_id = "project-1"
+
+        def collect_many(self, requests):
+            return tuple(
+                LandingFact(
+                    request.source,
+                    request.target,
+                    request.revision,
+                    {
+                        "kind": "not_ancestor",
+                        "source_sha": request.revision,
+                    },
+                    "2026-08-09T00:00:00+00:00",
+                    project_id,
+                    state=LandingState.NOT_LANDED,
+                )
+                for request in requests
+            )
+
+    tracker = NativeTracker([done])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.collector.landing_collector = NotLandedCollector()
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={project_id: binding},
+        store=store,
+        journals={project_id: journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"][project_id]["snapshot"]["published"]
+    assert runtime.projections()[0]["reason_code"] == "landing.waiting"
+    assert not store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+    retirement = store._conn.execute(  # noqa: SLF001 - exact authority proof
+        "SELECT authority_kind FROM workflow_job_retirements WHERE job_id = ?",
+        (running.job_id,),
+    ).fetchone()
+    assert retirement is not None
+    assert retirement["authority_kind"] == "managed_zero_job"
     runtime.close()
     store.close()
 
