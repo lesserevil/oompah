@@ -77,6 +77,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
     WorkflowRunDisposition,
+    WorkflowRunResult,
 )
 from oompah.work_decision import evaluate_task
 from oompah.work_decision_projection import (
@@ -1598,7 +1599,10 @@ def test_done_effect_remains_retained_until_completion_callback_settles(tmp_path
     store.close()
 
 
-def test_fast_admission_cannot_observe_idle_before_callback_settlement(tmp_path):
+@pytest.mark.parametrize("settles_during_admission", (False, True))
+def test_fast_admission_cannot_observe_idle_before_callback_settlement(
+    tmp_path, settles_during_admission
+):
     """A ready continuation cannot pass a completed callback in the same loop."""
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
@@ -1607,12 +1611,6 @@ def test_fast_admission_cannot_observe_idle_before_callback_settlement(tmp_path)
     effect_entered = asyncio.Event()
     release_effect = asyncio.Event()
     continuation_waiting = asyncio.Event()
-
-    class FencedHandler(CompleteHandler):
-        async def apply(self, context):
-            effect_entered.set()
-            await release_effect.wait()
-            return await super().apply(context)
 
     store.enqueue(
         WorkflowJobSpec(
@@ -1628,12 +1626,34 @@ def test_fast_admission_cannot_observe_idle_before_callback_settlement(tmp_path)
         store=store,
         journals={"project-1": journal},
         mode="enforce",
-        handlers=complete_handlers(FencedHandler()),
+        handlers=complete_handlers(),
+        max_concurrent=4 if settles_during_admission else 2,
+        control_reserved_slots=1,
     )
+
+    async def execute_immediately_after_release(job):
+        effect_entered.set()
+        await release_effect.wait()
+        completed = store.complete(job.job_id, str(job.lease_token or ""))
+        return WorkflowRunResult(
+            WorkflowRunDisposition.COMPLETED,
+            completed.job_id,
+            completed.state,
+            "completed in callback-gap proof",
+            completed.attempts,
+        )
+
+    runtime.worker.execute_claimed = execute_immediately_after_release
+
+    async def no_yield_claim(**_kwargs):
+        return None
 
     async def continue_after_release():
         continuation_waiting.set()
         await release_effect.wait()
+        retained_task = next(iter(runtime._effect_tasks))
+        assert retained_task.done()
+        assert not runtime._effect_results
         return await runtime.continue_admission_async()
 
     async def exercise():
@@ -1644,6 +1664,8 @@ def test_fast_admission_cannot_observe_idle_before_callback_settlement(tmp_path)
         await runtime.start()
         first = await runtime.reconcile_async()
         await asyncio.wait_for(effect_entered.wait(), 1)
+        if not settles_during_admission:
+            runtime.worker.claim_next = no_yield_claim
         continuation = asyncio.create_task(continue_after_release())
         await asyncio.wait_for(continuation_waiting.wait(), 1)
         release_effect.set()
@@ -1655,15 +1677,21 @@ def test_fast_admission_cannot_observe_idle_before_callback_settlement(tmp_path)
     first, gap, settled = asyncio.run(exercise())
 
     assert first["worker"]["scheduled"] == 1
-    assert gap["worker"]["completed"] == 0
+    assert gap["worker"]["completed"] == int(settles_during_admission)
     assert gap["worker"]["scheduled"] == 0
-    assert gap["worker"]["active"] == 1
-    assert gap["worker"]["active_lanes"] == {"control": 0, "shared": 1}
-    assert gap["requires_reconcile"] is False
-    assert settled["worker"]["completed"] == 1
+    assert gap["worker"]["active"] == int(not settles_during_admission)
+    assert gap["worker"]["active_lanes"] == {
+        "control": 0,
+        "shared": int(not settles_during_admission),
+    }
+    assert gap["requires_reconcile"] is settles_during_admission
+    assert settled["worker"]["completed"] == int(not settles_during_admission)
     assert settled["worker"]["active"] == 0
-    assert settled["requires_reconcile"] is True
-    assert settled["reconcile_reason"] == "published_queue_drained"
+    assert settled["requires_reconcile"] is (not settles_during_admission)
+    if settles_during_admission:
+        assert gap["reconcile_reason"] == "published_queue_drained"
+    else:
+        assert settled["reconcile_reason"] == "published_queue_drained"
     runtime.close()
     store.close()
 
