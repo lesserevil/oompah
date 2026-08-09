@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T20:59:18.475816Z'
-updated_at: '2026-08-08T22:32:15.529958Z'
+updated_at: '2026-08-09T05:13:09.827554Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-08-08 22:32
 ---
 Exact candidate ce8b839811c2f0ff297179278aa3aa6171c5705b passed the complete repository gate: 18,805 passed, 7 skipped, 2 xfailed, 43 warnings in 1203.07s. Focused shutdown/runtime coverage also passed (148 tests). Proceeding to staged live rollout; main remains unchanged until rollout acceptance completes.
+---
+author: oompah
+created: 2026-08-09 05:13
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
