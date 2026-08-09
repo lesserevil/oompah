@@ -17,6 +17,7 @@ from oompah.integration_executor import IntegrationExecutionResult
 from oompah.integration_workflow import (
     INTEGRATION_ACTIONS,
     IntegrationActionHandler,
+    IntegrationLandingRequestResolver,
     OrchestratorIntegrationActionBackend,
     IntegrationRoute,
     IntegrationWorkflowController,
@@ -35,7 +36,12 @@ from oompah.workflow_facts import (
     LandingState,
     WorkflowFactCollector,
 )
-from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobSpec,
+    WorkflowJobState,
+    WorkflowJobStore,
+)
 from oompah.work_decision import evaluate_task
 from oompah.workflow_worker import (
     DurableWorkflowWorker,
@@ -1666,12 +1672,15 @@ async def test_peer_coordination_replays_before_integrated_metadata(tmp_path):
         ),
     )
     queued = queue.get("project-1", "TASK-A")
-    assert queue.finish_task_generation(
-        "project-1",
-        "TASK-A",
-        expected_generation=queued.authority_generation(),
-        state="integrated",
-    ) is not None
+    assert (
+        queue.finish_task_generation(
+            "project-1",
+            "TASK-A",
+            expected_generation=queued.authority_generation(),
+            state="integrated",
+        )
+        is not None
+    )
     current = queue.get("project-1", "TASK-A")
     context.job.checkpoint["revalidation"]["details"][
         "integration_queue_generation"
@@ -2758,6 +2767,355 @@ def collector(tracker, landing_collector=None):
             FactDomain.CONFIG: lambda _: {"version": 1},
         },
     )
+
+
+class UnavailableLandingCollector:
+    def __init__(self):
+        self.project_id = "project-1"
+        self.requests = []
+
+    def collect_many(self, requests):
+        self.requests.extend(requests)
+        return tuple(
+            LandingFact(
+                request.source,
+                request.target,
+                request.revision,
+                {"kind": "target_unavailable"},
+                "2026-08-09T00:00:00+00:00",
+                "project-1",
+                state=LandingState.UNKNOWN,
+                error_code="target_unavailable",
+            )
+            for request in requests
+        )
+
+
+def integrated_queue_row(queue, task, *, parent_id, base_branch=None):
+    queued = queue.enqueue(
+        project_id="project-1",
+        epic_id=parent_id,
+        task_id=task.identifier,
+        task_branch=task.identifier,
+        head_sha="a" * 40,
+        base_branch=base_branch,
+    )
+    integrated = queue.finish_task_generation(
+        "project-1",
+        task.identifier,
+        expected_generation=queued.authority_generation(),
+        state="integrated",
+    )
+    assert integrated is not None
+    return integrated
+
+
+def test_legacy_done_child_uses_queue_revision_and_immediate_parent_target(tmp_path):
+    task = issue("TASK-A", state="integrated", head="a" * 40)
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.target_branch = "main"
+    task.integration = None
+    parent = issue("E-1")
+    parent.work_branch = "epic/E-ROOT--task-E-1"
+    tracker = Tracker([task, parent])
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    integrated_queue_row(queue, task, parent_id="E-1")
+    landing_collector = UnavailableLandingCollector()
+    jobs = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+    )
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, landing_collector),
+        store=jobs,
+        landing_request_resolver=resolver,
+    )
+
+    batch = controller.evaluate([task])
+    request = batch.tasks[0].landing_requests[0]
+
+    assert (request.source, request.target, request.revision) == (
+        "TASK-A",
+        "epic/E-ROOT--task-E-1",
+        "a" * 40,
+    )
+    assert request.authoritative_target
+    assert request.trusted_target_revision is None
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=SimpleNamespace(
+                get=lambda _project_id: SimpleNamespace(default_branch="main"),
+                epic_branch_name=lambda epic_id: f"epic/{epic_id}",
+            ),
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=controller.collector,
+            integration_controller=controller,
+        ),
+    )
+    assert backend._landing_request(task) == (request,)
+    jobs.close()
+    queue.close()
+
+
+def test_deleted_parent_ref_uses_final_exact_head_for_full_patch_proof(tmp_path):
+    git(tmp_path, "init", "-b", "main")
+    (tmp_path / "value.txt").write_text("base\n")
+    git(tmp_path, "add", "value.txt")
+    git(tmp_path, "commit", "-m", "base")
+    git(tmp_path, "checkout", "-b", "legacy-child")
+    (tmp_path / "value.txt").write_text("legacy child\n")
+    git(tmp_path, "commit", "-am", "legacy child")
+    child_head = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "checkout", "main")
+    (tmp_path / "parent.txt").write_text("parent-only history\n")
+    git(tmp_path, "add", "parent.txt")
+    git(tmp_path, "commit", "-m", "parent-only history")
+    git(tmp_path, "cherry-pick", child_head)
+    parent_head = git(tmp_path, "rev-parse", "HEAD")
+    # Neither mutable legacy ref survives, but both exact objects do.
+    git(tmp_path, "branch", "-D", "legacy-child")
+
+    task = issue("TASK-A", state="integrated", head=child_head)
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.target_branch = None
+    task.work_branch = "legacy-child"
+    task.integration = IntegrationRecord(
+        state="working",
+        task_branch="legacy-child",
+        base_branch="epic/E-1",
+    )
+    parent = issue("E-1")
+    parent.state = "Merged"
+    parent.work_branch = "epic/E-1"
+    parent.integration = IntegrationRecord(
+        state="ready",
+        task_branch="E-1",
+        head_sha=parent_head,
+    )
+    tracker = Tracker([task, parent])
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    queued = queue.enqueue(
+        project_id="project-1",
+        epic_id="E-1",
+        task_id="TASK-A",
+        task_branch="legacy-child",
+        head_sha=child_head,
+    )
+    assert (
+        queue.finish_task_generation(
+            "project-1",
+            "TASK-A",
+            expected_generation=queued.authority_generation(),
+            state="integrated",
+        )
+        is not None
+    )
+
+    def missing_remote_target(_target):
+        raise RuntimeError("pruned target ref")
+
+    landing_collector = GitLandingCollector(
+        tmp_path,
+        project_id="project-1",
+        target_refresher=missing_remote_target,
+    )
+    jobs = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+    )
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, landing_collector),
+        store=jobs,
+        landing_request_resolver=resolver,
+    )
+
+    batch = controller.evaluate([task])
+
+    request = batch.tasks[0].landing_requests[0]
+    landing = batch.tasks[0].facts.landings[0]
+    assert request.trusted_target_revision == parent_head
+    assert (request.source, request.target, request.revision) == (
+        "legacy-child",
+        "epic/E-1",
+        child_head,
+    )
+    assert landing.state is LandingState.LANDED
+    assert landing.proof["kind"] == "patch_id"
+    assert landing.proof["patches"] == 1
+    assert landing.proof["target_sha"] == parent_head
+    assert batch.tasks[0].decision.reason_code == (
+        "terminal.immediate_target_landing_proven"
+    )
+    assert batch.tasks[0].decision.durable_jobs == ("parent_rollup_review",)
+
+    unavailable = landing_collector.collect(
+        replace(request, trusted_target_revision="f" * 40)
+    )
+    assert unavailable.state is LandingState.UNKNOWN
+    assert unavailable.proof["kind"] == "target_unavailable"
+
+    git(tmp_path, "checkout", "-b", "unmatched-child", child_head)
+    (tmp_path / "unmatched.txt").write_text("not in the accepted parent\n")
+    git(tmp_path, "add", "unmatched.txt")
+    git(tmp_path, "commit", "-m", "unmatched child patch")
+    unmatched_head = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "branch", "-D", "unmatched-child")
+    unmatched = landing_collector.collect(
+        LandingRequest(
+            "unmatched-child",
+            "epic/E-1",
+            unmatched_head,
+            authoritative_target=True,
+            trusted_target_revision=parent_head,
+        )
+    )
+    assert unmatched.state is LandingState.NOT_LANDED
+    assert unmatched.proof["kind"] == "not_ancestor"
+    jobs.close()
+    queue.close()
+
+
+def test_legacy_landing_target_precedence_and_unparented_default(tmp_path):
+    task = issue("TASK-A", state="integrated", head="b" * 40)
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.integration = replace(task.integration, base_branch=None)
+    parent = issue("E-1")
+    parent.work_branch = "epic/E-1"
+    tracker = Tracker([task, parent])
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    integrated_queue_row(
+        queue,
+        task,
+        parent_id="E-1",
+        base_branch="queue/E-1",
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"canonical/{epic_id}"
+        ),
+        project_default_branch="release",
+    )
+
+    request = resolver(task)[0]
+
+    assert (request.source, request.target, request.revision) == (
+        "TASK-A",
+        "queue/E-1",
+        "b" * 40,
+    )
+    standalone = issue("TASK-S", state="integrated", head="c" * 40)
+    standalone.parent_id = None
+    standalone.target_branch = None
+    standalone.integration = replace(standalone.integration, base_branch=None)
+    standalone_request = resolver(standalone)[0]
+    assert standalone_request.target == "release"
+    canonical_child = issue("TASK-C", state="integrated", head="c" * 40)
+    canonical_child.parent_id = "E-2"
+    canonical_child.integration = replace(canonical_child.integration, base_branch=None)
+    canonical_parent = issue("E-2")
+    canonical_parent.work_branch = None
+    tracker.issues[canonical_child.identifier] = canonical_child
+    tracker.issues[canonical_parent.identifier] = canonical_parent
+    canonical_request = resolver(canonical_child)[0]
+    assert canonical_request.target == "canonical/E-2"
+    queue.close()
+
+
+def test_corrected_landing_generation_replaces_exhaustion_across_restart(tmp_path):
+    database = tmp_path / "workflow.sqlite3"
+    task = issue("TASK-A", state="integrated", head="a" * 40)
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.integration = replace(task.integration, base_branch=None)
+    parent = issue("E-1")
+    parent.work_branch = "epic/E-1"
+    tracker = Tracker([task, parent])
+
+    def legacy_request(issue, *, include_ready=False):
+        if issue.integration.state != "integrated" and not include_ready:
+            return ()
+        return (
+            LandingRequest(
+                issue.integration.task_branch,
+                issue.target_branch,
+                issue.integration.integrated_sha or issue.integration.head_sha,
+                authoritative_target=True,
+            ),
+        )
+
+    store = WorkflowJobStore(str(database))
+    old_controller = IntegrationWorkflowController(
+        collector=collector(tracker, UnavailableLandingCollector()),
+        store=store,
+        landing_request_resolver=legacy_request,
+    )
+    old_batch, old_scheduled = old_controller.reconcile([task])
+    assert old_batch.tasks[0].landing_requests[0].target == "main"
+    assert old_scheduled.jobs_created == 1
+    running = store.claim_next(lease_owner="test", lease_seconds=30)
+    assert running is not None
+    exhausted = store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="wrong legacy target exhausted",
+        retryable=False,
+    )
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
+    store.close()
+
+    reopened = WorkflowJobStore(str(database))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+    )
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, UnavailableLandingCollector()),
+        store=reopened,
+        landing_request_resolver=resolver,
+    )
+    new_batch, replacement = controller.reconcile([task])
+
+    assert new_batch.tasks[0].landing_requests[0].target == "epic/E-1"
+    assert replacement.jobs_created == 1
+    assert len(reopened.list_jobs(task_id="TASK-A")) == 2
+    assert reopened.get(exhausted.job_id).state is WorkflowJobState.EXHAUSTED
+    health = reopened.health_snapshot()
+    assert health["states"]["exhausted"] == 1
+    assert health["current_states"]["exhausted"] == 0
+
+    _batch, replay = controller.reconcile([task])
+    assert replay.jobs_created == 0
+    assert len(reopened.list_jobs(task_id="TASK-A")) == 2
+    reopened.close()
 
 
 @pytest.mark.parametrize(

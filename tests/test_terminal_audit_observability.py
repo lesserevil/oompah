@@ -827,12 +827,14 @@ def test_partial_health_scan_keeps_one_generation_of_facts_and_alerts(
 
 
 @pytest.mark.asyncio
-async def test_audit_launch_publishes_in_progress_health_observation(
+async def test_paused_audit_is_suspended_then_resume_restores_dispatch(
     tmp_path: Path,
 ) -> None:
-    """The launch fence replaces the pre-launch pending health snapshot."""
+    """Periodic health retains paused work and resume admits its launch."""
     project_store = MagicMock()
     project_store.list_all.return_value = []
+    project = SimpleNamespace(paused=True)
+    project_store.get.return_value = project
     orchestrator = Orchestrator(
         ServiceConfig(
             workspace_root=str(tmp_path / "workspace"),
@@ -888,7 +890,9 @@ async def test_audit_launch_publishes_in_progress_health_observation(
             patch.object(
                 orchestrator,
                 "_available_slots",
-                side_effect=lambda: 0 if launch_state["completed"] else 1,
+                side_effect=lambda: (
+                    0 if project.paused or launch_state["completed"] else 1
+                ),
             ),
             patch.object(
                 orchestrator,
@@ -927,7 +931,27 @@ async def test_audit_launch_publishes_in_progress_health_observation(
                 new=AsyncMock(side_effect=_mark_launched),
             ),
         ):
+            paused_result = await orchestrator._dispatch_audit_lane()
+
+            assert paused_result["audit_dispatch"] >= 0
+            assert orchestrator._audit_metrics["last_dispatched_count"] == 0
+            assert store.read.call_count == 1
+            assert orchestrator._audit_health.suspended_count == 1
+            assert orchestrator._audit_health.suspended_project_ids == (
+                "project-a",
+            )
+            assert orchestrator._audit_health.pending_count == 0
+            assert orchestrator._audit_health.stale_pending_count == 0
+            assert orchestrator._audit_health.degraded is False
+            assert not orchestrator._alerts
+            assert orchestrator._prepare_audit_selector.await_count == 0
+            assert orchestrator._dispatch.await_count == 0
+
+            project.paused = False
             result = await orchestrator._dispatch_audit_lane()
+
+            assert orchestrator._prepare_audit_selector.await_count == 1
+            assert orchestrator._dispatch.await_count == 1
 
         assert result["audit_dispatch"] >= 0
         assert launch_state["completed"] is True

@@ -638,6 +638,12 @@ def test_active_replacement_hides_historical_exhaustion_across_restart(
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 1
     assert health["current_states"]["exhausted"] == 1
+    assert [
+        job.job_id
+        for job in store.current_exhausted_jobs(
+            project_id="project-1", task_id="TASK-1"
+        )
+    ] == [failed.job.job_id]
 
     replacement = store.materialize_event(
         project_id="project-1",
@@ -657,6 +663,9 @@ def test_active_replacement_hides_historical_exhaustion_across_restart(
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 1
     assert health["current_states"]["exhausted"] == 0
+    assert not store.current_exhausted_jobs(
+        project_id="project-1", task_id="TASK-1"
+    )
     jobs_before_restart = store.list_jobs(task_id="TASK-1")
     store.close()
 
@@ -681,6 +690,9 @@ def test_active_replacement_hides_historical_exhaustion_across_restart(
     health = reopened.health_snapshot()
     assert health["states"]["exhausted"] == 1
     assert health["current_states"]["exhausted"] == 0
+    assert not reopened.current_exhausted_jobs(
+        project_id="project-1", task_id="TASK-1"
+    )
     reopened.close()
 
 
@@ -733,6 +745,12 @@ def test_replacement_exhaustion_is_current_health(store):
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 2
     assert health["current_states"]["exhausted"] == 1
+    assert [
+        job.job_id
+        for job in store.current_exhausted_jobs(
+            project_id="project-1", task_id="TASK-1"
+        )
+    ] == [replacement.job.job_id]
 
 
 def test_stale_later_lane_enqueue_does_not_hide_current_exhaustion(store):
@@ -849,6 +867,11 @@ def test_managed_cursor_hides_exhaustion_only_after_materialization(store):
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 1
     assert health["current_states"]["exhausted"] == 1
+    assert len(
+        store.current_exhausted_jobs(
+            project_id=project_id, task_id=task_id
+        )
+    ) == 1
 
     second_snapshot = store.allocate_snapshot_generation()
     assert store.accept_snapshot_generation(second_snapshot)
@@ -862,6 +885,11 @@ def test_managed_cursor_hides_exhaustion_only_after_materialization(store):
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 1
     assert health["current_states"]["exhausted"] == 1
+    assert len(
+        store.current_exhausted_jobs(
+            project_id=project_id, task_id=task_id
+        )
+    ) == 1
 
     second_write = store.reconcile_schedule(
         project_id=project_id,
@@ -873,7 +901,7 @@ def test_managed_cursor_hides_exhaustion_only_after_materialization(store):
                 project_id=project_id,
                 task_id=task_id,
                 generation=second_cursor.job_generation,
-                action="implementation_retry",
+                action="parent_rollup_review",
                 idempotency_key="managed:second",
             ),
         ),
@@ -885,6 +913,153 @@ def test_managed_cursor_hides_exhaustion_only_after_materialization(store):
     health = store.health_snapshot()
     assert health["states"]["exhausted"] == 1
     assert health["current_states"]["exhausted"] == 0
+    assert not store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+
+
+def test_managed_zero_job_or_retired_replacement_fails_closed(store):
+    project_id = "project-1"
+    task_id = "TASK-AMBIGUOUS"
+    first_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first_snapshot)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first_snapshot,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    first_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-1",
+        snapshot_generation=first_snapshot,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first_snapshot,
+        job_generation=first_cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=first_cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="managed:ambiguous:first",
+            ),
+        ),
+    ).accepted
+    published, _result = store.publish_snapshot_generation(
+        first_snapshot, lambda: None
+    )
+    assert published
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    failed = store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    second_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second_snapshot)
+    second_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-2",
+        snapshot_generation=second_snapshot,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=second_snapshot,
+        job_generation=second_cursor.job_generation,
+        specs=(),
+    ).accepted
+
+    assert store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    ) == (failed,)
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
+
+    third_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(third_snapshot)
+    third_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-3",
+        snapshot_generation=third_snapshot,
+    )
+    third_write = store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=third_snapshot,
+        job_generation=third_cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=third_cursor.job_generation,
+                action="parent_rollup_review",
+                idempotency_key="managed:ambiguous:third",
+            ),
+        ),
+    )
+    assert third_write.accepted
+    replacement = next(
+        job
+        for job in store.list_jobs(task_id=task_id)
+        if job.generation == third_cursor.job_generation
+    )
+    store.cancel(
+        replacement.job_id,
+        generation=replacement.generation,
+        reason="replacement retired before recovery",
+    )
+
+    assert store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    ) == (failed,)
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
+
+
+def test_missing_event_cursor_generation_fails_closed(store):
+    write = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-AMBIGUOUS",
+        decision_revision="event-1",
+        action="implementation_retry",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation:fact",
+        ordering_namespace="implementation-ordering",
+        source_generation=1,
+        source_revision="source-1",
+    )
+    assert write.job is not None
+    running = claim(store, task_id="TASK-AMBIGUOUS")
+    assert running is not None
+    failed = store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    store._conn.execute(  # noqa: SLF001 - simulate persisted partial authority
+        """
+        UPDATE workflow_event_cursors
+           SET event_generation = 'missing-generation'
+         WHERE project_id = 'project-1' AND task_id = 'TASK-AMBIGUOUS'
+        """
+    )
+    store._conn.commit()  # noqa: SLF001
+
+    assert store.current_exhausted_jobs(
+        project_id="project-1", task_id="TASK-AMBIGUOUS"
+    ) == (failed,)
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
 
 
 def test_unowned_exhaustion_remains_current_health(store):

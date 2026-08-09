@@ -18,7 +18,10 @@ from oompah.work_decision import (
     UnmetPrerequisite,
     WorkDecision,
 )
-from oompah.work_decision_projection import project_work_decision
+from oompah.work_decision_projection import (
+    project_work_decision,
+    work_decision_alert,
+)
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.workflow_reasons import AlertSeverity
 
@@ -137,6 +140,57 @@ def test_work_decision_endpoint_is_authenticated_and_matches_ui_projection(
     assert server_module._work_decision_for_task(
         orch, issue.project_id, issue.identifier, issue
     ) == decision
+
+
+def test_state_api_projects_current_exhaustion_as_actionable_alert(
+    monkeypatch,
+) -> None:
+    base = _decision(reason="implementation.recovery_scheduled")
+    exhausted = WorkDecision(
+        **{
+            **base.to_dict(),
+            "disposition": TaskDisposition.ACTION_REQUIRED,
+            "reason_code": "retry.exhausted",
+            "responsible_owner": WorkflowOwner.OPERATOR,
+            "unmet_prerequisites": (
+                UnmetPrerequisite("retry.exhausted", "TASK-1"),
+            ),
+            "permitted_actions": (
+                PermittedAction.RESOLVE_OPERATOR_ACTION,
+            ),
+            "action_required": True,
+            "alert_level": AlertSeverity.CRITICAL,
+            "durable_jobs": (),
+            "decision_revision": None,
+        }
+    )
+    projection = project_work_decision(exhausted)
+    alert = work_decision_alert(exhausted)
+    assert alert is not None
+    snapshot = {
+        "workflow_jobs": {"current_states": {"exhausted": 1}},
+        "workflow_projections": [projection],
+        "work_decisions": [projection],
+        "work_decision_projection": {"items": [projection]},
+        "alerts": [alert],
+    }
+    ipc = MagicMock()
+    ipc.read_state.return_value = (snapshot, 1)
+    monkeypatch.setattr(server_module, "_orchestrator", None)
+    monkeypatch.setattr(server_module, "_ipc", ipc)
+    monkeypatch.setattr(server_module, "_http_credentials", None)
+
+    response = TestClient(
+        server_module.app, raise_server_exceptions=False
+    ).get("/api/v1/state")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workflow_jobs"]["current_states"]["exhausted"] == 1
+    assert payload["workflow_projections"][0]["reason_code"] == "retry.exhausted"
+    assert payload["workflow_projections"][0]["action_required"] is True
+    assert payload["global_alerts"][0]["task_id"] == "TASK-1"
+    assert payload["global_alerts"][0]["reason_code"] == "retry.exhausted"
 
 
 def test_work_decision_endpoint_never_serializes_secret_evidence(monkeypatch) -> None:

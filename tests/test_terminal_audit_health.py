@@ -78,6 +78,8 @@ def _obs(
     issue_created_at: datetime | None = None,
     quarantined: bool = False,
     finalization_failure_count: int = 0,
+    configuration_error: bool = False,
+    suspended: bool = False,
 ) -> AuditHealthObservation:
     return AuditHealthObservation(
         project_id=project_id,
@@ -86,6 +88,8 @@ def _obs(
         record=record,
         quarantined=quarantined,
         finalization_failure_count=finalization_failure_count,
+        configuration_error=configuration_error,
+        suspended=suspended,
     )
 
 
@@ -139,6 +143,8 @@ class TestEmptyBacklog:
             "retry_exhausted_count",
             "transport_retry_pending_count",
             "quarantined_count",
+            "suspended_count",
+            "suspended_project_ids",
             "stale_after_seconds",
             "scan_complete",
             "scan_error_count",
@@ -156,6 +162,47 @@ class TestEmptyBacklog:
         alerts = terminal_audit_health_alerts(health)
         sources = [a["source"] for a in alerts]
         assert HEALTH_ALERT_PREFIX + "scan" in sources
+
+
+class TestSuspendedBacklog:
+    def test_suspended_project_is_visible_but_not_degraded(self):
+        """Paused work remains discoverable without acting like live backlog."""
+        failed = _attempt(
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+        )
+        record = _record(attempts=[failed])
+        observation = _obs(
+            record,
+            quarantined=True,
+            finalization_failure_count=2,
+            configuration_error=True,
+            suspended=True,
+        )
+
+        health = build_terminal_audit_health(
+            [observation],
+            now=NOW + timedelta(days=1),
+            stale_after_seconds=60,
+        )
+
+        assert health.suspended_count == 1
+        assert health.suspended_project_ids == ("project-1",)
+        assert health.projects == {"project-1": {"suspended_count": 1}}
+        assert health.pending_count == 0
+        assert health.in_progress_count == 0
+        assert health.stale_pending_count == 0
+        assert health.failure_count == 0
+        assert health.configuration_error_count == 0
+        assert health.finalization_failure_count == 0
+        assert health.quarantined_count == 0
+        assert not health.degraded
+        assert terminal_audit_health_alerts(health) == []
+
+        restored = TerminalAuditHealth.from_dict(health.to_dict())
+        assert restored.suspended_count == 1
+        assert restored.suspended_project_ids == ("project-1",)
+        assert restored.projects == health.projects
 
 
 # ---------------------------------------------------------------------------

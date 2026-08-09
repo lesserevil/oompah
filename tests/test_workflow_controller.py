@@ -30,6 +30,7 @@ from oompah.workflow_facts import (
 )
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
+    WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
     WorkflowJobStoreError,
@@ -173,6 +174,125 @@ def test_exhausted_current_semantic_job_escalates_on_reevaluation(controller):
     assert decision.disposition is TaskDisposition.ACTION_REQUIRED
     assert decision.reason_code == "retry.exhausted"
     assert decision.durable_jobs == ()
+
+
+def test_current_exhaustion_survives_revision_drift_and_restart_until_replaced(
+    tmp_path,
+):
+    database = tmp_path / "controller-restart.sqlite3"
+    task = issue("In Progress", identifier="TASK-EXHAUSTED-DRIFT")
+    initial_facts = facts_for(
+        task,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY, {}
+            ),
+            FactDomain.CONFIG: known(FactDomain.CONFIG, {"revision": 1}),
+        },
+    )
+    changed_facts = facts_for(
+        task,
+        at=(NOW + timedelta(seconds=1)).isoformat(),
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {},
+                at=(NOW + timedelta(seconds=1)).isoformat(),
+            ),
+            FactDomain.CONFIG: known(
+                FactDomain.CONFIG,
+                {"revision": 2},
+                at=(NOW + timedelta(seconds=1)).isoformat(),
+            ),
+        },
+    )
+    assert changed_facts.facts_version != initial_facts.facts_version
+
+    store = WorkflowJobStore(str(database))
+    first_controller = UniversalTotalityLivenessController(
+        store=store, decision_limit=100, clock=lambda: NOW
+    )
+    first = first_controller.full_sync(
+        (task,), facts={task.identifier: initial_facts}, now=NOW
+    )
+    first_cursor = store.schedule_cursor(
+        project_id="project-a", task_id=task.identifier
+    )
+    assert first_cursor is not None
+    assert first_cursor.decision_revision == (
+        first_controller.scheduler.decision_revision(first.decisions[0])
+    )
+    running = store.claim_next(
+        lease_owner="failed-worker", lease_seconds=30
+    )
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="permanent failure",
+        retryable=False,
+    )
+
+    drifted = first_controller.evaluate(
+        (task,), facts={task.identifier: changed_facts}, now=NOW
+    )[0]
+    assert drifted.disposition is TaskDisposition.ACTION_REQUIRED
+    assert drifted.reason_code == "retry.exhausted"
+    assert drifted.action_required
+    assert drifted.alert_level is AlertSeverity.CRITICAL
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
+    store.close()
+
+    reopened_store = WorkflowJobStore(str(database))
+    restarted = UniversalTotalityLivenessController(
+        store=reopened_store, decision_limit=100, clock=lambda: NOW
+    )
+    after_restart = restarted.evaluate(
+        (task,), facts={task.identifier: changed_facts}, now=NOW
+    )[0]
+    assert after_restart.reason_code == "retry.exhausted"
+    assert after_restart.action_required
+    assert len(
+        reopened_store.current_exhausted_jobs(
+            project_id="project-a", task_id=task.identifier
+        )
+    ) == reopened_store.health_snapshot()["current_states"]["exhausted"] == 1
+
+    replacement_snapshot = reopened_store.allocate_snapshot_generation()
+    assert reopened_store.accept_snapshot_generation(replacement_snapshot)
+    replacement_cursor = reopened_store.activate_schedule(
+        project_id="project-a",
+        task_id=task.identifier,
+        decision_revision="replacement-decision",
+        snapshot_generation=replacement_snapshot,
+    )
+    assert reopened_store.reconcile_schedule(
+        project_id="project-a",
+        task_id=task.identifier,
+        snapshot_generation=replacement_snapshot,
+        job_generation=replacement_cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id="project-a",
+                task_id=task.identifier,
+                generation=replacement_cursor.job_generation,
+                action="parent_rollup_review",
+                idempotency_key="replacement:changed-action",
+            ),
+        ),
+    ).accepted
+
+    recovered = restarted.evaluate(
+        (task,), facts={task.identifier: changed_facts}, now=NOW
+    )[0]
+    assert recovered.reason_code == "implementation.recovery_scheduled"
+    assert not recovered.action_required
+    assert not reopened_store.current_exhausted_jobs(
+        project_id="project-a", task_id=task.identifier
+    )
+    assert reopened_store.health_snapshot()["current_states"]["exhausted"] == 0
+    reopened_store.close()
 
 
 def test_full_sync_updates_authoritative_liveness_projection(controller):

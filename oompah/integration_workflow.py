@@ -14,7 +14,7 @@ import asyncio
 import contextlib
 import hashlib
 import inspect
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, Protocol
@@ -23,6 +23,7 @@ from oompah.integration_executor import (
     IntegrationExecutionResult,
 )
 from oompah.integration import (
+    ACCEPTED_SUBMISSION_STATES,
     IntegrationRecord,
     direct_epic_maintenance_handoff_ready,
     is_direct_epic_maintenance_issue,
@@ -273,6 +274,209 @@ class IntegrationProjection:
         )
 
 
+class IntegrationLandingRequestResolver:
+    """Resolve exact landing evidence across current and legacy authority.
+
+    Older integrated children can predate the tracker fields that name their
+    immediate epic target.  Their durable integration-queue row still owns
+    the accepted source revision, while the current parent owns the target.
+    Keeping that compatibility policy in one resolver prevents controller
+    evaluation and action revalidation from proving different branch pairs.
+    """
+
+    def __init__(
+        self,
+        *,
+        project_id: str | None = None,
+        tracker: Any | None = None,
+        integration_queue: Any | None = None,
+        project_store: Any | None = None,
+        project_default_branch: str | None = None,
+    ) -> None:
+        self.project_id = str(project_id or "").strip()
+        self.tracker = tracker
+        self.integration_queue = integration_queue
+        self.project_store = project_store
+        self.project_default_branch = str(project_default_branch or "").strip()
+
+    @staticmethod
+    def _record_value(task: Issue) -> dict[str, Any]:
+        integration = task.integration
+        if integration is None:
+            return {}
+        if hasattr(integration, "to_dict"):
+            value = integration.to_dict()
+            return dict(value) if isinstance(value, Mapping) else {}
+        return dict(integration) if isinstance(integration, Mapping) else {}
+
+    def _queue_row(self, task: Issue) -> Any | None:
+        get_row = getattr(self.integration_queue, "get", None)
+        if not callable(get_row):
+            return None
+        project_id = str(task.project_id or self.project_id or "").strip()
+        if not project_id:
+            return None
+        try:
+            row = get_row(project_id, task.identifier)
+        except Exception:  # noqa: BLE001 - durable evidence boundary
+            return None
+        if row is None:
+            return None
+        row_project = str(getattr(row, "project_id", "") or "").strip()
+        row_task = str(getattr(row, "task_id", "") or "").strip()
+        if row_project != project_id or row_task != task.identifier:
+            return None
+        parent_id = str(task.parent_id or "").strip()
+        row_parent = str(getattr(row, "epic_id", "") or "").strip()
+        if parent_id and row_parent != parent_id:
+            # A row from an earlier parent generation cannot supply source or
+            # target authority for the task's current containment snapshot.
+            return None
+        return row
+
+    def _parent_target(self, task: Issue) -> tuple[str, str | None]:
+        parent_id = str(task.parent_id or "").strip()
+        if not parent_id:
+            return "", None
+        trusted_revision = None
+        fetch = getattr(self.tracker, "fetch_issue_detail", None)
+        if callable(fetch):
+            try:
+                parent = fetch(parent_id)
+            except Exception:  # noqa: BLE001 - tracker evidence boundary
+                parent = None
+            parent_identity = str(
+                getattr(parent, "identifier", "") or getattr(parent, "id", "") or ""
+            ).strip()
+            parent_project = str(getattr(parent, "project_id", "") or "").strip()
+            if (
+                parent is not None
+                and parent_identity == parent_id
+                and (
+                    not parent_project
+                    or not self.project_id
+                    or parent_project == self.project_id
+                )
+            ):
+                parent_integration = getattr(parent, "integration", None)
+                parent_integration_state = str(
+                    parent_integration.get("state", "")
+                    if isinstance(parent_integration, Mapping)
+                    else getattr(parent_integration, "state", "")
+                ).strip().lower()
+                if (
+                    canonicalize_status(parent.state) in {MERGED, ARCHIVED}
+                    and parent_integration_state in ACCEPTED_SUBMISSION_STATES
+                ):
+                    trusted_revision = issue_exact_head(parent)
+                target = str(getattr(parent, "work_branch", "") or "").strip()
+                if target:
+                    return target, trusted_revision
+        branch_name = getattr(self.project_store, "epic_branch_name", None)
+        if callable(branch_name):
+            try:
+                return str(branch_name(parent_id) or "").strip(), trusted_revision
+            except Exception:  # noqa: BLE001 - project configuration boundary
+                return "", None
+        return "", None
+
+    def _default_target(self, task: Issue) -> str:
+        explicit = str(task.target_branch or "").strip()
+        if explicit:
+            return explicit
+        if self.project_default_branch:
+            return self.project_default_branch
+        get_project = getattr(self.project_store, "get", None)
+        if not callable(get_project):
+            return ""
+        project_id = str(task.project_id or self.project_id or "").strip()
+        try:
+            project = get_project(project_id) if project_id else None
+        except Exception:  # noqa: BLE001 - project configuration boundary
+            return ""
+        return str(getattr(project, "default_branch", "") or "").strip()
+
+    def __call__(
+        self, task: Issue, *, include_ready: bool = False
+    ) -> tuple[LandingRequest, ...]:
+        value = self._record_value(task)
+        row = self._queue_row(task)
+        record_state = str(value.get("state") or "").strip().lower()
+        row_state = str(getattr(row, "state", "") or "").strip().lower()
+        integrated = record_state == "integrated" or row_state == "integrated"
+        if not integrated and not include_ready:
+            return ()
+
+        record_authoritative = include_ready or record_state == "integrated"
+        queue_authoritative = include_ready or row_state == "integrated"
+        record_source = (
+            str(value.get("task_branch") or "").strip() if record_authoritative else ""
+        )
+        record_revision = (
+            str(value.get("integrated_sha") or value.get("head_sha") or "").strip()
+            if record_authoritative
+            else ""
+        )
+        queue_source = (
+            str(getattr(row, "task_branch", "") or "").strip()
+            if queue_authoritative
+            else ""
+        )
+        queue_revision = (
+            str(
+                getattr(row, "integrated_sha", "") or getattr(row, "head_sha", "") or ""
+            ).strip()
+            if queue_authoritative
+            else ""
+        )
+        if record_source and record_revision:
+            source, revision = record_source, record_revision
+        elif queue_source and queue_revision:
+            source, revision = queue_source, queue_revision
+        else:
+            # Preserve the existing Ready-path fallback without treating a
+            # partial tracker record as exact completed-generation evidence.
+            source = (
+                record_source or queue_source or str(task.work_branch or "").strip()
+            )
+            revision = record_revision or queue_revision
+
+        target = (
+            str(value.get("base_branch") or "").strip() if record_authoritative else ""
+        )
+        if not target:
+            target = (
+                str(getattr(row, "base_branch", "") or "").strip()
+                if queue_authoritative
+                else ""
+            )
+        trusted_target_revision = None
+        if not target:
+            if str(task.parent_id or "").strip():
+                target, trusted_target_revision = self._parent_target(task)
+            else:
+                target = self._default_target(task)
+        elif str(task.parent_id or "").strip():
+            # The recorded branch remains the target authority, but a final
+            # parent's exact accepted head can preserve that target generation
+            # after the mutable container ref has been pruned.
+            _parent_branch, trusted_target_revision = self._parent_target(task)
+        if not source or not target:
+            return ()
+        try:
+            return (
+                LandingRequest(
+                    source,
+                    target,
+                    revision or None,
+                    authoritative_target=integrated,
+                    trusted_target_revision=trusted_target_revision,
+                ),
+            )
+        except ValueError:
+            return ()
+
+
 class IntegrationWorkflowController:
     """Evaluate and schedule all Ready tasks without first-row shortcuts."""
 
@@ -282,6 +486,8 @@ class IntegrationWorkflowController:
         collector: WorkflowFactCollector,
         store: WorkflowJobStore,
         scheduler: WorkflowJobScheduler | None = None,
+        landing_request_resolver: Callable[..., tuple[LandingRequest, ...]]
+        | None = None,
         decision_limit: int = DEFAULT_INTEGRATION_DECISION_LIMIT,
     ) -> None:
         if decision_limit < 1 or decision_limit > DEFAULT_INTEGRATION_DECISION_LIMIT:
@@ -293,42 +499,22 @@ class IntegrationWorkflowController:
         self.scheduler = scheduler or WorkflowJobScheduler(
             store=store, decision_limit=decision_limit
         )
+        self.landing_request_resolver = (
+            landing_request_resolver or IntegrationLandingRequestResolver()
+        )
         self.decision_limit = decision_limit
         self._latest: dict[str, IntegrationTaskDecision] = {}
 
     @staticmethod
     def _default_landing_request(task: Issue) -> tuple[LandingRequest, ...]:
-        integration = task.integration
-        if integration is None:
-            return ()
-        value = (
-            integration.to_dict()
-            if hasattr(integration, "to_dict")
-            else dict(integration)
-            if isinstance(integration, Mapping)
-            else {}
-        )
-        if str(value.get("state") or "").strip().lower() != "integrated":
-            return ()
-        source = str(value.get("task_branch") or task.work_branch or "").strip()
-        target = str(value.get("base_branch") or task.target_branch or "").strip()
-        revision = str(
-            value.get("integrated_sha") or value.get("head_sha") or ""
-        ).strip()
-        if not source or not target:
-            return ()
-        # Done-state terminalization is a mutation boundary.  Enforce-mode
-        # runtime collectors must refresh the remote target instead of
-        # trusting a potentially stale local branch; collectors without a
-        # target refresher retain their local/offline behavior.
-        return (
-            LandingRequest(
-                source,
-                target,
-                revision or None,
-                authoritative_target=True,
-            ),
-        )
+        """Compatibility wrapper for callers without production dependencies."""
+
+        return IntegrationLandingRequestResolver()(task)
+
+    def landing_requests_for(
+        self, task: Issue, *, include_ready: bool = False
+    ) -> tuple[LandingRequest, ...]:
+        return tuple(self.landing_request_resolver(task, include_ready=include_ready))
 
     @staticmethod
     def _topological_batches(
@@ -404,7 +590,7 @@ class IntegrationWorkflowController:
             default_requests = (
                 ()
                 if direct_epic_maintenance_handoff_ready(task)
-                else self._default_landing_request(task)
+                else self.landing_requests_for(task)
             )
             task_requests = tuple(
                 requests.get(
@@ -755,6 +941,19 @@ class OrchestratorIntegrationActionBackend:
         self.binding = binding
         self.project_id = str(binding.project_id)
         self.tracker = binding.tracker
+        controller = getattr(binding, "integration_controller", None)
+        resolver = getattr(controller, "landing_request_resolver", None)
+        self.landing_request_resolver = (
+            resolver
+            if callable(resolver)
+            else IntegrationLandingRequestResolver(
+                project_id=self.project_id,
+                tracker=self.tracker,
+                integration_queue=getattr(orchestrator, "integration_queue", None),
+                project_store=getattr(orchestrator, "project_store", None),
+                project_default_branch=self._project_default_branch(),
+            )
+        )
 
     def _project_default_branch(self) -> str:
         store = getattr(self.orchestrator, "project_store", None)
@@ -787,23 +986,7 @@ class OrchestratorIntegrationActionBackend:
     def _landing_request(
         self, issue: Issue, *, include_ready: bool = False
     ) -> tuple[LandingRequest, ...]:
-        requests = IntegrationWorkflowController._default_landing_request(issue)
-        if requests or not include_ready:
-            return requests
-        record = self._record(issue)
-        source = str(getattr(record, "task_branch", "") or "").strip()
-        target = str(
-            getattr(record, "base_branch", "")
-            or getattr(issue, "target_branch", "")
-            or ""
-        ).strip()
-        revision = str(getattr(record, "head_sha", "") or "").strip()
-        if not source or not target:
-            return ()
-        try:
-            return (LandingRequest(source, target, revision or None),)
-        except ValueError:
-            return ()
+        return tuple(self.landing_request_resolver(issue, include_ready=include_ready))
 
     def _landing(self, issue: Issue) -> LandingFact | None:
         requests = self._landing_request(issue, include_ready=True)

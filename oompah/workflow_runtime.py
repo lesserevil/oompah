@@ -44,6 +44,7 @@ from oompah.implementation_workflow import (
 )
 from oompah.integration_workflow import (
     INTEGRATION_ACTIONS,
+    IntegrationLandingRequestResolver,
     IntegrationWorkflowController,
 )
 from oompah.review_workflow import ReviewWorkflowController
@@ -62,7 +63,7 @@ from oompah.task_transition_service import (
     TransitionJournal,
     issue_authority_version,
 )
-from oompah.workflow_contract import LIFECYCLE_FINAL_STATUSES
+from oompah.workflow_contract import LIFECYCLE_FINAL_STATUSES, TaskDisposition
 from oompah.workflow_controller import (
     ControllerObservation,
     ControllerPass,
@@ -818,6 +819,17 @@ class WorkflowRuntime:
             integration_controller = IntegrationWorkflowController(
                 collector=collector,
                 store=store,
+                landing_request_resolver=IntegrationLandingRequestResolver(
+                    project_id=project_id,
+                    tracker=tracker,
+                    integration_queue=getattr(orchestrator, "integration_queue", None),
+                    project_store=project_store,
+                    project_default_branch=str(
+                        getattr(project, "default_branch", None)
+                        or getattr(project, "branch", None)
+                        or "main"
+                    ),
+                ),
                 decision_limit=configured_limit,
             )
 
@@ -849,7 +861,7 @@ class WorkflowRuntime:
                     .lower()
                     != "epic"
                 ):
-                    requests = IntegrationWorkflowController._default_landing_request(
+                    requests = _integration_controller.landing_requests_for(
                         guarded_issue
                     )
                     facts = _integration_controller.collector.collect(
@@ -1654,7 +1666,21 @@ class WorkflowRuntime:
         # revision.
         for decision in observation.decisions:
             identity = (decision.project_id, decision.task_id)
-            if identity not in projections:
+            if (
+                decision.reason_code == "retry.exhausted"
+                and decision.disposition is TaskDisposition.ACTION_REQUIRED
+            ):
+                # Current durable exhaustion is a cross-domain liveness
+                # invariant.  It must override an owning domain's otherwise
+                # normal retry projection; otherwise one publication cut can
+                # report actionable exhaustion and informational retry for
+                # the same task.
+                projections[identity] = decision
+                projection_facts[identity] = observation.decision_facts.get(
+                    identity, DecisionLivenessFacts()
+                )
+                proven.pop(identity, None)
+            elif identity not in projections:
                 projections[identity] = decision
                 projection_facts[identity] = observation.decision_facts.get(
                     identity, DecisionLivenessFacts()

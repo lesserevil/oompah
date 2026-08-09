@@ -71,6 +71,10 @@ from oompah.workflow_worker import (
     VerificationResult,
 )
 from oompah.work_decision import evaluate_task
+from oompah.work_decision_projection import (
+    operator_actionable_alerts,
+    work_decision_alert,
+)
 
 
 class NativeTracker:
@@ -1084,6 +1088,107 @@ def test_runtime_binds_owner_deadlines_and_jobs_to_one_live_policy_cut(
     assert runtime.projections()[0]["next_reassessment_at"] == (
         second_item.decision.next_reassessment_at
     )
+    runtime.close()
+    store.close()
+
+
+def test_runtime_current_exhaustion_overrides_normal_owner_retry_projection(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-LANDING-EXHAUSTED", state="Ready to Integrate")
+    task.integration = IntegrationRecord(
+        state="integrated",
+        mode="queue",
+        task_branch=task.identifier,
+        base_branch="main",
+        head_sha="a" * 40,
+        integrated_sha="a" * 40,
+    )
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    publications = []
+
+    def publisher(decisions, generation, **_kwargs):
+        publications.append((tuple(decisions), generation))
+        return SimpleNamespace(
+            accepted=True,
+            rejection=None,
+            commit_memory=lambda: None,
+            rollback=lambda: None,
+        )
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        projection_publisher=publisher,
+        projection_epoch_source=lambda: 1,
+    )
+
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    first_domain = binding.integration_controller._latest[task.identifier].decision
+    assert first_domain.reason_code == "integration.landing_unproven"
+    assert first_domain.durable_jobs == ("integration_landing_refresh",)
+    landing_refresh = next(
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action == "integration_landing_refresh"
+    )
+    running = store.claim_next(
+        lease_owner="failed-integration",
+        lease_seconds=30,
+        task_id=task.identifier,
+        actions=("integration_landing_refresh",),
+    )
+    assert running is not None
+    assert running.job_id == landing_refresh.job_id
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="landing refresh exhausted",
+        retryable=False,
+    )
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
+
+    # Change semantic evidence while the owning integration controller still
+    # reaches the ordinary informational retry decision.  This was the live
+    # revision-drift path that hid the durable exhaustion from the API.
+    binding.collector.sources[FactDomain.CONFIG] = lambda _issue: {"version": 2}
+    runtime.reconcile()
+
+    owner_decision = binding.integration_controller._latest[
+        task.identifier
+    ].decision
+    assert owner_decision.reason_code == "integration.landing_unproven"
+    assert not owner_decision.action_required
+    projection = next(
+        item
+        for item in runtime.projections()
+        if item["task_id"] == task.identifier
+    )
+    assert projection["reason_code"] == "retry.exhausted"
+    assert projection["disposition"] == "action_required"
+    assert projection["action_required"] is True
+    assert projection["alert_level"] == "critical"
+    published_decision = next(
+        decision
+        for decision in publications[-1][0]
+        if decision.task_id == task.identifier
+    )
+    assert published_decision.reason_code == "retry.exhausted"
+    assert published_decision.action_required
+    alert = work_decision_alert(published_decision)
+    assert alert is not None
+    assert operator_actionable_alerts((alert,)) == [alert]
+    assert alert["task_id"] == task.identifier
+    assert alert["reason_code"] == "retry.exhausted"
     runtime.close()
     store.close()
 

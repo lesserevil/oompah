@@ -2678,8 +2678,16 @@ print(f'{sys.argv[3]},{started},{ended}', flush=True)
 
 def test_aging_survives_manager_restart_and_fresh_exact_retains_urgency(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
+    # Keep the ordinary scheduling window comfortably below the aging bound.
+    # A 10 ms threshold made fresh waiters age while their peer thread was
+    # merely being scheduled on a loaded host, reversing the assertion below
+    # even though the lease manager followed policy correctly.
+    aging_seconds = 30.0
+    starvation_seconds = aging_seconds * (
+        EXACT_GATE_PRIORITY - WORKER_PRIORITY + 1
+    )
     original = ValidationResourceLease(
-        state_path, aging_seconds=0.01, poll_seconds=0.005
+        state_path, aging_seconds=aging_seconds, poll_seconds=0.005
     )
     held = original.acquire(_gate_owner("blocker", "held"))
     order: list[str] = []
@@ -2694,10 +2702,14 @@ def test_aging_survives_manager_restart_and_fresh_exact_retains_urgency(tmp_path
     )
     worker.start()
     _wait_for(lambda: original.status().waiter_count == 1)
-    _age_waiter(state_path, "old-worker", seconds=0.22)
+    _age_waiter(
+        state_path,
+        "old-worker",
+        seconds=starvation_seconds + aging_seconds,
+    )
 
     restarted = ValidationResourceLease(
-        state_path, aging_seconds=0.01, poll_seconds=0.005
+        state_path, aging_seconds=aging_seconds, poll_seconds=0.005
     )
 
     def exact_run() -> None:
