@@ -130,20 +130,44 @@ ifneq ($(_PYTEST_GATE),)
 setup:
 	@:
 else
+define validate_task_private_venv
+test ! -L "$(VENV)" && test -f "$(VENV)/pyvenv.cfg" || { \
+	echo "ERROR: $(VENV) is not a real task-private virtualenv; refusing to run uv against a wrapper or alias." >&2; \
+	exit 1; \
+}; \
+expected_prefix=$$(cd "$(VENV)" && pwd -P); \
+actual_prefix=$$($(PYTHON) -c 'import sys; print(sys.prefix)' 2>/dev/null || true); \
+if [ "$$actual_prefix" != "$$expected_prefix" ]; then \
+	echo "ERROR: $(VENV) interpreter resolves to $$actual_prefix, not the task-private runtime $$expected_prefix; refusing to run uv." >&2; \
+	exit 1; \
+fi
+endef
+
 setup: $(VENV)/.uv-setup
+	@$(validate_task_private_venv)
+	@expected_checkout=$$(pwd -P); \
+	actual_checkout=$$(cd "$(VENV)" && "$(abspath $(PYTHON))" -I -c \
+		'import importlib.util, pathlib; spec = importlib.util.find_spec("oompah"); print(pathlib.Path(spec.origin).resolve().parent.parent if spec and spec.origin else "")' \
+		2>/dev/null || true); \
+	if [ "$$actual_checkout" != "$$expected_checkout" ]; then \
+		echo "Refreshing editable oompah install for $$expected_checkout (was $${actual_checkout:-unavailable})."; \
+		if ! uv pip install --python "$(PYTHON)" -e '.[server]'; then \
+			echo "ERROR: failed to refresh editable oompah install for $$expected_checkout." >&2; \
+			exit 1; \
+		fi; \
+		touch "$(VENV)/.uv-setup"; \
+		actual_checkout=$$(cd "$(VENV)" && "$(abspath $(PYTHON))" -I -c \
+			'import importlib.util, pathlib; spec = importlib.util.find_spec("oompah"); print(pathlib.Path(spec.origin).resolve().parent.parent if spec and spec.origin else "")' \
+			2>/dev/null || true); \
+	fi; \
+	if [ "$$actual_checkout" != "$$expected_checkout" ]; then \
+		echo "ERROR: editable oompah install resolves to $${actual_checkout:-unavailable}, not the invoking checkout $$expected_checkout." >&2; \
+		exit 1; \
+	fi
 
 $(VENV)/.uv-setup: pyproject.toml
 	@test -d $(VENV) || uv venv $(VENV)
-	@test ! -L "$(VENV)" && test -f "$(VENV)/pyvenv.cfg" || { \
-		echo "ERROR: $(VENV) is not a real task-private virtualenv; refusing to run uv against a wrapper or alias." >&2; \
-		exit 1; \
-	}
-	@expected_prefix=$$(cd "$(VENV)" && pwd -P); \
-	actual_prefix=$$($(PYTHON) -c 'import sys; print(sys.prefix)' 2>/dev/null || true); \
-	if [ "$$actual_prefix" != "$$expected_prefix" ]; then \
-		echo "ERROR: $(VENV) interpreter resolves to $$actual_prefix, not the task-private runtime $$expected_prefix; refusing to run uv." >&2; \
-		exit 1; \
-	fi
+	@$(validate_task_private_venv)
 	uv pip install --python "$(PYTHON)" -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
