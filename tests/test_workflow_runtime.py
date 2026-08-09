@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import subprocess
 import threading
@@ -499,8 +500,12 @@ def test_terminal_audit_proof_rejects_metadata_race_until_current_job_exists(
     store.close()
 
 
+@pytest.mark.parametrize(
+    "provider_state",
+    ("authority_changed", "removed_before_publication", "missing_initially"),
+)
 def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, caplog, provider_state
 ):
     task = make_issue("TASK-AUDIT-FENCE", state="In Validation")
     store = WorkflowJobStore(str(tmp_path / "jobs-fence.sqlite3"))
@@ -569,11 +574,16 @@ def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
         )
         proof_calls.append(accepted)
         if len(proof_calls) == 1:
-            # Metadata changes after the scan proof but before publication.
-            current[0] = record_b
+            if provider_state == "removed_before_publication":
+                binding.terminal_audit_proof_source = None
+            else:
+                # Metadata changes after the scan proof but before publication.
+                current[0] = record_b
         return accepted
 
-    binding.terminal_audit_proof_source = proof
+    binding.terminal_audit_proof_source = (
+        None if provider_state == "missing_initially" else proof
+    )
     binding.terminal_audit_snapshot_proof_source = (
         lambda _decision, _observed: True
     )
@@ -598,12 +608,34 @@ def test_terminal_audit_authority_is_revalidated_before_snapshot_marker(
 
     monkeypatch.setattr(store, "publish_snapshot_generation", track_publish)
     asyncio.run(runtime.start())
-    report = runtime.reconcile()
+    with caplog.at_level(logging.INFO, logger="oompah.workflow_runtime"):
+        report = runtime.reconcile()
 
-    assert proof_calls == [True, False]
-    assert proof_fences == [(False, False), (True, True)]
-    assert len(publications) == 1
-    assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+    if provider_state in {"removed_before_publication", "missing_initially"}:
+        expected_calls = [] if provider_state == "missing_initially" else [True]
+        expected_fences = (
+            [] if provider_state == "missing_initially" else [(False, False)]
+        )
+        assert proof_calls == expected_calls
+        assert proof_fences == expected_fences
+        assert len(publications) == int(provider_state != "missing_initially")
+        assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+        assert "requires_reconcile" not in report
+        assert any(
+            record.levelno >= logging.ERROR
+            and "Durable workflow publication failed" in record.message
+            for record in caplog.records
+        )
+    else:
+        assert len(publications) == 1
+        assert proof_calls == [True, False]
+        assert proof_fences == [(False, False), (True, True)]
+        assert report["requires_reconcile"] is True
+        assert report["reconcile_reason"] == "publication_authority_changed"
+        assert report["projects"]["project-1"] == {
+            "publication_superseded": True,
+            "reason": "terminal-audit authority changed before publication",
+        }
     runtime.close()
     store.close()
 
@@ -721,8 +753,9 @@ def test_active_terminal_audit_proof_shares_store_publication_fence(
     store.close()
 
 
+@pytest.mark.parametrize("provider_unavailable", (False, True))
 def test_action_required_terminal_disposition_is_revalidated_at_marker(
-    tmp_path
+    tmp_path, caplog, provider_unavailable
 ):
     task = make_issue("TASK-AUDIT-ACTION", state="In Validation")
     store = WorkflowJobStore(str(tmp_path / "jobs-action.sqlite3"))
@@ -745,14 +778,18 @@ def test_action_required_terminal_disposition_is_revalidated_at_marker(
     binding.terminal_audit_publication_lock = lambda: threading.RLock()
     proof_fences = []
 
+    proof_results = iter((False, True))
+
     def changed_disposition(_decision, value):
         assert value["action_required"] is True
         proof_fences.append(
             (store._conn.in_transaction, store._authority_lock_depth > 0)
         )
-        return False
+        return next(proof_results)
 
-    binding.terminal_audit_snapshot_proof_source = changed_disposition
+    binding.terminal_audit_snapshot_proof_source = (
+        None if provider_unavailable else changed_disposition
+    )
     controller = UniversalTotalityLivenessController(store=store)
     runtime = WorkflowRuntime(
         project_bindings={"project-1": binding},
@@ -765,10 +802,41 @@ def test_action_required_terminal_disposition_is_revalidated_at_marker(
     )
 
     asyncio.run(runtime.start())
-    report = runtime.reconcile()
+    with caplog.at_level(logging.INFO, logger="oompah.workflow_runtime"):
+        report = runtime.reconcile()
 
-    assert proof_fences == [(True, True)]
-    assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+    if provider_unavailable:
+        assert proof_fences == []
+        assert report["projects"]["project-1"]["error"] == "WorkflowRuntimeError"
+        assert any(
+            record.levelno >= logging.ERROR
+            and "Durable workflow publication failed" in record.message
+            for record in caplog.records
+        )
+    else:
+        assert proof_fences == [(True, True)]
+        assert report["requires_reconcile"] is True
+        assert report["reconcile_reason"] == "publication_authority_changed"
+        assert report["projects"]["project-1"] == {
+            "publication_superseded": True,
+            "reason": "terminal-audit disposition changed before publication",
+        }
+        assert any(
+            record.levelno == logging.INFO
+            and "Durable workflow publication superseded" in record.message
+            for record in caplog.records
+        )
+        assert not any(
+            record.levelno >= logging.ERROR
+            and "Durable workflow publication failed" in record.message
+            for record in caplog.records
+        )
+
+        fresh = runtime.reconcile()
+
+        assert proof_fences == [(True, True), (True, True)]
+        assert fresh["projects"]["project-1"]["snapshot"]["published"] is True
+        assert "requires_reconcile" not in fresh
     runtime.close()
     store.close()
 
@@ -1752,24 +1820,54 @@ def test_quick_final_admission_preserves_one_queue_drain_reconcile(tmp_path):
         )
 
     runtime.worker.execute_claimed = execute_immediately
+    completion_published = asyncio.Event()
+    original_claim_next = runtime.worker.claim_next
+    claimed_job = False
+    post_schedule_empty_claims = 0
+    completion_notifications = 0
+
+    async def claim_after_callback_settlement(**kwargs):
+        """Hold the first post-schedule miss until the callback has settled."""
+
+        nonlocal claimed_job, post_schedule_empty_claims
+        job = await original_claim_next(**kwargs)
+        if job is not None:
+            claimed_job = True
+        elif claimed_job and post_schedule_empty_claims == 0:
+            post_schedule_empty_claims += 1
+            await asyncio.wait_for(completion_published.wait(), 1)
+        return job
+
+    runtime.worker.claim_next = claim_after_callback_settlement
+
+    def observe_completion(_result):
+        nonlocal completion_notifications
+        completion_notifications += 1
+        completion_published.set()
 
     async def exercise():
-        completion_published = asyncio.Event()
-        runtime._effect_completion_observer = (
-            lambda _result: completion_published.set()
-        )
+        runtime._effect_completion_observer = observe_completion
         await runtime.start()
         first = await runtime.continue_admission_async()
-        await asyncio.wait_for(completion_published.wait(), 1)
+        pending_after_first = len(runtime._effect_results)
+        retained_after_first = runtime.health_snapshot()["worker"]["retained"]
         second = await runtime.continue_admission_async()
         third = await runtime.continue_admission_async()
-        return first, second, third
+        return first, second, third, pending_after_first, retained_after_first
 
-    first, second, third = asyncio.run(exercise())
+    first, second, third, pending_after_first, retained_after_first = asyncio.run(
+        exercise()
+    )
 
     assert first["worker"]["scheduled"] == 1
     assert first["worker"]["completed"] == 0
+    assert first["worker"]["active"] == 0
+    assert first["worker"]["active_lanes"] == {"control": 0, "shared": 0}
     assert first["requires_reconcile"] is False
+    assert pending_after_first == 1
+    assert retained_after_first == 0
+    assert post_schedule_empty_claims == 1
+    assert completion_notifications == 1
     assert second["worker"]["scheduled"] == 0
     assert second["worker"]["completed"] == 1
     assert second["worker"]["active"] == 0
@@ -1777,6 +1875,10 @@ def test_quick_final_admission_preserves_one_queue_drain_reconcile(tmp_path):
     assert second["reconcile_reason"] == "published_queue_drained"
     assert third["worker"]["completed"] == 0
     assert third["requires_reconcile"] is False
+    assert sum(
+        bool(report["requires_reconcile"])
+        for report in (first, second, third)
+    ) == 1
     runtime.close()
     store.close()
 

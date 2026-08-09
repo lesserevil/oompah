@@ -109,6 +109,20 @@ def event_matches_github_issue_intake(project: Project, event: WebhookEvent) -> 
     return bool(wanted and event.repo_slug.lower() == wanted.lower())
 
 
+def _is_pr_backed_issue_comment(event: WebhookEvent) -> bool:
+    """Return true when GitHub marked an issue-comment payload as a PR.
+
+    The webhook parser normally rejects these events.  Keep this check at the
+    native-intake boundary too so callers that construct :class:`WebhookEvent`
+    directly cannot create or mutate native tasks from pull-request comments.
+    """
+    if event.event_type != "issue_comment":
+        return False
+    raw = event.raw if isinstance(event.raw, dict) else {}
+    issue = raw.get("issue")
+    return isinstance(issue, dict) and issue.get("pull_request") is not None
+
+
 def _github_tracker_for_project(
     project: Project,
     active_states: list[str],
@@ -779,6 +793,13 @@ def handle_github_issue_event_for_native_project(
 ) -> None:
     """Handle a GitHub issue/comment webhook for native-task intake."""
     if getattr(project, "paused", False):
+        return
+    if _is_pr_backed_issue_comment(event):
+        logger.debug(
+            "github_intake: skipping PR-backed issue_comment for %s#%s",
+            event.repo_slug,
+            event.issue_number,
+        )
         return
     if not event_matches_github_issue_intake(project, event):
         return
