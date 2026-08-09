@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T19:57:46.798442Z'
-work_branch: null
+updated_at: '2026-08-09T19:57:54.944610Z'
+work_branch: OOMPAH-969
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,7 @@ oompah.integration:
   head_sha: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
   submitted_at: '2026-08-09T19:57:42.854981+00:00'
   updated_at: '2026-08-09T19:57:42.854981+00:00'
+oompah.work_branch: OOMPAH-969
 ---
 ## Summary
 
@@ -54,5 +55,10 @@ author: oompah
 created: 2026-08-09 19:57
 ---
 Final rebased head ff13d997972b56cbab1b4202cc0eb9f62445cd1b is pushed on merged OOMPAH-968/OOMPAH-970 main. Stable patch-id is unchanged from independently accepted e513c7da3. Post-rebase validation: 240 orchestrator/event-loop/workflow-runtime tests passed; diff check and worktree are clean. Touched-file Ruff output contains only the pre-existing baseline findings documented by the implementer; changed lines are clean.
+---
+author: oompah
+created: 2026-08-09 19:57
+---
+Preserve prompt workflow-effect admission during multi-minute ordinary reconciliation using one coalesced, fenced scheduler-loop owner. Final head ff13d997972b56cbab1b4202cc0eb9f62445cd1b; 240 post-rebase tests and independent review are green.
 ---
 <!-- COMMENTS:END -->
