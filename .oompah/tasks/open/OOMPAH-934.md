@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-934
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make concurrency regressions deterministic on constrained CI hosts
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:26:17.775582Z'
-updated_at: '2026-08-09T06:26:17.775582Z'
+updated_at: '2026-08-09T06:26:46.931182Z'
 work_branch: null
 target_branch: null
 review_url: null
