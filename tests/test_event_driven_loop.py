@@ -170,6 +170,31 @@ def _make_orchestrator(tmp_path, config=None, project_store=None) -> Orchestrato
     return orch
 
 
+def _stub_unrelated_run_startup(
+    orch: Orchestrator,
+    *,
+    retain_restart_recovery: bool = False,
+) -> None:
+    """Keep loop tests out of tracker-backed startup reconciliation lanes."""
+
+    # These startup owners publish or reconcile workflow work, but none is
+    # part of the event-loop contract exercised by their callers.  Leaving
+    # even one live makes a directly constructed fixture discover the
+    # checkout's configured projects and turns a scheduler test into an
+    # integration test.
+    orch._run_terminal_audit_enforcement = MagicMock()
+    orch._reconcile_owner_duplicate_resolution_boundaries = MagicMock()
+    orch._ensure_integration_audit_lane = MagicMock()
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch.startup_cleanup = AsyncMock()
+    orch._reconcile_pending_recovery_publications = MagicMock()
+    orch._restore_persisted_retries = AsyncMock()
+    orch._wake_integration_lane = MagicMock()
+    orch.workflow_controller.recover_startup = MagicMock()
+    if not retain_restart_recovery:
+        orch._recover_restart_issues = AsyncMock(return_value=True)
+
+
 # ---------------------------------------------------------------------------
 # DispatchEventType enum
 # ---------------------------------------------------------------------------
@@ -748,13 +773,15 @@ class TestRunEventDrivenLoop:
         yield loop
         _close_event_loop_and_executor(loop)
 
-    def _make_orch_with_mocked_tick(self, tmp_path):
-        """Create an orchestrator where _tick() and startup are no-ops."""
-        orch = _make_orchestrator(tmp_path, config=_make_config(full_sync_interval_ms=600000))
+    def _make_orch_with_mocked_tick(self, tmp_path, *, config=None):
+        """Create an orchestrator with only the event-loop behavior left live."""
+        orch = _make_orchestrator(
+            tmp_path,
+            config=config
+            or _make_config(full_sync_interval_ms=600000),
+        )
         orch._tick = AsyncMock()
-        orch._run_terminal_audit_enforcement = MagicMock()
-        orch.startup_cleanup = AsyncMock()
-        orch._recover_restart_issues = AsyncMock()
+        _stub_unrelated_run_startup(orch)
         return orch
 
     def test_run_calls_tick_on_startup(self, tmp_path, event_loop):
@@ -824,10 +851,7 @@ class TestRunEventDrivenLoop:
             lambda _identifier, *, status: tracker_state.update(value=status)
         )
         orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch._run_terminal_audit_enforcement = MagicMock()
-        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
-        orch.startup_cleanup = AsyncMock()
-        orch._reconcile_pending_recovery_publications = MagicMock()
+        _stub_unrelated_run_startup(orch, retain_restart_recovery=True)
         initial_tick_fences = []
 
         async def _tick():
@@ -1345,13 +1369,13 @@ class TestRunEventDrivenLoop:
         """The old poll_interval_ms sleep is gone — run() only wakes on queue events."""
         # Configure a short poll_interval_ms but a very long full_sync_interval_ms.
         # The loop should NOT fire ticks at poll_interval_ms cadence any more.
-        orch = _make_orchestrator(tmp_path, config=_make_config(
-            poll_interval_ms=50,          # old interval (should be ignored now)
-            full_sync_interval_ms=600000, # new interval (won't fire in test)
-        ))
-        orch._tick = AsyncMock()
-        orch.startup_cleanup = AsyncMock()
-        orch._recover_restart_issues = AsyncMock()
+        orch = self._make_orch_with_mocked_tick(
+            tmp_path,
+            config=_make_config(
+                poll_interval_ms=50,  # old interval (should be ignored now)
+                full_sync_interval_ms=600000,  # new interval (won't fire in test)
+            ),
+        )
 
         async def _run_briefly():
             run_task = asyncio.create_task(orch.run())
@@ -1620,8 +1644,7 @@ class TestGracefulRestartShutdownEvent:
         """
         orch = _make_orchestrator(tmp_path, config=_make_config(full_sync_interval_ms=600000))
         orch._tick = AsyncMock()
-        orch.startup_cleanup = AsyncMock()
-        orch._recover_restart_issues = AsyncMock()
+        _stub_unrelated_run_startup(orch)
         tick_started = asyncio.Event()
 
         async def _tick():

@@ -29,6 +29,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RetryEntry
 from oompah.orchestrator import Orchestrator
+from oompah.projects import ProjectStore
 from oompah.terminal_audit import TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
 
@@ -47,9 +48,19 @@ def event_loop():
 
 
 def _make_orchestrator(tmp_path) -> Orchestrator:
+    # Never let this regression module inherit the service checkout's live
+    # project registry.  Several tests exercise API publication, whose normal
+    # board refresh walks every configured project and may consequently run
+    # unrelated tracker/Git reconciliation in a TestClient worker thread.
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
     orch = Orchestrator(
         config=_make_config(),
         workflow_path="WORKFLOW.md",
+        project_store=project_store,
         state_path=str(tmp_path / "service_state.json"),
     )
     # Terminal status requests now go through this collaborator. Keep these
@@ -87,6 +98,32 @@ def _bind_status_tracker(mock_tracker: MagicMock, issue: Issue) -> None:
         issue.state = status
 
     mock_tracker.update_issue.side_effect = update
+
+
+@contextlib.contextmanager
+def _isolated_issue_api_client(orch: Orchestrator, tracker: MagicMock):
+    """Bind one API request without publishing a real dashboard refresh.
+
+    The close-race assertions cover terminal staging and retry authority, not
+    board reconstruction.  Keep the publication edge observable while
+    replacing its module-global implementation so the request cannot escape
+    into configured projects or leave a background snapshot refresh behind.
+    """
+
+    from fastapi.testclient import TestClient
+    import oompah.server as srv
+
+    publication = AsyncMock()
+    with (
+        patch.object(srv, "_get_tracker", return_value=tracker),
+        patch.object(srv, "_orchestrator", orch),
+        patch.object(srv, "broadcast_issues", new=publication),
+    ):
+        client = TestClient(srv.app)
+        try:
+            yield client, publication
+        finally:
+            client.close()
 
 
 class TestDispatchRecheckSkipsClosedIssue:
@@ -335,10 +372,6 @@ class TestUiCloseCancelsPendingRetry:
     cancelled — otherwise it fires later and re-dispatches a closed task."""
 
     def test_pending_retry_cancelled_when_issue_closed_via_ui(self, tmp_path):
-        from fastapi.testclient import TestClient
-        from oompah.server import app
-        import oompah.server as srv
-
         orch = _make_orchestrator(tmp_path)
 
         # Seed a pending retry as if a worker had failed.
@@ -370,16 +403,16 @@ class TestUiCloseCancelsPendingRetry:
         # same concrete task and project identity as the pending retry.
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_detail.return_value = _issue(project_id="proj-1")
-        with (
-            patch("oompah.server._get_tracker", return_value=mock_tracker),
-            patch.object(srv, "_orchestrator", orch),
+        with _isolated_issue_api_client(orch, mock_tracker) as (
+            client,
+            publication,
         ):
-            client = TestClient(app)
             res = client.patch(
                 "/api/v1/issues/proj-1",
                 json={"status": "closed", "project_id": "proj-1"},
             )
         assert res.status_code == 200, res.text
+        publication.assert_awaited_once_with()
 
         # Bookkeeping: retry cancelled, claim cleared, completed marked.
         assert cancel_called["flag"] is True, "retry timer was not cancelled"
@@ -737,10 +770,6 @@ class TestGitHubManualCloseRace:
         path uses ``retry.identifier == identifier`` to match — this test
         verifies the string comparison works for GitHub identifiers.
         """
-        from fastapi.testclient import TestClient
-        from oompah.server import app
-        import oompah.server as srv
-
         orch = _make_orchestrator(tmp_path)
         gh_id = "owner/repo#42"
         issue_id = "gh-789"
@@ -780,11 +809,10 @@ class TestGitHubManualCloseRace:
             description="Investigate the stalled GitHub task.",
         )
         _bind_status_tracker(mock_tracker, tracked_issue)
-        with (
-            patch("oompah.server._get_tracker", return_value=mock_tracker),
-            patch.object(srv, "_orchestrator", orch),
+        with _isolated_issue_api_client(orch, mock_tracker) as (
+            client,
+            publication,
         ):
-            client = TestClient(app)
             res = client.patch(
                 "/api/v1/issues/dummy",
                 json={
@@ -794,6 +822,7 @@ class TestGitHubManualCloseRace:
                 },
             )
         assert res.status_code == 200, res.text
+        publication.assert_awaited_once_with()
 
         # Retry must be cancelled.
         assert cancel_called["flag"] is True, (
@@ -809,10 +838,6 @@ class TestGitHubManualCloseRace:
         """A non-close terminal status update (e.g. 'Done') on a GitHub task
         must also cancel any pending retry — same as the close case.
         """
-        from fastapi.testclient import TestClient
-        from oompah.server import app
-        import oompah.server as srv
-
         orch = _make_orchestrator(tmp_path)
         gh_id = "owner/repo#55"
         issue_id = "gh-055"
@@ -850,11 +875,10 @@ class TestGitHubManualCloseRace:
             description="Investigate the stalled GitHub task.",
         )
         _bind_status_tracker(mock_tracker, tracked_issue)
-        with (
-            patch("oompah.server._get_tracker", return_value=mock_tracker),
-            patch.object(srv, "_orchestrator", orch),
+        with _isolated_issue_api_client(orch, mock_tracker) as (
+            client,
+            publication,
         ):
-            client = TestClient(app)
             res = client.patch(
                 "/api/v1/issues/dummy",
                 json={
@@ -864,6 +888,7 @@ class TestGitHubManualCloseRace:
                 },
             )
         assert res.status_code == 200, res.text
+        publication.assert_awaited_once_with()
 
         # Retry must be cancelled.
         assert cancel_called["flag"] is True, (
@@ -909,10 +934,6 @@ class TestGitHubManualCloseRace:
         stale retry timer from re-dispatching a task that a human has
         explicitly taken control of.
         """
-        from fastapi.testclient import TestClient
-        from oompah.server import app
-        import oompah.server as srv
-
         orch = _make_orchestrator(tmp_path)
         gh_id = "owner/repo#77"
         issue_id = "gh-077"
@@ -950,11 +971,10 @@ class TestGitHubManualCloseRace:
             description="Investigate the stalled GitHub task.",
         )
         _bind_status_tracker(mock_tracker, tracked_issue)
-        with (
-            patch("oompah.server._get_tracker", return_value=mock_tracker),
-            patch.object(srv, "_orchestrator", orch),
+        with _isolated_issue_api_client(orch, mock_tracker) as (
+            client,
+            publication,
         ):
-            client = TestClient(app)
             res = client.patch(
                 "/api/v1/issues/dummy",
                 json={
@@ -964,6 +984,7 @@ class TestGitHubManualCloseRace:
                 },
             )
         assert res.status_code == 200, res.text
+        publication.assert_awaited_once_with()
 
         # Any non-in_progress status change cancels the retry so a stale
         # timer can't re-dispatch a task a human has manually moved.
