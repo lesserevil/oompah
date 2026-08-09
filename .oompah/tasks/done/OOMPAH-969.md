@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-969
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Preserve fast workflow admission under continuous ordinary events
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T20:06:32.677925Z'
+updated_at: '2026-08-09T20:07:11.079646Z'
 work_branch: OOMPAH-969
 target_branch: null
 review_url: null
@@ -41,6 +41,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-969
     digest: 73c65f709aa2a61069c82dbc5fbc961e1575e2b4a7d18b6a4a2273b4a85236c7
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-98b16082c871
+    project_id: proj-14849f1b
+    task_id: OOMPAH-969
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 73c65f709aa2a61069c82dbc5fbc961e1575e2b4a7d18b6a4a2273b4a85236c7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T20:07:07.015118+00:00'
+    selected_ref: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
+    selected_sha: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
+    applied: false
   version: 1
   pending_chain:
   - version: 1
