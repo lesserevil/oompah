@@ -17,7 +17,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T09:10:01.037769Z'
+updated_at: '2026-08-09T09:10:09.533860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Triggered by: OOMPAH-935 and OOMPAH-937\n\nThe live all-enforce rollout now has 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 09:10
+---
+Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+<!-- COMMENTS:END -->

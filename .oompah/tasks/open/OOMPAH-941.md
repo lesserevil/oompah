@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-941
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Project authorized owner delivery before requiring landing recovery
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T09:08:20.700706Z'
+updated_at: '2026-08-09T09:10:18.566653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Production generation 260 leaves 73 owner-overridden Done tasks in landing_missi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 09:10
+---
+Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+<!-- COMMENTS:END -->

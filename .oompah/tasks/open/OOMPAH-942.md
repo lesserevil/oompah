@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-942
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Backfill trusted terminal-parent heads for pruned epic targets
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T09:08:26.152660Z'
+updated_at: '2026-08-09T09:10:28.571678Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Fourteen resolver-shaped legacy child rows have exact source authority but targe
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 09:10
+---
+Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+<!-- COMMENTS:END -->
