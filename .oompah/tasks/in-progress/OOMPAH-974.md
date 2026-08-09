@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:08:43.510824Z'
+updated_at: '2026-08-09T23:14:20.086986Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -338,5 +338,10 @@ author: oompah
 created: 2026-08-09 22:41
 ---
 Second revision independently approved at exact head 114b72a5a1766392c6c533e8fc5ff2c0905e915b. Root causes: owner-claim tracker/store lock waits blocked the ASGI loop; reserved control jobs were not admitted until full reconciliation. Independent 193-test affected suite plus 9 liveness/authority tests and terminal mutation scan pass. Protected PR #784 is running Python 3.11/3.12/3.13 with auto-merge enabled.
+---
+author: oompah
+created: 2026-08-09 23:14
+---
+Final second-revision head is daa7d22d03220e16a11ca284789afc0fb66af3b1 (tree 03c8858710d6404a84737d2baa1299bf6d4ccabb), rebased onto main 344c420d0. The broader ASGI liveness fix offloads blocking task create/comment/update/intake/label/dependency/detail work, reserves lifecycle control admission, keeps merged lifecycle webhooks on control I/O while routine webhooks use the ordinary pool, and preserves EventBus emission on the ASGI loop. Independent exact-tree review reproduced 550 focused tests and terminal mutation scan 20/20 with no code findings; the final head differs only by clean commit metadata from reviewed head 8d57c91dc. Protected PR #784 gates are rerunning on the exact final head.
 ---
 <!-- COMMENTS:END -->
