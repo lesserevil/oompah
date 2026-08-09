@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T13:20:48.289519Z'
+updated_at: '2026-08-09T13:35:19.259462Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-09 13:20
 ---
 Refreshed the final OOMPAH-957 repair onto current main at exact head 626703665. The only conflict was the older 30-second timeout marker versus the new deterministic 90-second cross-process proof; retained the new proof. Both hosted-failure regressions pass after composition and PR #766 is rerunning.
+---
+author: oompah
+created: 2026-08-09 13:35
+---
+Pushed hosted CI repair 5f44117fc. Root cause: light native command boundaries were retained for a fixed 5 seconds even though proof is published before exec and the owning command item can consume it only after process return; a valid command using more than 5 seconds of its configured 10-second budget lost its one-shot receipt. The broker now retains proof for the configured execution budget plus a bounded 5-second event-handoff grace, while group/item one-shot binding and bounded expiry remain enforced. Verification: concurrent receipt plus anti-spoof cases passed 10/10 repeated; bounded-expiry regression passed; combined OOMPAH-957 focused xdist corpus passed 5/5. Hosted PR #766 will validate exact head 5f44117fc.
 ---
 <!-- COMMENTS:END -->
