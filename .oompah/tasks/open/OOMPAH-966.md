@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T16:29:54.272144Z'
-updated_at: '2026-08-09T17:07:25.284155Z'
+updated_at: '2026-08-09T17:14:20.253556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-09 17:07
 ---
 Final callback-settlement correction pushed at 42a1926aa on PR #770. A quick same-pass final completion is retained for the callback-driven admission turn, producing exactly one published_queue_drained world reconcile; callback-gap snapshots atomically report the effect as active or completed and never false-idle. Validation: 201 runtime/integration tests, 618 broad workflow tests, terminal-audit mutation scan, secret scan, critical Ruff, and diff checks pass; exact-head independent re-review and hosted matrix are pending.
+---
+author: oompah
+created: 2026-08-09 17:14
+---
+Regression proof strengthened at final exact OOMPAH-962 head 2fc11a864. The test now structurally blocks the post-schedule no-job claim until the completion callback has settled, proving the first report is scheduled=1/completed=0/active=0 with one deferred result, the second is the sole published_queue_drained reconcile, and the third is empty. 100 focused repetitions and 293 composed tests pass; no further production change was required.
 ---
 <!-- COMMENTS:END -->
