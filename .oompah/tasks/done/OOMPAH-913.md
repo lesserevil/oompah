@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-913
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''OOMPAH-912:
   Open was not applied (waiting: transition.recovery_required)'')'
@@ -12,13 +12,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T14:23:18.279242Z'
-updated_at: '2026-08-08T15:38:33.135702Z'
+updated_at: '2026-08-09T05:11:55.776170Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9c7316cf5da9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-913
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c83d202fe1eac30e9675cf766b449087dc03ac40ab8e09432d1775a5b8de6470
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:11:51.787378+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -65,5 +87,10 @@ author: oompah
 created: 2026-08-08 14:37
 ---
 Direct owner fix in progress on the systemic composition branch. This task is the error-watcher symptom of expected durable transition contention. The server now classifies transition.owner_active and transition.recovery_required as retryable HTTP 409 warnings instead of unexpected ERROR logs, so ordinary contention cannot auto-file another backend bug. Focused classification/API tests pass.
+---
+author: oompah
+created: 2026-08-09 05:11
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
