@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-957
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Stabilize concurrent validation and review-capacity CI regressions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T12:47:44.599871Z'
+updated_at: '2026-08-09T12:48:48.982484Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-09 12:47
 ---
 Correction to the preceding comment: the exact pushed head is 1159766a55309ab87a8bf5280756a61ffb36147c.
+---
+author: oompah
+created: 2026-08-09 12:48
+---
+Opened exact final-head PR #766 at 1159766a5 and armed squash auto-merge. Focused race corpora and repeated runs pass; the hosted matrix is the final exact-head gate.
 ---
 <!-- COMMENTS:END -->
