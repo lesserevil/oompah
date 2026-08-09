@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-927
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Schedule universal workflow controller under durable runtime
 parent: null
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T23:01:44.924274Z'
-updated_at: '2026-08-09T05:13:38.526701Z'
+updated_at: '2026-08-09T05:13:50.908298Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-82f2336ca14f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-927
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0c3f57a26c78b257af0568caa1f42a674a504dc8aafa6dc65da5b7f9ea727d0e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:13:44.550020+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
