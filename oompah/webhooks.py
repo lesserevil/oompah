@@ -428,12 +428,22 @@ def _parse_github_issue_comment(
         payload: Parsed JSON body from GitHub.
 
     Returns:
-        A ``WebhookEvent``, or ``None`` for malformed payloads.
+        A ``WebhookEvent``, or ``None`` for malformed or PR-backed payloads.
     """
     action = payload.get("action", "")
     issue = payload.get("issue") or {}
     comment = payload.get("comment") or {}
     if not issue or not comment:
+        return None
+
+    # GitHub uses ``issue_comment`` for both issues and pull requests.  PR
+    # comments belong to the pull-request review lifecycle and must never be
+    # normalized as customer issue intake.
+    if issue.get("pull_request") is not None:
+        logger.debug(
+            "Skipping issue_comment event for PR-backed issue #%s",
+            issue.get("number"),
+        )
         return None
 
     repo = payload.get("repository") or {}
