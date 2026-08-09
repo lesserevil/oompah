@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-946
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Remove detached native-validation descendant lifetime race
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:36:17.757446Z'
-updated_at: '2026-08-09T10:20:27.386343Z'
+updated_at: '2026-08-09T10:20:40.472192Z'
 work_branch: OOMPAH-946
 target_branch: null
 review_url: null
