@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-967
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Honor retained terminal provenance in canonical workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:04:59.855533Z'
+updated_at: '2026-08-09T18:05:34.998859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by the live OOMPAH-940 rollout at workflow snapshot generation 728: 68
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 18:05
+---
+Accepted for direct-owner implementation as the final live OOMPAH-940 rollout blocker.
+---
+<!-- COMMENTS:END -->
