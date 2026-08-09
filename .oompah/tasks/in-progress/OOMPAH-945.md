@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T09:27:06.177511Z'
+updated_at: '2026-08-09T09:27:18.231907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-08-09 09:27
 ---
 Exact implementation commit 395ce9938 is pushed on origin/OOMPAH-945 and the worktree is clean/up to date. Normal  was attempted and correctly failed closed because the declared immediate target origin/epic-OOMPAH-940 is not yet published. No main-target PR or topology bypass was created. Resubmit after the parent epic target is published/composed.
+---
+author: oompah
+created: 2026-08-09 09:27
+---
+Clarification: the normal Oompah submission command was attempted and correctly failed closed because the declared immediate target origin/epic-OOMPAH-940 is not yet published. Commit 395ce9938 remains clean and pushed; resubmit after the parent epic target is published/composed.
 ---
 <!-- COMMENTS:END -->
