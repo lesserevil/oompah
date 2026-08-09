@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:45:46.590176Z'
+updated_at: '2026-08-09T23:48:07.706416Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -204,12 +204,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-974
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-60bd6874a749
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+      created_at: '2026-08-09T23:47:58.428326+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T23:47:58.428326+00:00'
+      branch_key: OOMPAH-974
+      selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+      selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     source_generation: 2
     requested_by:
       version: 1
@@ -219,6 +234,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:45:42.374145+00:00'
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    updated_at: '2026-08-09T23:47:58.428326+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-64bedb0842a2
@@ -232,6 +248,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: haiku
     started_at: '2026-08-09T22:03:38.150577+00:00'
+    branch_key: OOMPAH-974
+    selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+  - version: 1
+    attempt_id: attempt-60bd6874a749
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    created_at: '2026-08-09T23:47:58.428326+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T23:47:58.428326+00:00'
     branch_key: OOMPAH-974
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
@@ -378,5 +409,15 @@ author: oompah
 created: 2026-08-09 23:43
 ---
 Additional live confirmation on pre-final build 25154c8: the 900s dispatch-stale watchdog requested restart at 23:33:42, closed the listener, then the process remained alive waiting for background tasks, leaving port 8090 unavailable. Exact PID 2697536 was still identity-owned with no running agents; supported make force-restart boundedly cut over to PID 2951307 at exact main 344c420d0, and /healthz plus make status are green. This is the same lifecycle/background-I/O liveness defect owned by OOMPAH-974, not a new task; final head 0006c430f moves those paths off-loop and has independent exact review.
+---
+author: oompah
+created: 2026-08-09 23:48
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 23:48
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
