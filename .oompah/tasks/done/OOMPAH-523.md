@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T20:01:50.247526Z'
+updated_at: '2026-08-09T20:12:13.324940Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -147,6 +147,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T20:01:02.649566+00:00'
     applied_at: '2026-08-05T20:01:16.592571+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-523 is a completed historical/provenance-only
+      legacy record; this is not a landing claim. The retained provenance records
+      an explicit project-owner historical decision.
+    marked_at: '2026-08-09T20:12:11.641465+00:00'
+    updated_at: '2026-08-09T20:12:11.641465+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-523 is a completed historical/provenance-only
+        legacy record; this is not a landing claim. The retained provenance records
+        an explicit project-owner historical decision.
+      recorded_at: '2026-08-09T20:12:11.641465+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -226,6 +250,7 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-04T21:34:35.336793+00:00'
     updated_at: '2026-08-04T22:57:12.166093+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-2cd8b8c9af4f
     project_id: proj-14849f1b
@@ -276,6 +301,7 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-08-05T18:22:16.796576+00:00'
     updated_at: '2026-08-05T20:01:02.649338+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f

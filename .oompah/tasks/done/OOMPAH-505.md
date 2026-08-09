@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T19:22:05.224530Z'
+updated_at: '2026-08-09T20:12:09.857819Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -148,6 +148,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T19:20:19.180745+00:00'
     applied_at: '2026-08-05T19:20:30.516152+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-505 is a completed historical/provenance-only
+      legacy record; this is not a landing claim. The retained provenance records
+      an explicit project-owner historical decision.
+    marked_at: '2026-08-09T20:12:08.334007+00:00'
+    updated_at: '2026-08-09T20:12:08.334007+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-505 is a completed historical/provenance-only
+        legacy record; this is not a landing claim. The retained provenance records
+        an explicit project-owner historical decision.
+      recorded_at: '2026-08-09T20:12:08.334007+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -227,6 +251,7 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-04T18:28:16.713563+00:00'
     updated_at: '2026-08-05T00:00:56.552899+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-adbaaac8362f
     project_id: proj-14849f1b
@@ -261,6 +286,7 @@ oompah.terminal_audit:
     previous_state: In Progress
     created_at: '2026-08-05T18:27:54.797137+00:00'
     updated_at: '2026-08-05T19:20:19.180484+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-140026660249

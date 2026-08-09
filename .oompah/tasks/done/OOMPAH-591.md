@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-08-03T20:03:08.551354Z'
+updated_at: '2026-08-09T20:12:21.597757Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -218,6 +218,28 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-c4583aff1a63
     created_at: '2026-08-03T20:03:06.153329+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-591 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:12:19.912216+00:00'
+    updated_at: '2026-08-09T20:12:19.912216+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-591 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:12:19.912216+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -300,6 +322,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:47:32.059124+00:00'
     updated_at: '2026-07-30T19:43:55.856332+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-85eb5879d029
     project_id: proj-14849f1b
@@ -333,6 +356,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T20:17:13.120383+00:00'
     updated_at: '2026-07-30T20:20:05.103415+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-3ff18fc87371
     project_id: proj-14849f1b
@@ -350,6 +374,7 @@ oompah.terminal_audit:
       source: api
     previous_state: In Validation
     created_at: '2026-07-30T20:20:28.362682+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-0e821c979fd2
     project_id: proj-14849f1b
@@ -367,6 +392,7 @@ oompah.terminal_audit:
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T21:17:23.256576+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-fd07a87fb425
     project_id: proj-14849f1b
@@ -401,6 +427,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:21:01.353393+00:00'
     updated_at: '2026-07-30T22:38:42.931950+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-17b04dbde3c3
     project_id: proj-14849f1b
@@ -432,6 +459,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-30T23:50:16.510765+00:00'
     updated_at: '2026-07-30T23:51:01.327457+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-c4583aff1a63
     project_id: proj-14849f1b
@@ -466,6 +494,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-30T23:53:41.572906+00:00'
     updated_at: '2026-07-31T00:06:54.147204+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed

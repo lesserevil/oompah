@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-08-03T20:02:46.251986Z'
+updated_at: '2026-08-09T20:12:06.470781Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -220,6 +220,28 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-4a788dc333a6
     created_at: '2026-08-03T20:02:43.843773+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-489 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:12:05.088485+00:00'
+    updated_at: '2026-08-09T20:12:05.088485+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-489 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:12:05.088485+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -256,6 +278,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T04:17:23.331609+00:00'
     updated_at: '2026-07-31T04:19:45.447179+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-43399ec755b0
