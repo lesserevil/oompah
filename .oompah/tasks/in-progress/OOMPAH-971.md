@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:50:52.737789Z'
-updated_at: '2026-08-09T19:53:26.403927Z'
+updated_at: '2026-08-09T20:11:02.452130Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-09 19:51
 ---
 Accepted for direct-owner repair from OOMPAH-967 audit attempt audit-e269ff899599. Hosted exact-head CI was green; this task fixes the detached-auditor task-private-venv gate mismatch that produced the false Needs CI Fix state.
+---
+author: oompah
+created: 2026-08-09 20:11
+---
+Implementation complete at rebased exact head 125d19edd8b6c4e3bb001b675cf77da084ea25a2; stable patch identity 34cd50a038dcbd0a0a0c02cb1621d091990a6206 is unchanged from independently reviewed head 5ec355f21. The test-only repair supplies the active absolute task-private interpreter to nested runner preflight tests and removes unrelated fsync/atomic-write setup cost from the cold pagination fixture without changing production checks or timeouts. Evidence: detached runner 35/35, accurate loaded affected suite 726/726, lifecycle stress 48/48, independent detached review no blockers with explicit fail-closed checks green, post-rebase focused 36/36, terminal-audit mutation scan passed, and diff check clean.
 ---
 <!-- COMMENTS:END -->
