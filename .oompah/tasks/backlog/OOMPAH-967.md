@@ -1,0 +1,31 @@
+---
+id: OOMPAH-967
+type: bug
+status: Backlog
+priority: 1
+title: Honor retained terminal provenance in canonical workflow decisions
+parent: OOMPAH-940
+children: []
+blocked_by: []
+start_blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-08-09T18:04:59.855533Z'
+updated_at: '2026-08-09T18:04:59.855533Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+review_head: null
+merged_at: null
+---
+## Summary
+
+Triggered by the live OOMPAH-940 rollout at workflow snapshot generation 728: 68 exact-current workflow-managed integration_landing_refresh jobs for legacy Done tasks exhausted because exact landing evidence is unavailable. OOMPAH-871 already provides an authenticated project-owner terminal-provenance retain action for completed records that are intentionally historical, but the universal workflow fact/decision path ignores that durable authority and continues scheduling landing refreshes. Implementation scope: project the current validated provenance-suppression marker into canonical workflow facts; bind it to the exact project/task, schema, owner identity, and authority generation; make a Done task with a healthy retained marker terminal as provenance-only with no delivery effect or status mutation; make malformed/unreadable markers fail closed with a named operator action; ensure an owner-authorized new revision/generation restores ordinary workflow evaluation; and let the existing exact-publication retirement path supersede and retire prior exhausted landing-refresh authority. Do not add SQLite edits, generic mass overrides, or trust unvalidated tracker prose. Relevant files include oompah/orchestrator.py, oompah/workflow_facts.py or the terminal-audit fact adapter, oompah/work_decision.py, workflow runtime/liveness integration, and focused tests. Required tests: retained Done task produces a project/task/generation-bound terminal zero-job decision; incomplete, cross-task, malformed, or unreadable markers do not become delivery proof; new-revision authority resumes normal landing evaluation; an exact exhausted integration_landing_refresh row is retired after publication of the retained zero-job decision; restart preserves the result; unaffected Done tasks still require exact landing evidence. Acceptance: after deployment, apply the supported owner retain action only to the 68 currently exhausted legacy Done records, observe their exact old jobs retire without rerun, reach complete workflow liveness with current divergence=0 and current exhausted=0, pass make workflow-rollout-check, and close OOMPAH-940 without direct database edits or broad status overrides.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+

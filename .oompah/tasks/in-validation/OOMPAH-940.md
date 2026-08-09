@@ -18,13 +18,14 @@ children:
 - OOMPAH-960
 - OOMPAH-961
 - OOMPAH-962
+- OOMPAH-967
 blocked_by:
 - OOMPAH-939
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T17:44:25.730872Z'
+updated_at: '2026-08-09T18:05:00.865191Z'
 work_branch: null
 target_branch: null
 review_url: null
