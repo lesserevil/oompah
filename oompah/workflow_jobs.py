@@ -4457,6 +4457,7 @@ class WorkflowJobStore:
         lease_owner: str,
         lease_seconds: float,
         project_id: str | None = None,
+        project_ids: Sequence[str] | None = None,
         task_id: str | None = None,
         generation: str | None = None,
         actions: Sequence[str] | None = None,
@@ -4470,6 +4471,24 @@ class WorkflowJobStore:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         bounded_recovery = _bounded_limit(recovery_limit)
+        if project_id is not None and project_ids is not None:
+            raise ValueError("project_id and project_ids are mutually exclusive")
+        if isinstance(project_ids, (str, bytes)):
+            raise TypeError("project_ids must be a sequence")
+        normalized_project_ids = (
+            tuple(
+                sorted(
+                    {
+                        _required_text(value, "project_id")
+                        for value in project_ids
+                    }
+                )
+            )
+            if project_ids is not None
+            else ()
+        )
+        if project_ids is not None and not normalized_project_ids:
+            raise ValueError("project_ids cannot be empty")
         clauses = [
             "(candidate.state = ? OR (candidate.state = ? "
             "AND candidate.retry_at IS NOT NULL AND candidate.retry_at <= ?))",
@@ -4512,6 +4531,13 @@ class WorkflowJobStore:
             if value is not None:
                 clauses.append(f"candidate.{column} = ?")
                 values.append(_required_text(value, column))
+        if normalized_project_ids:
+            clauses.append(
+                "candidate.project_id IN ("
+                + ",".join("?" for _ in normalized_project_ids)
+                + ")"
+            )
+            values.extend(normalized_project_ids)
         if actions:
             normalized_actions = tuple(
                 _required_text(action, "action") for action in actions
@@ -4533,12 +4559,14 @@ class WorkflowJobStore:
             values[2] = timestamp
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                self._recover_expired_locked(
-                    now=timestamp,
-                    limit=bounded_recovery,
-                    project_id=project_id,
-                    actions=actions,
-                )
+                recovery_projects = normalized_project_ids or (project_id,)
+                for recovery_project in recovery_projects:
+                    self._recover_expired_locked(
+                        now=timestamp,
+                        limit=bounded_recovery,
+                        project_id=recovery_project,
+                        actions=actions,
+                    )
                 selected = self._conn.execute(
                     f"""
                     SELECT candidate.* FROM workflow_jobs candidate

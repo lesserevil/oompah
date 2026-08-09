@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import asyncio
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from oompah.config import ServiceConfig
 from oompah.models import WorkflowDefinition
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import DispatchEvent, DispatchEventType, Orchestrator
 
 
 # ---------------------------------------------------------------------------
@@ -194,8 +195,6 @@ class TestRunLoopUpdatesSyncTime:
         event arrives, so we post a REFRESH_REQUESTED event after the first
         tick to trigger it.
         """
-        from oompah.orchestrator import DispatchEvent, DispatchEventType
-
         orch = _make_orchestrator(tmp_path, poll_interval_ms=50)
 
         tick_count = 0
@@ -224,8 +223,6 @@ class TestRunLoopUpdatesSyncTime:
         event arrives, so we post one after the first tick.
         """
         import logging
-        from oompah.orchestrator import DispatchEvent, DispatchEventType
-
         orch = _make_orchestrator(tmp_path, poll_interval_ms=50, full_sync_interval_ms=1_000)
 
         tick_count = 0
@@ -250,6 +247,60 @@ class TestRunLoopUpdatesSyncTime:
             asyncio.run(orch.run())
 
         assert any("Safety-net full sync triggered" in r.message for r in caplog.records)
+
+    @pytest.mark.parametrize("suffix_processed", (0, 1))
+    def test_saturated_runtime_batch_continues_without_full_sync(
+        self,
+        tmp_path,
+        suffix_processed,
+    ):
+        """The real dispatch loop consumes one coalesced continuation edge."""
+
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        reports = iter(
+            (
+                {"worker": {"processed": 2, "batch_saturated": True}},
+                {
+                    "worker": {
+                        "processed": suffix_processed,
+                        "batch_saturated": False,
+                    }
+                },
+            )
+        )
+
+        async def reconcile_async():
+            report = next(reports)
+            if report["worker"]["batch_saturated"] is False:
+                orch._stopping = True
+            return report
+
+        runtime = SimpleNamespace(
+            started=True,
+            start=AsyncMock(),
+            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+            pending_operation_count=0,
+            drain=AsyncMock(return_value=True),
+            close=MagicMock(),
+        )
+        orch.workflow_runtime = runtime
+        _stub_unrelated_run_startup(orch)
+        orch._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
+        # An existing refresh edge proves the continuation uses the same
+        # coalescing key instead of appending a second world scan.
+        orch._post_event(
+            DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)
+        )
+        asyncio.run(orch.run())
+
+        assert runtime.reconcile_async.await_count == 2
+        assert orch._last_coalesced_event_count == 1
+        assert orch._dispatch_queue.empty()
 
 
 # ---------------------------------------------------------------------------

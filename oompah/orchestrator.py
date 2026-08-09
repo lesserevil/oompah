@@ -10994,6 +10994,34 @@ class Orchestrator:
             )
         )
 
+    def _request_workflow_batch_continuation(self) -> bool:
+        """Queue one non-recursive follow-up for a saturated durable batch.
+
+        The event-intake owner coalesces this with any refresh already pending.
+        Admission is fenced again here because a graceful drain can begin after
+        the worker finishes its bounded batch but before the tick publishes its
+        report.  Posting onto the current loop is non-recursive: the dispatch
+        loop cannot consume the continuation until this tick returns.
+        """
+
+        runtime = self.workflow_runtime
+        with self._provider_admission_lock:
+            if (
+                runtime is None
+                or self._stopping
+                or self._quiesced
+                or not runtime.worker.accepting
+            ):
+                return False
+            self._set_refresh_requested()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED,
+                    payload={"reason": "workflow_batch_saturated"},
+                )
+            )
+        return True
+
     def _integration_executor(self) -> ThreadPoolExecutor:
         """Return the isolated integration executor once the service is live."""
 
@@ -14528,6 +14556,15 @@ class Orchestrator:
         audit_metrics = await self._dispatch_audit_lane()
         report = await runtime.reconcile_async()
 
+        worker_report = report.get("worker")
+        batch_saturated = bool(
+            isinstance(worker_report, Mapping)
+            and worker_report.get("batch_saturated") is True
+        )
+        continuation_requested = bool(
+            batch_saturated and self._request_workflow_batch_continuation()
+        )
+
         if self._maintenance_future is None or self._maintenance_future.done():
             self._maintenance_future = asyncio.get_running_loop().run_in_executor(
                 self._tick_pool, self._run_non_lifecycle_housekeeping
@@ -14538,6 +14575,8 @@ class Orchestrator:
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "durable_runtime": True,
             "workflow_runtime": report,
+            "workflow_batch_saturated": batch_saturated,
+            "workflow_batch_continuation_requested": continuation_requested,
             "terminal_audit": audit_metrics,
             "housekeeping_pending": bool(
                 self._maintenance_future is not None

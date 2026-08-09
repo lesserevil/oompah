@@ -837,6 +837,7 @@ class DurableWorkflowWorker:
         self,
         *,
         project_id: str | None = None,
+        project_ids: Sequence[str] | None = None,
         actions: Sequence[str] | None = None,
         fair_across_projects: bool = False,
     ) -> WorkflowRunResult:
@@ -870,6 +871,7 @@ class DurableWorkflowWorker:
                 lease_owner=self.worker_id,
                 lease_seconds=self.lease_seconds,
                 project_id=project_id,
+                project_ids=project_ids,
                 actions=claim_actions,
                 fair_across_projects=fair_across_projects,
             )
