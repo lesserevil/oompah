@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-954
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Compose canonical epic facts in universal workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T16:24:15.043697Z'
+updated_at: '2026-08-09T16:28:56.502819Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -38,6 +38,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-954
     digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d5b2a9482ecc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-954
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after git patch identity proved accepted head
+      dccbeb5ac4e1012d772ebfa366e586bdb6df76db and its prerequisite patch are contained
+      in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435; PR #757 merged as
+      ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01 with hosted Python 3.11/3.12/3.13 checks
+      successful.'
+    created_at: '2026-08-09T16:28:52.344603+00:00'
+    selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+    selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+    applied: false
   version: 1
   pending_chain:
   - version: 1
