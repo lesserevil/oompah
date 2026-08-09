@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:45:03.396769Z'
+updated_at: '2026-08-09T20:45:16.524775Z'
 work_branch: OOMPAH-972
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/780
@@ -63,7 +63,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T20:44:59.171086+00:00'
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-972
+    target_state: Done
+    evidence_fingerprint: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+    audit_ids:
+    - audit-086401438eaf
+    - audit-421c9eb62469
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T20:45:08.904143+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -71,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-972
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -101,13 +113,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T20:43:37.512483+00:00'
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
-    updated_at: '2026-08-09T20:44:47.036853+00:00'
+    updated_at: '2026-08-09T20:45:08.904098+00:00'
   - version: 1
     audit_id: audit-421c9eb62469
     project_id: proj-14849f1b
     task_id: OOMPAH-972
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -122,6 +134,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T20:43:37.512483+00:00'
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    updated_at: '2026-08-09T20:45:08.904127+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6657e818628d
@@ -185,5 +198,17 @@ author: oompah
 created: 2026-08-09 20:44
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 20:45
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-09 20:45
+---
+Safe stale-editable repair after worktree pruning is merged via PR #780 with the protected three-version matrix green; the unrelated cleanup timing race is being fixed separately in OOMPAH-973.
 ---
 <!-- COMMENTS:END -->
