@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T13:35:43.283510Z'
+updated_at: '2026-08-09T13:35:49.879174Z'
 work_branch: OOMPAH-947
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
@@ -57,6 +57,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-09T13:33:52.531295+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-947
+    target_state: Merged
+    evidence_fingerprint: 3cb0155dc2ddab63fd4b5a1626a6f9f44a79f70e1e6f977bf09dc53d605f47d1
+    audit_ids:
+    - audit-ef9a7ea8e0e9
+    - audit-5171b266c264
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T13:35:48.323867+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-947
@@ -71,6 +81,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T13:33:52.531305+00:00'
     applied_at: '2026-08-09T13:33:59.122799+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-1a6070660158
@@ -90,7 +101,7 @@ oompah.terminal_audit:
       were isolated nested-runner infrastructure failures unrelated to this change.
       Existing OOMPAH-831 and OOMPAH-862 track the systemic auditor defects.'
     created_at: '2026-08-09T13:35:39.313793+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -138,7 +149,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-947
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,6 +164,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:05:08.890248+00:00'
     selected_ref: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
     selected_sha: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
+    updated_at: '2026-08-09T13:35:48.323827+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3cfe4efeab73
@@ -264,5 +276,12 @@ author: oompah
 created: 2026-08-09 13:35
 ---
 Operator re-evaluation: the implementation is merged on main via PR #760 and the accepted focused audit evidence is green. The auditor's broad run completed 18,905 tests and its seven failures were isolated nested-runner infrastructure failures caused by an invalid prepared audit-venv interpreter path, not failures in OOMPAH-947. Restoring the task to In Validation so terminal processing can continue naturally; existing OOMPAH-862 tracks redundant auditor full-gate behavior and OOMPAH-831 tracks the read-only auditor tool-policy mismatch, so no duplicate bug is being filed.
+---
+author: oompah
+created: 2026-08-09 13:35
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Operator reviewed terminal evidence after auditor tooling deadlock: PR #760 is merged, focused OOMPAH-947 suites are green, and broad-suite failures were isolated nested-runner infrastructure failures unrelated to this change. Existing OOMPAH-831 and OOMPAH-862 track the systemic auditor defects.
 ---
 <!-- COMMENTS:END -->
