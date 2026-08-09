@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T10:49:06.191161Z'
+updated_at: '2026-08-09T11:16:27.604389Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Relevant code: oompah/review_workflow.py, oompah/review_workflow_adapter.py, oom
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 11:16
+---
+Implemented durable epic auto-close retirement: revalidate exact landed source/target/head, authoritatively inspect open reviews, bind and retire only matching review capacity under issue/project locks, persist exact epic review reservation authority/head, and fail closed on source drift, wrong targets, conflicting capacity routes, or unavailable forge state. Verification: 503 related workflow/review/capacity tests passed; focused epic workflow suite 88 passed; terminal mutation scan and secret scan passed.
+---
+<!-- COMMENTS:END -->
