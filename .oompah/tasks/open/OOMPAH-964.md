@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T16:35:07.354320Z'
+updated_at: '2026-08-09T16:46:41.634947Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-08-09 16:35
 ---
 Addressed independent-review blocker: both PR-comment guards now require a truthy pull_request marker, preserving genuine issue_comment payloads with pull_request: null. Added explicit parser and direct-intake nullable-marker regressions. Exact head 5693a9786509d31446ae8f5232caa8fef7be7d1d is pushed to PR #773; hosted run 31324161414 queued. Validation: 416 tests across webhook/intake/server/promotion modules passed; nullable regressions passed 20 repeated process runs; terminal-audit, secret, undefined-name, and diff checks passed.
+---
+author: oompah
+created: 2026-08-09 16:46
+---
+Second independent review found the final falsey non-null edge: an empty pull_request object must still be PR-backed. Corrected exact head 21861cac8 now rejects every non-null marker at both parser and native-intake boundaries while missing/null markers remain genuine issue comments. Added empty-object regressions; 418 webhook/intake/approval/server tests plus terminal mutation, secret, critical lint, and diff checks pass. Final hosted matrix and independent re-review are running.
 ---
 <!-- COMMENTS:END -->
