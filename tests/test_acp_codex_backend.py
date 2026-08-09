@@ -1292,10 +1292,21 @@ class TestCodexCliPath:
             ) is True
 
     @pytest.mark.parametrize(
-        ("expected_outcome", "timeout_seconds", "withdraw_authority"),
+        ("expected_outcome", "timeout_seconds", "withdrawal_point"),
         [
-            ("timed_out", 1, False),
-            ("authority_withdrawn", 10, True),
+            pytest.param("timed_out", 1, "never", id="timed_out-1-False"),
+            pytest.param(
+                "authority_withdrawn",
+                10,
+                "before_admission",
+                id="authority_withdrawn-10-True",
+            ),
+            pytest.param(
+                "authority_withdrawn",
+                10,
+                "after_admission",
+                id="authority_withdrawn-10-after-admission",
+            ),
         ],
     )
     def test_managed_native_supervisor_cause_precedes_codex_item_completion(
@@ -1304,7 +1315,7 @@ class TestCodexCliPath:
         monkeypatch,
         expected_outcome,
         timeout_seconds,
-        withdraw_authority,
+        withdrawal_point,
     ):
         lease = ValidationResourceLease(
             tmp_path / "validation.sqlite3",
@@ -1317,8 +1328,22 @@ class TestCodexCliPath:
         )
         real_bin = tmp_path / "real-bin"
         real_bin.mkdir()
+        execution_entered = tmp_path / "native-command-entered"
+        execution_marker = tmp_path / "native-command-executed"
+        release_workload = tmp_path / "release-native-command"
         fake_make = real_bin / "make"
-        fake_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+        fake_make.write_text(
+            "#!/bin/sh\n"
+            ': > "$OOMPAH_TEST_NATIVE_EXECUTION_ENTERED"\n'
+            'if [ "$OOMPAH_TEST_BLOCK_NATIVE_EXECUTION" = "1" ]; then\n'
+            '  while [ ! -e "$OOMPAH_TEST_RELEASE_NATIVE_EXECUTION" ]; do\n'
+            "    sleep 0.01\n"
+            "  done\n"
+            "fi\n"
+            ': > "$OOMPAH_TEST_NATIVE_EXECUTION_MARKER"\n'
+            "sleep 10\n",
+            encoding="utf-8",
+        )
         fake_make.chmod(0o700)
         lifecycle: list[dict[str, object]] = []
         lifecycle_started = threading.Event()
@@ -1359,15 +1384,32 @@ class TestCodexCliPath:
         terminal_observed = threading.Event()
         release_terminal = threading.Event()
         terminal_committed = threading.Event()
+        admission_handler_committed = threading.Event()
         real_claim_terminal = broker._claim_supervisor_terminal
 
         def block_terminal_claim(boundary_group, outcome):
+            supervisor_observer = threading.current_thread().name.startswith(
+                "native-validation-supervisor-status-"
+            )
+            if (
+                outcome == expected_outcome
+                and withdrawal_point == "before_admission"
+                and supervisor_observer
+            ):
+                # Model an observer that cannot reach the claim. The broker's
+                # post-transfer admission path must join the same atomic claim
+                # instead of waiting forever for this thread to be scheduled.
+                terminal_observed.set()
+                assert admission_handler_committed.wait(timeout=5)
+                return real_claim_terminal(boundary_group, outcome)
             if outcome == expected_outcome:
                 terminal_observed.set()
                 assert release_terminal.wait(timeout=5)
             publication = real_claim_terminal(boundary_group, outcome)
             if outcome == expected_outcome:
                 terminal_committed.set()
+                if withdrawal_point == "before_admission":
+                    admission_handler_committed.set()
             return publication
 
         monkeypatch.setattr(
@@ -1375,11 +1417,38 @@ class TestCodexCliPath:
             "_claim_supervisor_terminal",
             block_terminal_claim,
         )
+        admission_entered = threading.Event()
+        release_admission = threading.Event()
+        admission_resolved = threading.Event()
+        real_admit_launch = broker._admit_transferred_validation_launch
+
+        def block_exec_admission(*args, **kwargs):
+            admission_entered.set()
+            assert release_admission.wait(timeout=5)
+            try:
+                return real_admit_launch(*args, **kwargs)
+            finally:
+                admission_resolved.set()
+
+        monkeypatch.setattr(
+            broker,
+            "_admit_transferred_validation_launch",
+            block_exec_admission,
+        )
         descriptor_baseline = set(os.listdir("/proc/self/fd"))
         command = "make test-serial"
         process = subprocess.Popen(
             ["/bin/bash", "-c", command],
-            env={**os.environ, **guarded},
+            env={
+                **os.environ,
+                **guarded,
+                "OOMPAH_TEST_NATIVE_EXECUTION_ENTERED": str(execution_entered),
+                "OOMPAH_TEST_NATIVE_EXECUTION_MARKER": str(execution_marker),
+                "OOMPAH_TEST_BLOCK_NATIVE_EXECUTION": (
+                    "1" if withdrawal_point == "after_admission" else "0"
+                ),
+                "OOMPAH_TEST_RELEASE_NATIVE_EXECUTION": str(release_workload),
+            },
             pass_fds=(
                 int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
             ),
@@ -1431,20 +1500,38 @@ class TestCodexCliPath:
             assert [event.kind for event in asyncio.run(translate("item.started"))] == [
                 "tool_use"
             ]
+            assert admission_entered.wait(timeout=5)
             wait_until(descriptor_transferred)
-            if withdraw_authority:
+            if withdrawal_point == "before_admission":
                 (root / guard_module._CANCELLATION_NAME).touch(mode=0o600)
+            else:
+                release_admission.set()
+                assert admission_resolved.wait(timeout=5)
+                wait_until(execution_entered.exists)
+                if withdrawal_point == "after_admission":
+                    (root / guard_module._CANCELLATION_NAME).touch(mode=0o600)
+                else:
+                    wait_until(execution_marker.exists)
             assert terminal_observed.wait(timeout=5)
+            if withdrawal_point == "before_admission":
+                release_admission.set()
 
             # The observer has the exact cause but is deliberately barred from
             # claiming it. The supervisor must retain the live process until
             # that atomic claim prevents generic item completion from winning.
+            # In the withdrawal lane, even the broker's post-transfer exec
+            # admission remains unresolved while the exact claim is pending.
             with pytest.raises(subprocess.TimeoutExpired):
                 process.wait(timeout=1)
             assert [entry["phase"] for entry in lifecycle] == ["started"]
+            if withdrawal_point == "before_admission":
+                assert admission_resolved.is_set() is False
 
             release_terminal.set()
             assert terminal_committed.wait(timeout=5)
+            if withdrawal_point == "before_admission":
+                assert admission_handler_committed.is_set()
+            assert admission_resolved.wait(timeout=5)
             assert terminal_callback_started.wait(timeout=5)
 
             # The exact cause is now atomically owned and removed from item
@@ -1452,6 +1539,10 @@ class TestCodexCliPath:
             # already have released mandatory termination and lease cleanup.
             item.exit_code = process.wait(timeout=5)
             assert item.exit_code != 0
+            assert execution_entered.exists() is (
+                withdrawal_point != "before_admission"
+            )
+            assert execution_marker.exists() is (withdrawal_point == "never")
             assert [
                 event.kind
                 for event in asyncio.run(translate("item.completed"))
@@ -1487,6 +1578,8 @@ class TestCodexCliPath:
             ] == ["tool_result"]
             assert terminal_callback_attempts == 1
         finally:
+            release_workload.touch(mode=0o600, exist_ok=True)
+            release_admission.set()
             release_terminal.set()
             release_terminal_callback.set()
             with contextlib.suppress(ProcessLookupError):
