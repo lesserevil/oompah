@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:19:43.680997Z'
+updated_at: '2026-08-09T23:27:01.058675Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -343,5 +343,10 @@ author: oompah
 created: 2026-08-09 23:14
 ---
 Final second-revision head is daa7d22d03220e16a11ca284789afc0fb66af3b1 (tree 03c8858710d6404a84737d2baa1299bf6d4ccabb), rebased onto main 344c420d0. The broader ASGI liveness fix offloads blocking task create/comment/update/intake/label/dependency/detail work, reserves lifecycle control admission, keeps merged lifecycle webhooks on control I/O while routine webhooks use the ordinary pool, and preserves EventBus emission on the ASGI loop. Independent exact-tree review reproduced 550 focused tests and terminal mutation scan 20/20 with no code findings; the final head differs only by clean commit metadata from reviewed head 8d57c91dc. Protected PR #784 gates are rerunning on the exact final head.
+---
+author: oompah
+created: 2026-08-09 23:27
+---
+Protected Python 3.11 exposed one real ordering defect in the final liveness revision: off-loop canonical project resolution yielded before the terminal dispatch fence was installed, violating the existing fence-before-first-await serialization invariant. Fixed at exact head 0006c430f566da7138f2958ed948e15d371cdf6d by installing the fence synchronously before control-executor lookup and rolling it back on every pre-staging project/validation/actor rejection. The hosted failure now passes repeatedly locally; 418 focused dispatch/terminal/owner tests and terminal mutation scan 20/20 pass. Protected PR #784 gates are rerunning and independent delta review is active.
 ---
 <!-- COMMENTS:END -->
