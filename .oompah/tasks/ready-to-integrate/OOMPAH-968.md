@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T19:25:14.285386Z'
+updated_at: '2026-08-09T19:36:47.613119Z'
 work_branch: OOMPAH-968
 target_branch: null
 review_url: null
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-08-09 19:25
 ---
 Post-dependency integration head 6f3ee4170 is pushed on merged main c28022a79. The full tree is byte-identical to independently reviewed head 277a99a1c; only the four commit IDs changed during clean rebase. This is the new exact integration candidate.
+---
+author: oompah
+created: 2026-08-09 19:36
+---
+Protected CI: Python 3.11 and 3.13 passed. Python 3.12 had one unrelated timing failure after 19,176 passes: detached effect heartbeat lease expiry was ~63 ms beyond the test assertion window. Rerunning the failed job and checking existing tracker coverage for the lease-heartbeat race; exact code head remains 6f3ee4170.
 ---
 <!-- COMMENTS:END -->
