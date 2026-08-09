@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-969
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Preserve fast workflow admission under continuous ordinary events
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T19:25:38.748132Z'
+updated_at: '2026-08-09T19:26:09.727565Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Regression of OOMPAH-959 observed live on 2026-08-09 while integrating OOMPAH-96
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 19:26
+---
+Accepted for direct-owner implementation. Live evidence confirms the shared admission continuation is starved by ordinary-event coalescing while the reserved control lane remains correct.
+---
+<!-- COMMENTS:END -->
