@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T11:51:52.462614Z'
+updated_at: '2026-08-09T12:06:53.282338Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live production reproducer on 2026-08-09: workflow job OOMPAH-951 standalone_del
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 12:06
+---
+Implemented on branch OOMPAH-955 at 5bb0803b396d0cd7d7cd5837c31d05742e99aba0 (target epic-OOMPAH-940). Workflow reconciliation now claims and retains durable effects in bounded detached lanes: at least one exact control slot admits revocation/submission/recovery while the shared lane handles general effects. Completion wakes a coalesced refresh; graceful drain covers claimed/pre-start invocations; independent worker heartbeats/checkpoints and SQLite same-task/fair-project fences remain authoritative. Added env-only concurrency controls and health telemetry. Verification: 317 focused runtime/job/worker/config tests passed; 294/295 adjacent implementation/integration/review/epic/incident tests passed, with only the pre-existing OOMPAH-748 aggregate failure addressed separately by OOMPAH-954; task-status mutation scan and secret scan passed; git diff --check clean.
+---
+<!-- COMMENTS:END -->
