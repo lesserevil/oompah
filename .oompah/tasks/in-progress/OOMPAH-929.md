@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-929
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Rearm superseded durable events on newer source generations
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T02:47:20.781959Z'
-updated_at: '2026-08-09T02:54:51.470180Z'
+updated_at: '2026-08-09T02:55:22.447102Z'
 work_branch: null
 target_branch: null
 review_url: null
