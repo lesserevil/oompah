@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T12:53:30.380209Z'
+updated_at: '2026-08-09T12:53:36.358662Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -30,6 +30,37 @@ oompah.integration:
   submitted_at: '2026-08-09T10:03:11.620082+00:00'
   updated_at: '2026-08-09T10:03:11.620082+00:00'
 oompah.work_branch: OOMPAH-945
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-f8c3a0d0da6a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-945
+    digest: b5832f95f60866a606034ed5b62fdf3147df4fcbd413f40d912ebc6b363bdd91
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f8c3a0d0da6a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-945
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b5832f95f60866a606034ed5b62fdf3147df4fcbd413f40d912ebc6b363bdd91
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T12:53:34.839367+00:00'
+    selected_ref: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+    selected_sha: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+  attempt_history: []
 ---
 ## Summary
 
