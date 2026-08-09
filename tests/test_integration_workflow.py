@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import nullcontext
 import os
 import subprocess
+import threading
+import time
 from dataclasses import replace
 from types import SimpleNamespace
 import pytest
@@ -26,6 +30,7 @@ from oompah.integration_workflow import (
     schedule_project_historical_replay,
 )
 from oompah.models import BlockerRef, Issue
+from oompah.orchestrator import Orchestrator
 from oompah.statuses import IN_VALIDATION
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -63,6 +68,7 @@ from oompah.workflow_worker import (
     WorkflowActionDomain,
     WorkflowActionError,
     WorkflowActionSuperseded,
+    WorkflowJobContext,
     WorkflowRunDisposition,
 )
 
@@ -435,6 +441,51 @@ def integration_backend_context(tmp_path, *, execute):
     return backend, context, queue, tracker
 
 
+def enqueue_durable_integration_job(store, context, *, max_attempts=5):
+    revalidation = context.job.checkpoint["revalidation"]
+    return store.enqueue(
+        WorkflowJobSpec(
+            project_id=context.job.project_id,
+            task_id=context.job.task_id,
+            generation=context.job.generation,
+            action="integration_attempt",
+            idempotency_key=context.job.idempotency_key,
+            expected_evidence_revision=revalidation["evidence_revision"],
+            expected_head_sha=revalidation["head_sha"],
+            max_attempts=max_attempts,
+        )
+    )
+
+
+def durable_integration_worker(
+    store,
+    backend,
+    *,
+    worker_id="integration-worker-1",
+    lease_seconds=30,
+    heartbeat_seconds=10,
+    operation_timeout_seconds=1,
+    phase_observer=None,
+):
+    return DurableWorkflowWorker(
+        store=store,
+        handlers={
+            "integration_attempt": IntegrationActionHandler(
+                "integration_attempt",
+                backend,
+                domain=WorkflowActionDomain.GIT,
+            )
+        },
+        transition_services={},
+        worker_id=worker_id,
+        lease_seconds=lease_seconds,
+        heartbeat_seconds=heartbeat_seconds,
+        operation_timeout_seconds=operation_timeout_seconds,
+        retry_delay_seconds=0,
+        phase_observer=phase_observer,
+    )
+
+
 @pytest.mark.asyncio
 async def test_workflow_integration_attempt_uses_job_authority_without_queue_lease(
     tmp_path,
@@ -444,7 +495,7 @@ async def test_workflow_integration_attempt_uses_job_authority_without_queue_lea
     def execute(
         row,
         *,
-        commit_allowed,
+        workflow_authority,
         gate_generation,
         retry_forced,
         rebase_intent_prepare,
@@ -455,7 +506,7 @@ async def test_workflow_integration_attempt_uses_job_authority_without_queue_lea
         calls.append(
             (row.state, row.lease_owner, gate_generation, retry_forced)
         )
-        assert commit_allowed()
+        assert workflow_authority()
         return IntegrationExecutionResult(
             "integrated",
             "landed",
@@ -479,6 +530,410 @@ async def test_workflow_integration_attempt_uses_job_authority_without_queue_lea
     assert tracker.fetch_issue_detail("TASK-A").integration.state == "integrated"
     assert effect.receipt["route"] == "landed"
     assert verification.verified
+
+
+def test_real_executor_wrapper_uses_exact_unleased_workflow_authority(
+    tmp_path,
+    monkeypatch,
+):
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    row = queue.enqueue(
+        project_id="project-1",
+        epic_id="E-1",
+        task_id="TASK-A",
+        task_branch="TASK-A",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+    )
+    observed = {}
+    clock = {"now": 1000.0}
+    jobs = WorkflowJobStore(
+        str(tmp_path / "workflow.sqlite3"),
+        clock=lambda: clock["now"],
+    )
+    queued_job = jobs.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-A",
+            generation="generation-1",
+            action="integration_attempt",
+            idempotency_key="integration:TASK-A:generation-1",
+        )
+    )
+    claimed_job = jobs.claim_next(
+        lease_owner="workflow-worker-1",
+        lease_seconds=30,
+    )
+    assert claimed_job is not None
+    assert claimed_job.job_id == queued_job.job_id
+    lease_lost = asyncio.Event()
+    interrupted = asyncio.Event()
+    context = WorkflowJobContext(
+        claimed_job,
+        lease_lost,
+        interrupted,
+        lambda: jobs.owns_live_lease(
+            context.job.job_id,
+            str(context.job.lease_token or ""),
+        ),
+    )
+
+    def workflow_authority():
+        try:
+            context.check_interrupted()
+        except Exception:
+            return False
+        return True
+
+    def execute_integration(**kwargs):
+        observed.update(kwargs)
+        assert kwargs["commit_allowed"]()
+        candidate = kwargs["canonicalize_candidate"]("c" * 40, "d" * 40)
+        assert candidate.is_current()
+        assert candidate.owner.head_sha == "c" * 40
+        assert candidate.owner.authority_generation == candidate.generation
+        assert candidate.generation == (
+            f"workflow:job-1:generation-1:candidate:{'c' * 40}:{'d' * 40}"
+        )
+        assert kwargs["gate_owner_factory"] is None
+        clock["now"] += 31
+        assert jobs.recover_expired() == 1
+        replacement = jobs.claim_next(
+            lease_owner="workflow-worker-2",
+            lease_seconds=30,
+        )
+        assert replacement is not None
+        assert replacement.lease_token != context.job.lease_token
+        assert not candidate.is_current()
+        return IntegrationExecutionResult(
+            "cancelled",
+            "workflow authority withdrawn",
+        )
+
+    monkeypatch.setattr(
+        "oompah.orchestrator.execute_integration",
+        execute_integration,
+    )
+    project = SimpleNamespace(
+        id="project-1",
+        repo_url="",
+        repo_path=str(tmp_path),
+        access_token=None,
+        forge_kind="github",
+    )
+    orchestrator = SimpleNamespace(
+        project_store=SimpleNamespace(
+            get=lambda _project_id: project,
+            epic_branch_name=lambda _epic_id: "epic/E-1",
+            create_epic_worktree=lambda *_args, **_kwargs: str(
+                tmp_path / "epic"
+            ),
+            create_worktree=lambda *_args, **_kwargs: str(tmp_path / "task"),
+            project_write_lock=lambda _project_id: nullcontext(),
+        ),
+        _branch_quality_gate=object(),
+        _quality_gate_command=lambda _project: "make test",
+        _integration_dependency_authority=lambda *_args, **_kwargs: pytest.fail(
+            "durable workflow authority must not require a queue lease"
+        ),
+        _canonicalize_integration_candidate=lambda *_args, **_kwargs: pytest.fail(
+            "durable workflow candidates must not use leased queue CAS"
+        ),
+    )
+
+    try:
+        result = Orchestrator._execute_integration_item(
+            orchestrator,
+            row,
+            workflow_authority=workflow_authority,
+            gate_generation="workflow:job-1:generation-1",
+        )
+    finally:
+        jobs.close()
+
+    assert result.status == "cancelled"
+    assert observed["gate_generation"] == "workflow:job-1:generation-1"
+
+
+def test_executor_wrapper_rejects_ambiguous_workflow_authority():
+    row = SimpleNamespace(lease_owner=None)
+
+    def allowed():
+        return True
+
+    missing_generation = Orchestrator._execute_integration_item(
+        SimpleNamespace(),
+        row,
+        workflow_authority=allowed,
+    )
+    mixed_authority = Orchestrator._execute_integration_item(
+        SimpleNamespace(),
+        row,
+        commit_allowed=allowed,
+        workflow_authority=allowed,
+        gate_generation="workflow:job-1:generation-1",
+    )
+    leased_workflow = Orchestrator._execute_integration_item(
+        SimpleNamespace(),
+        SimpleNamespace(lease_owner="legacy-owner"),
+        workflow_authority=allowed,
+        gate_generation="workflow:job-1:generation-1",
+    )
+
+    for result in (missing_generation, mixed_authority, leased_workflow):
+        assert result.status == "authority_unavailable"
+        assert "exclusive, unleased, and generation-bound" in result.message
+
+    withdrawn = Orchestrator._execute_integration_item(
+        SimpleNamespace(),
+        row,
+        workflow_authority=lambda: False,
+        gate_generation="workflow:job-1:generation-1",
+    )
+
+    def unavailable():
+        raise OSError("workflow lease store unavailable")
+
+    unavailable_result = Orchestrator._execute_integration_item(
+        SimpleNamespace(),
+        row,
+        workflow_authority=unavailable,
+        gate_generation="workflow:job-1:generation-1",
+    )
+
+    assert withdrawn.status == "cancelled"
+    assert "before worktree recovery" in withdrawn.message
+    assert unavailable_result.status == "authority_unavailable"
+    assert "before worktree recovery" in unavailable_result.message
+
+
+@pytest.mark.asyncio
+async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
+    authority_checks = []
+
+    def execute(row, *, workflow_authority, **_kwargs):
+        authority_checks.append(workflow_authority())
+        time.sleep(0.15)
+        authority_checks.append(workflow_authority())
+        return IntegrationExecutionResult(
+            "integrated",
+            "landed under renewed workflow authority",
+            expected_epic_sha=row.base_sha,
+            rebased_task_sha=row.head_sha,
+            integrated_sha="c" * 40,
+        )
+
+    backend, context, queue, _tracker = integration_backend_context(
+        tmp_path,
+        execute=execute,
+    )
+    store = WorkflowJobStore(str(tmp_path / "durable-workflow.sqlite3"))
+    try:
+        queued = enqueue_durable_integration_job(store, context)
+        result = await durable_integration_worker(
+            store,
+            backend,
+            lease_seconds=0.08,
+            heartbeat_seconds=0.02,
+        ).run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        completed = store.get(queued.job_id)
+        assert completed.state is WorkflowJobState.COMPLETED
+        assert completed.attempts == 1
+        assert authority_checks == [True, True]
+        assert len(
+            [
+                event
+                for event in store.events(queued.job_id)
+                if event.event_type == "renewed"
+            ]
+        ) >= 2
+        integrated = queue.get("project-1", "TASK-A")
+        assert integrated is not None
+        assert integrated.state == "integrated"
+        assert integrated.attempts == 1
+    finally:
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_timed_out_integration_quarantines_and_fences_late_executor(
+    tmp_path,
+):
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    late_authority = []
+
+    def execute(_row, *, workflow_authority, **_kwargs):
+        started.set()
+        release.wait(timeout=2)
+        late_authority.append(workflow_authority())
+        finished.set()
+        return IntegrationExecutionResult(
+            "cancelled",
+            "timed-out executor lost workflow authority",
+        )
+
+    backend, context, queue, _tracker = integration_backend_context(
+        tmp_path,
+        execute=execute,
+    )
+    store = WorkflowJobStore(str(tmp_path / "timed-out-workflow.sqlite3"))
+    try:
+        queued = enqueue_durable_integration_job(store, context)
+        result = await durable_integration_worker(
+            store,
+            backend,
+            lease_seconds=1,
+            heartbeat_seconds=0.02,
+            operation_timeout_seconds=0.05,
+        ).run_once()
+
+        assert started.is_set()
+        assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+        quarantined = store.get(queued.job_id)
+        assert quarantined.state is WorkflowJobState.RUNNING
+        assert quarantined.phase == "quarantined"
+        assert quarantined.lease_expires_at is None
+        assert quarantined.attempts == 1
+        release.set()
+        assert await asyncio.to_thread(finished.wait, 1)
+        assert late_authority == [False]
+        current = queue.get("project-1", "TASK-A")
+        assert current is not None
+        assert current.state == "ready"
+        assert current.attempts == 0
+    finally:
+        release.set()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_restart_replays_integration_receipt_without_reexecuting_effect(
+    tmp_path,
+):
+    path = str(tmp_path / "restart-workflow.sqlite3")
+    executions = []
+
+    def execute(row, *, workflow_authority, **_kwargs):
+        assert workflow_authority()
+        executions.append(row.authority_generation())
+        return IntegrationExecutionResult(
+            "integrated",
+            "landed before simulated process death",
+            expected_epic_sha=row.base_sha,
+            rebased_task_sha=row.head_sha,
+            integrated_sha="c" * 40,
+        )
+
+    backend, context, queue, _tracker = integration_backend_context(
+        tmp_path,
+        execute=execute,
+    )
+    store = WorkflowJobStore(path)
+    queued = enqueue_durable_integration_job(store, context)
+    crashed = False
+
+    class ProcessDeath(BaseException):
+        pass
+
+    def crash_after_effect(phase, _job):
+        nonlocal crashed
+        if phase == "effect_returned" and not crashed:
+            crashed = True
+            raise ProcessDeath()
+
+    with pytest.raises(ProcessDeath):
+        await durable_integration_worker(
+            store,
+            backend,
+            phase_observer=crash_after_effect,
+        ).run_once()
+    assert store.get(queued.job_id).state is WorkflowJobState.RUNNING
+    store.close()
+
+    reopened = WorkflowJobStore(path)
+    try:
+        assert reopened.recover_abandoned() == 1
+        result = await durable_integration_worker(
+            reopened,
+            backend,
+            worker_id="integration-worker-2",
+        ).run_once()
+
+        assert result.disposition in {
+            WorkflowRunDisposition.COMPLETED,
+            WorkflowRunDisposition.SUPERSEDED,
+        }
+        assert len(executions) == 1
+        integrated = queue.get("project-1", "TASK-A")
+        assert integrated is not None
+        assert integrated.state == "integrated"
+        assert integrated.attempts == 1
+        reopened.integrity_check()
+    finally:
+        reopened.close()
+
+
+def test_executor_wrapper_keeps_legacy_unleased_rows_unauthorized(
+    tmp_path,
+    monkeypatch,
+):
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    row = queue.enqueue(
+        project_id="project-1",
+        epic_id="E-1",
+        task_id="TASK-A",
+        task_branch="TASK-A",
+        head_sha="a" * 40,
+    )
+    legacy_authority_checks = []
+
+    def dependency_authority(*_args, **_kwargs):
+        legacy_authority_checks.append(True)
+        return lambda: False
+
+    def execute_integration(**kwargs):
+        assert not kwargs["commit_allowed"]()
+        assert kwargs["gate_owner_factory"] is not None
+        return IntegrationExecutionResult(
+            "cancelled",
+            "integration authority was withdrawn before preparation",
+        )
+
+    monkeypatch.setattr(
+        "oompah.orchestrator.execute_integration",
+        execute_integration,
+    )
+    project = SimpleNamespace(
+        id="project-1",
+        repo_url="",
+        repo_path=str(tmp_path),
+        access_token=None,
+        forge_kind="github",
+    )
+    orchestrator = SimpleNamespace(
+        project_store=SimpleNamespace(
+            get=lambda _project_id: project,
+            epic_branch_name=lambda _epic_id: "epic/E-1",
+            create_epic_worktree=lambda *_args, **_kwargs: str(
+                tmp_path / "epic"
+            ),
+            create_worktree=lambda *_args, **_kwargs: str(tmp_path / "task"),
+            project_write_lock=lambda _project_id: nullcontext(),
+        ),
+        _branch_quality_gate=object(),
+        _quality_gate_command=lambda _project: "make test",
+        _integration_dependency_authority=dependency_authority,
+        _canonicalize_integration_candidate=lambda *_args, **_kwargs: None,
+    )
+
+    result = Orchestrator._execute_integration_item(orchestrator, row)
+
+    assert result.status == "cancelled"
+    assert legacy_authority_checks == [True]
 
 
 def test_exact_queue_authority_rejects_late_tracker_state_change(tmp_path):
@@ -832,17 +1287,17 @@ async def test_containment_change_finishes_prepared_private_publication_before_r
     def execute(
         row,
         *,
-        commit_allowed,
+        workflow_authority,
         rebased_head_checkpoint,
         **_kwargs,
     ):
         executions.append(row.authority_generation())
-        assert commit_allowed()
+        assert workflow_authority()
         # Clearing the durable private-publication bit intentionally revokes
         # old-container delivery authority.  The next job owns containment
         # repair; this invocation must not proceed to the old epic.
         assert not rebased_head_checkpoint(row.head_sha, row.base_sha)
-        assert not commit_allowed()
+        assert not workflow_authority()
         return IntegrationExecutionResult(
             "stale_head",
             "prepared private publication completed after containment changed",
@@ -1362,7 +1817,7 @@ async def test_replacement_private_head_fences_late_workflow_executor(tmp_path):
     def execute(
         row,
         *,
-        commit_allowed,
+        workflow_authority,
         gate_generation,
         retry_forced,
         rebase_intent_prepare,
@@ -1380,7 +1835,7 @@ async def test_replacement_private_head_fences_late_workflow_executor(tmp_path):
             base_sha="b" * 40,
             explicit_retry=True,
         )
-        assert not commit_allowed()
+        assert not workflow_authority()
         return IntegrationExecutionResult(
             "stale_head", "private head changed during executor"
         )
@@ -1650,15 +2105,15 @@ async def test_executor_callback_checkpoints_rebase_before_retry_result(tmp_path
     def execute(
         row,
         *,
-        commit_allowed,
+        workflow_authority,
         rebased_head_prepare,
         rebased_head_checkpoint,
         **_kwargs,
     ):
-        assert commit_allowed()
+        assert workflow_authority()
         assert rebased_head_prepare("d" * 40, "e" * 40)
         assert rebased_head_checkpoint("d" * 40, "e" * 40)
-        assert commit_allowed()
+        assert workflow_authority()
         return IntegrationExecutionResult(
             "epic_head_race",
             "epic parent advanced after the push",
@@ -1676,6 +2131,42 @@ async def test_executor_callback_checkpoints_rebase_before_retry_result(tmp_path
 
     assert queue.get("project-1", "TASK-A").head_sha == "d" * 40
     assert tracker.fetch_issue_detail("TASK-A").integration.head_sha == "d" * 40
+
+
+@pytest.mark.asyncio
+async def test_legacy_queue_claim_fences_late_workflow_executor(tmp_path):
+    holder = {}
+
+    def execute(row, *, workflow_authority, **_kwargs):
+        assert workflow_authority()
+        claimed = holder["queue"].claim_next(
+            project_id=row.project_id,
+            epic_id=row.epic_id,
+            lease_owner="legacy-integrator",
+            dependency_map={row.task_id: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert claimed.lease_owner == "legacy-integrator"
+        assert not workflow_authority()
+        return IntegrationExecutionResult(
+            "cancelled",
+            "legacy queue claim replaced workflow authority",
+        )
+
+    backend, context, queue, _tracker = integration_backend_context(
+        tmp_path,
+        execute=execute,
+    )
+    holder["queue"] = queue
+
+    with pytest.raises(WorkflowActionError, match="replaced workflow authority"):
+        await backend.apply_action("integration_attempt", context)
+
+    current = queue.get("project-1", "TASK-A")
+    assert current is not None
+    assert current.state == "integrating"
+    assert current.lease_owner == "legacy-integrator"
 
 
 @pytest.mark.asyncio

@@ -3636,7 +3636,7 @@ class OrchestratorIntegrationActionBackend:
             result = await asyncio.to_thread(
                 self.orchestrator._execute_integration_item,
                 row,
-                commit_allowed=lambda: self._exact_authority(
+                workflow_authority=lambda: self._exact_authority(
                     context,
                     queue_generation=str(authority["generation"]),
                     task_branch=authority["row"].task_branch,
