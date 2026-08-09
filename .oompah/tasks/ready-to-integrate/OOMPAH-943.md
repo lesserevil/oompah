@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T10:28:50.814771Z'
+updated_at: '2026-08-09T12:52:54.158627Z'
 work_branch: OOMPAH-943
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-08-09 09:44
 ---
 Persisted successful integration landing proof atomically with fenced job completion, added idempotent replay and retry-on-publication-failure semantics, rejected stale lease/revision publication, and consumed durable proof on subsequent fact cuts to suppress replacement refresh actions. PR #753; local verification: 298 focused tests plus 39 epic-workflow tests.
+---
+author: oompah
+created: 2026-08-09 12:52
+---
+Reconciled the in-flight integration deadlock: the accepted task commits are authoritatively contained in origin/epic-OOMPAH-940, so the exhausted administrative integration job is obsolete. Advancing to terminal validation while OOMPAH-958 fixes the systemic lease contract.
 ---
 <!-- COMMENTS:END -->

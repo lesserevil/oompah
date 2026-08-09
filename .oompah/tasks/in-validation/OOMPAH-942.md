@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-942
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Backfill trusted terminal-parent heads for pruned epic targets
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T10:04:25.455355Z'
+updated_at: '2026-08-09T12:52:48.956133Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -30,6 +30,37 @@ oompah.integration:
   submitted_at: '2026-08-09T10:04:18.080825+00:00'
   updated_at: '2026-08-09T10:04:18.080825+00:00'
 oompah.work_branch: OOMPAH-942
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-b8deaf092ff9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-942
+    digest: cca0f60722c8c72ed4ad68084440108d7429500afdee93d32f9d1ea141ddae8e
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b8deaf092ff9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-942
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cca0f60722c8c72ed4ad68084440108d7429500afdee93d32f9d1ea141ddae8e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T12:52:43.120907+00:00'
+    selected_ref: dcda220c225eef11f4704f61cade067d609e2da9
+    selected_sha: dcda220c225eef11f4704f61cade067d609e2da9
+  attempt_history: []
 ---
 ## Summary
 
@@ -82,5 +113,15 @@ author: oompah
 created: 2026-08-09 10:04
 ---
 Persist only one exact route-bound terminal-parent head after current-fingerprint and cross-authority agreement. Exact head dcda220c2; 156 focused tests pass.
+---
+author: oompah
+created: 2026-08-09 12:52
+---
+Reconciled the in-flight integration deadlock: the accepted task commits are authoritatively contained in origin/epic-OOMPAH-940, so the exhausted administrative integration job is obsolete. Advancing to terminal validation while OOMPAH-958 fixes the systemic lease contract.
+---
+author: oompah
+created: 2026-08-09 12:52
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
