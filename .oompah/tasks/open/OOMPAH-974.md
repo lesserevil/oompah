@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T21:05:01.679955Z'
+updated_at: '2026-08-09T21:05:55.099361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Regression of OOMPAH-737/OOMPAH-350 observed live on 2026-08-09 while the 1,776-
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 21:05
+---
+Direct owner recovery/implementation claimed after live reproduction. Exact incident: verified service PID 2715559, no worker children, all HTTP lifecycle calls timed out, force-restart could not pass old-health precondition, SIGTERM stop exceeded 30 seconds, exact process group required SIGKILL, and make start recovered exact build 312c18ae3.
+---
+<!-- COMMENTS:END -->
