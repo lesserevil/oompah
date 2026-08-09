@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-943
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Persist successful landing refresh facts before job completion
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T12:53:07.317494Z'
+updated_at: '2026-08-09T16:25:59.259292Z'
 work_branch: OOMPAH-943
 target_branch: null
 review_url: null
@@ -38,6 +38,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-943
     digest: a9f43b17f0a0e1a017c70050d59ebc60182ae1c132df8a1ce9298c97555256dd
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d9ff64830cfe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-943
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a9f43b17f0a0e1a017c70050d59ebc60182ae1c132df8a1ce9298c97555256dd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact accepted head b30a2880d57460b730547faa2d90732a4bab8e9c
+      was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435,
+      merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python
+      3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:25:52.994430+00:00'
+    selected_ref: b30a2880d57460b730547faa2d90732a4bab8e9c
+    selected_sha: b30a2880d57460b730547faa2d90732a4bab8e9c
+    applied: false
   version: 1
   pending_chain:
   - version: 1
