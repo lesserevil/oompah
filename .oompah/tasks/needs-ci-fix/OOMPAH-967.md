@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-967
 type: bug
-status: In Validation
+status: Needs CI Fix
 priority: 1
 title: Honor retained terminal provenance in canonical workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T19:23:46.684374Z'
+updated_at: '2026-08-09T19:47:22.368920Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -43,6 +43,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-967
     digest: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-967","audit-e269ff899599","attempt-22ec5f9cf43e"]': '2026-08-09T19:47:13.672029+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    target_state: Done
+    evidence_fingerprint: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+    audit_ids:
+    - audit-e269ff899599
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T19:47:13.672046+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    audit_id: audit-e269ff899599
+    attempt_id: attempt-22ec5f9cf43e
+    target_state: Done
+    evidence_fingerprint: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+    status: Needs CI Fix
+    audit_ids:
+    - audit-e269ff899599
+    kind: result
+    applied: true
+    created_at: '2026-08-09T19:47:13.672059+00:00'
+    applied_at: '2026-08-09T19:47:20.740682+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -50,7 +76,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-967
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -59,7 +85,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-22ec5f9cf43e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -71,6 +97,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-967
       selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
       selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+      verdict: fail
+      failure_classification: ci_failure
+      completed_at: '2026-08-09T19:47:13.671891+00:00'
+      ended_at: '2026-08-09T19:47:13.671891+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -80,7 +110,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:23:23.368442+00:00'
     selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
     selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
-    updated_at: '2026-08-09T19:23:38.665062+00:00'
+    updated_at: '2026-08-09T19:47:13.671891+00:00'
   - version: 1
     audit_id: audit-d4cb6310cc1e
     project_id: proj-14849f1b
@@ -209,5 +239,12 @@ author: oompah
 created: 2026-08-09 19:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 19:47
+---
+Audit FAIL — ci failure. Routing task to Needs CI Fix.
+
+make test failed with exit code 2: 10 test failures in test infrastructure modules (test_pytest_parallel.py, test_acp_codex_backend.py, test_oompah_md_tracker.py, test_validation_resource_lease.py). These failures appear to be environmental (Python path validation errors) rather than code defects in OOMPAH-967. All core tests for provenance suppression, work decision, and terminal audit metadata pass (19,144 passed total). However, the full gate did not pass as required by audit contract.
 ---
 <!-- COMMENTS:END -->
