@@ -16,8 +16,11 @@ jobs:
     # for local validation.
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -27,10 +30,58 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Provision OS sandbox
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap iproute2
+          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          if test -e /proc/sys/kernel/unprivileged_userns_clone; then
+            sudo sysctl -w kernel.unprivileged_userns_clone=1
+          fi
+
+          bwrap \
+            --die-with-parent \
+            --new-session \
+            --unshare-user \
+            --unshare-pid \
+            --unshare-net \
+            --clearenv \
+            --tmpfs / \
+            --dir /usr \
+            --ro-bind /usr /usr \
+            --symlink usr/bin /bin \
+            --symlink usr/lib /lib \
+            --symlink usr/lib64 /lib64 \
+            --dev /dev \
+            --proc /proc \
+            /bin/true
+
+          bwrap \
+            --die-with-parent \
+            --new-session \
+            --unshare-user \
+            --unshare-pid \
+            --unshare-net \
+            --cap-add CAP_NET_ADMIN \
+            --proc /proc \
+            --dev /dev \
+            --ro-bind /usr /usr \
+            --symlink usr/bin /bin \
+            --symlink usr/lib /lib \
+            --symlink usr/lib64 /lib64 \
+            /bin/sh -c 'ip link show lo >/dev/null 2>&1'
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.name oompah
+          git config --global user.email lesserevil@users.noreply.github.com
+
+      - name: Create supported test environment
+        run: |
+          python -m pip install --upgrade pip uv
+          make test-setup
 
       - name: Run tests
-        run: pytest -v
+        run: make test
