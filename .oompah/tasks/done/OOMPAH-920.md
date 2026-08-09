@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-920
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Make rollout canary rely on durable shadow evidence
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T16:18:41.997110Z'
-updated_at: '2026-08-09T05:14:43.073287Z'
+updated_at: '2026-08-09T05:14:47.412419Z'
 work_branch: null
 target_branch: null
 review_url: null
