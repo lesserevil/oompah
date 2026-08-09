@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: Needs Human
+status: Done
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T14:48:42.286555Z'
+updated_at: '2026-08-09T16:19:06.478105Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -72,6 +72,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T14:46:28.501614+00:00'
     applied_at: '2026-08-09T14:46:35.923212+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-aa767f34f18b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner recovery of stuck Needs Human task: PR #763 exact head
+      43531865cb7a8ba62ee5b2310f136e55b57d12e5 passed hosted Python 3.11/3.12/3.13
+      CI in run 31314554882 and merged as e8ef2a4c04affdfd1919f906712d21df40538af7.
+      The completion auditor ran for 38 minutes and produced only a generic redacted
+      operator prompt, not actionable code evidence; the rollout work is already on
+      main.'
+    created_at: '2026-08-09T16:19:02.155746+00:00'
+    selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
