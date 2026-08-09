@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T10:26:21.283369Z'
+updated_at: '2026-08-09T10:28:16.639755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Full make test for OOMPAH-946 on 2026-08-09 reached 18,890 passing tests but int
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 10:28
+---
+Investigation proved the full-gate ordering was correct production behavior: with aging_seconds=0.01, the observed ~210 ms xdist scheduling pause moved the worker across all 21 aging bands, so its starvation protection legitimately outranked the later exact waiter. Commit 27c3685dc keeps replacement waiters in an explicit 30-second aging band (630-second starvation window), artificially reproduces the 250 ms hosted pause, and asserts durable telemetry for the genuinely aged cancelled waiter and both fresh replacements before release. Production selection code is unchanged. Verification: the regression passed 10 consecutive runs; all 499 validation-resource lease tests passed; five focused priority/cancellation/restart/multiprocess tests, Ruff, terminal mutation scan, and secret scan passed. The preceding OOMPAH-946 full gate had already passed the other 18,890 tests before exposing this one test assumption.
+---
+<!-- COMMENTS:END -->
