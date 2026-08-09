@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-951
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Align ACP auditor result tool schema with its advertised contract
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:46:27.644873Z'
-updated_at: '2026-08-09T10:52:25.371291Z'
+updated_at: '2026-08-09T10:54:48.937424Z'
 work_branch: OOMPAH-951
 target_branch: null
 review_url: null
