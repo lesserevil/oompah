@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:12:44.836258Z'
+updated_at: '2026-08-09T22:13:09.427712Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -175,6 +175,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-974
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+oompah.task_costs:
+  total_input_tokens: 330
+  total_output_tokens: 11727
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 330
+      output_tokens: 11727
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 330
+    output_tokens: 11727
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T22:12:56.158163+00:00'
 ---
 ## Summary
 
@@ -262,5 +278,20 @@ created: 2026-08-09 22:12
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Protected PR #783 merged exact head 8526a01b into 9ea2d4d07; Python 3.11/3.12/3.13 gates passed, independent review approved with 399 tests, focused implementation suite passed 335, combined no-failure full run reached 8,580 tests, exact merge is deployed, force recovery succeeded, and health remained HTTP 200 throughout cold 1,776-task reconciliation. Auditor shell mutation attempts were policy-incompatible and add no authority beyond these exact checks.
+---
+author: oompah
+created: 2026-08-09 22:13
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 86, Tool calls: 40
+- Tokens: 330 in / 11.7K out [12.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 15s
+- Log: OOMPAH-974__20260809T220350Z.jsonl
+---
+author: oompah
+created: 2026-08-09 22:13
+---
+Lifecycle/reconciliation recovery fix merged, deployed, and live-verified.
 ---
 <!-- COMMENTS:END -->
