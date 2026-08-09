@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T11:56:03.443710Z'
+updated_at: '2026-08-09T12:45:52.538740Z'
 work_branch: OOMPAH-947
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-09 11:55
 ---
 Branch quality gate passed for `139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5` using `make test` in 166.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 12:45
+---
+Propagated OOMPAH-957 concurrency-test stabilization onto the review branch at 7103d8ee6 after hosted Python 3.11 reproduced the exact native-boundary timeout. PR #760 matrix is rerunning.
 ---
 <!-- COMMENTS:END -->
