@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:46:27.644873Z'
-updated_at: '2026-08-09T13:03:07.532935Z'
+updated_at: '2026-08-09T13:03:22.754242Z'
 work_branch: OOMPAH-951
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/759
@@ -148,6 +148,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-951
     selected_ref: 5defaaa424e9a1303ee292ad523369e53e1b08e1
     selected_sha: 5defaaa424e9a1303ee292ad523369e53e1b08e1
+oompah.task_costs:
+  total_input_tokens: 338
+  total_output_tokens: 10278
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 338
+      output_tokens: 10278
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 338
+    output_tokens: 10278
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T13:03:17.834682+00:00'
 ---
 ## Summary
 
@@ -214,5 +230,15 @@ Safe evidence:
 - quality_gate_command: make test
 - quality_gate_duration: 161.13 seconds
 - files_modified: oompah/acp_tools.py, tests/test_auditor_contract.py, test_acp_auditor_result_bridge.py, test_acp_tool_output_bounds.py
+---
+author: oompah
+created: 2026-08-09 13:03
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 89, Tool calls: 41
+- Tokens: 338 in / 10.3K out [10.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 9s
+- Log: OOMPAH-951__20260809T125816Z.jsonl
 ---
 <!-- COMMENTS:END -->
