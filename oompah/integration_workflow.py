@@ -667,6 +667,157 @@ class IntegrationLandingRequestResolver:
             return None
         return row
 
+    def _parent_scoped_child_landing(
+        self,
+        task: Issue,
+        *,
+        source_candidates: Sequence[object],
+        target: str,
+        revision_candidates: Sequence[object],
+    ) -> LandingFact | None:
+        """Return one current parent-owned landing proof for ``task``.
+
+        Epic evaluation persists child landing facts under the epic identity,
+        because one graph snapshot owns all of its direct-child obligations.
+        A later Done-child integration pass must be able to consume that same
+        proof after the child's mutable branch and legacy integration row have
+        been pruned.  The parent store key is not authority on its own: bind
+        the import to the current direct-containment snapshot, exact route,
+        source, and every revision still named by current task state.
+        """
+
+        parent_id = str(task.parent_id or "").strip()
+        if (
+            canonicalize_status(task.state) != DONE
+            or not parent_id
+            or self.workflow_store is None
+        ):
+            return None
+        fetch = getattr(self.tracker, "fetch_issue_detail", None)
+        fetch_children = getattr(self.tracker, "fetch_children", None)
+        if not callable(fetch) or not callable(fetch_children):
+            return None
+        try:
+            parent = fetch(parent_id)
+            children = tuple(fetch_children(parent_id))
+        except Exception:  # noqa: BLE001 - tracker evidence boundary
+            return None
+        parent_identity = str(
+            getattr(parent, "identifier", "") or getattr(parent, "id", "") or ""
+        ).strip()
+        parent_project = str(getattr(parent, "project_id", "") or "").strip()
+        if (
+            parent is None
+            or parent_identity != parent_id
+            or str(getattr(parent, "issue_type", "") or "").strip().lower()
+            != "epic"
+            or (
+                parent_project
+                and self.project_id
+                and parent_project != self.project_id
+            )
+        ):
+            return None
+
+        matching_children = tuple(
+            child
+            for child in children
+            if str(
+                getattr(child, "identifier", "")
+                or getattr(child, "id", "")
+                or ""
+            ).strip()
+            == task.identifier
+            and str(getattr(child, "parent_id", "") or "").strip() == parent_id
+            and (
+                not str(getattr(child, "project_id", "") or "").strip()
+                or not self.project_id
+                or str(getattr(child, "project_id", "") or "").strip()
+                == self.project_id
+            )
+        )
+        if len(matching_children) != 1:
+            return None
+        current_child = matching_children[0]
+        authority_child = (
+            current_child
+            if current_child.project_id
+            else replace(current_child, project_id=self.project_id)
+        )
+        authority_task = (
+            task if task.project_id else replace(task, project_id=self.project_id)
+        )
+        if issue_authority_version(authority_child) != issue_authority_version(
+            authority_task
+        ):
+            # A cached task paired with a newer containment scan is not one
+            # atomic authority cut.  The next complete workflow scan retries.
+            return None
+
+        expected_target = self._parent_source_branch(parent)
+        if not expected_target or (target and target != expected_target):
+            return None
+        explicit_sources = {
+            str(value or "").strip()
+            for value in source_candidates
+            if str(value or "").strip()
+        }
+        if len(explicit_sources) > 1:
+            return None
+        expected_source = next(iter(explicit_sources), "") or str(
+            task.work_branch or task.branch_name or task.identifier
+        ).strip()
+        if not expected_source:
+            return None
+
+        current_revisions = {
+            revision
+            for value in (*revision_candidates, issue_exact_head(current_child))
+            if (revision := self._git_revision(value)) is not None
+        }
+        if len(current_revisions) > 1:
+            return None
+        expected_revision = next(iter(current_revisions), None)
+        try:
+            raw_facts = self.workflow_store.latest_landing_facts_for_pair(
+                project_id=self.project_id,
+                task_id=parent_id,
+                source=expected_source,
+                target=expected_target,
+            )
+        except Exception:  # noqa: BLE001 - durable evidence boundary
+            return None
+        candidates: list[LandingFact] = []
+        for raw in raw_facts:
+            try:
+                fact = LandingFact.from_dict(raw)
+            except (TypeError, ValueError):
+                # One corrupt parent evidence row makes this authority source
+                # incomplete; do not select a convenient sibling row.
+                return None
+            if (
+                fact.project_id == self.project_id
+                and fact.source == expected_source
+                and fact.target == expected_target
+                and fact.state is LandingState.LANDED
+                and fact.durable
+            ):
+                candidates.append(fact)
+        if len(candidates) != 1:
+            return None
+        fact = candidates[0]
+        revision = self._git_revision(fact.revision)
+        if revision is None or (
+            expected_revision is not None and revision != expected_revision
+        ):
+            return None
+        proof_revision_value = fact.proof.get("source_sha")
+        if proof_revision_value is not None and (
+            self._git_revision(proof_revision_value) != revision
+        ):
+            return None
+        return fact
+
     def _parent_target(self, task: Issue) -> tuple[str, str | None]:
         parent_id = str(task.parent_id or "").strip()
         if not parent_id:
@@ -729,9 +880,6 @@ class IntegrationLandingRequestResolver:
         record_state = str(value.get("state") or "").strip().lower()
         row_state = str(getattr(row, "state", "") or "").strip().lower()
         integrated = record_state == "integrated" or row_state == "integrated"
-        if not integrated and not include_ready:
-            return ()
-
         record_authoritative = include_ready or record_state == "integrated"
         queue_authoritative = include_ready or row_state == "integrated"
         record_source = (
@@ -761,9 +909,7 @@ class IntegrationLandingRequestResolver:
         else:
             # Preserve the existing Ready-path fallback without treating a
             # partial tracker record as exact completed-generation evidence.
-            source = (
-                record_source or queue_source or str(task.work_branch or "").strip()
-            )
+            source = record_source or queue_source or str(task.work_branch or "").strip()
             revision = record_revision or queue_revision
 
         target = (
@@ -786,6 +932,23 @@ class IntegrationLandingRequestResolver:
             # parent's exact accepted head can preserve that target generation
             # after the mutable container ref has been pruned.
             _parent_branch, trusted_target_revision = self._parent_target(task)
+        parent_landing = self._parent_scoped_child_landing(
+            task,
+            source_candidates=(
+                record_source,
+                queue_source,
+                str(task.work_branch or "").strip(),
+            ),
+            target=target,
+            revision_candidates=(record_revision, queue_revision),
+        )
+        if parent_landing is not None:
+            source = parent_landing.source
+            target = parent_landing.target
+            revision = parent_landing.revision or ""
+            integrated = True
+        if not integrated and not include_ready:
+            return ()
         if not source or not target:
             return ()
         try:
@@ -794,6 +957,7 @@ class IntegrationLandingRequestResolver:
                     source,
                     target,
                     revision or None,
+                    prior=parent_landing,
                     authoritative_target=integrated,
                     trusted_target_revision=trusted_target_revision,
                 ),
